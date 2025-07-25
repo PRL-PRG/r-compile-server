@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;

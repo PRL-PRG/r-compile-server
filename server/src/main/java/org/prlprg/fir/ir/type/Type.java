@@ -9,6 +9,21 @@ import org.prlprg.parseprint.SkipWhitespace;
 public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
   public static final Type ANY = new Type(new Kind.Any(), Ownership.SHARED, Concreteness.MAYBE);
+  public static final Type INTEGER =
+      new Type(
+          new Kind.PrimitiveScalar(PrimitiveKind.INTEGER),
+          Ownership.SHARED,
+          Concreteness.DEFINITELY);
+  public static final Type INT_VECTOR =
+      new Type(
+          new Kind.PrimitiveVector(PrimitiveKind.INTEGER),
+          Ownership.SHARED,
+          Concreteness.DEFINITELY);
+  public static final Type BOOLEAN =
+      new Type(
+          new Kind.PrimitiveScalar(PrimitiveKind.LOGICAL),
+          Ownership.SHARED,
+          Concreteness.DEFINITELY);
 
   @Override
   public int compareTo(Type o) {

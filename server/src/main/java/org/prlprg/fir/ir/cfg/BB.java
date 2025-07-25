@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.PhiParameter;
+import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
@@ -25,6 +26,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
+import org.prlprg.util.Iterables;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 
@@ -79,6 +81,10 @@ public final class BB {
 
   public Jump jump() {
     return jump;
+  }
+
+  public @UnmodifiableView Iterable<BB> successors() {
+    return Iterables.lazyMapView(jump.targets(), Target::bb);
   }
 
   public @UnmodifiableView Collection<BB> predecessors() {

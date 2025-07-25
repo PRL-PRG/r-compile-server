@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
-import org.prlprg.fir.ir.cfg.Abstraction;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.instruction.Read;
 import org.prlprg.fir.ir.instruction.Write;
@@ -36,8 +36,7 @@ public final class ClosureCompiler {
   /// default values when necessary (uses `params.get(i).value()`).
   private static Abstraction createBaseline(Function output, ListSXP params) {
     var compiledParams = defaultParams(params);
-    var baseline = new Abstraction(output.owner(), compiledParams);
-    output.addVersion(baseline);
+    var baseline = output.addVersion(compiledParams);
 
     var baselineCursor = new CFGCursor(baseline.cfg());
     for (var i = 0; i < compiledParams.size(); i++) {

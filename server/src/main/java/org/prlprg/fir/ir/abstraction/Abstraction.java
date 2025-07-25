@@ -1,4 +1,4 @@
-package org.prlprg.fir.ir.cfg;
+package org.prlprg.fir.ir.abstraction;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -12,6 +12,7 @@ import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
@@ -23,10 +24,11 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
 
-public class Abstraction {
+public final class Abstraction {
   static final String DEFAULT_LOCAL_PREFIX = "r";
 
   // Backlink
+  // Don't store `Function owner` because we don't use it and it complicates inlining.
   private final Module module;
 
   // Data
