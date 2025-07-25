@@ -27,7 +27,6 @@ import org.prlprg.fir.ir.instruction.Expression;
 import org.prlprg.fir.ir.instruction.Force;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
-import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Literal;
 import org.prlprg.fir.ir.instruction.MaybeForce;
@@ -173,16 +172,10 @@ public final class TypeChecker {
           next = worklist.pop();
           flow = flowStates.get(next).copy();
 
-          for (cursor.moveTo(next, 0); cursor.isAtLocalEnd(); cursor.advance()) {
-            run(cursor.instruction());
+          for (cursor.moveTo(next, 0); !cursor.isAtLocalEnd(); cursor.advance()) {
+            run((Expression) cursor.instruction());
           }
-        }
-      }
-
-      void run(Instruction instruction) {
-        switch (instruction) {
-          case Expression expression -> run(expression);
-          case Jump jump -> run(jump);
+          run((Jump) cursor.instruction());
         }
       }
 
