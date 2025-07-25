@@ -14,6 +14,10 @@ public final class CheckException extends RuntimeException {
     return position;
   }
 
+  public String mainMessage() {
+    return super.getMessage();
+  }
+
   @Override
   public String getMessage() {
     return super.getMessage() + "\n" + position;

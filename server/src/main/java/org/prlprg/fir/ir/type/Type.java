@@ -83,7 +83,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
 
   public boolean isWellFormed() {
     return !(kind instanceof Kind.Any && concreteness == Concreteness.DEFINITE)
-        && !(kind instanceof Kind.PrimitiveVector && ownership != Ownership.SHARED);
+        && !(!(kind instanceof Kind.PrimitiveVector) && ownership != Ownership.SHARED);
   }
 
   public boolean isSubtypeOf(Type other) {
