@@ -139,7 +139,9 @@ public final class TypeChecker {
 
         var initialState = new ActionSet();
         // Parameters are initially written to.
-        abstraction.params().stream().map(Parameter::variable).forEachOrdered(initialState.write::add);
+        abstraction.params().stream()
+            .map(Parameter::variable)
+            .forEachOrdered(initialState.write::add);
 
         states.put(cursor.bb(), initialState);
         worklist.add(cursor.bb());
@@ -163,19 +165,57 @@ public final class TypeChecker {
 
       @Nullable Type run(Expression expression) {
         return switch (expression) {
-          case Call call -> {}
+          case Call call -> {
+            // Type check arguments
+            for (var arg : call.arguments()) {
+              run(arg);
+            }
+
+            // Get function type and effects
+            if (call.target() instanceof Function function) {
+              var version = function.versions().get(call.versionIndex());
+              effects = effects.union(version.returnEffects());
+              yield version.returnType();
+            } else {
+              report("Invalid call target");
+              yield null;
+            }
+          }
           case Cast(var value, var castType) -> {
             var valueType = run(value);
             checkWellFormed(castType);
 
             if (!valueType.isSubtypeOf(castType) && !castType.isSubtypeOf(valueType)) {
-              report("Stupid cast: " + value + " {: valueType} as " + castType + " will always fail");
+              report(
+                  "Stupid cast: "
+                      + value
+                      + " {: "
+                      + valueType
+                      + "} as "
+                      + castType
+                      + " will always fail");
             }
 
             yield castType;
           }
-          case Closure mkClos -> {}
-          case Dup(var value) -> {}
+          case Closure mkClos -> {
+            // Type check the closure's abstraction
+            new OnAbstraction(mkClos.abstraction()).run();
+            yield mkClos.type();
+          }
+          case Dup(var value) -> {
+            var type = run(value);
+            if (type == null) {
+              yield null;
+            }
+
+            if (!type.kind().isVector()) {
+              report("Can't dup non-vector, got " + type);
+              yield null;
+            }
+
+            yield type.withOwnership(Type.Ownership.FRESH);
+          }
           case Force(var value) -> {
             var type = run(value);
             if (type == null) {
@@ -208,29 +248,184 @@ public final class TypeChecker {
             for (var i = 0; i < elements.size(); i++) {
               var element = elements.get(i);
               var type = run(element);
-              checkSubtype(type, Type.INTEGER, "Type mismatch in element " + i + " of " + elements);
+              checkSubtype(type, Type.INTEGER, "Type mismatch in element " + i + " of vector");
             }
 
             yield Type.INT_VECTOR;
           }
           case Placeholder() -> null;
-          case Promise(var valueType, var effects1, var code) -> {}
+          case Promise(var valueType, var effects1, var code) -> {
+            // Save current state for promise context
+            var savedState = state.copy();
+            var savedEffects = effects;
+
+            // Check promise body in new context
+            state = state.inPromise();
+            effects = Effects.NONE;
+
+            // Type check the promise code
+            cursor.pushScope(code);
+            var actualType = null;
+            for (cursor.moveTo(code.entry(), 0); cursor.isAtLocalEnd(); cursor.advance()) {
+              actualType = run(cursor.instruction());
+            }
+            cursor.popScope();
+
+            // Check that actual type matches declared type
+            checkSubtype(actualType, valueType, "Promise return type mismatch");
+            checkSubEffects(effects, effects1, "Promise effects mismatch");
+
+            // Restore state
+            state = savedState;
+            effects = savedEffects;
+
+            yield Type.promise(valueType, effects1);
+          }
           case Read(var variable) -> {
             var type = types.get(variable);
+            if (type == null) {
+              report("Undeclared variable: " + variable);
+              yield null;
+            }
+
+            // Flow check: ensure variable is written before read
+            if (variable instanceof Register reg && !state.write.contains(reg)) {
+              report("Read before write: " + variable);
+            }
+            state.read.add((Register) variable);
+
+            yield type;
           }
-          case ReflectiveRead(var promise, var variable) -> {}
-          case ReflectiveWrite(var promise, var variable, var value) -> {}
-          case SubscriptRead(var target, var index) -> {}
-          case SubscriptWrite(var target, var index, var value) -> {}
-          case SuperRead(var variable) -> {}
-          case SuperWrite(var variable, var value) -> {}
+          case ReflectiveRead(var promise, var variable) -> {
+            var promiseType = run(promise);
+            if (promiseType != null && !promiseType.kind().isPromise()) {
+              report("Reflective read target must be a promise, got " + promiseType);
+            }
+
+            // Reflective operations have reflection effects
+            effects = effects.union(Effects.REFLECTION);
+
+            yield Type.ANY;
+          }
+          case ReflectiveWrite(var promise, var variable, var value) -> {
+            var promiseType = run(promise);
+            if (promiseType != null && !promiseType.kind().isPromise()) {
+              report("Reflective write target must be a promise, got " + promiseType);
+            }
+
+            var valueType = run(value);
+
+            // Reflective operations have reflection effects
+            effects = effects.union(Effects.REFLECTION);
+
+            yield valueType.withOwnership(Type.Ownership.SHARED);
+          }
+          case SubscriptRead(var target, var index) -> {
+            var targetType = run(target);
+            var indexType = run(index);
+
+            if (targetType != null && !targetType.kind().isVector()) {
+              report("Subscript read target must be a vector, got " + targetType);
+            }
+
+            checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
+
+            yield Type.INTEGER;
+          }
+          case SubscriptWrite(var target, var index, var value) -> {
+            var targetType = run(target);
+            var indexType = run(index);
+            var valueType = run(value);
+
+            if (targetType != null) {
+              if (!targetType.kind().isVector()) {
+                report("Subscript write target must be a vector, got " + targetType);
+              }
+              if (!targetType.ownership().isOwned()) {
+                report("Subscript write target must be owned, got " + targetType);
+              }
+            }
+
+            checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
+            checkSubtype(valueType, Type.INTEGER, "Vector element must be integer");
+
+            yield Type.INTEGER;
+          }
+          case SuperRead(var variable) -> {
+            var type = types.get(variable);
+            if (type == null) {
+              report("Undeclared variable: " + variable);
+              yield null;
+            }
+
+            // Super reads have different flow semantics
+            state.defer.add((Register) variable);
+
+            yield type;
+          }
+          case SuperWrite(var variable, var value) -> {
+            var type = types.get(variable);
+            if (type == null) {
+              report("Undeclared variable: " + variable);
+              yield null;
+            }
+
+            var valueType = run(value);
+            checkSubtype(valueType, type, "Type mismatch in super write");
+
+            // Super writes have different flow semantics
+            state.defer.add((Register) variable);
+
+            yield type;
+          }
           case Use(var variable) -> {
             var type = types.get(variable);
+            if (type == null) {
+              report("Undeclared variable: " + variable);
+              yield null;
+            }
+
+            if (!type.kind().isVector()) {
+              report("Can't use non-vector, got " + type);
+              yield null;
+            }
+
+            if (!type.ownership().isOwned()) {
+              report("Can't use non-owned vector, got " + type);
+              yield null;
+            }
+
+            // Flow check: ensure variable is written before use
+            if (variable instanceof Register reg && !state.write.contains(reg)) {
+              report("Use before write: " + variable);
+            }
+            state.read.add((Register) variable);
+            state.use.add((Register) variable);
+
+            yield type.withOwnership(Type.Ownership.FRESH);
           }
           case Write(var variable, var value) -> {
             var type = types.get(variable);
+            if (type == null) {
+              report("Undeclared variable: " + variable);
+              yield null;
+            }
+
+            var valueType = run(value);
+
+            // Check assignment compatibility
+            if (valueType != null && !valueType.canAssignTo(type)) {
+              report("Can't assign " + valueType + " to " + type);
+            }
+
+            // Update flow state
+            if (variable instanceof Register reg) {
+              state.write.add(reg);
+            }
+
+            yield type;
           }
-        }
+        };
       }
 
       void run(Jump jump) {
