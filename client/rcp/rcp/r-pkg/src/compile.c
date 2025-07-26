@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <time.h> // Include for time measurement
+#include <omp.h>
 
 #include "rcp_common.h"
 #include "runtime_internals.h"
@@ -376,14 +377,13 @@ typedef struct {
     SEXP *constpool;
     SEXP *bcells;
     SEXP *precompiled;
-    uint8_t *executable;
-    size_t *executable_lookup;
+    uint8_t **executable_lookup;
     int *bytecode;
     SEXP *rho;
     const int *bcell_lookup;
 } PatchContext;
 
-static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int nextop, void* variants, const PatchContext *ctx)
+static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int nextop, void* smc_variants, const PatchContext *ctx)
 {
     ptrdiff_t ptr;
 
@@ -415,12 +415,12 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
     break;
     case RELOC_RCP_EXEC_NEXT:
     {
-        ptr = (ptrdiff_t)&ctx->executable[ctx->executable_lookup[nextop]];
+        ptr = (ptrdiff_t)ctx->executable_lookup[nextop];
     }
     break;
     case RELOC_RCP_EXEC_IMM:
     {
-        ptr = (ptrdiff_t)&ctx->executable[ctx->executable_lookup[imms[hole->val.imm_pos] - 1]];
+        ptr = (ptrdiff_t)ctx->executable_lookup[imms[hole->val.imm_pos] - 1];
     }
     break;
     case RELOC_RCP_RAW_IMM:
@@ -457,7 +457,7 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
 #ifdef STEPFOR_SPECIALIZE
     case RELOC_RCP_PATCHED_VARIANTS:
     {
-        ptr = (ptrdiff_t)variants;
+        ptr = (ptrdiff_t)smc_variants;
     }
     break;
 #endif
@@ -624,8 +624,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     size_t insts_size = _RCP_INIT.body_size;
     size_t for_count = 0;
 
-    size_t *inst_start = calloc(bytecode_size, sizeof(size_t));
+    uint8_t **inst_start = calloc(bytecode_size, sizeof(uint8_t *));
     int *used_bcells = calloc(constpool_size, sizeof(int));
+    int *bytecode_lut = malloc(bytecode_size * sizeof(int *));
+
+    int count_opcodes = 0;
 
     // First pass to calculate the sizes
     for (int i = 0; i < bytecode_size; ++i)
@@ -637,6 +640,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         {
             free(inst_start);
             free(used_bcells);
+            free(bytecode_lut);
             error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
         }
         
@@ -645,8 +649,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             for_count++;
 #endif
 
-        inst_start[i] = insts_size;
+        inst_start[i] = (uint8_t*)insts_size;
         insts_size += stencil->body_size;
+        bytecode_lut[count_opcodes++] = i;
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
@@ -678,10 +683,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             break;
             }
         }
-        stats->count_opcodes++;
 
         i += imms_cnt[bytecode[i]];
     }
+
+    stats->count_opcodes += count_opcodes;
 
     DEBUG_PRINT("For loops used for this closure: %d\n", for_count);
 
@@ -723,6 +729,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     StepFor_specialized* stepfor_storage = (StepFor_specialized*)&memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions)];
     uint8_t *executable = &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions) + (for_count * sizeof(StepFor_specialized))];
 
+    for (size_t i = 0; i < bytecode_size; i++)
+    {
+        if(inst_start[i])
+            inst_start[i] += (ptrdiff_t)executable;
+    }
+    
+
     res.eval = (void *)executable;
     res.rho = rho;
 
@@ -743,62 +756,42 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         .constpool = constpool,
         .bcells = bcells,
         .precompiled = precompiled,
-        .executable = executable,
         .executable_lookup = inst_start,
         .bytecode = bytecode,
         .rho = rho,
         .bcell_lookup = used_bcells};
 
     // Start to copy-patch
-    size_t executable_pos = 0;
-    memcpy(&executable[executable_pos], _RCP_INIT.body, _RCP_INIT.body_size);
+    memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-        patch(&executable[executable_pos], &executable[executable_pos], &_RCP_INIT.holes[j], NULL, 0, NULL, &ctx);
+        patch(executable, executable, &_RCP_INIT.holes[j], NULL, 0, NULL, &ctx);
 
-    executable_pos += _RCP_INIT.body_size;
+    StepFor_specialized *stepfor_pool = stepfor_storage;
 
-    StepFor_specialized *stepfor_mem = stepfor_storage - 1;
-
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    #pragma omp parallel for
+    for (int i = 0; i < count_opcodes; i++)
     {
-        DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES[bytecode[i]]);
+        int bc_pos = bytecode_lut[i];
+        int  opcode = bytecode[bc_pos];
+        int* opargs = &bytecode[bc_pos + 1];
+        void *smc_variants = NULL;
 
-        const Stencil *stencil = get_stencil(bytecode[i], &bytecode[i + 1], constpool);
+        DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES[opcode]);
 
-        switch (bytecode[i])
+        switch (opcode)
         {
-        case MAKECLOSURE_OP:
-        {
-            SEXP fb = constpool[bytecode[i + 1]];
-            SEXP body = VECTOR_ELT(fb, 1);
-
-            if (TYPEOF(body) == BCODESXP)
-            {
-                DEBUG_PRINT("**********\nCompiling closure\n");
-                // constpool[bytecode[i+1]] = Rf_duplicate(constpool[bytecode[i+1]]); // Should not be needed, constpool is ours
-                SEXP res = copy_patch_bc(body, stats);
-                SET_VECTOR_ELT(fb, 1, res);
-            }
-            else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
-            {
-                DEBUG_PRINT("Using precompiled closure\n");
-            }
-            else
-            {
-                error("Invalid closure type: %d\n", TYPEOF(body));
-            }
-            DEBUG_PRINT("**********\nClosure compiled\n");
-        }
-        break;
 #ifdef STEPFOR_SPECIALIZE
         case STARTFOR_OP:
         {
-            stepfor_mem++;
-            //printf("Using specialized StepFor at %p\n", stepfor_mem);
+            StepFor_specialized *stepfor_mem;
+
+            #pragma omp atomic capture // Get own memory for this startfor
+            stepfor_mem = stepfor_pool++;
+
             *stepfor_mem = stepfor_data; // Copy the specialized StepFor data
 
-            int stepfor_bc = bytecode[i + 1 + 2]-1;
-            uint8_t *stepfor_code = &executable[inst_start[stepfor_bc]];
+            int stepfor_bc = bytecode[bc_pos + 1 + 2]-1;
+            uint8_t *stepfor_code = inst_start[stepfor_bc];
 
             // Set the destination pointer to point to where the stepfor code should be copied to
             stepfor_mem->dst = stepfor_code;
@@ -813,27 +806,27 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
                 patch(stepfor_mem->src[a], stepfor_mem->dst, &_RCP_STEPFOR_##a##_OP.holes[j], &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
 X_STEPFOR_TYPES
 #undef X
+            smc_variants = stepfor_mem;
         }
         break;
         case STEPFOR_OP:
-
-            // Stepfor was already handled above
-            executable_pos += stencil->body_size;
+            // Stepfor was already handled during startfor
             continue;
 #endif
         default:
             break;
         }
 
-        memcpy(&executable[executable_pos], stencil->body, stencil->body_size);
+        const Stencil *stencil = get_stencil(opcode, opargs, constpool);
+
+        memcpy(inst_start[bc_pos], stencil->body, stencil->body_size);
 
         // Patch the holes
         for (size_t j = 0; j < stencil->holes_size; ++j)
-            patch(&executable[executable_pos], &executable[executable_pos], &stencil->holes[j], &bytecode[i + 1], i + imms_cnt[bytecode[i]] + 1, stepfor_mem, &ctx);
-
-        executable_pos += stencil->body_size;
+            patch(inst_start[bc_pos], inst_start[bc_pos], &stencil->holes[j], opargs, bc_pos + imms_cnt[bytecode[bc_pos]] + 1, smc_variants, &ctx);
     }
 
+    free(bytecode_lut);
     free(used_bcells);
     free(inst_start);
 
@@ -907,11 +900,48 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
 
     SEXP code = PROTECT(R_bcDecode(bcode_code));
 
-    int *bytecode = INTEGER(code) + 1;
-    int bytecode_size = LENGTH(code) - 1;
+    int *bytecode = INTEGER(code);
+    int bytecode_size = LENGTH(code);
+
+    if(bytecode_size == 0)
+        error("Cannot compile empty bytecode.\n");
+
+    // Skip the first member in the array, it is the version number
+    bytecode += 1;
+    bytecode_size -= 1;
 
     SEXP *consts = DATAPTR(bcode_consts);
     int consts_size = LENGTH(bcode_consts);
+
+    // First compile all closures recursively, depth first
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    {
+        int opcode = bytecode[i];
+        int *opargs = &bytecode[i + 1];
+
+        if(opcode == MAKECLOSURE_OP)
+        {
+            SEXP fb = consts[opargs[0]];
+            SEXP body = VECTOR_ELT(fb, 1);
+
+            if (TYPEOF(body) == BCODESXP)
+            {
+                DEBUG_PRINT("**********\nCompiling closure\n");
+                // constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); // Should not be needed, constpool is ours
+                SEXP res = copy_patch_bc(body, stats);
+                SET_VECTOR_ELT(fb, 1, res);
+            }
+            else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
+            {
+                DEBUG_PRINT("Using precompiled closure\n");
+            }
+            else
+            {
+                error("Invalid closure type: %d\n", TYPEOF(body));
+            }
+            DEBUG_PRINT("**********\nClosure compiled\n");
+        }
+    }
 
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
     rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats);
