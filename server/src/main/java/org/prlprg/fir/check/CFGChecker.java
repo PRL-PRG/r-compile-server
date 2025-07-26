@@ -47,11 +47,159 @@ public class CFGChecker extends Checker {
     ///     instruction or dominating block), or it must be defined outside the promise in an
     ///     earlier instruction or dominating block relative to promise itself.
     /// - Every basic block is connected to the entry.
-    static void run(CFG cfg) {
-      // TODO: verify the invariants explained above.
-      //  Follow DRY: implement static analyses like def-use and dominator tree in their respective
-      //    files so they can be reused in optimizations that will be implemented later, and
-      //    abstract and other analysis or methods you may feel will be reused.
+    void run(CFG cfg) {
+      var scope = cfg.scope();
+      var dominatorTree = new org.prlprg.fir.analyze.DominatorTree(cfg);
+      var defUses = new org.prlprg.fir.analyze.DefUses(cfg);
+
+      // Check phi parameter invariants
+      checkPhiParameters(cfg);
+
+      // Check register scoping and definition invariants
+      checkRegisterInvariants(cfg, scope, dominatorTree, defUses);
+
+      // Check reachability
+      checkReachability(cfg, dominatorTree);
+    }
+
+    private void checkPhiParameters(CFG cfg) {
+      for (var bb : cfg.bbs()) {
+        var phiParams = bb.phiParameters();
+        if (!phiParams.isEmpty()) {
+          // Entry block should not have phi parameters
+          if (bb == cfg.entry()) {
+            report(bb, 0, "Entry block cannot have phi parameters");
+          }
+          // Blocks with < 2 predecessors should not have phi parameters
+          else if (bb.predecessors().size() < 2) {
+            report(bb, 0, "Block with < 2 predecessors cannot have phi parameters");
+          }
+        }
+      }
+    }
+
+    private void checkRegisterInvariants(
+        CFG cfg,
+        org.prlprg.fir.ir.abstraction.Abstraction scope,
+        org.prlprg.fir.analyze.DominatorTree dominatorTree,
+        org.prlprg.fir.analyze.DefUses defUses) {
+
+      // Collect all registers from parameters and locals
+      var parameterRegisters = new HashSet<org.prlprg.fir.ir.variable.Register>();
+      var localRegisters = new HashSet<org.prlprg.fir.ir.variable.Register>();
+
+      for (var param : scope.parameters()) {
+        if (param.variable() instanceof org.prlprg.fir.ir.variable.Register reg) {
+          parameterRegisters.add(reg);
+        }
+      }
+
+      for (var local : scope.locals()) {
+        if (local.variable() instanceof org.prlprg.fir.ir.variable.Register reg) {
+          localRegisters.add(reg);
+        }
+      }
+
+      // Check all registers are either parameters or locals
+      var allRegisters = new HashSet<org.prlprg.fir.ir.variable.Register>();
+      allRegisters.addAll(defUses.getDefinedRegisters());
+      allRegisters.addAll(defUses.getUsedRegisters());
+
+      for (var register : allRegisters) {
+        if (!parameterRegisters.contains(register) && !localRegisters.contains(register)) {
+          report(cfg.entry(), 0, "Register " + register + " is not declared as parameter or local");
+        }
+      }
+
+      // Parameters should never be assigned
+      for (var paramReg : parameterRegisters) {
+        var definitions = defUses.getDefinitions(paramReg);
+        if (!definitions.isEmpty()) {
+          for (var def : definitions) {
+            report(
+                def.bb(), def.instructionIndex(), "Parameter " + paramReg + " cannot be assigned");
+          }
+        }
+      }
+
+      // Locals should be assigned exactly once
+      for (var localReg : localRegisters) {
+        var definitions = defUses.getDefinitions(localReg);
+        if (definitions.isEmpty()) {
+          report(cfg.entry(), 0, "Local register " + localReg + " is never assigned");
+        } else if (definitions.size() > 1) {
+          for (var def : definitions) {
+            report(
+                def.bb(),
+                def.instructionIndex(),
+                "Local register " + localReg + " assigned multiple times");
+          }
+        }
+      }
+
+      // Check use-before-def for locals
+      for (var localReg : localRegisters) {
+        var definitions = defUses.getDefinitions(localReg);
+        var uses = defUses.getUses(localReg);
+
+        if (definitions.size() == 1) {
+          var definition = definitions.iterator().next();
+
+          for (var use : uses) {
+            if (!isDefBeforeUse(definition, use, dominatorTree)) {
+              report(
+                  use.bb(),
+                  use.instructionIndex(),
+                  "Use of local register " + localReg + " before definition");
+            }
+          }
+        }
+      }
+
+      // Check promise scoping rules
+      checkPromiseScoping(cfg, defUses);
+    }
+
+    private boolean isDefBeforeUse(
+        org.prlprg.fir.analyze.DefUses.DefUse definition,
+        org.prlprg.fir.analyze.DefUses.DefUse use,
+        org.prlprg.fir.analyze.DominatorTree dominatorTree) {
+
+      // Same block: def must come before use
+      if (definition.bb() == use.bb()) {
+        return definition.instructionIndex() < use.instructionIndex();
+      }
+
+      // Different blocks: def's block must dominate use's block
+      return dominatorTree.dominates(definition.bb(), use.bb());
+    }
+
+    private void checkPromiseScoping(CFG cfg, org.prlprg.fir.analyze.DefUses defUses) {
+      // For now, this is a simplified check
+      // A full implementation would track promise nesting and cross-promise variable access
+      for (var bb : cfg.bbs()) {
+        for (var i = 0; i < bb.statements().size(); i++) {
+          var stmt = bb.statements().get(i);
+          if (stmt instanceof org.prlprg.fir.ir.instruction.Promise promise) {
+            // Recursively check the promise CFG
+            var promiseChecker = new CFGChecker();
+            promiseChecker.run(promise.code().scope());
+            // Merge any errors found
+            for (var error : promiseChecker.errors()) {
+              report(bb, i, "In promise: " + error.getMessage());
+            }
+          }
+        }
+      }
+    }
+
+    private void checkReachability(CFG cfg, org.prlprg.fir.analyze.DominatorTree dominatorTree) {
+      var entry = cfg.entry();
+      for (var bb : cfg.bbs()) {
+        if (bb != entry && dominatorTree.getDominators(bb).isEmpty()) {
+          report(bb, 0, "Block " + bb.label() + " is unreachable from entry");
+        }
+      }
     }
   }
 }
