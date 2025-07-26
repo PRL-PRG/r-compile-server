@@ -55,6 +55,10 @@ BENCH_NAME ?= $(shell echo "rcp-$$(date +'%Y%m%d-%H%M%S')-$$(git rev-parse --sho
 BENCH_OUT_DIR := $(shell echo "$$(pwd)/benchmark-results")/$(BENCH_NAME)
 OPTS ?= --rsh
 
+TXT_BOLD = \033[1m
+TXT_NORM = \033[0m
+TXT_GREEN = \033[0;32m
+TXT_RED = \033[0;31m
 
 R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := $(R) #LD_PRELOAD=$(LLVM_LIB) $(R)
@@ -74,7 +78,7 @@ benchmark: install
 		test=$$(basename $$file); \
 		test=$${test%.*}; \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(HARNESS_BIN) --args --output-dir $(BENCH_OUT_DIR) $(OPTS) $${file%.*}"; \
+		cmd="$(BENCH_R) $(HARNESS_BIN) --args --output-dir $(BENCH_OUT_DIR) $(OPTS) --runs $(BENCH_ITER) $${file%.*}"; \
 		echo $$cmd; \
 		eval "/usr/bin/time -v -o \"$(BENCH_OUT_DIR)/$$test.time\" $$cmd"; \
 		exit=$$?; \
