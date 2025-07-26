@@ -1,11 +1,8 @@
 package org.prlprg.fir.check;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
@@ -44,8 +41,6 @@ import org.prlprg.fir.ir.instruction.SuperWrite;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.instruction.Write;
-import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
@@ -55,36 +50,8 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 
-public final class TypeChecker {
-  private final List<CheckException> errors = new ArrayList<>();
-
-  /// Returns all errors found during type-checking.
-  public List<CheckException> errors() {
-    return errors;
-  }
-
-  /// Throws an [IllegalStateException] if there are any errors found during type-checking.
-  public void finish() {
-    if (!errors.isEmpty()) {
-      throw new IllegalStateException(
-          "Encountered type errors:\n\n" + Joiner.on("\n\n").join(errors));
-    }
-  }
-
-  /// Check the types, effects, and flow of all code in the module.
-  public void run(Module module) {
-    for (var function : module.localFunctions()) {
-      // Check each function
-      run(function);
-    }
-  }
-
-  public void run(Function function) {
-    for (var version : function.versions()) {
-      run(version);
-    }
-  }
-
+public final class TypeChecker extends Checker {
+  @Override
   public void run(Abstraction abstraction) {
     new OnAbstraction(abstraction).run();
   }
@@ -101,9 +68,6 @@ public final class TypeChecker {
       var cfg = new OnCfg(abstraction.cfg());
 
       for (var binding : Iterables.concat(abstraction.parameters(), abstraction.locals())) {
-        if (types.containsKey(binding.variable().name())) {
-          cfg.report("Duplicate variable declaration: " + binding.variable());
-        }
         types.put(binding.variable().name(), binding.type());
 
         cfg.checkWellFormed(binding.type());
@@ -133,7 +97,7 @@ public final class TypeChecker {
       @Nullable Type returnType = null;
       Effects effects = Effects.NONE;
       ActionSet returnFlow = new ActionSet();
-      CFGCursor cursor;
+      final CFGCursor cursor;
 
       // Modifiers are only for decoration, to indicate these shouldn't be accessed by the outer
       // class.
@@ -142,7 +106,6 @@ public final class TypeChecker {
       private ActionSet flow = new ActionSet();
       private BB next;
 
-      /// Runs the type-checker.
       OnCfg(CFG cfg) {
         cursor = new CFGCursor(cfg);
         // `next` is set before use, so whatever it's set to here doesn't matter.
@@ -578,7 +541,7 @@ public final class TypeChecker {
       }
 
       void report(String message) {
-        errors.add(new CheckException(message, cursor.copy()));
+        TypeChecker.this.report(cursor.bb(), cursor.instructionIndex(), message);
       }
 
       private class ActionSet {

@@ -5,7 +5,7 @@ import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 public final class CheckException extends RuntimeException {
   private final CFGCursor position;
 
-  public CheckException(String message, CFGCursor position) {
+  public CheckException(CFGCursor position, String message) {
     super(message);
     this.position = position;
   }
