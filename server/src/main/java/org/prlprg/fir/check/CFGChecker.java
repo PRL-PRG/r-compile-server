@@ -102,8 +102,8 @@ public class CFGChecker extends Checker {
 
       // Check all registers are either parameters or locals
       var allRegisters = new HashSet<org.prlprg.fir.ir.variable.Register>();
-      allRegisters.addAll(defUses.getDefinedRegisters());
-      allRegisters.addAll(defUses.getUsedRegisters());
+      allRegisters.addAll(defUses.definedRegisters());
+      allRegisters.addAll(defUses.usedRegisters());
 
       for (var register : allRegisters) {
         if (!parameterRegisters.contains(register) && !localRegisters.contains(register)) {
@@ -113,7 +113,7 @@ public class CFGChecker extends Checker {
 
       // Parameters should never be assigned
       for (var paramReg : parameterRegisters) {
-        var definitions = defUses.getDefinitions(paramReg);
+        var definitions = defUses.definitions(paramReg);
         if (!definitions.isEmpty()) {
           for (var def : definitions) {
             report(
@@ -124,7 +124,7 @@ public class CFGChecker extends Checker {
 
       // Locals should be assigned exactly once
       for (var localReg : localRegisters) {
-        var definitions = defUses.getDefinitions(localReg);
+        var definitions = defUses.definitions(localReg);
         if (definitions.isEmpty()) {
           report(cfg.entry(), 0, "Local register " + localReg + " is never assigned");
         } else if (definitions.size() > 1) {
@@ -139,8 +139,8 @@ public class CFGChecker extends Checker {
 
       // Check use-before-def for locals
       for (var localReg : localRegisters) {
-        var definitions = defUses.getDefinitions(localReg);
-        var uses = defUses.getUses(localReg);
+        var definitions = defUses.definitions(localReg);
+        var uses = defUses.uses(localReg);
 
         if (definitions.size() == 1) {
           var definition = definitions.iterator().next();

@@ -74,6 +74,11 @@ R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
 3. **Types**: Use `var` whenever possible instead of specifying types unnecessarily.
 4. **Comments**: Explain why something is done, not what is done. Avoid redundant or trivial comments.
 5. **Fields**: Don't prefix fields with `this.` unless necessary due to name shadowing.
+   - Initialize fields outside the constructor whenever possible (e.g. `private final Foo foo = new Foo()`).
+6. **Getters**: Use record-style getters (`foo()`, not `getFoo()`). More generally, don't prefix a method with `get...` unless it runs a non-negligible computation every call.
+7. **Finality:** Classes should be final whenever possible.
+8. **Records:** Use records whenever possible. Also, use record destructors whenever possible (`instanceof Foo(var foo, var _)`, not `instanceof Foo f`).
+9. **Conditionals:** Use `switch` instead of `if-else` (e.g. `switch (x) { case Foo(var foo, var _) -> ...; case Bar(var bar, var _) -> ...; }`, not `if (x instanceof Foo(var foo)) { ... } else if (x instanceof Bar(var bar)) { ... }`. Make switch statements exhaustive whenever possible.
 
 ### Documentation
 
