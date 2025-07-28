@@ -3,12 +3,12 @@ package org.prlprg.fir.ir.instruction;
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record Return(Expression value) implements Jump {
+public record Return(Argument value) implements Jump {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -26,12 +26,7 @@ public record Return(Expression value) implements Jump {
   }
 
   @Override
-  public @UnmodifiableView Collection<Expression> immediateChildren() {
+  public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(value);
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Variable> immediateVariables() {
-    return List.of();
   }
 }

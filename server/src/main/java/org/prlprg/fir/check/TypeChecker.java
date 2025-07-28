@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.Stack;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -16,31 +17,27 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
-import org.prlprg.fir.ir.instruction.Call;
-import org.prlprg.fir.ir.instruction.Cast;
-import org.prlprg.fir.ir.instruction.Closure;
-import org.prlprg.fir.ir.instruction.Dup;
-import org.prlprg.fir.ir.instruction.Expression;
-import org.prlprg.fir.ir.instruction.Force;
+import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.expression.Dup;
+import org.prlprg.fir.ir.expression.Force;
+import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.ReflectiveLoad;
+import org.prlprg.fir.ir.expression.ReflectiveStore;
+import org.prlprg.fir.ir.expression.Statement;
+import org.prlprg.fir.ir.expression.SubscriptLoad;
+import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SuperLoad;
+import org.prlprg.fir.ir.expression.SuperStore;
+import org.prlprg.fir.ir.expression.Use;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
-import org.prlprg.fir.ir.instruction.Literal;
-import org.prlprg.fir.ir.instruction.MaybeForce;
-import org.prlprg.fir.ir.instruction.MkVector;
-import org.prlprg.fir.ir.instruction.Placeholder;
-import org.prlprg.fir.ir.instruction.Promise;
-import org.prlprg.fir.ir.instruction.Read;
-import org.prlprg.fir.ir.instruction.ReflectiveRead;
-import org.prlprg.fir.ir.instruction.ReflectiveWrite;
 import org.prlprg.fir.ir.instruction.Return;
-import org.prlprg.fir.ir.instruction.SubscriptRead;
-import org.prlprg.fir.ir.instruction.SubscriptWrite;
-import org.prlprg.fir.ir.instruction.SuperRead;
-import org.prlprg.fir.ir.instruction.SuperWrite;
 import org.prlprg.fir.ir.instruction.Unreachable;
-import org.prlprg.fir.ir.instruction.Use;
-import org.prlprg.fir.ir.instruction.Write;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
@@ -136,16 +133,16 @@ public final class TypeChecker extends Checker {
           flow = flowStates.get(next).copy();
 
           for (cursor.moveTo(next, 0); !cursor.isAtLocalEnd(); cursor.advance()) {
-            run((Expression) cursor.instruction());
+            run((Statement) cursor.instruction());
           }
           run((Jump) cursor.instruction());
         }
       }
 
-      @Nullable Type run(Expression expression) {
-        return switch (expression) {
+      @Nullable Type run(Statement statement) {
+        return switch (statement) {
           case Call call -> {
-            var argumentTypes = call.arguments().stream().map(this::run).toList();
+            var argumentTypes = call.callArguments().stream().map(this::run).toList();
 
             java.util.function.Function<Abstraction, Type> finish =
                 callee -> {
@@ -156,7 +153,7 @@ public final class TypeChecker extends Checker {
                             + " arguments, but has "
                             + argumentTypes.size()
                             + ": "
-                            + expression);
+                            + statement);
                   }
 
                   for (int i = 0;
@@ -167,7 +164,7 @@ public final class TypeChecker extends Checker {
                     checkMatches(
                         argType,
                         param.type(),
-                        "Type mismatch in argument " + i + " of " + expression);
+                        "Type mismatch in argument " + i + " of " + statement);
                   }
 
                   effects = effects.union(callee.returnEffects());
@@ -193,7 +190,7 @@ public final class TypeChecker extends Checker {
                 }
 
                 if (argumentNames.size() > argumentTypes.size()) {
-                  report("Dynamic call has more argument names than arguments: " + expression);
+                  report("Dynamic call has more argument names than arguments: " + statement);
                 }
 
                 effects = Effects.ANY;
@@ -256,7 +253,7 @@ public final class TypeChecker extends Checker {
               yield null;
             }
           }
-          case Literal(var sexp) -> Type.of(sexp);
+          case Constant(var sexp) -> Type.of(sexp);
           case MaybeForce(var value) -> {
             var type = run(value);
             if (type == null) {
@@ -278,7 +275,7 @@ public final class TypeChecker extends Checker {
               var element = elements.get(i);
               var type = run(element);
               checkSubtype(
-                  type, Type.INTEGER, "Type mismatch in element " + i + " of vector " + expression);
+                  type, Type.INTEGER, "Type mismatch in element " + i + " of vector " + statement);
             }
 
             yield Type.INT_VECTOR;
@@ -287,16 +284,16 @@ public final class TypeChecker extends Checker {
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
             if (expectedInnerType.ownership() != Ownership.SHARED) {
-              report("Promise inner type must be shared (in " + expression + ")");
+              report("Promise inner type must be shared (in " + statement + ")");
             }
 
             var promiseAnalysis = new OnCfg(promiseCode);
             promiseAnalysis.run();
             var actualInnerType = promiseAnalysis.returnType;
 
-            checkSubtype(actualInnerType, expectedInnerType, "Type mismatch in " + expression);
+            checkSubtype(actualInnerType, expectedInnerType, "Type mismatch in " + statement);
             checkSubEffects(
-                promiseAnalysis.effects, expectedEffects, "Effects mismatch in " + expression);
+                promiseAnalysis.effects, expectedEffects, "Effects mismatch in " + statement);
 
             flow.compose(promiseAnalysis.flow.inPromise());
             yield Type.promise(expectedInnerType, expectedEffects);
@@ -321,7 +318,7 @@ public final class TypeChecker extends Checker {
 
             yield type;
           }
-          case ReflectiveRead(var promise, var _) -> {
+          case ReflectiveLoad(var promise, var _) -> {
             var promiseType = run(promise);
             if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
               report(
@@ -335,7 +332,7 @@ public final class TypeChecker extends Checker {
             effects = Effects.ANY;
             yield Type.ANY;
           }
-          case ReflectiveWrite(var promise, var _, var value) -> {
+          case ReflectiveStore(var promise, var _, var value) -> {
             var promiseType = run(promise);
             if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
               report(
@@ -351,7 +348,7 @@ public final class TypeChecker extends Checker {
             effects = Effects.ANY;
             yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
           }
-          case SubscriptRead(var target, var index) -> {
+          case SubscriptLoad(var target, var index) -> {
             var targetType = run(target);
             var indexType = run(index);
 
@@ -370,7 +367,7 @@ public final class TypeChecker extends Checker {
                 ? Type.primitiveScalar(kind)
                 : null;
           }
-          case SubscriptWrite(var target, var index, var value) -> {
+          case SubscriptStore(var target, var index, var value) -> {
             var targetType = run(target);
             var indexType = run(index);
             var valueType = run(value);
@@ -411,7 +408,7 @@ public final class TypeChecker extends Checker {
                 && valueKind != targetKind) {
               report(
                   "Subscript write kind mismatch (in "
-                      + expression
+                      + statement
                       + "): expected "
                       + targetKind
                       + ", got "
@@ -420,8 +417,8 @@ public final class TypeChecker extends Checker {
 
             yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
           }
-          case SuperRead(var _) -> Type.ANY;
-          case SuperWrite(var _, var value) -> {
+          case SuperLoad(var _) -> Type.ANY;
+          case SuperStore(var _, var value) -> {
             var valueType = run(value);
 
             yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
@@ -458,7 +455,7 @@ public final class TypeChecker extends Checker {
 
             yield type.withOwnership(Ownership.FRESH);
           }
-          case Write(var variable, var value) -> {
+          case Assign(var variable, var value) -> {
             var type = lookup(variable);
             if (type == null) {
               report("Undeclared register: " + variable);

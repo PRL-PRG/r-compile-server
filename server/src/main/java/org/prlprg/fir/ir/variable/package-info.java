@@ -1,4 +1,4 @@
-/** Immutable data structures. Variables: register and named variable. */
+/** Immutable data structures. Variables: register and named. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

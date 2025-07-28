@@ -1,13 +1,12 @@
-package org.prlprg.fir.ir.instruction;
+package org.prlprg.fir.ir.expression;
 
-import com.google.common.collect.Streams;
 import java.util.Collection;
-import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
@@ -35,15 +34,10 @@ public record Promise(Type valueType, Effects effects, CFG code) implements Expr
   }
 
   @Override
-  public @UnmodifiableView Collection<Expression> immediateChildren() {
+  public @UnmodifiableView Collection<Argument> arguments() {
     return code.bbs().stream()
-        .flatMap(
-            bb -> Streams.concat(bb.statements().stream(), bb.jump().immediateChildren().stream()))
+        .flatMap(BB::instructionsStream)
+        .flatMap(i -> i.arguments().stream())
         .toList();
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Variable> immediateVariables() {
-    return List.of();
   }
 }

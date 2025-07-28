@@ -1,0 +1,65 @@
+package org.prlprg.fir.ir.instruction;
+
+import java.util.Collection;
+import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.instruction.Instruction.ParseContext;
+import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+
+public record Statement(@Nullable Register assignee, Expression expression) implements Instruction {
+  public Statement(Expression expression) {
+    this(null, expression);
+  }
+
+  @Override
+  public @UnmodifiableView Collection<Argument> arguments() {
+    return expression.arguments();
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    if (assignee != null) {
+      p.print(assignee);
+      p.writer().write(" = ");
+    }
+    p.print(expression);
+  }
+
+  @ParseMethod
+  private static Statement parse(Parser p1, ParseContext ctx) {
+    var cfg = ctx.cfg();
+    var scope = cfg.scope();
+    var postModule = ctx.postModule();
+    var p = p1.withContext(ctx.inner());
+    var p2 = new Expression.ParseContext(null, cfg, postModule, ctx.inner());
+
+    var s = p.scanner();
+
+    if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
+      var variable = p.withContext(new Variable.ParseContext(scope)).parse(Variable.class);
+
+      if (variable instanceof Register register && s.trySkip('=')) {
+        var expression = p.withContext(p2).parse(Expression.class);
+        return new Statement(register, expression);
+      } else {
+        return new Statement(
+            p.withContext(new Expression.ParseContext(variable, cfg, postModule, ctx.inner()))
+                .parse(Expression.class));
+      }
+    } else {
+      return new Statement(p.withContext(p2).parse(Expression.class));
+    }
+  }
+}

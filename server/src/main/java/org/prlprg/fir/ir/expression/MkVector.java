@@ -1,14 +1,13 @@
-package org.prlprg.fir.ir.instruction;
+package org.prlprg.fir.ir.expression;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
-import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record MkVector(ImmutableList<Expression> elements) implements Expression {
+public record MkVector(ImmutableList<Argument> elements) implements Expression {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -20,12 +19,7 @@ public record MkVector(ImmutableList<Expression> elements) implements Expression
   }
 
   @Override
-  public ImmutableList<Expression> immediateChildren() {
+  public @UnmodifiableView Collection<Argument> arguments() {
     return elements;
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Variable> immediateVariables() {
-    return List.of();
   }
 }

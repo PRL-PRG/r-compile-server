@@ -4,11 +4,11 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
-import org.prlprg.fir.ir.instruction.Literal;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.LglSXP;
@@ -85,22 +85,22 @@ public class Cleanup extends Optimization {
         // Case 1: Both targets are the same
         if (trueTarget.bb() == falseTarget.bb()) {
           // Convert to unconditional jump, but first evaluate condition for side effects
-          if (!(condition instanceof Literal)) {
-            bb.pushStatement(condition);
-          }
+          //// if (!(condition instanceof Literal)) {
+          ////   bb.pushStatement(condition);
+          //// }
           bb.setJump(new Goto(trueTarget));
           changed = true;
           continue;
         }
 
         // Case 2: Condition is a constant
-        if (condition instanceof Literal literal) {
-          var target = getConstantBranchTarget(literal, trueTarget, falseTarget);
-          if (target != null) {
-            bb.setJump(new Goto(target));
-            changed = true;
-          }
-        }
+        //// if (condition instanceof Literal literal) {
+        ////   var target = getConstantBranchTarget(literal, trueTarget, falseTarget);
+        ////   if (target != null) {
+        ////     bb.setJump(new Goto(target));
+        ////     changed = true;
+        ////   }
+        //// }
       }
     }
 
@@ -108,8 +108,8 @@ public class Cleanup extends Optimization {
   }
 
   private @Nullable Target getConstantBranchTarget(
-      Literal literal, Target trueTarget, Target falseTarget) {
-    var sexp = literal.sexp();
+      Constant constant, Target trueTarget, Target falseTarget) {
+    var sexp = constant.sexp();
     if (sexp instanceof LglSXP logical && logical.size() == 1) {
       var value = logical.get(0);
       if (value == Logical.TRUE) {

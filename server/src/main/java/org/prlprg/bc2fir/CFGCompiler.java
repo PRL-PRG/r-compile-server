@@ -20,6 +20,7 @@ import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool;
 import org.prlprg.bc.LabelName;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
@@ -27,21 +28,17 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.cfg.cursor.JumpInsertion;
-import org.prlprg.fir.ir.instruction.Cast;
-import org.prlprg.fir.ir.instruction.Closure;
-import org.prlprg.fir.ir.instruction.Expression;
+import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.Statement;
+import org.prlprg.fir.ir.expression.SuperLoad;
+import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
-import org.prlprg.fir.ir.instruction.Literal;
-import org.prlprg.fir.ir.instruction.MaybeForce;
-import org.prlprg.fir.ir.instruction.Promise;
-import org.prlprg.fir.ir.instruction.Read;
 import org.prlprg.fir.ir.instruction.Return;
-import org.prlprg.fir.ir.instruction.SuperRead;
-import org.prlprg.fir.ir.instruction.SuperWrite;
 import org.prlprg.fir.ir.instruction.Unreachable;
-import org.prlprg.fir.ir.instruction.Write;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.PhiParameter;
 import org.prlprg.fir.ir.phi.Target;
@@ -81,7 +78,7 @@ public class CFGCompiler {
   }
 
   /// A pending complex assignment.
-  private record ComplexAssign(boolean isSuper, RegSymSXP name, Expression originalRhs) {}
+  private record ComplexAssign(boolean isSuper, RegSymSXP name, Statement originalRhs) {}
 
   /// A call currently being built.
   ///
@@ -100,15 +97,15 @@ public class CFGCompiler {
       record Builtin(CFGCompiler.Builtin builtin) implements Fun {}
     }
 
-    /// Stores information about a call argument: a [Expression] node and optional
+    /// Stores information about a call argument: a [Statement] node and optional
     /// name.
-    private record Arg(Expression value, @Nullable String name) {
+    private record Arg(Statement value, @Nullable String name) {
       static Arg missing() {
         // TODO(jakob): Either make it parse, or use a different expression to represent missing.
-        return new Arg(new Literal(SEXPs.MISSING_ARG), null);
+        return new Arg(new Constant(SEXPs.MISSING_ARG), null);
       }
 
-      Arg(Expression value) {
+      Arg(Statement value) {
         this(value, null);
       }
     }
@@ -160,7 +157,7 @@ public class CFGCompiler {
   private int bcPos = 0;
   private boolean isInUnreachableBytecode = false;
   private final CFGCursor cursor;
-  private final List<Expression> stack = new ArrayList<>();
+  private final List<Variable> stack = new ArrayList<>();
   private final List<Loop> loopStack = new ArrayList<>();
   private final List<ComplexAssign> complexAssignStack = new ArrayList<>();
   private final List<Call> callStack = new ArrayList<>();
@@ -415,16 +412,16 @@ public class CFGCompiler {
         // For loop init
         var seq = intrinsic("toForSeq", pop());
         var length = builtin("length", 0, seq);
-        var init = new Literal(SEXPs.integer(0));
+        var init = new Constant(SEXPs.integer(0));
         var index = cfg.scope().addLocal();
-        insert(new Write(index, init));
+        insert(new Assign(index, init));
         push(new Read(index));
         setJump(goto_(stepBb));
 
         // For loop step
         moveTo(stepBb);
         // Increment the index
-        var index1 = builtin("+", 0, pop(), new Literal(SEXPs.integer(1)));
+        var index1 = builtin("+", 0, pop(), new Constant(SEXPs.integer(1)));
         push(index1);
         // Compare the index to the length
         var cond = builtin("<", 0, length, index1);
@@ -436,7 +433,7 @@ public class CFGCompiler {
         // Extract element at index
         var elem = builtin("[[<-", 0, seq, index1);
         // Store in the element variable
-        insert(new Write(getVar(elemName), elem));
+        insert(new Assign(getVar(elemName), elem));
         // Now we compile the rest of the body...
         // When we encounter `StepFor`, we know that the body is over. Note that we may no longer be
         // in `forBodyBb`: that is just the first BB in the for body, there may be more.
@@ -506,13 +503,13 @@ public class CFGCompiler {
         // However it has a simple (unhelpful) implementation, so even if unused, we'll support it.
         pop();
         pop();
-        push(new Literal(SEXPs.NULL));
+        push(new Constant(SEXPs.NULL));
       }
       case BcInstr.Invisible() -> insert(intrinsic("invisible", 0));
-      case BcInstr.LdConst(var constant) -> push(new Literal(get(constant)));
-      case BcInstr.LdNull() -> push(new Literal(SEXPs.NULL));
-      case BcInstr.LdTrue() -> push(new Literal(SEXPs.TRUE));
-      case BcInstr.LdFalse() -> push(new Literal(SEXPs.FALSE));
+      case BcInstr.LdConst(var constant) -> push(new Constant(get(constant)));
+      case BcInstr.LdNull() -> push(new Constant(SEXPs.NULL));
+      case BcInstr.LdTrue() -> push(new Constant(SEXPs.TRUE));
+      case BcInstr.LdFalse() -> push(new Constant(SEXPs.FALSE));
       case BcInstr.GetVar(var name) -> {
         push(new Read(getVar(name)));
         push(new MaybeForce(pop()));
@@ -522,7 +519,7 @@ public class CFGCompiler {
         push(new Read(ddIndex));
         push(new MaybeForce(pop()));
       }
-      case BcInstr.SetVar(var name) -> insert(new Write(getVar(name), top()));
+      case BcInstr.SetVar(var name) -> insert(new Assign(getVar(name), top()));
       case BcInstr.GetFun(var name) -> pushCall(getVar(name));
         // TODO: Ensure function lookup is global.
       case BcInstr.GetGlobFun(var name) -> pushCall(getVar(name));
@@ -533,7 +530,7 @@ public class CFGCompiler {
       case BcInstr.GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case BcInstr.CheckFun() -> {
         var funVar = Variable.named("*tmp*");
-        insert(new Write(funVar, pop()));
+        insert(new Assign(funVar, pop()));
         insert(checkFun(new Read(funVar)));
         pushCall(funVar);
       }
@@ -559,10 +556,10 @@ public class CFGCompiler {
       }
       case BcInstr.DoDots() -> pushCallArg(new Read(NamedVariable.DOTS));
       case BcInstr.PushArg() -> pushCallArg(pop());
-      case BcInstr.PushConstArg(var constant) -> pushCallArg(new Literal(get(constant)));
-      case BcInstr.PushNullArg() -> pushCallArg(new Literal(SEXPs.NULL));
-      case BcInstr.PushTrueArg() -> pushCallArg(new Literal(SEXPs.TRUE));
-      case BcInstr.PushFalseArg() -> pushCallArg(new Literal(SEXPs.FALSE));
+      case BcInstr.PushConstArg(var constant) -> pushCallArg(new Constant(get(constant)));
+      case BcInstr.PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
+      case BcInstr.PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
+      case BcInstr.PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
       case BcInstr.Call(var _), BcInstr.CallBuiltin(var _) -> compileCall();
       case BcInstr.CallSpecial(var astId) -> {
         var ast = get(astId);
@@ -575,8 +572,8 @@ public class CFGCompiler {
         // GNU-R just passes `CDR(call)` to the builtin.
         var args =
             ast.args().stream()
-                .map(arg -> (Expression) new Literal(arg.value()))
-                .toArray(Expression[]::new);
+                .map(arg -> (Statement) new Constant(arg.value()))
+                .toArray(Statement[]::new);
         push(builtin(builtinName, args));
       }
       case BcInstr.MakeClosure(var arg) -> {
@@ -621,7 +618,7 @@ public class CFGCompiler {
       }
       case BcInstr.EndAssign(var name) -> {
         var lhs = popComplexAssign(false, get(name));
-        insert(new Write(getVar(name), lhs));
+        insert(new Assign(getVar(name), lhs));
       }
       case BcInstr.StartSubset(var _, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSET, after);
@@ -649,7 +646,7 @@ public class CFGCompiler {
         }
 
         pop();
-        push(builtin("$", target, new Literal(get(member))));
+        push(builtin("$", target, new Constant(get(member))));
         setJump(goto_(after));
 
         moveTo(after);
@@ -667,12 +664,12 @@ public class CFGCompiler {
         }
 
         pop();
-        push(builtin("$<-", target, new Literal(get(member)), rhs));
+        push(builtin("$<-", target, new Constant(get(member)), rhs));
         setJump(goto_(after));
 
         moveTo(after);
       }
-      case BcInstr.IsNull() -> push(builtin("==", pop(), new Literal(SEXPs.NULL)));
+      case BcInstr.IsNull() -> push(builtin("==", pop(), new Constant(SEXPs.NULL)));
       case BcInstr.IsLogical() -> push(builtin("is.logical", pop()));
       case BcInstr.IsInteger() -> push(builtin("is.integer", pop()));
       case BcInstr.IsDouble() -> push(builtin("is.double", pop()));
@@ -717,18 +714,18 @@ public class CFGCompiler {
         push(new MaybeForce(pop()));
       }
       case BcInstr.Visible() -> insert(intrinsic("visible", 0));
-      case BcInstr.SetVar2(var name) -> insert(new SuperWrite(getVar(name), top()));
+      case BcInstr.SetVar2(var name) -> insert(new SuperStore(getVar(name), top()));
       case BcInstr.StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
-        var lhs = new SuperRead(getVar(name));
+        var lhs = new SuperLoad(getVar(name));
         var rhs = top();
         pushComplexAssign(true, get(name), lhs, rhs);
       }
       case BcInstr.EndAssign2(var name) -> {
         var lhs = popComplexAssign(true, get(name));
-        insert(new SuperWrite(getVar(name), lhs));
+        insert(new SuperStore(getVar(name), lhs));
       }
       case BcInstr.SetterCall(var _, var _) -> {
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
@@ -772,7 +769,7 @@ public class CFGCompiler {
 
         var value = pop();
 
-        var isVector = builtin("is.vector", value, new Literal(SEXPs.string("any")));
+        var isVector = builtin("is.vector", value, new Constant(SEXPs.string("any")));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB();
         setJump(branch(isVector, isVectorBb, isNotVectorBb));
@@ -784,7 +781,7 @@ public class CFGCompiler {
 
         // Has one predecessor (no phis) so we can call `cursor.moveToStart` instead of `moveTo`.
         cursor.moveToStart(isVectorBb);
-        var isFactor = builtin("inherits", value, new Literal(SEXPs.string("factor")));
+        var isFactor = builtin("inherits", value, new Constant(SEXPs.string("factor")));
         var isFactorBb = cfg.addBB();
         var isNotFactorBb = cfg.addBB();
         setJump(branch(isFactor, isFactorBb, isNotFactorBb));
@@ -828,7 +825,7 @@ public class CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond = builtin("==", value, new Literal(SEXPs.string(name)));
+              var cond = builtin("==", value, new Constant(SEXPs.string(name)));
               insert(next -> branch(cond, ifMatch, next));
               addPhiInputsForStack(ifMatch);
             }
@@ -851,7 +848,7 @@ public class CFGCompiler {
           var asInteger = intrinsic("asSwitchIdx", value);
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond = builtin("==", asInteger, new Literal(SEXPs.integer(i)));
+            var cond = builtin("==", asInteger, new Constant(SEXPs.integer(i)));
             insert(next -> branch(cond, ifMatch, next));
             addPhiInputsForStack(ifMatch);
           }
@@ -891,7 +888,7 @@ public class CFGCompiler {
           throw fail("stack underflow");
         }
         var funAndArgs = stack.subList(stack.size() - numArgs - 1, stack.size());
-        var args = funAndArgs.toArray(Expression[]::new);
+        var args = funAndArgs.toArray(Statement[]::new);
         funAndArgs.clear();
 
         push(builtin(".Call", args));
@@ -923,9 +920,9 @@ public class CFGCompiler {
                 .collect(ImmutableList.toImmutableList());
         var args =
             expr.args().values().stream()
-                .map(v -> (Expression) new Literal(v))
+                .map(v -> (Statement) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
-        push(new org.prlprg.fir.ir.instruction.Call(new DynamicCallee(fun, argNames), args));
+        push(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(fun, argNames), args));
         setJump(goto_(afterBb));
         addPhiInputsForStack(afterBb);
         pop(); // the `CallBuiltin` pushed above.
@@ -941,11 +938,11 @@ public class CFGCompiler {
     }
   }
 
-  private Expression mkUnop(String builtinName) {
+  private Statement mkUnop(String builtinName) {
     return builtin(builtinName, pop());
   }
 
-  private Expression mkBinop(String builtinName) {
+  private Statement mkBinop(String builtinName) {
     var rhs = pop();
     var lhs = pop();
     return builtin(builtinName, lhs, rhs);
@@ -993,7 +990,7 @@ public class CFGCompiler {
   }
 
   private void compileGeneralDispatchCommon(
-      Builtin fun, boolean isNForm, Expression target, @Nullable Expression rhs, BB after) {
+      Builtin fun, boolean isNForm, Statement target, @Nullable Statement rhs, BB after) {
     // ???: Maybe avoid compiling optimized dispatch code, since we can optimize it ourselves.
     var isObject = builtin("is.object", target);
     var objectBb = cfg.addBB();
@@ -1006,13 +1003,13 @@ public class CFGCompiler {
     assert target == target1
         : "'compileGeneralDispatchCommon' only called with top-of-stack as 'target'";
 
-    var funNameSexp = new Literal(SEXPs.string(fun.name()));
+    var funNameSexp = new Constant(SEXPs.string(fun.name()));
     var dispatchExpr =
         rhs == null
             ? intrinsic("tryDispatchBuiltin", funNameSexp, target)
             : intrinsic("tryDispatchBuiltin", funNameSexp, target, rhs);
     var dispatchReg = scope().addLocal();
-    insert(new Write(dispatchReg, dispatchExpr));
+    insert(new Assign(dispatchReg, dispatchExpr));
     var dispatched = intrinsic("getTryDispatchBuiltinDispatched", new Read(dispatchReg));
     var dispatchValue = intrinsic("getTryDispatchBuiltinValue", new Read(dispatchReg));
 
@@ -1043,7 +1040,7 @@ public class CFGCompiler {
 
     pop();
 
-    var argValues = Lists.map(call.args, Call.Arg::value).toArray(Expression[]::new);
+    var argValues = Lists.map(call.args, Call.Arg::value).toArray(Statement[]::new);
     push(builtin(type.builtin.name(), argValues));
 
     setJump(goto_(bbAfterCurrent()));
@@ -1057,7 +1054,7 @@ public class CFGCompiler {
 
     var dispatch = popDispatch(type);
     var argsList = stack.subList(stack.size() - numArgs, stack.size());
-    var args = argsList.toArray(Expression[]::new);
+    var args = argsList.toArray(Statement[]::new);
     argsList.clear();
 
     // Unlike `compileDefaultDispatch`, there's no `Call`, instead we take the args from the stack.
@@ -1084,9 +1081,9 @@ public class CFGCompiler {
     var callInstr =
         switch (call.fun) {
           case Call.Fun.Variable(var funName) ->
-              new org.prlprg.fir.ir.instruction.Call(new DynamicCallee(funName, names), args);
+              new org.prlprg.fir.ir.expression.Call(new DynamicCallee(funName, names), args);
           case Call.Fun.Builtin(var builtin) ->
-              builtin(builtin.name, args.toArray(Expression[]::new));
+              builtin(builtin.name, args.toArray(Statement[]::new));
         };
     push(callInstr);
 
@@ -1104,13 +1101,13 @@ public class CFGCompiler {
     // \* If `stop` is overridden in the function, the bytecode compiler will use the overridden
     // call, which is different than the AST interpreter which errors regardless. This and the fact
     // that the stack now has an extra value until the function returns, are why it may be a bug.
-    if (callInstr instanceof org.prlprg.fir.ir.instruction.Call c
+    if (callInstr instanceof org.prlprg.fir.ir.expression.Call c
         && c.callee() instanceof DynamicCallee ca
         && ca.variable().name().equals("stop")
-        && c.arguments().size() == 1
-        && c.arguments()
+        && c.callArguments().size() == 1
+        && c.callArguments()
             .getFirst()
-            .equals(new Literal(SEXPs.string("empty alternative in numeric switch")))
+            .equals(new Constant(SEXPs.string("empty alternative in numeric switch")))
         && !(bc.code().get(bcPos + 1) instanceof BcInstr.Return)) {
       pop();
     }
@@ -1224,7 +1221,7 @@ public class CFGCompiler {
 
   // region statement and jump insertions
   /// Insert a statement.
-  private void insert(Expression statement) {
+  private void insert(Statement statement) {
     cursor.insert(statement);
   }
 
@@ -1305,38 +1302,39 @@ public class CFGCompiler {
   ///
   /// Also, stack nodes are replaced by phi nodes whenever the compiler moves to a new basic
   /// block: see [#moveTo(BB)] for details.
-  private void push(Expression value) {
+  private void push(Statement value) {
     // Keep ordering if not trivially pure.
-    if (!(value instanceof Read) && !(value instanceof Literal) && !(value instanceof Cast)) {
+    if (!(value instanceof Read) && !(value instanceof Constant) && !(value instanceof Cast)) {
       var tempVar = cfg.scope().addLocal();
-      insert(new Write(tempVar, value));
+      insert(new Assign(tempVar, value));
       value = new Read(tempVar);
     }
 
     stack.add(value);
   }
 
-  /// Pop a node from the "virtual stack" that was pushed by the last call to [#push(Expression)].
+  /// Pop a variable from the "virtual stack" that was pushed by the last call to
+  // [#push(Statement)].
   ///
-  /// The bytecode is stack-based and IR is SSA-form, see [#push(Expression)] for more
+  /// The bytecode is stack-based and IR is SSA-form, see [#push(Statement)] for more
   /// explanation.
-  private Expression pop() {
+  private Variable pop() {
     require(!stack.isEmpty(), () -> "node stack underflow");
     return stack.removeLast();
   }
 
   /// Get the node on the top of the "virtual stack" that was pushed by the last call to
-  /// [#push(Expression)], without popping.
+  /// [#push(Statement)], without popping.
   ///
-  /// The bytecode is stack-based and IR is SSA-form, see [#push(Expression)] for more
+  /// The bytecode is stack-based and IR is SSA-form, see [#push(Statement)] for more
   /// explanation.
-  private Expression top() {
+  private Statement top() {
     require(!stack.isEmpty(), () -> "no node on stack");
 
     // Do basic constant subexpression elimination.
-    if (!(stack.getLast() instanceof Read) && !(stack.getLast() instanceof Literal)) {
+    if (!(stack.getLast() instanceof Read) && !(stack.getLast() instanceof Constant)) {
       var tempVar = cfg.scope().addLocal();
-      insert(new Write(tempVar, pop()));
+      insert(new Assign(tempVar, pop()));
       push(new Read(tempVar));
     }
 
@@ -1389,17 +1387,17 @@ public class CFGCompiler {
   /// different, but we will probably abstract it so that we don't have to do anything here even
   // in
   /// the future.
-  private void pushComplexAssign(boolean isSuper, RegSymSXP name, Expression lhs, Expression rhs) {
+  private void pushComplexAssign(boolean isSuper, RegSymSXP name, Statement lhs, Statement rhs) {
     complexAssignStack.add(new ComplexAssign(isSuper, name, rhs));
     push(lhs);
     push(rhs);
   }
 
   /// Get the current complex assign (the one that was pushed by the last call to
-  /// [#pushComplexAssign(boolean,RegSymSXP,Expression,Expression)]), assert that the given
+  /// [#pushComplexAssign(boolean,RegSymSXP, Statement , Statement)]), assert that the given
   // `isSuper`
   /// and `name` match its own, and remove it from the stack.
-  private Expression popComplexAssign(boolean isSuper, RegSymSXP name) {
+  private Statement popComplexAssign(boolean isSuper, RegSymSXP name) {
     require(!complexAssignStack.isEmpty(), () -> "complex assign stack underflow");
     var assign = complexAssignStack.removeLast();
 
@@ -1455,9 +1453,9 @@ public class CFGCompiler {
    *
    * <p>This is required for {@link BcInstr.GetterCall} and {@link BcInstr.SetterCall}, since the
    * {@code lhs} of the complex assignment is prepended in the GNU-R. See also {@link
-   * #pushCallArg(Expression)}, which appends the argument.
+   * #pushCallArg(Statement)}, which appends the argument.
    */
-  private void prependCallArg(Expression value) {
+  private void prependCallArg(Statement value) {
     topCall().args.addFirst(new Call.Arg(value));
   }
 
@@ -1468,14 +1466,14 @@ public class CFGCompiler {
    * separately. Either way generates the same IR, but this way makes errors clearer, e.g.
    * forgetting to push a call raises a specific error earlier instead of a stack mismatch later.
    */
-  private void pushCallArg(Expression value) {
+  private void pushCallArg(Statement value) {
     topCall().args.add(new Call.Arg(value));
   }
 
   /**
    * Push the missing value onto the "call arguments list".
    *
-   * @see #pushCallArg(Expression)
+   * @see #pushCallArg(Statement)
    */
   private void pushMissingCallArg() {
     topCall().args.add(Call.Arg.missing());
@@ -1484,7 +1482,7 @@ public class CFGCompiler {
   /**
    * Set the name of the last argument on the "call arguments list".
    *
-   * @see #pushCallArg(Expression)
+   * @see #pushCallArg(Statement)
    */
   private void setNameOfLastCallArg(String name) {
     var args = topCall().args;
@@ -1514,42 +1512,42 @@ public class CFGCompiler {
   // endregion inter-instruction data
 
   // region expression constructors
-  private Expression builtin(String name, Expression... args) {
+  private Statement builtin(String name, Statement... args) {
     return builtin(name, -1, args);
   }
 
-  private Expression builtin(String name, int versionIndex, Expression... args) {
+  private Statement builtin(String name, int versionIndex, Statement... args) {
     var function = BUILTINS.localFunction(name);
     assert function != null : "missing builtin " + name;
     var callee =
         versionIndex == -1
             ? new DispatchCallee(function, null)
             : new StaticCallee(function, function.version(versionIndex));
-    return new org.prlprg.fir.ir.instruction.Call(callee, ImmutableList.copyOf(args));
+    return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 
-  private Expression intrinsic(String name, Expression... args) {
+  private Statement intrinsic(String name, Statement... args) {
     return intrinsic(name, -1, args);
   }
 
-  private Expression intrinsic(String name, int versionIndex, Expression... args) {
+  private Statement intrinsic(String name, int versionIndex, Statement... args) {
     var function = INTRINSICS.localFunction(name);
     assert function != null : "missing intrinsic " + name;
     var callee =
         versionIndex == -1
             ? new DispatchCallee(function, null)
             : new StaticCallee(function, function.version(versionIndex));
-    return new org.prlprg.fir.ir.instruction.Call(callee, ImmutableList.copyOf(args));
+    return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 
   /// An expression that raises an error with the given message.
-  private Expression stop(String message) {
-    return builtin("stop", new Literal(SEXPs.string(message)));
+  private Statement stop(String message) {
+    return builtin("stop", new Constant(SEXPs.string(message)));
   }
 
   /// An expression that raises a warning with the given message.
-  private Expression warning(String message) {
-    return builtin("warning", new Literal(SEXPs.string(message)));
+  private Statement warning(String message) {
+    return builtin("warning", new Constant(SEXPs.string(message)));
   }
 
   enum Env {
@@ -1560,13 +1558,13 @@ public class CFGCompiler {
 
   /// Stub for loaded function, which can fallback to an intrinsic but usually gets caught and
   /// turned into [DynamicCallee].
-  private Expression loadFun(NamedVariable name, Env env) {
-    return intrinsic("loadFun", 0, new Read(name), new Literal(SEXPs.integer(env.ordinal())));
+  private Statement loadFun(NamedVariable name, Env env) {
+    return intrinsic("loadFun", 0, new Read(name), new Constant(SEXPs.integer(env.ordinal())));
   }
 
   /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to
   /// an intrinsic but usually gets caught and turned into [DynamicCallee].
-  private Expression checkFun(Expression fun) {
+  private Statement checkFun(Statement fun) {
     return intrinsic("checkFun", 0, fun);
   }
 
@@ -1578,7 +1576,7 @@ public class CFGCompiler {
     return goto_(bbAt(label));
   }
 
-  private Jump branch(Expression condition, BB trueBb, BB falseBb) {
+  private Jump branch(Variable condition, BB trueBb, BB falseBb) {
     return new If(condition, target(trueBb), target(falseBb));
   }
 

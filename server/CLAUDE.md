@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Dependencies
 
-- Project uses Java 22 with Maven as the build system
+- Project uses Java 22 with Maven as the build system (comments are Java 23)
 - Requires R installation (set via R_HOME environment variable)
 - Default R_HOME is `$(BASE_DIR)/external/R`
 - **External Dependencies**: Minimize dependencies. Current dependencies:
@@ -71,14 +71,16 @@ R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
 
 1. **Nullability**: All parameters, fields, and return types are non-null by default. Use `@Nullable` annotation explicitly when nulls are allowed.
 2. **Immutability**: Prefer immutable data structures when possible. Small OR simple data structures should be immutable, large AND complex data structures should be mutable.
-3. **Types**: Use `var` whenever possible instead of specifying types unnecessarily.
-4. **Comments**: Explain why something is done, not what is done. Avoid redundant or trivial comments.
-5. **Fields**: Don't prefix fields with `this.` unless necessary due to name shadowing.
+   - Record fields should be Guava immutable collections. Methods may return implicitly immutable collections (`List.of`, `toList()`, etc.) although the return type should be `@Unmodifiable`.
+3. **Readonly:** Use `@Unmodifable` and `@UnmodifiableView` on method return types if they return immutable or readonly collections, except Guava immutable collections since (redundant).
+4. **Records:** Use records whenever possible. Also, use record destructors whenever possible (`instanceof Foo(var foo, var _)`, not `instanceof Foo f`).
+5. **Finality:** Classes should be final whenever possible.
+6. **Fields**: Don't prefix fields with `this.` unless necessary due to name shadowing.
    - Initialize fields outside the constructor whenever possible (e.g. `private final Foo foo = new Foo()`).
-6. **Getters**: Use record-style getters (`foo()`, not `getFoo()`). More generally, don't prefix a method with `get...` unless it runs a non-negligible computation every call.
-7. **Finality:** Classes should be final whenever possible.
-8. **Records:** Use records whenever possible. Also, use record destructors whenever possible (`instanceof Foo(var foo, var _)`, not `instanceof Foo f`).
+7. **Getters**: Use record-style getters (`foo()`, not `getFoo()`). More generally, don't prefix a method with `get...` unless it runs a non-negligible computation every call.
+8. **Types**: Use `var` whenever possible instead of specifying types unnecessarily.
 9. **Conditionals:** Use `switch` instead of `if-else` (e.g. `switch (x) { case Foo(var foo, var _) -> ...; case Bar(var bar, var _) -> ...; }`, not `if (x instanceof Foo(var foo)) { ... } else if (x instanceof Bar(var bar)) { ... }`. Make switch statements exhaustive whenever possible.
+10. **Comments**: Explain why something is done, not what is done. Avoid redundant or trivial comments.
 
 ### Documentation
 

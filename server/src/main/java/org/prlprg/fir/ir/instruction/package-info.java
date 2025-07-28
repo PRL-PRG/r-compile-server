@@ -1,4 +1,4 @@
-/** Immutable data structures. Instructions, expressions and jumps. */
+/** Immutable data structures. Instructions: statements and jumps. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
