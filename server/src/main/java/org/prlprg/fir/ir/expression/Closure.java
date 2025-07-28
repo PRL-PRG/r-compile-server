@@ -1,12 +1,12 @@
-package org.prlprg.fir.ir.instruction;
+package org.prlprg.fir.ir.expression;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
@@ -27,12 +27,7 @@ public final class Closure implements Expression {
   }
 
   @Override
-  public @UnmodifiableView Collection<Expression> immediateChildren() {
-    return List.of();
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Variable> immediateVariables() {
+  public @UnmodifiableView Collection<Argument> arguments() {
     return List.of();
   }
 

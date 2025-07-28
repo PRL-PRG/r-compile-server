@@ -1,6 +1,8 @@
 package org.prlprg.fir.ir.cfg;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -9,10 +11,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
-import org.prlprg.fir.ir.instruction.Expression;
+import org.prlprg.fir.ir.expression.Statement;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Unreachable;
@@ -26,7 +29,6 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
-import org.prlprg.util.Iterables;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 
@@ -40,7 +42,7 @@ public final class BB {
   // Data
   private final String label;
   private final Map<Register, PhiParameter> parameters = new LinkedHashMap<>();
-  private final List<Expression> statements = new ArrayList<>();
+  private final List<Statement> statements = new ArrayList<>();
   private Jump jump = new Unreachable();
 
   // Cached
@@ -75,7 +77,7 @@ public final class BB {
     return Collections.unmodifiableCollection(parameters.values());
   }
 
-  public @UnmodifiableView List<Expression> statements() {
+  public @UnmodifiableView List<Statement> statements() {
     return Collections.unmodifiableList(statements);
   }
 
@@ -83,8 +85,16 @@ public final class BB {
     return jump;
   }
 
-  public @UnmodifiableView Iterable<BB> successors() {
-    return Iterables.lazyMapView(jump.targets(), Target::bb);
+  public @UnmodifiableView Iterable<Instruction> instructions() {
+    return Iterables.concat(statements, List.of(jump));
+  }
+
+  public Stream<Instruction> instructionsStream() {
+    return Stream.concat(statements.stream(), Stream.of(jump));
+  }
+
+  public @UnmodifiableView Collection<BB> successors() {
+    return Collections2.transform(jump.targets(), Target::bb);
   }
 
   public @UnmodifiableView Collection<BB> predecessors() {
@@ -125,7 +135,7 @@ public final class BB {
             });
   }
 
-  public void pushStatement(Expression statement) {
+  public void pushStatement(Statement statement) {
     module()
         .record(
             "BB#pushStatement",
@@ -136,7 +146,7 @@ public final class BB {
             });
   }
 
-  public void insertStatement(int index, Expression statement) {
+  public void insertStatement(int index, Statement statement) {
     module()
         .record(
             "BB#insertStatement",
@@ -151,7 +161,7 @@ public final class BB {
             });
   }
 
-  public void insertStatements(int index, List<Expression> statements) {
+  public void insertStatements(int index, List<Statement> statements) {
     module()
         .record(
             "BB#insertStatements",
@@ -166,7 +176,7 @@ public final class BB {
             });
   }
 
-  public Expression removeStatementAt(int index) {
+  public Statement removeStatementAt(int index) {
     return module()
         .record(
             "BB#removeStatementAt",
@@ -180,7 +190,7 @@ public final class BB {
             });
   }
 
-  public ImmutableList<Expression> removeStatementsAt(int index, int count) {
+  public ImmutableList<Statement> removeStatementsAt(int index, int count) {
     return module()
         .record(
             "BB#removeStatementsAt",
@@ -197,7 +207,7 @@ public final class BB {
             });
   }
 
-  public Expression replaceStatementAt(int index, Expression statement) {
+  public Statement replaceStatementAt(int index, Statement statement) {
     return module()
         .record(
             "BB#replaceStatementAt",
@@ -313,7 +323,7 @@ public final class BB {
       CommentParser.skipComments(s);
       instr = p2.parse(Instruction.class);
       switch (instr) {
-        case Expression expr -> statements.add(expr);
+        case Statement expr -> statements.add(expr);
         case Jump jmp -> jump = jmp;
       }
       s.assertAndSkip(';');

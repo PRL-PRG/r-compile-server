@@ -1,14 +1,13 @@
-package org.prlprg.fir.ir.instruction;
+package org.prlprg.fir.ir.expression;
 
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record Return(Argument value) implements Jump {
+public record MaybeForce(Argument value) implements Expression {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -16,13 +15,8 @@ public record Return(Argument value) implements Jump {
 
   @PrintMethod
   private void print(Printer p) {
-    p.writer().write("return ");
+    p.writer().write("force? ");
     p.print(value);
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Target> targets() {
-    return List.of();
   }
 
   @Override

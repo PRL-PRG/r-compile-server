@@ -4,6 +4,8 @@ import com.google.common.collect.Iterables;
 import java.util.HashSet;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.variable.Register;
 
 public class CFGChecker extends Checker {
   @Override
@@ -85,23 +87,23 @@ public class CFGChecker extends Checker {
         org.prlprg.fir.analyze.DefUses defUses) {
 
       // Collect all registers from parameters and locals
-      var parameterRegisters = new HashSet<org.prlprg.fir.ir.variable.Register>();
-      var localRegisters = new HashSet<org.prlprg.fir.ir.variable.Register>();
+      var parameterRegisters = new HashSet<Register>();
+      var localRegisters = new HashSet<Register>();
 
       for (var param : scope.parameters()) {
-        if (param.variable() instanceof org.prlprg.fir.ir.variable.Register reg) {
+        if (param.variable() instanceof Register reg) {
           parameterRegisters.add(reg);
         }
       }
 
       for (var local : scope.locals()) {
-        if (local.variable() instanceof org.prlprg.fir.ir.variable.Register reg) {
+        if (local.variable() instanceof Register reg) {
           localRegisters.add(reg);
         }
       }
 
       // Check all registers are either parameters or locals
-      var allRegisters = new HashSet<org.prlprg.fir.ir.variable.Register>();
+      var allRegisters = new HashSet<Register>();
       allRegisters.addAll(defUses.definedRegisters());
       allRegisters.addAll(defUses.usedRegisters());
 
@@ -180,7 +182,7 @@ public class CFGChecker extends Checker {
       for (var bb : cfg.bbs()) {
         for (var i = 0; i < bb.statements().size(); i++) {
           var stmt = bb.statements().get(i);
-          if (stmt instanceof org.prlprg.fir.ir.instruction.Promise promise) {
+          if (stmt instanceof Promise promise) {
             // Recursively check the promise CFG
             var promiseChecker = new CFGChecker();
             promiseChecker.run(promise.code().scope());

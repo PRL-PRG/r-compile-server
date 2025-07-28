@@ -1,14 +1,14 @@
-package org.prlprg.fir.ir.instruction;
+package org.prlprg.fir.ir.expression;
 
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.variable.NamedVariable;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record SuperRead(NamedVariable variable) implements Expression {
+public record ReflectiveLoad(Argument promise, NamedVariable variable) implements Expression {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -16,17 +16,13 @@ public record SuperRead(NamedVariable variable) implements Expression {
 
   @PrintMethod
   private void print(Printer p) {
-    p.writer().write("^");
+    p.print(promise);
+    p.writer().write("$");
     p.print(variable);
   }
 
   @Override
-  public @UnmodifiableView Collection<Expression> immediateChildren() {
-    return List.of();
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Variable> immediateVariables() {
-    return List.of(variable);
+  public @UnmodifiableView Collection<Argument> arguments() {
+    return List.of(promise);
   }
 }

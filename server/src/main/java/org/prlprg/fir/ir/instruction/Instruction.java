@@ -3,21 +3,16 @@ package org.prlprg.fir.ir.instruction;
 import java.util.Collection;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.util.DeferredCallbacks;
 
-public sealed interface Instruction permits Expression, Jump {
-  /// "Immediate" here means "not recursive".
+public sealed interface Instruction permits Statement, Jump {
   @UnmodifiableView
-  Collection<Expression> immediateChildren();
-
-  /// "Immediate" here means "not in children".
-  @UnmodifiableView
-  Collection<Variable> immediateVariables();
+  Collection<Argument> arguments();
 
   record ParseContext(
       CFG cfg,
@@ -34,7 +29,7 @@ public sealed interface Instruction permits Expression, Jump {
         || s.nextCharsAre("...")) {
       return p.parse(Jump.class);
     } else {
-      return p.parse(Expression.class);
+      return p.parse(Statement.class);
     }
   }
 }

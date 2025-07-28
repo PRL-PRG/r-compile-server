@@ -6,8 +6,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
-import org.prlprg.fir.ir.instruction.Read;
-import org.prlprg.fir.ir.instruction.Write;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
@@ -48,7 +46,7 @@ public final class ClosureCompiler {
       var paramReg = compiledParams.get(i).variable();
 
       baseline.addLocal(new Local(paramNamedVar, Type.ANY));
-      baselineCursor.insert(new Write(paramNamedVar, new Read(paramReg)));
+      baselineCursor.insert(new Assign(paramNamedVar, paramReg));
     }
 
     return baseline;

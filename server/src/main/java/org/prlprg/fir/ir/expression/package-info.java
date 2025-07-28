@@ -1,8 +1,8 @@
-/** Immutable data structures. Instructions: statements and jumps. */
+/** Immutable data structures. Expressions: e.g. casts, calls. */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.fir.ir.instruction;
+package org.prlprg.fir.ir.expression;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;

@@ -3,7 +3,7 @@ package org.prlprg.fir.ir.cfg.cursor;
 import java.util.List;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.instruction.Expression;
+import org.prlprg.fir.ir.expression.Statement;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Unreachable;
@@ -146,7 +146,7 @@ public final class CFGCursor {
    *
    * <p>This advances the insertion point to after the inserted statement.
    */
-  public void insert(Expression statement) {
+  public void insert(Statement statement) {
     bb.insertStatement(instructionIndex, statement);
     instructionIndex++;
   }
@@ -154,11 +154,11 @@ public final class CFGCursor {
   /**
    * Insert statements at the current insertion point.
    *
-   * <p>This is faster than {@link #insert(Expression)} for many instructions.
+   * <p>This is faster than {@link #insert(Statement)} for many instructions.
    *
    * <p>This advances the insertion point to after the inserted statements.
    */
-  public void insert(List<Expression> statements) {
+  public void insert(List<Statement> statements) {
     bb.insertStatements(instructionIndex, statements);
     instructionIndex += statements.size();
   }
@@ -220,7 +220,7 @@ public final class CFGCursor {
       var old = bb.jump();
       bb.setJump(r);
       return old;
-    } else if (replacement instanceof Expression r) {
+    } else if (replacement instanceof Statement r) {
       return bb.replaceStatementAt(instructionIndex, r);
     } else {
       throw new IllegalStateException("can't replace statement with non-expression at " + bb);

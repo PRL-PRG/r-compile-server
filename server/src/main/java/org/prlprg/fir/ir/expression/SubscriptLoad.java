@@ -1,13 +1,13 @@
-package org.prlprg.fir.ir.instruction;
+package org.prlprg.fir.ir.expression;
 
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record SubscriptRead(Expression target, Expression index) implements Expression {
+public record SubscriptLoad(Argument target, Argument index) implements Expression {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -22,12 +22,7 @@ public record SubscriptRead(Expression target, Expression index) implements Expr
   }
 
   @Override
-  public @UnmodifiableView Collection<Expression> immediateChildren() {
+  public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(target, index);
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Variable> immediateVariables() {
-    return List.of();
   }
 }

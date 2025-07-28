@@ -31,8 +31,6 @@ public sealed interface Variable permits NamedVariable, Register {
     return new NamedVariable(name);
   }
 
-  record ParseContext(Abstraction scope) {}
-
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
@@ -44,9 +42,11 @@ public sealed interface Variable permits NamedVariable, Register {
     }
   }
 
+  record ParseContext(Abstraction scope) {}
+
   @ParseMethod
   private static Variable parse(Parser p, ParseContext ctx) {
-    var scope = ctx.scope;
+    var scope = ctx.scope();
     var s = p.scanner();
 
     var name = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
