@@ -1,7 +1,5 @@
 package org.prlprg.fir.ir.argument;
 
-import javax.annotation.Nullable;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
@@ -11,11 +9,6 @@ import org.prlprg.sexp.SEXP;
 /// Currently any {@link SEXP} can be in a constant, but we may want to make this more specific
 /// (e.g. only scalars).
 public record Constant(SEXP sexp) implements Argument {
-  @Override
-  public @Nullable Variable variable() {
-    return null;
-  }
-
   @Override
   public String toString() {
     return Printer.toString(this);

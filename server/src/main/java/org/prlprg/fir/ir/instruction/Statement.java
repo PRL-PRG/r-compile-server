@@ -5,13 +5,12 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.instruction.Instruction.ParseContext;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Names;
 
 public record Statement(@Nullable Register assignee, Expression expression) implements Instruction {
   public Statement(Expression expression) {
@@ -48,14 +47,18 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
     var s = p.scanner();
 
     if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
-      var variable = p.withContext(new Variable.ParseContext(scope)).parse(Variable.class);
+      var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
 
-      if (variable instanceof Register register && s.trySkip('=')) {
+      if (s.trySkip('=')) {
+        if (!(scope.lookup(nameHead) instanceof Register register)) {
+          throw s.fail("Not a declared register: " + nameHead);
+        }
+
         var expression = p.withContext(p2).parse(Expression.class);
         return new Statement(register, expression);
       } else {
         return new Statement(
-            p.withContext(new Expression.ParseContext(variable, cfg, postModule, ctx.inner()))
+            p.withContext(new Expression.ParseContext(nameHead, cfg, postModule, ctx.inner()))
                 .parse(Expression.class));
       }
     } else {

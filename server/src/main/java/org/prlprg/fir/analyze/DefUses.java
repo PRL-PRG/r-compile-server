@@ -7,11 +7,11 @@ import java.util.Set;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.expression.Statement;
 import org.prlprg.fir.ir.instruction.Instruction;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Tracks where each register is assigned (i.e. a target of [Assign])
+/// Tracks where each register is assigned (i.e. [Statement#variable()])
 /// and every other occurrence.
 public final class DefUses {
   private final CFG cfg;
@@ -73,17 +73,15 @@ public final class DefUses {
   }
 
   private void analyzeInstruction(BB bb, int instructionIndex, Instruction instr) {
-    // Handle Write expressions (definitions)
-    if (instr instanceof Statement expr
-        && expr instanceof Assign(var target, var value)
-        && target instanceof Register register) {
+    // Handle definitions
+    if (instr instanceof Statement stmt && stmt.assignee() != null) {
       definitions
-          .computeIfAbsent(register, _ -> new HashSet<>())
-          .add(new DefUse(bb, instructionIndex, expr));
+          .computeIfAbsent(stmt.assignee(), _ -> new HashSet<>())
+          .add(new DefUse(bb, instructionIndex, stmt));
     }
 
     // Handle Promise expressions (nested CFGs)
-    if (instr instanceof Promise promise) {
+    if (instr instanceof Statement stmt && stmt.expression() instanceof Promise promise) {
       var promiseCfg = promise.code();
       var nestedDefUses = new DefUses(promiseCfg);
       // Merge nested definitions and uses

@@ -2,6 +2,8 @@ package org.prlprg.fir.check;
 
 import com.google.common.collect.Iterables;
 import java.util.HashSet;
+import org.prlprg.fir.analyze.DefUses;
+import org.prlprg.fir.analyze.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
@@ -37,14 +39,12 @@ public class CFGChecker extends Checker {
     /// - The entry block and any blocks with < 2 predecessors don't have any phi parameters.
     /// - All registers (but not named variables) are either in `scope.parameters()` or
     ///   `scope.locals()`. Those in `scope.parameters()` are never assigned (never the target
-    // of a
-    ///   `Write` expression), while those in `scope.locals()` are assigned exactly once.
+    ///    of a `Write` expression), while those in `scope.locals()` are assigned exactly once.
     ///   Additionally, if a non-`Write` expression contains a register in `scope.locals()`, the
     ///   register's one assignment must be in the same block in an instruction before the
     ///   expression, or in a dominating block.
     ///   - If a register is assigned in a promise, it cannot be used outside the promise,
-    // although
-    ///     it can be used in nested promises if they occur the assignment.
+    ///     although it can be used in nested promises if they occur the assignment.
     ///   - If a register is read in a promise, it must be defined in the promise (in an earlier
     ///     instruction or dominating block), or it must be defined outside the promise in an
     ///     earlier instruction or dominating block relative to promise itself.
@@ -81,19 +81,14 @@ public class CFGChecker extends Checker {
     }
 
     private void checkRegisterInvariants(
-        CFG cfg,
-        org.prlprg.fir.ir.abstraction.Abstraction scope,
-        org.prlprg.fir.analyze.DominatorTree dominatorTree,
-        org.prlprg.fir.analyze.DefUses defUses) {
+        CFG cfg, Abstraction scope, DominatorTree dominatorTree, DefUses defUses) {
 
       // Collect all registers from parameters and locals
       var parameterRegisters = new HashSet<Register>();
       var localRegisters = new HashSet<Register>();
 
       for (var param : scope.parameters()) {
-        if (param.variable() instanceof Register reg) {
-          parameterRegisters.add(reg);
-        }
+        parameterRegisters.add(param.variable());
       }
 
       for (var local : scope.locals()) {
@@ -182,7 +177,7 @@ public class CFGChecker extends Checker {
       for (var bb : cfg.bbs()) {
         for (var i = 0; i < bb.statements().size(); i++) {
           var stmt = bb.statements().get(i);
-          if (stmt instanceof Promise promise) {
+          if (stmt.expression() instanceof Promise promise) {
             // Recursively check the promise CFG
             var promiseChecker = new CFGChecker();
             promiseChecker.run(promise.code().scope());

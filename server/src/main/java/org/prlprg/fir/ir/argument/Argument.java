@@ -22,7 +22,8 @@ public sealed interface Argument permits Constant, Read {
         || s.nextCharsAre("NaN")
         || s.nextCharSatisfies(Character::isDigit)
         || s.nextCharIs('-')
-        || s.nextCharIs('\"')) {
+        || s.nextCharIs('\"')
+        || s.nextCharIs('<')) {
       var value = p.parse(SEXP.class);
       return new Constant(value);
     } else if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
