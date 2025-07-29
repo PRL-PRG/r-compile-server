@@ -1,5 +1,5 @@
 fun main {
-    () --> v(I)f { reg r_shared:*, reg r1_shared:*, reg r_owned:v(I)o, reg r1_owned:v(I)o, reg r1:I, reg r2:I, reg r3:I, reg r4:I |
+    () --> v(I)f { reg r_shared:*, reg r1_shared:*, reg r_owned:v(I)o, reg r1_owned:v(I)o, reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r5:v(I)o |
         r_shared = 42;
         r1_shared = [1, 2, 3];
         r_owned = [4, 5];
@@ -8,7 +8,8 @@ fun main {
         r2 = contextual<*,* --> I>(r_shared, r1_shared);
         r3 = contextual<v(I)o,* --> I>(use r_owned, r_shared);
         r4 = contextual<v(I)o,* --> I>(use r1_owned, r1_shared);
-        return [r1, r2, r3, r4];
+        r5 = [r1, r2, r3, r4];
+        return r5;
     }
 }
 

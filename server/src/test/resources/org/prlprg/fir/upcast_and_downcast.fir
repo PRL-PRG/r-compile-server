@@ -1,17 +1,21 @@
 fun main {
-    () --> V { reg r0:I, reg r1:I, reg r2:I, reg r3:V, reg r4:V |
+    () --> V { reg r0:I, reg r1:I, reg r2:I, reg r3:V, reg r4:V, reg r5:p(I -), reg r6:p(I -) |
         r0 = upcast(1);  # nil
-        r0 = upcast(prom<I ->{ return 1; });  # nil
-        r2 = upcast(prom<I ->{ return 1; });  # not nil
+        r5 = prom<I ->{ return 1; };
+        r0 = upcast(r5);  # nil
+        r6 = prom<I ->{ return 1; };
+        r2 = upcast(r6);  # not nil
         r3 = downcast(r2);
-        return r4 = downcast(r0);
+        r4 = downcast(r0);
+        return r4;
     }
 }
 
 fun upcast {
-    (reg r:*) --> I { reg r0:p(I -) |
+    (reg r:*) --> I { reg r0:p(I -), reg r1:I |
         r0 = r as p(I-);
-        return force r0;
+        r1 = force r0;
+        return r1;
     }
 }
 
