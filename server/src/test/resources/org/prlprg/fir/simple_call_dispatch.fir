@@ -1,6 +1,7 @@
 fun main {
-    () --> I { |
-        return g();
+    () --> I { reg r1:I |
+        r1 = g();
+        return r1;
     }
 }
 

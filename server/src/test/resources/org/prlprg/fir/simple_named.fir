@@ -1,6 +1,7 @@
 fun main {
-    () --> I { var x:I? |
+    () --> I? { var x:I?, var rx:I? |
         x = 0;
-        return x as I;
+        rx = x;
+        return rx;
     }
 }

@@ -8,6 +8,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.InlineCallee;
@@ -44,8 +45,7 @@ public sealed interface Expression
         SubscriptLoad,
         SubscriptStore,
         SuperLoad,
-        SuperStore,
-        Use {
+        SuperStore {
   @UnmodifiableView
   Collection<Argument> arguments();
 
@@ -85,6 +85,9 @@ public sealed interface Expression
           || s.nextCharIs('\"')
           || s.nextCharIs('<')) {
         headAsArg = p2.parse(Argument.class);
+      } else if (s.trySkip("use")) {
+        var variable = p2.parse(Register.class);
+        headAsArg = new Use(variable);
       } else if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
         headAsName = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
       }
@@ -181,11 +184,6 @@ public sealed interface Expression
       if (s.trySkip("force? ")) {
         var value = p2.parse(Argument.class);
         return new MaybeForce(value);
-      }
-
-      if (s.trySkip("use ")) {
-        var value = p3.parse(Register.class);
-        return new Use(value);
       }
 
       if (s.trySkip("dup ")) {

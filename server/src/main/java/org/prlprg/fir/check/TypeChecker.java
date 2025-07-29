@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -39,7 +40,6 @@ import org.prlprg.fir.ir.expression.SubscriptLoad;
 import org.prlprg.fir.ir.expression.SubscriptStore;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
-import org.prlprg.fir.ir.expression.Use;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -455,6 +455,30 @@ public final class TypeChecker extends Checker {
 
             yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
           }
+        };
+      }
+
+      @Nullable Type run(Argument argument) {
+        return switch (argument) {
+          case Constant(var sexp) -> Type.of(sexp);
+          case Read(var variable) -> {
+            var type = lookup(variable);
+            if (type == null) {
+              report("Undeclared register: " + variable);
+              yield null;
+            }
+
+            // Flow check: ensure register is written before read
+            if (!flow.write.contains(variable)) {
+              report("Read before write: " + variable);
+            }
+            if (flow.use.contains(variable)) {
+              report("Read after use: " + variable);
+            }
+            flow.read.add(variable);
+
+            yield type;
+          }
           case Use(var register) -> {
             var type = lookup(register);
             if (type == null) {
@@ -486,30 +510,6 @@ public final class TypeChecker extends Checker {
             flow.use.add(register);
 
             yield type.withOwnership(Ownership.FRESH);
-          }
-        };
-      }
-
-      @Nullable Type run(Argument argument) {
-        return switch (argument) {
-          case Constant(var sexp) -> Type.of(sexp);
-          case Read(var variable) -> {
-            var type = lookup(variable);
-            if (type == null) {
-              report("Undeclared register: " + variable);
-              yield null;
-            }
-
-            // Flow check: ensure register is written before read
-            if (!flow.write.contains(variable)) {
-              report("Read before write: " + variable);
-            }
-            if (flow.use.contains(variable)) {
-              report("Read after use: " + variable);
-            }
-            flow.read.add(variable);
-
-            yield type;
           }
         };
       }
