@@ -1,6 +1,7 @@
 fun main {
-    () -+> v(I) { var x:*, reg r0:p(I -), reg r1:v(I) |
-        x = [0, 1, 2];
+    () -+> v(I) { var x:*, reg rx0:*, reg r0:p(I -), reg r1:v(I) |
+        rx0 = [0, 1, 2];
+        x = rx0;
         r0 = prom<I ->{ return 4; };
         r1 = f(r0);
         return r1;

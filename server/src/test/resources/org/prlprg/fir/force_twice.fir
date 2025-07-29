@@ -1,6 +1,7 @@
 fun main {
-    () --> I { var x:I?, reg rx0:I?, reg rx1:I, reg rx1:I?, reg r:p(I -), reg r1:I, reg r2:I |
+    () --> I { var x:I?, reg rx0:I?, reg rx1:I, reg rx2:I?, reg r:p(I -), reg r0:I, reg r1:I, reg r2:I |
         x = 0;
+
         r = prom<I ->{
             rx0 = x;
             r1 = rx0 as I;
@@ -10,7 +11,9 @@ fun main {
             r2 = rx2 as I;
             return r2;
         };
-        return force_twice(r);
+
+        r0 = force_twice(r);
+        return r0;
     }
 }
 

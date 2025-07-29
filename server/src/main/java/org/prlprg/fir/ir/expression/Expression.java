@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.DispatchCallee;
@@ -24,6 +25,7 @@ import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
 
@@ -73,37 +75,103 @@ public sealed interface Expression
 
     var s = p.scanner();
 
-    // Read `headAsName` or constant `headAsArg` (see [ParseContext#headAsName]).
+    // Read `headAsName` or constant non-identifier `headAsArg` (see [ParseContext#headAsName]).
     if (headAsName == null) {
-      if (s.nextCharsAre("NULL")
-          || s.nextCharsAre("TRUE")
-          || s.nextCharsAre("FALSE")
-          || s.nextCharsAre("NA_")
-          || s.nextCharsAre("NaN")
-          || s.nextCharSatisfies(Character::isDigit)
+      if (s.nextCharSatisfies(Character::isDigit)
           || s.nextCharIs('-')
           || s.nextCharIs('\"')
           || s.nextCharIs('<')) {
         headAsArg = p2.parse(Argument.class);
-      } else if (s.trySkip("use")) {
-        var variable = p2.parse(Register.class);
-        headAsArg = new Use(variable);
       } else if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
         headAsName = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
       }
     }
 
-    // If `headAsName` is set, it's either a register (variable `headAsArg`) or named variable
-    // (`headAsNv`).
     if (headAsName != null) {
-      if (scope.lookup(headAsName) instanceof Register target) {
-        headAsArg = new Read(target);
-      } else {
-        headAsNv = Variable.named(headAsName);
+      switch (headAsName) {
+        case "clos" -> {
+          s.assertAndSkip('(');
+          var functionName = p.parse(String.class);
+          s.assertAndSkip(')');
+
+          // We must defer setting the function in case it's a forward reference.
+          @SuppressWarnings("DataFlowIssue")
+          var result = new Closure(null);
+
+          postModule.add(
+              m -> {
+                assert m == module;
+
+                var function = m.lookupFunction(functionName);
+                if (function == null) {
+                  throw s.fail("Callee references a function that wasn't defined: " + functionName);
+                }
+
+                result.unsafeSetCode(function);
+              });
+
+          return result;
+        }
+        case "prom" -> {
+          s.assertAndSkip('<');
+          var valueType = p.parse(Type.class);
+          var effects = p.parse(Effects.class);
+          s.assertAndSkip('>');
+
+          s.assertAndSkip('{');
+          var code =
+              p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner())).parse(CFG.class);
+          s.assertAndSkip('}');
+
+          return new Promise(valueType, effects, code);
+        }
+        case "dyn" -> {
+          s.assertAndSkip('<');
+          var variable = p3.parse(NamedVariable.class);
+          var argumentNames =
+              s.nextCharIs('[') ? p.parseList("[", "]", String.class) : ImmutableList.<String>of();
+          s.assertAndSkip('>');
+          var arguments = p2.parseList("(", ")", Argument.class);
+          return new Call(new DynamicCallee(variable, argumentNames), arguments);
+        }
+        case "force" -> {
+          var isMaybe = s.trySkip('?');
+          var value = p2.parse(Argument.class);
+          return isMaybe ? new MaybeForce(value) : new Force(value);
+        }
+        case "dup" -> {
+          var value = p2.parse(Argument.class);
+          return new Dup(value);
+        }
+        case "NULL",
+                "TRUE",
+                "FALSE",
+                "NA_LGL",
+                "NA_INT",
+                "NA_REAL",
+                "NA_CPLX",
+                "NA_STR",
+                "NA",
+                "NaN" ->
+            headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
+        case "use" -> {
+          var variable = p2.parse(Register.class);
+          headAsArg = new Use(variable);
+        }
+          // Variable
+        default -> {
+          if (scope.lookup(headAsName) instanceof Register target) {
+            headAsArg = new Read(target);
+          } else {
+            headAsNv = Variable.named(headAsName);
+          }
+        }
       }
     }
 
     if (headAsName == null && headAsArg == null) {
+      // Parse what doesn't start with a constant or identifier
+
       if (s.trySkip('_')) {
         return new Placeholder();
       }
@@ -130,67 +198,14 @@ public sealed interface Expression
         }
         return new SuperLoad(variable);
       }
-
-      if (s.trySkip("clos(")) {
-        var functionName = p.parse(String.class);
-        s.assertAndSkip(')');
-
-        // We must defer setting the function in case it's a forward reference.
-        @SuppressWarnings("DataFlowIssue")
-        var result = new Closure(null);
-
-        postModule.add(
-            m -> {
-              assert m == module;
-
-              var function = m.lookupFunction(functionName);
-              if (function == null) {
-                throw s.fail("Callee references a function that wasn't defined: " + functionName);
-              }
-
-              result.unsafeSetCode(function);
-            });
-
-        return result;
-      }
-
-      if (s.trySkip("prom<")) {
-        var valueType = p.parse(Type.class);
-        var effects = p.parse(Effects.class);
-        s.assertAndSkip('>');
-
-        s.assertAndSkip('{');
-        var code =
-            p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner())).parse(CFG.class);
-        s.assertAndSkip('}');
-
-        return new Promise(valueType, effects, code);
-      }
-
-      if (s.trySkip("dyn<")) {
-        var variable = p3.parse(NamedVariable.class);
-        var argumentNames =
-            s.nextCharIs('[') ? p.parseList("[", "]", String.class) : ImmutableList.<String>of();
-        s.assertAndSkip('>');
-        var arguments = p2.parseList("(", ")", Argument.class);
-        return new Call(new DynamicCallee(variable, argumentNames), arguments);
-      }
-
-      if (s.trySkip("force ")) {
-        var value = p2.parse(Argument.class);
-        return new Force(value);
-      }
-
-      if (s.trySkip("force? ")) {
-        var value = p2.parse(Argument.class);
-        return new MaybeForce(value);
-      }
-
-      if (s.trySkip("dup ")) {
-        var value = p2.parse(Argument.class);
-        return new Dup(value);
-      }
     } else {
+      // Parse what starts with a constant or identifier.
+      // `headAsName != null` iff it starts with an identifier.
+      // `headAsArg != null` iff it starts with an argument, which may be a constant or
+      // identifier which happens to be a register.
+      // `headAsNv != null` iff it starts with an identifier which is not a register (i.e. is a
+      // named variable).
+
       if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
         if (headAsName == null) {
           throw s.fail("in 'f...(...)', 'f' must be a valid identifier");
@@ -208,7 +223,7 @@ public sealed interface Expression
         } else {
           version = Either.left(Optional.empty());
         }
-        var arguments = p1.parseList("(", ")", Argument.class);
+        var arguments = p2.parseList("(", ")", Argument.class);
 
         // We must defer setting the function in case it's a forward reference.
         @SuppressWarnings("DataFlowIssue")
@@ -240,7 +255,7 @@ public sealed interface Expression
         return new Store(headAsNv, value);
       } else if (s.trySkip('$')) {
         if (headAsArg == null) {
-          throw s.fail("In 'e$...', 'e' must be a register (or constant)");
+          throw s.fail("In 'a$...', 'a' must be a register (or constant)");
         }
 
         var variable = p3.parse(NamedVariable.class);
@@ -252,7 +267,7 @@ public sealed interface Expression
         }
       } else if (s.trySkip('[')) {
         if (headAsArg == null) {
-          throw s.fail("In 'e[...]', 'e' must be a register (or constant)");
+          throw s.fail("In 'a[...]', 'a' must be a register (or constant)");
         }
 
         var subscript = p2.parse(Argument.class);
@@ -263,7 +278,15 @@ public sealed interface Expression
         } else {
           return new SubscriptLoad(headAsArg, subscript);
         }
+      } else if (s.trySkip("as ")) {
+        if (headAsArg == null) {
+          throw s.fail("In 'a as t', 'a' must be a register or constant");
+        }
+
+        var type = p.parse(Type.class);
+        return new Cast(headAsArg, type);
       }
+
       if (headAsArg != null) {
         return new Aea(headAsArg);
       } else {

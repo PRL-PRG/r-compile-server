@@ -42,19 +42,15 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
     var scope = cfg.scope();
     var postModule = ctx.postModule();
     var p = p1.withContext(ctx.inner());
-    var p2 = new Expression.ParseContext(null, cfg, postModule, ctx.inner());
+    var p2 = p.withContext(new Expression.ParseContext(null, cfg, postModule, ctx.inner()));
 
     var s = p.scanner();
 
     if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
       var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
 
-      if (s.trySkip('=')) {
-        if (!(scope.lookup(nameHead) instanceof Register register)) {
-          throw s.fail("Not a declared register: " + nameHead);
-        }
-
-        var expression = p.withContext(p2).parse(Expression.class);
+      if (scope.lookup(nameHead) instanceof Register register && s.trySkip('=')) {
+        var expression = p2.parse(Expression.class);
         return new Statement(register, expression);
       } else {
         return new Statement(
@@ -62,7 +58,7 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
                 .parse(Expression.class));
       }
     } else {
-      return new Statement(p.withContext(p2).parse(Expression.class));
+      return new Statement(p2.parse(Expression.class));
     }
   }
 }
