@@ -22,6 +22,7 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.primitive.Names;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
 
@@ -30,7 +31,9 @@ public sealed interface Expression
         Cast,
         Closure,
         Dup,
+        Aea,
         Force,
+        Load,
         MaybeForce,
         MkVector,
         Placeholder,
@@ -46,16 +49,20 @@ public sealed interface Expression
   @UnmodifiableView
   Collection<Argument> arguments();
 
+  /// @param headAsName An ugly workaround because the parser has no dynamic lookahead and we
+  ///   must parse `r = e`: if you scan a valid variable name, you can set this to non-null and
+  ///   the expression will parse continuing from there.
   record ParseContext(
-      @Nullable Variable target,
+      @Nullable String headAsName,
       CFG cfg,
       DeferredCallbacks<Module> postModule,
       @Nullable Object inner) {}
 
   @ParseMethod
   private static Expression parse(Parser p1, ParseContext ctx) {
-    var targetAsVar = ctx.target;
-    Argument targetAsArg = ctx.target instanceof Register r ? new Read(r) : null;
+    var headAsName = ctx.headAsName;
+    Argument headAsArg = null;
+    NamedVariable headAsNv = null;
     var cfg = ctx.cfg;
     var scope = cfg.scope();
     var module = scope.module();
@@ -66,12 +73,34 @@ public sealed interface Expression
 
     var s = p.scanner();
 
-    if (targetAsVar == null
-        && (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c)))) {
-      targetAsArg = p2.parse(Argument.class);
+    // Read `headAsName` or constant `headAsArg` (see [ParseContext#headAsName]).
+    if (headAsName == null) {
+      if (s.nextCharsAre("NULL")
+          || s.nextCharsAre("TRUE")
+          || s.nextCharsAre("FALSE")
+          || s.nextCharsAre("NA_")
+          || s.nextCharsAre("NaN")
+          || s.nextCharSatisfies(Character::isDigit)
+          || s.nextCharIs('-')
+          || s.nextCharIs('\"')
+          || s.nextCharIs('<')) {
+        headAsArg = p2.parse(Argument.class);
+      } else if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
+        headAsName = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
+      }
     }
 
-    if (targetAsVar == null && targetAsArg == null) {
+    // If `headAsName` is set, it's either a register (variable `headAsArg`) or named variable
+    // (`headAsNv`).
+    if (headAsName != null) {
+      if (scope.lookup(headAsName) instanceof Register target) {
+        headAsArg = new Read(target);
+      } else {
+        headAsNv = Variable.named(headAsName);
+      }
+    }
+
+    if (headAsName == null && headAsArg == null) {
       if (s.trySkip('_')) {
         return new Placeholder();
       }
@@ -165,12 +194,12 @@ public sealed interface Expression
       }
     } else {
       if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
-        if (targetAsVar == null) {
+        if (headAsName == null) {
           throw s.fail("in 'f...(...)', 'f' must be a valid identifier");
         }
 
         // Static or dispatch call
-        var functionName = targetAsVar.name();
+        var functionName = headAsName;
         Either<Optional<Signature>, Integer> version;
         if (s.trySkip('.')) {
           version = Either.right(s.readUInt());
@@ -205,39 +234,44 @@ public sealed interface Expression
 
         return result;
       } else if (s.trySkip('=')) {
-        if (!(targetAsVar instanceof NamedVariable target)) {
-          throw s.fail("'r = r1 = ...' is not allowed");
+        if (headAsNv == null) {
+          throw s.fail("In 'r = x = ...', 'x' must be a named variable (not a register)");
         }
 
         var value = p2.parse(Argument.class);
-        return new Store(target, value);
+        return new Store(headAsNv, value);
       } else if (s.trySkip('$')) {
-        if (targetAsArg == null) {
-          throw s.fail("in 'e$...', 'e' must be a register (or constant)");
+        if (headAsArg == null) {
+          throw s.fail("In 'e$...', 'e' must be a register (or constant)");
         }
 
         var variable = p3.parse(NamedVariable.class);
         if (s.trySkip('=')) {
           var value = p2.parse(Argument.class);
-          return new ReflectiveStore(targetAsArg, variable, value);
+          return new ReflectiveStore(headAsArg, variable, value);
         } else {
-          return new ReflectiveLoad(targetAsArg, variable);
+          return new ReflectiveLoad(headAsArg, variable);
         }
       } else if (s.trySkip('[')) {
-        if (targetAsArg == null) {
-          throw s.fail("in 'e[...]', 'e' must be a register (or constant)");
+        if (headAsArg == null) {
+          throw s.fail("In 'e[...]', 'e' must be a register (or constant)");
         }
 
         var subscript = p2.parse(Argument.class);
         s.assertAndSkip(']');
         if (s.trySkip('=')) {
           var value = p2.parse(Argument.class);
-          return new SubscriptStore(targetAsArg, subscript, value);
+          return new SubscriptStore(headAsArg, subscript, value);
         } else {
-          return new SubscriptLoad(targetAsArg, subscript);
+          return new SubscriptLoad(headAsArg, subscript);
         }
+      }
+      if (headAsArg != null) {
+        return new Aea(headAsArg);
       } else {
-        throw s.fail("unknown expression (plain variable or constant not allowed)");
+        // `headAsNv` is guaranteed to be non-null here (see the above
+        // `if (headAsName != null) ...`). IntelliJ suppresses the null warning.
+        return new Load(headAsNv);
       }
     }
 

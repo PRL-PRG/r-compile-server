@@ -6,9 +6,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -17,17 +20,21 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
+import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
+import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
-import org.prlprg.fir.ir.expression.Statement;
+import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptLoad;
 import org.prlprg.fir.ir.expression.SubscriptStore;
 import org.prlprg.fir.ir.expression.SuperLoad;
@@ -37,10 +44,14 @@ import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Kind.Any;
+import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
+import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -139,12 +150,35 @@ public final class TypeChecker extends Checker {
         }
       }
 
-      @Nullable Type run(Statement statement) {
-        return switch (statement) {
-          case Call call -> {
-            var argumentTypes = call.callArguments().stream().map(this::run).toList();
+      void run(Statement statement) {
+        var expr = statement.expression();
+        var assignee = statement.assignee();
 
-            java.util.function.Function<Abstraction, Type> finish =
+        var type = run(expr);
+
+        if (type != null && assignee != null) {
+          var assigneeType = lookup(assignee);
+          if (assigneeType == null) {
+            report("Undeclared register: " + assignee);
+          } else {
+            checkSubtype(type, assigneeType, "Can't assign " + expr + " to " + assignee);
+          }
+
+          // Check and update flow state
+          if (flow.use.contains(assignee)) {
+            report("Write after use: " + assignee);
+          }
+          flow.write.add(assignee);
+        }
+      }
+
+      @Nullable Type run(Expression expression) {
+        return switch (expression) {
+          case Aea(var value) -> run(value);
+          case Call call -> {
+            var argumentTypes = call.arguments().stream().map(this::run).toList();
+
+            Function<Abstraction, Type> finish =
                 callee -> {
                   if (callee.parameters().size() != argumentTypes.size()) {
                     report(
@@ -153,7 +187,7 @@ public final class TypeChecker extends Checker {
                             + " arguments, but has "
                             + argumentTypes.size()
                             + ": "
-                            + statement);
+                            + expression);
                   }
 
                   for (int i = 0;
@@ -164,7 +198,7 @@ public final class TypeChecker extends Checker {
                     checkMatches(
                         argType,
                         param.type(),
-                        "Type mismatch in argument " + i + " of " + statement);
+                        "Type mismatch in argument " + i + " of " + expression);
                   }
 
                   effects = effects.union(callee.returnEffects());
@@ -190,7 +224,7 @@ public final class TypeChecker extends Checker {
                 }
 
                 if (argumentNames.size() > argumentTypes.size()) {
-                  report("Dynamic call has more argument names than arguments: " + statement);
+                  report("Dynamic call has more argument names than arguments: " + expression);
                 }
 
                 effects = Effects.ANY;
@@ -228,7 +262,7 @@ public final class TypeChecker extends Checker {
               yield null;
             }
 
-            if (!type.isDefinitely(Kind.PrimitiveVector.class)) {
+            if (!type.isDefinitely(PrimitiveVector.class)) {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
               yield null;
             }
@@ -253,7 +287,11 @@ public final class TypeChecker extends Checker {
               yield null;
             }
           }
-          case Constant(var sexp) -> Type.of(sexp);
+          case Load(var variable) -> {
+            var type = lookup(variable);
+            // If `type == null`, the variable is non-local, so it's equivalent to `SuperLoad`.
+            yield type == null ? Type.ANY : type;
+          }
           case MaybeForce(var value) -> {
             var type = run(value);
             if (type == null) {
@@ -263,7 +301,7 @@ public final class TypeChecker extends Checker {
             if (type.kind() instanceof Kind.Promise(var innerTy, var promFx)) {
               effects = effects.union(promFx);
               yield innerTy;
-            } else if (type.kind() instanceof Kind.Any) {
+            } else if (type.kind() instanceof Any) {
               effects = Effects.ANY;
               yield Type.ANY_VALUE;
             } else {
@@ -275,7 +313,7 @@ public final class TypeChecker extends Checker {
               var element = elements.get(i);
               var type = run(element);
               checkSubtype(
-                  type, Type.INTEGER, "Type mismatch in element " + i + " of vector " + statement);
+                  type, Type.INTEGER, "Type mismatch in element " + i + " of vector " + expression);
             }
 
             yield Type.INT_VECTOR;
@@ -284,39 +322,19 @@ public final class TypeChecker extends Checker {
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
             if (expectedInnerType.ownership() != Ownership.SHARED) {
-              report("Promise inner type must be shared (in " + statement + ")");
+              report("Promise inner type must be shared (in " + expression + ")");
             }
 
             var promiseAnalysis = new OnCfg(promiseCode);
             promiseAnalysis.run();
             var actualInnerType = promiseAnalysis.returnType;
 
-            checkSubtype(actualInnerType, expectedInnerType, "Type mismatch in " + statement);
+            checkSubtype(actualInnerType, expectedInnerType, "Type mismatch in " + expression);
             checkSubEffects(
-                promiseAnalysis.effects, expectedEffects, "Effects mismatch in " + statement);
+                promiseAnalysis.effects, expectedEffects, "Effects mismatch in " + expression);
 
             flow.compose(promiseAnalysis.flow.inPromise());
             yield Type.promise(expectedInnerType, expectedEffects);
-          }
-          case Read(var variable) -> {
-            var type = lookup(variable);
-            if (type == null) {
-              report("Undeclared register: " + variable);
-              yield null;
-            }
-
-            if (variable instanceof Register register) {
-              // Flow check: ensure register is written before read
-              if (!flow.write.contains(register)) {
-                report("Read before write: " + register);
-              }
-              if (flow.use.contains(register)) {
-                report("Read after use: " + register);
-              }
-              flow.read.add(register);
-            }
-
-            yield type;
           }
           case ReflectiveLoad(var promise, var _) -> {
             var promiseType = run(promise);
@@ -348,11 +366,25 @@ public final class TypeChecker extends Checker {
             effects = Effects.ANY;
             yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
           }
+          case Store(var variable, var value) -> {
+            var type = lookup(variable);
+            if (type == null) {
+              report("Undeclared register: " + variable);
+              yield null;
+            }
+
+            var valueType = run(value);
+
+            // Check assignment compatibility
+            checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
+
+            yield type;
+          }
           case SubscriptLoad(var target, var index) -> {
             var targetType = run(target);
             var indexType = run(index);
 
-            if (targetType != null && !targetType.isDefinitely(Kind.PrimitiveVector.class)) {
+            if (targetType != null && !targetType.isDefinitely(PrimitiveVector.class)) {
               report(
                   "Subscript read target must be a vector, got "
                       + target
@@ -363,7 +395,7 @@ public final class TypeChecker extends Checker {
 
             checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
 
-            yield targetType != null && targetType.kind() instanceof Kind.PrimitiveVector(var kind)
+            yield targetType != null && targetType.kind() instanceof PrimitiveVector(var kind)
                 ? Type.primitiveScalar(kind)
                 : null;
           }
@@ -373,7 +405,7 @@ public final class TypeChecker extends Checker {
             var valueType = run(value);
 
             if (targetType != null) {
-              if (!targetType.isDefinitely(Kind.PrimitiveVector.class)) {
+              if (!targetType.isDefinitely(PrimitiveVector.class)) {
                 report(
                     "Subscript write target must be a vector, got "
                         + target
@@ -393,7 +425,7 @@ public final class TypeChecker extends Checker {
 
             checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
 
-            if (valueType != null && !valueType.isDefinitely(Kind.PrimitiveScalar.class)) {
+            if (valueType != null && !valueType.isDefinitely(PrimitiveScalar.class)) {
               report(
                   "Subscript write value must be a primitive scalar, got "
                       + value
@@ -402,13 +434,13 @@ public final class TypeChecker extends Checker {
                       + "}");
             }
             if (targetType != null
-                && targetType.kind() instanceof Kind.PrimitiveVector(var targetKind)
+                && targetType.kind() instanceof PrimitiveVector(var targetKind)
                 && valueType != null
-                && valueType.kind() instanceof Kind.PrimitiveScalar(var valueKind)
+                && valueType.kind() instanceof PrimitiveScalar(var valueKind)
                 && valueKind != targetKind) {
               report(
                   "Subscript write kind mismatch (in "
-                      + statement
+                      + expression
                       + "): expected "
                       + targetKind
                       + ", got "
@@ -430,7 +462,7 @@ public final class TypeChecker extends Checker {
               yield null;
             }
 
-            if (!type.isDefinitely(Kind.PrimitiveVector.class)) {
+            if (!type.isDefinitely(PrimitiveVector.class)) {
               report("Can't use non-vector, got " + type);
               yield null;
             }
@@ -455,25 +487,27 @@ public final class TypeChecker extends Checker {
 
             yield type.withOwnership(Ownership.FRESH);
           }
-          case Assign(var variable, var value) -> {
+        };
+      }
+
+      @Nullable Type run(Argument argument) {
+        return switch (argument) {
+          case Constant(var sexp) -> Type.of(sexp);
+          case Read(var variable) -> {
             var type = lookup(variable);
             if (type == null) {
               report("Undeclared register: " + variable);
               yield null;
             }
 
-            var valueType = run(value);
-
-            // Check assignment compatibility
-            checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
-
-            // Check and update flow state
-            if (variable instanceof Register register) {
-              if (flow.use.contains(register)) {
-                report("Write after use: " + register);
-              }
-              flow.write.add(register);
+            // Flow check: ensure register is written before read
+            if (!flow.write.contains(variable)) {
+              report("Read before write: " + variable);
             }
+            if (flow.use.contains(variable)) {
+              report("Read after use: " + variable);
+            }
+            flow.read.add(variable);
 
             yield type;
           }

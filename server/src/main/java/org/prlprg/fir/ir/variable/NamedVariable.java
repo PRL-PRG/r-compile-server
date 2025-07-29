@@ -1,10 +1,7 @@
 package org.prlprg.fir.ir.variable;
 
 import java.util.Objects;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
 
 public final class NamedVariable implements Variable {
   public static final NamedVariable DOTS = Variable.named("...");
@@ -44,13 +41,5 @@ public final class NamedVariable implements Variable {
   @Override
   public int hashCode() {
     return Objects.hash(name);
-  }
-
-  @ParseMethod
-  private static NamedVariable parse(Parser p) {
-    var s = p.scanner();
-
-    var ident = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
-    return Variable.named(ident);
   }
 }

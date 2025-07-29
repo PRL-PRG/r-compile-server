@@ -1,8 +1,6 @@
 package org.prlprg.fir.ir.variable;
 
 import java.util.Objects;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 
 public final class Register implements Variable {
@@ -37,11 +35,5 @@ public final class Register implements Variable {
   @Override
   public int hashCode() {
     return Objects.hash(name);
-  }
-
-  @ParseMethod
-  private static Register parse(Parser p) {
-    var ident = p.scanner().readJavaIdentifierOrKeyword();
-    return Variable.register(ident);
   }
 }

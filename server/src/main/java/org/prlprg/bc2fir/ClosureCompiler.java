@@ -3,9 +3,12 @@ package org.prlprg.bc2fir;
 import java.util.List;
 import java.util.Objects;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
@@ -46,7 +49,7 @@ public final class ClosureCompiler {
       var paramReg = compiledParams.get(i).variable();
 
       baseline.addLocal(new Local(paramNamedVar, Type.ANY));
-      baselineCursor.insert(new Assign(paramNamedVar, paramReg));
+      baselineCursor.insert(new Statement(new Store(paramNamedVar, new Read(paramReg))));
     }
 
     return baseline;

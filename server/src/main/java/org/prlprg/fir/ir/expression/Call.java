@@ -30,6 +30,8 @@ public final class Call implements Expression {
     return Objects.requireNonNull(callee, "callee was deferred and not set");
   }
 
+  /// Call arguments, also happens to be [Expression#arguments()] which is every [Argument]
+  /// in the expression (since the callee never contains an [Argument]).
   @Override
   public ImmutableList<Argument> arguments() {
     return arguments;
