@@ -24,10 +24,14 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public static final Type LOGICAL = primitiveScalar(PrimitiveKind.LOGICAL);
   public static final Type REAL = primitiveScalar(PrimitiveKind.REAL);
   public static final Type STRING = primitiveScalar(PrimitiveKind.STRING);
-  public static final Type INT_VECTOR = primitiveVector(PrimitiveKind.INTEGER);
-  public static final Type LOGICAL_VECTOR = primitiveVector(PrimitiveKind.LOGICAL);
-  public static final Type REAL_VECTOR = primitiveVector(PrimitiveKind.REAL);
-  public static final Type STRING_VECTOR = primitiveVector(PrimitiveKind.STRING);
+  public static final Type SHARED_INT_VECTOR =
+      primitiveVector(PrimitiveKind.INTEGER, Ownership.SHARED);
+  public static final Type SHARED_LOGICAL_VECTOR =
+      primitiveVector(PrimitiveKind.LOGICAL, Ownership.SHARED);
+  public static final Type SHARED_REAL_VECTOR =
+      primitiveVector(PrimitiveKind.REAL, Ownership.SHARED);
+  public static final Type SHARED_STRING_VECTOR =
+      primitiveVector(PrimitiveKind.STRING, Ownership.SHARED);
   public static final Type CLOSURE =
       new Type(new Kind.Closure(), Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type BOOLEAN = LOGICAL;
@@ -36,8 +40,8 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     return new Type(new Kind.PrimitiveScalar(kind), Ownership.SHARED, Concreteness.DEFINITE);
   }
 
-  public static Type primitiveVector(PrimitiveKind kind) {
-    return new Type(new Kind.PrimitiveVector(kind), Ownership.SHARED, Concreteness.DEFINITE);
+  public static Type primitiveVector(PrimitiveKind kind, Ownership ownership) {
+    return new Type(new Kind.PrimitiveVector(kind), ownership, Concreteness.DEFINITE);
   }
 
   public static Type promise(Type innerType, Effects effects) {
@@ -46,10 +50,10 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
 
   public static Type of(SEXP sexp) {
     return switch (sexp) {
-      case IntSXP i when !sexp.hasAttributes() -> i.isScalar() ? INTEGER : INT_VECTOR;
-      case LglSXP l when !sexp.hasAttributes() -> l.isScalar() ? LOGICAL : LOGICAL_VECTOR;
-      case RealSXP r when !sexp.hasAttributes() -> r.isScalar() ? REAL : REAL_VECTOR;
-      case StrSXP s when !sexp.hasAttributes() -> s.isScalar() ? STRING : STRING_VECTOR;
+      case IntSXP i when !sexp.hasAttributes() -> i.isScalar() ? INTEGER : SHARED_INT_VECTOR;
+      case LglSXP l when !sexp.hasAttributes() -> l.isScalar() ? LOGICAL : SHARED_LOGICAL_VECTOR;
+      case RealSXP r when !sexp.hasAttributes() -> r.isScalar() ? REAL : SHARED_REAL_VECTOR;
+      case StrSXP s when !sexp.hasAttributes() -> s.isScalar() ? STRING : SHARED_STRING_VECTOR;
       case CloSXP _, BuiltinOrSpecialSXP _ -> CLOSURE;
       case PromSXP p ->
           promise(
