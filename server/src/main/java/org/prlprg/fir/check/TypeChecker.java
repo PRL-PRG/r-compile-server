@@ -53,6 +53,7 @@ import org.prlprg.fir.ir.type.Kind.Any;
 import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -161,7 +162,7 @@ public final class TypeChecker extends Checker {
           if (assigneeType == null) {
             report("Undeclared register: " + assignee);
           } else {
-            checkSubtype(type, assigneeType, "Can't assign " + expr + " to " + assignee);
+            checkAssignment(type, assigneeType, "Can't assign " + expr + " to " + assignee);
           }
 
           // Check and update flow state
@@ -209,6 +210,14 @@ public final class TypeChecker extends Checker {
               case StaticCallee(var _, var version) -> finish.apply(version);
               case DispatchCallee(var function, var signature) -> {
                 var version = function.worstGuess(signature);
+
+                // If `version == null`, this is a call to an unknown version, so it could
+                // do and return anything.
+                if (version == null) {
+                  effects = Effects.ANY;
+                  yield Type.ANY_VALUE;
+                }
+
                 yield finish.apply(version);
               }
               case DynamicCallee(var calleeVariable, var argumentNames) -> {
@@ -316,7 +325,7 @@ public final class TypeChecker extends Checker {
                   type, Type.INTEGER, "Type mismatch in element " + i + " of vector " + expression);
             }
 
-            yield Type.INT_VECTOR;
+            yield Type.primitiveVector(PrimitiveKind.INTEGER, Ownership.FRESH);
           }
           case Placeholder() -> null;
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
@@ -375,7 +384,6 @@ public final class TypeChecker extends Checker {
 
             var valueType = run(value);
 
-            // Check assignment compatibility
             checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
 
             yield type;

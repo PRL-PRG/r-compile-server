@@ -53,7 +53,7 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (other) {
       case Any() -> true;
       case AnyValue() -> !(this instanceof Any) && !(this instanceof Promise);
-      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure() -> this == other;
+      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure() -> this.equals(other);
       case Promise(var otherValue, var otherEffects) ->
           this instanceof Promise(var value, var effects)
               && value.isSubtypeOf(otherValue)
@@ -66,7 +66,7 @@ public sealed interface Kind extends Comparable<Kind> {
       case Any() -> other;
       case AnyValue() -> this instanceof Any || this instanceof Promise ? new Any() : other;
       case PrimitiveScalar(var _), PrimitiveVector(var _), Closure() ->
-          this == other ? this : union(new AnyValue(), onOwnershipMismatch);
+          this.equals(other) ? this : union(new AnyValue(), onOwnershipMismatch);
       case Promise(var otherValue, var otherEffects) ->
           this instanceof Promise(var value, var effects)
               ? new Promise(

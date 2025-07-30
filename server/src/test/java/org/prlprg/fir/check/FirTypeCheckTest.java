@@ -1,5 +1,6 @@
 package org.prlprg.fir.check;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.abort;
 
@@ -7,6 +8,9 @@ import com.google.common.base.Joiner;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.ParseException;
@@ -27,17 +31,31 @@ public class FirTypeCheckTest {
       var typeChecker = new TypeChecker();
       typeChecker.run(firModule);
 
-      assertTrue(
-          typeChecker.errors().size()
-              <= firText.lines().filter(line -> line.startsWith("# error: ")).count(),
+      var unseenTypeCheckerErrorMessages =
+          typeChecker.errors().stream()
+              .map(CheckException::mainMessage)
+              .collect(Collectors.toCollection(HashSet::new));
+      firText
+          .lines()
+          .map(String::trim)
+          .filter(line -> line.startsWith("# error: "))
+          .forEach(
+              line -> {
+                var expectedError = line.substring("# error: ".length());
+                assertTrue(
+                    unseenTypeCheckerErrorMessages.remove(expectedError),
+                    "Expected error not found: " + expectedError);
+              });
+
+      var unexpectedTypeCheckerErrors =
+          typeChecker.errors().stream()
+              .filter(error -> unseenTypeCheckerErrorMessages.contains(error.mainMessage()))
+              .toList();
+      assertEquals(
+          List.of(),
+          unexpectedTypeCheckerErrors,
           "Type checking produced unexpected errors:\n\n"
-              + Joiner.on("\n\n").join(typeChecker.errors()));
-      for (var error : typeChecker.errors()) {
-        // ???: Also check that the location is correct.
-        assertTrue(
-            firText.contains("# error: " + error.mainMessage()),
-            "Type checker didn't produce error: " + error.getMessage());
-      }
+              + Joiner.on("\n\n").join(unexpectedTypeCheckerErrors));
     } catch (ParseException e) {
       abort(
           "Failed to parse FIR file: "
