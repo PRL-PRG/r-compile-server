@@ -95,8 +95,12 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   private static Arbitrary<NamespaceEnvSXP> namespaceEnvs1(
       Arbitrary<? extends StaticEnvSXP> envs, Arbitrary<SEXP> sexps) {
-    return Combinators.combine(symbolStrings(), symbolStrings(), envs, envBindings(sexps))
+    return Combinators.combine(symbolStrings(), namespaceVersions(), envs, envBindings(sexps))
         .as(NamespaceEnvSXP::new);
+  }
+
+  private static Arbitrary<String> namespaceVersions() {
+    return Arbitraries.of("4.3.2");
   }
 
   private static Arbitrary<BaseEnvSXP> baseEnvs(Arbitrary<SEXP> sexps) {
@@ -104,7 +108,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<Map<String, SEXP>> envBindings(Arbitrary<SEXP> sexps) {
-    return Arbitraries.maps(shortStrings(), sexps).ofMaxSize(MAX_SIZE);
+    return Arbitraries.maps(symbolStrings(), sexps).ofMaxSize(MAX_SIZE);
   }
 
   private static Arbitrary<ExprSXP> exprs() {

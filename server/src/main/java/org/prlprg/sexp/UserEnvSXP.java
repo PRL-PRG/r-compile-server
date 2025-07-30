@@ -20,7 +20,7 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
 
   public UserEnvSXP(EnvSXP parent, Map<String, SEXP> bindings) {
     this(parent);
-    this.bindings.putAll(bindings);
+    this.setBindings(bindings);
   }
 
   @Override
