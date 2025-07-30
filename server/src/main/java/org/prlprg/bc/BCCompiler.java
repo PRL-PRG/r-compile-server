@@ -132,7 +132,6 @@ import org.prlprg.bc.BcInstr.VecSubset;
 import org.prlprg.bc.BcInstr.VecSubset2;
 import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.session.RSession;
-import org.prlprg.sexp.*;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -174,7 +173,7 @@ public class BCCompiler {
   public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
 
   /** SEXP types that can participate in constan folding. */
-  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STRING);
+  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
 
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 

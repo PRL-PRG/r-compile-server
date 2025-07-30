@@ -19,7 +19,6 @@ public sealed interface Argument permits Constant, Read, Use {
         || s.nextCharsAre("TRUE")
         || s.nextCharsAre("FALSE")
         || s.nextCharsAre("NA_")
-        || s.nextCharsAre("NaN")
         || s.nextCharSatisfies(Character::isDigit)
         || s.nextCharIs('-')
         || s.nextCharIs('\"')

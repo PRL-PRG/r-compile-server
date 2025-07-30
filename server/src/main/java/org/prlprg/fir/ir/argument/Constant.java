@@ -3,12 +3,20 @@ package org.prlprg.fir.ir.argument;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 /// Argument that is a constant.
 ///
-/// Currently any {@link SEXP} can be in a constant, but we may want to make this more specific
-/// (e.g. only scalars).
+/// Any {@link SEXP} that is not a non-static environment can be a constant, since it will be
+/// compiled to a constant pool entry if it's not a static (e.g. static environment).
 public record Constant(SEXP sexp) implements Argument {
+  public Constant {
+    if (sexp instanceof UserEnvSXP) {
+      throw new IllegalArgumentException("Non-static environments can't be constants");
+    }
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -16,6 +24,6 @@ public record Constant(SEXP sexp) implements Argument {
 
   @PrintMethod
   private void print(Printer p) {
-    p.print(sexp);
+    p.withContext(SEXPPrintOptions.FULL_DELIMITED).print(sexp);
   }
 }

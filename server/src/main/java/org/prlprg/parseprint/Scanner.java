@@ -228,9 +228,13 @@ public class Scanner {
         () -> {
           if (trySkip("Infinity")) {
             return "Infinity";
+          } else if (trySkip("+Infinity")) {
+            return "Infinity";
           } else if (trySkip("-Infinity")) {
             return "-Infinity";
           } else if (trySkip("NaN")) {
+            return "NaN";
+          } else if (trySkip("+NaN")) {
             return "NaN";
           } else if (trySkip("-NaN")) {
             return "-NaN";

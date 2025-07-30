@@ -12,15 +12,10 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
-import org.prlprg.parseprint.Parser;
-import org.prlprg.parseprint.PrettyPrintWriter;
-import org.prlprg.parseprint.Printer;
-import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.primitive.Names;
 
 /** All global {@link SEXP}s and methods to create SEXPs are here so they're easy to find. */
 @SuppressWarnings("MissingJavadoc")
@@ -550,7 +545,7 @@ public final class SEXPs {
               case LGL -> Logical.class;
               case RAW -> Byte.class;
               case CPLX -> Complex.class;
-              case STRING -> String.class;
+              case STR -> String.class;
               default -> throw new IllegalArgumentException("Unsupported type: " + type);
             }) {
       throw new IllegalArgumentException(
@@ -563,101 +558,12 @@ public final class SEXPs {
       case LGL -> (PrimVectorSXP<T>) logical((List<Logical>) build);
       case RAW -> (PrimVectorSXP<T>) raw((List<Byte>) build);
       case CPLX -> (PrimVectorSXP<T>) complex((List<Complex>) build);
-      case STRING -> (PrimVectorSXP<T>) string((List<String>) build);
+      case STR -> (PrimVectorSXP<T>) string((List<String>) build);
       default -> throw new IllegalArgumentException("Unsupported type: " + type);
     };
   }
 
   // endregion constructors
-
-  static class GenericParse {
-    private final SEXPType type;
-    private final ImmutableList<Object> data;
-    private final Attributes attributes;
-    private int index = 0;
-
-    private GenericParse(SEXPType type, ImmutableList<Object> data, Attributes attributes) {
-      this.type = type;
-      this.data = data;
-      this.attributes = attributes;
-    }
-
-    <T> T next(Class<T> clazz) {
-      assert index < data.size()
-          : "called `GenericParse#next` more times than the number of classes provided to `SEXP#parse`";
-      assert clazz.isInstance(data.get(index))
-          : "classes provided to `SEXP#parse` must be the same as those accessed from `GenericParse#next`";
-      return clazz.cast(data.get(index++));
-    }
-
-    void assertNoAttributes(Parser p) {
-      assert index == data.size()
-          : "called `GenericParse#assertNoAttributes` before getting all data";
-      if (!attributes.isEmpty()) {
-        throw p.scanner().fail("SEXPs of type " + type + " never have attributes");
-      }
-    }
-
-    Attributes attributes() {
-      assert index == data.size() : "called `GenericParse#attributes` before getting all data";
-      return attributes;
-    }
-  }
-
-  static GenericParse parse(Parser p, SEXPType type, Class<?>... clazz) {
-    var s = p.scanner();
-
-    var actualType =
-        s.runWithWhitespacePolicy(
-            SkipWhitespace.NONE,
-            () -> {
-              s.assertAndSkip('<');
-              return p.parse(SEXPType.class);
-            });
-    if (type != actualType) {
-      throw s.fail(type.toString(), actualType.toString());
-    }
-
-    var data =
-        Arrays.stream(clazz)
-            .map(
-                c -> {
-                  s.assertAndSkip("whitespace", Character::isWhitespace);
-                  return (Object) p.parse(c);
-                })
-            .collect(ImmutableList.toImmutableList());
-
-    var attributes = s.trySkip("|") ? p.parse(Attributes.class) : Attributes.NONE;
-    s.assertAndSkip('>');
-
-    return new GenericParse(type, data, attributes);
-  }
-
-  static void print(Printer p, SEXP sexp, Object... data) {
-    var w = p.writer();
-    var attributes = sexp.attributes();
-
-    w.write('<');
-    p.print(sexp.type());
-    for (var d : data) {
-      w.write(' ');
-      w.runIndented(() -> p.print(d));
-    }
-    if (attributes != null && !attributes.isEmpty()) {
-      w.write('\n');
-      w.write("  | ");
-      w.runIndented(
-          PrettyPrintWriter.DEFAULT_INDENT * 2,
-          () -> {
-            for (var e : attributes.entrySet()) {
-              Names.write(w, e.getKey());
-              w.write(" = ");
-              p.print(e.getValue());
-            }
-          });
-    }
-    w.write('>');
-  }
 
   private SEXPs() {}
 }

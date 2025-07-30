@@ -296,7 +296,7 @@ public final class ConstantFolding {
 
     Optional<SEXP> vals =
         switch (type) {
-          case STRING -> {
+          case STR -> {
             var res = new ImmutableList.Builder<String>();
             vecArgs.forEach(x -> res.add(x.coerceToStrings()));
             yield Optional.of(SEXPs.string(res.build()));

@@ -48,7 +48,7 @@ public enum SEXPType implements SEXPOrEnvType {
   /** complex variables */
   CPLX(15),
   /** string vectors */
-  STRING(16),
+  STR(16),
   /** dot-dot-dot object */
   DOT(17),
   /** make "any" args work */
@@ -102,7 +102,7 @@ public enum SEXPType implements SEXPOrEnvType {
       case 13 -> INT;
       case 14 -> REAL;
       case 15 -> CPLX;
-      case 16 -> STRING;
+      case 16 -> STR;
       case 17 -> DOT;
       case 18 -> ANY;
       case 19 -> VEC;
@@ -140,7 +140,7 @@ public enum SEXPType implements SEXPOrEnvType {
               VEC,
               EXPR ->
           false;
-      case CHAR, LGL, INT, REAL, CPLX, STRING, RAW -> true;
+      case CHAR, LGL, INT, REAL, CPLX, STR, RAW -> true;
     };
   }
 }

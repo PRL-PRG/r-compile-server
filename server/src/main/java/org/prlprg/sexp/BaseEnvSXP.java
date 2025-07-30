@@ -9,7 +9,7 @@ public final class BaseEnvSXP extends AbstractStaticEnvSXP implements StaticEnvS
 
   public BaseEnvSXP(Map<String, SEXP> bindings) {
     this();
-    this.bindings.putAll(bindings);
+    this.setBindings(bindings);
   }
 
   @Override

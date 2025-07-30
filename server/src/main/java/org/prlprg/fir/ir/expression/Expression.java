@@ -143,21 +143,13 @@ public sealed interface Expression
           var value = p2.parse(Argument.class);
           return new Dup(value);
         }
-        case "NULL",
-                "TRUE",
-                "FALSE",
-                "NA_LGL",
-                "NA_INT",
-                "NA_REAL",
-                "NA_CPLX",
-                "NA_STR",
-                "NA",
-                "NaN" ->
-            headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
         case "use" -> {
           var variable = p2.parse(Register.class);
           headAsArg = new Use(variable);
         }
+          // Constant
+        case String headAsName1 when Names.isReserved(headAsName1) ->
+            headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
           // Variable
         default -> {
           if (scope.lookup(headAsName) instanceof Register target) {

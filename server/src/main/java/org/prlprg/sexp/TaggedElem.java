@@ -5,8 +5,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.parseprint.HasSEXPParseContext;
-import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
@@ -61,18 +59,8 @@ public record TaggedElem(@Nullable String tag, SEXP value) {
 
   // region serialization and deserialization
   @ParseMethod
-  private static TaggedElem parse(Parser p, HasSEXPParseContext h) {
-    return p.withContext(h.sexpParseContext()).parse(TaggedElem.class);
-  }
-
-  @ParseMethod
   private static TaggedElem parse(Parser p) {
     return p.withContext(new SEXPParseContext()).parse(TaggedElem.class);
-  }
-
-  @PrintMethod
-  private void print(Printer p, HasSEXPPrintContext h) {
-    p.withContext(h.sexpPrintContext()).print(this);
   }
 
   @PrintMethod

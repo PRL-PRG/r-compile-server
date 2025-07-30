@@ -60,7 +60,7 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
     SEXPType targetType;
     if (clazz == String.class) {
       target = new String[size()];
-      targetType = SEXPType.STRING;
+      targetType = SEXPType.STR;
     } else if (clazz == Double.class) {
       target = new Double[size()];
       targetType = SEXPType.REAL;

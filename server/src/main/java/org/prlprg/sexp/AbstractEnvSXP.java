@@ -1,6 +1,6 @@
 package org.prlprg.sexp;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -14,7 +14,8 @@ abstract class AbstractEnvSXP {
 
   public AbstractEnvSXP(EnvSXP parent) {
     this.parent = parent;
-    this.bindings = new HashMap<>();
+    // Preserving the order makes testing and debugging easier and more consistent.
+    this.bindings = new LinkedHashMap<>();
   }
 
   // @Override
@@ -48,10 +49,20 @@ abstract class AbstractEnvSXP {
   }
 
   public void set(String name, SEXP value) {
+    if (name.isEmpty()) {
+      throw new IllegalArgumentException("binding name cannot be empty");
+    }
+
     bindings.put(name, value);
   }
 
   public void setBindings(Map<String, SEXP> bindings) {
+    for (String name : bindings.keySet()) {
+      if (name.isEmpty()) {
+        throw new IllegalArgumentException("binding name cannot be empty: " + name);
+      }
+    }
+
     this.bindings.clear();
     this.bindings.putAll(bindings);
   }

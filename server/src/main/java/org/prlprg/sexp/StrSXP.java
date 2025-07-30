@@ -15,7 +15,7 @@ public sealed interface StrSXP extends PrimVectorSXP<String>, StrOrRegSymSXP
     permits EmptyStrSXPImpl, ScalarStrSXP, StrSXPImpl {
   @Override
   default SEXPType type() {
-    return SEXPType.STRING;
+    return SEXPType.STR;
   }
 
   @Override
