@@ -25,7 +25,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
 
-public final class Abstraction {
+public final class Abstraction implements Comparable<Abstraction> {
   static final String DEFAULT_LOCAL_PREFIX = "r";
 
   // Backlink
@@ -158,8 +158,9 @@ public final class Abstraction {
 
   /// Get the variable with this name in the scope, if present.
   ///
-  /// This method's main purpose is to distinguish between [Register] and [NamedVariable]. If
-  /// you just want to check whether a variable with the name exists, use [#contains(String)].
+  /// This method's main purpose is to distinguish between [Register] and [NamedVariable]
+  /// [org.prlprg.fir.ir.variable.NamedVariable]. If you just want to check whether a variable
+  /// with the name exists, use [#contains(String)].
   public @Nullable Variable lookup(String variableName) {
     var param = nameToParam.get(variableName);
     if (param != null) {
@@ -181,6 +182,24 @@ public final class Abstraction {
         parameters.stream().map(Parameter::type).collect(ImmutableList.toImmutableList()),
         returnType,
         returnEffects);
+  }
+
+  /// Sort by parameter types (smallest type first), then by number of parameters, then by hash.
+  ///
+  /// This means strictly better versions are before strictly worse ones.
+  @Override
+  public int compareTo(Abstraction o) {
+    for (var i = 0; i < Math.min(parameters().size(), o.parameters().size()); i++) {
+      var cmp = parameters().get(i).type().compareTo(o.parameters().get(i).type());
+      if (cmp != 0) {
+        return cmp;
+      }
+    }
+    var cmp = Integer.compare(parameters().size(), o.parameters().size());
+    if (cmp != 0) {
+      return cmp;
+    }
+    return Integer.compare(hashCode(), o.hashCode());
   }
 
   @Override
@@ -205,7 +224,7 @@ public final class Abstraction {
     p.printSeparated(", ", locals.values());
     w.write(" |\n");
     p.print(cfg);
-    w.write("}");
+    w.write("\n}");
   }
 
   public record ParseContext(

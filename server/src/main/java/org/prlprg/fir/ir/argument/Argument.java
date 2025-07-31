@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.argument;
 
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.SEXP;
@@ -14,6 +15,9 @@ public sealed interface Argument permits Constant, Read, Use {
 
   @ParseMethod
   private static Argument parse(Parser p, ParseContext ctx) {
+    var scope = ctx.scope;
+    var p1 = p.withContext(new Variable.ParseContext(scope));
+
     var s = p.scanner();
 
     if (s.nextCharsAre("NULL")
@@ -27,11 +31,22 @@ public sealed interface Argument permits Constant, Read, Use {
       var value = p.parse(SEXP.class);
       return new Constant(value);
     } else if (s.trySkip("use ")) {
-      var variable = p.parse(Register.class);
-      return new Use(variable);
+      var variable = p1.parse(Variable.class);
+      if (!(variable instanceof Register register)) {
+        throw s.fail(scope.contains(variable) ? "can't use named variable" : "unbound register");
+      }
+
+      return new Use(register);
     } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
-      var variable = p.parse(Register.class);
-      return new Read(variable);
+      var variable = p1.parse(Variable.class);
+      if (!(variable instanceof Register register)) {
+        throw s.fail(
+            scope.contains(variable)
+                ? "load (reading a named variable) must be its own statement.\nEx: instead of `f(x)`, write `r = x; f(r)`"
+                : "unbound register");
+      }
+
+      return new Read(register);
     }
 
     throw s.fail("unknown expression");

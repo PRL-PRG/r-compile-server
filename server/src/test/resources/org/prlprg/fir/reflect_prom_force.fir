@@ -1,5 +1,5 @@
 fun main {
-    () -+> v(I) { reg r0:v(I)o, reg r1:p(I -), reg r2:p(I -), reg r3:v(I)o, var x:v(I)?, reg rx0:v(I)?, reg rx1:v(I) |
+    () -+> v(I) { reg r0:v(I)o, reg r1:p(I -), reg r2:p(I +), reg r3:v(I)o, var x:v(I)?, reg rx0:v(I)?, reg rx1:v(I) |
         r0 = [0, 1, 2];
         x = use r0;
 

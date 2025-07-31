@@ -114,9 +114,7 @@ public final class CFG {
 
   @PrintMethod
   private void print(Printer p) {
-    for (var bb : bbs.values()) {
-      p.print(bb);
-    }
+    p.printSeparated("\n", bbs.values());
   }
 
   public record ParseContext(

@@ -1,5 +1,6 @@
 package org.prlprg.fir.ir.type;
 
+import java.util.logging.Logger;
 import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -35,6 +36,8 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public static final Type CLOSURE =
       new Type(new Kind.Closure(), Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type BOOLEAN = LOGICAL;
+
+  private static Logger LOGGER = Logger.getLogger(Type.class.getName());
 
   public static Type primitiveScalar(PrimitiveKind kind) {
     return new Type(new Kind.PrimitiveScalar(kind), Ownership.SHARED, Concreteness.DEFINITE);
@@ -99,8 +102,10 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public boolean matches(Type expected) {
     return kind.isSubtypeOf(expected.kind)
         && switch (expected.ownership) {
-          case FRESH ->
-              throw new IllegalArgumentException("Parameters can't be fresh: " + expected);
+          case FRESH -> {
+            warn("Parameters can't be fresh: " + expected);
+            yield ownership == Ownership.FRESH;
+          }
           case OWNED -> ownership == Ownership.FRESH;
           case BORROWED -> true;
           case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
@@ -111,13 +116,16 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   /// `true` iff every type that matches `this` matches `other`.
   boolean allMatchesMatch(Type other) {
     if (ownership == Ownership.FRESH) {
-      throw new IllegalArgumentException("Parameters can't be fresh: " + this);
+      warn("Parameters can't be fresh: " + this);
     }
 
     return kind.isSubtypeOf(other.kind)
         && switch (other.ownership) {
-          case FRESH -> throw new IllegalArgumentException("Parameters can't be fresh: " + other);
-          case OWNED -> ownership == Ownership.OWNED;
+          case FRESH -> {
+            warn("Parameters can't be fresh: " + other);
+            yield ownership == Ownership.FRESH || ownership == Ownership.OWNED;
+          }
+          case OWNED -> ownership == Ownership.FRESH || ownership == Ownership.OWNED;
           case BORROWED -> true;
           case SHARED -> ownership == Ownership.SHARED;
         }
@@ -127,8 +135,10 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public boolean canBeAssignedTo(Type expected) {
     return kind.isSubtypeOf(expected.kind)
         && switch (expected.ownership) {
-          case FRESH ->
-              throw new IllegalArgumentException("Assignment targets can't be fresh: " + expected);
+          case FRESH -> {
+            warn("Assignment targets can't be fresh: " + expected);
+            yield ownership == Ownership.FRESH;
+          }
           case OWNED -> ownership == Ownership.FRESH;
           case BORROWED -> false;
           case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
@@ -138,12 +148,17 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
 
   /// `true` iff every type that `this` can be assigned to, `other` can be assigned to.
   boolean canBeAssignedToAll(Type other) {
+    if (ownership == Ownership.OWNED || ownership == Ownership.BORROWED) {
+      warn("Owned and borrowed can't be assigned to anything: " + this);
+    }
+
     return kind.isSubtypeOf(other.kind)
         && switch (other.ownership) {
           case FRESH -> ownership == Ownership.FRESH;
-          case OWNED, BORROWED ->
-              throw new IllegalArgumentException(
-                  "Owned and borrowed can't be assigned to anything");
+          case OWNED, BORROWED -> {
+            warn("Owned and borrowed can't be assigned to anything: " + other);
+            yield ownership == Ownership.OWNED || ownership == Ownership.BORROWED;
+          }
           case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
         }
         && concreteness.isSubsetOf(other.concreteness);
@@ -205,5 +220,16 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
             : ((kind instanceof Kind.Any) ? Concreteness.MAYBE : Concreteness.DEFINITE);
 
     return new Type(kind, ownership, concreteness);
+  }
+
+  /// The type-checker doesn't avoid calling some methods if the user provides bad code, but
+  /// reports the type errors elsewhere. In case the errors aren't reported, we log them via
+  /// this method.
+  ///
+  /// The code after this method is fallback code. The type-checker can report multiple errors,
+  /// and to support this, there is fallback code which makes it more permissive than the
+  /// formalization.
+  private void warn(String message) {
+    LOGGER.warning(message);
   }
 }

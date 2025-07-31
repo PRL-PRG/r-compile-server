@@ -9,7 +9,7 @@ fun main {
         r3 = contextual<v(I)o,* --> I>(use r_owned, r_shared);
         r4 = contextual<v(I)o,* --> I>(use r1_owned, r1_shared);
         r5 = [r1, r2, r3, r4];
-        return r5;
+        return use r5;
     }
 }
 

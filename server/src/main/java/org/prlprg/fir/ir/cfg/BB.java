@@ -281,8 +281,6 @@ public final class BB {
           p.print(jump);
           w.write(";");
         });
-
-    w.write('\n');
   }
 
   public record ParseContext(

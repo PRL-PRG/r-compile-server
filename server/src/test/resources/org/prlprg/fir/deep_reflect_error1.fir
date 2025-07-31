@@ -1,7 +1,7 @@
 fun main {
     () -+> v(I) { var x:*, reg rx0:v(I)o, reg rx1:*, reg rx2:V, reg r0:p(V -), reg r1:v(I) |
         rx0 = [0, 1, 2];
-        x = rx0;
+        x = use rx0;
         r0 = prom<V ->{
             rx1 = x;
             rx2 = rx1 as V;
@@ -20,7 +20,7 @@ fun f {
 }
 
 fun g {
-    # error: actual is `+`
+    # error: Function effects mismatch: expected -, got +
     (reg r:p(V -)) --> v(I) { reg r0:v(I)o, reg r1:v(I) |
         r0 = [3, 4, 5];
         r1 = r$x = r0;

@@ -23,12 +23,8 @@ public record Promise(Type valueType, Effects effects, CFG code) implements Expr
     p.print(valueType);
     w.write(' ');
     p.print(effects);
-    w.write(">{");
-    w.runIndented(
-        () -> {
-          w.write('\n');
-          p.print(code);
-        });
+    w.write(">{\n");
+    p.print(code);
     w.write("\n}");
   }
 
