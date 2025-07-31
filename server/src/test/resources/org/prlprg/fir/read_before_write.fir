@@ -1,6 +1,6 @@
 fun main {
     () --> I { reg r:I |
-        # error: Read before write: r
+        # type-error: Read before write: r
         return r;
     }
 }

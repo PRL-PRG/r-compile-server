@@ -16,41 +16,40 @@ import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.util.DirectorySource;
 
-/// Tests type-checking FIR files.
-public class FirTypeCheckTest {
-  /// Tests that all FIR files in the test resources directory, when type checked, raise expected
-  /// type errors and no other errors.
+public class CFGCheckerTest {
+  /// Tests that all FIR files in the test resources directory, when CFG checked, raise expected
+  /// CFG errors and no other errors.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testTypeCheckFirFiles(Path firFilePath) throws IOException {
+  void testCFGCheckFirFiles(Path firFilePath) throws IOException {
     try {
       var firText = Files.readString(firFilePath);
       var firModule = Parser.fromString(firText, Module.class);
 
-      var typeChecker = new TypeChecker();
-      typeChecker.run(firModule);
+      var cfgChecker = new CFGChecker();
+      cfgChecker.run(firModule);
 
-      var unseenTypeCheckerErrorMessages =
-          typeChecker.errors().stream()
+      var unseenCFGCheckerErrorMessages =
+          cfgChecker.errors().stream()
               .map(CheckException::mainMessage)
               .collect(Collectors.toCollection(HashSet::new));
       var unseenExpectedErrors =
           firText
               .lines()
               .map(String::trim)
-              .filter(line -> line.startsWith("# type-error: "))
-              .map(line -> line.substring("# type-error: ".length()))
-              .filter(Predicate.not(unseenTypeCheckerErrorMessages::remove))
+              .filter(line -> line.startsWith("# cfg-error: "))
+              .map(line -> line.substring("# cfg-error: ".length()))
+              .filter(Predicate.not(unseenCFGCheckerErrorMessages::remove))
               .toList();
-      var unexpectedTypeCheckerErrors =
-          typeChecker.errors().stream()
-              .filter(error -> unseenTypeCheckerErrorMessages.contains(error.mainMessage()))
+      var unexpectedCFGCheckerErrors =
+          cfgChecker.errors().stream()
+              .filter(error -> unseenCFGCheckerErrorMessages.contains(error.mainMessage()))
               .map(CheckException::getMessage)
               .toList();
 
       assertEquals(
-          List.of(), unexpectedTypeCheckerErrors, "Type checking produced unexpected errors");
-      assertEquals(List.of(), unseenExpectedErrors, "Type checking didn't produce expected errors");
+          List.of(), unexpectedCFGCheckerErrors, "CFG checking produced unexpected errors");
+      assertEquals(List.of(), unseenExpectedErrors, "CFG checking didn't produce expected errors");
     } catch (ParseException e) {
       abort(
           "Failed to parse FIR file: "

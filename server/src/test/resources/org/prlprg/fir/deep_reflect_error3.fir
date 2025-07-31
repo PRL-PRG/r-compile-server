@@ -1,5 +1,5 @@
 fun main {
-    # error: Function effects mismatch: expected -, got +
+    # type-error: Function effects mismatch: expected -, got +
     () --> v(I) { var x:*, reg rx0:v(I)o, reg rx1:*, reg rx2:V, reg r0:p(V -), reg r1:v(I) |
         rx0 = [0, 1, 2];
         x = use rx0;

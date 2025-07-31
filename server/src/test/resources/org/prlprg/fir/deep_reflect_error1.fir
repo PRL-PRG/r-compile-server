@@ -20,7 +20,7 @@ fun f {
 }
 
 fun g {
-    # error: Function effects mismatch: expected -, got +
+    # type-error: Function effects mismatch: expected -, got +
     (reg r:p(V -)) --> v(I) { reg r0:v(I)o, reg r1:v(I) |
         r0 = [3, 4, 5];
         r1 = r$x = r0;

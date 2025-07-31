@@ -13,7 +13,7 @@ fun main {
 }
 
 fun f {
-    # error: Function effects mismatch: expected -, got +
+    # type-error: Function effects mismatch: expected -, got +
     (reg r:p(V -)) --> v(I) { reg r1:v(I) |
         r1 = g(r);
         return r1;
