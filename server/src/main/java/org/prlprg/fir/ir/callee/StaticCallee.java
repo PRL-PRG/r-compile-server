@@ -29,6 +29,6 @@ public record StaticCallee(Function function, Abstraction version) implements Ca
       w.writeQuoted('`', function.name());
     }
     w.write('.');
-    p.print(function.indexOfVersion(version));
+    p.print(function.indexOf(version));
   }
 }

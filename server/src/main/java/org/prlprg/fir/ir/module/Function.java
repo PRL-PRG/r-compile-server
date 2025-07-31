@@ -1,5 +1,7 @@
 package org.prlprg.fir.ir.module;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -25,23 +27,16 @@ public final class Function {
 
   // Data
   private final String name;
-  private final SortedSet<Abstraction> versions =
-      new TreeSet<>(
-          (Abstraction a, Abstraction b) -> {
-            // Sort by parameter types (largest type first), then by number of parameters, then by
-            // hash.
-            for (var i = 0; i < Math.min(a.parameters().size(), b.parameters().size()); i++) {
-              var cmp = b.parameters().get(i).type().compareTo(a.parameters().get(i).type());
-              if (cmp != 0) {
-                return cmp;
-              }
-            }
-            var cmp = Integer.compare(a.parameters().size(), b.parameters().size());
-            if (cmp != 0) {
-              return cmp;
-            }
-            return Integer.compare(a.hashCode(), b.hashCode());
-          });
+  /// Versions are stored in a map so that removing a version doesn't decrement other versions'
+  /// indices, which would cause tricky bugs when said versions or later ones are referenced by
+  /// serialized calls.
+  private final BiMap<Abstraction, Integer> versions = HashBiMap.create();
+  private int nextVersionIndex = 0;
+
+  // Cached
+  /// Versions are sorted in a way that ensures better ones are before worse ones,
+  /// so getting the best version is easy.
+  private final SortedSet<Abstraction> versionsSorted = new TreeSet<>();
 
   Function(Module owner, String name) {
     if (name.isEmpty()) {
@@ -62,26 +57,29 @@ public final class Function {
   }
 
   public @UnmodifiableView Collection<Abstraction> versions() {
-    return Collections.unmodifiableCollection(versions);
+    return Collections.unmodifiableCollection(versions.keySet());
   }
 
-  public boolean containsVersion(Abstraction version) {
-    return versions.contains(version);
+  /// @throws IllegalArgumentException If there's no version at the index.
+  public Abstraction version(int index) {
+    var version = versions.inverse().get(index);
+    if (version == null) {
+      throw new IllegalArgumentException("No version at index: " + index);
+    }
+    return version;
   }
 
-  /// @throws IllegalArgumentException if the version is not found
-  public int indexOfVersion(Abstraction version) {
-    if (!versions.contains(version)) {
+  public boolean contains(Abstraction version) {
+    return versions.containsKey(version);
+  }
+
+  /// @throws IllegalArgumentException If the version is not found.
+  public int indexOf(Abstraction version) {
+    var index = versions.get(version);
+    if (index == null) {
       throw new IllegalArgumentException("Version not found: " + version);
     }
-    return versions.headSet(version).size();
-  }
-
-  public Abstraction version(int index) {
-    if (index < 0 || index >= versions.size()) {
-      throw new IndexOutOfBoundsException("Index out of bounds: " + index);
-    }
-    return versions.stream().skip(index).findFirst().orElseThrow();
+    return index;
   }
 
   /// Gets the worst version we could dispatch to whose signature satisfies the provided one.
@@ -89,10 +87,10 @@ public final class Function {
   /// Returns `null` if there are no known versions we can dispatch to.
   public @Nullable Abstraction worstGuess(@Nullable Signature signature) {
     if (signature == null) {
-      return versions.isEmpty() ? null : versions.first();
+      return versionsSorted.isEmpty() ? null : versionsSorted.first();
     }
 
-    for (var version : versions) {
+    for (var version : versionsSorted) {
       if (version.signature().satisfies(signature)) {
         return version;
       }
@@ -106,7 +104,9 @@ public final class Function {
         List.of(this, params),
         () -> {
           var newVersion = new Abstraction(owner, params);
-          versions.add(newVersion);
+          versions.put(newVersion, nextVersionIndex);
+          nextVersionIndex++;
+          versionsSorted.add(newVersion);
           return newVersion;
         });
   }
@@ -116,9 +116,11 @@ public final class Function {
         "Function#removeVersion",
         List.of(this, version),
         () -> {
-          if (!versions.remove(version)) {
+          if (!versions.containsKey(version)) {
             throw new IllegalArgumentException("Version not found: " + version);
           }
+          versions.remove(version);
+          versionsSorted.remove(version);
           return null;
         });
   }
@@ -138,8 +140,27 @@ public final class Function {
     } else {
       w.write(name);
     }
+
     w.write('{');
-    w.runIndented(() -> p.printSeparated("\n", versions));
+    w.runIndented(
+        () -> {
+          var printed = false;
+
+          for (int i = 0; i < nextVersionIndex; i++) {
+            if (printed) {
+              w.write("\n");
+            } else {
+              printed = true;
+            }
+
+            var version = versions.inverse().get(i);
+            if (version == null) {
+              w.write("<removed>");
+            } else {
+              p.print(version);
+            }
+          }
+        });
     w.write("\n}");
   }
 
@@ -158,9 +179,17 @@ public final class Function {
     s.assertAndSkip('{');
 
     var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
-    while (!s.trySkip('}')) {
+    for (; !s.trySkip('}'); nextVersionIndex++) {
       CommentParser.skipComments(s);
-      versions.add(p2.parse(Abstraction.class));
+
+      // Skip removed version but increment the index (hence the weird `for` loop).
+      if (s.trySkip("<removed>")) {
+        continue;
+      }
+
+      var version = p2.parse(Abstraction.class);
+      versions.put(version, nextVersionIndex);
+      versionsSorted.add(version);
     }
   }
 }
