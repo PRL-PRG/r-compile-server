@@ -1,15 +1,14 @@
 package org.prlprg.fir.check;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.abort;
 
-import com.google.common.base.Joiner;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.ir.module.Module;
@@ -35,27 +34,23 @@ public class FirTypeCheckTest {
           typeChecker.errors().stream()
               .map(CheckException::mainMessage)
               .collect(Collectors.toCollection(HashSet::new));
-      firText
-          .lines()
-          .map(String::trim)
-          .filter(line -> line.startsWith("# error: "))
-          .forEach(
-              line -> {
-                var expectedError = line.substring("# error: ".length());
-                assertTrue(
-                    unseenTypeCheckerErrorMessages.remove(expectedError),
-                    "Expected error not found: " + expectedError);
-              });
-
+      var unseenExpectedErrors =
+          firText
+              .lines()
+              .map(String::trim)
+              .filter(line -> line.startsWith("# error: "))
+              .map(line -> line.substring("# error: ".length()))
+              .filter(Predicate.not(unseenTypeCheckerErrorMessages::remove))
+              .toList();
       var unexpectedTypeCheckerErrors =
           typeChecker.errors().stream()
               .filter(error -> unseenTypeCheckerErrorMessages.contains(error.mainMessage()))
+              .map(CheckException::getMessage)
               .toList();
+
       assertEquals(
-          List.of(),
-          unexpectedTypeCheckerErrors,
-          "Type checking produced unexpected errors:\n\n"
-              + Joiner.on("\n\n").join(unexpectedTypeCheckerErrors));
+          List.of(), unexpectedTypeCheckerErrors, "Type checking produced unexpected errors");
+      assertEquals(List.of(), unseenExpectedErrors, "Type checking didn't produce expected errors");
     } catch (ParseException e) {
       abort(
           "Failed to parse FIR file: "

@@ -2,7 +2,6 @@ package org.prlprg.fir.ir.type;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
-import org.jetbrains.annotations.NotNull;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -11,14 +10,15 @@ import org.prlprg.parseprint.Printer;
 public record Signature(ImmutableList<Type> parameterTypes, Type returnType, Effects effects) {
   public boolean satisfies(Signature expected) {
     return parameterTypes.size() == expected.parameterTypes.size()
-        && Streams.zip(expected.parameterTypes.stream(), parameterTypes.stream(), Type::matches)
+        && Streams.zip(
+                expected.parameterTypes.stream(), parameterTypes.stream(), Type::allMatchesMatch)
             .allMatch(b -> b)
-        && returnType.matches(expected.returnType)
+        && returnType.canBeAssignedToAll(expected.returnType)
         && effects.isSubsetOf(expected.effects);
   }
 
   @Override
-  public @NotNull String toString() {
+  public String toString() {
     return Printer.toString(this);
   }
 

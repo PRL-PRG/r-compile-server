@@ -25,7 +25,7 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
       return new Unreachable();
     }
 
-    var k = s.readJavaIdentifierOrKeyword();
+    var k = s.readIdentifierOrKeyword();
     return switch (k) {
       case "if" -> {
         var cond = p2.parse(Argument.class);

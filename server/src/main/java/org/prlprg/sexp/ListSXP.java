@@ -101,7 +101,7 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
 
   @Override
   public @Unmodifiable List<SEXP> values() {
-    return Lists.lazyMapView(data, TaggedElem::value);
+    return Lists.mapLazy(data, TaggedElem::value);
   }
 
   @Override

@@ -11,6 +11,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
+import org.prlprg.util.Characters;
 
 public record Statement(@Nullable Register assignee, Expression expression) implements Instruction {
   public Statement(Expression expression) {
@@ -46,8 +47,8 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
 
     var s = p.scanner();
 
-    if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
-      var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
+    if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
+      var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
 
       if (scope.lookup(nameHead) instanceof Register register && s.trySkip('=')) {
         var expression = p2.parse(Expression.class);

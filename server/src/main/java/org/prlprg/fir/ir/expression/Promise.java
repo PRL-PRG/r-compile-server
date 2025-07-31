@@ -3,7 +3,6 @@ package org.prlprg.fir.ir.expression;
 import java.util.Collection;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
@@ -36,7 +35,7 @@ public record Promise(Type valueType, Effects effects, CFG code) implements Expr
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return code.bbs().stream()
-        .flatMap(BB::instructionsStream)
+        .flatMap(bb -> bb.instructions().stream())
         .flatMap(i -> i.arguments().stream())
         .toList();
   }

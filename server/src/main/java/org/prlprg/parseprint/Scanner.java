@@ -13,6 +13,7 @@ import java.io.StringReader;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.prlprg.util.Characters;
 import org.prlprg.util.Strings;
 import org.prlprg.util.ThrowingSupplier;
 
@@ -266,6 +267,28 @@ public class Scanner {
 
           return string.toString();
         });
+  }
+
+  /**
+   * Read a valid identifier in most languages.
+   *
+   * <p>Specifically, this identifier must start with a letter or underscore, contain only
+   * alphanumeric characters and underscores, and not be an underscore. In other words, it's a valid
+   * Java identifier or keyword without dollar signs.
+   *
+   * @throws ParseException if the next character isn't a letter or underscore (the beginning of an
+   *     identifier) or the entire identifier is only an underscore.
+   */
+  public String readIdentifierOrKeyword() {
+    if (!nextCharSatisfies(Characters::isIdentifierStart)) {
+      throw fail("start of Java identifier (letter or '_')", Strings.quote(peekChar()));
+    }
+
+    var result = readWhile(Characters::isIdentifierPart);
+    if (result.equals("_")) {
+      throw fail("\"_\" isn't a valid Java identifier");
+    }
+    return result;
   }
 
   /**

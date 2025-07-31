@@ -133,7 +133,7 @@ public final class Function {
     var w = p.writer();
 
     w.write("fun ");
-    if (!Strings.isValidJavaIdentifierOrKeyword(name)) {
+    if (!Strings.isIdentifierOrKeyword(name)) {
       w.writeQuoted('`', name);
     } else {
       w.write(name);
@@ -154,7 +154,7 @@ public final class Function {
     var s = p.scanner();
 
     s.assertAndSkip("fun ");
-    name = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
+    name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
     s.assertAndSkip('{');
 
     var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));

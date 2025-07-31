@@ -50,7 +50,7 @@ public final class NamedVariable implements Variable {
   private static NamedVariable parse(Parser p) {
     var s = p.scanner();
 
-    var ident = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
+    var ident = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
     return Variable.named(ident);
   }
 }

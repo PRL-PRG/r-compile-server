@@ -7,6 +7,8 @@ import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
 /**
  * Stores a location within a {@link CFG} and updates when operations are performed on it.
@@ -274,8 +276,60 @@ public final class CFGCursor {
     return new CFGCursor(bb, instructionIndex);
   }
 
+  /// Pretty-print the cursor's position and context.
+  ///
+  /// Useful for debugging and error messages.
   @Override
   public String toString() {
-    return "At BB " + bb.label() + ", instruction " + instructionIndex + " in:\n\n" + cfg;
+    return Printer.toString(this);
+  }
+
+  private static final int CONTEXT_LINES = 2;
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+    var f = w.formatter();
+
+    if (!bb.isEntry()) {
+      w.write(bb.label());
+      p.printAsList("(", ")", bb.phiParameters());
+      w.write(":");
+    } else {
+      w.write("  ");
+    }
+
+    w.runIndented(
+        () -> {
+          // Show `CONTEXT_LINES` lines above and below the target line.
+          // Show `...` if there are more lines above or below the context.
+          // Each line is `-> ####:  instr`.
+          // If the instruction spans multiple lines, we indent them.
+          var firstIndex = Math.max(0, instructionIndex - CONTEXT_LINES);
+          var lastIndex = Math.min(bb.instructions().size() - 1, instructionIndex + CONTEXT_LINES);
+          var maxDigits = String.valueOf(lastIndex).length();
+          var padding = 3 + maxDigits + 3;
+
+          if (instructionIndex > CONTEXT_LINES) {
+            w.write(" ".repeat(padding));
+            w.write("...\n");
+          }
+
+          for (int i = firstIndex; i <= lastIndex; i++) {
+            w.write(i == instructionIndex ? "-> " : "   ");
+            f.format("%" + maxDigits + "d", i);
+            w.write(":  ");
+
+            var instruction = bb.instructions().get(i);
+            w.runIndented(padding, () -> p.print(instruction));
+
+            w.write("\n");
+          }
+
+          if (instructionIndex + CONTEXT_LINES + 1 < bb.instructions().size()) {
+            w.write(" ".repeat(padding));
+            w.write("...\n");
+          }
+        });
   }
 }

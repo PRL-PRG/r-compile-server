@@ -23,7 +23,7 @@ public record StaticCallee(Function function, Abstraction version) implements Ca
   private void print(Printer p) {
     var w = p.writer();
 
-    if (Strings.isValidJavaIdentifierOrKeyword(function.name())) {
+    if (Strings.isIdentifierOrKeyword(function.name())) {
       w.write(function.name());
     } else {
       w.writeQuoted('`', function.name());
