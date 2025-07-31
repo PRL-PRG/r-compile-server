@@ -6,7 +6,7 @@ fun main {
         r1 = prom<I ->{ return 42; };
         f(r1);
 
-        # error: Promise effects mismatch: expected -, got +
+        # type-error: Promise effects mismatch: expected -, got +
         r2 = prom<I ->{
             r3 = [3, 4, 5];
             r1$x = r3;

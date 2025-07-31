@@ -36,19 +36,22 @@ public class CFGChecker extends Checker {
     }
 
     /// Verifies the following invariants:
-    /// - The entry block and any blocks with < 2 predecessors don't have any phi parameters.
-    /// - All registers (but not named variables) are either in `scope.parameters()` or
-    ///   `scope.locals()`. Those in `scope.parameters()` are never assigned (never the target
-    ///    of a `Write` expression), while those in `scope.locals()` are assigned exactly once.
-    ///   Additionally, if a non-`Write` expression contains a register in `scope.locals()`, the
-    ///   register's one assignment must be in the same block in an instruction before the
-    ///   expression, or in a dominating block.
-    ///   - If a register is assigned in a promise, it cannot be used outside the promise,
-    ///     although it can be used in nested promises if they occur the assignment.
-    ///   - If a register is read in a promise, it must be defined in the promise (in an earlier
-    ///     instruction or dominating block), or it must be defined outside the promise in an
-    ///     earlier instruction or dominating block relative to promise itself.
-    /// - Every basic block is connected to the entry.
+    /// - Entry blocks and blocks with < 2 predecessors don't have phi parameters
+    /// - All registers are declared in the innermost scope
+    /// - Parameters are never assigned, local registers are assigned exactly once
+    /// - Register reads (and uses) must be dominated by their assignments. In other words,
+    ///   during execution, the assignment must be guaranteed to occur before the read.
+    ///   - Registers cannot be read across scopes.
+    ///   - Registers *can* be read across promises. The promise must be in the same
+    // control-flow
+    ///     graph as the register's definition OR in a promise in the same control-flow graph OR
+    ///     in a promise in a promise in the same control-flow graph etc. For the dominance
+    // check,
+    ///     the "read" is considered to be the definition of the outermost promise, the one
+    ///     that's in the same control-flow graph of the definition. In other words, during
+    ///     execution, the definition must be guaranteed to occur before the promise containing
+    ///     the read, which ensures that it occurs before the read.
+    /// - All basic blocks are reachable from entry
     void run(CFG cfg) {
       var scope = cfg.scope();
       var dominatorTree = new org.prlprg.fir.analyze.DominatorTree(cfg);
@@ -171,7 +174,7 @@ public class CFGChecker extends Checker {
       return dominatorTree.dominates(definition.bb(), use.bb());
     }
 
-    private void checkPromiseScoping(CFG cfg, org.prlprg.fir.analyze.DefUses defUses) {
+    private void checkPromiseScoping(CFG cfg, DefUses defUses) {
       // For now, this is a simplified check
       // A full implementation would track promise nesting and cross-promise variable access
       for (var bb : cfg.bbs()) {

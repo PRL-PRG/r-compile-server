@@ -5,7 +5,7 @@ fun main {
             r1 = r[0];
             return r1;
         };
-        # error: Use after capture: r
+        # type-error: Use after capture: r
         return use r;
     }
 }

@@ -38,8 +38,8 @@ public class FirTypeCheckTest {
           firText
               .lines()
               .map(String::trim)
-              .filter(line -> line.startsWith("# error: "))
-              .map(line -> line.substring("# error: ".length()))
+              .filter(line -> line.startsWith("# type-error: "))
+              .map(line -> line.substring("# type-error: ".length()))
               .filter(Predicate.not(unseenTypeCheckerErrorMessages::remove))
               .toList();
       var unexpectedTypeCheckerErrors =
