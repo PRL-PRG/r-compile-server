@@ -397,7 +397,7 @@ public class SEXPParseContext {
             default ->
                 throw s.fail(
                     "SEXP of type has a special syntax, so it can't be parsed this way: "
-                        + s.readJavaIdentifierOrKeyword());
+                        + s.readIdentifierOrKeyword());
           };
 
       if (foundRefIndex != -1) {

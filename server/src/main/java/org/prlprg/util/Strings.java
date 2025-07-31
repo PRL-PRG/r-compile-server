@@ -80,16 +80,21 @@ public class Strings {
     return escape((int) c);
   }
 
-  /** Whether the string can be a valid Java identifier (or reserved keyword, but no underscore). */
-  public static boolean isValidJavaIdentifierOrKeyword(String s) {
+  /**
+   * Whether the string can be a valid identifier in most languages.
+   *
+   * <p>Specifically, whether the string can be a valid Java identifier or reserved keyword, and
+   * doesn't contain any dollar signs.
+   */
+  public static boolean isIdentifierOrKeyword(String s) {
     if (s.isEmpty() || s.equals("_")) {
       return false;
     }
-    if (!Character.isJavaIdentifierStart(s.charAt(0))) {
+    if (!Characters.isIdentifierStart(s.charAt(0))) {
       return false;
     }
     for (var i = 1; i < s.length(); i++) {
-      if (!Character.isJavaIdentifierPart(s.charAt(i))) {
+      if (!Characters.isIdentifierPart(s.charAt(i))) {
         return false;
       }
     }

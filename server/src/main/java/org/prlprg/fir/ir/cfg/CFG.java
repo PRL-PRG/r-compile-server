@@ -138,7 +138,7 @@ public final class CFG {
               new BB.ParseContext(entry == null, this, postCfg, ctx.postModule, p.context()));
       var bb = p2.parse(BB.class);
       if (entry == null) {
-        assert bb.label().equals(BB.ENTRY_LABEL);
+        assert bb.isEntry();
         entry = bb;
       }
       if (bbs.put(bb.label(), bb) != null) {

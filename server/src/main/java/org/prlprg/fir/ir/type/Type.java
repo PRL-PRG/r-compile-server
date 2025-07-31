@@ -97,18 +97,56 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   }
 
   public boolean matches(Type expected) {
-    return withOwnership(Ownership.FRESH).isSubtypeOf(expected.withOwnership(Ownership.FRESH))
+    return kind.isSubtypeOf(expected.kind)
         && switch (expected.ownership) {
           case FRESH ->
               throw new IllegalArgumentException("Parameters can't be fresh: " + expected);
           case OWNED -> ownership == Ownership.FRESH;
           case BORROWED -> true;
           case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
-        };
+        }
+        && concreteness.isSubsetOf(expected.concreteness);
   }
 
-  public boolean canAssignTo(Type expected) {
-    return matches(expected) && expected.ownership != Ownership.BORROWED;
+  /// `true` iff every type that matches `this` matches `other`.
+  boolean allMatchesMatch(Type other) {
+    if (ownership == Ownership.FRESH) {
+      throw new IllegalArgumentException("Parameters can't be fresh: " + this);
+    }
+
+    return kind.isSubtypeOf(other.kind)
+        && switch (other.ownership) {
+          case FRESH -> throw new IllegalArgumentException("Parameters can't be fresh: " + other);
+          case OWNED -> ownership == Ownership.OWNED;
+          case BORROWED -> true;
+          case SHARED -> ownership == Ownership.SHARED;
+        }
+        && concreteness.isSubsetOf(other.concreteness);
+  }
+
+  public boolean canBeAssignedTo(Type expected) {
+    return kind.isSubtypeOf(expected.kind)
+        && switch (expected.ownership) {
+          case FRESH ->
+              throw new IllegalArgumentException("Assignment targets can't be fresh: " + expected);
+          case OWNED -> ownership == Ownership.FRESH;
+          case BORROWED -> false;
+          case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
+        }
+        && concreteness.isSubsetOf(expected.concreteness);
+  }
+
+  /// `true` iff every type that `this` can be assigned to, `other` can be assigned to.
+  boolean canBeAssignedToAll(Type other) {
+    return kind.isSubtypeOf(other.kind)
+        && switch (other.ownership) {
+          case FRESH -> ownership == Ownership.FRESH;
+          case OWNED, BORROWED ->
+              throw new IllegalArgumentException(
+                  "Owned and borrowed can't be assigned to anything");
+          case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
+        }
+        && concreteness.isSubsetOf(other.concreteness);
   }
 
   public Type union(Type other, Runnable onOwnershipMismatch) {

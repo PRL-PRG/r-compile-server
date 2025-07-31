@@ -57,7 +57,6 @@ import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
 
 public final class TypeChecker extends Checker {
   @Override
@@ -97,8 +96,13 @@ public final class TypeChecker extends Checker {
       cfg.checkSubEffects(cfg.effects, abstraction.returnEffects(), "Function effects mismatch");
     }
 
-    @Nullable Type lookup(Variable variable) {
-      return types.get(variable.name());
+    @Nullable Type lookup(Register register) {
+      return types.get(register.name());
+    }
+
+    Type lookup(NamedVariable named) {
+      // Variables are implicitly ANY, but may be explicitly declared with a type.
+      return types.getOrDefault(named.name(), Type.ANY);
     }
 
     class OnCfg {
@@ -223,7 +227,7 @@ public final class TypeChecker extends Checker {
               case DynamicCallee(var calleeVariable, var argumentNames) -> {
                 var calleeType = lookup(calleeVariable);
                 // Concreteness is [MAYBE], we only care about the kind.
-                if (calleeType != null && !(calleeType.kind() instanceof Kind.Closure)) {
+                if (!(calleeType.kind() instanceof Kind.Closure)) {
                   report(
                       "Dynamic call target must be a closure, got "
                           + calleeVariable
@@ -296,11 +300,7 @@ public final class TypeChecker extends Checker {
               yield null;
             }
           }
-          case Load(var variable) -> {
-            var type = lookup(variable);
-            // If `type == null`, the variable is non-local, so it's equivalent to `SuperLoad`.
-            yield type == null ? Type.ANY : type;
-          }
+          case Load(var variable) -> lookup(variable);
           case MaybeForce(var value) -> {
             var type = run(value);
             if (type == null) {
@@ -377,10 +377,6 @@ public final class TypeChecker extends Checker {
           }
           case Store(var variable, var value) -> {
             var type = lookup(variable);
-            if (type == null) {
-              report("Undeclared register: " + variable);
-              yield null;
-            }
 
             var valueType = run(value);
 
@@ -568,7 +564,7 @@ public final class TypeChecker extends Checker {
       }
 
       void checkAssignment(@Nullable Type type, Type expected, String message) {
-        if (type != null && !type.canAssignTo(expected)) {
+        if (type != null && !type.canBeAssignedTo(expected)) {
           report(message + ": expected " + expected + ", got " + type);
         }
       }

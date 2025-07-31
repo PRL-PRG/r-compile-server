@@ -17,7 +17,7 @@ public record DispatchCallee(Function function, @Nullable Signature signature) i
   private void print(Printer p) {
     var w = p.writer();
 
-    if (Strings.isValidJavaIdentifierOrKeyword(function.name())) {
+    if (Strings.isIdentifierOrKeyword(function.name())) {
       w.write(function.name());
     } else {
       w.writeQuoted('`', function.name());

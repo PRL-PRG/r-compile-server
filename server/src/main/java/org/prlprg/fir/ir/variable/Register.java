@@ -41,7 +41,7 @@ public final class Register implements Variable {
 
   @ParseMethod
   private static Register parse(Parser p) {
-    var ident = p.scanner().readJavaIdentifierOrKeyword();
+    var ident = p.scanner().readIdentifierOrKeyword();
     return Variable.register(ident);
   }
 }

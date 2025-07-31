@@ -35,7 +35,7 @@ public sealed interface Variable permits NamedVariable, Register {
   private void print(Printer p) {
     var w = p.writer();
 
-    if (!Strings.isValidJavaIdentifierOrKeyword(name())) {
+    if (!Strings.isIdentifierOrKeyword(name())) {
       w.writeQuoted('`', name());
     } else {
       w.write(name());
@@ -49,7 +49,7 @@ public sealed interface Variable permits NamedVariable, Register {
     var scope = ctx.scope();
     var s = p.scanner();
 
-    var name = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
+    var name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
     var paramOrLocal = scope.lookup(name);
     // If `paramOrLocal` is `null`, the variable is in a parent scope, and only named variables are
     // in parent scopes.

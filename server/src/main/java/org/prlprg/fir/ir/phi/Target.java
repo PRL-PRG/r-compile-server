@@ -74,7 +74,7 @@ public final class Target {
 
     var s = p.scanner();
 
-    var bbLabel = s.readJavaIdentifierOrKeyword();
+    var bbLabel = s.readIdentifierOrKeyword();
     phiArgs = p2.parseList("(", ")", Argument.class);
 
     postCfg.add(

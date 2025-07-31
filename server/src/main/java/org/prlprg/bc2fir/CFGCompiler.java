@@ -1044,7 +1044,7 @@ public class CFGCompiler {
 
     pop();
 
-    var argValues = Lists.map(call.args, Call.Arg::node).toArray(Argument[]::new);
+    var argValues = Lists.mapStrict(call.args, Call.Arg::node).toArray(Argument[]::new);
     pushInsert(builtin(type.builtin.name(), argValues));
 
     setJump(goto_(bbAfterCurrent()));

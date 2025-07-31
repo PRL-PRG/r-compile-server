@@ -2,7 +2,6 @@ package org.prlprg.fir.ir.cfg;
 
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -10,8 +9,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
@@ -21,7 +20,6 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.PhiParameter;
-import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
@@ -29,11 +27,12 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
+import org.prlprg.util.Lists;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 
 public final class BB {
-  static final String ENTRY_LABEL = "ENTRY";
+  private static final String ENTRY_LABEL = "ENTRY";
   static final String DEFAULT_LABEL_PREFIX = "L";
 
   // Backlink
@@ -50,8 +49,8 @@ public final class BB {
       new SmallBinarySet<>(4, Comparator.comparing(bb -> bb.label));
 
   BB(CFG owner, String label) {
-    if (!Strings.isValidJavaIdentifierOrKeyword(label)) {
-      throw new IllegalArgumentException("BB labels must be valid Java identifiers: " + label);
+    if (!Strings.isIdentifierOrKeyword(label)) {
+      throw new IllegalArgumentException("BB labels must be valid identifiers: " + label);
     }
 
     this.owner = owner;
@@ -73,6 +72,10 @@ public final class BB {
     return label;
   }
 
+  public boolean isEntry() {
+    return label.equals(ENTRY_LABEL);
+  }
+
   public @UnmodifiableView Collection<PhiParameter> phiParameters() {
     return Collections.unmodifiableCollection(parameters.values());
   }
@@ -85,16 +88,12 @@ public final class BB {
     return jump;
   }
 
-  public @UnmodifiableView Iterable<Instruction> instructions() {
-    return Iterables.concat(statements, List.of(jump));
-  }
-
-  public Stream<Instruction> instructionsStream() {
-    return Stream.concat(statements.stream(), Stream.of(jump));
+  public @UnmodifiableView List<Instruction> instructions() {
+    return Lists.concatLazy(statements, List.of(jump));
   }
 
   public @UnmodifiableView Collection<BB> successors() {
-    return Collections2.transform(jump.targets(), Target::bb);
+    return Collections2.transform(jump.targets(), t -> Objects.requireNonNull(t).bb());
   }
 
   public @UnmodifiableView Collection<BB> predecessors() {
@@ -262,7 +261,7 @@ public final class BB {
     var w = p.writer();
 
     if (!label.equals(ENTRY_LABEL)) {
-      p.print(label);
+      w.write(label);
       p.printAsList("(", ")", parameters.values());
       w.write(":");
     } else {
@@ -304,7 +303,7 @@ public final class BB {
       label = ENTRY_LABEL;
     } else {
       CommentParser.skipComments(s);
-      label = s.readJavaIdentifierOrKeyword();
+      label = s.readIdentifierOrKeyword();
       var params = p.parseList("(", ")", PhiParameter.class);
       for (var param : params) {
         if (this.parameters.put(param.variable(), param) != null) {

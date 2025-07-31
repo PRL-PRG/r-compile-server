@@ -26,6 +26,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.util.Characters;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
 
@@ -82,8 +83,8 @@ public sealed interface Expression
           || s.nextCharIs('\"')
           || s.nextCharIs('<')) {
         headAsArg = p2.parse(Argument.class);
-      } else if (s.nextCharSatisfies(c -> c == '`' || Character.isJavaIdentifierStart(c))) {
-        headAsName = s.nextCharIs('`') ? Names.read(s, true) : s.readJavaIdentifierOrKeyword();
+      } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
+        headAsName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
       }
     }
 
