@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 
@@ -14,51 +15,47 @@ import org.prlprg.fir.ir.cfg.CFG;
 public class DominatorTree {
   private final CFG cfg;
   private final Map<BB, BB> immediateDominators;
-  private final Map<BB, Set<BB>> dominatedBlocks;
-  private final Map<BB, Set<BB>> dominatorSets;
+  private final Map<BB, Set<BB>> immediateDominees;
+  private final Map<BB, Set<BB>> dominators;
 
   public DominatorTree(CFG cfg) {
     this.cfg = cfg;
     this.immediateDominators = new HashMap<>();
-    this.dominatedBlocks = new HashMap<>();
-    this.dominatorSets = new HashMap<>();
-    computeDominators();
+    this.immediateDominees = new HashMap<>();
+    this.dominators = new HashMap<>();
+    compute();
   }
 
   /// Get the immediate dominator of a basic block.
-  /// Returns null for the entry block.
-  public BB getImmediateDominator(BB bb) {
+  ///
+  /// Returns `null` for the entry block.
+  public @Nullable BB immediateDominator(BB bb) {
     return immediateDominators.get(bb);
   }
 
   /// Get all blocks immediately dominated by this block.
-  public Set<BB> getDominatedBlocks(BB bb) {
-    return dominatedBlocks.getOrDefault(bb, Set.of());
-  }
-
-  /// Check if block 'dominator' dominates block 'bb'.
-  public boolean dominates(BB dominator, BB bb) {
-    var dominators = dominatorSets.get(bb);
-    return dominators != null && dominators.contains(dominator);
+  public Set<BB> immediateDominees(BB bb) {
+    return immediateDominees.getOrDefault(bb, Set.of());
   }
 
   /// Get all dominators of a basic block (including itself).
-  public Set<BB> getDominators(BB bb) {
-    return dominatorSets.getOrDefault(bb, Set.of());
+  public Set<BB> dominators(BB bb) {
+    return dominators.getOrDefault(bb, Set.of());
   }
 
-  private void computeDominators() {
+  /// Check if block `dominator` dominates block `bb`.
+  public boolean dominates(BB dominator, BB bb) {
+    return dominators(bb).contains(dominator);
+  }
+
+  private void compute() {
     var bbs = new ArrayList<>(cfg.bbs());
     var entry = cfg.entry();
 
     // Initialize dominator sets
     for (var bb : bbs) {
-      if (bb == entry) {
-        dominatorSets.put(bb, Set.of(bb));
-      } else {
-        dominatorSets.put(bb, new LinkedHashSet<>(bbs));
-      }
-      dominatedBlocks.put(bb, new HashSet<>());
+      dominators.put(bb, bb == entry ? Set.of(bb) : new LinkedHashSet<>(bbs));
+      immediateDominees.put(bb, new HashSet<>());
     }
 
     // Iterative dataflow algorithm
@@ -75,20 +72,20 @@ public class DominatorTree {
         var first = true;
         for (var pred : bb.predecessors()) {
           if (first) {
-            newDominators.addAll(dominatorSets.get(pred));
+            newDominators.addAll(dominators.get(pred));
             first = false;
           } else {
-            newDominators.retainAll(dominatorSets.get(pred));
+            newDominators.retainAll(dominators.get(pred));
           }
         }
 
         // If no predecessors (unreachable), keep current dominators
         if (bb.predecessors().isEmpty()) {
-          newDominators = new LinkedHashSet<>(dominatorSets.get(bb));
+          newDominators = new LinkedHashSet<>(dominators.get(bb));
         }
 
-        if (!newDominators.equals(dominatorSets.get(bb))) {
-          dominatorSets.put(bb, newDominators);
+        if (!newDominators.equals(dominators.get(bb))) {
+          dominators.put(bb, newDominators);
           changed = true;
         }
       }
@@ -98,7 +95,7 @@ public class DominatorTree {
     for (var bb : bbs) {
       if (bb == entry) continue;
 
-      var dominators = new ArrayList<>(getDominators(bb));
+      var dominators = new ArrayList<>(dominators(bb));
       dominators.remove(bb); // Remove self
 
       // Find immediate dominator (dominator closest to bb in the dominator tree)
@@ -119,7 +116,7 @@ public class DominatorTree {
 
       if (immediateDominator != null) {
         immediateDominators.put(bb, immediateDominator);
-        dominatedBlocks.get(immediateDominator).add(bb);
+        immediateDominees.get(immediateDominator).add(bb);
       }
     }
   }

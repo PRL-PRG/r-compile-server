@@ -1,5 +1,7 @@
 package org.prlprg.fir.ir.argument;
 
+import javax.annotation.Nullable;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
@@ -15,6 +17,11 @@ public record Constant(SEXP sexp) implements Argument {
     if (sexp instanceof UserEnvSXP) {
       throw new IllegalArgumentException("Non-static environments can't be constants");
     }
+  }
+
+  @Override
+  public @Nullable Register variable() {
+    return null;
   }
 
   @Override

@@ -1,125 +1,98 @@
 package org.prlprg.fir.analyze;
 
+import com.google.common.collect.Sets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Tracks where each register is assigned (i.e. [Statement#variable()])
 /// and every other occurrence.
 public final class DefUses {
-  private final CFG cfg;
-  private final Map<Register, Set<DefUse>> definitions = new HashMap<>();
-  private final Map<Register, Set<DefUse>> uses = new HashMap<>();
+  private final Map<Register, Set<ScopePosition>> definitions = new HashMap<>();
+  private final Map<Register, Set<ScopePosition>> uses = new HashMap<>();
+  private final Stack<CfgPosition> outerPromises = new Stack<>();
 
-  public DefUses(CFG cfg) {
-    this.cfg = cfg;
-    analyze();
+  public DefUses(Abstraction scope) {
+    analyze(scope.cfg());
   }
 
-  /// Location of a definition or use within the CFG.
-  public record DefUse(BB bb, int instructionIndex, Statement statement) {}
-
-  /// Get all definitions of a register.
-  public Set<DefUse> definitions(Register register) {
-    return definitions.getOrDefault(register, Set.of());
+  /// Get all assignments (defs) of a register.
+  public @UnmodifiableView Set<ScopePosition> definitions(Register register) {
+    return Collections.unmodifiableSet(definitions.getOrDefault(register, Set.of()));
   }
 
-  /// Get all uses of a register.
-  public Set<DefUse> uses(Register register) {
-    return uses.getOrDefault(register, Set.of());
+  /// Get all reads (uses) of a register.
+  public @UnmodifiableView Set<ScopePosition> uses(Register register) {
+    return Collections.unmodifiableSet(uses.getOrDefault(register, Set.of()));
   }
 
-  /// Get all registers that are defined.
-  public Set<Register> definedRegisters() {
-    return definitions.keySet();
+  /// Get all registers that are assigned.
+  public @UnmodifiableView Set<Register> definedRegisters() {
+    return Collections.unmodifiableSet(definitions.keySet());
   }
 
-  /// Get all registers that are used.
-  public Set<Register> usedRegisters() {
-    return uses.keySet();
+  /// Get all registers that are read.
+  public @UnmodifiableView Set<Register> usedRegisters() {
+    return Collections.unmodifiableSet(uses.keySet());
   }
 
-  /// Check if a register is defined in the given basic block.
-  public boolean isDefinedInBlock(Register register, BB bb) {
-    return definitions(register).stream().anyMatch(defUse -> defUse.bb == bb);
+  /// Get all registers in all instructions in the scope.
+  public @UnmodifiableView Set<Register> allRegisters() {
+    return Sets.union(definitions.keySet(), uses.keySet());
   }
 
-  /// Check if a register is used in the given basic block.
-  public boolean isUsedInBlock(Register register, BB bb) {
-    return uses(register).stream().anyMatch(defUse -> defUse.bb == bb);
-  }
-
-  private void analyze() {
+  private void analyze(CFG cfg) {
     for (var bb : cfg.bbs()) {
-      analyzeBB(bb);
+      analyze(bb);
     }
   }
 
-  private void analyzeBB(BB bb) {
-    var statements = bb.statements();
-    for (var i = 0; i < statements.size(); i++) {
-      var expr = statements.get(i);
-      analyzeInstruction(bb, i, expr);
+  private void analyze(BB bb) {
+    var instructions = bb.instructions();
+    for (var i = 0; i < instructions.size(); i++) {
+      var instruction = instructions.get(i);
+      analyze(bb, i, instruction);
     }
-
-    analyzeInstruction(bb, statements.size(), bb.jump());
   }
 
-  private void analyzeInstruction(BB bb, int instructionIndex, Instruction instr) {
-    // Handle definitions
-    if (instr instanceof Statement stmt && stmt.assignee() != null) {
+  private void analyze(BB bb, int instructionIndex, Instruction instruction) {
+    // Add immediate definitions
+    if (instruction instanceof Statement stmt && stmt.assignee() != null) {
       definitions
           .computeIfAbsent(stmt.assignee(), _ -> new HashSet<>())
-          .add(new DefUse(bb, instructionIndex, stmt));
+          .add(scopePosition(bb, instructionIndex, instruction));
     }
 
-    // Handle Promise expressions (nested CFGs)
-    if (instr instanceof Statement stmt && stmt.expression() instanceof Promise promise) {
-      var promiseCfg = promise.code();
-      var nestedDefUses = new DefUses(promiseCfg);
-      // Merge nested definitions and uses
-      for (var entry : nestedDefUses.definitions.entrySet()) {
-        definitions.computeIfAbsent(entry.getKey(), _ -> new HashSet<>()).addAll(entry.getValue());
-      }
-      for (var entry : nestedDefUses.uses.entrySet()) {
-        uses.computeIfAbsent(entry.getKey(), _ -> new HashSet<>()).addAll(entry.getValue());
-      }
-      return;
-    }
-
-    // TODO
-    /* // Collect all variables used in this expression
-      var variablesInExpr = new HashSet<Variable>();
-      collectVariables(expr, variablesInExpr);
-
-      // Record uses for registers
-      for (var variable : variablesInExpr) {
-        if (variable instanceof Register register) {
-          uses.computeIfAbsent(register, _ -> new HashSet<>())
-              .add(new DefUse(bb, instructionIndex, expr));
-        }
-      }
-
-      // Recursively analyze child expressions
-      for (var child : expr.immediateChildren()) {
-        analyzeInstruction(bb, instructionIndex, child);
+    // Add immediate uses
+    for (var argument : instruction.arguments()) {
+      if (argument.variable() != null) {
+        uses.computeIfAbsent(argument.variable(), _ -> new HashSet<>())
+            .add(scopePosition(bb, instructionIndex, instruction));
       }
     }
 
-    private void collectVariables(Expression expr, Set<Variable> variables) {
-      // Add immediate variables
-      variables.addAll(expr.immediateVariables());
+    // Add nested definitions and uses (only applicable to [Promise]).
+    if (instruction instanceof Statement stmt && stmt.expression() instanceof Promise promise) {
+      outerPromises.push(new CfgPosition(bb, instructionIndex, instruction));
+      analyze(promise.code());
+      outerPromises.pop();
+    }
+  }
 
-      // Recursively collect from children
-      for (var child : expr.immediateChildren()) {
-        collectVariables(child, variables);
-      } */
+  private ScopePosition scopePosition(BB bb, int instructionIndex, Instruction instruction) {
+    return new ScopePosition(outerPromises, new CfgPosition(bb, instructionIndex, instruction));
   }
 }
