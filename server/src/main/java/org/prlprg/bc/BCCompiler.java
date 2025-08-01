@@ -173,7 +173,8 @@ public class BCCompiler {
   public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
 
   /** SEXP types that can participate in constan folding. */
-  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STR);
+  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES =
+      Set.of(LGL, INT, REAL, CPLX, SEXPType.STR);
 
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 

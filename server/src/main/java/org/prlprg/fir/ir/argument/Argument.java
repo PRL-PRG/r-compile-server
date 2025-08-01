@@ -1,5 +1,6 @@
 package org.prlprg.fir.ir.argument;
 
+import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
@@ -11,6 +12,8 @@ import org.prlprg.util.Characters;
 /// A statement or jump argument. Essentially a "zero cost" instruction,
 /// because we want to reuse instructions that aren't zero-cost (CSE, GVN).
 public sealed interface Argument permits Constant, Read, Use {
+  @Nullable Register variable();
+
   record ParseContext(Abstraction scope) {}
 
   @ParseMethod

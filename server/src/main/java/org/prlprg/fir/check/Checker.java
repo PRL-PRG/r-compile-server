@@ -8,6 +8,8 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 
 public abstract class Checker {
   private final List<CheckException> errors = new ArrayList<>();
@@ -15,6 +17,14 @@ public abstract class Checker {
   /// Returns all errors found during type-checking.
   public List<CheckException> errors() {
     return errors;
+  }
+
+  protected void report(ScopePosition position, String message) {
+    report(position.inInnermostCfg(), message);
+  }
+
+  protected void report(CfgPosition position, String message) {
+    report(position.bb(), position.instructionIndex(), message);
   }
 
   protected void report(BB bb, int instructionIndex, String message) {
