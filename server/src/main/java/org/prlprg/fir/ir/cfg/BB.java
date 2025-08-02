@@ -6,9 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -19,8 +17,6 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.phi.PhiParameter;
-import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -40,7 +36,7 @@ public final class BB {
 
   // Data
   private final String label;
-  private final Map<Register, PhiParameter> parameters = new LinkedHashMap<>();
+  private final List<Register> parameters = new ArrayList<>();
   private final List<Statement> statements = new ArrayList<>();
   private Jump jump = new Unreachable();
 
@@ -76,8 +72,8 @@ public final class BB {
     return label.equals(ENTRY_LABEL);
   }
 
-  public @UnmodifiableView Collection<PhiParameter> phiParameters() {
-    return Collections.unmodifiableCollection(parameters.values());
+  public @UnmodifiableView List<Register> phiParameters() {
+    return Collections.unmodifiableList(parameters);
   }
 
   public @UnmodifiableView List<Statement> statements() {
@@ -102,34 +98,32 @@ public final class BB {
 
   public Register addParameter() {
     var variable = owner.scope().addLocal();
-    addParameter(new PhiParameter(variable, Type.ANY));
+    addParameter(variable);
     return variable;
   }
 
-  public void addParameter(PhiParameter parameter) {
+  public void addParameter(Register parameter) {
     module()
         .record(
             "BB#addParameter",
             List.of(this, parameter),
             () -> {
-              if (parameters.put(parameter.variable(), parameter) != null) {
-                throw new IllegalArgumentException(
-                    "Parameter " + parameter.variable() + " already exists in BB '" + label + "'.");
-              }
+              parameters.add(parameter);
               return null;
             });
   }
 
-  public void removeParameter(PhiParameter parameter) {
+  public void removeParameterAt(int index) {
     module()
         .record(
-            "BB#removeParameter",
-            List.of(this, parameter),
+            "BB#removeParameterAt",
+            List.of(this, index),
             () -> {
-              if (!parameters.remove(parameter.variable(), parameter)) {
-                throw new IllegalArgumentException(
-                    "Parameter " + parameter + " does not exist in BB '" + label + "'.");
+              if (index < 0 || index >= parameters.size()) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " is out of bounds for parameters of BB '" + label + "'.");
               }
+              parameters.remove(index);
               return null;
             });
   }
@@ -145,6 +139,17 @@ public final class BB {
             });
   }
 
+  public void pushStatements(List<Statement> statements) {
+    module()
+        .record(
+            "BB#pushStatements",
+            List.of(this, statements),
+            () -> {
+              this.statements.addAll(statements);
+              return null;
+            });
+  }
+
   public void insertStatement(int index, Statement statement) {
     module()
         .record(
@@ -153,7 +158,7 @@ public final class BB {
             () -> {
               if (index < 0 || index > statements.size()) {
                 throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for BB '" + label + "'.");
+                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
               }
               statements.add(index, statement);
               return null;
@@ -168,7 +173,7 @@ public final class BB {
             () -> {
               if (index < 0 || index > this.statements.size()) {
                 throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for BB '" + label + "'.");
+                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
               }
               this.statements.addAll(index, statements);
               return null;
@@ -183,7 +188,7 @@ public final class BB {
             () -> {
               if (index < 0 || index >= statements.size()) {
                 throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for BB '" + label + "'.");
+                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
               }
               return statements.remove(index);
             });
@@ -197,7 +202,11 @@ public final class BB {
             () -> {
               if (index < 0 || index + count > statements.size()) {
                 throw new IndexOutOfBoundsException(
-                    "End index " + (index + count) + " is out of bounds for BB '" + label + "'.");
+                    "End index "
+                        + (index + count)
+                        + " is out of bounds for statements of BB '"
+                        + label
+                        + "'.");
               }
               var subList = statements.subList(index, index + count);
               var removed = ImmutableList.copyOf(subList);
@@ -214,7 +223,7 @@ public final class BB {
             () -> {
               if (index < 0 || index >= statements.size()) {
                 throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for BB '" + label + "'.");
+                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
               }
               var old = statements.get(index);
               statements.set(index, statement);
@@ -262,7 +271,7 @@ public final class BB {
 
     if (!label.equals(ENTRY_LABEL)) {
       w.write(label);
-      p.printAsList("(", ")", parameters.values());
+      p.printAsList("(", ")", parameters);
       w.write(":");
     } else {
       w.write("  ");
@@ -302,13 +311,8 @@ public final class BB {
     } else {
       CommentParser.skipComments(s);
       label = s.readIdentifierOrKeyword();
-      var params = p.parseList("(", ")", PhiParameter.class);
-      for (var param : params) {
-        if (this.parameters.put(param.variable(), param) != null) {
-          throw new IllegalArgumentException(
-              "Parameter " + param + " already exists in BB '" + label + "'.");
-        }
-      }
+      var params = p.parseList("(", ")", Register.class);
+      parameters.addAll(params);
       s.assertAndSkip(':');
     }
 
