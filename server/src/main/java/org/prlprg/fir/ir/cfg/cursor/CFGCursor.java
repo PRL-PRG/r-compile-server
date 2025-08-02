@@ -1,5 +1,7 @@
 package org.prlprg.fir.ir.cfg.cursor;
 
+import static org.prlprg.fir.ir.cfg.cursor.BBSplitter.splitNewSuccessor;
+
 import java.util.List;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -170,7 +172,7 @@ public final class CFGCursor {
    * function which computes the jump, and move to the split successor.
    */
   public void insert(JumpInsertion insertion) {
-    var newSuccessor = BBSplitMerge.splitNewSuccessor(bb, instructionIndex);
+    var newSuccessor = splitNewSuccessor(bb, instructionIndex);
     bb.setJump(insertion.compute(newSuccessor));
     moveToStart(newSuccessor);
   }

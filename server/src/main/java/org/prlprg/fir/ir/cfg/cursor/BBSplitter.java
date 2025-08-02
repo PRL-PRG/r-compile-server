@@ -5,7 +5,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.phi.Target;
 
-public final class BBSplitMerge {
+public final class BBSplitter {
   public static BB splitNewSuccessor(BB self, int index) {
     return splitNewSuccessor(self, index, self.owner().nextLabel());
   }

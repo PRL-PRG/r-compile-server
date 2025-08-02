@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
@@ -131,16 +132,27 @@ public final class Abstraction implements Comparable<Abstraction> {
         });
   }
 
-  public void removeLocal(Local local) {
-    module.record(
+  public Local removeLocal(Variable variable) {
+    return module.record(
         "Abstraction#removeLocal",
-        List.of(this, local),
+        List.of(this, variable),
         () -> {
-          if (!locals.remove(local.variable().name(), local)) {
+          var local = locals.get(variable.name());
+          if (local == null) {
             throw new IllegalArgumentException(
-                "Local " + local + " does not exist in the abstraction.");
+                "Local " + variable.name() + " does not exist in the abstraction.");
           }
-          return null;
+          switch (variable) {
+            case Register _ when !(local.variable() instanceof Register) ->
+                throw new IllegalArgumentException(
+                    "Local " + variable.name() + " is not a register");
+            case NamedVariable _ when !(local.variable() instanceof NamedVariable) ->
+                throw new IllegalArgumentException(
+                    "Local " + variable.name() + " is not a named variable");
+            default -> {}
+          }
+
+          return locals.remove(variable.name());
         });
   }
 
@@ -149,7 +161,15 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public boolean contains(Variable variable) {
-    return contains(variable.name());
+    var lookup = lookup(variable.name());
+    if (lookup == null) {
+      return false;
+    }
+
+    return switch (lookup) {
+      case Register _ -> variable instanceof Register;
+      case NamedVariable _ -> variable instanceof NamedVariable;
+    };
   }
 
   public boolean contains(String variableName) {
