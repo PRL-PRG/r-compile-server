@@ -77,10 +77,12 @@ public final class DefUses {
     }
 
     // Add immediate uses
-    for (var argument : instruction.arguments()) {
-      if (argument.variable() != null) {
-        uses.computeIfAbsent(argument.variable(), _ -> new HashSet<>())
-            .add(scopePosition(bb, instructionIndex, instruction));
+    if (!(instruction instanceof Statement stmt && stmt.expression() instanceof Promise)) {
+      for (var argument : instruction.arguments()) {
+        if (argument.variable() != null) {
+          uses.computeIfAbsent(argument.variable(), _ -> new HashSet<>())
+              .add(scopePosition(bb, instructionIndex, instruction));
+        }
       }
     }
 
