@@ -158,8 +158,8 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   /// Get the variable with this name in the scope, if present.
   ///
-  /// This method's main purpose is to distinguish between [Register] and [NamedVariable]
-  /// [org.prlprg.fir.ir.variable.NamedVariable]. If you just want to check whether a variable
+  /// This method's main purpose is to distinguish between [Register] and [NamedVariable][
+  /// org.prlprg.fir.ir.variable.NamedVariable]. If you just want to check whether a variable
   /// with the name exists, use [#contains(String)].
   public @Nullable Variable lookup(String variableName) {
     var param = nameToParam.get(variableName);
