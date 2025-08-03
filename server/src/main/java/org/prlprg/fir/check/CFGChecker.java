@@ -47,7 +47,7 @@ public class CFGChecker extends Checker {
       var seenBindings = new HashSet<>();
       for (var binding : Iterables.concat(scope.parameters(), scope.locals())) {
         if (!seenBindings.add(binding.variable().name())) {
-          report(entry, 0, "Duplicate variable declaration: " + binding.variable());
+          report(entry, -1, "Duplicate variable declaration: " + binding.variable());
         }
       }
 
@@ -81,7 +81,7 @@ public class CFGChecker extends Checker {
         var entry = cfg.entry();
         for (var bb : cfg.bbs()) {
           if (bb != entry && dominatorTree.dominators(bb).isEmpty()) {
-            report(bb, 0, "Block " + bb.label() + " is unreachable from entry");
+            report(bb, -1, "Block " + bb.label() + " is unreachable from entry");
           }
         }
 
@@ -89,11 +89,11 @@ public class CFGChecker extends Checker {
         for (var bb : cfg.bbs()) {
           if (!bb.phiParameters().isEmpty()) {
             if (bb == cfg.entry()) {
-              report(bb, 0, "Entry block can't have phis");
+              report(bb, -1, "Entry block can't have phis");
             }
 
             if (bb.predecessors().size() < 2) {
-              report(bb, 0, "Block with < 2 predecessors can't have phis");
+              report(bb, -1, "Block with < 2 predecessors can't have phis");
             }
           }
         }
@@ -117,7 +117,7 @@ public class CFGChecker extends Checker {
           var definitions = defUses.definitions(localReg);
 
           if (definitions.isEmpty()) {
-            report(cfg.entry(), 0, "Local register " + localReg + " is never assigned");
+            report(cfg.entry(), -1, "Local register " + localReg + " is never assigned");
           } else if (definitions.size() > 1) {
             for (var def : definitions) {
               report(def, "Local register " + localReg + " assigned multiple times");

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
+import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
@@ -61,6 +62,12 @@ public final class DefUses {
   }
 
   private void analyze(BB bb) {
+    // Analyze phis
+    for (var phi : bb.phiParameters()) {
+      definitions.computeIfAbsent(phi, _ -> new HashSet<>()).add(scopePosition(bb, -1, null));
+    }
+
+    // Analyze instructions
     var instructions = bb.instructions();
     for (var i = 0; i < instructions.size(); i++) {
       var instruction = instructions.get(i);
@@ -94,7 +101,8 @@ public final class DefUses {
     }
   }
 
-  private ScopePosition scopePosition(BB bb, int instructionIndex, Instruction instruction) {
+  private ScopePosition scopePosition(
+      BB bb, int instructionIndex, @Nullable Instruction instruction) {
     return new ScopePosition(outerPromises, new CfgPosition(bb, instructionIndex, instruction));
   }
 }
