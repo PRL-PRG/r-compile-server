@@ -1,5 +1,5 @@
 fun main {
-    () --> I { |
-        return 0;
-    }
+  () --> I { |
+    return 0;
+  }
 }

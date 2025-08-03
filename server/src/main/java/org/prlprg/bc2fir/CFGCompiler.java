@@ -1164,7 +1164,7 @@ public class CFGCompiler {
     // Then replace the stack with those phis.
     stack.clear();
     for (var phiParameter : bb.phiParameters()) {
-      stack.add(new Read(phiParameter.variable()));
+      stack.add(new Read(phiParameter));
     }
 
     // Finally, actually move the cursor to the BB.

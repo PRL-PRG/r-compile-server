@@ -153,8 +153,9 @@ public sealed interface Expression
             headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
           // Variable
         default -> {
-          if (scope.lookup(headAsName) instanceof Register target) {
-            headAsArg = new Read(target);
+          if (scope.isRegister(headAsName)) {
+            var headAsReg = Variable.register(headAsName);
+            headAsArg = new Read(headAsReg);
           } else {
             headAsNv = Variable.named(headAsName);
           }

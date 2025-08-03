@@ -16,9 +16,9 @@ import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.util.DirectorySource;
 
-/// Tests type-checking FIR files.
-public class FirTypeCheckTest {
-  /// Tests that all FIR files in the test resources directory, when type checked, raise expected
+/// Tests type-checking FIŘ files.
+public class TypeCheckTest {
+  /// Tests that all FIŘ files in the test resources directory, when type checked, raise expected
   /// type errors and no other errors.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
@@ -53,7 +53,7 @@ public class FirTypeCheckTest {
       assertEquals(List.of(), unseenExpectedErrors, "Type checking didn't produce expected errors");
     } catch (ParseException e) {
       abort(
-          "Failed to parse FIR file: "
+          "Failed to parse FIŘ file: "
               + firFilePath
               + "\nError: "
               + e.getMessage()

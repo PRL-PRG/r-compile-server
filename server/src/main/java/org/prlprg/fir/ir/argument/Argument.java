@@ -36,17 +36,14 @@ public sealed interface Argument permits Constant, Read, Use {
     } else if (s.trySkip("use ")) {
       var variable = p1.parse(Variable.class);
       if (!(variable instanceof Register register)) {
-        throw s.fail(scope.contains(variable) ? "can't use named variable" : "unbound register");
+        throw s.fail("unbound register");
       }
 
       return new Use(register);
     } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
       var variable = p1.parse(Variable.class);
       if (!(variable instanceof Register register)) {
-        throw s.fail(
-            scope.contains(variable)
-                ? "load (reading a named variable) must be its own statement.\nEx: instead of `f(x)`, write `r = x; f(r)`"
-                : "unbound register");
+        throw s.fail("unbound register");
       }
 
       return new Read(register);

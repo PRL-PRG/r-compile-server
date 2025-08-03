@@ -1,7 +1,7 @@
 fun main {
-    () --> I { reg r:I |
-        # type-error: Read before write: r
-        # cfg-error: Local register r is never assigned
-        return r;
-    }
+  () --> I { reg r:I |
+    # type-error: Read before write: r
+    # cfg-error: Local register r is never assigned
+    return r;
+  }
 }
