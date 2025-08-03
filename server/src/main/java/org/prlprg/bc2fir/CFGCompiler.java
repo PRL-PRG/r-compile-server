@@ -1236,6 +1236,7 @@ public class CFGCompiler {
   }
 
   private void setJump(Jump jump) {
+    cursor.advance();
     cursor.replace(jump);
   }
 

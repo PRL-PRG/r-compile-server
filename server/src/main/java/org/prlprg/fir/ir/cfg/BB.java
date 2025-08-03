@@ -302,6 +302,7 @@ public final class BB {
   @ParseMethod
   private BB(Parser p1, ParseContext ctx) {
     owner = ctx.owner;
+    var postOwner = ctx.postOwner;
     var p = p1.withContext(ctx.inner);
 
     var s = p.scanner();
@@ -330,13 +331,18 @@ public final class BB {
       s.assertAndSkip(';');
     } while (!(instr instanceof Jump));
 
-    for (var target : jump.targets()) {
-      var added = target.bb().predecessors.add(this);
-      assert added : "BB " + label + " was already a predecessor of target '" + target.bb() + "'.";
-    }
-    if (jump.targets().isEmpty()) {
-      var added = owner.exits.add(this);
-      assert added : "BB " + label + " was already an exit of the CFG.";
-    }
+    // Need target's `postCfg` to run before `target.bb()` is called.
+    postOwner.add(
+        _ -> {
+          for (var target : jump.targets()) {
+            var added = target.bb().predecessors.add(this);
+            assert added
+                : "BB " + label + " was already a predecessor of target '" + target.bb() + "'.";
+          }
+          if (jump.targets().isEmpty()) {
+            var added = owner.exits.add(this);
+            assert added : "BB " + label + " was already an exit of the CFG.";
+          }
+        });
   }
 }

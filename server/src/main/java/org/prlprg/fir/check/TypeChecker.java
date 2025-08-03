@@ -4,6 +4,7 @@ import com.google.common.collect.Iterables;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Stack;
 import java.util.function.Function;
@@ -130,9 +131,9 @@ public final class TypeChecker extends Checker {
           flow = flowStates.get(next).copy();
 
           for (cursor.moveTo(next, 0); !cursor.isAtLocalEnd(); cursor.advance()) {
-            run((Statement) cursor.instruction());
+            run((Statement) Objects.requireNonNull(cursor.instruction()));
           }
-          run((Jump) cursor.instruction());
+          run((Jump) Objects.requireNonNull(cursor.instruction()));
         }
       }
 
