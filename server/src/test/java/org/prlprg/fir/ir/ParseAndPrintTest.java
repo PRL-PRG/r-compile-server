@@ -11,9 +11,9 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DirectorySource;
 
-/// Tests parsing and printing FIR files.
-public class FirParseAndPrintTest {
-  /// Tests that all FIR files in the test resources directory can be parsed.
+/// Tests parsing and printing FIŘ files.
+public class ParseAndPrintTest {
+  /// Tests that all FIŘ files in the test resources directory can be parsed.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
   void testParseFirFiles(Path firFilePath) throws IOException {
@@ -22,7 +22,7 @@ public class FirParseAndPrintTest {
     Parser.fromString(firText, Module.class);
   }
 
-  /// Tests that all FIR files in the test resources directory can be parsed and then printed back
+  /// Tests that all FIŘ files in the test resources directory can be parsed and then printed back
   // to
   /// a string that matches the original content.
   @ParameterizedTest

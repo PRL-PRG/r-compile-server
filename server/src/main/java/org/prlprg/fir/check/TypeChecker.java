@@ -67,7 +67,6 @@ public final class TypeChecker extends Checker {
 
   private class OnAbstraction {
     final Abstraction abstraction;
-    final Map<String, Type> types = new HashMap<>();
 
     OnAbstraction(Abstraction abstraction) {
       this.abstraction = abstraction;
@@ -77,7 +76,6 @@ public final class TypeChecker extends Checker {
       var cfg = new OnCfg(abstraction.cfg());
 
       for (var binding : Iterables.concat(abstraction.parameters(), abstraction.locals())) {
-        types.put(binding.variable().name(), binding.type());
         cfg.checkWellFormed(binding);
       }
       cfg.checkWellFormed(abstraction.returnType());
@@ -92,15 +90,6 @@ public final class TypeChecker extends Checker {
 
       cfg.checkSubtype(cfg.returnType, abstraction.returnType(), "Return type mismatch");
       cfg.checkSubEffects(cfg.effects, abstraction.returnEffects(), "Function effects mismatch");
-    }
-
-    @Nullable Type lookup(Register register) {
-      return types.get(register.name());
-    }
-
-    Type lookup(NamedVariable named) {
-      // Variables are implicitly ANY, but may be explicitly declared with a type.
-      return types.getOrDefault(named.name(), Type.ANY);
     }
 
     class OnCfg {
@@ -130,7 +119,6 @@ public final class TypeChecker extends Checker {
         // Abstract interpretation.
         // - [ActionSet] is the state at the start of each block.
         // - There's global state in [#returnType] and [#effects].
-        // - There's read-pnly context in [#types].
         // - [#cursor] is to traverse the CFG, [#flow] and [#next] are the state and
         //   currently-iterated basic block (should be parameters but more convenient as fields).
 
@@ -155,7 +143,7 @@ public final class TypeChecker extends Checker {
         var type = run(expr);
 
         if (type != null && assignee != null) {
-          var assigneeType = lookup(assignee);
+          var assigneeType = typeOf(assignee);
           if (assigneeType == null) {
             report("Undeclared register: " + assignee);
           } else {
@@ -213,7 +201,7 @@ public final class TypeChecker extends Checker {
                 yield finish.apply(version);
               }
               case DynamicCallee(var calleeVariable, var argumentNames) -> {
-                var calleeType = lookup(calleeVariable);
+                var calleeType = typeOf(calleeVariable);
                 // Concreteness is [MAYBE], we only care about the kind.
                 if (!(calleeType.kind() instanceof Kind.Closure)) {
                   report(
@@ -293,7 +281,7 @@ public final class TypeChecker extends Checker {
               yield null;
             }
           }
-          case Load(var variable) -> lookup(variable);
+          case Load(var variable) -> typeOf(variable);
           case MaybeForce(var value) -> {
             var type = run(value);
             if (type == null) {
@@ -372,7 +360,7 @@ public final class TypeChecker extends Checker {
             yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
           }
           case Store(var variable, var value) -> {
-            var type = lookup(variable);
+            var type = typeOf(variable);
 
             var valueType = run(value);
 
@@ -460,7 +448,7 @@ public final class TypeChecker extends Checker {
         return switch (argument) {
           case Constant(var sexp) -> Type.of(sexp);
           case Read(var variable) -> {
-            var type = lookup(variable);
+            var type = typeOf(variable);
             if (type == null) {
               report("Undeclared register: " + variable);
               yield null;
@@ -478,7 +466,7 @@ public final class TypeChecker extends Checker {
             yield type;
           }
           case Use(var register) -> {
-            var type = lookup(register);
+            var type = typeOf(register);
             if (type == null) {
               report("Undeclared register: " + register);
               yield null;
@@ -590,6 +578,14 @@ public final class TypeChecker extends Checker {
       void report(String message) {
         TypeChecker.this.report(cursor.bb(), cursor.instructionIndex(), message);
       }
+    }
+
+    @Nullable Type typeOf(Register register) {
+      return abstraction.typeOf(register);
+    }
+
+    Type typeOf(NamedVariable named) {
+      return abstraction.typeOf(named);
     }
   }
 

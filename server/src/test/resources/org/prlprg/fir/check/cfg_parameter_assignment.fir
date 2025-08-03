@@ -1,7 +1,7 @@
 fun main {
-    (x:I) --> I { |
-        # cfg-error: Parameter x cannot be assigned
-        x = 42;
-        return x;
-    }
+  (reg x:I) --> I { |
+    # cfg-error: Parameter reg x:I can't be assigned
+    x = 42;
+    return x;
+  }
 }

@@ -1,6 +1,6 @@
 fun main {
-    () --> I { reg r:I |
-        r = 0;
-        return r;
-    }
+  () --> I { reg r:I |
+    r = 0;
+    return r;
+  }
 }

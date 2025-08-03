@@ -70,7 +70,6 @@ public final class Module {
           if (!functions.remove(function.name(), function)) {
             throw new IllegalArgumentException("Function '" + function + "' does not exist.");
           }
-          return null;
         });
   }
 
@@ -99,6 +98,16 @@ public final class Module {
       observer.after(returnValue);
     }
     return returnValue;
+  }
+
+  public void record(String func, List<Object> args, Runnable action) {
+    record(
+        func,
+        args,
+        () -> {
+          action.run();
+          return null;
+        });
   }
 
   @Override

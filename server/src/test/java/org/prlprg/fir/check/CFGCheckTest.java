@@ -16,11 +16,11 @@ import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.util.DirectorySource;
 
-public class CFGCheckerTest {
-  /// Tests that all FIR files in the test resources directory, when CFG checked, raise expected
+public class CFGCheckTest {
+  /// Tests that all FIŘ files in the test resources directory, when CFG checked, raise expected
   /// CFG errors and no other errors.
   @ParameterizedTest
-  @DirectorySource(root = "..", glob = "*.fir")
+  @DirectorySource(root = "..", glob = "*.fir", depth = 2)
   void testCFGCheckFirFiles(Path firFilePath) throws IOException {
     try {
       var firText = Files.readString(firFilePath);
@@ -52,7 +52,7 @@ public class CFGCheckerTest {
       assertEquals(List.of(), unseenExpectedErrors, "CFG checking didn't produce expected errors");
     } catch (ParseException e) {
       abort(
-          "Failed to parse FIR file: "
+          "Failed to parse FIŘ file: "
               + firFilePath
               + "\nError: "
               + e.getMessage()

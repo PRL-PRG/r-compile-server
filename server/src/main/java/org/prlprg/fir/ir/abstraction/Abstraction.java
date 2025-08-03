@@ -7,12 +7,16 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
@@ -88,7 +92,6 @@ public final class Abstraction implements Comparable<Abstraction> {
         List.of(this, returnType),
         () -> {
           this.returnType = returnType;
-          return null;
         });
   }
 
@@ -102,7 +105,6 @@ public final class Abstraction implements Comparable<Abstraction> {
         List.of(this, returnEffects),
         () -> {
           this.returnEffects = returnEffects;
-          return null;
         });
   }
 
@@ -128,7 +130,6 @@ public final class Abstraction implements Comparable<Abstraction> {
           while (contains(nextLocalRegister())) {
             nextLocalDisambiguator++;
           }
-          return null;
         });
   }
 
@@ -160,37 +161,53 @@ public final class Abstraction implements Comparable<Abstraction> {
     return cfg;
   }
 
-  public boolean contains(Variable variable) {
-    var lookup = lookup(variable.name());
-    if (lookup == null) {
-      return false;
-    }
+  /// Yields the function body's CFG ([#cfg()]) followed by each [Promise]'s CFG, in pre-order.
+  public Stream<CFG> streamCfgs() {
+    var worklist = new Stack<CFG>();
+    return Stream.iterate(
+        cfg,
+        prev -> {
+          for (var bb : prev.bbs()) {
+            for (var statement : bb.statements()) {
+              if (statement.expression() instanceof Promise promise) {
+                worklist.push(promise.code());
+              }
+            }
+          }
 
-    return switch (lookup) {
-      case Register _ -> variable instanceof Register;
-      case NamedVariable _ -> variable instanceof NamedVariable;
-    };
+          return !worklist.isEmpty();
+        },
+        _ -> worklist.pop());
   }
 
-  public boolean contains(String variableName) {
-    return nameToParam.containsKey(variableName) || locals.containsKey(variableName);
+  public boolean contains(Register register) {
+    var lookup = lookup(register.name());
+    return lookup != null && lookup.variable() instanceof Register;
   }
 
-  /// Get the variable with this name in the scope, if present.
-  ///
-  /// This method's main purpose is to distinguish between [Register] and [NamedVariable][
-  /// org.prlprg.fir.ir.variable.NamedVariable]. If you just want to check whether a variable
-  /// with the name exists, use [#contains(String)].
-  public @Nullable Variable lookup(String variableName) {
+  public boolean isParameter(Register register) {
+    return nameToParam.containsKey(register.name());
+  }
+
+  public boolean isRegister(String variableName) {
+    var lookup = lookup(variableName);
+    return lookup != null && lookup.variable() instanceof Register;
+  }
+
+  public @Nullable Type typeOf(Register register) {
+    var lookup = lookup(register.name());
+    return lookup != null && lookup.variable() instanceof Register ? lookup.type() : null;
+  }
+
+  public Type typeOf(NamedVariable named) {
+    var lookup = lookup(named.name());
+    // `lookup == null` means it's an unknown named variable, i.e. has type ANY.
+    return lookup != null && lookup.variable() instanceof NamedVariable ? lookup.type() : Type.ANY;
+  }
+
+  private @Nullable Binding lookup(String variableName) {
     var param = nameToParam.get(variableName);
-    if (param != null) {
-      return param.variable();
-    }
-    var local = locals.get(variableName);
-    if (local != null) {
-      return local.variable();
-    }
-    return null;
+    return param != null ? param : locals.get(variableName);
   }
 
   public Register nextLocalRegister() {
@@ -240,10 +257,16 @@ public final class Abstraction implements Comparable<Abstraction> {
     w.write("> ");
     p.print(returnType);
 
-    w.write("{ ");
+    w.write(" { ");
+
     p.printSeparated(", ", locals.values());
-    w.write(" |\n");
+    if (!locals.isEmpty()) {
+      w.write(' ');
+    }
+    w.write("|\n");
+
     p.print(cfg);
+
     w.write("\n}");
   }
 
@@ -270,8 +293,7 @@ public final class Abstraction implements Comparable<Abstraction> {
       do {
         var local = p.parse(Local.class);
         if (locals.put(local.variable().name(), local) != null) {
-          throw new IllegalArgumentException(
-              "Local " + local + " already exists in the abstraction.");
+          throw s.fail("Local " + local + " already exists in the abstraction.");
         }
       } while (s.trySkip(','));
     }

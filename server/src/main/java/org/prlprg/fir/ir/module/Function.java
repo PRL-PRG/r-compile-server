@@ -121,7 +121,6 @@ public final class Function {
           }
           versions.remove(version);
           versionsSorted.remove(version);
-          return null;
         });
   }
 
@@ -144,14 +143,8 @@ public final class Function {
     w.write('{');
     w.runIndented(
         () -> {
-          var printed = false;
-
           for (int i = 0; i < nextVersionIndex; i++) {
-            if (printed) {
-              w.write("\n");
-            } else {
-              printed = true;
-            }
+            w.write("\n");
 
             var version = versions.inverse().get(i);
             if (version == null) {

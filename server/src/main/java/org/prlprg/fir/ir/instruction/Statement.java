@@ -6,6 +6,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -50,9 +51,10 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
     if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
       var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
 
-      if (scope.lookup(nameHead) instanceof Register register && s.trySkip('=')) {
+      if (scope.isRegister(nameHead) && s.trySkip('=')) {
+        var assignee = Variable.register(nameHead);
         var expression = p2.parse(Expression.class);
-        return new Statement(register, expression);
+        return new Statement(assignee, expression);
       } else {
         return new Statement(
             p.withContext(new Expression.ParseContext(nameHead, cfg, postModule, ctx.inner()))

@@ -50,9 +50,6 @@ public sealed interface Variable permits NamedVariable, Register {
     var s = p.scanner();
 
     var name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
-    var paramOrLocal = scope.lookup(name);
-    // If `paramOrLocal` is `null`, the variable is in a parent scope, and only named variables are
-    // in parent scopes.
-    return paramOrLocal == null ? Variable.named(name) : paramOrLocal;
+    return scope.isRegister(name) ? register(name) : named(name);
   }
 }
