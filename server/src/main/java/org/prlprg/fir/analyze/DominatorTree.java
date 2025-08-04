@@ -49,7 +49,7 @@ public class DominatorTree {
   }
 
   private void compute() {
-    var bbs = new ArrayList<>(cfg.bbs());
+    var bbs = cfg.bbs();
     var entry = cfg.entry();
 
     // Initialize dominator sets
@@ -66,7 +66,6 @@ public class DominatorTree {
         if (bb == entry) continue;
 
         var newDominators = new LinkedHashSet<BB>();
-        newDominators.add(bb); // A block always dominates itself
 
         // Intersection of dominators of all predecessors
         var first = true;
@@ -79,10 +78,8 @@ public class DominatorTree {
           }
         }
 
-        // If no predecessors (unreachable), keep current dominators
-        if (bb.predecessors().isEmpty()) {
-          newDominators = new LinkedHashSet<>(dominators.get(bb));
-        }
+        // A block always dominates itself
+        newDominators.add(bb);
 
         if (!newDominators.equals(dominators.get(bb))) {
           dominators.put(bb, newDominators);

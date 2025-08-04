@@ -49,7 +49,7 @@ public class CFGCheckTest {
 
       assertEquals(
           List.of(), unexpectedCFGCheckerErrors, "CFG checking produced unexpected errors");
-      assertEquals(List.of(), unseenExpectedErrors, "CFG checking didn't produce expected errors");
+      assertEquals(List.of(), unseenExpectedErrors, "CFG checking DIDN'T produce expected errors");
     } catch (ParseException e) {
       abort(
           "Failed to parse FIŘ file: "

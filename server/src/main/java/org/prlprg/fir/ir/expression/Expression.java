@@ -71,8 +71,7 @@ public sealed interface Expression
     var module = scope.module();
     var postModule = ctx.postModule;
     var p = p1.withContext(ctx.inner());
-    var p2 = p.withContext(new Argument.ParseContext(scope));
-    var p3 = p.withContext(new Variable.ParseContext(scope));
+    var p2 = p.withContext(new Variable.ParseContext(scope));
 
     var s = p.scanner();
 
@@ -82,7 +81,7 @@ public sealed interface Expression
           || s.nextCharIs('-')
           || s.nextCharIs('\"')
           || s.nextCharIs('<')) {
-        headAsArg = p2.parse(Argument.class);
+        headAsArg = p.parse(Argument.class);
       } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
         headAsName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
       }
@@ -128,24 +127,24 @@ public sealed interface Expression
         }
         case "dyn" -> {
           s.assertAndSkip('<');
-          var variable = p3.parse(NamedVariable.class);
+          var variable = p2.parse(NamedVariable.class);
           var argumentNames =
               s.nextCharIs('[') ? p.parseList("[", "]", String.class) : ImmutableList.<String>of();
           s.assertAndSkip('>');
-          var arguments = p2.parseList("(", ")", Argument.class);
+          var arguments = p.parseList("(", ")", Argument.class);
           return new Call(new DynamicCallee(variable, argumentNames), arguments);
         }
         case "force" -> {
           var isMaybe = s.trySkip('?');
-          var value = p2.parse(Argument.class);
+          var value = p.parse(Argument.class);
           return isMaybe ? new MaybeForce(value) : new Force(value);
         }
         case "dup" -> {
-          var value = p2.parse(Argument.class);
+          var value = p.parse(Argument.class);
           return new Dup(value);
         }
         case "use" -> {
-          var variable = p2.parse(Register.class);
+          var variable = p.parse(Register.class);
           headAsArg = new Use(variable);
         }
           // Constant
@@ -175,19 +174,19 @@ public sealed interface Expression
             p.withContext(new Abstraction.ParseContext(module, postModule, ctx.inner()))
                 .parse(Abstraction.class);
         s.assertAndSkip("->");
-        var arguments = p2.parseList("(", ")", Argument.class);
+        var arguments = p.parseList("(", ")", Argument.class);
         return new Call(new InlineCallee(inlinee), arguments);
       }
 
       if (s.nextCharIs('[')) {
-        var elements = p2.parseList("[", "]", Argument.class);
+        var elements = p.parseList("[", "]", Argument.class);
         return new MkVector(elements);
       }
 
       if (s.trySkip('^')) {
-        var variable = p3.parse(NamedVariable.class);
+        var variable = p2.parse(NamedVariable.class);
         if (s.trySkip('=')) {
-          var value = p2.parse(Argument.class);
+          var value = p.parse(Argument.class);
           return new SuperStore(variable, value);
         }
         return new SuperLoad(variable);
@@ -217,7 +216,7 @@ public sealed interface Expression
         } else {
           version = Either.left(Optional.empty());
         }
-        var arguments = p2.parseList("(", ")", Argument.class);
+        var arguments = p.parseList("(", ")", Argument.class);
 
         // We must defer setting the function in case it's a forward reference.
         @SuppressWarnings("DataFlowIssue")
@@ -245,16 +244,16 @@ public sealed interface Expression
           throw s.fail("In 'r = x = ...', 'x' must be a named variable (not a register)");
         }
 
-        var value = p2.parse(Argument.class);
+        var value = p.parse(Argument.class);
         return new Store(headAsNv, value);
       } else if (s.trySkip('$')) {
         if (headAsArg == null) {
           throw s.fail("In 'a$...', 'a' must be a register (or constant)");
         }
 
-        var variable = p3.parse(NamedVariable.class);
+        var variable = p2.parse(NamedVariable.class);
         if (s.trySkip('=')) {
-          var value = p2.parse(Argument.class);
+          var value = p.parse(Argument.class);
           return new ReflectiveStore(headAsArg, variable, value);
         } else {
           return new ReflectiveLoad(headAsArg, variable);
@@ -264,10 +263,10 @@ public sealed interface Expression
           throw s.fail("In 'a[...]', 'a' must be a register (or constant)");
         }
 
-        var subscript = p2.parse(Argument.class);
+        var subscript = p.parse(Argument.class);
         s.assertAndSkip(']');
         if (s.trySkip('=')) {
-          var value = p2.parse(Argument.class);
+          var value = p.parse(Argument.class);
           return new SubscriptStore(headAsArg, subscript, value);
         } else {
           return new SubscriptLoad(headAsArg, subscript);
