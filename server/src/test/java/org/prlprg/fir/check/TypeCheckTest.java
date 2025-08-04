@@ -50,7 +50,7 @@ public class TypeCheckTest {
 
       assertEquals(
           List.of(), unexpectedTypeCheckerErrors, "Type checking produced unexpected errors");
-      assertEquals(List.of(), unseenExpectedErrors, "Type checking didn't produce expected errors");
+      assertEquals(List.of(), unseenExpectedErrors, "Type checking DIDN'T produce expected errors");
     } catch (ParseException e) {
       abort(
           "Failed to parse FIŘ file: "

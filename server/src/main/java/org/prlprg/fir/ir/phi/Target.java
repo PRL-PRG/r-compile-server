@@ -3,7 +3,6 @@ package org.prlprg.fir.ir.phi;
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
 import javax.annotation.Nullable;
-import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -62,20 +61,17 @@ public final class Target {
     p.printAsList("(", ")", phiArgs);
   }
 
-  public record ParseContext(
-      Abstraction scope, DeferredCallbacks<CFG> postCfg, @Nullable Object inner) {}
+  public record ParseContext(DeferredCallbacks<CFG> postCfg, @Nullable Object inner) {}
 
   @ParseMethod
   private Target(Parser p1, ParseContext ctx) {
     var postCfg = ctx.postCfg;
-    var scope = ctx.scope;
     var p = p1.withContext(ctx.inner);
-    var p2 = p.withContext(new Argument.ParseContext(scope));
 
     var s = p.scanner();
 
     var bbLabel = s.readIdentifierOrKeyword();
-    phiArgs = p2.parseList("(", ")", Argument.class);
+    phiArgs = p.parseList("(", ")", Argument.class);
 
     postCfg.add(
         cfg -> {

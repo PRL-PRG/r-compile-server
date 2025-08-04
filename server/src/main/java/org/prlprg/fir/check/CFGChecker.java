@@ -80,7 +80,7 @@ public class CFGChecker extends Checker {
         // All blocks must be reachable from entry
         var entry = cfg.entry();
         for (var bb : cfg.bbs()) {
-          if (bb != entry && dominatorTree.dominators(bb).isEmpty()) {
+          if (bb != entry && dominatorTree.dominators(bb).size() == 1) {
             report(bb, -1, "Block " + bb.label() + " is unreachable from entry");
           }
         }

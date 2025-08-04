@@ -1,9 +1,7 @@
 package org.prlprg.fir.ir.argument;
 
 import javax.annotation.Nullable;
-import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.SEXP;
@@ -14,13 +12,8 @@ import org.prlprg.util.Characters;
 public sealed interface Argument permits Constant, Read, Use {
   @Nullable Register variable();
 
-  record ParseContext(Abstraction scope) {}
-
   @ParseMethod
-  private static Argument parse(Parser p, ParseContext ctx) {
-    var scope = ctx.scope;
-    var p1 = p.withContext(new Variable.ParseContext(scope));
-
+  private static Argument parse(Parser p) {
     var s = p.scanner();
 
     if (s.nextCharsAre("NULL")
@@ -34,18 +27,10 @@ public sealed interface Argument permits Constant, Read, Use {
       var value = p.parse(SEXP.class);
       return new Constant(value);
     } else if (s.trySkip("use ")) {
-      var variable = p1.parse(Variable.class);
-      if (!(variable instanceof Register register)) {
-        throw s.fail("unbound register");
-      }
-
+      var register = p.parse(Register.class);
       return new Use(register);
     } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
-      var variable = p1.parse(Variable.class);
-      if (!(variable instanceof Register register)) {
-        throw s.fail("unbound register");
-      }
-
+      var register = p.parse(Register.class);
       return new Read(register);
     }
 
