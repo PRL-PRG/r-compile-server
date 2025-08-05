@@ -2,6 +2,9 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 
@@ -30,9 +33,22 @@ public sealed interface RawSXP extends PrimVectorSXP<Byte>
 }
 
 /** Raw (byte) vector which doesn't fit any of the more specific subclasses. */
-record RawSXPImpl(ImmutableList<Byte> data, @Override Attributes attributes) implements RawSXP {
+final class RawSXPImpl implements RawSXP {
+  private final List<Byte> data;
+  private final Attributes attributes;
+
+  RawSXPImpl(ImmutableList<Byte> data, Attributes attributes) {
+    this.data = new ArrayList<>(data);
+    this.attributes = attributes;
+  }
+
   @Override
-  public UnmodifiableIterator<Byte> iterator() {
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<Byte> iterator() {
     return data.iterator();
   }
 
@@ -42,13 +58,18 @@ record RawSXPImpl(ImmutableList<Byte> data, @Override Attributes attributes) imp
   }
 
   @Override
+  public void set(int i, Byte value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
 
   @Override
   public RawSXP withAttributes(Attributes attributes) {
-    return SEXPs.raw(data, attributes);
+    return SEXPs.raw(ImmutableList.copyOf(data), attributes);
   }
 
   @Override

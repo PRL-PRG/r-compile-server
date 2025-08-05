@@ -2,6 +2,9 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 
@@ -26,9 +29,22 @@ public sealed interface ExprSXP extends VectorSXP<SEXP> {
   }
 }
 
-record ExprSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) implements ExprSXP {
+final class ExprSXPImpl implements ExprSXP {
+  private final List<SEXP> data;
+  private final Attributes attributes;
+
+  ExprSXPImpl(ImmutableList<SEXP> data, Attributes attributes) {
+    this.data = new ArrayList<>(data);
+    this.attributes = attributes;
+  }
+
   @Override
-  public UnmodifiableIterator<SEXP> iterator() {
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<SEXP> iterator() {
     return data.iterator();
   }
 
@@ -38,13 +54,18 @@ record ExprSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) im
   }
 
   @Override
+  public void set(int i, SEXP value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
 
   @Override
   public ExprSXP withAttributes(Attributes attributes) {
-    return SEXPs.expr(data, attributes);
+    return SEXPs.expr(ImmutableList.copyOf(data), attributes);
   }
 
   @Override
