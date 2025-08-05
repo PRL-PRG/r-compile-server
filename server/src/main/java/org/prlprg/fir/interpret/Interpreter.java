@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -50,16 +51,19 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.ListOrVectorSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.VecSXP;
+import org.prlprg.sexp.TaggedElem;
 
 /// FIŘ interpreter.
 public final class Interpreter {
@@ -77,15 +81,56 @@ public final class Interpreter {
   private int nextPromiseId = 0;
   private int nextClosureId = 0;
 
-  /// Interpret the module in an empty global environment.
+  /// Interpret the module in a global environment containing only its functions.
+  ///
+  /// New functions added to the module are automatically added to the interpreter's environment
+  /// thanks to [org.prlprg.fir.ir.observer.Observer].
   public Interpreter(Module module) {
-    this(module, new GlobalEnvSXP(new BaseEnvSXP()));
+    this(module, Map.of());
   }
 
-  /// Interpret the module in the global environment.
-  public Interpreter(Module module, GlobalEnvSXP globalEnv) {
+  /// Interpret the module in a global environment containing its functions and the given bindings.
+  ///
+  /// New functions added to the module are automatically added to the interpreter's environment
+  /// thanks to [org.prlprg.fir.ir.observer.Observer].
+  public Interpreter(Module module, Map<String, SEXP> bindings) {
     this.module = module;
-    this.globalEnv = globalEnv;
+
+    var baseEnv = new BaseEnvSXP();
+    globalEnv = new GlobalEnvSXP(baseEnv, bindings);
+    // Add module functions, including those in parents to the environment.
+    addModuleToEnv(module, globalEnv);
+    addModuleToEnv(GlobalModules.BUILTINS, baseEnv);
+    // `GlobalModules.INTRINSICS` are only directly called, so we don't add them
+    // because environments only store stub SEXPs that may be looked up by dynamic calls.
+
+    // Add new module functions via an observer.
+    module.addObserver(
+        (method, _, returnValue) -> {
+          if (method.equals("Module#addFunction") && returnValue != null) {
+            var f = (Function) returnValue;
+            addFunctionToEnv(f, globalEnv);
+          }
+        });
+  }
+
+  /// Adds stub closures for every function in the module to the environment.
+  ///
+  /// These stubs can be loaded by dynamic calls (`dyn&lt;x&gt;`). Otherwise, the dynamic call's
+  /// function lookup won't see the function even if it has the looked-up name.
+  public void addModuleToEnv(Module module, EnvSXP env) {
+    for (var function : module.localFunctions()) {
+      addFunctionToEnv(function, env);
+    }
+  }
+
+  /// Adds a stub closure for the function to the environment.
+  ///
+  /// These stubs can be loaded by dynamic calls (`dyn&lt;x&gt;`). Otherwise, the dynamic call's
+  /// function lookup won't see the function even if it has the looked-up name.
+  public void addFunctionToEnv(Function function, EnvSXP env) {
+    var stub = closureStub(function, env);
+    env.set(function.name(), stub);
   }
 
   public Module module() {
@@ -116,9 +161,16 @@ public final class Interpreter {
       EnvSXP environment) {
     var signature = computeSignature(explicitSignature, arguments);
 
-    var best = function.worstGuess(signature);
+    var best = function.guess(signature);
     if (best == null) {
-      throw fail("No versions match function: " + function.name());
+      throw fail(
+          "No versions match signature and arguments:"
+              + "\nFunction: "
+              + function.name()
+              + "\nSignature: "
+              + explicitSignature
+              + "\nArguments: "
+              + arguments);
     }
 
     return call(best, arguments, environment);
@@ -219,17 +271,14 @@ public final class Interpreter {
         var callee = call.callee();
         var arguments = call.arguments().stream().map(this::run).toList();
         var environment = topFrame().environment();
-        
+
         yield switch (callee) {
           case StaticCallee(var _, var version) -> call(version, arguments, environment);
-          case DispatchCallee(var function, var signature) -> call(function, signature, arguments, environment);
+          case DispatchCallee(var function, var signature) ->
+              call(function, signature, arguments, environment);
           case InlineCallee(var inlinee) -> call(inlinee, arguments, environment);
           case DynamicCallee(var variable, var _) -> {
             var function = loadFun(variable);
-            if (function == null) {
-              throw fail("Unbound function: " + variable.name());
-            }
-
             yield call(function, null, arguments, environment);
           }
         };
@@ -239,51 +288,26 @@ public final class Interpreter {
         checkType(value, type, "cast");
         yield value;
       }
-      case Closure closure -> {
-        var function = closure.code();
-
-        var codeStub = freshClosureStub();
-        closures.put(codeStub, function);
-        yield SEXPs.closure(inferParameters(function), codeStub, topFrame().environment());
-      }
+      case Closure closure -> closureStub(closure.code(), topFrame().environment());
       case Dup(var value) -> {
         var sexp = run(value);
 
-        // Copy
-        if (sexp instanceof VecSXP)
+        if (!(sexp instanceof ListOrVectorSXP<?> s)) {
+          throw fail("Can't duplicate: " + sexp);
+        }
+
+        yield s.copy();
       }
       case Force(var promArg) -> {
         var promValue = run(promArg);
         if (!(promValue instanceof PromSXP promSXP)) {
-          throw fail("Tried to force non-promise: " + promValue);
+          throw fail("Can't force non-promise: " + promValue);
         }
 
-        // If the promise is already forced, return the value.
-        var eager = promSXP.boundVal();
-        if (eager != null) {
-          yield eager;
-        }
-
-        // Evaluate the promise.
-        var promCode = promises.remove(promSXP.expr());
-        if (promCode == null) {
-          throw fail("Can't force promise code created outside the interpreter: " + promSXP.expr());
-        }
-        var promExpr = promCode.expression;
-
-        stack.push(promCode.frame);
-        try {
-          var value = run(promExpr.code());
-          promSXP.bind(value);
-          checkType(value, promExpr.valueType(), "promise");
-          yield value;
-        } finally {
-          var f = stack.pop();
-          assert f == promCode.frame : "stack imbalance";
-        }
+        yield force(promSXP);
       }
       case Load(var variable) -> {
-        var value = topFrame().environment().get(variable.name()).orElse(null);
+        var value = topFrame().get(variable);
         if (value == null) {
           throw fail("Unbound variable: " + variable.name());
         }
@@ -291,52 +315,98 @@ public final class Interpreter {
       }
       case MaybeForce(var value) -> {
         var sexp = run(value);
-        if (sexp instanceof PromSXP) {
-          yield run(new Force(value));
-        } else {
+        if (!(sexp instanceof PromSXP promSXP)) {
           yield sexp;
         }
+
+        yield force(promSXP);
       }
       case MkVector(var elements) -> {
         var values = elements.stream().map(this::run).toArray(SEXP[]::new);
         yield SEXPs.list(values);
       }
       case Placeholder() -> throw fail("Can't evaluate placeholder");
-      case Promise promExpr -> {
-        var codeStub = freshPromiseStub();
-        promises.put(codeStub, new PromiseCode(promExpr, topFrame()));
-        yield SEXPs.promise(codeStub, topFrame().environment());
+      case Promise promise -> promiseStub(promise);
+      case ReflectiveLoad(var promArg, var variable) -> {
+        var promSxp = run(promArg);
+
+        if (!(promSxp instanceof PromSXP promise)) {
+          throw fail("Can't reflective load in non-promise: " + promSxp);
+        }
+        var env = promise.env();
+
+        yield env.getLocal(variable.name())
+            .orElseThrow(() -> fail("Unbound variable in promise environment: " + variable.name()));
       }
-      case ReflectiveLoad(var promise, var variable) -> {
-        var obj = run(promise);
-        throw fail("Reflective load not yet implemented for: " + variable.name());
-      }
-      case ReflectiveStore(var promise, var variable, var value) -> {
-        var obj = run(promise);
-        var val = run(value);
-        throw fail("Reflective store not yet implemented for: " + variable.name());
+      case ReflectiveStore(var promArg, var variable, var valueArg) -> {
+        var promSxp = run(promArg);
+        var valueSxp = run(valueArg);
+
+        if (!(promSxp instanceof PromSXP promise)) {
+          throw fail("Can't reflective load in non-promise: " + promSxp);
+        }
+        var env = promise.env();
+
+        env.set(variable.name(), valueSxp);
+        yield valueSxp;
       }
       case Store(var variable, var value) -> {
         var sexp = run(value);
-        topFrame().environment().set(variable.name(), sexp);
+        topFrame().put(variable, sexp);
         yield sexp;
       }
-      case SubscriptLoad(var target, var index) -> {
-        var obj = run(target);
-        var idx = run(index);
-        throw fail("Subscript load not yet implemented");
+      case SubscriptLoad(var vectorArg, var indexArg) -> {
+        var vectorSxp = run(vectorArg);
+        // Some code is redundant with `SubscriptStore` but it's not worth abstracting.
+        @SuppressWarnings("DuplicatedCode")
+        var indexSxp = run(indexArg);
+
+        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
+          throw fail("Can't subscript non-vector: " + vectorSxp);
+        }
+        var index = indexSxp.asScalarInteger().orElse(null);
+        if (index == null) {
+          throw fail("Can't subscript with non-integer index: " + indexSxp);
+        }
+
+        if (index < 0 || index >= vector.size()) {
+          throw fail(
+              "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
+        }
+
+        yield (SEXP) vector.get(index);
       }
-      case SubscriptStore(var target, var index, var value) -> {
-        var obj = run(target);
-        var idx = run(index);
-        var val = run(value);
-        throw fail("Subscript store not yet implemented");
+      case SubscriptStore(var vectorArg, var indexArg, var valueArg) -> {
+        var vectorSxp = run(vectorArg);
+        // Some code is redundant with `SubscriptLoad` but it's not worth abstracting.
+        @SuppressWarnings("DuplicatedCode")
+        var indexSxp = run(indexArg);
+        var valueSxp = run(valueArg);
+
+        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
+          throw fail("Can't subscript non-vector: " + vectorSxp);
+        }
+        var index = indexSxp.asScalarInteger().orElse(null);
+        if (index == null) {
+          throw fail("Can't subscript with non-integer index: " + indexSxp);
+        }
+        var value = valueSxp.as(vector.getCanonicalType()).orElse(null);
+        if (value == null) {
+          throw fail("Can't store " + valueSxp.type() + " value in " + vector.type() + " vector");
+        }
+
+        if (index < 0 || index >= vector.size()) {
+          throw fail(
+              "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
+        }
+
+        //noinspection unchecked (done in `value.as(....)`).
+        ((ListOrVectorSXP<SEXP>) vector).set(index, value);
+
+        yield value;
       }
       case SuperLoad(var variable) -> {
         var parentEnv = topFrame().environment().parent();
-        if (parentEnv == null) {
-          throw fail("No parent environment for super load of: " + variable.name());
-        }
         var value = parentEnv.get(variable.name()).orElse(null);
         if (value == null) {
           throw fail("Unbound variable in parent environment: " + variable.name());
@@ -345,12 +415,17 @@ public final class Interpreter {
       }
       case SuperStore(var variable, var value) -> {
         var parentEnv = topFrame().environment().parent();
-        if (parentEnv == null) {
-          throw fail("No parent environment for super store of: " + variable.name());
+        var sexp = run(value);
+
+        // Super-store implementation
+        while (!(parentEnv instanceof EmptyEnvSXP)) {
+          if (parentEnv.getLocal(variable.name()).isPresent()) {
+            parentEnv.set(variable.name(), sexp);
+            yield sexp;
+          }
+          parentEnv = parentEnv.parent();
         }
-        var val = run(value);
-        parentEnv.set(variable.name(), val);
-        yield val;
+        throw fail("Unbound variable in parent environment: " + variable.name());
       }
     };
   }
@@ -372,6 +447,56 @@ public final class Interpreter {
       throw fail("Uninitialized register: " + register);
     }
     return value;
+  }
+
+  /// Function lookup implementation.
+  private Function loadFun(NamedVariable variable) {
+    var env = topFrame().environment();
+    while (!(env instanceof EmptyEnvSXP)) {
+      var value = env.getLocal(variable.name()).orElse(null);
+      if (value instanceof CloSXP cloSxp) {
+        var function = closures.get(cloSxp.body());
+        if (function == null) {
+          throw fail("Can't call closure created outside the interpreter: " + cloSxp);
+        }
+        // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
+        if (module.localFunction(function.name()) != function
+            && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
+          throw fail(
+              "Can't call function that was removed or is from another module: " + function.name());
+        }
+        return function;
+      }
+
+      env = env.parent();
+    }
+    throw fail("Unbound function: " + variable.name());
+  }
+
+  private SEXP force(PromSXP promSXP) {
+    // If the promise is already forced, return the value.
+    var eager = promSXP.boundVal();
+    if (eager != null) {
+      return eager;
+    }
+
+    // Evaluate the promise.
+    var promCode = promises.remove(promSXP.expr());
+    if (promCode == null) {
+      throw fail("Can't force promise code created outside the interpreter: " + promSXP);
+    }
+    var promExpr = promCode.expression;
+
+    stack.push(promCode.frame);
+    try {
+      var value = run(promExpr.code());
+      promSXP.bind(value);
+      checkType(value, promExpr.valueType(), "promise");
+      return value;
+    } finally {
+      var f = stack.pop();
+      assert f == promCode.frame : "stack imbalance";
+    }
   }
 
   /// Casts the value to a boolean and returns it, throws if not a boolean.
@@ -465,16 +590,23 @@ public final class Interpreter {
     return stack.getLast();
   }
 
-  /// An [SEXP] that we map to a [PromiseCode], so we can create and force [PromSXP] promises in
-  /// the interpreter.
-  private SEXP freshPromiseStub() {
-    return SEXPs.symbol(".interpreterPromise" + nextPromiseId++);
+  /// We don't actually know the function's possible parameters in the general case,
+  /// nor do we use them, so we statically specify that it may take any parameters.
+  private static final ListSXP CLOSURE_STUB_PARAMETERS = SEXPs.list(TaggedElem.DOTS);
+
+  /// Returns a [CloSXP] wrapping the [Function], which can be function looked-up and dynamically
+  /// called by the interpreter.
+  private CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
+    var codeStub = SEXPs.symbol(".interpreterClosure" + nextClosureId++);
+    closures.put(codeStub, function);
+    return SEXPs.closure(CLOSURE_STUB_PARAMETERS, codeStub, enclosingEnv);
   }
 
-  /// An [SEXP] that we map to a [Function], so we can create and call [CloSXP] closures in
-  /// the interpreter.
-  private SEXP freshClosureStub() {
-    return SEXPs.symbol(".interpreterClosure" + nextClosureId++);
+  /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
+  private PromSXP promiseStub(Promise promExpr) {
+    var codeStub = SEXPs.symbol(".interpreterPromise" + nextPromiseId++);
+    promises.put(codeStub, new PromiseCode(promExpr, topFrame()));
+    return SEXPs.promise(codeStub, topFrame().environment());
   }
 
   private InterpreterException fail(String message) {

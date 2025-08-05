@@ -53,7 +53,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     this.parameters = ImmutableList.copyOf(parameters);
 
     nameToParam = computeNameToParam(parameters);
-    returnType = Type.ANY;
+    returnType = Type.ANY_VALUE;
     returnEffects = Effects.ANY;
     cfg = new CFG(this);
 
@@ -88,11 +88,7 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   public void setReturnType(Type returnType) {
     module.record(
-        "Abstraction#setReturnType",
-        List.of(this, returnType),
-        () -> {
-          this.returnType = returnType;
-        });
+        "Abstraction#setReturnType", List.of(this, returnType), () -> this.returnType = returnType);
   }
 
   public Effects returnEffects() {
@@ -103,9 +99,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     module.record(
         "Abstraction#setReturnEffects",
         List.of(this, returnEffects),
-        () -> {
-          this.returnEffects = returnEffects;
-        });
+        () -> this.returnEffects = returnEffects);
   }
 
   public @UnmodifiableView Collection<Local> locals() {

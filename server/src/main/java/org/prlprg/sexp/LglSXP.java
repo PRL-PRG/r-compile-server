@@ -1,7 +1,6 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.UnmodifiableIterator;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -30,6 +29,9 @@ public sealed interface LglSXP extends PrimVectorSXP<Logical>
 
   @Override
   LglSXP withAttributes(Attributes attributes);
+
+  @Override
+  LglSXP copy();
 
   @Override
   default Class<? extends SEXP> getCanonicalType() {
@@ -78,6 +80,11 @@ final class LglSXPImpl implements LglSXP {
   }
 
   @Override
+  public LglSXP copy() {
+    return new LglSXPImpl(ImmutableList.copyOf(data), attributes);
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }
@@ -102,6 +109,11 @@ final class ScalarLglSXP extends ScalarSXPImpl<Logical> implements LglSXP {
   public LglSXP withAttributes(Attributes attributes) {
     return SEXPs.logical(data, attributes);
   }
+
+  @Override
+  public LglSXP copy() {
+    return new ScalarLglSXP(data);
+  }
 }
 
 /** Empty logical vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -115,5 +127,10 @@ final class EmptyLglSXPImpl extends EmptyVectorSXPImpl<Logical> implements LglSX
   @Override
   public LglSXP withAttributes(Attributes attributes) {
     return SEXPs.logical(ImmutableList.of(), attributes);
+  }
+
+  @Override
+  public LglSXP copy() {
+    return this;
   }
 }

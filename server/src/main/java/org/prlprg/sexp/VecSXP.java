@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 
@@ -25,6 +24,9 @@ public sealed interface VecSXP extends VectorSXP<SEXP> {
 
   @Override
   VecSXP withAttributes(Attributes attributes);
+
+  @Override
+  VecSXP copy();
 }
 
 final class VecSXPImpl implements VecSXP {
@@ -67,6 +69,11 @@ final class VecSXPImpl implements VecSXP {
   }
 
   @Override
+  public VecSXP copy() {
+    return new VecSXPImpl(ImmutableList.copyOf(data), attributes);
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }
@@ -75,7 +82,7 @@ final class VecSXPImpl implements VecSXP {
 /** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
 abstract class ScalarSXPImpl<T> {
-  final T data;
+  T data;
 
   protected ScalarSXPImpl(T data) {
     this.data = data;
@@ -93,14 +100,17 @@ abstract class ScalarSXPImpl<T> {
   }
 
   public void set(int i, T value) {
-    throw new UnsupportedOperationException("Cannot modify scalar SEXP");
+    if (i != 0) {
+      throw new IndexOutOfBoundsException();
+    }
+    this.data = value;
   }
 
   public int size() {
     return 1;
   }
 
-  public @Nonnull Attributes attributes() {
+  public Attributes attributes() {
     return Attributes.NONE;
   }
 
@@ -138,7 +148,7 @@ abstract class EmptyVectorSXPImpl<T> {
   }
 
   // @Override
-  public void set(int i, T value) {
+  public void set(int ignore, T ignore1) {
     throw new IndexOutOfBoundsException("Cannot set element in empty vector");
   }
 
@@ -148,7 +158,7 @@ abstract class EmptyVectorSXPImpl<T> {
   }
 
   // @Override
-  public @Nonnull Attributes attributes() {
+  public Attributes attributes() {
     return Attributes.NONE;
   }
 

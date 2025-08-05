@@ -42,6 +42,9 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListS
   @Override
   ListSXP withAttributes(Attributes attributes);
 
+  @Override
+  ListSXP copy();
+
   @Unmodifiable
   List<SEXP> values();
 
@@ -101,6 +104,7 @@ final class ListSXPImpl implements ListSXP {
   public Attributes attributes() {
     return attributes;
   }
+
   @Override
   public SEXPType type() {
     return data.isEmpty() ? SEXPType.NIL : SEXPType.LIST;
@@ -207,6 +211,11 @@ final class ListSXPImpl implements ListSXP {
 
   @Override
   public ListSXPImpl withAttributes(Attributes attributes) {
+    return new ListSXPImpl(ImmutableList.copyOf(data), attributes);
+  }
+
+  @Override
+  public ListSXP copy() {
     return new ListSXPImpl(ImmutableList.copyOf(data), attributes);
   }
 

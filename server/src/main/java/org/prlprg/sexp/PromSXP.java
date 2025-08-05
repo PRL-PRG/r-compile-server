@@ -28,6 +28,16 @@ public sealed interface PromSXP extends SEXP {
   ///
   /// This is the opposite of [#isLazy()].
   boolean isEvaluated();
+
+  @Override
+  default Class<? extends SEXP> getCanonicalType() {
+    return PromSXP.class;
+  }
+
+  @Override
+  default SEXPType type() {
+    return SEXPType.PROM;
+  }
 }
 
 final class PromSXPImpl implements PromSXP {
@@ -78,16 +88,6 @@ final class PromSXPImpl implements PromSXP {
       throw new IllegalArgumentException("Promises cannot be nested");
     }
     this.val = value;
-  }
-
-  @Override
-  public SEXPType type() {
-    return SEXPType.PROM;
-  }
-
-  @Override
-  public Class<? extends SEXP> getCanonicalType() {
-    return PromSXP.class;
   }
 
   @Override

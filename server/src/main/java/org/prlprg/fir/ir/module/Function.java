@@ -85,7 +85,7 @@ public final class Function {
   /// Gets the worst version we could dispatch to whose signature satisfies the provided one.
   ///
   /// Returns `null` if there are no known versions we can dispatch to.
-  public @Nullable Abstraction worstGuess(@Nullable Signature signature) {
+  public @Nullable Abstraction guess(@Nullable Signature signature) {
     if (signature == null) {
       return versionsSorted.isEmpty() ? null : versionsSorted.first();
     }

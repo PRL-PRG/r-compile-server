@@ -1,7 +1,6 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.UnmodifiableIterator;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import java.util.ArrayList;
@@ -38,6 +37,9 @@ public sealed interface StrSXP extends PrimVectorSXP<String>, StrOrRegSymSXP
 
   @Override
   StrSXP withAttributes(Attributes attributes);
+
+  @Override
+  StrSXP copy();
 }
 
 /** String vector which doesn't fit any of the more specific subclasses. */
@@ -81,6 +83,11 @@ final class StrSXPImpl implements StrSXP {
   }
 
   @Override
+  public StrSXP copy() {
+    return new StrSXPImpl(ImmutableList.copyOf(data), attributes);
+  }
+
+  @Override
   public Optional<String> reifyString() {
     return size() == 1 ? Optional.of(get(0)) : Optional.empty();
   }
@@ -115,6 +122,11 @@ final class ScalarStrSXP extends ScalarSXPImpl<String> implements StrSXP {
   public Optional<String> reifyString() {
     return Optional.of(data);
   }
+
+  @Override
+  public StrSXP copy() {
+    return new ScalarStrSXP(data);
+  }
 }
 
 /** Empty string vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -131,6 +143,11 @@ final class EmptyStrSXPImpl extends EmptyVectorSXPImpl<String> implements StrSXP
   @Override
   public Optional<String> reifyString() {
     return Optional.empty();
+  }
+
+  @Override
+  public StrSXP copy() {
+    return this;
   }
 }
 

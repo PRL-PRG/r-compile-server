@@ -90,12 +90,12 @@ public final class Module {
       returnValue = action.get();
     } catch (Exception e) {
       for (var observer : observers) {
-        observer.after(null);
+        observer.after(func, args, null);
       }
       throw e;
     }
     for (var observer : observers) {
-      observer.after(returnValue);
+      observer.after(func, args, returnValue);
     }
     return returnValue;
   }

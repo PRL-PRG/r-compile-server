@@ -5,4 +5,7 @@ public sealed interface NumericSXP<T extends Number> extends PrimVectorSXP<T>
   int asInt(int index);
 
   double asReal(int index);
+
+  @Override
+  NumericSXP<T> copy();
 }
