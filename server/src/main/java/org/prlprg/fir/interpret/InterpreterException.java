@@ -18,8 +18,12 @@ public final class InterpreterException extends RuntimeException {
     this.globalEnv = globalEnv;
   }
 
+  public String mainMessage() {
+    return super.getMessage();
+  }
+
   @Override
   public String getMessage() {
-    return super.getMessage() + "\n" + new PrintContext(stack, globalEnv);
+    return mainMessage() + "\n" + new PrintContext(stack, globalEnv);
   }
 }
