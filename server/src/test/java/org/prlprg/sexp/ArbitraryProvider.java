@@ -145,7 +145,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   private static Arbitrary<PromSXP> promises(Arbitrary<SEXP> sexps) {
     var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP));
-    return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(PromSXP::new);
+    return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(SEXPs::promise);
   }
 
   private static Arbitrary<TaggedElem> taggedElems(Arbitrary<SEXP> sexps) {

@@ -58,6 +58,16 @@ public final class SEXPs {
   // endregion constants
 
   // region constructors
+  /// Lazy promise.
+  public static PromSXP promise(SEXP expr, EnvSXP env) {
+    return promise(expr, UNBOUND_VALUE, env);
+  }
+
+  /// Eager promise, unless `val` is [#UNBOUND_VALUE].
+  public static PromSXP promise(SEXP expr, SEXP val, EnvSXP env) {
+    return new PromSXPImpl(expr, val, env);
+  }
+
   public static IntSXP integer(int data) {
     return new ScalarIntSXP(data);
   }

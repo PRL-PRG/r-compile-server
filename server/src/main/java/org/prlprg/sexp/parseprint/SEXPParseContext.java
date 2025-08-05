@@ -23,7 +23,6 @@ import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
-import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPOrEnvType;
@@ -383,7 +382,7 @@ public class SEXPParseContext {
               var val = s.trySkip("val=") ? p.parse(SEXP.class) : SEXPs.UNBOUND_VALUE;
               s.assertAndSkip('⇒');
               var expr = p.parse(SEXP.class);
-              yield new PromSXP(expr, val, env);
+              yield SEXPs.promise(expr, val, env);
             }
             case SEXPType.BUILTIN, SEXPType.SPECIAL -> {
               var id = p.parse(BuiltinId.class);

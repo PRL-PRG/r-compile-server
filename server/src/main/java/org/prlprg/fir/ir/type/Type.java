@@ -167,6 +167,8 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public Type union(Type other, Runnable onOwnershipMismatch) {
     if (ownership != other.ownership) {
       onOwnershipMismatch.run();
+      // Don't run it twice.
+      onOwnershipMismatch = () -> {};
     }
 
     return new Type(

@@ -250,11 +250,11 @@ public class RDSReader implements Closeable {
 
     if (tag instanceof NilSXP) {
       // If the tag is nil, the promise is evaluated
-      return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
+      return SEXPs.promise(expr, val, SEXPs.EMPTY_ENV);
     } else if (tag instanceof EnvSXP env) {
       // Otherwise, the promise is lazy. We represent lazy promises as having a val of
       // SEXPs.UNBOUND_VALUE, so we set it here accordingly
-      return new PromSXP(expr, SEXPs.UNBOUND_VALUE, env);
+      return SEXPs.promise(expr, SEXPs.UNBOUND_VALUE, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");
     }

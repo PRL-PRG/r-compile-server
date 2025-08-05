@@ -289,7 +289,7 @@ public class SEXPPrintContext {
                   w.runIndented(() -> p.print(sexp.env()));
                   if (sexp.isEvaluated()) {
                     w.write(" val=");
-                    w.runIndented(() -> p.print(sexp.val()));
+                    w.runIndented(() -> p.print(sexp.boundVal()));
                   }
                   w.write(" ⇒ ");
                   w.runIndented(() -> p.print(sexp.expr()));

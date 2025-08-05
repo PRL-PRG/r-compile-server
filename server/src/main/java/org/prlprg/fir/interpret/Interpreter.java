@@ -1,8 +1,11 @@
 package org.prlprg.fir.interpret;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -10,6 +13,7 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -38,23 +42,32 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 
 // TODO: Allow user to add "external" definitions for functions in `module`.
-// TODO: Declare a local variable `CFGCursor` and update it as we run for better exceptions.
-//   Replace `throw new InterpreterException` with `throw fail` and define `fail`
 
 /// FIŘ interpreter.
 public final class Interpreter {
   private final Module module;
   private final GlobalEnvSXP globalEnv;
-  private final Deque<StackFrame> callStack = new ArrayDeque<>();
-  private @Nullable StackFrame currentFrame;
+  /// Forcing promise = the same frame at multiple indices.
+  private final Deque<StackFrame> stack = new ArrayDeque<>();
+  /// Presumably in the compiler, we store a reference to [PromiseCode] into [BCodeSXP]'s
+  /// constant pool. The bytecode calls into our code with the pool entry.
+  ///
+  /// Here, it's easier to create stub [SEXP]s and map them with this.
+  private final Map<SEXP, PromiseCode> promises = new HashMap<>();
+  private int nextPromiseId = 0;
 
   /// Interpret the module in an empty global environment.
   public Interpreter(Module module) {
@@ -80,7 +93,7 @@ public final class Interpreter {
   public SEXP call(String functionName, SEXP... arguments) {
     var function = module.lookupFunction(functionName);
     if (function == null) {
-      throw new InterpreterException("Unknown function: " + functionName);
+      throw fail("Unknown function: " + functionName);
     }
 
     return call(function, null, List.of(arguments), globalEnv);
@@ -93,11 +106,11 @@ public final class Interpreter {
       @Nullable Signature explicitSignature,
       List<SEXP> arguments,
       EnvSXP environment) {
-    var signature = inferSignature(arguments).intersection(explicitSignature);
+    var signature = computeSignature(explicitSignature, arguments);
 
     var best = function.worstGuess(signature);
     if (best == null) {
-      throw new InterpreterException("No versions match function: " + function.name());
+      throw fail("No versions match function: " + function.name());
     }
 
     return call(best, arguments, environment);
@@ -106,13 +119,13 @@ public final class Interpreter {
   /// Calls the function version with the arguments in the environment.
   public SEXP call(Abstraction abstraction, List<SEXP> arguments, EnvSXP environment) {
     var frame = new StackFrame(environment);
-    callStack.push(frame);
 
+    stack.push(frame);
     try {
       // Bind parameters
       var params = abstraction.parameters();
       if (arguments.size() != params.size()) {
-        throw new InterpreterException(
+        throw fail(
             "Argument count mismatch: expected " + params.size() + ", got " + arguments.size());
       }
 
@@ -120,33 +133,32 @@ public final class Interpreter {
         var param = params.get(i);
         var arg = arguments.get(i);
         checkType(arg, param.type(), "parameter " + param.variable().name());
-        frame.setRegister(param.variable(), arg);
+        frame.put(param.variable(), arg);
       }
 
       // Execute CFG
       return run(abstraction.cfg());
     } finally {
-      var f = callStack.pop();
+      var f = stack.pop();
       assert f == frame : "stack imbalance";
     }
   }
 
   /// Interprets the control flow graph starting from the entry block.
   private SEXP run(CFG cfg) {
-    var currentBB = cfg.entry();
+    var cursor = new CFGCursor(cfg);
+    topFrame().enter(cursor);
 
     while (true) {
-      for (var stmt : currentBB.statements()) {
-        run(stmt);
-      }
-      var nextControl = run(currentBB.jump());
+      var nextControl = cursor.iterateBb(this::run, this::run);
 
       switch (nextControl) {
         case ControlFlow.Goto(var nextTarget) -> {
+          cursor.moveToStart(nextTarget.bb());
           bindPhiArguments(nextTarget);
-          currentBB = nextTarget.bb();
         }
         case ControlFlow.Return(var value) -> {
+          topFrame().exit();
           return value;
         }
       }
@@ -157,7 +169,7 @@ public final class Interpreter {
   private void run(Statement statement) {
     var value = run(statement.expression());
     if (statement.assignee() != null) {
-      getCurrentFrame().put(statement.assignee(), value);
+      topFrame().put(statement.assignee(), value);
     }
   }
 
@@ -168,7 +180,7 @@ public final class Interpreter {
       case Goto(var next) -> new ControlFlow.Goto(next);
       case If(var condition, var ifTrue, var ifFalse) ->
           new ControlFlow.Goto(isTrue(run(condition)) ? ifTrue : ifFalse);
-      case Unreachable _ -> throw new InterpreterException("Reached unreachable instruction");
+      case Unreachable _ -> throw fail("Reached unreachable instruction");
     };
   }
 
@@ -177,7 +189,7 @@ public final class Interpreter {
     var parameters = target.bb().phiParameters();
     var arguments = target.phiArgs();
     if (parameters.size() != arguments.size()) {
-      throw new InterpreterException(
+      throw fail(
           "Phi argument count mismatch: expected "
               + parameters.size()
               + ", got "
@@ -187,7 +199,7 @@ public final class Interpreter {
     for (int i = 0; i < parameters.size(); i++) {
       var phiVar = parameters.get(i);
       var phiValue = run(arguments.get(i));
-      getCurrentFrame().put(phiVar, phiValue);
+      topFrame().put(phiVar, phiValue);
     }
   }
 
@@ -203,12 +215,45 @@ public final class Interpreter {
       case Cast cast -> evaluateCast(cast);
       case Closure closure -> evaluateClosure(closure);
       case Dup dup -> evaluateDup(dup);
-      case Force force -> evaluateForce(force);
+      case Force(var promArg) -> {
+        var promValue = run(promArg);
+        if (!(promValue instanceof PromSXP promSXP)) {
+          throw fail("Tried to force non-promise: " + promValue);
+        }
+
+        // If the promise is already forced, return the value.
+        var eager = promSXP.boundVal();
+        if (eager != null) {
+          yield eager;
+        }
+
+        // Evaluate the promise.
+        var promCode = promises.remove(promSXP.expr());
+        if (promCode == null) {
+          throw fail("Can't force promise code created outside the interpreter: " + promSXP.expr());
+        }
+        var promExpr = promCode.expression;
+
+        stack.push(promCode.frame);
+        try {
+          var value = run(promExpr.code());
+          promSXP.bind(value);
+          checkType(value, promExpr.valueType(), "promise");
+          yield value;
+        } finally {
+          var f = stack.pop();
+          assert f == promCode.frame : "stack imbalance";
+        }
+      }
       case Load load -> evaluateLoad(load);
       case MaybeForce maybeForce -> evaluateMaybeForce(maybeForce);
       case MkVector mkVector -> evaluateMkVector(mkVector);
-      case Placeholder _ -> throw new InterpreterException("Can't evaluate placeholder");
-      case Promise promise -> evaluatePromise(promise);
+      case Placeholder() -> throw fail("Can't evaluate placeholder");
+      case Promise promExpr -> {
+        var codeStub = freshPromiseStub();
+        promises.put(codeStub, new PromiseCode(promExpr, topFrame()));
+        yield SEXPs.promise(codeStub, topFrame().environment());
+      }
       case ReflectiveLoad reflLoad -> evaluateReflectiveLoad(reflLoad);
       case ReflectiveStore reflStore -> evaluateReflectiveStore(reflStore);
       case Store store -> evaluateStore(store);
@@ -231,9 +276,9 @@ public final class Interpreter {
 
   /// Lookup the register and crash if it's not defined.
   private SEXP read(Register register) {
-    var value = getCurrentFrame().get(register);
+    var value = topFrame().get(register);
     if (value == null) {
-      throw new InterpreterException("Uninitialized register: " + register);
+      throw fail("Uninitialized register: " + register);
     }
     return value;
   }
@@ -243,13 +288,100 @@ public final class Interpreter {
     return switch (value.asScalarLogical().orElse(null)) {
       case TRUE -> true;
       case FALSE -> false;
-      case NA -> throw new InterpreterException("Booleans can't be NA");
-      case null -> throw new InterpreterException("Booleans must be scalar logicals");
+      case NA -> throw fail("Booleans can't be NA");
+      case null -> throw fail("Booleans must be scalar logicals");
     };
   }
 
-  private StackFrame getCurrentFrame() {
-    return callStack.getLast();
+  /// Compute the runtime signature to select a dispatch version of a function.
+  ///
+  /// In the process, checks that `arguments` are instances of `explicit`'s parameter types, and
+  /// throws [InterpreterException] if they don't.
+  private Signature computeSignature(@Nullable Signature explicit, List<SEXP> arguments) {
+    if (explicit == null) {
+      return inferSignature(arguments);
+    }
+
+    if (explicit.parameterTypes().size() != arguments.size()) {
+      throw fail(
+          "Argument count mismatch (with signature): expected "
+              + explicit.parameterTypes().size()
+              + ", got "
+              + arguments.size());
+    }
+    var numParameters = arguments.size();
+
+    var argumentTypes = ImmutableList.<Type>builderWithExpectedSize(numParameters);
+    for (var i = 0; i < numParameters; i++) {
+      var parameterType = explicit.parameterTypes().get(i);
+      var argument = arguments.get(i);
+
+      var argumentType = checkType(argument, parameterType, "parameter " + i + " (of signature)");
+      argumentTypes.add(argumentType);
+    }
+
+    // `implicit`'s return type and effects are TOP, since we can't infer anything about them.
+    return new Signature(argumentTypes.build(), explicit.returnType(), explicit.effects());
+  }
+
+  /// Infer the `value`'s type, check it against `expected`, and return it.
+  ///
+  /// @throws InterpreterException if `value` isn't an instance.
+  private Type checkType(SEXP value, Type expected, String context) {
+    var actual = inferType(value, expected.ownership());
+    if (!actual.isSubtypeOf(expected)) {
+      throw fail(
+          "Type mismatch for "
+              + context
+              + ": expected "
+              + expected
+              + ", got "
+              + value
+              + " {: "
+              + actual
+              + "}");
+    }
+    return actual;
+  }
+
+  private Signature inferSignature(List<SEXP> arguments) {
+    return new Signature(
+        arguments.stream()
+            .map(a -> inferType(a, Ownership.SHARED))
+            .collect(ImmutableList.toImmutableList()),
+        Type.ANY_VALUE,
+        Effects.ANY);
+  }
+
+  /// Infer the type of the [SEXP], giving it the ownership.
+  ///
+  /// Ownership of the outermost type doesn't exist at runtime, so expected ownership must be
+  /// provided. Note that ownership of inner promise types DOES exist. Also, if the type can
+  /// only be shared and the given ownership isn't, it's returned ownership is unspecified.
+  private Type inferType(SEXP sexp, Ownership ownership) {
+    // We can do better than `Type.of` for promises,
+    // since we create promises with stub code.
+    var promise = promises.get(sexp);
+    if (promise != null) {
+      // Promises are always shared. If `ownership` is wrong we'll get a type error later.
+      return Type.promise(promise.expression.valueType(), promise.expression.effects());
+    }
+
+    return Type.of(sexp).withOwnership(ownership);
+  }
+
+  private StackFrame topFrame() {
+    return stack.getLast();
+  }
+
+  /// An [SEXP] that we map to a [PromiseCode], so we can create and force [PromSXP] promises in
+  /// the interpreter.
+  private SEXP freshPromiseStub() {
+    return SEXPs.symbol(".interpreterPromise" + nextPromiseId++);
+  }
+
+  private InterpreterException fail(String message) {
+    return new InterpreterException(message, stack, globalEnv);
   }
 
   /// Result of executing a jump instruction.
@@ -258,4 +390,6 @@ public final class Interpreter {
 
     record Return(SEXP value) implements ControlFlow {}
   }
+
+  private record PromiseCode(Promise expression, StackFrame frame) {}
 }
