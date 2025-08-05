@@ -20,6 +20,6 @@ public final class CheckException extends RuntimeException {
 
   @Override
   public String getMessage() {
-    return super.getMessage() + "\n" + position;
+    return mainMessage() + "\n" + position;
   }
 }

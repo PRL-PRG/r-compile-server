@@ -53,6 +53,8 @@ import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.primitive.Complex;
+import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
@@ -64,6 +66,7 @@ import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.TaggedElem;
+import org.prlprg.util.NotImplementedError;
 
 /// FIŘ interpreter.
 public final class Interpreter {
@@ -71,7 +74,8 @@ public final class Interpreter {
   private final GlobalEnvSXP globalEnv;
   /// Forcing promise = the same frame at multiple indices.
   private final Deque<StackFrame> stack = new ArrayDeque<>();
-  /// Presumably in the compiler, we store a reference to [PromiseCode] into [BCodeSXP]'s
+  /// Presumably in the compiler, we store a reference to [PromiseCode] into [BCodeSXP][
+  /// org.prlprg.sexp.BCodeSXP]'s
   /// constant pool. The bytecode calls into our code with the pool entry.
   ///
   /// Here, it's easier to create stub [SEXP]s and map them with this.
@@ -322,8 +326,31 @@ public final class Interpreter {
         yield force(promSXP);
       }
       case MkVector(var elements) -> {
-        var values = elements.stream().map(this::run).toArray(SEXP[]::new);
-        yield SEXPs.list(values);
+        var values = elements.stream().map(this::run).collect(ImmutableList.toImmutableList());
+        // TODO: If empty, we must provide or guess the type.
+        if (values.stream().allMatch(v -> v.asScalarInteger().isPresent())) {
+          yield SEXPs.integer(
+              values.stream().mapToInt(v -> v.asScalarInteger().orElseThrow()).toArray());
+        } else if (values.stream().allMatch(v -> v.asScalarLogical().isPresent())) {
+          yield SEXPs.logical(
+              values.stream().map(v -> v.asScalarLogical().orElseThrow()).toArray(Logical[]::new));
+        } else if (values.stream().allMatch(v -> v.asScalarReal().isPresent())) {
+          yield SEXPs.real(
+              values.stream().mapToDouble(v -> v.asScalarReal().orElseThrow()).toArray());
+        } else if (values.stream().allMatch(v -> v.asScalarComplex().isPresent())) {
+          yield SEXPs.complex(
+              values.stream().map(v -> v.asScalarComplex().orElseThrow()).toArray(Complex[]::new));
+        } else if (values.stream().allMatch(v -> v.asScalarString().isPresent())) {
+          yield SEXPs.string(
+              values.stream().map(v -> v.asScalarString().orElseThrow()).toArray(String[]::new));
+        } else if (values.stream().allMatch(v -> v.asScalarRaw().isPresent())) {
+          yield SEXPs.raw(
+              values.stream().map(v -> v.asScalarRaw().orElseThrow()).toArray(Byte[]::new));
+        } else {
+          throw fail(
+              "FIŘ doesn't support creating a vector from mixed types: "
+                  + values.stream().map(SEXP::type).distinct().toList());
+        }
       }
       case Placeholder() -> throw fail("Can't evaluate placeholder");
       case Promise promise -> promiseStub(promise);
@@ -374,7 +401,7 @@ public final class Interpreter {
               "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
         }
 
-        yield (SEXP) vector.get(index);
+        throw new NotImplementedError("Get scalar SEXP from vector SEXP");
       }
       case SubscriptStore(var vectorArg, var indexArg, var valueArg) -> {
         var vectorSxp = run(vectorArg);
@@ -400,10 +427,7 @@ public final class Interpreter {
               "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
         }
 
-        //noinspection unchecked (done in `value.as(....)`).
-        ((ListOrVectorSXP<SEXP>) vector).set(index, value);
-
-        yield value;
+        throw new NotImplementedError("Set scalar SEXP in vector SEXP");
       }
       case SuperLoad(var variable) -> {
         var parentEnv = topFrame().environment().parent();
