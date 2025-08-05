@@ -3,6 +3,9 @@ package org.prlprg.fir.ir.cfg.cursor;
 import static org.prlprg.fir.ir.cfg.cursor.BBSplitter.splitNewSuccessor;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -138,6 +141,33 @@ public final class CFGCursor {
   public void moveToEntryStart() {
     this.bb = cfg.entry();
     this.instructionIndex = -1;
+  }
+
+  /**
+   * Moves to the start of the block and advances to its end, calling the functions on each
+   * instruction.
+   */
+  public void iterateBb(BB bb, Consumer<Statement> runStmt, Consumer<Jump> runJump) {
+    moveToStart(bb);
+    iterateBb(
+        runStmt,
+        jump -> {
+          runJump.accept(jump);
+          return null;
+        });
+  }
+
+  /**
+   * Advances to the end of the block, calling the functions on each instruction (starting
+   * immediately after the current one).
+   *
+   * <p>Returns the result of the function taking jump instruction.
+   */
+  public <T> T iterateBb(Consumer<Statement> runStmt, Function<Jump, T> runJump) {
+    for (advance(); !isAtLocalEnd(); advance()) {
+      runStmt.accept((Statement) Objects.requireNonNull(instruction()));
+    }
+    return runJump.apply((Jump) Objects.requireNonNull(instruction()));
   }
 
   // endregion move (cursor)

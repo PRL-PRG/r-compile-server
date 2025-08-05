@@ -59,6 +59,11 @@ public class Printer {
     return PrettyPrintWriter.use(writer -> usePrinter.accept(new Printer(writer, null)));
   }
 
+  /** Use a printer and return the output as a string. */
+  public static String use(Consumer<Printer> usePrinter, @Nullable Object ctx) {
+    return PrettyPrintWriter.use(writer -> usePrinter.accept(new Printer(writer, ctx)));
+  }
+
   /** Create a printer which prints to the given writer. */
   public Printer(Writer output) {
     writer = new PrettyPrintWriter(output);

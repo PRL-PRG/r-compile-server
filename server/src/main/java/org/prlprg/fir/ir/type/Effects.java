@@ -24,6 +24,10 @@ public record Effects(boolean reflect) implements Comparable<Effects> {
     return new Effects(reflect || other.reflect);
   }
 
+  public Effects intersect(Effects other) {
+    return new Effects(reflect && other.reflect);
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);

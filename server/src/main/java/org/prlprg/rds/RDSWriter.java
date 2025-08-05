@@ -376,7 +376,8 @@ public class RDSWriter implements Closeable {
       writeItem(prom.env());
     }
 
-    writeItem(prom.val());
+    var boundVal = prom.boundVal();
+    writeItem(boundVal == null ? SEXPs.UNBOUND_VALUE : boundVal);
     writeItem(prom.expr());
   }
 
