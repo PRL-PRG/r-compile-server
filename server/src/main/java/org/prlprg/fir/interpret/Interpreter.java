@@ -12,6 +12,10 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.InlineCallee;
+import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
@@ -47,14 +51,15 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.BaseEnvSXP;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-
-// TODO: Allow user to add "external" definitions for functions in `module`.
+import org.prlprg.sexp.VecSXP;
 
 /// FIŘ interpreter.
 public final class Interpreter {
@@ -67,7 +72,10 @@ public final class Interpreter {
   ///
   /// Here, it's easier to create stub [SEXP]s and map them with this.
   private final Map<SEXP, PromiseCode> promises = new HashMap<>();
+  /// Same situation as [#promises] except for [CloSXP].
+  private final Map<SEXP, Function> closures = new HashMap<>();
   private int nextPromiseId = 0;
+  private int nextClosureId = 0;
 
   /// Interpret the module in an empty global environment.
   public Interpreter(Module module) {
@@ -205,16 +213,45 @@ public final class Interpreter {
 
   /// Evaluates an expression and returns its value.
   private SEXP run(Expression expression) {
-    // TODO: Replace these with record patterns (e.g. `Aea(var aea)`)
-    // EXCEPT don't replace `call` or `closure`.
-    // TODO: Inline all the `evaluate...` methods.
-    // We don't need to make them separate methods because there's no reuse.
     return switch (expression) {
-      case Aea aea -> run(aea.argument());
-      case Call call -> evaluateCall(call);
-      case Cast cast -> evaluateCast(cast);
-      case Closure closure -> evaluateClosure(closure);
-      case Dup dup -> evaluateDup(dup);
+      case Aea(var value) -> run(value);
+      case Call call -> {
+        var callee = call.callee();
+        var arguments = call.arguments().stream().map(this::run).toList();
+        var environment = topFrame().environment();
+        
+        yield switch (callee) {
+          case StaticCallee(var _, var version) -> call(version, arguments, environment);
+          case DispatchCallee(var function, var signature) -> call(function, signature, arguments, environment);
+          case InlineCallee(var inlinee) -> call(inlinee, arguments, environment);
+          case DynamicCallee(var variable, var _) -> {
+            var function = loadFun(variable);
+            if (function == null) {
+              throw fail("Unbound function: " + variable.name());
+            }
+
+            yield call(function, null, arguments, environment);
+          }
+        };
+      }
+      case Cast(var target, var type) -> {
+        var value = run(target);
+        checkType(value, type, "cast");
+        yield value;
+      }
+      case Closure closure -> {
+        var function = closure.code();
+
+        var codeStub = freshClosureStub();
+        closures.put(codeStub, function);
+        yield SEXPs.closure(inferParameters(function), codeStub, topFrame().environment());
+      }
+      case Dup(var value) -> {
+        var sexp = run(value);
+
+        // Copy
+        if (sexp instanceof VecSXP)
+      }
       case Force(var promArg) -> {
         var promValue = run(promArg);
         if (!(promValue instanceof PromSXP promSXP)) {
@@ -245,22 +282,76 @@ public final class Interpreter {
           assert f == promCode.frame : "stack imbalance";
         }
       }
-      case Load load -> evaluateLoad(load);
-      case MaybeForce maybeForce -> evaluateMaybeForce(maybeForce);
-      case MkVector mkVector -> evaluateMkVector(mkVector);
+      case Load(var variable) -> {
+        var value = topFrame().environment().get(variable.name()).orElse(null);
+        if (value == null) {
+          throw fail("Unbound variable: " + variable.name());
+        }
+        yield value;
+      }
+      case MaybeForce(var value) -> {
+        var sexp = run(value);
+        if (sexp instanceof PromSXP) {
+          yield run(new Force(value));
+        } else {
+          yield sexp;
+        }
+      }
+      case MkVector(var elements) -> {
+        var values = elements.stream().map(this::run).toArray(SEXP[]::new);
+        yield SEXPs.list(values);
+      }
       case Placeholder() -> throw fail("Can't evaluate placeholder");
       case Promise promExpr -> {
         var codeStub = freshPromiseStub();
         promises.put(codeStub, new PromiseCode(promExpr, topFrame()));
         yield SEXPs.promise(codeStub, topFrame().environment());
       }
-      case ReflectiveLoad reflLoad -> evaluateReflectiveLoad(reflLoad);
-      case ReflectiveStore reflStore -> evaluateReflectiveStore(reflStore);
-      case Store store -> evaluateStore(store);
-      case SubscriptLoad subLoad -> evaluateSubscriptLoad(subLoad);
-      case SubscriptStore subStore -> evaluateSubscriptStore(subStore);
-      case SuperLoad superLoad -> evaluateSuperLoad(superLoad);
-      case SuperStore superStore -> evaluateSuperStore(superStore);
+      case ReflectiveLoad(var promise, var variable) -> {
+        var obj = run(promise);
+        throw fail("Reflective load not yet implemented for: " + variable.name());
+      }
+      case ReflectiveStore(var promise, var variable, var value) -> {
+        var obj = run(promise);
+        var val = run(value);
+        throw fail("Reflective store not yet implemented for: " + variable.name());
+      }
+      case Store(var variable, var value) -> {
+        var sexp = run(value);
+        topFrame().environment().set(variable.name(), sexp);
+        yield sexp;
+      }
+      case SubscriptLoad(var target, var index) -> {
+        var obj = run(target);
+        var idx = run(index);
+        throw fail("Subscript load not yet implemented");
+      }
+      case SubscriptStore(var target, var index, var value) -> {
+        var obj = run(target);
+        var idx = run(index);
+        var val = run(value);
+        throw fail("Subscript store not yet implemented");
+      }
+      case SuperLoad(var variable) -> {
+        var parentEnv = topFrame().environment().parent();
+        if (parentEnv == null) {
+          throw fail("No parent environment for super load of: " + variable.name());
+        }
+        var value = parentEnv.get(variable.name()).orElse(null);
+        if (value == null) {
+          throw fail("Unbound variable in parent environment: " + variable.name());
+        }
+        yield value;
+      }
+      case SuperStore(var variable, var value) -> {
+        var parentEnv = topFrame().environment().parent();
+        if (parentEnv == null) {
+          throw fail("No parent environment for super store of: " + variable.name());
+        }
+        var val = run(value);
+        parentEnv.set(variable.name(), val);
+        yield val;
+      }
     };
   }
 
@@ -378,6 +469,12 @@ public final class Interpreter {
   /// the interpreter.
   private SEXP freshPromiseStub() {
     return SEXPs.symbol(".interpreterPromise" + nextPromiseId++);
+  }
+
+  /// An [SEXP] that we map to a [Function], so we can create and call [CloSXP] closures in
+  /// the interpreter.
+  private SEXP freshClosureStub() {
+    return SEXPs.symbol(".interpreterClosure" + nextClosureId++);
   }
 
   private InterpreterException fail(String message) {
