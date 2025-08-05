@@ -4,6 +4,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
@@ -38,9 +41,22 @@ public sealed interface StrSXP extends PrimVectorSXP<String>, StrOrRegSymSXP
 }
 
 /** String vector which doesn't fit any of the more specific subclasses. */
-record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) implements StrSXP {
+final class StrSXPImpl implements StrSXP {
+  private final List<String> data;
+  private final Attributes attributes;
+
+  StrSXPImpl(ImmutableList<String> data, Attributes attributes) {
+    this.data = new ArrayList<>(data);
+    this.attributes = attributes;
+  }
+
   @Override
-  public UnmodifiableIterator<String> iterator() {
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<String> iterator() {
     return data.iterator();
   }
 
@@ -50,13 +66,18 @@ record StrSXPImpl(ImmutableList<String> data, @Override Attributes attributes) i
   }
 
   @Override
+  public void set(int i, String value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
 
   @Override
   public StrSXP withAttributes(Attributes attributes) {
-    return SEXPs.string(data, attributes);
+    return SEXPs.string(ImmutableList.copyOf(data), attributes);
   }
 
   @Override

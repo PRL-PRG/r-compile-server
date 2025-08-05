@@ -2,6 +2,9 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
@@ -35,10 +38,22 @@ public sealed interface ComplexSXP extends PrimVectorSXP<Complex>
 }
 
 /** Complex vector which doesn't fit any of the more specific subclasses. */
-record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attributes)
-    implements ComplexSXP {
+final class ComplexSXPImpl implements ComplexSXP {
+  private final List<Complex> data;
+  private final Attributes attributes;
+
+  ComplexSXPImpl(ImmutableList<Complex> data, Attributes attributes) {
+    this.data = new ArrayList<>(data);
+    this.attributes = attributes;
+  }
+
   @Override
-  public UnmodifiableIterator<Complex> iterator() {
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<Complex> iterator() {
     return data.iterator();
   }
 
@@ -48,13 +63,18 @@ record ComplexSXPImpl(ImmutableList<Complex> data, @Override Attributes attribut
   }
 
   @Override
+  public void set(int i, Complex value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
 
   @Override
   public ComplexSXP withAttributes(Attributes attributes) {
-    return new ComplexSXPImpl(data, attributes);
+    return new ComplexSXPImpl(ImmutableList.copyOf(data), attributes);
   }
 
   @Override

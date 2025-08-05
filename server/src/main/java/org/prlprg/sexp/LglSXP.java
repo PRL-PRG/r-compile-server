@@ -2,6 +2,9 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Logical;
@@ -35,9 +38,22 @@ public sealed interface LglSXP extends PrimVectorSXP<Logical>
 }
 
 /** Logical vector which doesn't fit any of the more specific subclasses. */
-record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) implements LglSXP {
+final class LglSXPImpl implements LglSXP {
+  private final List<Logical> data;
+  private final Attributes attributes;
+
+  LglSXPImpl(ImmutableList<Logical> data, Attributes attributes) {
+    this.data = new ArrayList<>(data);
+    this.attributes = attributes;
+  }
+
   @Override
-  public UnmodifiableIterator<Logical> iterator() {
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<Logical> iterator() {
     return data.iterator();
   }
 
@@ -47,13 +63,18 @@ record LglSXPImpl(ImmutableList<Logical> data, @Override Attributes attributes) 
   }
 
   @Override
+  public void set(int i, Logical value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
 
   @Override
   public LglSXP withAttributes(Attributes attributes) {
-    return SEXPs.logical(data, attributes);
+    return SEXPs.logical(ImmutableList.copyOf(data), attributes);
   }
 
   @Override

@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -87,8 +88,19 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListS
   }
 }
 
-record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attributes)
-    implements ListSXP {
+final class ListSXPImpl implements ListSXP {
+  private final List<TaggedElem> data;
+  private final Attributes attributes;
+
+  ListSXPImpl(ImmutableList<TaggedElem> data, Attributes attributes) {
+    this.data = new ArrayList<>(data);
+    this.attributes = attributes;
+  }
+
+  @Override
+  public Attributes attributes() {
+    return attributes;
+  }
   @Override
   public SEXPType type() {
     return data.isEmpty() ? SEXPType.NIL : SEXPType.LIST;
@@ -146,7 +158,7 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
 
   @Override
   public ListSXP subList(int fromIndex) {
-    return new ListSXPImpl(data.subList(fromIndex, data.size()), attributes);
+    return new ListSXPImpl(ImmutableList.copyOf(data.subList(fromIndex, data.size())), attributes);
   }
 
   @Override
@@ -184,13 +196,18 @@ record ListSXPImpl(ImmutableList<TaggedElem> data, @Override Attributes attribut
   }
 
   @Override
+  public void set(int i, TaggedElem value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
 
   @Override
   public ListSXPImpl withAttributes(Attributes attributes) {
-    return new ListSXPImpl(data, attributes);
+    return new ListSXPImpl(ImmutableList.copyOf(data), attributes);
   }
 
   @Override

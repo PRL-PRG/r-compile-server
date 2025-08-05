@@ -12,6 +12,16 @@ public sealed interface ListOrVectorSXP<T> extends SEXP, Iterable<T> permits Lis
    */
   T get(int i);
 
+  /**
+   * Set the element at index i.
+   *
+   * @throws IndexOutOfBoundsException if i is out of bounds.
+   */
+  void set(int i, T value);
+
+  /** Create a deep copy of this collection. */
+  ListOrVectorSXP<T> copy();
+
   /** The number of elements in this collection. */
   int size();
 

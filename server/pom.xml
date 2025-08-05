@@ -309,7 +309,6 @@
           <useIncrementalCompilation>false</useIncrementalCompilation>
           <source>22</source>
           <target>22</target>
-          <compilerArgs>--enable-preview</compilerArgs>
         </configuration>
       </plugin>
       <!-- pmd (and cpd), static analysis on syntax -->

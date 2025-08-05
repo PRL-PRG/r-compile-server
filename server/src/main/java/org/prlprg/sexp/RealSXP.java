@@ -2,6 +2,9 @@ package org.prlprg.sexp;
 
 import com.google.common.math.DoubleMath;
 import com.google.common.primitives.ImmutableDoubleArray;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
@@ -38,10 +41,26 @@ public sealed interface RealSXP extends NumericSXP<Double>
 }
 
 /** Real vector which doesn't fit any of the more specific subclasses. */
-record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) implements RealSXP {
+final class RealSXPImpl implements RealSXP {
+  private final List<Double> data;
+  private final Attributes attributes;
+
+  RealSXPImpl(ImmutableDoubleArray data, Attributes attributes) {
+    this.data = new ArrayList<>();
+    for (int i = 0; i < data.length(); i++) {
+      this.data.add(data.get(i));
+    }
+    this.attributes = attributes;
+  }
+
   @Override
-  public PrimitiveIterator.OfDouble iterator() {
-    return data.stream().iterator();
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<Double> iterator() {
+    return data.iterator();
   }
 
   @Override
@@ -50,18 +69,27 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
   }
 
   @Override
+  public void set(int i, Double value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
-    return data.length();
+    return data.size();
   }
 
   @Override
   public RealSXP withAttributes(Attributes attributes) {
-    return SEXPs.real(data, attributes);
+    var builder = ImmutableDoubleArray.builder();
+    for (var value : data) {
+      builder.add(value);
+    }
+    return SEXPs.real(builder.build(), attributes);
   }
 
   @Override
   public int asInt(int index) {
-    return (int) data.get(index);
+    return data.get(index).intValue();
   }
 
   @Override
@@ -75,10 +103,10 @@ record RealSXPImpl(ImmutableDoubleArray data, @Override Attributes attributes) i
     if (o == null || getClass() != o.getClass()) return false;
     var that = (RealSXPImpl) o;
     var data2 = that.data;
-    if (data.length() != data2.length()) {
+    if (data.size() != data2.size()) {
       return false;
     }
-    for (int i = 0; i < data.length(); i++) {
+    for (int i = 0; i < data.size(); i++) {
       if (!DoubleMath.fuzzyEquals(data.get(i), data2.get(i), DOUBLE_CMP_DELTA)) {
         return false;
       }

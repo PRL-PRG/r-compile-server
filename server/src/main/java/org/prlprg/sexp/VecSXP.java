@@ -3,6 +3,9 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -24,9 +27,22 @@ public sealed interface VecSXP extends VectorSXP<SEXP> {
   VecSXP withAttributes(Attributes attributes);
 }
 
-record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) implements VecSXP {
+final class VecSXPImpl implements VecSXP {
+  private final List<SEXP> data;
+  private final Attributes attributes;
+
+  VecSXPImpl(ImmutableList<SEXP> data, Attributes attributes) {
+    this.data = new ArrayList<>(data);
+    this.attributes = attributes;
+  }
+
   @Override
-  public UnmodifiableIterator<SEXP> iterator() {
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<SEXP> iterator() {
     return data.iterator();
   }
 
@@ -36,13 +52,18 @@ record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) imp
   }
 
   @Override
+  public void set(int i, SEXP value) {
+    data.set(i, value);
+  }
+
+  @Override
   public int size() {
     return data.size();
   }
 
   @Override
   public VecSXP withAttributes(Attributes attributes) {
-    return SEXPs.vec(data, attributes);
+    return SEXPs.vec(ImmutableList.copyOf(data), attributes);
   }
 
   @Override
@@ -69,6 +90,10 @@ abstract class ScalarSXPImpl<T> {
       throw new IndexOutOfBoundsException();
     }
     return data;
+  }
+
+  public void set(int i, T value) {
+    throw new UnsupportedOperationException("Cannot modify scalar SEXP");
   }
 
   public int size() {
@@ -110,6 +135,11 @@ abstract class EmptyVectorSXPImpl<T> {
   // @Override
   public T get(int i) {
     throw new IndexOutOfBoundsException();
+  }
+
+  // @Override
+  public void set(int i, T value) {
+    throw new IndexOutOfBoundsException("Cannot set element in empty vector");
   }
 
   // @Override
