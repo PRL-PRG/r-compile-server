@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 
@@ -33,6 +32,9 @@ public sealed interface RealSXP extends NumericSXP<Double>
 
   @Override
   RealSXP withAttributes(Attributes attributes);
+
+  @Override
+  RealSXP copy();
 
   @Override
   default Class<? extends SEXP> getCanonicalType() {
@@ -85,6 +87,15 @@ final class RealSXPImpl implements RealSXP {
       builder.add(value);
     }
     return SEXPs.real(builder.build(), attributes);
+  }
+
+  @Override
+  public RealSXP copy() {
+    var builder = ImmutableDoubleArray.builder();
+    for (var value : data) {
+      builder.add(value);
+    }
+    return new RealSXPImpl(builder.build(), attributes);
   }
 
   @Override
@@ -170,6 +181,11 @@ final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
   public int hashCode() {
     return Double.hashCode(data);
   }
+
+  @Override
+  public RealSXP copy() {
+    return new ScalarRealSXP(data);
+  }
 }
 
 /** Empty real vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -193,5 +209,10 @@ final class EmptyRealSXPImpl extends EmptyVectorSXPImpl<Double> implements RealS
   @Override
   public double asReal(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty real vector");
+  }
+
+  @Override
+  public RealSXP copy() {
+    return this;
   }
 }

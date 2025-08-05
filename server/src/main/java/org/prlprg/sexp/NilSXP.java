@@ -140,6 +140,16 @@ public final class NilSXP implements ListSXP {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
   }
 
+  @Override
+  public void set(int i, TaggedElem value) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public NilSXP copy() {
+    return this;
+  }
+
   // This can't call `Printer.toString`, because it calls this.
   @Override
   public String toString() {

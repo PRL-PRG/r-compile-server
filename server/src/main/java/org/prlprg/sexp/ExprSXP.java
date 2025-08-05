@@ -1,7 +1,6 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.UnmodifiableIterator;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -22,6 +21,9 @@ public sealed interface ExprSXP extends VectorSXP<SEXP> {
 
   @Override
   ExprSXP withAttributes(Attributes attributes);
+
+  @Override
+  ExprSXP copy();
 
   @Override
   default Class<? extends SEXP> getCanonicalType() {
@@ -66,6 +68,11 @@ final class ExprSXPImpl implements ExprSXP {
   @Override
   public ExprSXP withAttributes(Attributes attributes) {
     return SEXPs.expr(ImmutableList.copyOf(data), attributes);
+  }
+
+  @Override
+  public ExprSXP copy() {
+    return new ExprSXPImpl(ImmutableList.copyOf(data), attributes);
   }
 
   @Override

@@ -1,7 +1,6 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.UnmodifiableIterator;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -30,6 +29,9 @@ public sealed interface ComplexSXP extends PrimVectorSXP<Complex>
 
   @Override
   ComplexSXP withAttributes(Attributes attributes);
+
+  @Override
+  ComplexSXP copy();
 
   @Override
   default Class<? extends SEXP> getCanonicalType() {
@@ -78,6 +80,11 @@ final class ComplexSXPImpl implements ComplexSXP {
   }
 
   @Override
+  public ComplexSXP copy() {
+    return new ComplexSXPImpl(ImmutableList.copyOf(data), attributes);
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }
@@ -97,6 +104,11 @@ final class ScalarComplexSXP extends ScalarSXPImpl<Complex> implements ComplexSX
   public ComplexSXP withAttributes(Attributes attributes) {
     return SEXPs.complex(data, attributes);
   }
+
+  @Override
+  public ComplexSXP copy() {
+    return new ScalarComplexSXP(data);
+  }
 }
 
 /** Empty complex vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -110,5 +122,10 @@ final class EmptyComplexSXPImpl extends EmptyVectorSXPImpl<Complex> implements C
   @Override
   public ComplexSXP withAttributes(Attributes attributes) {
     return SEXPs.complex(ImmutableList.of(), attributes);
+  }
+
+  @Override
+  public ComplexSXP copy() {
+    return this;
   }
 }

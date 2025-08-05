@@ -50,6 +50,13 @@ class PrintContext {
     }
   }
 
+  @Override
+  public String toString() {
+    // REACH: `Printer.toString` doesn't work, and it's probably a bug in `parseprint`
+    // (perhaps because this class has `@PrintMethod`s where it's both object and context).
+    return Printer.use(this::print);
+  }
+
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();

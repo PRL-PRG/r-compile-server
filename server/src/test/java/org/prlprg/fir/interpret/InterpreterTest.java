@@ -14,22 +14,18 @@ import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Variable;
-import org.prlprg.sexp.BaseEnvSXP;
-import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.SEXPs;
 
 /// Tests for the FIR interpreter.
 final class InterpreterTest {
   private Module module;
-  private GlobalEnvSXP globalEnv;
   private Interpreter interpreter;
 
   @BeforeEach
   void setUp() {
-    // Nothing stops us from adding to the module and env after creating the interpreter.
+    // The interpreter supports functions being added to the module after creation.
     module = new Module();
-    globalEnv = new GlobalEnvSXP(new BaseEnvSXP());
-    interpreter = new Interpreter(module, globalEnv);
+    interpreter = new Interpreter(module);
   }
 
   @Test
@@ -98,7 +94,7 @@ final class InterpreterTest {
   @Test
   void testNoVersionsAvailable() {
     // Create a function with no versions
-    var function = module.addFunction("empty");
+    module.addFunction("test");
 
     // Try to interpret
     assertThrows(InterpreterException.class, () -> interpreter.call("test"));

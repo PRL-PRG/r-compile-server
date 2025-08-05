@@ -185,7 +185,7 @@ public final class TypeChecker extends Checker {
             yield switch (call.callee()) {
               case StaticCallee(var _, var version) -> finish.apply(version);
               case DispatchCallee(var function, var signature) -> {
-                var version = function.worstGuess(signature);
+                var version = function.guess(signature);
 
                 // If `version == null`, this is a call to an unknown version, so it could
                 // do and return anything.

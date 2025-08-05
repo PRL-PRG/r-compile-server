@@ -12,6 +12,9 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
 // TODO: Replace `String` with `RegSymSXP`, or replace all `@Nullable RegSymSXP` with `String` and
 //  permit the empty string.
 public record TaggedElem(@Nullable String tag, SEXP value) {
+  /** {@link SEXPs#DOTS_SYMBOL} tag and {@link SEXPs#MISSING_ARG} value. */
+  public static final TaggedElem DOTS = new TaggedElem(SEXPs.DOTS_SYMBOL.name(), SEXPs.MISSING_ARG);
+
   /** Create a {@link TaggedElem} with an optional (if non-null) tag and value. */
   public TaggedElem {
     if (tag != null && tag.isEmpty()) {

@@ -1,6 +1,5 @@
 package org.prlprg.sexp;
 
-import javax.annotation.Nonnull;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 
@@ -8,7 +7,6 @@ import org.prlprg.primitive.Logical;
 public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
     permits PrimVectorSXP, VecSXP, ExprSXP {
   @Override
-  @Nonnull
   Attributes attributes();
 
   /** Does the collection have exactly one element? */
@@ -28,6 +26,9 @@ public sealed interface VectorSXP<T> extends ListOrVectorSXP<T>
 
   @Override
   VectorSXP<T> withAttributes(Attributes attributes);
+
+  @Override
+  VectorSXP<T> copy();
 
   /**
    * Coerce the elements of this vector to strings.

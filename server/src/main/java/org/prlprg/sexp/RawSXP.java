@@ -1,7 +1,6 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.UnmodifiableIterator;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -25,6 +24,9 @@ public sealed interface RawSXP extends PrimVectorSXP<Byte>
 
   @Override
   RawSXP withAttributes(Attributes attributes);
+
+  @Override
+  RawSXP copy();
 
   @Override
   default Class<? extends SEXP> getCanonicalType() {
@@ -73,6 +75,11 @@ final class RawSXPImpl implements RawSXP {
   }
 
   @Override
+  public RawSXP copy() {
+    return new RawSXPImpl(ImmutableList.copyOf(data), attributes);
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }
@@ -93,6 +100,11 @@ final class ScalarRawSXP extends ScalarSXPImpl<Byte> implements RawSXP {
   public RawSXP withAttributes(Attributes attributes) {
     return SEXPs.raw(data, attributes);
   }
+
+  @Override
+  public RawSXP copy() {
+    return new ScalarRawSXP(data);
+  }
 }
 
 /** Empty byte vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -106,5 +118,10 @@ final class EmptyRawSXPImpl extends EmptyVectorSXPImpl<Byte> implements RawSXP {
   @Override
   public RawSXP withAttributes(Attributes attributes) {
     return SEXPs.raw(ImmutableList.of(), attributes);
+  }
+
+  @Override
+  public RawSXP copy() {
+    return this;
   }
 }

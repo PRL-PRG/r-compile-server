@@ -4,7 +4,6 @@ import com.google.common.primitives.ImmutableIntArray;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.PrimitiveIterator;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
@@ -36,6 +35,9 @@ public sealed interface IntSXP extends NumericSXP<Integer>
 
   @Override
   IntSXP withAttributes(Attributes attributes);
+
+  @Override
+  IntSXP copy();
 
   @Override
   default Class<? extends SEXP> getCanonicalType() {
@@ -93,6 +95,11 @@ final class IntSXPImpl implements IntSXP {
   @Override
   public IntSXP withAttributes(Attributes attributes) {
     return SEXPs.integer(data(), attributes);
+  }
+
+  @Override
+  public IntSXP copy() {
+    return new IntSXPImpl(data(), attributes);
   }
 
   @Override
@@ -154,6 +161,11 @@ final class ScalarIntSXP extends ScalarSXPImpl<Integer> implements IntSXP {
       throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
     }
   }
+
+  @Override
+  public IntSXP copy() {
+    return new ScalarIntSXP(data);
+  }
 }
 
 /** Empty int vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -182,5 +194,10 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   @Override
   public double asReal(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty int vector");
+  }
+
+  @Override
+  public IntSXP copy() {
+    return this;
   }
 }
