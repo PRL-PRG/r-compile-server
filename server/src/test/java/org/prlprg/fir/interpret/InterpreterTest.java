@@ -52,6 +52,14 @@ final class InterpreterTest {
               .map(text -> Parser.fromString(text, SEXP.class))
               .orElse(null);
 
+      var mainFun = firModule.localFunction("main");
+      if (mainFun == null
+          || mainFun.versions().isEmpty()
+          || !mainFun.version(0).parameters().isEmpty()) {
+        fail(
+            "File must have `fun main` with at least one version, and the first version must have no parameters");
+      }
+
       var interpreter = new Interpreter(firModule);
       var actualReturnSexp = interpreter.call("main");
 
@@ -65,7 +73,7 @@ final class InterpreterTest {
       }
     } catch (InterpreterException e) {
       if (unseenExpectedError != null) {
-        if (e.mainMessage().equals(unseenExpectedError)) {
+        if (e.mainMessage().lines().findFirst().orElseThrow().equals(unseenExpectedError)) {
           // Expected error, just ignore it.
           return;
         } else {

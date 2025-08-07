@@ -8,10 +8,11 @@ fun main {
 
     # type-error: Can't assign it to r2: expected p(I -), got p(I +)
     r2 = prom<I +>{
-    r3 = [3, 4, 5];
-    r1$x = r3;
-    return 42;
+      r3 = [3, 4, 5];
+      r1$x = r3;
+      return 42;
     };
+    # runtime-error: No versions match signature and arguments:
     f(r2);
 
     rx0 = x;

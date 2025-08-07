@@ -78,7 +78,11 @@ public final class TypeChecker extends Checker {
       for (var binding : Iterables.concat(abstraction.parameters(), abstraction.locals())) {
         cfg.checkWellFormed(binding);
       }
+
       cfg.checkWellFormed(abstraction.returnType());
+      if (abstraction.returnType().isSubtypeOf(Type.ANY_VALUE)) {
+        cfg.report("Return must be a value (note: \"maybe\" types aren't guaranteed to be values)");
+      }
 
       // Parameters are initially written to.
       var initialFlow = new ActionSet();

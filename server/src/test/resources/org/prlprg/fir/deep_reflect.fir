@@ -3,9 +3,9 @@ fun main {
     rx0 = [0, 1, 2];
     x = use rx0;
     r0 = prom<V ->{
-    rx1 = x;
-    rx2 = rx1 as V;
-    return rx2;
+      rx1 = x;
+      rx2 = rx1 as V;
+      return rx2;
     };
     r1 = f(r0);
     return r1;

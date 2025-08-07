@@ -56,13 +56,15 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListS
 
   List<String> names(int fromIndex);
 
-  ListSXP set(int index, @Nullable String tag, SEXP value);
+  ListSXP with(int index, @Nullable String tag, SEXP value);
 
   ListSXP appended(String tag, SEXP value);
 
   ListSXP appended(ListSXP other);
 
   ListSXP subList(int fromIndex);
+
+  void set(int index, SEXP value);
 
   default boolean hasTags() {
     return names().stream().anyMatch(x -> !x.isEmpty());
@@ -136,7 +138,7 @@ final class ListSXPImpl implements ListSXP {
   }
 
   @Override
-  public ListSXP set(int index, @Nullable String tag, SEXP value) {
+  public ListSXP with(int index, @Nullable String tag, SEXP value) {
     return new ListSXPImpl(
         ImmutableList.<TaggedElem>builder()
             .addAll(data.subList(0, index))
@@ -202,6 +204,11 @@ final class ListSXPImpl implements ListSXP {
   @Override
   public void set(int i, TaggedElem value) {
     data.set(i, value);
+  }
+
+  @Override
+  public void set(int i, SEXP value) {
+    data.set(i, new TaggedElem(data.get(i).tag(), value));
   }
 
   @Override

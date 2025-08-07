@@ -1,11 +1,10 @@
 package org.prlprg.fir.interpret;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 import javax.annotation.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -57,23 +56,31 @@ import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.ComplexSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ExprSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RawSXP;
+import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
-import org.prlprg.util.NotImplementedError;
+import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Strings;
 
 /// FIŘ interpreter.
 public final class Interpreter {
   private final Module module;
   private final GlobalEnvSXP globalEnv;
   /// Forcing promise = the same frame at multiple indices.
-  private final Deque<StackFrame> stack = new ArrayDeque<>();
+  private final Stack<StackFrame> stack = new Stack<>();
   /// Presumably in the compiler, we store a reference to [PromiseCode] into [BCodeSXP][
   /// org.prlprg.sexp.BCodeSXP]'s
   /// constant pool. The bytecode calls into our code with the pool entry.
@@ -83,7 +90,6 @@ public final class Interpreter {
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
   private int nextPromiseId = 0;
-  private int nextClosureId = 0;
 
   /// Interpret the module in a global environment containing only its functions.
   ///
@@ -171,10 +177,17 @@ public final class Interpreter {
           "No versions match signature and arguments:"
               + "\nFunction: "
               + function.name()
-              + "\nSignature: "
+              + "\nExplicit signature: "
               + explicitSignature
               + "\nArguments: "
-              + arguments);
+              + arguments
+              + "\nComputed signature: "
+              + signature
+              + "\nAllowed signatures: ["
+              + function.versions().stream()
+                  .map(Abstraction::signature)
+                  .collect(Strings.joining(", "))
+              + "]");
     }
 
     return call(best, arguments, environment);
@@ -184,34 +197,32 @@ public final class Interpreter {
   public SEXP call(Abstraction abstraction, List<SEXP> arguments, EnvSXP environment) {
     var frame = new StackFrame(environment);
 
-    stack.push(frame);
-    try {
-      // Bind parameters
-      var params = abstraction.parameters();
-      if (arguments.size() != params.size()) {
-        throw fail(
-            "Argument count mismatch: expected " + params.size() + ", got " + arguments.size());
-      }
-
-      for (int i = 0; i < params.size(); i++) {
-        var param = params.get(i);
-        var arg = arguments.get(i);
-        checkType(arg, param.type(), "parameter " + param.variable().name());
-        frame.put(param.variable(), arg);
-      }
-
-      // Execute CFG
-      return run(abstraction.cfg());
-    } finally {
-      var f = stack.pop();
-      assert f == frame : "stack imbalance";
+    // Bind parameters
+    var params = abstraction.parameters();
+    if (arguments.size() != params.size()) {
+      throw fail(
+          "Argument count mismatch: expected " + params.size() + ", got " + arguments.size());
     }
+
+    for (int i = 0; i < params.size(); i++) {
+      var param = params.get(i);
+      var arg = arguments.get(i);
+      checkType(arg, param.type(), "parameter " + param.variable().name());
+      frame.put(param.variable(), arg);
+    }
+
+    // Execute CFG
+    return run(frame, abstraction.cfg());
   }
 
   /// Interprets the control flow graph starting from the entry block.
-  private SEXP run(CFG cfg) {
+  ///
+  /// Also pushes/pops `frame`; every [CFG] runs at its own stack frame index (the frame itself
+  /// is reused across all CFGs in the [Abstraction]).
+  private SEXP run(StackFrame frame, CFG cfg) {
     var cursor = new CFGCursor(cfg);
-    topFrame().enter(cursor);
+    frame.enter(cursor);
+    stack.push(frame);
 
     while (true) {
       var nextControl = cursor.iterateBb(this::run, this::run);
@@ -222,7 +233,9 @@ public final class Interpreter {
           bindPhiArguments(nextTarget);
         }
         case ControlFlow.Return(var value) -> {
-          topFrame().exit();
+          var f = stack.pop();
+          assert f == frame : "stack imbalance";
+          frame.exit();
           return value;
         }
       }
@@ -401,7 +414,18 @@ public final class Interpreter {
               "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
         }
 
-        throw new NotImplementedError("Get scalar SEXP from vector SEXP");
+        // Get scalar SEXP from vector SEXP
+        yield switch (vector) {
+          case LglSXP l -> SEXPs.logical(l.get(index));
+          case IntSXP i -> SEXPs.integer(i.get(index));
+          case RealSXP r -> SEXPs.real(r.get(index));
+          case ComplexSXP c -> SEXPs.complex(c.get(index));
+          case StrSXP s -> SEXPs.string(s.get(index));
+          case RawSXP r -> SEXPs.raw(r.get(index));
+          case VecSXP v -> v.get(index);
+          case ListSXP l -> l.get(index).value();
+          case ExprSXP e -> e.get(index);
+        };
       }
       case SubscriptStore(var vectorArg, var indexArg, var valueArg) -> {
         var vectorSxp = run(vectorArg);
@@ -427,7 +451,21 @@ public final class Interpreter {
               "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
         }
 
-        throw new NotImplementedError("Set scalar SEXP in vector SEXP");
+        // Set scalar SEXP in vector SEXP
+        // Get scalar SEXP from vector SEXP
+        switch (vector) {
+          case LglSXP l -> l.set(index, value.asScalarLogical().orElseThrow());
+          case IntSXP i -> i.set(index, value.asScalarInteger().orElseThrow());
+          case RealSXP r -> r.set(index, value.asScalarReal().orElseThrow());
+          case ComplexSXP c -> c.set(index, value.asScalarComplex().orElseThrow());
+          case StrSXP s -> s.set(index, value.asScalarString().orElseThrow());
+          case RawSXP r -> r.set(index, value.asScalarRaw().orElseThrow());
+          case VecSXP v -> v.set(index, value);
+          case ListSXP l -> l.set(index, value);
+          case ExprSXP e -> e.get(index);
+        }
+
+        yield value;
       }
       case SuperLoad(var variable) -> {
         var parentEnv = topFrame().environment().parent();
@@ -479,7 +517,7 @@ public final class Interpreter {
     while (!(env instanceof EmptyEnvSXP)) {
       var value = env.getLocal(variable.name()).orElse(null);
       if (value instanceof CloSXP cloSxp) {
-        var function = closures.get(cloSxp.body());
+        var function = closures.get(cloSxp);
         if (function == null) {
           throw fail("Can't call closure created outside the interpreter: " + cloSxp);
         }
@@ -505,22 +543,16 @@ public final class Interpreter {
     }
 
     // Evaluate the promise.
-    var promCode = promises.remove(promSXP.expr());
+    var promCode = promises.remove(promSXP);
     if (promCode == null) {
       throw fail("Can't force promise code created outside the interpreter: " + promSXP);
     }
     var promExpr = promCode.expression;
 
-    stack.push(promCode.frame);
-    try {
-      var value = run(promExpr.code());
-      promSXP.bind(value);
-      checkType(value, promExpr.valueType(), "promise");
-      return value;
-    } finally {
-      var f = stack.pop();
-      assert f == promCode.frame : "stack imbalance";
-    }
+    var value = run(promCode.frame, promExpr.code());
+    promSXP.bind(value);
+    checkType(value, promExpr.valueType(), "promise");
+    return value;
   }
 
   /// Casts the value to a boolean and returns it, throws if not a boolean.
@@ -601,10 +633,12 @@ public final class Interpreter {
   private Type inferType(SEXP sexp, Ownership ownership) {
     // We can do better than `Type.of` for promises,
     // since we create promises with stub code.
-    var promise = promises.get(sexp);
-    if (promise != null) {
-      // Promises are always shared. If `ownership` is wrong we'll get a type error later.
-      return Type.promise(promise.expression.valueType(), promise.expression.effects());
+    if (sexp instanceof PromSXP promSxp) {
+      var promise = promises.get(promSxp);
+      if (promise != null) {
+        // Promises are always shared. If `ownership` is wrong we'll get a type error later.
+        return Type.promise(promise.expression.valueType(), promise.expression.effects());
+      }
     }
 
     return Type.of(sexp).withOwnership(ownership);
@@ -621,16 +655,18 @@ public final class Interpreter {
   /// Returns a [CloSXP] wrapping the [Function], which can be function looked-up and dynamically
   /// called by the interpreter.
   private CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
-    var codeStub = SEXPs.symbol(".interpreterClosure" + nextClosureId++);
-    closures.put(codeStub, function);
-    return SEXPs.closure(CLOSURE_STUB_PARAMETERS, codeStub, enclosingEnv);
+    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name()));
+    var sexp = SEXPs.closure(CLOSURE_STUB_PARAMETERS, codeStub, enclosingEnv);
+    closures.put(sexp, function);
+    return sexp;
   }
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
   private PromSXP promiseStub(Promise promExpr) {
-    var codeStub = SEXPs.symbol(".interpreterPromise" + nextPromiseId++);
-    promises.put(codeStub, new PromiseCode(promExpr, topFrame()));
-    return SEXPs.promise(codeStub, topFrame().environment());
+    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.integer(nextPromiseId++));
+    var sexp = SEXPs.promise(codeStub, topFrame().environment());
+    promises.put(sexp, new PromiseCode(promExpr, topFrame()));
+    return sexp;
   }
 
   private InterpreterException fail(String message) {

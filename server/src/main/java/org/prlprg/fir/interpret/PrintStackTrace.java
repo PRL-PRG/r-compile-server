@@ -14,7 +14,7 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
-class PrintContext {
+class PrintStackTrace {
   // Data
   private final ImmutableList<StackFrame> stack;
   private final @Nullable GlobalEnvSXP globalEnv;
@@ -27,11 +27,11 @@ class PrintContext {
   private final Map<StackFrame, List<Integer>> frameAppearances;
   private final Map<EnvSXP, Integer> envToStackIndex;
 
-  PrintContext() {
+  PrintStackTrace() {
     this(ImmutableList.of(), null);
   }
 
-  PrintContext(ImmutableList<StackFrame> stack, @Nullable GlobalEnvSXP globalEnv) {
+  PrintStackTrace(ImmutableList<StackFrame> stack, @Nullable GlobalEnvSXP globalEnv) {
     this.stack = stack;
     this.globalEnv = globalEnv;
 
@@ -52,9 +52,7 @@ class PrintContext {
 
   @Override
   public String toString() {
-    // REACH: `Printer.toString` doesn't work, and it's probably a bug in `parseprint`
-    // (perhaps because this class has `@PrintMethod`s where it's both object and context).
-    return Printer.use(this::print);
+    return Printer.toString(this);
   }
 
   @PrintMethod
@@ -71,7 +69,7 @@ class PrintContext {
       var frame = stack.get(i);
 
       f.format("%" + maxDigits + "d. ", i);
-      w.runIndented(padding, () -> p.withContext(this).print(frame));
+      w.runIndented(padding, () -> printFrame(frame, p));
       w.write('\n');
     }
 
@@ -80,8 +78,7 @@ class PrintContext {
     p.withContext(forSexp).print(globalEnv);
   }
 
-  @PrintMethod
-  private void print(StackFrame frame, Printer p) {
+  void printFrame(StackFrame frame, Printer p) {
     var w = p.writer();
 
     var appearances = frameAppearances.get(frame);
@@ -131,14 +128,13 @@ class PrintContext {
             }
 
             w.write("parent = ");
-            p.print(frame.environment().parent());
+            printStackEnv(frame.environment().parent(), p);
           });
       w.write("\n]");
     }
   }
 
-  @PrintMethod
-  private void print(SEXP sexp, Printer p) {
+  private void printStackEnv(SEXP sexp, Printer p) {
     var w = p.writer();
 
     if (sexp instanceof EnvSXP env) {

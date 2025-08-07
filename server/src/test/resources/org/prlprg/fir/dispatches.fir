@@ -1,25 +1,32 @@
 fun main {
-  (reg rx:I) --> v(I)f { reg r0:p(I -), reg r1:p(I -), reg r2:p(I -), reg r3:p(I -), reg r4:p(I -), reg r5:p(I -), reg r6:v(I)o |
-    r0 = prom<I ->{ return rx; };
-    r1 = prom<I ->{ return 0; };
-    f(r0, r1);
-
-    r2 = prom<I ->{ return rx; };
-    r3 = prom<I ->{ return 4; };
-    f.1(r2, r3);
-
-    r4 = prom<I ->{ return 5; };
-    f.2(rx, r4);
-
-    r5 = prom<I ->{ return rx; };
-    f.3(r5, 6);
-
-    r6 = f.4(rx, 7);
-    return use r6;
+  () --> v(I)f { reg r:v(I)o |
+    r = f(42);
+    return use r;
   }
 }
 
 fun f {
+  (reg rx:I) --> v(I)f { reg r0:p(I -), reg r1:p(I -), reg r2:p(I -), reg r3:p(I -), reg r4:p(I -), reg r5:p(I -), reg r6:v(I)o |
+    r0 = prom<I ->{ return rx; };
+    r1 = prom<I ->{ return 0; };
+    g(r0, r1);
+
+    r2 = prom<I ->{ return rx; };
+    r3 = prom<I ->{ return 4; };
+    g.1(r2, r3);
+
+    r4 = prom<I ->{ return 5; };
+    g.2(rx, r4);
+
+    r5 = prom<I ->{ return rx; };
+    g.3(r5, 6);
+
+    r6 = g.4(rx, 7);
+    return use r6;
+  }
+}
+
+fun g {
   (reg ra:*, reg rb:*) --> v(I)f { reg r0:p(I -), reg r1:p(I -), reg r2:I, reg r3:I, reg r4:v(I)o |
     r0 = ra as p(I-);
     r1 = rb as p(I-);
