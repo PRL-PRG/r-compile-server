@@ -24,6 +24,6 @@ public final class InterpreterException extends RuntimeException {
 
   @Override
   public String getMessage() {
-    return mainMessage() + "\n" + new PrintContext(stack, globalEnv);
+    return mainMessage() + "\n" + new PrintStackTrace(stack, globalEnv);
   }
 }

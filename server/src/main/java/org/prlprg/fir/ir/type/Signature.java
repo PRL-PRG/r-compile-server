@@ -8,13 +8,15 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 public record Signature(ImmutableList<Type> parameterTypes, Type returnType, Effects effects) {
+  /// Whether any call context and arguments that satisfy `this` also satisfy `expected`: whether
+  /// `this` has more specific parameters, and less specific effects and return type.
   public boolean satisfies(Signature expected) {
     return parameterTypes.size() == expected.parameterTypes.size()
         && Streams.zip(
-                expected.parameterTypes.stream(), parameterTypes.stream(), Type::allMatchesMatch)
+                parameterTypes.stream(), expected.parameterTypes.stream(), Type::allMatchesMatch)
             .allMatch(b -> b)
-        && returnType.canBeAssignedToAll(expected.returnType)
-        && effects.isSubsetOf(expected.effects);
+        && expected.returnType.canBeAssignedToAll(returnType)
+        && expected.effects.isSubsetOf(effects);
   }
 
   @Override

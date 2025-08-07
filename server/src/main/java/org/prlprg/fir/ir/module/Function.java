@@ -82,16 +82,17 @@ public final class Function {
     return index;
   }
 
-  /// Gets the worst version we could dispatch to whose signature satisfies the provided one.
+  /// Gets the best version whose signature satisfies the provided one, i.e. the best version
+  /// whose parameters are less and return type is more specific than `signature`'s.
   ///
-  /// Returns `null` if there are no known versions we can dispatch to.
+  /// If `null` is provided, returns the version with the worst signature if there is any.
   public @Nullable Abstraction guess(@Nullable Signature signature) {
     if (signature == null) {
-      return versionsSorted.isEmpty() ? null : versionsSorted.first();
+      return versionsSorted.isEmpty() ? null : versionsSorted.last();
     }
 
     for (var version : versionsSorted) {
-      if (version.signature().satisfies(signature)) {
+      if (signature.satisfies(version.signature())) {
         return version;
       }
     }

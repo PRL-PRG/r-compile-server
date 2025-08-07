@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -15,6 +14,7 @@ import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.UserEnvSXP;
 
 /// Runtime stack frame for FIR interpretation, managing register and environment bindings.
 final class StackFrame {
@@ -23,8 +23,8 @@ final class StackFrame {
   private final Map<Register, SEXP> registers = new HashMap<>();
   private final EnvSXP environment;
 
-  StackFrame(EnvSXP environment) {
-    this.environment = Objects.requireNonNull(environment);
+  StackFrame(EnvSXP parentEnv) {
+    this.environment = new UserEnvSXP(parentEnv);
   }
 
   public void enter(CFGCursor position) {
@@ -76,6 +76,6 @@ final class StackFrame {
 
   @Override
   public String toString() {
-    return Printer.toString(this, new PrintContext());
+    return Printer.use(p -> new PrintStackTrace().printFrame(this, p));
   }
 }

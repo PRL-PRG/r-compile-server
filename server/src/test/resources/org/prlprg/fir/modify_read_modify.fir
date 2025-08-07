@@ -1,11 +1,12 @@
 fun main {
-  (reg r:p(I -)) -+> V { reg r0:p(V +), reg r1:V, reg r2:v(I)o |
-    r0 = prom<V +>{
-    r2 = read(r);
-    return use r2;
+  () -+> V { reg r0:p(I -), reg r1:p(V +), reg r2:V, reg r3:v(I)o |
+    r0 = prom<I ->{ return 42; };
+    r1 = prom<V +>{
+      r3 = read(r0);
+      return use r3;
     };
-    r1 = modify(r0);
-    return r1;
+    r2 = modify(r1);
+    return r2;
   }
 }
 

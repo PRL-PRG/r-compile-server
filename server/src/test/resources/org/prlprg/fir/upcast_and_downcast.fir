@@ -16,6 +16,7 @@ fun main {
 
 fun upcast {
   (reg r:*) --> I { reg r0:p(I -), reg r1:I |
+    # runtime-error: Type mismatch for cast: expected p(I -), got 1 {: I}
     r0 = r as p(I-);
     r1 = force r0;
     return r1;

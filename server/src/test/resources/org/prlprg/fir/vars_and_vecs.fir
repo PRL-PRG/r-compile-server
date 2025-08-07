@@ -1,3 +1,12 @@
+fun main {
+  () --> v(I)f { reg ry:p(I -), reg rz:v(I), reg r:v(I)o |
+    ry = prom<I ->{ return 42; };
+    rz = [1, 2, 3];
+    r = f(24, ry, rz);
+    return use r;
+  }
+}
+
 fun f {
   (reg rx:I, reg ry:p(I -), reg rz:v(I)) --> v(I)f { var x:I?, var y:I?, var z:I?, reg ry0:I, reg rz0:I, reg rx1:I?, reg ry1:I?, reg rz1:I?, reg ret:v(I)o, reg r1:I, reg r2:I, reg r3:I, reg r4:I |
     x = rx;

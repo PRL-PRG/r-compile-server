@@ -1855,7 +1855,7 @@ public class BCCompiler {
     var afun =
         Context.getAssignFun(flhs.temp().fun())
             .orElseThrow(() -> new CompilerException("invalid function in complex assignment"));
-    var aargs = flhs.temp().args().set(0, null, SEXPs.ASSIGN_TMP).appended("value", value);
+    var aargs = flhs.temp().args().with(0, null, SEXPs.ASSIGN_TMP).appended("value", value);
     var acall = SEXPs.lang(afun, aargs);
 
     var sloc = cb.getCurrentLoc();
@@ -1925,7 +1925,7 @@ public class BCCompiler {
         stop("bad assignment 1", loc);
       }
 
-      var temp = SEXPs.lang(orig.fun(), orig.args().set(0, null, SEXPs.ASSIGN_TMP));
+      var temp = SEXPs.lang(orig.fun(), orig.args().with(0, null, SEXPs.ASSIGN_TMP));
       places.add(new FlattenLHS(orig, temp));
       lhs = orig.arg(0);
     }
@@ -2170,7 +2170,7 @@ public class BCCompiler {
     if (!dotsOrMissing(place.args())
         && place.args().size() == 2
         && place.arg(1) instanceof RegSymSXP s) {
-      var newPlace = SEXPs.lang(place.fun(), place.args().set(1, null, SEXPs.string(s.name())));
+      var newPlace = SEXPs.lang(place.fun(), place.args().with(1, null, SEXPs.string(s.name())));
       var vexpr = call.args().values().getLast();
       compileSetterCall(new FlattenLHS(flhs.original(), newPlace), vexpr);
       return true;

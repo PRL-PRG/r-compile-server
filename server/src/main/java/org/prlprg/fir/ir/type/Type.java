@@ -123,11 +123,11 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
         && switch (other.ownership) {
           case FRESH -> {
             warn("Parameters can't be fresh: " + other);
-            yield ownership == Ownership.FRESH || ownership == Ownership.OWNED;
+            yield ownership == Ownership.FRESH;
           }
           case OWNED -> ownership == Ownership.FRESH || ownership == Ownership.OWNED;
           case BORROWED -> true;
-          case SHARED -> ownership == Ownership.SHARED;
+          case SHARED -> ownership == Ownership.FRESH || ownership == Ownership.SHARED;
         }
         && concreteness.isSubsetOf(other.concreteness);
   }

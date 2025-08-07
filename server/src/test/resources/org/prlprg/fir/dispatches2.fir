@@ -1,3 +1,14 @@
+fun main {
+  () -+> V { var x:I?, reg ry:p(I +), var y:p(I +)?, reg r0:p(I -), reg r1:V |
+    x = 4;
+    ry = prom<I ->{ return x; };
+    y = ry;
+    r0 = prom<I ->{ return 2; };
+    r1 = f(r0);
+    return r1;
+  }
+}
+
 fun f {
   (reg r:p(I -)) -+> V { reg r1:V, reg r2:*, reg r3:* |
     r2 = r$x;
@@ -17,8 +28,6 @@ fun g {
   }
   (reg r:I) --> I { |
     # Fast case with registers, optimizations
-    40;
-    41;
     return 42;
   }
 }

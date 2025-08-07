@@ -86,7 +86,7 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP set(int index, @Nullable String tag, SEXP value) {
+  public ListSXP with(int index, @Nullable String tag, SEXP value) {
     throw new UnsupportedOperationException("NULL is empty");
   }
 
@@ -142,6 +142,11 @@ public final class NilSXP implements ListSXP {
 
   @Override
   public void set(int i, TaggedElem value) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public void set(int index, SEXP value) {
     throw new UnsupportedOperationException("NULL is empty");
   }
 
