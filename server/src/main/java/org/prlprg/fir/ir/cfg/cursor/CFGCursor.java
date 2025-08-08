@@ -48,7 +48,8 @@ public final class CFGCursor {
    */
   public CFGCursor(BB bb, int instructionIndex) {
     if (instructionIndex < -1 || instructionIndex > bb.statements().size()) {
-      throw new IndexOutOfBoundsException("index " + instructionIndex + " out of bounds for " + bb);
+      throw new IndexOutOfBoundsException(
+          "index " + instructionIndex + " out of bounds for " + bb.label());
     }
 
     this.cfg = bb.owner();
@@ -67,10 +68,11 @@ public final class CFGCursor {
    */
   public void moveTo(BB bb, int instructionIndex) {
     if (bb.owner() != cfg) {
-      throw new IllegalArgumentException("block " + bb + " belongs to a different CFG");
+      throw new IllegalArgumentException("block " + bb.label() + " belongs to a different CFG");
     }
     if (instructionIndex < -1 || instructionIndex > bb.statements().size()) {
-      throw new IndexOutOfBoundsException("index " + instructionIndex + " out of bounds for " + bb);
+      throw new IndexOutOfBoundsException(
+          "index " + instructionIndex + " out of bounds for " + bb.label());
     }
 
     this.bb = bb;
@@ -84,7 +86,7 @@ public final class CFGCursor {
    */
   public void moveToStart(BB bb) {
     if (bb.owner() != cfg) {
-      throw new IllegalArgumentException("block " + bb + " belongs to a different CFG");
+      throw new IllegalArgumentException("block " + bb.label() + " belongs to a different CFG");
     }
 
     this.bb = bb;
@@ -98,7 +100,7 @@ public final class CFGCursor {
    */
   public void moveToEnd(BB bb) {
     if (bb.owner() != cfg) {
-      throw new IllegalArgumentException("block " + bb + " belongs to a different CFG");
+      throw new IllegalArgumentException("block " + bb.label() + " belongs to a different CFG");
     }
 
     this.bb = bb;
@@ -112,7 +114,8 @@ public final class CFGCursor {
    */
   public void moveToLocal(int instructionIndex) {
     if (instructionIndex < -1 || instructionIndex > bb.statements().size()) {
-      throw new IndexOutOfBoundsException("index " + instructionIndex + " out of bounds for " + bb);
+      throw new IndexOutOfBoundsException(
+          "index " + instructionIndex + " out of bounds for " + bb.label());
     }
 
     this.instructionIndex = instructionIndex;
@@ -120,11 +123,22 @@ public final class CFGCursor {
 
   /** Moves to the next instruction in the current block. */
   public void advance() {
-    if (instructionIndex < bb.statements().size()) {
-      instructionIndex++;
-    } else {
-      throw new IllegalStateException("can't move to next instruction at end of block " + bb);
+    if (instructionIndex == bb.statements().size()) {
+      throw new IllegalStateException(
+          "can't move to next instruction at end of block " + bb.label());
     }
+
+    instructionIndex++;
+  }
+
+  /** Moves to the previous instruction in the current block. */
+  public void unadvance() {
+    if (instructionIndex == -1) {
+      throw new IllegalStateException(
+          "can't move to previous instruction at start of block " + bb.label());
+    }
+
+    instructionIndex--;
   }
 
   /** Moves to the current block's entry-point (before the first instruction). */

@@ -12,6 +12,18 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 
 public abstract class Checker {
+  /// Check types and CFG invariants in the module, and throw [IllegalStateException] if there
+  /// are any errors.
+  public static void checkAll(Module module) {
+    var cfgChecker = new CFGChecker();
+    cfgChecker.run(module);
+    cfgChecker.finish();
+
+    var typeChecker = new TypeChecker();
+    typeChecker.run(module);
+    typeChecker.finish();
+  }
+
   private final List<CheckException> errors = new ArrayList<>();
 
   /// Returns all errors found during type-checking.
@@ -54,8 +66,7 @@ public abstract class Checker {
   /// Check all code in the function.
   ///
   /// Reports errors in [#errors()]. Doesn't throw; call [#finish()] after to throw an exception
-  // if
-  /// there were reported errors.
+  /// if there were reported errors.
   public void run(Function function) {
     for (var version : function.versions()) {
       run(version);
@@ -65,7 +76,6 @@ public abstract class Checker {
   /// Check all code in the abstraction.
   ///
   /// Reports errors in [#errors()]. Doesn't throw; call [#finish()] after to throw an exception
-  // if
-  /// there were reported errors.
+  /// if there were reported errors.
   public abstract void run(Abstraction abstraction);
 }

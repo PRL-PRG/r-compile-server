@@ -80,8 +80,10 @@ public final class TypeChecker extends Checker {
       }
 
       cfg.checkWellFormed(abstraction.returnType());
-      if (abstraction.returnType().isSubtypeOf(Type.ANY_VALUE)) {
-        cfg.report("Return must be a value (note: \"maybe\" types aren't guaranteed to be values)");
+      if (!abstraction.returnType().isSubtypeOf(Type.ANY_VALUE)) {
+        cfg.report(
+            "Return type must subtype value (note: \"maybe\" types aren't guaranteed to be values): "
+                + abstraction.returnType());
       }
 
       // Parameters are initially written to.

@@ -1,5 +1,8 @@
 package org.prlprg.bc2fir;
 
+import static org.prlprg.fir.check.Checker.checkAll;
+import static org.prlprg.fir.opt.Cleanup.cleanup;
+
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.RSession;
@@ -32,6 +35,8 @@ final class BC2FirCompilerUtils {
               funSexpNotCompiled.attributes());
 
       ClosureCompiler.compile(firModule, funName, funSexp);
+      cleanup(firModule);
+      checkAll(firModule);
     }
     return firModule;
   }
