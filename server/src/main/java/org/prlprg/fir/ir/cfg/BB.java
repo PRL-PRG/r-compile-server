@@ -96,19 +96,15 @@ public final class BB {
     return Collections.unmodifiableCollection(predecessors);
   }
 
-  public Register addParameter() {
-    var variable = owner.scope().addLocal();
-    addParameter(variable);
-    return variable;
-  }
-
-  public void addParameter(Register parameter) {
-    module()
+  public Register appendParameter() {
+    return module()
         .record(
-            "BB#addParameter",
-            List.of(this, parameter),
+            "BB#appendParameter",
+            List.of(this),
             () -> {
+              var parameter = owner.scope().addLocal();
               parameters.add(parameter);
+              return parameter;
             });
   }
 
@@ -126,20 +122,20 @@ public final class BB {
             });
   }
 
-  public void pushStatement(Statement statement) {
+  public void appendStatement(Statement statement) {
     module()
         .record(
-            "BB#pushStatement",
+            "BB#appendStatement",
             List.of(this, statement),
             () -> {
               statements.add(statement);
             });
   }
 
-  public void pushStatements(List<Statement> statements) {
+  public void appendStatements(List<Statement> statements) {
     module()
         .record(
-            "BB#pushStatements",
+            "BB#appendStatements",
             List.of(this, statements),
             () -> {
               this.statements.addAll(statements);

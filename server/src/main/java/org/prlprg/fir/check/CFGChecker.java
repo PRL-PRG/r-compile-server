@@ -124,7 +124,7 @@ public class CFGChecker extends Checker {
                       + target.bb().label()
                       + ": expected "
                       + parameters.size()
-                      + " arguments, got "
+                      + " argument(s), got "
                       + arguments.size()
                       + "\nParameters: "
                       + parameters);

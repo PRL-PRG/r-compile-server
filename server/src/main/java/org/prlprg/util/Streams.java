@@ -1,19 +1,52 @@
 package org.prlprg.util;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
 import java.util.stream.Stream;
 
 public class Streams {
-  /**
-   * A stream which keeps yielding elements by calling {@code supplier} until it returns {@code
-   * null}.
-   */
+  /// Keeps yielding elements by calling `supplier` until it returns `null`.
   public static <T> Stream<T> untilNull(OptionalSupplier<T> supplier) {
     return com.google.common.collect.Streams.stream(new UntilNullIterator<>(supplier));
+  }
+
+  public interface Worklist<T> {
+    void add(T next);
+
+    void addAll(Collection<? extends T> next);
+  }
+
+  /// The worklist starts with `initial`. While the worklist is non-empty, removes an element,
+  /// calls the function with it to maybe add more elements, then yields it.
+  public static <T> Stream<T> worklist(T initial, BiConsumer<T, Worklist<T>> iterate) {
+    var worklist = new ArrayList<T>();
+    var worklistFacade =
+        new Worklist<T>() {
+          @Override
+          public void add(T next) {
+            worklist.add(next);
+          }
+
+          @Override
+          public void addAll(Collection<? extends T> next) {
+            worklist.addAll(next);
+          }
+        };
+
+    worklist.add(initial);
+    return Stream.iterate(
+        initial,
+        prev -> {
+          iterate.accept(prev, worklistFacade);
+          return !worklist.isEmpty();
+        },
+        _ -> worklist.removeLast());
   }
 
   public static <T> boolean hasNoDuplicates(Stream<T> stream) {

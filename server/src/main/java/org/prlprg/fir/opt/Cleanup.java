@@ -68,7 +68,7 @@ public class Cleanup extends Optimization {
                       + defBb;
               defBb.removeParameterAt(phiIndex);
               for (var pred : defBb.predecessors()) {
-                pred.setJump(removingJumpArgument(pred.jump(), phiIndex));
+                pred.setJump(removingJumpArgument(pred.jump(), defBb, phiIndex));
               }
             } else {
               // Convert assignment to void statement
@@ -230,7 +230,7 @@ public class Cleanup extends Optimization {
         }
 
         // Add statements and replace jump
-        first.pushStatements(second.statements());
+        first.appendStatements(second.statements());
         first.setJump(second.jump());
 
         // Remove second block
@@ -238,22 +238,26 @@ public class Cleanup extends Optimization {
       }
     }
 
-    /// Returns the jump with the phi argument at the given index in all targets removed.
-    Jump removingJumpArgument(Jump jump, int index) {
+    /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
+    Jump removingJumpArgument(Jump jump, BB targetBb, int index) {
       return switch (jump) {
-        case Goto(var next) -> new Goto(removingJumpArgument(next, index));
+        case Goto(var next) -> new Goto(removingJumpArgument(next, targetBb, index));
         case If(var condition, var ifTrue, var ifFalse) ->
             new If(
                 condition,
-                removingJumpArgument(ifTrue, index),
-                removingJumpArgument(ifFalse, index));
+                removingJumpArgument(ifTrue, targetBb, index),
+                removingJumpArgument(ifFalse, targetBb, index));
         case Return(var value) -> new Return(value);
         case Unreachable() -> new Unreachable();
       };
     }
 
-    /// Returns the target with the phi argument at the given index removed.
-    Target removingJumpArgument(Target target, int index) {
+    /// If this points to `targetBb`, returns removing the phi argument at the given index.
+    Target removingJumpArgument(Target target, BB targetBb, int index) {
+      if (target.bb() != targetBb) {
+        return target;
+      }
+
       var phiArgs = ImmutableList.<Argument>builderWithExpectedSize(target.phiArgs().size() - 1);
       phiArgs.addAll(target.phiArgs().subList(0, index));
       phiArgs.addAll(target.phiArgs().subList(index + 1, target.phiArgs().size()));
