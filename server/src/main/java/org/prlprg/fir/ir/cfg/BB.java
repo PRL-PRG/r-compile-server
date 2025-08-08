@@ -109,7 +109,6 @@ public final class BB {
             List.of(this, parameter),
             () -> {
               parameters.add(parameter);
-              return null;
             });
   }
 
@@ -124,7 +123,6 @@ public final class BB {
                     "Index " + index + " is out of bounds for parameters of BB '" + label + "'.");
               }
               parameters.remove(index);
-              return null;
             });
   }
 
@@ -135,7 +133,6 @@ public final class BB {
             List.of(this, statement),
             () -> {
               statements.add(statement);
-              return null;
             });
   }
 
@@ -146,7 +143,6 @@ public final class BB {
             List.of(this, statements),
             () -> {
               this.statements.addAll(statements);
-              return null;
             });
   }
 
@@ -161,7 +157,6 @@ public final class BB {
                     "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
               }
               statements.add(index, statement);
-              return null;
             });
   }
 
@@ -176,7 +171,6 @@ public final class BB {
                     "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
               }
               this.statements.addAll(index, statements);
-              return null;
             });
   }
 
@@ -256,7 +250,6 @@ public final class BB {
                 var added = owner.exits.add(this);
                 assert added : "BB " + label + " was already an exit of the CFG.";
               }
-              return null;
             });
   }
 

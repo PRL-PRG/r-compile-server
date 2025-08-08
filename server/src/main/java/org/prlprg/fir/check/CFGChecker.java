@@ -13,6 +13,7 @@ public class CFGChecker extends Checker {
   /// Verifies the following invariants:
   /// - All basic blocks are reachable from entry
   /// - Entry blocks and blocks with < 2 predecessors don't have phi parameters
+  /// - Jump targets have the correct number of phi arguments
   /// - There are no duplicate variable declarations in the scope
   /// - All registers are declared in the innermost scope
   /// - Parameters are never assigned, local registers are assigned exactly once
@@ -94,6 +95,39 @@ public class CFGChecker extends Checker {
 
             if (bb.predecessors().size() < 2) {
               report(bb, -1, "Block with < 2 predecessors can't have phis");
+            }
+          }
+        }
+
+        // Check predecessors and successors (not in docs because it's an internal detail).
+        for (var bb : cfg.bbs()) {
+          for (var pred : bb.predecessors()) {
+            if (!pred.successors().contains(bb)) {
+              report(
+                  pred,
+                  pred.statements().size(),
+                  "Another block, " + bb.label() + ", has this block as its predecessor");
+            }
+          }
+        }
+
+        // Jump targets have the correct number of phi arguments
+        for (var bb : cfg.bbs()) {
+          for (var target : bb.jump().targets()) {
+            var arguments = target.phiArgs();
+            var parameters = target.bb().phiParameters();
+            if (parameters.size() != arguments.size()) {
+              report(
+                  bb,
+                  bb.statements().size(),
+                  "Phi count mismatch for "
+                      + target.bb().label()
+                      + ": expected "
+                      + parameters.size()
+                      + " arguments, got "
+                      + arguments.size()
+                      + "\nParameters: "
+                      + parameters);
             }
           }
         }

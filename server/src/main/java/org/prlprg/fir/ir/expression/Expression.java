@@ -91,7 +91,7 @@ public sealed interface Expression
       switch (headAsName) {
         case "clos" -> {
           s.assertAndSkip('(');
-          var functionName = p.parse(String.class);
+          var functionName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
           s.assertAndSkip(')');
 
           // We must defer setting the function in case it's a forward reference.
