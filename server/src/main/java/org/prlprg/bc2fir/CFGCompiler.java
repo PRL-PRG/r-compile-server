@@ -210,15 +210,29 @@ public class CFGCompiler {
       case BcInstr.Return() -> {
         var retVal = pop();
         assertStackForReturn();
+
+        // For whatever reason, this is necessary to keep the stack balanced.
+        push(new Constant(SEXPs.NULL));
+
         insert(_ -> new Return(retVal));
       }
       case BcInstr.Goto(var label) -> {
         var bb = bbAt(label);
+
+        // For whatever reason, this is necessary to keep the stack balanced.
+        // This is probably an inlined `Return`.
+        if (!cursor.bb().isEntry()
+            && cursor.bb().predecessors().isEmpty()
+            && bc.code().get(bcPos - 1) instanceof BcInstr.Goto) {
+          push(new Constant(SEXPs.NULL));
+        }
+
         insert(_ -> goto_(bb));
       }
       case BcInstr.BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
-        insert(next -> branch(pop(), next, bb));
+        var cond = pop();
+        insert(next -> branch(cond, next, bb));
       }
       case BcInstr.Pop() -> pop();
       case BcInstr.Dup() -> {
@@ -521,8 +535,8 @@ public class CFGCompiler {
           throw fail("Dollar: expected a call to $");
         }
 
-        pop();
-        pushInsert(builtin("$", target, new Constant(get(member))));
+        var target1 = pop();
+        pushInsert(builtin("$", target1, new Constant(get(member))));
         setJump(goto_(after));
 
         moveTo(after);
@@ -539,8 +553,8 @@ public class CFGCompiler {
           throw fail("Dollar: expected a call to $");
         }
 
-        pop();
-        pushInsert(builtin("$<-", target, new Constant(get(member)), rhs));
+        var target1 = pop();
+        pushInsert(builtin("$<-", target1, new Constant(get(member)), rhs));
         setJump(goto_(after));
 
         moveTo(after);
@@ -561,7 +575,8 @@ public class CFGCompiler {
       case BcInstr.And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(builtin("as.logical", pop()));
-        insert(next -> branch(top(), next, shortCircuitBb));
+        var value = top();
+        insert(next -> branch(value, next, shortCircuitBb));
       }
       case BcInstr.And2nd(var _) -> {
         pushInsert(builtin("as.logical", pop()));
@@ -571,7 +586,8 @@ public class CFGCompiler {
       case BcInstr.Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(builtin("as.logical", pop()));
-        insert(next -> branch(top(), shortCircuitBb, next));
+        var value = top();
+        insert(next -> branch(value, shortCircuitBb, next));
       }
       case BcInstr.Or2nd(var _) -> {
         pushInsert(builtin("as.logical", pop()));
@@ -633,6 +649,7 @@ public class CFGCompiler {
         var retVal = pop();
         assertStackForReturn();
         // ???: non-local return?
+        // ???: Do we need to push `NULL` like in `BcInstr.Return`?
         insert(_ -> new Return(retVal));
       }
       case BcInstr.Switch(var _, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
@@ -722,10 +739,9 @@ public class CFGCompiler {
           setJump(goto_(lastBb));
         }
 
-        // This code is unreachable, but ensure there's a BB because there may be instructions.
-        var bb = cfg.addBB();
-        ensurePhiInputsForStack(bb);
-        moveTo(bb);
+        // We called `setJump`, so we can't encounter any bytecode before a label.
+        // In practice, there has always a label after this instruction,
+        // but take note in case we get bytecode where this doesn't hold.
       }
       case BcInstr.StartSubsetN(var _, var after) ->
           compileStartDispatch(Dispatch.Type.SUBSETN, after);
@@ -857,13 +873,13 @@ public class CFGCompiler {
     setJump(branch(isObject, objectBb, nonObjectBb));
 
     moveTo(objectBb);
-    pop();
+    var target1 = pop();
 
     var funNameSexp = new Constant(SEXPs.string(fun.name()));
     var dispatchExpr =
         rhs == null
-            ? intrinsic("tryDispatchBuiltin", funNameSexp, target)
-            : intrinsic("tryDispatchBuiltin", funNameSexp, target, rhs);
+            ? intrinsic("tryDispatchBuiltin", funNameSexp, target1)
+            : intrinsic("tryDispatchBuiltin", funNameSexp, target1, rhs);
     var dispatchResult = insertAndReturn(dispatchExpr);
     var dispatched = insertAndReturn(intrinsic("getTryDispatchBuiltinDispatched", dispatchResult));
 
@@ -990,6 +1006,10 @@ public class CFGCompiler {
   // region `moveTo` and phis
   /// Move the cursor to the basic block and replace all stack arguments with its phi parameters.
   private void moveTo(BB bb) {
+    if (!bbsWithPhis.contains(bb)) {
+      throw fail("moved to BB before adding phis: " + bb.label());
+    }
+
     // Move cursor
     cursor.moveToStart(bb);
 
@@ -1014,9 +1034,8 @@ public class CFGCompiler {
   private void ensurePhiInputsForStack(BB bb) {
     // Ensure the BB has phis for each stack value.
     if (bbsWithPhis.add(bb)) {
-      // Add phis for all arguments on the stack.
       for (var _ : stack) {
-        bb.addParameter();
+        bb.appendParameter();
       }
     } else {
       // Check number of phis equals number of arguments.
@@ -1059,13 +1078,27 @@ public class CFGCompiler {
   /// Insert a jump, then move to the next block (given to `computeJump`).
   private void insert(JumpInsertion computeJump) {
     var newBb = cfg.addBB();
-    // `newBb` may not be a target in `jump`, but we need to replace the stack with its phis.
-    ensurePhiInputsForStack(newBb);
 
     var jump = computeJump.compute(newBb);
     setJump(jump);
 
-    moveTo(newBb);
+    if (cursor.bb().successors().contains(newBb)) {
+      moveTo(newBb);
+    } else if (bbByLabel.containsKey(bcPos + 1)) {
+      // Don't actually create the block, since we'll just move to the next one.
+      // If we DO create the block, we get a stack imbalance, because we're coming from a
+      // different position.
+      cfg.removeBB(newBb);
+    } else {
+      // IN THEORY, we could get a stack imbalance, because we're coming from a different position.
+      // IN PRACTICE, we haven't gotten one so far, with the two "for whatever reason" stack
+      // modifications in `addBcInstrIrInstrs`.
+      // An ideal solution would be hard because we don't know what the correct stack size is.
+      ensurePhiInputsForStack(newBb);
+      // This block will be removed by cleanup, but we need to iterate the bytecode instructions
+      // because they may alter the stack, and in practice they alter it correctly.
+      moveTo(newBb);
+    }
   }
 
   /// Insert a jump.

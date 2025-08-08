@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.callee;
 
 import com.google.common.collect.ImmutableList;
+import java.util.function.Predicate;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -18,7 +19,7 @@ public record DynamicCallee(NamedVariable variable, ImmutableList<String> argume
 
     w.write("dyn<");
     p.print(variable);
-    if (!argumentNames.isEmpty()) {
+    if (argumentNames.stream().anyMatch(Predicate.not(String::isEmpty))) {
       p.printAsList("[", "]", argumentNames);
     }
     w.write('>');

@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
@@ -29,6 +28,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
+import org.prlprg.util.Streams;
 
 public final class Abstraction implements Comparable<Abstraction> {
   static final String DEFAULT_LOCAL_PREFIX = "r";
@@ -157,21 +157,17 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   /// Yields the function body's CFG ([#cfg()]) followed by each [Promise]'s CFG, in pre-order.
   public Stream<CFG> streamCfgs() {
-    var worklist = new Stack<CFG>();
-    return Stream.iterate(
+    return Streams.worklist(
         cfg,
-        prev -> {
+        (prev, worklist) -> {
           for (var bb : prev.bbs()) {
             for (var statement : bb.statements()) {
               if (statement.expression() instanceof Promise promise) {
-                worklist.push(promise.code());
+                worklist.add(promise.code());
               }
             }
           }
-
-          return !worklist.isEmpty();
-        },
-        _ -> worklist.pop());
+        });
   }
 
   public boolean contains(Register register) {
