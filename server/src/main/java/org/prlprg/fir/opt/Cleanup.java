@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.cfg.cursor.Substituter;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.primitive.Logical;
@@ -23,6 +24,10 @@ import org.prlprg.primitive.Logical;
 ///   same, into gotos.
 /// - Merge blocks with a single successor ([Goto]).
 public class Cleanup extends Optimization {
+  public static void cleanup(Module module) {
+    new Cleanup().run(module);
+  }
+
   @Override
   public void run(Abstraction abstraction) {
     new OnAbstraction(abstraction).run();
@@ -48,6 +53,7 @@ public class Cleanup extends Optimization {
           for (var definition : defUses.definitions(localReg)) {
             var localDef = definition.inInnermostCfg();
             var defStmt = (Statement) localDef.instruction();
+            assert defStmt != null;
             localDef.replaceWith(new Statement(defStmt.expression()));
           }
 

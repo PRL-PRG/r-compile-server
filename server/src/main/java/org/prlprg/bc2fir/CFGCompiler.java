@@ -181,6 +181,7 @@ public class CFGCompiler {
 
     cursor = new CFGCursor(cfg);
     cursor.moveToLocalEnd();
+    cursor.unadvance();
 
     doCompile();
   }
