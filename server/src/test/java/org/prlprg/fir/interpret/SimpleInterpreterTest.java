@@ -84,10 +84,10 @@ final class SimpleInterpreterTest {
     entry.setJump(new Return(new Constant(SEXPs.integer(0))));
 
     // Try to call with wrong number of arguments
-    assertThrows(InterpreterException.class, () -> interpreter.call("test"));
+    assertThrows(InterpretException.class, () -> interpreter.call("test"));
 
     assertThrows(
-        InterpreterException.class,
+        InterpretException.class,
         () -> interpreter.call("test", SEXPs.integer(1), SEXPs.integer(2)));
   }
 
@@ -97,7 +97,7 @@ final class SimpleInterpreterTest {
     module.addFunction("test");
 
     // Try to interpret
-    assertThrows(InterpreterException.class, () -> interpreter.call("test"));
+    assertThrows(InterpretException.class, () -> interpreter.call("test"));
   }
 
   @Test
@@ -115,6 +115,6 @@ final class SimpleInterpreterTest {
     entry.setJump(returnInstr);
 
     // Should throw exception
-    assertThrows(InterpreterException.class, () -> interpreter.call("test"));
+    assertThrows(InterpretException.class, () -> interpreter.call("test"));
   }
 }

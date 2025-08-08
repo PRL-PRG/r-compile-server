@@ -67,6 +67,7 @@ public final class CFG {
     return bbs.get(label);
   }
 
+  /// A label that doesn't belong to any blocks in this [CFG].
   public String nextLabel() {
     return BB.DEFAULT_LABEL_PREFIX + nextLabelDisambiguator;
   }

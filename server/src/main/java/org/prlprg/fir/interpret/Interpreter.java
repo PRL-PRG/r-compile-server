@@ -77,7 +77,12 @@ import org.prlprg.util.Strings;
 
 /// FIŘ interpreter.
 public final class Interpreter {
+  // Input
   private final Module module;
+  private final Map<Function, ExternalFunction> externalFunctions = new HashMap<>();
+  private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
+
+  // State
   private final GlobalEnvSXP globalEnv;
   /// Forcing promise = the same frame at multiple indices.
   private final Stack<StackFrame> stack = new Stack<>();
@@ -116,10 +121,21 @@ public final class Interpreter {
 
     // Add new module functions via an observer.
     module.addObserver(
-        (method, _, returnValue) -> {
-          if (method.equals("Module#addFunction") && returnValue != null) {
-            var f = (Function) returnValue;
-            addFunctionToEnv(f, globalEnv);
+        (method, arguments, returnValue) -> {
+          switch (method) {
+            case "Module#addFunction" -> {
+              if (returnValue != null) {
+                var f = (Function) returnValue;
+                addFunctionToEnv(f, globalEnv);
+              }
+            }
+            case "Module#removeFunction" -> {
+              var f = (Function) arguments.getFirst();
+              externalFunctions.remove(f);
+              for (var v : f.versions()) {
+                externalVersions.remove(v);
+              }
+            }
           }
         });
   }
@@ -128,7 +144,7 @@ public final class Interpreter {
   ///
   /// These stubs can be loaded by dynamic calls (`dyn&lt;x&gt;`). Otherwise, the dynamic call's
   /// function lookup won't see the function even if it has the looked-up name.
-  public void addModuleToEnv(Module module, EnvSXP env) {
+  private void addModuleToEnv(Module module, EnvSXP env) {
     for (var function : module.localFunctions()) {
       addFunctionToEnv(function, env);
     }
@@ -138,9 +154,54 @@ public final class Interpreter {
   ///
   /// These stubs can be loaded by dynamic calls (`dyn&lt;x&gt;`). Otherwise, the dynamic call's
   /// function lookup won't see the function even if it has the looked-up name.
-  public void addFunctionToEnv(Function function, EnvSXP env) {
+  private void addFunctionToEnv(Function function, EnvSXP env) {
     var stub = closureStub(function, env);
     env.set(function.name(), stub);
+  }
+
+  /// "Hijack" the function, so when it's dispatch-called and no versions match, the Java closure
+  /// runs (instead of the interpreter crashing).
+  public void registerExternalFunction(String functionName, ExternalFunction javaClosure) {
+    var function = module.lookupFunction(functionName);
+    if (function == null) {
+      throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
+    }
+    if (externalFunctions.containsKey(function)) {
+      throw new IllegalArgumentException("Function " + functionName + " is already hijacked");
+    }
+    externalFunctions.put(function, javaClosure);
+  }
+
+  /// "Hijack" the function version, so when it's called, the Java closure runs. The version's
+  /// body must consist of a single [Unreachable] (`{ | ...; }`).
+  public void registerExternalVersion(
+      String functionName, int versionIndex, ExternalVersion javaClosure) {
+    var function = module.lookupFunction(functionName);
+    if (function == null) {
+      throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
+    }
+    if (versionIndex < 0 || versionIndex >= function.versions().size()) {
+      throw new IllegalArgumentException(
+          "Function "
+              + functionName
+              + " version "
+              + versionIndex
+              + " is out of bounds:\n"
+              + function);
+    }
+    var version = function.version(versionIndex);
+    if (!version.locals().isEmpty()
+        || version.cfg().bbs().size() != 1
+        || !version.cfg().entry().statements().isEmpty()
+        || !(version.cfg().entry().jump() instanceof Unreachable)) {
+      throw new IllegalArgumentException(
+          "Function " + functionName + " version " + versionIndex + " isn't a stub:\n" + version);
+    }
+    if (externalVersions.containsKey(version)) {
+      throw new IllegalArgumentException(
+          "Function " + functionName + " version " + versionIndex + " is already hijacked");
+    }
+    externalVersions.put(version, javaClosure);
   }
 
   public Module module() {
@@ -173,6 +234,14 @@ public final class Interpreter {
 
     var best = function.guess(signature);
     if (best == null) {
+      // See if we registered external code for this function.
+      var hijacker = externalFunctions.get(function);
+      if (hijacker != null) {
+        return callExternal(hijacker, function, arguments, environment);
+      }
+
+      // Otherwise we called a function with no valid overloads, a runtime error (not `Rf_error`,
+      // which is an R error but OK in the runtime, either).
       throw fail(
           "No versions match signature and arguments:"
               + "\nFunction: "
@@ -195,15 +264,22 @@ public final class Interpreter {
 
   /// Calls the function version with the arguments in the environment.
   public SEXP call(Abstraction abstraction, List<SEXP> arguments, EnvSXP environment) {
+    // Hijack if we registered external code for this version
+    var hijacker = externalVersions.get(abstraction);
+    if (hijacker != null) {
+      return callExternal(hijacker, abstraction, arguments, environment);
+    }
+
     var frame = new StackFrame(environment);
 
-    // Bind parameters
+    // Check number of parameters
     var params = abstraction.parameters();
     if (arguments.size() != params.size()) {
       throw fail(
           "Argument count mismatch: expected " + params.size() + ", got " + arguments.size());
     }
 
+    // Bind parameters
     for (int i = 0; i < params.size(); i++) {
       var param = params.get(i);
       var arg = arguments.get(i);
@@ -215,11 +291,51 @@ public final class Interpreter {
     return run(frame, abstraction.cfg());
   }
 
+  private SEXP callExternal(
+      ExternalFunction hijacker, Function hijacked, List<SEXP> arguments, EnvSXP environment) {
+    checkStack();
+
+    try {
+      return hijacker.call(this, hijacked, arguments, environment);
+    } catch (InterpretException e) {
+      throw e;
+    } catch (Throwable e) {
+      throw fail("External dispatch call failed", e);
+    }
+  }
+
+  private SEXP callExternal(
+      ExternalVersion hijacker, Abstraction hijacked, List<SEXP> arguments, EnvSXP environment) {
+    checkStack();
+
+    // Add the frame for a nicer stack trace.
+    var frame = new StackFrame(environment);
+    frame.enter(new CFGCursor(hijacked.cfg()));
+    stack.push(frame);
+
+    SEXP result;
+    try {
+      result = hijacker.call(this, hijacked, arguments, environment);
+    } catch (InterpretException e) {
+      throw e;
+    } catch (Throwable e) {
+      throw fail("External call failed", e);
+    }
+
+    var f = stack.pop();
+    assert f == frame : "stack imbalance";
+    frame.exit();
+
+    return result;
+  }
+
   /// Interprets the control flow graph starting from the entry block.
   ///
   /// Also pushes/pops `frame`; every [CFG] runs at its own stack frame index (the frame itself
   /// is reused across all CFGs in the [Abstraction]).
   private SEXP run(StackFrame frame, CFG cfg) {
+    checkStack();
+
     var cursor = new CFGCursor(cfg);
     frame.enter(cursor);
     stack.push(frame);
@@ -239,6 +355,14 @@ public final class Interpreter {
           return value;
         }
       }
+    }
+  }
+
+  private static final int STACK_LIMIT = 1000;
+
+  private void checkStack() {
+    if (stack.size() >= STACK_LIMIT) {
+      throw fail("Stack overflow");
     }
   }
 
@@ -535,7 +659,8 @@ public final class Interpreter {
     throw fail("Unbound function: " + variable.name());
   }
 
-  private SEXP force(PromSXP promSXP) {
+  /// Evaluate a promise that was created by the interpreter.
+  public SEXP force(PromSXP promSXP) {
     // If the promise is already forced, return the value.
     var eager = promSXP.boundVal();
     if (eager != null) {
@@ -568,7 +693,7 @@ public final class Interpreter {
   /// Compute the runtime signature to select a dispatch version of a function.
   ///
   /// In the process, checks that `arguments` are instances of `explicit`'s parameter types, and
-  /// throws [InterpreterException] if they don't.
+  /// throws [InterpretException] if they don't.
   private Signature computeSignature(@Nullable Signature explicit, List<SEXP> arguments) {
     if (explicit == null) {
       return inferSignature(arguments);
@@ -598,7 +723,7 @@ public final class Interpreter {
 
   /// Infer the `value`'s type, check it against `expected`, and return it.
   ///
-  /// @throws InterpreterException if `value` isn't an instance.
+  /// @throws InterpretException if `value` isn't an instance.
   private Type checkType(SEXP value, Type expected, String context) {
     var actual = inferType(value, expected.ownership());
     if (!actual.isSubtypeOf(expected)) {
@@ -669,8 +794,12 @@ public final class Interpreter {
     return sexp;
   }
 
-  private InterpreterException fail(String message) {
-    return new InterpreterException(message, stack, globalEnv);
+  private InterpretException fail(String message) {
+    return fail(message, null);
+  }
+
+  private InterpretException fail(String message, @Nullable Throwable cause) {
+    return new InterpretException(message, cause, stack, globalEnv);
   }
 
   /// Result of executing a jump instruction.
