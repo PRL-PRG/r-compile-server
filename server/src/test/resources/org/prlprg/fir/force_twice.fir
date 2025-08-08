@@ -5,7 +5,7 @@ fun main {
     r = prom<I ->{
     rx0 = x;
     r1 = rx0 as I;
-    rx1 = inc.1(r1);
+    rx1 = inc.0(r1);
     x = rx1;
     rx2 = x;
     r2 = rx2 as I;
@@ -26,6 +26,5 @@ fun force_twice {
 }
 
 fun inc {
-  (reg r:*) --> I { | ...; }
-  (reg r:V) --> I { | ...; }
+  (reg r:I) --> I { | ...; }
 }
