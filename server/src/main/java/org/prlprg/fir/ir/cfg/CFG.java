@@ -10,6 +10,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -104,7 +105,10 @@ public final class CFG {
               if (!bbs.remove(bb.label(), bb)) {
                 throw new IllegalArgumentException("Basic block '" + bb + "' does not exist.");
               }
-              return null;
+
+              // Ensure block isn't in exits or predecessors
+              bb.setJump(new Unreachable());
+              exits.remove(bb);
             });
   }
 

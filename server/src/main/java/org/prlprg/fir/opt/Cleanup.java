@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt;
 
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashSet;
 import org.prlprg.fir.analyze.DefUses;
@@ -11,7 +12,10 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.Substituter;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
+import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
@@ -49,12 +53,27 @@ public class Cleanup extends Optimization {
       var toRemove = new ArrayList<Register>();
       for (var local : scope.locals()) {
         if (local.variable() instanceof Register localReg && defUses.uses(localReg).isEmpty()) {
-          // Convert assignments to void statements
           for (var definition : defUses.definitions(localReg)) {
             var localDef = definition.inInnermostCfg();
+            var defBb = localDef.bb();
             var defStmt = (Statement) localDef.instruction();
-            assert defStmt != null;
-            localDef.replaceWith(new Statement(defStmt.expression()));
+
+            if (defStmt == null) {
+              // Remove unused phi
+              var phiIndex = defBb.phiParameters().indexOf(localReg);
+              assert phiIndex != -1
+                  : "def-use analysis reported a def in phis, but there is no phi: "
+                      + localReg
+                      + " in\n"
+                      + defBb;
+              defBb.removeParameterAt(phiIndex);
+              for (var pred : defBb.predecessors()) {
+                pred.setJump(removingJumpArgument(pred.jump(), phiIndex));
+              }
+            } else {
+              // Convert assignment to void statement
+              localDef.replaceWith(new Statement(defStmt.expression()));
+            }
           }
 
           // Remove from scope
@@ -73,7 +92,6 @@ public class Cleanup extends Optimization {
     }
 
     private class OnCfg {
-
       final CFG cfg;
 
       OnCfg(CFG cfg) {
@@ -218,6 +236,29 @@ public class Cleanup extends Optimization {
         // Remove second block
         cfg.removeBB(second);
       }
+    }
+
+    /// Returns the jump with the phi argument at the given index in all targets removed.
+    Jump removingJumpArgument(Jump jump, int index) {
+      return switch (jump) {
+        case Goto(var next) -> new Goto(removingJumpArgument(next, index));
+        case If(var condition, var ifTrue, var ifFalse) ->
+            new If(
+                condition,
+                removingJumpArgument(ifTrue, index),
+                removingJumpArgument(ifFalse, index));
+        case Return(var value) -> new Return(value);
+        case Unreachable() -> new Unreachable();
+      };
+    }
+
+    /// Returns the target with the phi argument at the given index removed.
+    Target removingJumpArgument(Target target, int index) {
+      var phiArgs = ImmutableList.<Argument>builderWithExpectedSize(target.phiArgs().size() - 1);
+      phiArgs.addAll(target.phiArgs().subList(0, index));
+      phiArgs.addAll(target.phiArgs().subList(index + 1, target.phiArgs().size()));
+
+      return new Target(target.bb(), phiArgs.build());
     }
   }
 }
