@@ -381,7 +381,7 @@ public final class Interpreter {
       case Goto(var next) -> new ControlFlow.Goto(next);
       case If(var condition, var ifTrue, var ifFalse) ->
           new ControlFlow.Goto(isTrue(run(condition)) ? ifTrue : ifFalse);
-      case Unreachable _ -> throw fail("Reached unreachable instruction");
+      case Unreachable _ -> throw fail("Reached unimplemented or \"unreachable\" code");
     };
   }
 
