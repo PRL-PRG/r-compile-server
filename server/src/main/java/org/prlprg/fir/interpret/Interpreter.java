@@ -26,6 +26,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
@@ -50,7 +51,6 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
-import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
@@ -210,6 +210,10 @@ public final class Interpreter {
 
   public GlobalEnvSXP globalEnv() {
     return globalEnv;
+  }
+
+  public BaseEnvSXP baseEnv() {
+    return (BaseEnvSXP) globalEnv.parent();
   }
 
   /// Looks up the function, gets the best applicable version, and calls it with the arguments
@@ -419,7 +423,13 @@ public final class Interpreter {
               call(function, signature, arguments, environment);
           case InlineCallee(var inlinee) -> call(inlinee, arguments, environment);
           case DynamicCallee(var variable, var _) -> {
-            var function = loadFun(variable);
+            var calleeSexp = read(variable);
+            if (!(calleeSexp instanceof CloSXP cloSXP)) {
+              throw fail("Not a function: " + calleeSexp);
+            }
+
+            var function = extractClosure(cloSXP);
+
             yield call(function, null, arguments, environment);
           }
         };
@@ -454,6 +464,18 @@ public final class Interpreter {
         }
         yield value;
       }
+      case LoadFun(var variable, var env) -> {
+        var value =
+            switch (env) {
+              case LOCAL -> topFrame().getFunction(variable);
+              case GLOBAL -> globalEnv.getFunction(variable.name()).orElse(null);
+              case BASE -> baseEnv().getFunction(variable.name()).orElse(null);
+            };
+        if (value == null) {
+          throw fail("Unbound function: " + variable.name());
+        }
+        yield value;
+      }
       case MaybeForce(var value) -> {
         var sexp = run(value);
         if (!(sexp instanceof PromSXP promSXP)) {
@@ -462,33 +484,8 @@ public final class Interpreter {
 
         yield force(promSXP);
       }
-      case MkVector(var elements) -> {
-        var values = elements.stream().map(this::run).collect(ImmutableList.toImmutableList());
-        // TODO: If empty, we must provide or guess the type.
-        if (values.stream().allMatch(v -> v.asScalarInteger().isPresent())) {
-          yield SEXPs.integer(
-              values.stream().mapToInt(v -> v.asScalarInteger().orElseThrow()).toArray());
-        } else if (values.stream().allMatch(v -> v.asScalarLogical().isPresent())) {
-          yield SEXPs.logical(
-              values.stream().map(v -> v.asScalarLogical().orElseThrow()).toArray(Logical[]::new));
-        } else if (values.stream().allMatch(v -> v.asScalarReal().isPresent())) {
-          yield SEXPs.real(
-              values.stream().mapToDouble(v -> v.asScalarReal().orElseThrow()).toArray());
-        } else if (values.stream().allMatch(v -> v.asScalarComplex().isPresent())) {
-          yield SEXPs.complex(
-              values.stream().map(v -> v.asScalarComplex().orElseThrow()).toArray(Complex[]::new));
-        } else if (values.stream().allMatch(v -> v.asScalarString().isPresent())) {
-          yield SEXPs.string(
-              values.stream().map(v -> v.asScalarString().orElseThrow()).toArray(String[]::new));
-        } else if (values.stream().allMatch(v -> v.asScalarRaw().isPresent())) {
-          yield SEXPs.raw(
-              values.stream().map(v -> v.asScalarRaw().orElseThrow()).toArray(Byte[]::new));
-        } else {
-          throw fail(
-              "FIŘ doesn't support creating a vector from mixed types: "
-                  + values.stream().map(SEXP::type).distinct().toList());
-        }
-      }
+      case MkVector(var elements) ->
+          mkVector(elements.stream().map(this::run).collect(ImmutableList.toImmutableList()));
       case Placeholder() -> throw fail("Can't evaluate placeholder");
       case Promise promise -> promiseStub(promise);
       case ReflectiveLoad(var promArg, var variable) -> {
@@ -519,78 +516,10 @@ public final class Interpreter {
         topFrame().put(variable, sexp);
         yield sexp;
       }
-      case SubscriptLoad(var vectorArg, var indexArg) -> {
-        var vectorSxp = run(vectorArg);
-        // Some code is redundant with `SubscriptStore` but it's not worth abstracting.
-        @SuppressWarnings("DuplicatedCode")
-        var indexSxp = run(indexArg);
-
-        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
-          throw fail("Can't subscript non-vector: " + vectorSxp);
-        }
-        var index = indexSxp.asScalarInteger().orElse(null);
-        if (index == null) {
-          throw fail("Can't subscript with non-integer index: " + indexSxp);
-        }
-
-        if (index < 0 || index >= vector.size()) {
-          throw fail(
-              "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
-        }
-
-        // Get scalar SEXP from vector SEXP
-        yield switch (vector) {
-          case LglSXP l -> SEXPs.logical(l.get(index));
-          case IntSXP i -> SEXPs.integer(i.get(index));
-          case RealSXP r -> SEXPs.real(r.get(index));
-          case ComplexSXP c -> SEXPs.complex(c.get(index));
-          case StrSXP s -> SEXPs.string(s.get(index));
-          case RawSXP r -> SEXPs.raw(r.get(index));
-          case VecSXP v -> v.get(index);
-          case ListSXP l -> l.get(index).value();
-          case ExprSXP e -> e.get(index);
-        };
-      }
-      case SubscriptStore(var vectorArg, var indexArg, var valueArg) -> {
-        var vectorSxp = run(vectorArg);
-        // Some code is redundant with `SubscriptLoad` but it's not worth abstracting.
-        @SuppressWarnings("DuplicatedCode")
-        var indexSxp = run(indexArg);
-        var valueSxp = run(valueArg);
-
-        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
-          throw fail("Can't subscript non-vector: " + vectorSxp);
-        }
-        var index = indexSxp.asScalarInteger().orElse(null);
-        if (index == null) {
-          throw fail("Can't subscript with non-integer index: " + indexSxp);
-        }
-        var value = valueSxp.as(vector.getCanonicalType()).orElse(null);
-        if (value == null) {
-          throw fail("Can't store " + valueSxp.type() + " value in " + vector.type() + " vector");
-        }
-
-        if (index < 0 || index >= vector.size()) {
-          throw fail(
-              "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
-        }
-
-        // Set scalar SEXP in vector SEXP
-        // Get scalar SEXP from vector SEXP
-        switch (vector) {
-          case LglSXP l -> l.set(index, value.asScalarLogical().orElseThrow());
-          case IntSXP i -> i.set(index, value.asScalarInteger().orElseThrow());
-          case RealSXP r -> r.set(index, value.asScalarReal().orElseThrow());
-          case ComplexSXP c -> c.set(index, value.asScalarComplex().orElseThrow());
-          case StrSXP s -> s.set(index, value.asScalarString().orElseThrow());
-          case RawSXP r -> r.set(index, value.asScalarRaw().orElseThrow());
-          case VecSXP v -> v.set(index, value);
-          case ListSXP l -> l.set(index, value);
-          case ExprSXP e -> e.get(index);
-        }
-
-        yield value;
-      }
+      case SubscriptLoad(var vectorArg, var indexArg) ->
+          subscriptLoad(run(vectorArg), run(indexArg));
+      case SubscriptStore(var vectorArg, var indexArg, var valueArg) ->
+          subscriptStore(run(vectorArg), run(indexArg), run(valueArg));
       case SuperLoad(var variable) -> {
         var parentEnv = topFrame().environment().parent();
         var value = parentEnv.get(variable.name()).orElse(null);
@@ -635,28 +564,92 @@ public final class Interpreter {
     return value;
   }
 
-  /// Function lookup implementation.
-  private Function loadFun(NamedVariable variable) {
-    var env = topFrame().environment();
-    while (!(env instanceof EmptyEnvSXP)) {
-      var value = env.getLocal(variable.name()).orElse(null);
-      if (value instanceof CloSXP cloSxp) {
-        var function = closures.get(cloSxp);
-        if (function == null) {
-          throw fail("Can't call closure created outside the interpreter: " + cloSxp);
-        }
-        // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
-        if (module.localFunction(function.name()) != function
-            && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
-          throw fail(
-              "Can't call function that was removed or is from another module: " + function.name());
-        }
-        return function;
-      }
-
-      env = env.parent();
+  private SEXP mkVector(ImmutableList<SEXP> values) {
+    // TODO: If empty, we must provide or guess the type.
+    if (values.stream().allMatch(v -> v.asScalarInteger().isPresent())) {
+      return SEXPs.integer(
+          values.stream().mapToInt(v -> v.asScalarInteger().orElseThrow()).toArray());
+    } else if (values.stream().allMatch(v -> v.asScalarLogical().isPresent())) {
+      return SEXPs.logical(
+          values.stream().map(v -> v.asScalarLogical().orElseThrow()).toArray(Logical[]::new));
+    } else if (values.stream().allMatch(v -> v.asScalarReal().isPresent())) {
+      return SEXPs.real(values.stream().mapToDouble(v -> v.asScalarReal().orElseThrow()).toArray());
+    } else if (values.stream().allMatch(v -> v.asScalarComplex().isPresent())) {
+      return SEXPs.complex(
+          values.stream().map(v -> v.asScalarComplex().orElseThrow()).toArray(Complex[]::new));
+    } else if (values.stream().allMatch(v -> v.asScalarString().isPresent())) {
+      return SEXPs.string(
+          values.stream().map(v -> v.asScalarString().orElseThrow()).toArray(String[]::new));
+    } else if (values.stream().allMatch(v -> v.asScalarRaw().isPresent())) {
+      return SEXPs.raw(
+          values.stream().map(v -> v.asScalarRaw().orElseThrow()).toArray(Byte[]::new));
+    } else {
+      throw fail(
+          "FIŘ doesn't support creating a vector from mixed types: "
+              + values.stream().map(SEXP::type).distinct().toList());
     }
-    throw fail("Unbound function: " + variable.name());
+  }
+
+  private SEXP subscriptLoad(SEXP vectorSxp, SEXP indexSxp) {
+    if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
+      throw fail("Can't subscript non-vector: " + vectorSxp);
+    }
+    var index = indexSxp.asScalarInteger().orElse(null);
+    if (index == null) {
+      throw fail("Can't subscript with non-integer index: " + indexSxp);
+    }
+
+    if (index < 0 || index >= vector.size()) {
+      throw fail(
+          "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
+    }
+
+    // Get scalar SEXP from vector SEXP
+    return switch (vector) {
+      case LglSXP l -> SEXPs.logical(l.get(index));
+      case IntSXP i -> SEXPs.integer(i.get(index));
+      case RealSXP r -> SEXPs.real(r.get(index));
+      case ComplexSXP c -> SEXPs.complex(c.get(index));
+      case StrSXP s -> SEXPs.string(s.get(index));
+      case RawSXP r -> SEXPs.raw(r.get(index));
+      case VecSXP v -> v.get(index);
+      case ListSXP l -> l.get(index).value();
+      case ExprSXP e -> e.get(index);
+    };
+  }
+
+  private SEXP subscriptStore(SEXP vectorSxp, SEXP indexSxp, SEXP valueSxp) {
+    if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
+      throw fail("Can't subscript non-vector: " + vectorSxp);
+    }
+    var index = indexSxp.asScalarInteger().orElse(null);
+    if (index == null) {
+      throw fail("Can't subscript with non-integer index: " + indexSxp);
+    }
+    var value = valueSxp.as(vector.getCanonicalType()).orElse(null);
+    if (value == null) {
+      throw fail("Can't store " + valueSxp.type() + " value in " + vector.type() + " vector");
+    }
+
+    if (index < 0 || index >= vector.size()) {
+      throw fail(
+          "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
+    }
+
+    // Set scalar SEXP in vector SEXP
+    switch (vector) {
+      case LglSXP l -> l.set(index, value.asScalarLogical().orElseThrow());
+      case IntSXP i -> i.set(index, value.asScalarInteger().orElseThrow());
+      case RealSXP r -> r.set(index, value.asScalarReal().orElseThrow());
+      case ComplexSXP c -> c.set(index, value.asScalarComplex().orElseThrow());
+      case StrSXP s -> s.set(index, value.asScalarString().orElseThrow());
+      case RawSXP r -> r.set(index, value.asScalarRaw().orElseThrow());
+      case VecSXP v -> v.set(index, value);
+      case ListSXP l -> l.set(index, value);
+      case ExprSXP e -> e.get(index);
+    }
+
+    return value;
   }
 
   /// Evaluate a promise that was created by the interpreter.
@@ -776,6 +769,21 @@ public final class Interpreter {
   /// We don't actually know the function's possible parameters in the general case,
   /// nor do we use them, so we statically specify that it may take any parameters.
   private static final ListSXP CLOSURE_STUB_PARAMETERS = SEXPs.list(TaggedElem.DOTS);
+
+  /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].
+  private Function extractClosure(CloSXP cloSxp) {
+    var function = closures.get(cloSxp);
+    if (function == null) {
+      throw fail("Can't call closure created outside the interpreter: " + cloSxp);
+    }
+    // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
+    if (module.localFunction(function.name()) != function
+        && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
+      throw fail(
+          "Can't call function that was removed or is from another module: " + function.name());
+    }
+    return function;
+  }
 
   /// Returns a [CloSXP] wrapping the [Function], which can be function looked-up and dynamically
   /// called by the interpreter.

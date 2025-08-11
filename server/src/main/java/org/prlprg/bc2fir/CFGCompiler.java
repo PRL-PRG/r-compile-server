@@ -34,6 +34,8 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.LoadFun;
+import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
@@ -50,6 +52,7 @@ import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
@@ -408,22 +411,25 @@ public class CFGCompiler {
         pushInsert(new MaybeForce(pop()));
       }
       case BcInstr.SetVar(var name) -> insert(new Store(getVar(name), top()));
-      case BcInstr.GetFun(var name) -> pushCall(getVar(name));
-        // TODO: Ensure function lookup is global.
-      case BcInstr.GetGlobFun(var name) -> pushCall(getVar(name));
+      case BcInstr.GetFun(var name) -> {
+        var fun = insertAndReturn(new LoadFun(getVar(name), Env.LOCAL));
+        pushCall(fun.variable());
+      }
+      case BcInstr.GetGlobFun(var name) -> {
+        var fun = insertAndReturn(new LoadFun(getVar(name), Env.GLOBAL));
+        pushCall(fun.variable());
+      }
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
       case BcInstr.GetSymFun(var name) -> pushCall(new Builtin(get(name).name()));
       case BcInstr.GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case BcInstr.GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case BcInstr.CheckFun() -> {
-        var fun = pop();
-        insert(checkFun(fun));
-        // TODO: Fix ugly implementation: we must store `pop` in a variable so we can dynamically
-        //  call it, since dynamic call does function lookup by variable name.
-        var funVar = Variable.named("*tmp*");
-        insert(new Store(funVar, fun));
-        pushCall(funVar);
+        if (!(pop() instanceof Read(var fun))) {
+          throw failUnsupported("CheckFun on a constant");
+        }
+        insert(checkFun(new Read(fun)));
+        pushCall(fun);
       }
       case BcInstr.MakeProm(var code) -> {
         if (!(this.get(code) instanceof BCodeSXP bcSxp)) {
@@ -475,7 +481,7 @@ public class CFGCompiler {
             SEXPs.closure(
                 forms, body, SEXPs.EMPTY_ENV, ast == null ? null : Attributes.srcref(ast));
 
-        // TODO: infer name. Eventually, we also must handle name conflicts.
+        // TODO: infer name if possible. Eventually, we also must handle name conflicts.
         var generatedName = "inner" + module().localFunctions().size();
 
         var code = ClosureCompiler.compile(module(), generatedName, cloSxp);
@@ -781,8 +787,8 @@ public class CFGCompiler {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
         var fun = Variable.named(((RegSymSXP) expr.fun()).name());
-        var sym = insertAndReturn(loadFun(fun, Env.LOCAL));
-        var base = insertAndReturn(loadFun(fun, Env.BASE));
+        var sym = insertAndReturn(new LoadFun(fun, Env.LOCAL));
+        var base = insertAndReturn(new LoadFun(fun, Env.BASE));
         var guard = insertAndReturn(builtin("==", sym, base));
 
         var safeBb = cfg.addBB();
@@ -802,7 +808,9 @@ public class CFGCompiler {
             expr.args().values().stream()
                 .map(v -> (Argument) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
-        pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(fun, argNames), args));
+        pushInsert(
+            new org.prlprg.fir.ir.expression.Call(
+                new DynamicCallee(base.variable(), argNames), args));
         setJump(goto_(afterBb));
 
         moveTo(safeBb);
@@ -946,8 +954,8 @@ public class CFGCompiler {
     var args = call.args.stream().map(arg -> arg.node).collect(ImmutableList.toImmutableList());
     var callInstr =
         switch (call.fun) {
-          case Call.Fun.Variable(var funName) ->
-              new org.prlprg.fir.ir.expression.Call(new DynamicCallee(funName, names), args);
+          case Call.Fun.Dynamic(var fun) ->
+              new org.prlprg.fir.ir.expression.Call(new DynamicCallee(fun, names), args);
           case Call.Fun.Builtin(var builtin) ->
               builtin(builtin.name, args.toArray(Argument[]::new));
         };
@@ -1064,7 +1072,7 @@ public class CFGCompiler {
 
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and return that register.
-  private Argument insertAndReturn(Expression expression) {
+  private Read insertAndReturn(Expression expression) {
     var tempVar = cfg.scope().addLocal();
     insert(new Statement(tempVar, expression));
     return new Read(tempVar);
@@ -1278,8 +1286,8 @@ public class CFGCompiler {
   }
 
   /// Begin a new call of the given function (abstract value).
-  private void pushCall(NamedVariable fun) {
-    callStack.add(new Call(new Call.Fun.Variable(fun)));
+  private void pushCall(Register fun) {
+    callStack.add(new Call(new Call.Fun.Dynamic(fun)));
   }
 
   /// Begin a new call of the given function (statically known builtin).
@@ -1392,22 +1400,6 @@ public class CFGCompiler {
     return builtin("warning", new Constant(SEXPs.string(message)));
   }
 
-  enum Env {
-    LOCAL,
-    GLOBAL,
-    BASE
-  }
-
-  /// Stub for loaded function, which can fallback to an intrinsic but usually gets caught and
-  /// turned into [DynamicCallee].
-  private Expression loadFun(NamedVariable name, Env env) {
-    return intrinsic(
-        "loadFun",
-        0,
-        new Constant(SEXPs.string(name.name())),
-        new Constant(SEXPs.integer(env.ordinal())));
-  }
-
   /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to
   /// an intrinsic but usually gets caught and turned into [DynamicCallee].
   private Expression checkFun(Argument fun) {
@@ -1496,7 +1488,7 @@ public class CFGCompiler {
     }
 
     sealed interface Fun {
-      record Variable(NamedVariable name) implements Fun {}
+      record Dynamic(Register function) implements Fun {}
 
       record Builtin(CFGCompiler.Builtin builtin) implements Fun {}
     }

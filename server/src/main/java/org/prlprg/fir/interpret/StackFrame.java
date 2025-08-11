@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.UserEnvSXP;
@@ -64,6 +65,11 @@ final class StackFrame {
       case Register r -> registers.get(r);
       case NamedVariable nv -> environment.get(nv.name()).orElse(null);
     };
+  }
+
+  /// Function lookup named variable.
+  public @Nullable CloSXP getFunction(NamedVariable variable) {
+    return environment.getFunction(variable.name()).orElse(null);
   }
 
   /// Set local register or store named variable.

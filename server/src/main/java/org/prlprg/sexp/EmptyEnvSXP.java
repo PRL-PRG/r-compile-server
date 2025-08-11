@@ -38,6 +38,11 @@ public final class EmptyEnvSXP implements StaticEnvSXP {
   }
 
   @Override
+  public Optional<CloSXP> getFunction(String name) {
+    return Optional.empty();
+  }
+
+  @Override
   public void set(String name, SEXP value) {
     throw new UnsupportedOperationException("cannot set a value in the empty environment");
   }
