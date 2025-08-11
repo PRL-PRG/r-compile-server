@@ -96,7 +96,7 @@ final class InterpreterTest {
     }
   }
 
-  /// Hijack some builtins and intrinsics in the interpreter.
+  /// Hijack unimplemented functions in the examples, e.g. `inc`.
   private void registerBuiltins(Interpreter interpreter) {
     if (interpreter.module().lookupFunction("inc") != null) {
       interpreter.registerExternalVersion(
