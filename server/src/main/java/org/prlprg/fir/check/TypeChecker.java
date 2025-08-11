@@ -30,6 +30,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
@@ -204,10 +205,11 @@ public final class TypeChecker extends Checker {
               }
               case DynamicCallee(var calleeVariable, var argumentNames) -> {
                 var calleeType = typeOf(calleeVariable);
-                // Concreteness is [MAYBE], we only care about the kind.
-                if (!(calleeType.kind() instanceof Kind.Closure)) {
+                if (calleeType == null) {
+                  report("Undeclared register: " + calleeVariable);
+                } else if (!calleeType.isDefinitely(Kind.Closure.class)) {
                   report(
-                      "Dynamic call target must be a closure, got "
+                      "Dynamic callee must be a closure, got "
                           + calleeVariable
                           + " {: "
                           + calleeType
@@ -284,6 +286,7 @@ public final class TypeChecker extends Checker {
             }
           }
           case Load(var variable) -> typeOf(variable);
+          case LoadFun(var _, var _) -> Type.CLOSURE;
           case MaybeForce(var value) -> {
             var type = run(value);
             if (type == null) {

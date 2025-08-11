@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
@@ -24,6 +25,7 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Characters;
@@ -38,6 +40,7 @@ public sealed interface Expression
         Aea,
         Force,
         Load,
+        LoadFun,
         MaybeForce,
         MkVector,
         Placeholder,
@@ -90,9 +93,7 @@ public sealed interface Expression
     if (headAsName != null) {
       switch (headAsName) {
         case "clos" -> {
-          s.assertAndSkip('(');
           var functionName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
-          s.assertAndSkip(')');
 
           // We must defer setting the function in case it's a forward reference.
           @SuppressWarnings("DataFlowIssue")
@@ -126,11 +127,9 @@ public sealed interface Expression
           return new Promise(valueType, effects, code);
         }
         case "dyn" -> {
-          s.assertAndSkip('<');
-          var variable = p2.parse(NamedVariable.class);
+          var variable = p2.parse(Register.class);
           var argumentNames =
               s.nextCharIs('[') ? p.parseList("[", "]", String.class) : ImmutableList.<String>of();
-          s.assertAndSkip('>');
           var arguments = p.parseList("(", ")", Argument.class);
           return new Call(new DynamicCallee(variable, argumentNames), arguments);
         }
@@ -142,6 +141,14 @@ public sealed interface Expression
         case "dup" -> {
           var value = p.parse(Argument.class);
           return new Dup(value);
+        }
+        case "ldf" -> {
+          var variable = p2.parse(NamedVariable.class);
+          var env =
+              s.runWithWhitespacePolicy(
+                  SkipWhitespace.ALL_EXCEPT_NEWLINES,
+                  () -> s.trySkip("in ") ? p.parse(Env.class) : Env.LOCAL);
+          return new LoadFun(variable, env);
         }
         case "use" -> {
           var variable = p.parse(Register.class);

@@ -34,6 +34,15 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   Optional<SEXP> get(String name);
 
   /**
+   * GNU-R function lookup; like {@link #get(String)} but ignores (goes through) non-function {@link
+   * SEXP}s.
+   *
+   * @param name the name of the symbol
+   * @return the value of the symbol, if found
+   */
+  Optional<CloSXP> getFunction(String name);
+
+  /**
    * Set the value of a symbol in the environment.
    *
    * @param name the name of the symbol

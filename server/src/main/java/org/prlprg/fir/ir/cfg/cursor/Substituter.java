@@ -19,6 +19,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
@@ -143,6 +144,7 @@ public class Substituter {
       case Dup(var value) -> new Dup(substitute(value, substitutions));
       case Force(var value) -> new Force(substitute(value, substitutions));
       case Load(var variable) -> new Load(variable);
+      case LoadFun(var variable, var env) -> new LoadFun(variable, env);
       case MaybeForce(var value) -> new MaybeForce(substitute(value, substitutions));
       case MkVector(var elements) ->
           new MkVector(

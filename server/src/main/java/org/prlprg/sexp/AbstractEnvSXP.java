@@ -34,6 +34,14 @@ abstract class AbstractEnvSXP {
   }
 
   // @Override
+  public Optional<CloSXP> getFunction(String name) {
+    return getLocal(name)
+        .filter(CloSXP.class::isInstance)
+        .map(CloSXP.class::cast)
+        .or(() -> parent.getFunction(name));
+  }
+
+  // @Override
   public Optional<SEXP> getLocal(String name) {
     return Optional.ofNullable(bindings.get(name));
   }
