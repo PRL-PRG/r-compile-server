@@ -53,6 +53,82 @@ static int fits_in(int64_t value, int size)
     }
 }
 
+static size_t align_to_higher(size_t size, size_t alignment)
+{
+    if (alignment == 0)
+    {
+        return size; // No alignment needed
+    }
+    return (size + alignment - 1) & ~(alignment - 1);
+}
+
+static void *find_free_space_near(void *target_ptr, size_t size)
+{
+    uintptr_t target = (uintptr_t)target_ptr;
+    FILE *maps = fopen("/proc/self/maps", "r");
+    if (!maps)
+    {
+        perror("fopen");
+        return NULL;
+    }
+
+    uintptr_t prev_start = 0, prev_end = 0;
+    ptrdiff_t best_diff = PTRDIFF_MAX;
+    uintptr_t best_addr = 0;
+
+    char line[256];
+    while (fgets(line, sizeof(line), maps))
+    {
+        uintptr_t start, end;
+        if (sscanf(line, "%lx-%lx", &start, &end) != 2)
+            continue;
+
+        // Check for gap between previous and current region
+        if (prev_end && (start > prev_end))
+        {
+            size_t gap = start - prev_end;
+            if (gap >= size)
+            {
+                uintptr_t candidate = prev_end;
+                ptrdiff_t diff = (candidate > target) ? (candidate - target) : (target - candidate);
+                if (diff < best_diff)
+                {
+                    best_diff = diff;
+                    best_addr = candidate;
+                }
+            }
+        }
+
+        prev_start = start;
+        prev_end = end;
+    }
+
+    fclose(maps);
+
+    return (void *)best_addr;
+}
+
+void *near_memory_start = NULL;
+
+static void refresh_near_memory_ptr(size_t size)
+{
+#ifdef MCMODEL_SMALL
+    near_memory_start = find_free_space_near(&Rf_ScalarInteger, size);
+#endif
+}
+
+static void* get_near_memory(size_t size)
+{
+#ifdef MCMODEL_SMALL
+    void *res = near_memory_start;
+    near_memory_start += align_to_higher(size, getpagesize());
+    return res;
+#else
+    return NULL;
+#endif
+}
+
+
 #define X_MATH1_OPS                                                            \
   X(sqrt, SQRT_OP, Sqrt)                                                       \
   X(exp, EXP_OP, Exp)
@@ -492,61 +568,6 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
     memcpy(&dst[hole->offset], &ptr, hole->size);
 }
 
-static size_t align_to_higher(size_t size, size_t alignment)
-{
-    if (alignment == 0)
-    {
-        return size; // No alignment needed
-    }
-    return (size + alignment - 1) & ~(alignment - 1);
-}
-
-static void *find_free_space_near(void *target_ptr, size_t size)
-{
-    uintptr_t target = (uintptr_t)target_ptr;
-    FILE *maps = fopen("/proc/self/maps", "r");
-    if (!maps)
-    {
-        perror("fopen");
-        return NULL;
-    }
-
-    uintptr_t prev_start = 0, prev_end = 0;
-    ptrdiff_t best_diff = PTRDIFF_MAX;
-    uintptr_t best_addr = 0;
-
-    char line[256];
-    while (fgets(line, sizeof(line), maps))
-    {
-        uintptr_t start, end;
-        if (sscanf(line, "%lx-%lx", &start, &end) != 2)
-            continue;
-
-        // Check for gap between previous and current region
-        if (prev_end && (start > prev_end))
-        {
-            size_t gap = start - prev_end;
-            if (gap >= size)
-            {
-                uintptr_t candidate = prev_end;
-                ptrdiff_t diff = (candidate > target) ? (candidate - target) : (target - candidate);
-                if (diff < best_diff)
-                {
-                    best_diff = diff;
-                    best_addr = candidate;
-                }
-            }
-        }
-
-        prev_start = start;
-        prev_end = end;
-    }
-
-    fclose(maps);
-
-    return (void *)best_addr;
-}
-
 static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_constpool)
 {
     // For speciailized stencils
@@ -712,11 +733,20 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
     size_t total_size = rodata_size + sizeof(SEXP) + insts_size + bcells_size * sizeof(SEXP) + sizeof(precompiled_functions) + (for_count * sizeof(StepFor_specialized));
 
-    void *mem_address = find_free_space_near(&Rf_ScalarInteger, total_size);
+    uint8_t *memory = mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-    uint8_t *memory = mmap(mem_address, total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (memory == MAP_FAILED)
+    {
+#ifdef MCMODEL_SMALL
+        fprintf(stderr, "mmap failed, trying to refresh near memory pointer...\n");
+        refresh_near_memory_ptr(total_size);
+        memory = mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (memory == MAP_FAILED)
+            exit(1);
+#else
         exit(1);
+#endif
+    }
 
     res.memory_private = memory;
     res.memory_private_size = total_size;
@@ -971,6 +1001,8 @@ void rcp_init(void)
 #ifdef STEPFOR_SPECIALIZE
     prepare_stepfor();
 #endif
+
+    refresh_near_memory_ptr(0);
 }
 
 void rcp_destr(void)
