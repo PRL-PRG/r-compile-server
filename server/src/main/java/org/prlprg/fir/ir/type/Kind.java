@@ -61,6 +61,47 @@ public sealed interface Kind extends Comparable<Kind> {
     };
   }
 
+  /// Comparison is subtyping arbitrarily extended to be totally ordered.
+  @Override
+  default int compareTo(Kind o) {
+    return switch (o) {
+      case Any() -> (this instanceof Any) ? 0 : -1;
+      case AnyValue() ->
+          switch (this) {
+            case Any() -> 1;
+            case AnyValue() -> 0;
+            default -> -1;
+          };
+      case PrimitiveScalar(var otherPrimitive) ->
+          switch (this) {
+            case Any(), AnyValue() -> 1;
+            case PrimitiveScalar(var primitive) -> primitive.compareTo(otherPrimitive);
+            default -> -1;
+          };
+      case PrimitiveVector(var otherPrimitive) ->
+          switch (this) {
+            case Any(), AnyValue(), PrimitiveScalar(_) -> 1;
+            case PrimitiveVector(var primitive) -> primitive.compareTo(otherPrimitive);
+            default -> -1;
+          };
+      case Closure() ->
+          switch (this) {
+            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_) -> 1;
+            case Closure() -> 0;
+            default -> -1;
+          };
+      case Promise(var otherValue, var otherEffects) ->
+          switch (this) {
+            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_), Closure() -> 1;
+            case Promise(var value, var effects) -> {
+              int cmp = value.compareTo(otherValue);
+              if (cmp != 0) yield cmp;
+              yield effects.compareTo(otherEffects);
+            }
+          };
+    };
+  }
+
   default Kind union(Kind other, Runnable onOwnershipMismatch) {
     return switch (other) {
       case Any() -> other;
@@ -72,47 +113,6 @@ public sealed interface Kind extends Comparable<Kind> {
               ? new Promise(
                   value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects))
               : new Any();
-    };
-  }
-
-  /// Comparison is subtyping arbitrarily extended to be totally ordered.
-  @Override
-  default int compareTo(Kind o) {
-    return switch (this) {
-      case Any() -> (o instanceof Any) ? 0 : -1;
-      case AnyValue() ->
-          switch (o) {
-            case Any() -> 1;
-            case AnyValue() -> 0;
-            default -> -1;
-          };
-      case PrimitiveScalar(var primitive) ->
-          switch (o) {
-            case Any(), AnyValue() -> 1;
-            case PrimitiveScalar(var otherPrimitive) -> primitive.compareTo(otherPrimitive);
-            default -> -1;
-          };
-      case PrimitiveVector(var primitive) ->
-          switch (o) {
-            case Any(), AnyValue(), PrimitiveScalar(_) -> 1;
-            case PrimitiveVector(var otherPrimitive) -> primitive.compareTo(otherPrimitive);
-            default -> -1;
-          };
-      case Closure() ->
-          switch (o) {
-            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_) -> 1;
-            case Closure() -> 0;
-            default -> -1;
-          };
-      case Promise(var value, var effects) ->
-          switch (o) {
-            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_), Closure() -> 1;
-            case Promise(var otherValue, var otherEffects) -> {
-              int cmp = value.compareTo(otherValue);
-              if (cmp != 0) yield cmp;
-              yield effects.compareTo(otherEffects);
-            }
-          };
     };
   }
 

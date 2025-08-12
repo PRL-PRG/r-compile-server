@@ -81,9 +81,9 @@ public final class TypeChecker extends Checker {
       }
 
       cfg.checkWellFormed(abstraction.returnType());
-      if (!abstraction.returnType().isSubtypeOf(Type.ANY_VALUE)) {
+      if (!abstraction.returnType().canBeAssignedTo(Type.ANY_VALUE)) {
         cfg.report(
-            "Return type must subtype value (note: \"maybe\" types aren't guaranteed to be values): "
+            "Return type's kind must subtype `V` and it must be definite: "
                 + abstraction.returnType());
       }
 
@@ -165,7 +165,7 @@ public final class TypeChecker extends Checker {
         return switch (expression) {
           case Aea(var value) -> run(value);
           case Call call -> {
-            var argumentTypes = call.arguments().stream().map(this::run).toList();
+            var argumentTypes = call.callArguments().stream().map(this::run).toList();
 
             Function<Abstraction, Type> finish =
                 callee -> {
@@ -203,14 +203,12 @@ public final class TypeChecker extends Checker {
 
                 yield finish.apply(version);
               }
-              case DynamicCallee(var calleeVariable, var argumentNames) -> {
-                var calleeType = typeOf(calleeVariable);
-                if (calleeType == null) {
-                  report("Undeclared register: " + calleeVariable);
-                } else if (!calleeType.isDefinitely(Kind.Closure.class)) {
+              case DynamicCallee(var actualCallee, var argumentNames) -> {
+                var calleeType = run(actualCallee);
+                if (calleeType != null && !calleeType.isDefinitely(Kind.Closure.class)) {
                   report(
                       "Dynamic callee must be a closure, got "
-                          + calleeVariable
+                          + actualCallee
                           + " {: "
                           + calleeType
                           + "}");

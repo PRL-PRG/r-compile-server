@@ -52,7 +52,6 @@ import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
-import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
@@ -413,11 +412,11 @@ public class CFGCompiler {
       case BcInstr.SetVar(var name) -> insert(new Store(getVar(name), top()));
       case BcInstr.GetFun(var name) -> {
         var fun = insertAndReturn(new LoadFun(getVar(name), Env.LOCAL));
-        pushCall(fun.variable());
+        pushCall(fun);
       }
       case BcInstr.GetGlobFun(var name) -> {
         var fun = insertAndReturn(new LoadFun(getVar(name), Env.GLOBAL));
-        pushCall(fun.variable());
+        pushCall(fun);
       }
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
@@ -425,10 +424,8 @@ public class CFGCompiler {
       case BcInstr.GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case BcInstr.GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case BcInstr.CheckFun() -> {
-        if (!(pop() instanceof Read(var fun))) {
-          throw failUnsupported("CheckFun on a constant");
-        }
-        insert(checkFun(new Read(fun)));
+        var fun = pop();
+        insert(checkFun(fun));
         pushCall(fun);
       }
       case BcInstr.MakeProm(var code) -> {
@@ -808,9 +805,7 @@ public class CFGCompiler {
             expr.args().values().stream()
                 .map(v -> (Argument) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
-        pushInsert(
-            new org.prlprg.fir.ir.expression.Call(
-                new DynamicCallee(base.variable(), argNames), args));
+        pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(base, argNames), args));
         setJump(goto_(afterBb));
 
         moveTo(safeBb);
@@ -976,10 +971,11 @@ public class CFGCompiler {
     // call, which is different than the AST interpreter which errors regardless. This and the fact
     // that the stack now has an extra value until the function returns, are why it may be a bug.
     if (callInstr instanceof org.prlprg.fir.ir.expression.Call c
-        && c.callee() instanceof DynamicCallee ca
-        && ca.variable().name().equals("stop")
-        && c.arguments().size() == 1
-        && c.arguments()
+        && c.callee() instanceof DynamicCallee(var ac, var _)
+        && ac instanceof Read(var v)
+        && v.name().equals("stop")
+        && c.callArguments().size() == 1
+        && c.callArguments()
             .getFirst()
             .equals(new Constant(SEXPs.string("empty alternative in numeric switch")))
         && !(bc.code().get(bcPos + 1) instanceof BcInstr.Return)) {
@@ -1072,7 +1068,7 @@ public class CFGCompiler {
 
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and return that register.
-  private Read insertAndReturn(Expression expression) {
+  private Argument insertAndReturn(Expression expression) {
     var tempVar = cfg.scope().addLocal();
     insert(new Statement(tempVar, expression));
     return new Read(tempVar);
@@ -1286,7 +1282,7 @@ public class CFGCompiler {
   }
 
   /// Begin a new call of the given function (abstract value).
-  private void pushCall(Register fun) {
+  private void pushCall(Argument fun) {
     callStack.add(new Call(new Call.Fun.Dynamic(fun)));
   }
 
@@ -1488,7 +1484,7 @@ public class CFGCompiler {
     }
 
     sealed interface Fun {
-      record Dynamic(Register function) implements Fun {}
+      record Dynamic(Argument function) implements Fun {}
 
       record Builtin(CFGCompiler.Builtin builtin) implements Fun {}
     }

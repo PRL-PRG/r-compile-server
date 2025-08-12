@@ -6,5 +6,5 @@ main <- function() {
 }
 
 if0 <- function(cond, true, false) {
-  if (cond) true else false
+  if (cond == 0) true else false
 }

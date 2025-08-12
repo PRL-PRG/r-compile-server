@@ -127,11 +127,11 @@ public sealed interface Expression
           return new Promise(valueType, effects, code);
         }
         case "dyn" -> {
-          var variable = p2.parse(Register.class);
+          var actualCallee = p.parse(Argument.class);
           var argumentNames =
               s.nextCharIs('[') ? p.parseList("[", "]", String.class) : ImmutableList.<String>of();
           var arguments = p.parseList("(", ")", Argument.class);
-          return new Call(new DynamicCallee(variable, argumentNames), arguments);
+          return new Call(new DynamicCallee(actualCallee, argumentNames), arguments);
         }
         case "force" -> {
           var isMaybe = s.trySkip('?');

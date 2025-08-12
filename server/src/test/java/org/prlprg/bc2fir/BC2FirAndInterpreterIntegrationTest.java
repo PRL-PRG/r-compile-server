@@ -16,7 +16,6 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.DirectorySource;
-import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
@@ -61,7 +60,7 @@ public class BC2FirAndInterpreterIntegrationTest {
     } catch (CFGCompilerException | ClosureCompilerUnsupportedException e) {
       fail("Bytecode->FIŘ compiler crashed", e);
     } catch (InterpretException e) {
-      fail("FIŘ interpreter crashed.\n\nFIŘ module" + Objects.requireNonNull(firModule), e);
+      fail("FIŘ interpreter crashed.\n\nFIŘ module:\n" + Objects.requireNonNull(firModule), e);
     }
   }
 
@@ -93,10 +92,17 @@ public class BC2FirAndInterpreterIntegrationTest {
           }
         });
     interpreter.registerExternalFunction(
-        "c",
+        "==",
         (_, _, args, _) -> {
-          // TODO: Call interpreter
-          throw new NotImplementedError();
+          if (args.size() != 2) {
+            throw new IllegalArgumentException("`==` takes 2 arguments");
+          }
+          var arg0 = args.getFirst();
+          var arg1 = args.get(1);
+
+          return SEXPs.logical(arg0.equals(arg1));
         });
+    interpreter.registerExternalFunction(
+        "c", (interpreter1, _, args, _) -> interpreter1.mkVector(args));
   }
 }

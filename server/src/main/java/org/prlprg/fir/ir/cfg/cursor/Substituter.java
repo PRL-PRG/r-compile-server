@@ -136,7 +136,7 @@ public class Substituter {
       case Call call ->
           new Call(
               call.callee(),
-              call.arguments().stream()
+              call.callArguments().stream()
                   .map(argument -> substitute(argument, substitutions))
                   .collect(ImmutableList.toImmutableList()));
       case Cast(var target, var type) -> new Cast(substitute(target, substitutions), type);
