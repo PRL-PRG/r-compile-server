@@ -150,6 +150,16 @@ public sealed interface Expression
                   () -> s.trySkip("in ") ? p.parse(Env.class) : Env.LOCAL);
           return new LoadFun(variable, env);
         }
+        case "ld" -> {
+          var variable = p2.parse(NamedVariable.class);
+          return new Load(variable);
+        }
+        case "st" -> {
+          var variable = p2.parse(NamedVariable.class);
+          s.assertAndSkip('=');
+          var value = p.parse(Argument.class);
+          return new Store(variable, value);
+        }
         case "use" -> {
           var variable = p.parse(Register.class);
           headAsArg = new Use(variable);
@@ -246,13 +256,6 @@ public sealed interface Expression
             });
 
         return result;
-      } else if (s.trySkip('=')) {
-        if (headAsNv == null) {
-          throw s.fail("In 'r = x = ...', 'x' must be a named variable (not a register)");
-        }
-
-        var value = p.parse(Argument.class);
-        return new Store(headAsNv, value);
       } else if (s.trySkip('$')) {
         if (headAsArg == null) {
           throw s.fail("In 'a$...', 'a' must be a register (or constant)");
@@ -290,9 +293,12 @@ public sealed interface Expression
       if (headAsArg != null) {
         return new Aea(headAsArg);
       } else {
-        // `headAsNv` is guaranteed to be non-null here (see the above
-        // `if (headAsName != null) ...`). IntelliJ suppresses the null warning.
-        return new Load(headAsNv);
+        throw s.fail(
+            "Named variable '"
+                + headAsNv.name()
+                + "' used without 'ld' prefix. Use 'ld "
+                + headAsNv.name()
+                + "' to load");
       }
     }
 

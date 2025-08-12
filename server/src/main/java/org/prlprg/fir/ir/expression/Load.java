@@ -16,6 +16,7 @@ public record Load(NamedVariable variable) implements Expression {
 
   @PrintMethod
   private void print(Printer p) {
+    p.writer().write("ld ");
     p.print(variable);
   }
 
