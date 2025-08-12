@@ -409,12 +409,15 @@ public final class Interpreter {
   }
 
   /// Evaluates an expression and returns its value.
-  private SEXP run(Expression expression) {
+  ///
+  /// @throws IllegalStateException If called outside of evaluation.
+  public SEXP run(Expression expression) {
+    checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
       case Call call -> {
         var callee = call.callee();
-        var arguments = call.arguments().stream().map(this::run).toList();
+        var arguments = call.callArguments().stream().map(this::run).toList();
         var environment = topFrame().environment();
 
         yield switch (callee) {
@@ -422,8 +425,8 @@ public final class Interpreter {
           case DispatchCallee(var function, var signature) ->
               call(function, signature, arguments, environment);
           case InlineCallee(var inlinee) -> call(inlinee, arguments, environment);
-          case DynamicCallee(var variable, var _) -> {
-            var calleeSexp = read(variable);
+          case DynamicCallee(var actualCallee, var _) -> {
+            var calleeSexp = run(actualCallee);
             if (!(calleeSexp instanceof CloSXP cloSXP)) {
               throw fail("Not a function: " + calleeSexp);
             }
@@ -516,10 +519,37 @@ public final class Interpreter {
         topFrame().put(variable, sexp);
         yield sexp;
       }
-      case SubscriptLoad(var vectorArg, var indexArg) ->
-          subscriptLoad(run(vectorArg), run(indexArg));
-      case SubscriptStore(var vectorArg, var indexArg, var valueArg) ->
-          subscriptStore(run(vectorArg), run(indexArg), run(valueArg));
+      case SubscriptLoad(var vectorArg, var indexArg) -> {
+        var vectorSxp = run(vectorArg);
+        var indexSxp = run(indexArg);
+
+        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
+          throw fail("Can't subscript non-vector: " + vectorSxp);
+        }
+
+        var index = indexSxp.asScalarInteger().orElse(null);
+        if (index == null) {
+          throw fail("Can't subscript with non-integer index: " + indexSxp);
+        }
+
+        yield subscriptLoad(vector, index);
+      }
+      case SubscriptStore(var vectorArg, var indexArg, var valueArg) -> {
+        var vectorSxp = run(vectorArg);
+        var indexSxp = run(indexArg);
+        var value = run(valueArg);
+
+        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
+          throw fail("Can't subscript non-vector: " + vectorSxp);
+        }
+
+        var index = indexSxp.asScalarInteger().orElse(null);
+        if (index == null) {
+          throw fail("Can't subscript with non-integer index: " + indexSxp);
+        }
+
+        yield subscriptStore(vector, index, value);
+      }
       case SuperLoad(var variable) -> {
         var parentEnv = topFrame().environment().parent();
         var value = parentEnv.get(variable.name()).orElse(null);
@@ -545,8 +575,11 @@ public final class Interpreter {
     };
   }
 
-  /// Evaluates an argument and returns its value.
-  private SEXP run(Argument argument) {
+  /// Evaluates an [Argument] and returns its value, e.g. [#read(Register)] if it's a [Register].
+  ///
+  /// @throws IllegalStateException If called outside of evaluation.
+  public SEXP run(Argument argument) {
+    checkEvaluation();
     return switch (argument) {
       case Constant(var constant) -> constant;
       case Read(var register) -> read(register);
@@ -556,7 +589,10 @@ public final class Interpreter {
   }
 
   /// Lookup the register and crash if it's not defined.
-  private SEXP read(Register register) {
+  ///
+  /// @throws IllegalStateException If called outside of evaluation.
+  public SEXP read(Register register) {
+    checkEvaluation();
     var value = topFrame().get(register);
     if (value == null) {
       throw fail("Uninitialized register: " + register);
@@ -564,7 +600,11 @@ public final class Interpreter {
     return value;
   }
 
-  private SEXP mkVector(ImmutableList<SEXP> values) {
+  /// Create a vector of the correct type to hold `values`
+  ///
+  /// @throws InterpretException If `values` aren't scalars or are mixed types (the former is
+  /// ambiguous, the latter is unsupported).
+  public SEXP mkVector(List<SEXP> values) {
     // TODO: If empty, we must provide or guess the type.
     if (values.stream().allMatch(v -> v.asScalarInteger().isPresent())) {
       return SEXPs.integer(
@@ -590,15 +630,7 @@ public final class Interpreter {
     }
   }
 
-  private SEXP subscriptLoad(SEXP vectorSxp, SEXP indexSxp) {
-    if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
-      throw fail("Can't subscript non-vector: " + vectorSxp);
-    }
-    var index = indexSxp.asScalarInteger().orElse(null);
-    if (index == null) {
-      throw fail("Can't subscript with non-integer index: " + indexSxp);
-    }
-
+  public SEXP subscriptLoad(ListOrVectorSXP<?> vector, int index) {
     if (index < 0 || index >= vector.size()) {
       throw fail(
           "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
@@ -618,17 +650,9 @@ public final class Interpreter {
     };
   }
 
-  private SEXP subscriptStore(SEXP vectorSxp, SEXP indexSxp, SEXP valueSxp) {
-    if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
-      throw fail("Can't subscript non-vector: " + vectorSxp);
-    }
-    var index = indexSxp.asScalarInteger().orElse(null);
-    if (index == null) {
-      throw fail("Can't subscript with non-integer index: " + indexSxp);
-    }
-    var value = valueSxp.as(vector.getCanonicalType()).orElse(null);
-    if (value == null) {
-      throw fail("Can't store " + valueSxp.type() + " value in " + vector.type() + " vector");
+  public SEXP subscriptStore(ListOrVectorSXP<?> vector, int index, SEXP value) {
+    if (!vector.getCanonicalType().isInstance(value)) {
+      throw fail("Can't store " + value.type() + " value in " + vector.type() + " vector");
     }
 
     if (index < 0 || index >= vector.size()) {
@@ -762,7 +786,16 @@ public final class Interpreter {
     return Type.of(sexp).withOwnership(ownership);
   }
 
+  private void checkEvaluation() {
+    if (stack.isEmpty()) {
+      throw new IllegalStateException("can only be called during evaluation");
+    }
+  }
+
   private StackFrame topFrame() {
+    if (stack.isEmpty()) {
+      throw new IllegalStateException("stack is empty");
+    }
     return stack.getLast();
   }
 
@@ -771,7 +804,7 @@ public final class Interpreter {
   private static final ListSXP CLOSURE_STUB_PARAMETERS = SEXPs.list(TaggedElem.DOTS);
 
   /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].
-  private Function extractClosure(CloSXP cloSxp) {
+  public Function extractClosure(CloSXP cloSxp) {
     var function = closures.get(cloSxp);
     if (function == null) {
       throw fail("Can't call closure created outside the interpreter: " + cloSxp);
@@ -787,7 +820,7 @@ public final class Interpreter {
 
   /// Returns a [CloSXP] wrapping the [Function], which can be function looked-up and dynamically
   /// called by the interpreter.
-  private CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
+  public CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
     var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name()));
     var sexp = SEXPs.closure(CLOSURE_STUB_PARAMETERS, codeStub, enclosingEnv);
     closures.put(sexp, function);
@@ -795,18 +828,20 @@ public final class Interpreter {
   }
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
-  private PromSXP promiseStub(Promise promExpr) {
+  public PromSXP promiseStub(Promise promExpr) {
     var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.integer(nextPromiseId++));
     var sexp = SEXPs.promise(codeStub, topFrame().environment());
     promises.put(sexp, new PromiseCode(promExpr, topFrame()));
     return sexp;
   }
 
-  private InterpretException fail(String message) {
+  /// Create an [InterpretException] at the current evaluation position.
+  public InterpretException fail(String message) {
     return fail(message, null);
   }
 
-  private InterpretException fail(String message, @Nullable Throwable cause) {
+  /// Create an [InterpretException] at the current evaluation position.
+  public InterpretException fail(String message, @Nullable Throwable cause) {
     return new InterpretException(message, cause, stack, globalEnv);
   }
 

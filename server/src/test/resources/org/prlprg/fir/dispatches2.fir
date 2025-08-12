@@ -1,7 +1,11 @@
 fun main {
-  () -+> V { var x:I?, reg ry:p(I +), var y:p(I +)?, reg r0:p(I -), reg r1:V |
+  () -+> V { var x:I?, reg rx0:I?, reg rx1:I, reg ry:p(I +), var y:p(I +)?, reg r0:p(I -), reg r1:V |
     x = 4;
-    ry = prom<I ->{ return x; };
+    ry = prom<I ->{
+      rx0 = x;
+      rx1 = rx0 as I;
+      return rx1;
+    };
     y = ry;
     r0 = prom<I ->{ return 2; };
     r1 = f(r0);

@@ -31,5 +31,11 @@ public class Lists {
     return new ConcatListView<>(a, b);
   }
 
+  /** Returns a readonly list which lazily concatenates the elements in the three lists. */
+  public static <T> @UnmodifiableView List<T> concatLazy(
+      List<? extends T> a, List<? extends T> b, List<? extends T> c) {
+    return new ConcatListView<>(a, new ConcatListView<>(b, c));
+  }
+
   private Lists() {}
 }

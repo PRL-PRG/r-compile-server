@@ -164,6 +164,17 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
         && concreteness.isSubsetOf(other.concreteness);
   }
 
+  @Override
+  public int compareTo(Type o) {
+    int cmp = kind.compareTo(o.kind);
+    if (cmp != 0) return cmp;
+
+    cmp = ownership.compareTo(o.ownership);
+    if (cmp != 0) return cmp;
+
+    return concreteness.compareTo(o.concreteness);
+  }
+
   public Type union(Type other, Runnable onOwnershipMismatch) {
     if (ownership != other.ownership) {
       onOwnershipMismatch.run();
@@ -175,17 +186,6 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
         kind.union(other.kind, onOwnershipMismatch),
         ownership,
         concreteness.union(other.concreteness));
-  }
-
-  @Override
-  public int compareTo(Type o) {
-    int cmp = kind.compareTo(o.kind);
-    if (cmp != 0) return cmp;
-
-    cmp = ownership.compareTo(o.ownership);
-    if (cmp != 0) return cmp;
-
-    return concreteness.compareTo(o.concreteness);
   }
 
   @Override

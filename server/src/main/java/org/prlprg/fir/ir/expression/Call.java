@@ -1,20 +1,28 @@
 package org.prlprg.fir.ir.expression;
 
 import com.google.common.collect.ImmutableList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.callee.Callee;
+import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.InlineCallee;
+import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Lists;
 
 public final class Call implements Expression {
   private @Nullable Callee callee;
-  private final ImmutableList<Argument> arguments;
+  private final ImmutableList<Argument> callArguments;
 
-  public Call(Callee callee, ImmutableList<Argument> arguments) {
+  public Call(Callee callee, ImmutableList<Argument> callArguments) {
     this.callee = callee;
-    this.arguments = arguments;
+    this.callArguments = callArguments;
   }
 
   /// Only called when parsing, since the callee may be in a function that's parsed later, and we
@@ -30,11 +38,24 @@ public final class Call implements Expression {
     return Objects.requireNonNull(callee, "callee was deferred and not set");
   }
 
-  /// Call arguments, also happens to be [Expression#arguments()] which is every [Argument]
-  /// in the expression (since the callee never contains an [Argument]).
+  public ImmutableList<Argument> callArguments() {
+    return callArguments;
+  }
+
+  /// *Not* just [#callArguments()], but the [callee][DynamicCallee#actualCallee()] if it's
+  /// [`DynamicCallee`][org.prlprg.fir.ir.callee.DynamicCallee].
+  ///
+  /// @deprecated You probably want [#callArguments()]. If not, do
+  // `((Expression)call).arguments()`.
+  @Deprecated
   @Override
-  public ImmutableList<Argument> arguments() {
-    return arguments;
+  public @UnmodifiableView Collection<Argument> arguments() {
+    var calleeArguments =
+        switch (callee()) {
+          case DynamicCallee(var actualCallee, var _) -> List.of(actualCallee);
+          case DispatchCallee _, StaticCallee _, InlineCallee _ -> List.<Argument>of();
+        };
+    return Lists.concatLazy(calleeArguments, callArguments);
   }
 
   @Override
@@ -47,12 +68,12 @@ public final class Call implements Expression {
     }
     var that = (Call) obj;
     return Objects.equals(this.callee, that.callee)
-        && Objects.equals(this.arguments, that.arguments);
+        && Objects.equals(this.callArguments, that.callArguments);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(callee, arguments);
+    return Objects.hash(callee, callArguments);
   }
 
   @Override
@@ -63,6 +84,6 @@ public final class Call implements Expression {
   @PrintMethod
   private void print(Printer p) {
     p.print(callee());
-    p.printAsList("(", ")", arguments);
+    p.printAsList("(", ")", callArguments);
   }
 }
