@@ -3,6 +3,7 @@ package org.prlprg.bc2fir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
+import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,7 +15,6 @@ import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.DirectorySource;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
@@ -62,47 +62,5 @@ public class BC2FirAndInterpreterIntegrationTest {
     } catch (InterpretException e) {
       fail("FIŘ interpreter crashed.\n\nFIŘ module:\n" + Objects.requireNonNull(firModule), e);
     }
-  }
-
-  /// Hijack some builtins and intrinsics in the interpreter, providing enough functionality to
-  /// run the tests and have them produce identical output to GNU-R if the FIŘ compiler and
-  /// interpreter "work".
-  private void registerBuiltins(Interpreter interpreter) {
-    // Builtins
-    interpreter.registerExternalFunction(
-        "+",
-        (_, _, args, _) -> {
-          if (args.size() != 2) {
-            throw new IllegalArgumentException("`+` takes 2 arguments");
-          }
-
-          if (args.getFirst().asScalarInteger().isPresent()
-              && args.get(1).asScalarInteger().isPresent()) {
-            var arg0 = args.getFirst().asScalarInteger().get();
-            var arg1 = args.get(1).asScalarInteger().get();
-            return SEXPs.integer(arg0 + arg1);
-          } else if (args.getFirst().asScalarReal().isPresent()
-              && args.get(1).asScalarReal().isPresent()) {
-            var arg0 = args.getFirst().asScalarReal().get();
-            var arg1 = args.get(1).asScalarReal().get();
-            return SEXPs.real(arg0 + arg1);
-          } else {
-            throw new UnsupportedOperationException(
-                "Mock `+` not implemented for arguments except two integers or two reals");
-          }
-        });
-    interpreter.registerExternalFunction(
-        "==",
-        (_, _, args, _) -> {
-          if (args.size() != 2) {
-            throw new IllegalArgumentException("`==` takes 2 arguments");
-          }
-          var arg0 = args.getFirst();
-          var arg1 = args.get(1);
-
-          return SEXPs.logical(arg0.equals(arg1));
-        });
-    interpreter.registerExternalFunction(
-        "c", (interpreter1, _, args, _) -> interpreter1.mkVector(args));
   }
 }
