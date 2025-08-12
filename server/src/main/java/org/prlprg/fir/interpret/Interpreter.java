@@ -247,7 +247,7 @@ public final class Interpreter {
       // Otherwise we called a function with no valid overloads, a runtime error (not `Rf_error`,
       // which is an R error but OK in the runtime, either).
       throw fail(
-          "No versions match signature and arguments:"
+          "No versions match signature and arguments, and no catch-all:"
               + "\nFunction: "
               + function.name()
               + "\nExplicit signature: "
@@ -362,6 +362,7 @@ public final class Interpreter {
     }
   }
 
+  /// Reasonably high, but low enough so we can't hit Java's stack limit first.
   private static final int STACK_LIMIT = 1000;
 
   private void checkStack() {
