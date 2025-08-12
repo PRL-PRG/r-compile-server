@@ -1,13 +1,13 @@
 fun main {
   () --> I { var x:I?, reg rx0:I?, reg rx1:I, reg rx2:I?, reg r:p(I -), reg r0:I, reg r1:I, reg r2:I |
-    x = 0;
+    st x = 0;
 
     r = prom<I ->{
-    rx0 = x;
+    rx0 = ld x;
     r1 = rx0 as I;
     rx1 = inc.0(r1);
-    x = rx1;
-    rx2 = x;
+    st x = rx1;
+    rx2 = ld x;
     r2 = rx2 as I;
     return r2;
     };

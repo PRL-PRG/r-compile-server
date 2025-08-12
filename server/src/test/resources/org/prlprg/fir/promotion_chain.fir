@@ -3,13 +3,13 @@ fun main {
     r0 = prom<v(I) ->{
     r2 = prom<I ->{ return 10; };
     rx0 = force r2;
-    x = rx0;
+    st x = rx0;
     r3 = prom<I ->{ return 20; };
     ry0 = force r3;
-    y = ry0;
-    rx1 = x;
+    st y = ry0;
+    rx1 = ld x;
     r4 = rx1 as I;
-    ry1 = y;
+    ry1 = ld y;
     r5 = ry1 as I;
     r = [r4, r5];
     return use r;

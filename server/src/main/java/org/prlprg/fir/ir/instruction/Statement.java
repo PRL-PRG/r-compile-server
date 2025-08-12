@@ -41,7 +41,6 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
   @ParseMethod
   private static Statement parse(Parser p1, ParseContext ctx) {
     var cfg = ctx.cfg();
-    var scope = cfg.scope();
     var postModule = ctx.postModule();
     var p = p1.withContext(ctx.inner());
     var p2 = p.withContext(new Expression.ParseContext(null, cfg, postModule, ctx.inner()));
@@ -51,7 +50,7 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
     if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
       var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
 
-      if (scope.isRegister(nameHead) && s.trySkip('=')) {
+      if (s.trySkip('=')) {
         var assignee = Variable.register(nameHead);
         var expression = p2.parse(Expression.class);
         return new Statement(assignee, expression);

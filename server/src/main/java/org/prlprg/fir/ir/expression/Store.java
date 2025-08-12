@@ -16,6 +16,7 @@ public record Store(NamedVariable variable, Argument value) implements Expressio
 
   @PrintMethod
   private void print(Printer p) {
+    p.writer().write("st ");
     p.print(variable);
     p.writer().write(" = ");
     p.print(value);
