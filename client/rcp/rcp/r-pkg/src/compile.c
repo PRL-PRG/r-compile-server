@@ -709,6 +709,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     }
 
     stats->count_opcodes += count_opcodes;
+    DEBUG_PRINT("Total opcodes: %d\n", count_opcodes);
 
     DEBUG_PRINT("For loops used for this closure: %d\n", for_count);
 
@@ -798,6 +799,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
     StepFor_specialized *stepfor_pool = stepfor_storage;
 
+#ifdef DEBUG_MODE
+    struct timespec start, mid, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+#endif
+
     #pragma omp parallel for
     for (int i = 0; i < count_opcodes; i++)
     {
@@ -855,6 +861,12 @@ X_STEPFOR_TYPES
         for (size_t j = 0; j < stencil->holes_size; ++j)
             patch(inst_start[bc_pos], inst_start[bc_pos], &stencil->holes[j], opargs, bc_pos + imms_cnt[bytecode[bc_pos]] + 1, smc_variants, &ctx);
     }
+
+#ifdef DEBUG_MODE
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
+    fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
+#endif
 
     free(bytecode_lut);
     free(used_bcells);
