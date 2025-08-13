@@ -1,8 +1,8 @@
 package org.prlprg.fir.interpret;
 
-import java.util.List;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 
 /// Function that executes Java code which can be called from the interpreter.
@@ -15,5 +15,5 @@ import org.prlprg.sexp.SEXP;
 /// Add to a runtime with [Interpreter#registerExternalFunction(String, ExternalFunction)].
 @FunctionalInterface
 public interface ExternalFunction {
-  SEXP call(Interpreter runtime, Function hijacked, List<SEXP> arguments, EnvSXP environment);
+  SEXP call(Interpreter runtime, Function hijacked, ListSXP arguments, EnvSXP environment);
 }

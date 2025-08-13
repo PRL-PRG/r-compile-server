@@ -1,6 +1,5 @@
 package org.prlprg.util;
 
-import com.google.common.collect.Streams;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
@@ -124,6 +123,9 @@ public class Reflection {
    */
   private static <M extends Executable> M getMethodThatCanBeCalledWithArguments(
       String methodDesc, Stream<M> methodsStream, Class<?> clazz, @Nullable Object... arguments) {
+    // Each argument can be null, but not the entire array.
+    Objects.requireNonNull(arguments);
+
     var filteredMethods = methodsStream.filter(m -> canBeCalledWith(m, arguments)).toList();
     return switch (filteredMethods.size()) {
       case 0 ->
@@ -157,7 +159,6 @@ public class Reflection {
    * <p>Currently, variable-argument methods are not supported: given a var-args method, this will
    * simply return {@code false}.
    */
-  @SuppressWarnings("UnstableApiUsage")
   private static boolean canBeCalledWith(Executable m, @Nullable Object... arguments) {
     // The `@Nullable` is supposed to apply to the arguments, not the array.
     Objects.requireNonNull(arguments);

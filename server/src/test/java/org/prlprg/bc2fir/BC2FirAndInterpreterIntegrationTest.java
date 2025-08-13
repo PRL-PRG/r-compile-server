@@ -3,6 +3,7 @@ package org.prlprg.bc2fir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
+import static org.prlprg.fir.interpret.Builtins.addAndRegisterHelpers;
 import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// - When interpreted by GNU-R.
   /// - When bytecode-compiled, converted into FIŘ, and interpreted by [Interpreter].
   @ParameterizedTest
-  @DirectorySource(root = ".", glob = "*.R")
+  @DirectorySource(root = ".", glob = "*.R", depth = 2)
   void testCompilerAndInterpreter(Path rFilePath) throws IOException {
     Module firModule = null;
 
@@ -49,6 +50,7 @@ public class BC2FirAndInterpreterIntegrationTest {
       firModule = compile(rModuleEnv, R.getSession());
       var interpreter = new Interpreter(firModule);
       registerBuiltins(interpreter);
+      addAndRegisterHelpers(interpreter);
       var firOutput = interpreter.call("main");
 
       // Use `toString()` because we only care about structural equivalence (environments won't be
