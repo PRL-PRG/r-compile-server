@@ -1,4 +1,4 @@
-OPENMP ?= 1
+OPENMP ?= 0
 
 MCMODEL ?= large
 
