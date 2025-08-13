@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -73,6 +74,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Streams;
 import org.prlprg.util.Strings;
 
 /// FIŘ interpreter.
@@ -234,6 +236,17 @@ public final class Interpreter {
       @Nullable Signature explicitSignature,
       List<SEXP> arguments,
       EnvSXP environment) {
+    return call(function, explicitSignature, List.of(), arguments, environment);
+  }
+
+  /// Gets the function's best applicable version, and calls it with the arguments in the
+  /// environment.
+  public SEXP call(
+      Function function,
+      @Nullable Signature explicitSignature,
+      List<String> argumentNames,
+      List<SEXP> arguments,
+      EnvSXP environment) {
     var signature = computeSignature(explicitSignature, arguments);
 
     var best = function.guess(signature);
@@ -241,7 +254,13 @@ public final class Interpreter {
       // See if we registered external code for this function.
       var hijacker = externalFunctions.get(function);
       if (hijacker != null) {
-        return callExternal(hijacker, function, arguments, environment);
+        var argumentsSxp =
+            SEXPs.list(
+                Streams.zip(
+                    Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
+                    arguments.stream(),
+                    (argName, arg) -> new TaggedElem(argName.isEmpty() ? null : argName, arg)));
+        return callExternal(hijacker, function, argumentsSxp, environment);
       }
 
       // Otherwise we called a function with no valid overloads, a runtime error (not `Rf_error`,
@@ -296,7 +315,7 @@ public final class Interpreter {
   }
 
   private SEXP callExternal(
-      ExternalFunction hijacker, Function hijacked, List<SEXP> arguments, EnvSXP environment) {
+      ExternalFunction hijacker, Function hijacked, ListSXP arguments, EnvSXP environment) {
     checkStack();
 
     try {
@@ -426,7 +445,7 @@ public final class Interpreter {
           case DispatchCallee(var function, var signature) ->
               call(function, signature, arguments, environment);
           case InlineCallee(var inlinee) -> call(inlinee, arguments, environment);
-          case DynamicCallee(var actualCallee, var _) -> {
+          case DynamicCallee(var actualCallee, var argumentNames) -> {
             var calleeSexp = run(actualCallee);
             if (!(calleeSexp instanceof CloSXP cloSXP)) {
               throw fail("Not a function: " + calleeSexp);
@@ -434,7 +453,7 @@ public final class Interpreter {
 
             var function = extractClosure(cloSXP);
 
-            yield call(function, null, arguments, environment);
+            yield call(function, null, argumentNames, arguments, environment);
           }
         };
       }

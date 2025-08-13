@@ -1,11 +1,11 @@
 package org.prlprg.fir.ir.type;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Streams;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Streams;
 
 public record Signature(ImmutableList<Type> parameterTypes, Type returnType, Effects effects) {
   /// Whether any call context and arguments that satisfy `this` also satisfy `expected`: whether

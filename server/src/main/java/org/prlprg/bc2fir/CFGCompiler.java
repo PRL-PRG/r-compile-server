@@ -55,10 +55,12 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
+import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.SymSXP;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
@@ -308,7 +310,7 @@ public class CFGCompiler {
 
         // For loop init
         var seq = insertAndReturn(intrinsic("toForSeq", pop()));
-        var length = insertAndReturn(builtin("length", 0, seq));
+        var length = insertAndReturn(builtin("length", seq));
         var init = new Constant(SEXPs.integer(0));
         var index = insertAndReturn(new Aea(init));
         push(index);
@@ -327,7 +329,7 @@ public class CFGCompiler {
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
-        var elem = insertAndReturn(builtin("[[<-", 0, seq, index1));
+        var elem = insertAndReturn(builtin("[[", seq, index1));
         // Store in the element variable
         insert(new Store(getVar(elemName), elem));
         // Now we compile the rest of the body...
@@ -451,7 +453,12 @@ public class CFGCompiler {
       }
       case BcInstr.DoDots() -> pushCallArg(insertAndReturn(new Load(NamedVariable.DOTS)));
       case BcInstr.PushArg() -> pushCallArg(pop());
-      case BcInstr.PushConstArg(var constant) -> pushCallArg(new Constant(get(constant)));
+      case BcInstr.PushConstArg(var constant) -> {
+        if (get(constant) instanceof SymSXP || get(constant) instanceof LangSXP) {
+          throw fail("what? " + get(constant));
+        }
+        pushCallArg(new Constant(get(constant)));
+      }
       case BcInstr.PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
       case BcInstr.PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
       case BcInstr.PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));

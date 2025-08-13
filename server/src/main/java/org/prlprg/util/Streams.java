@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
@@ -14,6 +15,13 @@ public class Streams {
   /// Keeps yielding elements by calling `supplier` until it returns `null`.
   public static <T> Stream<T> untilNull(OptionalSupplier<T> supplier) {
     return com.google.common.collect.Streams.stream(new UntilNullIterator<>(supplier));
+  }
+
+  /// [com.google.common.collect.Streams#zip(Stream, Stream, BiFunction)] but without nullable
+  /// annotations.
+  public static <A, B, R> Stream<R> zip(
+      Stream<A> streamA, Stream<B> streamB, BiFunction<? super A, ? super B, R> function) {
+    return com.google.common.collect.Streams.zip(streamA, streamB, function);
   }
 
   public interface Worklist<T> {
