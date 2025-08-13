@@ -3,6 +3,9 @@
 //#define ASSERTS
 
 /*************MATH1 specialization*****************/
+typedef double (*Rsh_Math1Fun)(double);
+
+#ifdef MATH1_SPECIALIZE
 #include <Rmath.h>
 #define X_MATH1_EXT_OPS                                                        \
   X(floor, 0, floor)                                                           \
@@ -30,14 +33,19 @@
   X(sinpi, 22, sinpi)                                                          \
   X(tanpi, 23, Rtanpi)
 
-typedef double (*Rsh_Math1Fun)(double);
-
 #define X(a, b, c) &c,
 static Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {
   X_MATH1_EXT_OPS
 };
 #undef X
 #undef X_MATH1_EXT_OPS
+
+#else
+__attribute__((section(".data"), visibility("hidden"))) extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
+
+#endif
+
+
 /**************************************************/
 
 //#define NO_STACK_OVERFLOW_CHECK
@@ -852,14 +860,15 @@ RCP_OP(LOGBASE) {
   NEXT;
 }
 
+#ifndef MATH1_SPECIALIZE
 // MATH1 generic version
 RCP_OP(MATH1) {
   Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), GET_IMM(1), GET_RHO());
   NEXT;
 }
 
+#else
 // MATH1 specializations
-#ifdef MATH1_SPECIALIZE
 #define X(a, b, c) \
   RCP_OP(MATH1_##b) { \
     Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), b, GET_RHO()); \

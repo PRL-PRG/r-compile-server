@@ -15,19 +15,30 @@ RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
-MCMODEL ?= large
+MCMODEL ?= medium
 C_FLAGS_ADDITIONAL ?=
+
+SPECIALIZE_STEPFOR ?= 1
+SPECIALIZE_MATH1 ?= 0
+
+DEFINE_FLAGS ?= 
+ifneq ($(SPECIALIZE_STEPFOR),0)
+  DEFINE_FLAGS += -DSTEPFOR_SPECIALIZE
+endif
+ifneq ($(SPECIALIZE_MATH1),0)
+  DEFINE_FLAGS += -DMATH1_SPECIALIZE
+endif
 
 $(STENCILS_OBJ): stencils/stencils.c
 	@echo "Building stencils..."
 	mkdir -p build
-	$(CC) stencils/stencils.c -o $(STENCILS_OBJ) $(C_FLAGS_ADDITIONAL) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c -DMATH1_SPECIALIZE -DSTEPFOR_SPECIALIZE
+	$(CC) stencils/stencils.c -o $(STENCILS_OBJ) $(C_FLAGS_ADDITIONAL) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -march=native -fno-pic -mcmodel=$(MCMODEL) -fno-merge-constants -fno-jump-tables -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c $(DEFINE_FLAGS)
 # -fno-align-functions -fno-align-jumps -fno-align-labels -fno-align-loops
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.c
 	@echo "Building extractor..."
 	mkdir -p $(BUILD_DIR)
-	$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -flto -DMATH1_SPECIALIZE
+	$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -flto $(DEFINE_FLAGS)
 
 $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Extracting stencils..."
@@ -44,7 +55,7 @@ $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 
 $(R_LIB): $(R_PACKAGE)
 	@echo "Installing package..."
-	cd build && $(R_HOME)/bin/R CMD INSTALL rcp_1.0.0.0000.tar.gz
+	cd build && MCMODEL=$(MCMODEL) SPECIALIZE_STEPFOR=$(SPECIALIZE_STEPFOR) SPECIALIZE_MATH1=$(SPECIALIZE_MATH1) $(R_HOME)/bin/R CMD INSTALL rcp_1.0.0.0000.tar.gz
 
 .PHONY: install
 install: $(R_LIB)

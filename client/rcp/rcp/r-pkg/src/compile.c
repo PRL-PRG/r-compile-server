@@ -108,7 +108,7 @@ static void *find_free_space_near(void *target_ptr, size_t size)
     return (void *)best_addr;
 }
 
-void *near_memory_start = NULL;
+static void *near_memory_start = NULL;
 
 static void refresh_near_memory_ptr(size_t size)
 {
@@ -205,16 +205,13 @@ static SEXP LOAD_R_BUILTIN(const char *name)
     return result;
 }
 
-
-void *precompiled_functions[
 #ifdef MATH1_SPECIALIZE
-    102
+    #define PRECOMPILED_COUNT 102
 #else
-    126
+    #define PRECOMPILED_COUNT 126
 #endif
-];
 
-static void prepare_precompiled()
+static void prepare_precompiled(void* precompiled_functions[])
 {
     int i = 0;
 
@@ -289,26 +286,53 @@ static void prepare_precompiled()
     precompiled_functions[i++] = LOAD_R_BUILTIN("log");
 
     //printf("precompiled_functions size: %d\n", i);
-    assert(i <= (sizeof(precompiled_functions) / sizeof(*precompiled_functions)));
+    assert(i <= PRECOMPILED_COUNT);
 }
 
 #include "stencils/stencils.h"
 
-uint8_t *mem_shared = NULL;
+typedef struct {
+    uint8_t rodata[sizeof(rodata)];
+    void* precompiled[PRECOMPILED_COUNT];
+} mem_shared_data;
+
+mem_shared_data *mem_shared_near = NULL;
+mem_shared_data *mem_shared_low = NULL;
 size_t *mem_shared_ref_count = NULL;
-static void prepare_rodata()
+
+static void prepare_shared_memory()
 {
-    mem_shared = mmap(NULL, sizeof(rodata), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
-    if (mem_shared == MAP_FAILED)
+    void *precompiled[PRECOMPILED_COUNT];
+    prepare_precompiled(precompiled);
+
+    // Allocate memory
+    const size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void *));
+    const size_t total_size = rodata_size + sizeof(precompiled);
+
+    mem_shared_near = mmap(get_near_memory(sizeof(mem_shared_data)), sizeof(mem_shared_data), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mem_shared_near == MAP_FAILED)
         exit(1);
 
-    memcpy(mem_shared, rodata, sizeof(rodata));
-
-    if (mprotect(mem_shared, sizeof(rodata), PROT_READ) != 0)
+    memcpy(mem_shared_near->rodata, rodata, sizeof(rodata));
+    memcpy(mem_shared_near->precompiled, precompiled, sizeof(precompiled));
+    
+    if (mprotect(mem_shared_near, sizeof(mem_shared_data), PROT_READ) != 0)
     {
         perror("mprotect failed");
         exit(1);
     }
+
+#ifdef MCMODEL_SMALL
+    mem_shared_low = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+    if (mem_shared_low == MAP_FAILED)
+        exit(1);
+    memcpy(mem_shared_low, mem_shared_near, sizeof(mem_shared_data));
+    if (mprotect(mem_shared_low, sizeof(mem_shared_data), PROT_READ) != 0)
+    {
+        perror("mprotect failed");
+        exit(1);
+    }
+#endif
 
     mem_shared_ref_count = malloc(sizeof(*mem_shared_ref_count));
     *mem_shared_ref_count = 1;
@@ -448,11 +472,10 @@ static uint8_t reloc_indirection(RELOC_KIND kind)
 }
 
 typedef struct {
-    uint8_t *ro_low;
-    uint8_t *ro_near;
+    mem_shared_data *shared_near;
+    mem_shared_data *shared_low;
     SEXP *constpool;
     SEXP *bcells;
-    SEXP *precompiled;
     uint8_t **executable_lookup;
     int *bytecode;
     SEXP *rho;
@@ -472,16 +495,28 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
     break;
     case RELOC_RODATA:
     {
+#ifdef MCMODEL_SMALL
         // Point to different memory regions to allow efficient x86 relative addressing
         if (hole->is_pc_relative)
-            ptr = (ptrdiff_t)ctx->ro_near;
+            ptr = (ptrdiff_t)ctx->shared_near->rodata;
         else
-            ptr = (ptrdiff_t)ctx->ro_low;
+            ptr = (ptrdiff_t)ctx->shared_low->rodata;
+#else
+        ptr = (ptrdiff_t)ctx->shared_near->rodata;
+#endif
     }
     break;
     case RELOC_RCP_PRECOMPILED:
     {
-        ptr = (ptrdiff_t)ctx->precompiled;
+#ifdef MCMODEL_SMALL
+        // Point to different memory regions to allow efficient x86 relative addressing
+        if (hole->is_pc_relative)
+            ptr = (ptrdiff_t)ctx->shared_near->precompiled;
+        else
+            ptr = (ptrdiff_t)ctx->shared_low->precompiled;
+#else
+        ptr = (ptrdiff_t)ctx->shared_near->precompiled;
+#endif
     }
     break;
     case RELOC_RHO:
@@ -730,9 +765,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     }
 
     // Allocate memory
-    size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void *));
+    size_t executable_size_aligned = align_to_higher(insts_size, getpagesize()); // Align to page size to be able to map it as executable memory
 
-    size_t total_size = rodata_size + sizeof(SEXP) + insts_size + bcells_size * sizeof(SEXP) + sizeof(precompiled_functions) + (for_count * sizeof(StepFor_specialized));
+    size_t total_size = executable_size_aligned + sizeof(SEXP) + bcells_size * sizeof(SEXP) + (for_count * sizeof(StepFor_specialized));
 
     uint8_t *memory = mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
@@ -753,12 +788,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.memory_private_size = total_size;
 
     // Split memory into sections
-    uint8_t *ro_near = (uint8_t *)&memory[0];
-    SEXP *rho = (SEXP *)&memory[rodata_size];
-    SEXP *bcells = (SEXP *)&memory[rodata_size + sizeof(*rho)];
-    SEXP *precompiled = (SEXP *)&memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells)];
-    StepFor_specialized* stepfor_storage = (StepFor_specialized*)&memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions)];
-    uint8_t *executable = &memory[rodata_size + sizeof(*rho) + bcells_size * sizeof(*bcells) + sizeof(precompiled_functions) + (for_count * sizeof(StepFor_specialized))];
+    uint8_t *executable = &memory[0];
+    SEXP *rho = (SEXP *)&memory[executable_size_aligned];
+    SEXP *bcells = (SEXP *)&memory[executable_size_aligned + sizeof(*rho)];
+    StepFor_specialized* stepfor_storage = (StepFor_specialized*)&memory[executable_size_aligned + sizeof(*rho) + bcells_size * sizeof(*bcells)];
+    
 
     for (size_t i = 0; i < bytecode_size; i++)
     {
@@ -770,11 +804,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.eval = (void *)executable;
     res.rho = rho;
 
-    memcpy(ro_near, rodata, sizeof(rodata));
-    memcpy(precompiled, precompiled_functions, sizeof(precompiled_functions));
-
-    res.memory_shared = mem_shared;
-    res.memory_shared_size = sizeof(rodata);
+    res.memory_shared_near = mem_shared_near;
+    res.memory_shared_low = mem_shared_low;
+    res.memory_shared_size = sizeof(mem_shared_data);
     res.memory_shared_refcount = mem_shared_ref_count;
 
     res.bcells = bcells;
@@ -782,15 +814,15 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
     // Context for patching, passed to the patch function
     PatchContext ctx = {
-        .ro_low = mem_shared,
-        .ro_near = ro_near,
+        .shared_near = mem_shared_near,
+        .shared_low = mem_shared_low,
         .constpool = constpool,
         .bcells = bcells,
-        .precompiled = precompiled,
         .executable_lookup = inst_start,
         .bytecode = bytecode,
         .rho = rho,
-        .bcell_lookup = used_bcells};
+        .bcell_lookup = used_bcells
+    };
 
     // Start to copy-patch
     memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
@@ -872,7 +904,12 @@ X_STEPFOR_TYPES
     free(used_bcells);
     free(inst_start);
 
-    if (mprotect(memory, total_size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+    if (mprotect(executable, executable_size_aligned, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+    {
+        perror("mprotect failed");
+        exit(1);
+    }
+    if (mprotect(rho, total_size - executable_size_aligned, PROT_READ | PROT_WRITE) != 0)
     {
         perror("mprotect failed");
         exit(1);
@@ -1006,23 +1043,23 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
 
 void rcp_init(void)
 {
-    prepare_precompiled();
+    refresh_near_memory_ptr(0);
 
-    prepare_rodata();
+    prepare_shared_memory();
 
 #ifdef STEPFOR_SPECIALIZE
     prepare_stepfor();
 #endif
-
-    refresh_near_memory_ptr(0);
 }
 
 void rcp_destr(void)
 {
     if (--(*mem_shared_ref_count) == 0)
     {
-        munmap(mem_shared, sizeof(rodata));
-        mem_shared = NULL;
+        munmap(mem_shared_near, sizeof(mem_shared_data));
+        mem_shared_near = NULL;
+        munmap(mem_shared_low, sizeof(mem_shared_data));
+        mem_shared_low = NULL;
         free(mem_shared_ref_count);
         mem_shared_ref_count = NULL;
     }
