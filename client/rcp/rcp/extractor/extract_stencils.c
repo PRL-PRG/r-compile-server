@@ -100,8 +100,8 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
   {
     const Hole *hole = &stencil->holes[j];
 
-    fprintf(file, "{ .offset = 0x%lX, .addend = %ld, .size = %hu, .kind = %u, .is_pc_relative = %u, .indirection_level = %u",
-            hole->offset, hole->addend, hole->size, hole->kind, hole->is_pc_relative, hole->indirection_level);
+    fprintf(file, "{ .offset = 0x%lX, .addend = %ld, .size = %hu, .kind = %u, .is_pc_relative = %u",
+            hole->offset, hole->addend, hole->size, hole->kind, hole->is_pc_relative);
 
     switch (hole->kind)
     {
@@ -283,7 +283,6 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     assert(strcmp(rel->howto->name, "R_X86_64_PLT32") == 0);
     assert(rel->howto->pc_relative == 1);
     assert(rel->howto->size == 4);
-    hole->indirection_level = 1;
   }
   break;
   case R_X86_64_PC32:
@@ -291,7 +290,6 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     assert(strcmp(rel->howto->name, "R_X86_64_PC32") == 0);
     assert(rel->howto->pc_relative == 1);
     assert(rel->howto->size == 4);
-    hole->indirection_level = 1;
   }
   break;
   case R_X86_64_32:
@@ -300,7 +298,6 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     assert(strcmp(rel->howto->name, "R_X86_64_32") == 0 || strcmp(rel->howto->name, "R_X86_64_32S") == 0);
     assert(rel->howto->pc_relative == 0);
     assert(rel->howto->size == 4);
-    hole->indirection_level = 1;
   }
   break;
   case R_X86_64_64:
@@ -308,7 +305,6 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     assert(strcmp(rel->howto->name, "R_X86_64_64") == 0);
     assert(rel->howto->pc_relative == 0);
     assert(rel->howto->size == 8);
-    hole->indirection_level = 1;
   }
   break;
   //case R_X86_64_REX_GOTPCRELX: // not tested
@@ -320,7 +316,7 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
   //} break;
   default:
   {
-    fprintf(stderr, "Unsupported relocation type: %d: %s (relocating: %s)\n", rel->howto->type, rel->howto->name, (*rel->sym_ptr_ptr)->name);
+    fprintf(stderr, "Unsupported relocation type: %d: %s (relocating: %s). Note that stencils need to be compiled with position dependent code (no-pic) switch.\n", rel->howto->type, rel->howto->name, (*rel->sym_ptr_ptr)->name);
     return;
   }
   break;
@@ -334,17 +330,14 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     if (descr_imm = remove_prefix(descr, "CONST_AT_IMM"))
     {
       hole->kind = RELOC_RCP_CONST_AT_IMM;
-      hole->indirection_level = 0; // Tricked into patching immediate value
     }
     else if (descr_imm = remove_prefix(descr, "RAW_IMM"))
     {
       hole->kind = RELOC_RCP_RAW_IMM;
-      hole->indirection_level = 0; // Tricked into patching immediate value
     }
     else if (descr_imm = remove_prefix(descr, "CONST_STR_AT_IMM"))
     {
       hole->kind = RELOC_RCP_CONST_STR_AT_IMM;
-      hole->indirection_level = 0; // Tricked into patching immediate value
     }
     else if (descr_imm = remove_prefix(descr, "CONSTCELL_AT_IMM"))
     {
@@ -365,13 +358,11 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
       else
       {
         hole->kind = RELOC_RCP_EXEC_NEXT;
-        hole->indirection_level = 0;
       }
     }
     else if (descr_imm = remove_prefix(descr, "EXEC_IMM"))
     {
       hole->kind = RELOC_RCP_EXEC_IMM;
-      hole->indirection_level = 0;
     }
     else if (strcmp(descr, "RHO") == 0)
     {

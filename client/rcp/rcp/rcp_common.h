@@ -28,7 +28,6 @@ typedef struct {
   RELOC_KIND kind;
   uint8_t size;
   uint8_t is_pc_relative;
-  uint8_t indirection_level;
 } Hole; 
 
 typedef struct {

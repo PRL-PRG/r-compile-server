@@ -435,42 +435,6 @@ typedef struct {
     size_t count_opcodes;
 } CompilationStats;
 
-static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats);
-
-
-static uint8_t reloc_indirection(RELOC_KIND kind)
-{
-    switch (kind)
-    {
-    case RELOC_RUNTIME_SYMBOL:
-        return 1;
-    case RELOC_RODATA:
-        return 1;
-    case RELOC_RCP_PRECOMPILED:
-        return 1;
-    case RELOC_RHO:
-        return 1;
-    case RELOC_RCP_EXEC_NEXT:
-        return 0;
-    case RELOC_RCP_EXEC_IMM:
-        return 0;
-    case RELOC_RCP_RAW_IMM:
-        return 0;
-    case RELOC_RCP_CONST_AT_IMM:
-        return 0;
-    case RELOC_RCP_CONST_STR_AT_IMM:
-        return 0;
-    case RELOC_RCP_CONSTCELL_AT_IMM:
-        return 1;
-    case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
-        return 1;
-    case RELOC_RCP_PATCHED_VARIANTS:
-        return 1;
-    default:
-        __builtin_unreachable();
-    }
-}
-
 typedef struct {
     mem_shared_data *shared_near;
     mem_shared_data *shared_low;
@@ -580,14 +544,6 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
     break;
     }
 
-    int indirection_correction = reloc_indirection(hole->kind) - hole->indirection_level;
-
-    for (; indirection_correction > 0; --indirection_correction)
-    {
-        ptr = *(uintptr_t *)ptr;
-        DEBUG_PRINT("dereferencing pointer\n");
-    }
-
     ptr += hole->addend;
     if (hole->is_pc_relative)
         ptr -= (ptrdiff_t)&loc[hole->offset];
@@ -655,8 +611,7 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
         {
             // Fake StepFor stencil to allocate correct memory size
             static Hole res_hole = {
-                .kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM,
-                .indirection_level = 1
+                .kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM
             };
             static Stencil res = {
                 .body_size = stepfor_max_size,
@@ -712,12 +667,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
             const Hole *hole = &stencil->holes[j];
-            int indirection_level = reloc_indirection(hole->kind);
-
-            if (hole->indirection_level > indirection_level)
-            {
-                error("Unsupported patch symbol indirection level. Stencils need to be compiled with position dependent code (no-pic) switch.");
-            }
 
             switch (hole->kind)
             {
