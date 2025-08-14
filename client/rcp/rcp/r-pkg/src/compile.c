@@ -859,7 +859,7 @@ X_STEPFOR_TYPES
     free(used_bcells);
     free(inst_start);
 
-    int prot = PROT_READ | PROT_EXEC;
+    int prot = PROT_EXEC;
 #ifdef STEPFOR_SPECIALIZE
     prot |= PROT_WRITE;
 #endif
