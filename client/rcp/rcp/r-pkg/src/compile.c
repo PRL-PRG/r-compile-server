@@ -338,6 +338,7 @@ static void prepare_shared_memory()
     *mem_shared_ref_count = 1;
 }
 
+#ifdef STEPFOR_SPECIALIZE
 typedef struct {
   int cached_type;
   uint8_t *dst;
@@ -351,7 +352,6 @@ typedef struct {
   ];
 } StepFor_specialized;
 
-#ifdef STEPFOR_SPECIALIZE
 #define stepfor_max_size MAX11( \
         sizeof(__RCP_STEPFOR_0_OP_BODY), \
         sizeof(__RCP_STEPFOR_1_OP_BODY), \
@@ -716,8 +716,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     // Allocate memory
     size_t executable_size_aligned = align_to_higher(insts_size, getpagesize()); // Align to page size to be able to map it as executable memory
 
-    size_t total_size = executable_size_aligned + sizeof(SEXP) + bcells_size * sizeof(SEXP) + (for_count * sizeof(StepFor_specialized));
-
+    size_t total_size = executable_size_aligned + sizeof(SEXP) + bcells_size * sizeof(SEXP)
+#ifdef STEPFOR_SPECIALIZE
+    + (for_count * sizeof(StepFor_specialized))
+#endif
+    ;
     uint8_t *memory = mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
     if (memory == MAP_FAILED)
@@ -740,8 +743,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     uint8_t *executable = &memory[0];
     SEXP *rho = (SEXP *)&memory[executable_size_aligned];
     SEXP *bcells = (SEXP *)&memory[executable_size_aligned + sizeof(*rho)];
+#ifdef STEPFOR_SPECIALIZE
     StepFor_specialized* stepfor_storage = (StepFor_specialized*)&memory[executable_size_aligned + sizeof(*rho) + bcells_size * sizeof(*bcells)];
-    
+#endif
 
     for (size_t i = 0; i < bytecode_size; i++)
     {
@@ -778,7 +782,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
         patch(executable, executable, &_RCP_INIT.holes[j], NULL, 0, NULL, &ctx);
 
+#ifdef STEPFOR_SPECIALIZE
     StepFor_specialized *stepfor_pool = stepfor_storage;
+#endif
 
 #ifdef DEBUG_MODE
     struct timespec start, mid, end;
@@ -853,7 +859,12 @@ X_STEPFOR_TYPES
     free(used_bcells);
     free(inst_start);
 
-    if (mprotect(executable, executable_size_aligned, PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
+    int prot = PROT_READ | PROT_EXEC;
+#ifdef STEPFOR_SPECIALIZE
+    prot |= PROT_WRITE;
+#endif
+
+    if (mprotect(executable, executable_size_aligned, prot) != 0)
     {
         perror("mprotect failed");
         exit(1);

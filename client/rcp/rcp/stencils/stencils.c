@@ -211,12 +211,7 @@ RCP_OP(STARTFOR) {
   GOTO_IMM(2);
 }
 
-RCP_OP(STEPFOR) {
-  if(Rsh_StepFor(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONSTCELL_LABEL_IMM(0), GET_RHO()))
-    GOTO_IMM(0);
-  else
-    NEXT;
-}
+#ifdef STEPFOR_SPECIALIZE
 
 #define X(a, b) \
 RCP_OP(STEPFOR_##a) { \
@@ -227,6 +222,17 @@ RCP_OP(STEPFOR_##a) { \
 }
 X_STEPFOR_TYPES
 #undef X
+
+#else
+
+RCP_OP(STEPFOR) {
+  if(Rsh_StepFor(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONSTCELL_LABEL_IMM(0), GET_RHO()))
+    GOTO_IMM(0);
+  else
+    NEXT;
+}
+
+#endif
 
 RCP_OP(ENDFOR) {
   Rsh_EndFor(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GET_RHO());
