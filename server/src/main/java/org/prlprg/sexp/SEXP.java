@@ -2,7 +2,6 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.Streams;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -105,7 +104,7 @@ public sealed interface SEXP
     return withNames(SEXPs.string(name));
   }
 
-  default SEXP withNames(Collection<String> names) {
+  default SEXP withNames(List<String> names) {
     return withNames(SEXPs.string(names));
   }
 

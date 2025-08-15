@@ -2,7 +2,7 @@ fun main {
   () --> v(I)f { reg ry:p(I -), reg rz:v(I), reg r:v(I)o |
     ry = prom<I ->{ return 42; };
     rz = [1, 2, 3];
-    r = f(24, ry, rz);
+    r = f.0(24, ry, rz);
     return use r;
   }
 }

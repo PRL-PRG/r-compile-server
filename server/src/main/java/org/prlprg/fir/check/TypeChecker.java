@@ -78,12 +78,12 @@ public final class TypeChecker extends Checker {
               + function.name()
               + " { ... }");
     }
-    if (!version.returnType().isSubtypeOf(guaranteedReturnType)) {
+    if (!version.returnType().canBeAssignedTo(guaranteedReturnType)) {
       report(
           version,
-          "Version's return type must subtype its function's guaranteed return type: "
+          "Version's return type must be assignable to its function's guaranteed return type: "
               + version.returnType()
-              + " doesn't subtype "
+              + " isn't assignable to "
               + guaranteedReturnType
               + "\nIn fun "
               + function.name()
@@ -197,14 +197,14 @@ public final class TypeChecker extends Checker {
 
             java.util.function.Function<Abstraction, Type> finish =
                 callee -> {
+                  // Check arguments.
                   if (callee.parameters().size() != argumentTypes.size()) {
                     report(
                         "Call expects "
                             + callee.parameters().size()
-                            + " arguments, but has "
+                            + " arguments, got "
                             + argumentTypes.size());
                   }
-
                   for (int i = 0;
                       i < Math.min(callee.parameters().size(), argumentTypes.size());
                       i++) {
@@ -213,6 +213,7 @@ public final class TypeChecker extends Checker {
                     checkMatches(argType, param.type(), "Type mismatch in argument " + i);
                   }
 
+                  // Guarantees.
                   effects = effects.union(callee.effects());
                   return callee.returnType();
                 };
@@ -220,16 +221,47 @@ public final class TypeChecker extends Checker {
             yield switch (call.callee()) {
               case StaticCallee(var _, var version) -> finish.apply(version);
               case DispatchCallee(var function, var signature) -> {
-                var version = signature == null ? null : function.guess(signature);
-
-                // If `version == null`, this is a call to an unknown version,
+                // If `signature == null`, this is a call to an unknown version,
                 // although we may still have some guarantees.
-                if (version == null) {
+                if (signature == null) {
                   effects = function.guaranteedEffects();
                   yield function.guaranteedReturnType();
                 }
 
-                yield finish.apply(version);
+                var version = function.guess(signature);
+
+                // If there's no explicit version, the actual version is unknown, but this is
+                // also an error: an explicit signature means we expect a known version, though
+                // it may have weaker parameters or stronger effects/return.
+                if (version == null) {
+                  report(
+                      "Call to "
+                          + function.name()
+                          + " with signature "
+                          + signature
+                          + " has no matching version");
+                }
+
+                // Check arguments against signature parameters.
+                if (signature.parameterTypes().size() != argumentTypes.size()) {
+                  report(
+                      "Signature expects "
+                          + signature.parameterTypes().size()
+                          + " arguments, got "
+                          + argumentTypes.size());
+                }
+                for (int i = 0;
+                    i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
+                    i++) {
+                  var paramType = signature.parameterTypes().get(i);
+                  var argType = argumentTypes.get(i);
+                  checkMatches(
+                      argType, paramType, "Type mismatch in argument " + i + " (for signature)");
+                }
+
+                // Only guarantee what's asked by the signature.
+                effects = effects.union(signature.effects());
+                yield signature.returnType();
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {
                 var calleeType = run(actualCallee);
@@ -584,25 +616,25 @@ public final class TypeChecker extends Checker {
 
       void checkSubtype(@Nullable Type type, Type expected, String message) {
         if (type != null && !type.isSubtypeOf(expected)) {
-          report(message + ": expected " + expected + ", got " + type);
+          report(message + ": " + type + " doesn't subtype " + expected);
         }
       }
 
       void checkMatches(@Nullable Type type, Type expected, String message) {
         if (type != null && !type.matches(expected)) {
-          report(message + ": expected " + expected + ", got " + type);
+          report(message + ": " + type + " doesn't match " + expected);
         }
       }
 
       void checkAssignment(@Nullable Type type, Type expected, String message) {
         if (type != null && !type.canBeAssignedTo(expected)) {
-          report(message + ": expected " + expected + ", got " + type);
+          report(message + ": can't assign " + type + " to " + expected);
         }
       }
 
       void checkSubEffects(Effects effects, Effects expected, String message) {
         if (!effects.isSubsetOf(expected)) {
-          report(message + ": expected " + expected + ", got " + effects);
+          report(message + ": " + effects + " don't subset " + expected);
         }
       }
 

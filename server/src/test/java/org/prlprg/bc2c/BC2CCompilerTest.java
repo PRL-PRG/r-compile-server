@@ -1101,15 +1101,11 @@ public class BC2CCompilerTest {
   }
 
   private TestResultCheck slowSubset() {
-    return (r) -> {
-      assertEquals(1, r.pc().slowSubset(), "Expected slow subset");
-    };
+    return (r) -> assertEquals(1, r.pc().slowSubset(), "Expected slow subset");
   }
 
   private TestResultCheck slowSubassign() {
-    return (r) -> {
-      assertEquals(1, r.pc().slowSubassign(), "Expected slow subassign");
-    };
+    return (r) -> assertEquals(1, r.pc().slowSubassign(), "Expected slow subassign");
   }
 
   private TestResultCheck fastSubassign() {

@@ -2,7 +2,6 @@ package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.abort;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,13 +24,13 @@ final class InterpreterTest {
   @DirectorySource(root = "..", glob = "*.fir")
   void testInterpretFirFiles(Path firFilePath) throws IOException {
 
-    String unseenExpectedError = null;
+    String expectedErrorMsg = null;
 
     try {
       var firText = Files.readString(firFilePath);
       var firModule = Parser.fromString(firText, Module.class);
 
-      unseenExpectedError =
+      expectedErrorMsg =
           firText
               .lines()
               .map(String::trim)
@@ -66,8 +65,8 @@ final class InterpreterTest {
       registerBuiltins(interpreter);
       var actualReturnSexp = interpreter.call("main");
 
-      if (unseenExpectedError != null) {
-        fail("Expected runtime error not raised: " + unseenExpectedError);
+      if (expectedErrorMsg != null) {
+        fail("Expected runtime error not raised: " + expectedErrorMsg);
       }
 
       if (expectedReturnSexp != null) {
@@ -75,18 +74,17 @@ final class InterpreterTest {
             expectedReturnSexp, actualReturnSexp, "`main`'s return value doesn't match expected");
       }
     } catch (InterpretException e) {
-      if (unseenExpectedError != null) {
-        if (e.mainMessage().lines().findFirst().orElseThrow().equals(unseenExpectedError)) {
-          // Expected error, just ignore it.
-          return;
-        } else {
-          fail("Interpreter crashed.\nExpected error: " + unseenExpectedError, e);
-        }
+      if (expectedErrorMsg != null) {
+        var actualErrorMsg = e.mainMessage().lines().findFirst().orElseThrow();
+        assertEquals(
+            expectedErrorMsg,
+            actualErrorMsg,
+            "Interpreter crashed with WRONG ERROR\nFull message:\n" + e.mainMessage());
+      } else {
+        throw new AssertionError("Interpreter crashed", e);
       }
-
-      throw new AssertionError("Interpreter crashed", e);
     } catch (ParseException e) {
-      abort(
+      fail(
           "Failed to parse FIŘ file: "
               + firFilePath
               + "\nError: "

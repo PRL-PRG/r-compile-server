@@ -3,7 +3,7 @@ fun main {
     rx0 = [0, 1, 2];
     st x = use rx0;
     r0 = prom<I ->{ return 4; };
-    r1 = f(r0);
+    r1 = f< p(I -) -+> v(I) >(r0);
     return r1;
   }
 }
@@ -11,7 +11,7 @@ fun main {
 fun f {
   (reg r:p(I -)) -+> v(I) { reg r0:p(I -), reg r1:v(I) |
     r0 = prom<I ->{ return 2; };
-    r1 = g(r0);
+    r1 = g< p(I -) -+> v(I) >(r0);
     return r1;
   }
 }

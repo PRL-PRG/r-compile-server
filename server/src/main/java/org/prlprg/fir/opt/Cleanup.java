@@ -1,8 +1,10 @@
 package org.prlprg.fir.opt;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
+import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.DefUses;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -24,7 +26,7 @@ import org.prlprg.primitive.Logical;
 /// Cleanup optimizations:
 /// - Remove unreachable basic blocks.
 /// - Remove unused locals (convert assignments into void statements, and remove from scope).
-/// - Convert branches whose condition is always true or false, or where both blocks are the
+/// - Convert branches whose condition is always true or false, or where both targets are the
 ///   same, into gotos.
 /// - Merge blocks with a single successor ([Goto]).
 public class Cleanup extends Optimization {
@@ -101,7 +103,11 @@ public class Cleanup extends Optimization {
         var changed = true;
         while (changed) {
           // Use `|` so all passes are applied.
-          changed = removeUnreachableBlocks() | simplifyBranches() | mergeBlocks();
+          changed =
+              removeUnreachableBlocks()
+                  | simplifyBranches()
+                  | mergeBlocks()
+                  | removeSinglePredecessorPhis();
         }
       }
 
@@ -157,7 +163,7 @@ public class Cleanup extends Optimization {
             }
 
             // Case 2: Both targets are the same
-            if (ifTrue.bb() == ifFalse.bb()) {
+            if (ifTrue.bb() == ifFalse.bb() && ifTrue.phiArgs().equals(ifFalse.phiArgs())) {
               bb.setJump(new Goto(ifTrue));
               changed = true;
             }
@@ -235,6 +241,76 @@ public class Cleanup extends Optimization {
         // Remove second block
         cfg.removeBB(second);
       }
+
+      boolean removeSinglePredecessorPhis() {
+        var changed = false;
+
+        for (var bb : new ArrayList<>(cfg.bbs())) {
+          // Skip blocks with no phi parameters (fastcase)
+          if (bb.phiParameters().isEmpty()) {
+            continue;
+          }
+
+          // Skip blocks with zero or multiple predecessors
+          if (bb.predecessors().size() != 1) {
+            continue;
+          }
+
+          // Skip if the predecessor is an `If`, where both branches point to this block.
+          // If the arguments are the same, it will be handled by `simplifyBranches`.
+          // If the arguments are different, we can't remove the phi parameters.
+          var predecessor = Iterables.getOnlyElement(bb.predecessors());
+          if (predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
+              && ifTrue.bb() == bb
+              && ifFalse.bb() == bb
+              && ifTrue.phiArgs().equals(ifFalse.phiArgs())) {
+            continue;
+          }
+
+          var jumpTarget = findTargetInJump(predecessor.jump(), bb);
+          if (jumpTarget == null) {
+            throw new IllegalStateException(
+                "CFG is malformed: block is not it's predecessor's successor: "
+                    + bb.label()
+                    + ", "
+                    + predecessor.label());
+          }
+
+          // If the number of arguments doesn't match the number of parameters,
+          // this is a malformed CFG, so skip.
+          var phiParams = bb.phiParameters();
+          var phiArgs = jumpTarget.phiArgs();
+          if (phiParams.size() != phiArgs.size()) {
+            continue;
+          }
+
+          // Substitute each phi parameter with the corresponding argument
+          for (var i = 0; i < phiParams.size(); i++) {
+            var phi = phiParams.get(i);
+            var arg = phiArgs.get(i);
+
+            substituter.stage(phi, arg);
+          }
+
+          // Remove phi parameter definitions and arguments.
+          bb.clearParameters();
+          predecessor.setJump(removingAllJumpArguments(predecessor.jump(), bb));
+
+          changed = true;
+        }
+
+        return changed;
+      }
+
+      /// Find the target in a jump that points to the given basic block
+      @Nullable Target findTargetInJump(Jump jump, BB targetBb) {
+        for (var target : jump.targets()) {
+          if (target.bb() == targetBb) {
+            return target;
+          }
+        }
+        return null;
+      }
     }
 
     /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
@@ -251,6 +327,20 @@ public class Cleanup extends Optimization {
       };
     }
 
+    /// Returns the jump removing all phi arguments for the given target BB
+    Jump removingAllJumpArguments(Jump jump, BB targetBb) {
+      return switch (jump) {
+        case Goto(var next) -> new Goto(removingAllJumpArguments(next, targetBb));
+        case If(var condition, var ifTrue, var ifFalse) ->
+            new If(
+                condition,
+                removingAllJumpArguments(ifTrue, targetBb),
+                removingAllJumpArguments(ifFalse, targetBb));
+        case Return(var value) -> new Return(value);
+        case Unreachable() -> new Unreachable();
+      };
+    }
+
     /// If this points to `targetBb`, returns removing the phi argument at the given index.
     Target removingJumpArgument(Target target, BB targetBb, int index) {
       if (target.bb() != targetBb) {
@@ -262,6 +352,14 @@ public class Cleanup extends Optimization {
       phiArgs.addAll(target.phiArgs().subList(index + 1, target.phiArgs().size()));
 
       return new Target(target.bb(), phiArgs.build());
+    }
+
+    /// If this points to targetBb, returns it with all phi arguments removed
+    Target removingAllJumpArguments(Target target, BB targetBb) {
+      if (target.bb() != targetBb) {
+        return target;
+      }
+      return new Target(target.bb(), ImmutableList.of());
     }
   }
 }

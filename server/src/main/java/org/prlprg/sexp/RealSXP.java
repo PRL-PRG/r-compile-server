@@ -1,10 +1,8 @@
 package org.prlprg.sexp;
 
 import com.google.common.math.DoubleMath;
-import com.google.common.primitives.ImmutableDoubleArray;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
@@ -14,6 +12,12 @@ import org.prlprg.parseprint.Printer;
 public sealed interface RealSXP extends NumericSXP<Double>
     permits EmptyRealSXPImpl, RealSXPImpl, ScalarRealSXP {
   double DOUBLE_CMP_DELTA = 0.000001d;
+
+  /**
+   * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
+   * backed by an array, so this gets created and returns every access.
+   */
+  double[] data();
 
   @Override
   default SEXPType type() {
@@ -43,91 +47,75 @@ public sealed interface RealSXP extends NumericSXP<Double>
 }
 
 /** Real vector which doesn't fit any of the more specific subclasses. */
-final class RealSXPImpl implements RealSXP {
-  private final List<Double> data;
-  private final Attributes attributes;
-
-  RealSXPImpl(ImmutableDoubleArray data, Attributes attributes) {
-    this.data = new ArrayList<>();
-    for (int i = 0; i < data.length(); i++) {
-      this.data.add(data.get(i));
-    }
+record RealSXPImpl(double[] data, Attributes attributes) implements RealSXP {
+  RealSXPImpl(double[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
   @Override
-  public Attributes attributes() {
-    return attributes;
-  }
-
-  @Override
   public Iterator<Double> iterator() {
-    return data.iterator();
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public Double get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, Double value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public RealSXP withAttributes(Attributes attributes) {
-    var builder = ImmutableDoubleArray.builder();
-    for (var value : data) {
-      builder.add(value);
-    }
-    return SEXPs.real(builder.build(), attributes);
+    return SEXPs.real(data, attributes);
   }
 
   @Override
   public RealSXP copy() {
-    var builder = ImmutableDoubleArray.builder();
-    for (var value : data) {
-      builder.add(value);
-    }
-    return new RealSXPImpl(builder.build(), attributes);
+    return new RealSXPImpl(data, attributes);
   }
 
   @Override
   public int asInt(int index) {
-    return data.get(index).intValue();
+    return (int) data[index];
   }
 
   @Override
   public double asReal(int index) {
-    return data.get(index);
+    return data[index];
   }
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    var that = (RealSXPImpl) o;
-    var data2 = that.data;
-    if (data.size() != data2.size()) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof RealSXPImpl(var data1, var attributes1))) {
       return false;
     }
-    for (int i = 0; i < data.size(); i++) {
-      if (!DoubleMath.fuzzyEquals(data.get(i), data2.get(i), DOUBLE_CMP_DELTA)) {
+    if (data.length != data1.length) {
+      return false;
+    }
+    for (int i = 0; i < data.length; i++) {
+      if (!DoubleMath.fuzzyEquals(data[i], data1[i], DOUBLE_CMP_DELTA)) {
         return false;
       }
     }
-    return Objects.equals(attributes, that.attributes);
+    return Objects.equals(attributes, attributes1);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(data, attributes);
+    // Can't hash `data` because approximates are equal.
+    return Objects.hash(attributes);
   }
 
   @Override
@@ -145,6 +133,11 @@ final class ScalarRealSXP extends ScalarSXPImpl<Double> implements RealSXP {
   @SuppressWarnings("MissingJavadoc")
   public double value() {
     return data;
+  }
+
+  @Override
+  public double[] data() {
+    return new double[] {data};
   }
 
   @Override
@@ -197,8 +190,13 @@ final class EmptyRealSXPImpl extends EmptyVectorSXPImpl<Double> implements RealS
   }
 
   @Override
+  public double[] data() {
+    return new double[0];
+  }
+
+  @Override
   public RealSXP withAttributes(Attributes attributes) {
-    return SEXPs.real(ImmutableDoubleArray.of(), attributes);
+    return SEXPs.real(new double[0], attributes);
   }
 
   @Override

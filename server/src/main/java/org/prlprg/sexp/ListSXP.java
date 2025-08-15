@@ -1,7 +1,7 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -94,11 +94,11 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListS
 }
 
 final class ListSXPImpl implements ListSXP {
-  private final List<TaggedElem> data;
+  private final TaggedElem[] data;
   private final Attributes attributes;
 
-  ListSXPImpl(ImmutableList<TaggedElem> data, Attributes attributes) {
-    this.data = new ArrayList<>(data);
+  ListSXPImpl(TaggedElem[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
@@ -109,17 +109,17 @@ final class ListSXPImpl implements ListSXP {
 
   @Override
   public SEXPType type() {
-    return data.isEmpty() ? SEXPType.NIL : SEXPType.LIST;
+    return data.length == 0 ? SEXPType.NIL : SEXPType.LIST;
   }
 
   @Override
   public Iterator<TaggedElem> iterator() {
-    return data.iterator();
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public @Unmodifiable List<SEXP> values() {
-    return Lists.mapLazy(data, TaggedElem::value);
+    return Lists.mapLazy(Arrays.asList(data), TaggedElem::value);
   }
 
   @Override
@@ -129,7 +129,7 @@ final class ListSXPImpl implements ListSXP {
 
   @Override
   public List<String> names() {
-    return data.stream().map(TaggedElem::tagOrEmpty).toList();
+    return Arrays.stream(data).map(TaggedElem::tagOrEmpty).toList();
   }
 
   @Override
@@ -139,32 +139,35 @@ final class ListSXPImpl implements ListSXP {
 
   @Override
   public ListSXP with(int index, @Nullable String tag, SEXP value) {
-    return new ListSXPImpl(
-        ImmutableList.<TaggedElem>builder()
-            .addAll(data.subList(0, index))
-            .add(new TaggedElem(tag, value))
-            .addAll(data.subList(index + 1, data.size()))
-            .build(),
-        attributes);
+    var old = data[index];
+    data[index] = new TaggedElem(tag, value);
+    var result = copy();
+    data[index] = old;
+    return result;
   }
 
   @Override
   public ListSXP appended(@Nullable String tag, SEXP value) {
-    return new ListSXPImpl(
-        ImmutableList.<TaggedElem>builder().addAll(data).add(new TaggedElem(tag, value)).build(),
-        attributes);
+    var data = new TaggedElem[this.data.length + 1];
+    System.arraycopy(this.data, 0, data, 0, this.data.length);
+    data[this.data.length] = new TaggedElem(tag, value);
+
+    return new ListSXPImpl(data, attributes);
   }
 
   @Override
   public ListSXP appended(ListSXP other) {
-    return new ListSXPImpl(
-        ImmutableList.<TaggedElem>builder().addAll(data).addAll(other.iterator()).build(),
-        attributes);
+    var data = new TaggedElem[this.data.length + other.size()];
+    System.arraycopy(this.data, 0, data, 0, this.data.length);
+    System.arraycopy(((ListSXPImpl) other).data, 0, data, this.data.length, other.size());
+    return new ListSXPImpl(data, attributes);
   }
 
   @Override
   public ListSXP subList(int fromIndex) {
-    return new ListSXPImpl(ImmutableList.copyOf(data.subList(fromIndex, data.size())), attributes);
+    var data = new TaggedElem[size() - fromIndex];
+    System.arraycopy(this.data, fromIndex, data, 0, data.length);
+    return new ListSXPImpl(data, attributes);
   }
 
   @Override
@@ -174,15 +177,12 @@ final class ListSXPImpl implements ListSXP {
           "The empty tag doesn't exist, pass `null` to remove untagged elements.");
     }
     return new ListSXPImpl(
-        stream()
-            .filter(e -> !Objects.equals(tag, e.tag()))
-            .collect(ImmutableList.toImmutableList()),
-        attributes);
+        stream().filter(e -> !Objects.equals(tag, e.tag())).toArray(TaggedElem[]::new), attributes);
   }
 
   @Override
   public Stream<TaggedElem> stream() {
-    return data.stream();
+    return Arrays.stream(data);
   }
 
   @Override
@@ -192,38 +192,53 @@ final class ListSXPImpl implements ListSXP {
 
   @Override
   public ListSXP prepend(TaggedElem elem) {
-    return new ListSXPImpl(
-        ImmutableList.<TaggedElem>builder().add(elem).addAll(data).build(), attributes);
+    var data = new TaggedElem[this.data.length + 1];
+    data[0] = elem;
+    System.arraycopy(this.data, 0, data, 1, this.data.length);
+    return new ListSXPImpl(data, attributes);
   }
 
   @Override
   public TaggedElem get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, TaggedElem value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public void set(int i, SEXP value) {
-    data.set(i, new TaggedElem(data.get(i).tag(), value));
+    data[i] = new TaggedElem(data[i].tag(), value);
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public ListSXPImpl withAttributes(Attributes attributes) {
-    return new ListSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new ListSXPImpl(data, attributes);
   }
 
   @Override
   public ListSXP copy() {
-    return new ListSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new ListSXPImpl(data, attributes);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof ListSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override

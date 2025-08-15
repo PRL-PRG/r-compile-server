@@ -6,7 +6,7 @@ fun main {
     r1 = prom<I ->{ return 42; };
     f(r1);
 
-    # type-error: Can't assign it to r2: expected p(I -), got p(I +)
+    # type-error: Can't assign it to r2: can't assign p(I +) to p(I -)
     r2 = prom<I +>{
       r3 = [3, 4, 5];
       r1$x = r3;

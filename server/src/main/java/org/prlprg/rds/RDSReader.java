@@ -3,6 +3,7 @@ package org.prlprg.rds;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.ImmutableIntArray;
 import com.google.protobuf.ByteString;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
@@ -13,7 +14,6 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.BuiltinId;
@@ -29,7 +29,6 @@ public class RDSReader implements Closeable {
   private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
-  private static Logger LOGGER = Logger.getLogger(RDSReader.class.getName());
 
   // User-provided hook for PERSISTSXP
   // Used for package databases for instance
@@ -37,7 +36,7 @@ public class RDSReader implements Closeable {
     SEXP hook(SEXP sexp) throws IOException;
   }
 
-  private Hook hook = null;
+  private @Nullable Hook hook = null;
 
   // FIXME: this should include the logic from platform.c
   //  or should we individually read the charset property of each SEXP? this will require
@@ -102,10 +101,10 @@ public class RDSReader implements Closeable {
 
     // versions
     var formatVersion = in.readInt();
-    if (formatVersion > 2) {
-      // we do not completely support RDS version 3 because it uses ALTREP
-      // LOGGER.warning("RDS version: " + formatVersion + "; some features are not supported.");
-    }
+    // if (formatVersion > 2) {
+    // we do not completely support RDS version 3 because it uses ALTREP
+    // LOGGER.warning("RDS version: " + formatVersion + "; some features are not supported.");
+    // }
     // writer version
     in.readInt();
     // minimal reader version
@@ -320,7 +319,7 @@ public class RDSReader implements Closeable {
     }
 
     var consts = readByteCodeConsts(reps);
-    var factory = new GNURByteCodeDecoderFactory(code.data(), consts);
+    var factory = new GNURByteCodeDecoderFactory(ImmutableIntArray.copyOf(code.data()), consts);
 
     return SEXPs.bcode(factory.create());
   }

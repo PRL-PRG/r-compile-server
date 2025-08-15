@@ -1,9 +1,9 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
@@ -41,11 +41,11 @@ public sealed interface ComplexSXP extends PrimVectorSXP<Complex>
 
 /** Complex vector which doesn't fit any of the more specific subclasses. */
 final class ComplexSXPImpl implements ComplexSXP {
-  private final List<Complex> data;
+  private final Complex[] data;
   private final Attributes attributes;
 
-  ComplexSXPImpl(ImmutableList<Complex> data, Attributes attributes) {
-    this.data = new ArrayList<>(data);
+  ComplexSXPImpl(Complex[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
@@ -56,32 +56,45 @@ final class ComplexSXPImpl implements ComplexSXP {
 
   @Override
   public Iterator<Complex> iterator() {
-    return data.iterator();
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public Complex get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, Complex value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public ComplexSXP withAttributes(Attributes attributes) {
-    return new ComplexSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new ComplexSXPImpl(data, attributes);
   }
 
   @Override
   public ComplexSXP copy() {
-    return new ComplexSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new ComplexSXPImpl(data, attributes);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof ComplexSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override

@@ -13,6 +13,7 @@ import org.prlprg.fir.ir.CommentParser;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.parseprint.ParseMethod;
@@ -154,7 +155,7 @@ public final class Function {
         "Function#setGuaranteedReturnType",
         List.of(this, guaranteedReturnType),
         () -> {
-          if (!guaranteedReturnType.isSubtypeOf(Type.ANY_VALUE)) {
+          if (!guaranteedReturnType.isDefinitely(AnyValue.class)) {
             throw new IllegalArgumentException(
                 "Function's guaranteed return type must be a value: "
                     + guaranteedReturnType
@@ -252,7 +253,7 @@ public final class Function {
       s.assertAndSkip('>');
       guaranteedReturnType = p.parse(Type.class);
 
-      if (!guaranteedReturnType.isSubtypeOf(Type.ANY_VALUE)) {
+      if (!guaranteedReturnType.isDefinitely(AnyValue.class)) {
         throw s.fail(
             "Function's guaranteed return type must be a value: "
                 + guaranteedReturnType

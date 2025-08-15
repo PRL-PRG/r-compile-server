@@ -1,6 +1,5 @@
 package org.prlprg.sexp;
 
-import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -92,9 +91,7 @@ public final class NilSXP implements ListSXP {
 
   @Override
   public ListSXP appended(String tag, SEXP value) {
-    return new ListSXPImpl(
-        new ImmutableList.Builder<TaggedElem>().add(new TaggedElem(tag, value)).build(),
-        Attributes.NONE);
+    return new ListSXPImpl(new TaggedElem[] {new TaggedElem(tag, value)}, Attributes.NONE);
   }
 
   @Override

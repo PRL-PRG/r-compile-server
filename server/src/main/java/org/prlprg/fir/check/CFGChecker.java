@@ -6,12 +6,14 @@ import org.prlprg.fir.analyze.DefUses;
 import org.prlprg.fir.analyze.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Verifies the following invariants:
 /// - All basic blocks are reachable from entry
-/// - Entry blocks and blocks with < 2 predecessors don't have phi parameters
+/// - Entry blocks and blocks with 1 predecessor (except if the predecessor branches with
+///   different arguments) don't have phi parameters
 /// - Jump targets have the correct number of phi arguments
 /// - There are no duplicate variable declarations in the scope
 /// - All registers are declared in the innermost scope
@@ -57,10 +59,18 @@ public class CFGChecker extends Checker {
         assert register != null;
 
         if (!scope.contains(register)) {
-          report(
-              scope.cfg().entry(),
-              0,
-              "Register " + register + " is not declared as parameter or local");
+          var occurrence =
+              defUses.definitions(register).stream()
+                  .findFirst()
+                  .or(() -> defUses.uses(register).stream().findFirst())
+                  .orElseThrow(
+                      () ->
+                          new IllegalStateException(
+                              "def-use analysis contains a register, but neither its definitions nor uses contain it: "
+                                  + register
+                                  + "\nIn "
+                                  + scope));
+          report(occurrence, "Register " + register + " is not declared as parameter or local");
         }
       }
 
@@ -93,8 +103,17 @@ public class CFGChecker extends Checker {
               report(bb, -1, "Entry block can't have phis");
             }
 
-            if (bb.predecessors().size() < 2) {
-              report(bb, -1, "Block with < 2 predecessors can't have phis");
+            if (bb.predecessors().size() == 1) {
+              var predecessor = Iterables.getOnlyElement(bb.predecessors());
+              if (!(predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
+                  && ifTrue.bb() == bb
+                  && ifFalse.bb() == bb
+                  && ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {
+                report(
+                    bb,
+                    -1,
+                    "Block with 1 predecessor (which isn't an 'if' whose arguments are different in both branches) can't have phis");
+              }
             }
           }
         }
@@ -171,7 +190,7 @@ public class CFGChecker extends Checker {
           if (definitions.size() != 1) {
             continue;
           }
-          var def = definitions.iterator().next();
+          var def = Iterables.getOnlyElement(definitions);
 
           var reportedDef = false;
           for (var use : uses) {

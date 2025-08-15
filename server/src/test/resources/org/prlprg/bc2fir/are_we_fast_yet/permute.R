@@ -5,9 +5,7 @@ permute <- function(n, list) {
   
   count <- 0
   for (i in 1:n) {
-    list <- swap(list, i, n)
-    count <- count + permute(n - 1, list)
-    list <- swap(list, i, n)
+    count <- count + permute(n - 1, swap(list, i, n))
   }
   
   return(count)

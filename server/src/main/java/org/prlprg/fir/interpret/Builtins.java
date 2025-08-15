@@ -6,8 +6,10 @@ import java.util.Objects;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
@@ -24,28 +26,29 @@ public final class Builtins {
   /// Use [#addAndRegisterHelpers(Interpreter)] to register non-builtin utility functions.
   public static void registerBuiltins(Interpreter interpreter) {
     // Builtins
-    interpreter.registerExternalFunction("+", Builtins::add);
-    interpreter.registerExternalVersion("+", 0, Builtins::addInts);
-    interpreter.registerExternalFunction("-", Builtins::subtract);
-    interpreter.registerExternalFunction("*", Builtins::multiply);
-    interpreter.registerExternalFunction("/", Builtins::divide);
-    interpreter.registerExternalFunction("==", Builtins::equal);
-    registerExternalFunctionForAllVersions(interpreter, "==", Builtins::equal);
-    interpreter.registerExternalFunction("<", Builtins::less);
+    interpreter.registerExternalFunction("+", ExternalFunction.strict(Builtins::add));
+    interpreter.registerExternalVersion("+", 0, ExternalVersion.strict(Builtins::addInts));
+    interpreter.registerExternalFunction("-", ExternalFunction.strict(Builtins::subtract));
+    interpreter.registerExternalFunction("*", ExternalFunction.strict(Builtins::multiply));
+    interpreter.registerExternalFunction("/", ExternalFunction.strict(Builtins::divide));
+    interpreter.registerExternalFunction("==", ExternalFunction.strict(Builtins::equal));
+    registerExternalFunctionForAllVersions(
+        interpreter, "==", ExternalVersion.strict(Builtins::equal));
+    interpreter.registerExternalFunction("<", ExternalFunction.strict(Builtins::less));
     interpreter.registerExternalVersion("<", 0, Builtins::lessInts);
-    interpreter.registerExternalFunction("<=", Builtins::lessEqual);
-    interpreter.registerExternalFunction("!=", Builtins::notEqual);
-    interpreter.registerExternalFunction(">", Builtins::greater);
-    interpreter.registerExternalFunction(">=", Builtins::greaterEqual);
-    interpreter.registerExternalFunction("rep", Builtins::rep);
-    interpreter.registerExternalFunction("[", Builtins::index);
-    interpreter.registerExternalFunction("[<-", Builtins::subAssign);
-    interpreter.registerExternalFunction("[[", Builtins::index2);
-    interpreter.registerExternalFunction("[[<-", Builtins::subAssign2);
-    interpreter.registerExternalFunction(":", Builtins::colon);
-    interpreter.registerExternalFunction("c", Builtins::c);
-    interpreter.registerExternalFunction("length", Builtins::length);
-    interpreter.registerExternalFunction("is.object", Builtins::isObject);
+    interpreter.registerExternalFunction("<=", ExternalFunction.strict(Builtins::lessEqual));
+    interpreter.registerExternalFunction("!=", ExternalFunction.strict(Builtins::notEqual));
+    interpreter.registerExternalFunction(">", ExternalFunction.strict(Builtins::greater));
+    interpreter.registerExternalFunction(">=", ExternalFunction.strict(Builtins::greaterEqual));
+    interpreter.registerExternalFunction("rep", ExternalFunction.strict(Builtins::rep));
+    interpreter.registerExternalFunction("[", ExternalFunction.strict(Builtins::index));
+    interpreter.registerExternalFunction("[<-", ExternalFunction.strict(Builtins::subAssign));
+    interpreter.registerExternalFunction("[[", ExternalFunction.strict(Builtins::index2));
+    interpreter.registerExternalFunction("[[<-", ExternalFunction.strict(Builtins::subAssign2));
+    interpreter.registerExternalFunction(":", ExternalFunction.strict(Builtins::colon));
+    interpreter.registerExternalFunction("c", ExternalFunction.strict(Builtins::c));
+    interpreter.registerExternalFunction("length", ExternalFunction.strict(Builtins::length));
+    interpreter.registerExternalFunction("is.object", ExternalFunction.strict(Builtins::isObject));
 
     // Intrinsics
     interpreter.registerExternalVersion("toForSeq", 0, Builtins::toForSeq);
@@ -337,82 +340,6 @@ public final class Builtins {
     }
   }
 
-  private static SEXP seq(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() < 2 || args.size() > 3) {
-      throw new IllegalArgumentException("`seq` takes 2 or 3 arguments");
-    }
-
-    // Get from argument as double
-    double from;
-    if (args.value(0).asScalarInteger().isPresent()) {
-      from = args.value(0).asScalarInteger().get().doubleValue();
-    } else if (args.value(0).asScalarReal().isPresent()) {
-      from = args.value(0).asScalarReal().get();
-    } else {
-      throw new UnsupportedOperationException("Mock `seq` requires numeric from argument");
-    }
-
-    // Get to argument as double
-    double to;
-    if (args.value(1).asScalarInteger().isPresent()) {
-      to = args.value(1).asScalarInteger().get().doubleValue();
-    } else if (args.value(1).asScalarReal().isPresent()) {
-      to = args.value(1).asScalarReal().get();
-    } else {
-      throw new UnsupportedOperationException("Mock `seq` requires numeric to argument");
-    }
-
-    double by = 1.0;
-
-    // Handle optional 'by' argument
-    if (args.size() == 3) {
-      if (args.value(2).asScalarInteger().isPresent()) {
-        by = args.value(2).asScalarInteger().get().doubleValue();
-      } else if (args.value(2).asScalarReal().isPresent()) {
-        by = args.value(2).asScalarReal().get();
-      }
-
-      if (by == 0.0) {
-        throw new IllegalArgumentException("seq() argument 'by' must not be 0");
-      }
-    }
-
-    var areIntegers = args.values().stream().allMatch(x -> x.asScalarInteger().isPresent());
-
-    // Handle case where from == to
-    if (from == to) {
-      // Return appropriate type based on input
-      if (areIntegers) {
-        return SEXPs.integer((int) from);
-      } else {
-        return SEXPs.real(from);
-      }
-    }
-
-    // Calculate sequence
-    if ((to - from) * by < 0) {
-      // by has wrong sign, return empty sequence
-      return areIntegers ? SEXPs.EMPTY_INTEGER : SEXPs.EMPTY_REAL;
-    }
-
-    var length = (int) Math.floor((to - from) / by) + 1;
-    var result = new double[length];
-
-    for (int i = 0; i < length; i++) {
-      result[i] = from + i * by;
-    }
-
-    if (areIntegers) {
-      var intResult = new int[length];
-      for (int i = 0; i < length; i++) {
-        intResult[i] = (int) result[i];
-      }
-      return SEXPs.integer(intResult);
-    } else {
-      return SEXPs.real(result);
-    }
-  }
-
   private static SEXP index(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
     if (args.size() != 2) {
       throw new IllegalArgumentException("`[` takes 2 arguments");
@@ -462,6 +389,13 @@ public final class Builtins {
     int realIndex = index1 - 1;
 
     var value = args.value(2);
+
+    // Cast `value` to the correct type if possible.
+    if (vector instanceof IntSXP && value.asScalarReal().isPresent()) {
+      value = SEXPs.integer(value.asScalarReal().get().intValue());
+    } else if (vector instanceof RealSXP && value.asScalarInteger().isPresent()) {
+      value = SEXPs.real(value.asScalarInteger().get().doubleValue());
+    }
 
     // We must copy the vector because FIŘ mutates in-place.
     var result = vector.copy();

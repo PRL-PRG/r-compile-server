@@ -7,14 +7,14 @@ fun main {
       rx2 = rx1 as V;
       return rx2;
     };
-    r1 = f(r0);
+    r1 = f< p(V -) -+> v(I) >(r0);
     return r1;
   }
 }
 
 fun f {
   (reg r:p(V -)) -+> v(I) { reg r1:v(I) |
-    r1 = g(r);
+    r1 = g< p(V -) -+> v(I) >(r);
     return r1;
   }
 }
