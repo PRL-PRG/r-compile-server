@@ -8,6 +8,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Names;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.SEXP;
@@ -111,20 +112,29 @@ class PrintStackTrace {
       w.write("[ ");
       w.runIndented(
           () -> {
+            var feedback = frame.scopeFeedback();
+
             for (var entry : frame.registers().entrySet()) {
+              var register = entry.getKey();
+              var value = entry.getValue();
+
               w.write("reg ");
-              p.print(entry.getKey());
+              p.print(register);
               w.write(" = ");
-              p.print(entry.getValue());
-              w.write(";\n");
+              p.print(value);
+              feedback.print(register, p);
+              w.write('\n');
             }
 
             for (var entry : frame.environment().bindings()) {
+              var variable = entry.getKey();
+              var value = entry.getValue();
+
               w.write("var ");
-              w.write(entry.getKey());
+              Names.write(w, variable);
               w.write(" = ");
-              p.print(entry.getValue());
-              w.write(";\n");
+              p.print(value);
+              w.write('\n');
             }
 
             w.write("parent = ");

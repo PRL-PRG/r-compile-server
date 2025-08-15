@@ -2,11 +2,13 @@ package org.prlprg.fir.interpret;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.feedback.Feedback;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -19,24 +21,17 @@ import org.prlprg.sexp.UserEnvSXP;
 
 /// Runtime stack frame for FIR interpretation, managing register and environment bindings.
 final class StackFrame {
+  private final Abstraction scope;
   /// If there are multiple, that's because we're in a promise being forced.
   private final List<CFGCursor> positions = new ArrayList<>();
-  private final Map<Register, SEXP> registers = new HashMap<>();
+  private final Map<Register, SEXP> registers = new LinkedHashMap<>();
   private final EnvSXP environment;
+  private final Feedback scopeFeedback;
 
-  StackFrame(EnvSXP parentEnv) {
+  StackFrame(Abstraction scope, EnvSXP parentEnv, Feedback scopeFeedback) {
+    this.scope = scope;
     this.environment = new UserEnvSXP(parentEnv);
-  }
-
-  public void enter(CFGCursor position) {
-    positions.add(position);
-  }
-
-  public void exit() {
-    if (positions.isEmpty()) {
-      throw new IllegalStateException("No position to exit from");
-    }
-    positions.removeLast();
+    this.scopeFeedback = scopeFeedback;
   }
 
   @UnmodifiableView
@@ -51,12 +46,32 @@ final class StackFrame {
     return positions.get(index);
   }
 
+  public void enter(CFGCursor position) {
+    if (position.cfg().scope() != scope) {
+      throw new IllegalArgumentException("Position not in frame's scope");
+    }
+
+    positions.add(position);
+  }
+
+  public void exit() {
+    if (positions.isEmpty()) {
+      throw new IllegalStateException("No position to exit from");
+    }
+
+    positions.removeLast();
+  }
+
   public @UnmodifiableView Map<Register, SEXP> registers() {
     return registers;
   }
 
   public EnvSXP environment() {
     return environment;
+  }
+
+  public Feedback scopeFeedback() {
+    return scopeFeedback;
   }
 
   /// Lookup register or named variable.
