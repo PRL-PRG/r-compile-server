@@ -35,6 +35,7 @@ typedef struct {
   const uint8_t * body;
   size_t holes_size;
   const Hole * holes;
+  uint8_t alignment;
 } Stencil;
 
 typedef struct {
@@ -42,6 +43,7 @@ typedef struct {
   uint8_t * body;
   size_t holes_size;
   Hole * holes;
+  uint8_t alignment;
 } StencilMutable;
 
 #define X_STEPFOR_TYPES                                                     \

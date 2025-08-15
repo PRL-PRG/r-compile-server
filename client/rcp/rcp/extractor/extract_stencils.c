@@ -171,16 +171,16 @@ static void export_to_files(const Stencils *stencils)
   fprintf(file, "};\n");
 
   for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
-    fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name);
+    fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES, %u};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name, current->stencil.alignment);
 
   fprintf(file, "\nconst Stencil stencils[%zu] = {\n", sizeof(OPCODES) / sizeof(*OPCODES));
 
   for (int i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
   {
     if (stencils->stencils_opcodes[i].body_size != 0)
-      fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES}, // %s\n", stencils->stencils_opcodes[i].body_size, OPCODES[i], stencils->stencils_opcodes[i].holes_size, OPCODES[i], OPCODES[i]);
+      fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES, %u}, // %s\n", stencils->stencils_opcodes[i].body_size, OPCODES[i], stencils->stencils_opcodes[i].holes_size, OPCODES[i], stencils->stencils_opcodes[i].alignment, OPCODES[i]);
     else
-      fprintf(file, "{0, NULL, 0, NULL}, // %s\n", OPCODES[i]);
+      fprintf(file, "{0, NULL, 0, NULL, 0}, // %s\n", OPCODES[i]);
   }
 
   fprintf(file, "};\n");
@@ -466,9 +466,6 @@ static void process_sections(bfd *abfd, asection *section, void *data)
 
   if (section->flags & SEC_CODE)
   {
-    if (section->alignment_power > 0)
-      fprintf(stderr, "WARNING: Stencil %s requires alignment to 2^%u, but this is not supported\n", section->name, section->alignment_power);
-
     StencilMutable *stencil;
     int opcode = get_opcode(&symbol[6]);
     if (opcode != -1)
@@ -486,6 +483,7 @@ static void process_sections(bfd *abfd, asection *section, void *data)
 
     stencil->body_size = size;
     stencil->body = body;
+    stencil->alignment = 1 << section->alignment_power;
 
     process_relocations(stencil, reloc_count, relocs);
   }

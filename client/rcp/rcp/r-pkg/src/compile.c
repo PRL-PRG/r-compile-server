@@ -616,7 +616,8 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
             static Stencil res = {
                 .body_size = stepfor_max_size,
                 .holes_size = 1,
-                .holes = &res_hole
+                .holes = &res_hole,
+                .alignment = 16
             };
             return &res;
         }
@@ -660,8 +661,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             for_count++;
 #endif
 
-        inst_start[i] = (uint8_t*)insts_size;
-        insts_size += stencil->body_size;
+        size_t aligned_size = align_to_higher(insts_size, stencil->alignment);
+        size_t aligned_diff = aligned_size - insts_size;
+        //DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff: %zu\n", OPCODES[bytecode[i]], insts_size, aligned_size, aligned_diff);
+
+        inst_start[i] = (uint8_t*)aligned_size;
+        insts_size += stencil->body_size + aligned_diff;
         bytecode_lut[count_opcodes++] = i;
 
         for (size_t j = 0; j < stencil->holes_size; ++j)
@@ -776,6 +781,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         .rho = rho,
         .bcell_lookup = used_bcells
     };
+
+    memset(executable, 0x90, executable_size_aligned); // Fill the executable memory with NOPs to fill the gapps between instructions in case of non-trivial alignment
 
     // Start to copy-patch
     memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
