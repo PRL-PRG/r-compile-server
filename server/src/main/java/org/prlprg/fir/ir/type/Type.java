@@ -1,5 +1,6 @@
 package org.prlprg.fir.ir.type;
 
+import java.util.Objects;
 import java.util.logging.Logger;
 import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.parseprint.ParseMethod;
@@ -38,7 +39,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
       new Type(new Kind.Closure(), Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type BOOLEAN = LOGICAL;
 
-  private static Logger LOGGER = Logger.getLogger(Type.class.getName());
+  private static final Logger LOGGER = Logger.getLogger(Type.class.getName());
 
   public static Type primitiveScalar(PrimitiveKind kind) {
     return new Type(new Kind.PrimitiveScalar(kind), Ownership.SHARED, Concreteness.DEFINITE);
@@ -61,7 +62,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
       case CloSXP _, BuiltinOrSpecialSXP _ -> CLOSURE;
       case PromSXP p ->
           promise(
-              p.boundVal() == null ? ANY_VALUE : of(p.boundVal()),
+              p.isLazy() ? ANY_VALUE : of(Objects.requireNonNull(p.boundVal())),
               p.isLazy() ? Effects.ANY : Effects.NONE);
       default -> ANY_VALUE;
     };
@@ -91,7 +92,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
 
   public boolean isWellFormed() {
     return !(kind instanceof Kind.Any && concreteness == Concreteness.DEFINITE)
-        && !(!(kind instanceof Kind.PrimitiveVector) && ownership != Ownership.SHARED);
+        && !(!kind.isWellFormedWithOwnership() && ownership != Ownership.SHARED);
   }
 
   public boolean isSubtypeOf(Type other) {

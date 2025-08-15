@@ -2,7 +2,6 @@ package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.abort;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -47,7 +46,7 @@ public class CleanupTest {
                 + expectedAfterCleanup);
       }
     } catch (ParseException e) {
-      abort(
+      fail(
           "Failed to parse FIŘ file: "
               + firFilePath
               + "\nError: "

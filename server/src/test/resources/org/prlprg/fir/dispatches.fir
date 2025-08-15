@@ -1,6 +1,6 @@
 fun main {
   () --> v(I)f { reg r:v(I)o |
-    r = f(42);
+    r = f< I --> v(I)f >(42);
     return use r;
   }
 }
@@ -9,7 +9,7 @@ fun f {
   (reg rx:I) --> v(I)f { reg r0:p(I -), reg r1:p(I -), reg r2:p(I -), reg r3:p(I -), reg r4:p(I -), reg r5:p(I -), reg r6:v(I)o |
     r0 = prom<I ->{ return rx; };
     r1 = prom<I ->{ return 0; };
-    g(r0, r1);
+    g< *,* --> V >(r0, r1);
 
     r2 = prom<I ->{ return rx; };
     r3 = prom<I ->{ return 4; };

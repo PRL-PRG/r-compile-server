@@ -1,9 +1,9 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Logical;
@@ -41,11 +41,11 @@ public sealed interface LglSXP extends PrimVectorSXP<Logical>
 
 /** Logical vector which doesn't fit any of the more specific subclasses. */
 final class LglSXPImpl implements LglSXP {
-  private final List<Logical> data;
+  private final Logical[] data;
   private final Attributes attributes;
 
-  LglSXPImpl(ImmutableList<Logical> data, Attributes attributes) {
-    this.data = new ArrayList<>(data);
+  LglSXPImpl(Logical[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
@@ -56,32 +56,45 @@ final class LglSXPImpl implements LglSXP {
 
   @Override
   public Iterator<Logical> iterator() {
-    return data.iterator();
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public Logical get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, Logical value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public LglSXP withAttributes(Attributes attributes) {
-    return SEXPs.logical(ImmutableList.copyOf(data), attributes);
+    return SEXPs.logical(data, attributes);
   }
 
   @Override
   public LglSXP copy() {
-    return new LglSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new LglSXPImpl(data, attributes);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof LglSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override

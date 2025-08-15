@@ -1,9 +1,9 @@
 package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 
@@ -36,11 +36,11 @@ public sealed interface RawSXP extends PrimVectorSXP<Byte>
 
 /** Raw (byte) vector which doesn't fit any of the more specific subclasses. */
 final class RawSXPImpl implements RawSXP {
-  private final List<Byte> data;
+  private final byte[] data;
   private final Attributes attributes;
 
-  RawSXPImpl(ImmutableList<Byte> data, Attributes attributes) {
-    this.data = new ArrayList<>(data);
+  RawSXPImpl(byte[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
@@ -51,32 +51,58 @@ final class RawSXPImpl implements RawSXP {
 
   @Override
   public Iterator<Byte> iterator() {
-    return data.iterator();
+    // For whatever reason, there's no `Arrays#stream` for byte arrays,
+    return new Iterator<>() {
+      private int index = 0;
+
+      @Override
+      public boolean hasNext() {
+        return index < data.length;
+      }
+
+      @Override
+      public Byte next() {
+        return data[index++];
+      }
+    };
   }
 
   @Override
   public Byte get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, Byte value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public RawSXP withAttributes(Attributes attributes) {
-    return SEXPs.raw(ImmutableList.copyOf(data), attributes);
+    return SEXPs.raw(data, attributes);
   }
 
   @Override
   public RawSXP copy() {
-    return new RawSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new RawSXPImpl(data, attributes);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof RawSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override

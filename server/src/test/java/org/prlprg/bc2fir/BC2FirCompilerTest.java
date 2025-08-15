@@ -40,9 +40,9 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
             """,
         """
             fun f{
-              (reg rx:*) -+> V { var x:*, reg r0:*, reg r1:* |
-                x = rx;
-                r0 = x;
+              (reg rx:*) -+> V { var x:*, reg r0:*, reg r1:V |
+                st x = rx;
+                r0 = ld x;
                 r1 = force? r0;
                 return r1;
               }
@@ -60,9 +60,9 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
             """,
         """
             fun f{
-              (reg rx:*) -+> V { var x:*, reg r0:*, reg r1:*, reg r2:* |
-                x = rx;
-                r0 = x;
+              (reg rx:*) -+> V { var x:*, reg r0:*, reg r1:V, reg r2:V |
+                st x = rx;
+                r0 = ld x;
                 r1 = force? r0;
                 r2 = `+`(r1, 1.0);
                 return r2;

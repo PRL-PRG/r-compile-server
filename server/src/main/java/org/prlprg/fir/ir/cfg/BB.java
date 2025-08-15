@@ -123,6 +123,10 @@ public final class BB {
             });
   }
 
+  public void clearParameters() {
+    module().record("BB#clearParameters", List.of(this), parameters::clear);
+  }
+
   public void appendStatement(Statement statement) {
     module()
         .record(

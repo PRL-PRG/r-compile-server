@@ -1,11 +1,9 @@
 package org.prlprg.sexp;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
@@ -30,11 +28,11 @@ public sealed interface VecSXP extends VectorSXP<SEXP> {
 }
 
 final class VecSXPImpl implements VecSXP {
-  private final List<SEXP> data;
+  private final SEXP[] data;
   private final Attributes attributes;
 
-  VecSXPImpl(ImmutableList<SEXP> data, Attributes attributes) {
-    this.data = new ArrayList<>(data);
+  VecSXPImpl(SEXP[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
@@ -45,32 +43,45 @@ final class VecSXPImpl implements VecSXP {
 
   @Override
   public Iterator<SEXP> iterator() {
-    return data.iterator();
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public SEXP get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, SEXP value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public VecSXP withAttributes(Attributes attributes) {
-    return SEXPs.vec(ImmutableList.copyOf(data), attributes);
+    return SEXPs.vec(data, attributes);
   }
 
   @Override
   public VecSXP copy() {
-    return new VecSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new VecSXPImpl(data, attributes);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof VecSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override
@@ -143,7 +154,7 @@ abstract class EmptyVectorSXPImpl<T> {
   }
 
   // @Override
-  public T get(int i) {
+  public T get(int ignore) {
     throw new IndexOutOfBoundsException();
   }
 

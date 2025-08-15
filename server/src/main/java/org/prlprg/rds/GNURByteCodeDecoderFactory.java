@@ -1,6 +1,7 @@
 package org.prlprg.rds;
 
 import com.google.common.primitives.ImmutableIntArray;
+import java.util.Arrays;
 import java.util.List;
 import org.prlprg.bc.*;
 import org.prlprg.sexp.IntSXP;
@@ -291,7 +292,7 @@ class GNURByteCodeDecoderFactory {
   }
 
   private IntSXP remapLabels(IntSXP oldLabels) {
-    var remapped = oldLabels.data().stream().map(labelMapping::getTarget).toArray();
+    var remapped = Arrays.stream(oldLabels.data()).map(labelMapping::getTarget).toArray();
     return SEXPs.integer(remapped);
   }
 }

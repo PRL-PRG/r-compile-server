@@ -1,7 +1,7 @@
 package org.prlprg.fir.check;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assumptions.abort;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,7 +51,7 @@ public class CFGCheckTest {
           List.of(), unexpectedCFGCheckerErrors, "CFG checking produced unexpected errors");
       assertEquals(List.of(), unseenExpectedErrors, "CFG checking DIDN'T produce expected errors");
     } catch (ParseException e) {
-      abort(
+      fail(
           "Failed to parse FIŘ file: "
               + firFilePath
               + "\nError: "

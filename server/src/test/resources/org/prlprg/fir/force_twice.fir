@@ -3,16 +3,16 @@ fun main {
     st x = 0;
 
     r = prom<I ->{
-    rx0 = ld x;
-    r1 = rx0 as I;
-    rx1 = inc.0(r1);
-    st x = rx1;
-    rx2 = ld x;
-    r2 = rx2 as I;
-    return r2;
+      rx0 = ld x;
+      r1 = rx0 as I;
+      rx1 = inc.0(r1);
+      st x = rx1;
+      rx2 = ld x;
+      r2 = rx2 as I;
+      return r2;
     };
 
-    r0 = force_twice(r);
+    r0 = force_twice< p(I -) --> I >(r);
     return r0;
   }
 }

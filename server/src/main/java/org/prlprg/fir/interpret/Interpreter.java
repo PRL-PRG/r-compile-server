@@ -263,11 +263,11 @@ public final class Interpreter {
       var hijacker = externalFunctions.get(function);
       if (hijacker != null) {
         var argumentsSxp =
-            SEXPs.list(
-                Streams.zip(
+            Streams.zip(
                     Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
                     arguments.stream(),
-                    (argName, arg) -> new TaggedElem(argName.isEmpty() ? null : argName, arg)));
+                    (argName, arg) -> new TaggedElem(argName.isEmpty() ? null : argName, arg))
+                .collect(SEXPs.toList());
 
         return callExternal(hijacker, function, argumentsSxp, environment);
       }
@@ -319,7 +319,8 @@ public final class Interpreter {
     for (int i = 0; i < params.size(); i++) {
       var param = params.get(i);
       var arg = arguments.get(i);
-      checkType(arg, param.type(), "parameter " + param.variable().name());
+      checkType(
+          arg, param.type(), "argument " + i + " (parameter " + param.variable().name() + ")");
 
       frame.put(param.variable(), arg);
 
@@ -802,7 +803,7 @@ public final class Interpreter {
       var parameterType = explicit.parameterTypes().get(i);
       var argument = arguments.get(i);
 
-      var argumentType = checkType(argument, parameterType, "parameter " + i + " (of signature)");
+      var argumentType = checkType(argument, parameterType, "argument " + i + " (for signature)");
       argumentTypes.add(argumentType);
     }
 
@@ -816,16 +817,17 @@ public final class Interpreter {
   private Type checkType(SEXP value, Type expected, String context) {
     var actual = inferType(value, expected.ownership());
     if (!actual.isSubtypeOf(expected)) {
+      // Give these shared ownerships in the error message, since ownerships aren't the problem.
       throw fail(
-          "Type mismatch for "
+          "Type mismatch in "
               + context
-              + ": expected "
-              + expected
-              + ", got "
+              + ": "
               + value
               + " {:"
-              + actual
-              + "}");
+              + actual.withOwnership(Ownership.SHARED)
+              + "}"
+              + " isn't a(n) "
+              + expected.withOwnership(Ownership.SHARED));
     }
     return actual;
   }
@@ -839,23 +841,24 @@ public final class Interpreter {
         Effects.ANY);
   }
 
-  /// Infer the type of the [SEXP], giving it the ownership.
+  /// Infer the type of the [SEXP], giving it the ownership iff permissible.
   ///
   /// Ownership of the outermost type doesn't exist at runtime, so expected ownership must be
-  /// provided. Note that ownership of inner promise types DOES exist. Also, if the type can
-  /// only be shared and the given ownership isn't, it's returned ownership is unspecified.
+  /// provided. Note that ownership of inner promise types DOES exist. Also, if the type is only
+  /// well-formed iff shared and the given ownership isn't, it's returned as shared.
   public Type inferType(SEXP sexp, Ownership ownership) {
     // We can do better than `Type.of` for promises,
     // since we create promises with stub code.
     if (sexp instanceof PromSXP promSxp) {
       var promise = promises.get(promSxp);
       if (promise != null) {
-        // Promises are always shared. If `ownership` is wrong we'll get a type error later.
         return Type.promise(promise.expression.valueType(), promise.expression.effects());
       }
     }
 
-    return Type.of(sexp).withOwnership(ownership);
+    var type = Type.of(sexp);
+    // Set ownership only if the type is well-formed with it.
+    return type.kind().isWellFormedWithOwnership() ? type.withOwnership(ownership) : type;
   }
 
   private void checkEvaluation() {

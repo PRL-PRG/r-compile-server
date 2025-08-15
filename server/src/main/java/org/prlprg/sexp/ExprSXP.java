@@ -1,9 +1,8 @@
 package org.prlprg.sexp;
 
-import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 
@@ -32,11 +31,11 @@ public sealed interface ExprSXP extends VectorSXP<SEXP> {
 }
 
 final class ExprSXPImpl implements ExprSXP {
-  private final List<SEXP> data;
+  private final SEXP[] data;
   private final Attributes attributes;
 
-  ExprSXPImpl(ImmutableList<SEXP> data, Attributes attributes) {
-    this.data = new ArrayList<>(data);
+  ExprSXPImpl(SEXP[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
@@ -47,32 +46,45 @@ final class ExprSXPImpl implements ExprSXP {
 
   @Override
   public Iterator<SEXP> iterator() {
-    return data.iterator();
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public SEXP get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, SEXP value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public ExprSXP withAttributes(Attributes attributes) {
-    return SEXPs.expr(ImmutableList.copyOf(data), attributes);
+    return SEXPs.expr(data, attributes);
   }
 
   @Override
   public ExprSXP copy() {
-    return new ExprSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new ExprSXPImpl(data, attributes);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof ExprSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override

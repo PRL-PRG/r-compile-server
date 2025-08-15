@@ -1106,7 +1106,12 @@ public class CFGCompiler {
     if (callInstr instanceof org.prlprg.fir.ir.expression.Call c
         && c.callee() instanceof DynamicCallee(var ac, var _)
         && ac instanceof Read(var v)
-        && v.name().equals("stop")
+        && cursor.instructionIndex() > 0
+        && v.equals(cursor.bb().statements().get(cursor.instructionIndex() - 1).assignee())
+        && cursor.bb().statements().get(cursor.instructionIndex() - 1).expression()
+            instanceof LoadFun(var lf, var lfenv)
+        && lfenv == Env.LOCAL
+        && lf.name().equals("stop")
         && c.callArguments().size() == 1
         && c.callArguments()
             .getFirst()

@@ -49,6 +49,19 @@ public sealed interface Kind extends Comparable<Kind> {
     }
   }
 
+  /// Whether a type with this kind can be [well-formed][Type#isWellFormed()] if this has
+  /// non-shared [Ownership].
+  ///
+  /// Note that [Type#withOwnership(Ownership)] will still return the type with a non-shared
+  /// ownership, since it's used by subtyping.
+  default boolean isWellFormedWithOwnership() {
+    return switch (this) {
+      case Any(), AnyValue(), PrimitiveScalar(var _) -> false;
+      case PrimitiveVector(var _) -> true;
+      case Closure(), Promise(var _, var _) -> false;
+    };
+  }
+
   default boolean isSubtypeOf(Kind other) {
     return switch (other) {
       case Any() -> true;

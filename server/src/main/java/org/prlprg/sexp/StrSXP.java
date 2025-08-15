@@ -3,9 +3,9 @@ package org.prlprg.sexp;
 import com.google.common.collect.ImmutableList;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
@@ -44,11 +44,11 @@ public sealed interface StrSXP extends PrimVectorSXP<String>, StrOrRegSymSXP
 
 /** String vector which doesn't fit any of the more specific subclasses. */
 final class StrSXPImpl implements StrSXP {
-  private final List<String> data;
+  private final String[] data;
   private final Attributes attributes;
 
-  StrSXPImpl(ImmutableList<String> data, Attributes attributes) {
-    this.data = new ArrayList<>(data);
+  StrSXPImpl(String[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
 
@@ -59,37 +59,50 @@ final class StrSXPImpl implements StrSXP {
 
   @Override
   public Iterator<String> iterator() {
-    return data.iterator();
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public String get(int i) {
-    return data.get(i);
+    return data[i];
   }
 
   @Override
   public void set(int i, String value) {
-    data.set(i, value);
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public StrSXP withAttributes(Attributes attributes) {
-    return SEXPs.string(ImmutableList.copyOf(data), attributes);
+    return SEXPs.string(data, attributes);
   }
 
   @Override
   public StrSXP copy() {
-    return new StrSXPImpl(ImmutableList.copyOf(data), attributes);
+    return new StrSXPImpl(data, attributes);
   }
 
   @Override
   public Optional<String> reifyString() {
     return size() == 1 ? Optional.of(get(0)) : Optional.empty();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof StrSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override

@@ -23,9 +23,9 @@ public record DispatchCallee(Function function, @Nullable Signature signature) i
       w.writeQuoted('`', function.name());
     }
     if (signature != null) {
-      w.write('<');
+      w.write("< ");
       p.print(signature);
-      w.write('>');
+      w.write(" >");
     }
   }
 }

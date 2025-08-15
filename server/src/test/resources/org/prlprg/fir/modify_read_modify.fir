@@ -2,10 +2,10 @@ fun main {
   () -+> V { reg r0:p(I -), reg r1:p(V +), reg r2:V, reg r3:v(I)o |
     r0 = prom<I ->{ return 42; };
     r1 = prom<V +>{
-      r3 = read(r0);
+      r3 = read< p(I -) -+> v(I)f >(r0);
       return use r3;
     };
-    r2 = modify(r1);
+    r2 = modify< p(V +) -+> V >(r1);
     return r2;
   }
 }

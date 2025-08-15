@@ -34,6 +34,6 @@ public sealed interface Argument permits Constant, Read, Use {
       return new Read(register);
     }
 
-    throw s.fail("unknown expression");
+    throw s.fail("expected SEXP, register, or 'use'");
   }
 }
