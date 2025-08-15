@@ -617,7 +617,7 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
                 .body_size = stepfor_max_size,
                 .holes_size = 1,
                 .holes = &res_hole,
-                .alignment = 16
+                .alignment = 1
             };
             return &res;
         }
