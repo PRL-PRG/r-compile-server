@@ -2,6 +2,7 @@ package org.prlprg.fir.interpret;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.sexp.EnvSXP;
@@ -29,6 +30,7 @@ public final class Builtins {
     interpreter.registerExternalFunction("*", Builtins::multiply);
     interpreter.registerExternalFunction("/", Builtins::divide);
     interpreter.registerExternalFunction("==", Builtins::equal);
+    registerExternalFunctionForAllVersions(interpreter, "==", Builtins::equal);
     interpreter.registerExternalFunction("<", Builtins::less);
     interpreter.registerExternalVersion("<", 0, Builtins::lessInts);
     interpreter.registerExternalFunction("<=", Builtins::lessEqual);
@@ -49,20 +51,14 @@ public final class Builtins {
     interpreter.registerExternalVersion("toForSeq", 0, Builtins::toForSeq);
   }
 
-  /// Add to the module and register non-builtin utility functions provided by R, like `seq`.
-  public static void addAndRegisterHelpers(Interpreter interpreter) {
-    addAndRegister(interpreter, "seq", Builtins::seq);
-  }
-
-  private static void addAndRegister(
-      Interpreter interpreter, String functionName, ExternalFunction javaClosure) {
-    var module = interpreter.module();
-    if (module.localFunction(functionName) != null) {
-      return;
+  private static void registerExternalFunctionForAllVersions(
+      Interpreter interpreter, String name, ExternalVersion javaClosure) {
+    var function =
+        Objects.requireNonNull(
+            interpreter.module().lookupFunction(name), "builtin doesn't exist named " + name);
+    for (var i : function.versionIndices()) {
+      interpreter.registerExternalVersion(name, i, javaClosure);
     }
-
-    module.addFunction(functionName);
-    interpreter.registerExternalFunction(functionName, javaClosure);
   }
 
   private static SEXP add(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
@@ -105,6 +101,17 @@ public final class Builtins {
     }
     var arg0 = args.value(0);
     var arg1 = args.value(1);
+
+    return SEXPs.logical(arg0.equals(arg1));
+  }
+
+  private static SEXP equal(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2) {
+      throw new IllegalArgumentException("`==` takes 2 arguments");
+    }
+    var arg0 = args.getFirst();
+    var arg1 = args.get(1);
 
     return SEXPs.logical(arg0.equals(arg1));
   }

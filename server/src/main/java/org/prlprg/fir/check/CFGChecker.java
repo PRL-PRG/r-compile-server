@@ -9,27 +9,27 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
+/// Verifies the following invariants:
+/// - All basic blocks are reachable from entry
+/// - Entry blocks and blocks with < 2 predecessors don't have phi parameters
+/// - Jump targets have the correct number of phi arguments
+/// - There are no duplicate variable declarations in the scope
+/// - All registers are declared in the innermost scope
+/// - Parameters are never assigned, local registers are assigned exactly once
+/// - Register reads (and uses) must be dominated by their assignments. In other words, during
+///   execution, the assignment must be guaranteed to occur before the read.
+///   - Registers can't be read across scopes.
+///   - Registers *can* be read across promises. The promise must be in the same control-flow
+///     graph as the register's definition OR in a promise in the same control-flow graph OR in
+///     a promise in a promise in the same control-flow graph etc. For the dominance check, the
+///     "read" is considered to be the definition of the outermost promise, the one that's in the
+///     same control-flow graph of the definition. In other words, during execution, the
+///     definition must be guaranteed to occur before all promises containing the read (which
+///     ensures it occurs before the read itself).
 public class CFGChecker extends Checker {
-  /// Verifies the following invariants:
-  /// - All basic blocks are reachable from entry
-  /// - Entry blocks and blocks with < 2 predecessors don't have phi parameters
-  /// - Jump targets have the correct number of phi arguments
-  /// - There are no duplicate variable declarations in the scope
-  /// - All registers are declared in the innermost scope
-  /// - Parameters are never assigned, local registers are assigned exactly once
-  /// - Register reads (and uses) must be dominated by their assignments. In other words,
-  ///   during execution, the assignment must be guaranteed to occur before the read.
-  ///   - Registers can't be read across scopes.
-  ///   - Registers *can* be read across promises. The promise must be in the same
-  ///     control-flow-graph as the register's definition OR in a promise in the same
-  ///     control-flow graph OR in a promise in a promise in the same control-flow graph etc.
-  ///     For the dominance check, the "read" is considered to be the definition of the
-  ///     outermost promise, the one that's in the same control-flow graph of the definition.
-  ///     In other words, during execution, the definition must be guaranteed to occur before
-  ///     all promises containing the read (which ensures it occurs before the read itself).
   @Override
-  public void run(Abstraction abstraction) {
-    new OnAbstraction(abstraction).run();
+  protected void doRun(Abstraction version) {
+    new OnAbstraction(version).run();
   }
 
   private class OnAbstraction {

@@ -39,17 +39,22 @@ public class Cleanup extends Optimization {
 
   private static class OnAbstraction {
     final Abstraction scope;
-    final DefUses defUses;
     final Substituter substituter;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
-      this.defUses = new DefUses(scope);
       substituter = new Substituter(scope);
     }
 
     void run() {
-      // Remove unused locals.
+      // CFG-specific cleanup
+      scope.streamCfgs().forEach(cfg -> new OnCfg(cfg).run());
+
+      // Run substitutions all at once for performance
+      substituter.commit();
+
+      // Remove unused locals (must be after CFG cleanup and substitution, doesn't substitute).
+      var defUses = new DefUses(scope);
       var toRemove = new ArrayList<Register>();
       for (var local : scope.locals()) {
         if (local.variable() instanceof Register localReg && defUses.uses(localReg).isEmpty()) {
@@ -83,12 +88,6 @@ public class Cleanup extends Optimization {
       for (var localReg : toRemove) {
         scope.removeLocal(localReg);
       }
-
-      // CFG-specific cleanup
-      scope.streamCfgs().forEach(cfg -> new OnCfg(cfg).run());
-
-      // Run substitutions all at once for performance
-      substituter.commit();
     }
 
     private class OnCfg {

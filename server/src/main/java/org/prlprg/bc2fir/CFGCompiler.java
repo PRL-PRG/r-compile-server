@@ -16,29 +16,165 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
+import org.prlprg.bc.BcInstr.Add;
+import org.prlprg.bc.BcInstr.And;
+import org.prlprg.bc.BcInstr.And1st;
+import org.prlprg.bc.BcInstr.And2nd;
+import org.prlprg.bc.BcInstr.BaseGuard;
+import org.prlprg.bc.BcInstr.BrIfNot;
+import org.prlprg.bc.BcInstr.CallBuiltin;
+import org.prlprg.bc.BcInstr.CallSpecial;
+import org.prlprg.bc.BcInstr.CheckFun;
+import org.prlprg.bc.BcInstr.Colon;
+import org.prlprg.bc.BcInstr.DdVal;
+import org.prlprg.bc.BcInstr.DdValMissOk;
+import org.prlprg.bc.BcInstr.DecLnk;
+import org.prlprg.bc.BcInstr.DecLnkStk;
+import org.prlprg.bc.BcInstr.DeclnkN;
+import org.prlprg.bc.BcInstr.DfltC;
+import org.prlprg.bc.BcInstr.DfltSubassign;
+import org.prlprg.bc.BcInstr.DfltSubassign2;
+import org.prlprg.bc.BcInstr.DfltSubset;
+import org.prlprg.bc.BcInstr.DfltSubset2;
+import org.prlprg.bc.BcInstr.Div;
+import org.prlprg.bc.BcInstr.DoDots;
+import org.prlprg.bc.BcInstr.DoLoopBreak;
+import org.prlprg.bc.BcInstr.DoLoopNext;
+import org.prlprg.bc.BcInstr.DoMissing;
+import org.prlprg.bc.BcInstr.Dollar;
+import org.prlprg.bc.BcInstr.DollarGets;
+import org.prlprg.bc.BcInstr.DotCall;
+import org.prlprg.bc.BcInstr.DotsErr;
+import org.prlprg.bc.BcInstr.Dup2nd;
+import org.prlprg.bc.BcInstr.EndAssign;
+import org.prlprg.bc.BcInstr.EndAssign2;
+import org.prlprg.bc.BcInstr.EndFor;
+import org.prlprg.bc.BcInstr.EndLoopCntxt;
+import org.prlprg.bc.BcInstr.Eq;
+import org.prlprg.bc.BcInstr.Exp;
+import org.prlprg.bc.BcInstr.Expt;
+import org.prlprg.bc.BcInstr.Ge;
+import org.prlprg.bc.BcInstr.GetBuiltin;
+import org.prlprg.bc.BcInstr.GetFun;
+import org.prlprg.bc.BcInstr.GetGlobFun;
+import org.prlprg.bc.BcInstr.GetIntlBuiltin;
+import org.prlprg.bc.BcInstr.GetSymFun;
+import org.prlprg.bc.BcInstr.GetVar;
+import org.prlprg.bc.BcInstr.GetVarMissOk;
+import org.prlprg.bc.BcInstr.GetterCall;
+import org.prlprg.bc.BcInstr.Gt;
+import org.prlprg.bc.BcInstr.IncLnk;
+import org.prlprg.bc.BcInstr.IncLnkStk;
+import org.prlprg.bc.BcInstr.Invisible;
+import org.prlprg.bc.BcInstr.IsCharacter;
+import org.prlprg.bc.BcInstr.IsComplex;
+import org.prlprg.bc.BcInstr.IsDouble;
+import org.prlprg.bc.BcInstr.IsInteger;
+import org.prlprg.bc.BcInstr.IsLogical;
+import org.prlprg.bc.BcInstr.IsNull;
+import org.prlprg.bc.BcInstr.IsNumeric;
+import org.prlprg.bc.BcInstr.IsObject;
+import org.prlprg.bc.BcInstr.IsSymbol;
+import org.prlprg.bc.BcInstr.LdConst;
+import org.prlprg.bc.BcInstr.LdFalse;
+import org.prlprg.bc.BcInstr.LdNull;
+import org.prlprg.bc.BcInstr.LdTrue;
+import org.prlprg.bc.BcInstr.Le;
+import org.prlprg.bc.BcInstr.Log;
+import org.prlprg.bc.BcInstr.LogBase;
+import org.prlprg.bc.BcInstr.Lt;
+import org.prlprg.bc.BcInstr.MakeClosure;
+import org.prlprg.bc.BcInstr.MakeProm;
+import org.prlprg.bc.BcInstr.MatSubassign;
+import org.prlprg.bc.BcInstr.MatSubassign2;
+import org.prlprg.bc.BcInstr.MatSubset;
+import org.prlprg.bc.BcInstr.MatSubset2;
+import org.prlprg.bc.BcInstr.Math1;
+import org.prlprg.bc.BcInstr.Mul;
+import org.prlprg.bc.BcInstr.Ne;
+import org.prlprg.bc.BcInstr.Not;
+import org.prlprg.bc.BcInstr.Or;
+import org.prlprg.bc.BcInstr.Or1st;
+import org.prlprg.bc.BcInstr.Or2nd;
+import org.prlprg.bc.BcInstr.Pop;
+import org.prlprg.bc.BcInstr.PrintValue;
+import org.prlprg.bc.BcInstr.PushArg;
+import org.prlprg.bc.BcInstr.PushConstArg;
+import org.prlprg.bc.BcInstr.PushFalseArg;
+import org.prlprg.bc.BcInstr.PushNullArg;
+import org.prlprg.bc.BcInstr.PushTrueArg;
+import org.prlprg.bc.BcInstr.ReturnJmp;
+import org.prlprg.bc.BcInstr.SeqAlong;
+import org.prlprg.bc.BcInstr.SeqLen;
+import org.prlprg.bc.BcInstr.SetLoopVal;
+import org.prlprg.bc.BcInstr.SetTag;
+import org.prlprg.bc.BcInstr.SetVar;
+import org.prlprg.bc.BcInstr.SetVar2;
+import org.prlprg.bc.BcInstr.SetterCall;
+import org.prlprg.bc.BcInstr.SpecialSwap;
+import org.prlprg.bc.BcInstr.Sqrt;
+import org.prlprg.bc.BcInstr.StartAssign;
+import org.prlprg.bc.BcInstr.StartAssign2;
+import org.prlprg.bc.BcInstr.StartC;
+import org.prlprg.bc.BcInstr.StartFor;
+import org.prlprg.bc.BcInstr.StartLoopCntxt;
+import org.prlprg.bc.BcInstr.StartSubassign;
+import org.prlprg.bc.BcInstr.StartSubassign2;
+import org.prlprg.bc.BcInstr.StartSubassign2N;
+import org.prlprg.bc.BcInstr.StartSubassignN;
+import org.prlprg.bc.BcInstr.StartSubset;
+import org.prlprg.bc.BcInstr.StartSubset2;
+import org.prlprg.bc.BcInstr.StartSubset2N;
+import org.prlprg.bc.BcInstr.StartSubsetN;
+import org.prlprg.bc.BcInstr.StepFor;
+import org.prlprg.bc.BcInstr.Sub;
+import org.prlprg.bc.BcInstr.Subassign2N;
+import org.prlprg.bc.BcInstr.SubassignN;
+import org.prlprg.bc.BcInstr.Subset2N;
+import org.prlprg.bc.BcInstr.SubsetN;
+import org.prlprg.bc.BcInstr.Switch;
+import org.prlprg.bc.BcInstr.UMinus;
+import org.prlprg.bc.BcInstr.UPlus;
+import org.prlprg.bc.BcInstr.VecSubassign;
+import org.prlprg.bc.BcInstr.VecSubassign2;
+import org.prlprg.bc.BcInstr.VecSubset;
+import org.prlprg.bc.BcInstr.VecSubset2;
+import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.bc.BcLabel;
-import org.prlprg.bc.ConstPool;
+import org.prlprg.bc.ConstPool.Idx;
 import org.prlprg.bc.LabelName;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.cfg.cursor.JumpInsertion;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.ReflectiveLoad;
+import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.SubscriptLoad;
+import org.prlprg.fir.ir.expression.SubscriptStore;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -163,7 +299,7 @@ public class CFGCompiler {
       throw new AssertionError("bytecode instructions should all be java records");
     }
 
-    if (instr instanceof BcInstr.Switch(var _, var _, var chrLabelsIdx, var numLabelsIdx)) {
+    if (instr instanceof Switch(var _, var _, var chrLabelsIdx, var numLabelsIdx)) {
       // `switch` is special, because the labels are encoded in the constant pool.
       var chrLabels = chrLabelsIdx == null ? null : get(chrLabelsIdx);
       var numLabels = numLabelsIdx == null ? null : get(numLabelsIdx);
@@ -233,19 +369,20 @@ public class CFGCompiler {
 
         insert(_ -> goto_(bb));
       }
-      case BcInstr.BrIfNot(var _, var label) -> {
+      case BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
         var cond = pop();
-        insert(next -> branch(cond, next, bb));
+        var condCasted = insertAndReturn(new Cast(cond, Type.LOGICAL));
+        insert(next -> branch(condCasted, next, bb));
       }
-      case BcInstr.Pop() -> pop();
+      case Pop() -> pop();
       case BcInstr.Dup() -> {
         var value = pop();
         push(value);
         push(value);
       }
-      case BcInstr.PrintValue() -> pushInsert(builtin("print", pop()));
-      case BcInstr.StartLoopCntxt(var isForLoop, var end) -> {
+      case PrintValue() -> pushInsert(builtin("print", pop()));
+      case StartLoopCntxt(var isForLoop, var end) -> {
         // REACH: Complicated loop contexts.
         // Currently, we only handle simple cases like PIR, where `next` and `break` aren't in
         // promises. To do this (handle the non-promise cases and fail on the promise ones), we
@@ -271,20 +408,20 @@ public class CFGCompiler {
 
         pushWhileOrRepeatLoop(bodyBb, endBb);
       }
-      case BcInstr.EndLoopCntxt(var isForLoop) -> {
+      case EndLoopCntxt(var isForLoop) -> {
         // We already handle `for` loops in `EndFor` (similar to `StartLoopCntxt`).
         // We don't auto-skip over them though because we don't need to.
         if (!isForLoop) {
           compileEndLoop(LoopType.WHILE_OR_REPEAT);
         }
       }
-      case BcInstr.StartFor(var _, var elemName, var step) -> {
+      case StartFor(var _, var elemName, var step) -> {
         // This takes advantage of invariants expected between `StartFor/StepFor/EndFor` and just
         // compiles the entire for loop logic (everything other than the loop forBody). We then do a
         // weak sanity check that the bytecode upholds these invariants by including `StepFor` in
         // the step branch and `EndFor` in the end branch, although it may break the invariants
         // other ways and simply not be noticed.
-        var loopCntxt = bc.code().get(bcPos + 1) instanceof BcInstr.StartLoopCntxt l ? l : null;
+        var loopCntxt = bc.code().get(bcPos + 1) instanceof StartLoopCntxt l ? l : null;
 
         BB forBodyBb;
         BB stepBb;
@@ -344,7 +481,7 @@ public class CFGCompiler {
           bcPos += 2;
         }
       }
-      case BcInstr.DoLoopNext() -> {
+      case DoLoopNext() -> {
         // The bytecode compilers don't actually generate these instructions, are they deprecated?
         // Regardless, we can still support them.
         if (cfg.isPromise() && !inLocalLoop()) {
@@ -353,7 +490,7 @@ public class CFGCompiler {
         var stepBb = topLoop().next;
         insert(_ -> goto_(stepBb));
       }
-      case BcInstr.DoLoopBreak() -> {
+      case DoLoopBreak() -> {
         // The bytecode compilers don't actually generate these instructions, are they deprecated?
         // Regardless, we can still support them.
         if (cfg.isPromise() && !inLocalLoop()) {
@@ -362,7 +499,7 @@ public class CFGCompiler {
         var endBb = topLoop().end;
         insert(_ -> goto_(endBb));
       }
-      case BcInstr.StepFor(var body) -> {
+      case StepFor(var body) -> {
         // This is the instruction immediately after the end of the for loop body (excluding `next`
         // and `break`).
 
@@ -389,48 +526,48 @@ public class CFGCompiler {
         // and we don't want to compile anything else in `stepBb`.
         moveTo(endBb);
       }
-      case BcInstr.EndFor() -> compileEndLoop(LoopType.FOR);
-      case BcInstr.SetLoopVal() -> {
+      case EndFor() -> compileEndLoop(LoopType.FOR);
+      case SetLoopVal() -> {
         // This one is weird. It doesn't get inserted by the Java compiler anywhere.
         // However, it has a simple (unhelpful) implementation, so even if unused, we'll support it.
         pop();
         pop();
         push(new Constant(SEXPs.NULL));
       }
-      case BcInstr.Invisible() -> insert(intrinsic("invisible", 0));
-      case BcInstr.LdConst(var constant) -> push(new Constant(get(constant)));
-      case BcInstr.LdNull() -> push(new Constant(SEXPs.NULL));
-      case BcInstr.LdTrue() -> push(new Constant(SEXPs.TRUE));
-      case BcInstr.LdFalse() -> push(new Constant(SEXPs.FALSE));
-      case BcInstr.GetVar(var name) -> {
+      case Invisible() -> insert(intrinsic("invisible", 0));
+      case LdConst(var constant) -> push(new Constant(get(constant)));
+      case LdNull() -> push(new Constant(SEXPs.NULL));
+      case LdTrue() -> push(new Constant(SEXPs.TRUE));
+      case LdFalse() -> push(new Constant(SEXPs.FALSE));
+      case GetVar(var name) -> {
         pushInsert(new Load(getVar(name)));
         pushInsert(new MaybeForce(pop()));
       }
-      case BcInstr.DdVal(var name) -> {
+      case DdVal(var name) -> {
         var ddIndex = NamedVariable.ddNum(get(name).ddNum());
         pushInsert(new Load(ddIndex));
         pushInsert(new MaybeForce(pop()));
       }
-      case BcInstr.SetVar(var name) -> insert(new Store(getVar(name), top()));
-      case BcInstr.GetFun(var name) -> {
+      case SetVar(var name) -> insert(new Store(getVar(name), top()));
+      case GetFun(var name) -> {
         var fun = insertAndReturn(new LoadFun(getVar(name), Env.LOCAL));
         pushCall(fun);
       }
-      case BcInstr.GetGlobFun(var name) -> {
+      case GetGlobFun(var name) -> {
         var fun = insertAndReturn(new LoadFun(getVar(name), Env.GLOBAL));
         pushCall(fun);
       }
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
-      case BcInstr.GetSymFun(var name) -> pushCall(new Builtin(get(name).name()));
-      case BcInstr.GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
-      case BcInstr.GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
-      case BcInstr.CheckFun() -> {
+      case GetSymFun(var name) -> pushCall(new Builtin(get(name).name()));
+      case GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
+      case GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
+      case CheckFun() -> {
         var fun = pop();
         insert(checkFun(fun));
         pushCall(fun);
       }
-      case BcInstr.MakeProm(var code) -> {
+      case MakeProm(var code) -> {
         if (!(this.get(code) instanceof BCodeSXP bcSxp)) {
           throw failUnsupported("Promise with non-bytecode body at index " + code);
         }
@@ -439,11 +576,11 @@ public class CFGCompiler {
         var cfg = new CFG(scope());
         compile(cfg, bc);
 
-        var prom = insertAndReturn(new Promise(Type.ANY, Effects.ANY, cfg));
+        var prom = insertAndReturn(new Promise(Type.ANY_VALUE, Effects.ANY, cfg));
         pushCallArg(prom);
       }
-      case BcInstr.DoMissing() -> pushMissingCallArg();
-      case BcInstr.SetTag(var tag) -> {
+      case DoMissing() -> pushMissingCallArg();
+      case SetTag(var tag) -> {
         if (tag != null) {
           setNameOfLastCallArg(
               get(tag)
@@ -451,19 +588,19 @@ public class CFGCompiler {
                   .orElseThrow(() -> fail("SetTag: tag must be a regular symbol or string")));
         }
       }
-      case BcInstr.DoDots() -> pushCallArg(insertAndReturn(new Load(NamedVariable.DOTS)));
-      case BcInstr.PushArg() -> pushCallArg(pop());
-      case BcInstr.PushConstArg(var constant) -> {
+      case DoDots() -> pushCallArg(insertAndReturn(new Load(NamedVariable.DOTS)));
+      case PushArg() -> pushCallArg(pop());
+      case PushConstArg(var constant) -> {
         if (get(constant) instanceof SymSXP || get(constant) instanceof LangSXP) {
           throw fail("what? " + get(constant));
         }
         pushCallArg(new Constant(get(constant)));
       }
-      case BcInstr.PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
-      case BcInstr.PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
-      case BcInstr.PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
-      case BcInstr.Call(var _), BcInstr.CallBuiltin(var _) -> compileCall();
-      case BcInstr.CallSpecial(var astId) -> {
+      case PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
+      case PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
+      case PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
+      case BcInstr.Call(var _), CallBuiltin(var _) -> compileCall();
+      case CallSpecial(var astId) -> {
         var ast = get(astId);
         if (!(ast.fun() instanceof RegSymSXP builtinSymbol)) {
           throw fail("CallSpecial: expected a symbol (builtin id) function");
@@ -476,7 +613,7 @@ public class CFGCompiler {
             ast.args().stream().map(arg -> new Constant(arg.value())).toArray(Argument[]::new);
         pushInsert(builtin(builtinName, args));
       }
-      case BcInstr.MakeClosure(var arg) -> {
+      case MakeClosure(var arg) -> {
         var fb = get(arg);
         var forms = (ListSXP) fb.get(0);
         var body = fb.get(1);
@@ -492,49 +629,46 @@ public class CFGCompiler {
 
         pushInsert(new Closure(code));
       }
-      case BcInstr.UMinus(var _) -> pushInsert(mkUnop("-"));
-      case BcInstr.UPlus(var _) -> pushInsert(mkUnop("+"));
-      case BcInstr.Sqrt(var _) -> pushInsert(mkUnop("sqrt"));
-      case BcInstr.Add(var _) -> pushInsert(mkBinop("+"));
-      case BcInstr.Sub(var _) -> pushInsert(mkBinop("-"));
-      case BcInstr.Mul(var _) -> pushInsert(mkBinop("*"));
-      case BcInstr.Div(var _) -> pushInsert(mkBinop("/"));
-      case BcInstr.Expt(var _) -> pushInsert(mkBinop("^"));
-      case BcInstr.Exp(var _) -> pushInsert(mkUnop("exp"));
-      case BcInstr.Eq(var _) -> pushInsert(mkBinop("=="));
-      case BcInstr.Ne(var _) -> pushInsert(mkBinop("!="));
-      case BcInstr.Lt(var _) -> pushInsert(mkBinop("<"));
-      case BcInstr.Le(var _) -> pushInsert(mkBinop("<="));
-      case BcInstr.Ge(var _) -> pushInsert(mkBinop(">="));
-      case BcInstr.Gt(var _) -> pushInsert(mkBinop(">"));
-      case BcInstr.And(var _) -> pushInsert(mkBinop("&&"));
-      case BcInstr.Or(var _) -> pushInsert(mkBinop("||"));
-      case BcInstr.Not(var _) -> pushInsert(mkUnop("!"));
-      case BcInstr.DotsErr() -> insert(stop("'...' used in an incorrect context"));
-      case BcInstr.StartAssign(var name) -> {
+      case UMinus(var _) -> pushInsert(mkUnop("-"));
+      case UPlus(var _) -> pushInsert(mkUnop("+"));
+      case Sqrt(var _) -> pushInsert(mkUnop("sqrt"));
+      case Add(var _) -> pushInsert(mkBinop("+"));
+      case Sub(var _) -> pushInsert(mkBinop("-"));
+      case Mul(var _) -> pushInsert(mkBinop("*"));
+      case Div(var _) -> pushInsert(mkBinop("/"));
+      case Expt(var _) -> pushInsert(mkBinop("^"));
+      case Exp(var _) -> pushInsert(mkUnop("exp"));
+      case Eq(var _) -> pushInsert(mkBinop("=="));
+      case Ne(var _) -> pushInsert(mkBinop("!="));
+      case Lt(var _) -> pushInsert(mkBinop("<"));
+      case Le(var _) -> pushInsert(mkBinop("<="));
+      case Ge(var _) -> pushInsert(mkBinop(">="));
+      case Gt(var _) -> pushInsert(mkBinop(">"));
+      case And(var _) -> pushInsert(mkBinop("&&"));
+      case Or(var _) -> pushInsert(mkBinop("||"));
+      case Not(var _) -> pushInsert(mkUnop("!"));
+      case DotsErr() -> insert(stop("'...' used in an incorrect context"));
+      case StartAssign(var name) -> {
         var lhs = insertAndReturn(new Load(getVar(name)));
         var rhs = top();
         pushComplexAssign(false, get(name), lhs, rhs);
       }
-      case BcInstr.EndAssign(var name) -> {
+      case EndAssign(var name) -> {
         var lhs = popComplexAssign(false, get(name));
         insert(new Store(getVar(name), lhs));
       }
-      case BcInstr.StartSubset(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSET, after);
-      case BcInstr.DfltSubset() -> compileDefaultDispatch(Dispatch.Type.SUBSET);
-      case BcInstr.StartSubassign(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGN, after);
-      case BcInstr.DfltSubassign() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN);
-      case BcInstr.StartC(var _, var after) -> compileStartDispatch(Dispatch.Type.C, after);
-      case BcInstr.DfltC() -> compileDefaultDispatch(Dispatch.Type.C);
-      case BcInstr.StartSubset2(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSET2, after);
-      case BcInstr.DfltSubset2() -> compileDefaultDispatch(Dispatch.Type.SUBSET2);
-      case BcInstr.StartSubassign2(var _, var after) ->
+      case StartSubset(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSET, after);
+      case DfltSubset() -> compileDefaultDispatch(Dispatch.Type.SUBSET);
+      case StartSubassign(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBASSIGN, after);
+      case DfltSubassign() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN);
+      case StartC(var _, var after) -> compileStartDispatch(Dispatch.Type.C, after);
+      case DfltC() -> compileDefaultDispatch(Dispatch.Type.C);
+      case StartSubset2(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSET2, after);
+      case DfltSubset2() -> compileDefaultDispatch(Dispatch.Type.SUBSET2);
+      case StartSubassign2(var _, var after) ->
           compileStartDispatch(Dispatch.Type.SUBASSIGN2, after);
-      case BcInstr.DfltSubassign2() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN2);
-      case BcInstr.Dollar(var _, var member) -> {
+      case DfltSubassign2() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN2);
+      case Dollar(var _, var member) -> {
         var after = cfg.addBB();
 
         var target = top();
@@ -551,7 +685,7 @@ public class CFGCompiler {
 
         moveTo(after);
       }
-      case BcInstr.DollarGets(var _, var member) -> {
+      case DollarGets(var _, var member) -> {
         var after = cfg.addBB();
 
         var rhs = pop();
@@ -569,53 +703,53 @@ public class CFGCompiler {
 
         moveTo(after);
       }
-      case BcInstr.IsNull() -> pushInsert(builtin("==", pop(), new Constant(SEXPs.NULL)));
-      case BcInstr.IsLogical() -> pushInsert(builtin("is.logical", pop()));
-      case BcInstr.IsInteger() -> pushInsert(builtin("is.integer", pop()));
-      case BcInstr.IsDouble() -> pushInsert(builtin("is.double", pop()));
-      case BcInstr.IsComplex() -> pushInsert(builtin("is.complex", pop()));
-      case BcInstr.IsCharacter() -> pushInsert(builtin("is.character", pop()));
-      case BcInstr.IsSymbol() -> pushInsert(builtin("is.symbol", pop()));
-      case BcInstr.IsObject() -> pushInsert(builtin("is.object", pop()));
-      case BcInstr.IsNumeric() -> pushInsert(builtin("is.numeric", pop()));
-      case BcInstr.VecSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 2);
-      case BcInstr.MatSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 3);
-      case BcInstr.VecSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 3);
-      case BcInstr.MatSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 4);
-      case BcInstr.And1st(var _, var shortCircuit) -> {
+      case IsNull() -> pushInsert(builtin("==", pop(), new Constant(SEXPs.NULL)));
+      case IsLogical() -> pushInsert(builtin("is.logical", pop()));
+      case IsInteger() -> pushInsert(builtin("is.integer", pop()));
+      case IsDouble() -> pushInsert(builtin("is.double", pop()));
+      case IsComplex() -> pushInsert(builtin("is.complex", pop()));
+      case IsCharacter() -> pushInsert(builtin("is.character", pop()));
+      case IsSymbol() -> pushInsert(builtin("is.symbol", pop()));
+      case IsObject() -> pushInsert(builtin("is.object", pop()));
+      case IsNumeric() -> pushInsert(builtin("is.numeric", pop()));
+      case VecSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 2);
+      case MatSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 3);
+      case VecSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 3);
+      case MatSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 4);
+      case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(builtin("as.logical", pop()));
-        var value = top();
-        insert(next -> branch(value, next, shortCircuitBb));
+        var cond = top();
+        insert(next -> branch(cond, next, shortCircuitBb));
       }
-      case BcInstr.And2nd(var _) -> {
+      case And2nd(var _) -> {
         pushInsert(builtin("as.logical", pop()));
         pushInsert(mkBinop("&&"));
         insert(this::goto_);
       }
-      case BcInstr.Or1st(var _, var shortCircuit) -> {
+      case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert(builtin("as.logical", pop()));
-        var value = top();
-        insert(next -> branch(value, shortCircuitBb, next));
+        var cond = top();
+        insert(next -> branch(cond, shortCircuitBb, next));
       }
-      case BcInstr.Or2nd(var _) -> {
+      case Or2nd(var _) -> {
         pushInsert(builtin("as.logical", pop()));
         pushInsert(mkBinop("||"));
         insert(this::goto_);
       }
-      case BcInstr.GetVarMissOk(var name) -> {
+      case GetVarMissOk(var name) -> {
         pushInsert(new Load(getVar(name)));
         pushInsert(new MaybeForce(pop()));
       }
-      case BcInstr.DdValMissOk(var name) -> {
+      case DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
         pushInsert(new Load(NamedVariable.ddNum(ddIndex)));
         pushInsert(new MaybeForce(pop()));
       }
-      case BcInstr.Visible() -> insert(intrinsic("visible", 0));
-      case BcInstr.SetVar2(var name) -> insert(new SuperStore(getVar(name), top()));
-      case BcInstr.StartAssign2(var name) -> {
+      case Visible() -> insert(intrinsic("visible", 0));
+      case SetVar2(var name) -> insert(new SuperStore(getVar(name), top()));
+      case StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
@@ -623,11 +757,11 @@ public class CFGCompiler {
         var rhs = top();
         pushComplexAssign(true, get(name), lhs, rhs);
       }
-      case BcInstr.EndAssign2(var name) -> {
+      case EndAssign2(var name) -> {
         var lhs = popComplexAssign(true, get(name));
         insert(new SuperStore(getVar(name), lhs));
       }
-      case BcInstr.SetterCall(var _, var _) -> {
+      case SetterCall(var _, var _) -> {
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
         // but presumably this is something we abstract. This is also what `valueExpr` is for,
         // which is why it's unused.
@@ -637,32 +771,32 @@ public class CFGCompiler {
         pushCallArg(rhs);
         compileCall();
       }
-      case BcInstr.GetterCall(var _) -> {
+      case GetterCall(var _) -> {
         // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
         // but presumably this is something we abstract.
         prependCallArg(top());
         compileCall();
       }
-      case BcInstr.SpecialSwap() -> {
+      case SpecialSwap() -> {
         var value = pop();
         var value2 = pop();
         push(value);
         push(value2);
       }
-      case BcInstr.Dup2nd() -> {
+      case Dup2nd() -> {
         var value = pop();
         var value2 = top();
         push(value);
         push(value2);
       }
-      case BcInstr.ReturnJmp() -> {
+      case ReturnJmp() -> {
         var retVal = pop();
         assertStackForReturn();
         // ???: non-local return?
         // ???: Do we need to push `NULL` like in `BcInstr.Return`?
         insert(_ -> new Return(retVal));
       }
-      case BcInstr.Switch(var _, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
+      case Switch(var _, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
         var names = namesIdx == null ? null : get(namesIdx);
         var chrLabels = chrLabelsIdx == null ? null : get(chrLabelsIdx);
         var numLabels = numLabelsIdx == null ? null : get(numLabelsIdx);
@@ -721,7 +855,7 @@ public class CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond = insertAndReturn(builtin("==", value, new Constant(SEXPs.string(name))));
+              var cond = insertAndReturn(builtin("==", 2, value, new Constant(SEXPs.string(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -741,7 +875,7 @@ public class CFGCompiler {
           var asInteger = insertAndReturn(intrinsic("asSwitchIdx", value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond = insertAndReturn(builtin("==", asInteger, new Constant(SEXPs.integer(i))));
+            var cond = insertAndReturn(builtin("==", 0, asInteger, new Constant(SEXPs.integer(i))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.
@@ -753,28 +887,24 @@ public class CFGCompiler {
         // In practice, there has always a label after this instruction,
         // but take note in case we get bytecode where this doesn't hold.
       }
-      case BcInstr.StartSubsetN(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSETN, after);
-      case BcInstr.StartSubassignN(var _, var after) ->
+      case StartSubsetN(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSETN, after);
+      case StartSubassignN(var _, var after) ->
           compileStartDispatch(Dispatch.Type.SUBASSIGNN, after);
-      case BcInstr.VecSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 2);
-      case BcInstr.MatSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 3);
-      case BcInstr.VecSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 3);
-      case BcInstr.MatSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 4);
-      case BcInstr.StartSubset2N(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBSET2N, after);
-      case BcInstr.StartSubassign2N(var _, var after) ->
+      case VecSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 2);
+      case MatSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 3);
+      case VecSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 3);
+      case MatSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 4);
+      case StartSubset2N(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSET2N, after);
+      case StartSubassign2N(var _, var after) ->
           compileStartDispatch(Dispatch.Type.SUBASSIGN2N, after);
-      case BcInstr.SubsetN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, n + 1);
-      case BcInstr.Subset2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, n + 1);
-      case BcInstr.SubassignN(var _, var n) ->
-          compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
-      case BcInstr.Subassign2N(var _, var n) ->
-          compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
-      case BcInstr.Log(var _) -> pushInsert(mkUnop("log"));
-      case BcInstr.LogBase(var _) -> pushInsert(mkBinop("log"));
-      case BcInstr.Math1(var _, var funId) -> pushInsert(mkUnop(MATH1_FUNS.get(funId)));
-      case BcInstr.DotCall(var _, var numArgs) -> {
+      case SubsetN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, n + 1);
+      case Subset2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, n + 1);
+      case SubassignN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
+      case Subassign2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
+      case Log(var _) -> pushInsert(mkUnop("log"));
+      case LogBase(var _) -> pushInsert(mkBinop("log"));
+      case Math1(var _, var funId) -> pushInsert(mkUnop(MATH1_FUNS.get(funId)));
+      case DotCall(var _, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
         }
@@ -784,16 +914,16 @@ public class CFGCompiler {
 
         pushInsert(builtin(".Call", args));
       }
-      case BcInstr.Colon(var _) -> pushInsert(mkBinop(":"));
-      case BcInstr.SeqAlong(var _) -> pushInsert(builtin("seq_along", pop()));
-      case BcInstr.SeqLen(var _) -> pushInsert(builtin("seq_len", pop()));
-      case BcInstr.BaseGuard(var exprIdx, var after) -> {
+      case Colon(var _) -> pushInsert(mkBinop(":"));
+      case SeqAlong(var _) -> pushInsert(builtin("seq_along", pop()));
+      case SeqLen(var _) -> pushInsert(builtin("seq_len", pop()));
+      case BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
         var fun = Variable.named(((RegSymSXP) expr.fun()).name());
         var sym = insertAndReturn(new LoadFun(fun, Env.LOCAL));
         var base = insertAndReturn(new LoadFun(fun, Env.BASE));
-        var guard = insertAndReturn(builtin("==", sym, base));
+        var guard = insertAndReturn(builtin("==", 3, sym, base));
 
         var safeBb = cfg.addBB();
         var fallbackBb = cfg.addBB();
@@ -817,11 +947,7 @@ public class CFGCompiler {
 
         moveTo(safeBb);
       }
-      case BcInstr.IncLnk(),
-          BcInstr.DecLnk(),
-          BcInstr.DeclnkN(var _),
-          BcInstr.IncLnkStk(),
-          BcInstr.DecLnkStk() -> {}
+      case IncLnk(), DecLnk(), DeclnkN(var _), IncLnkStk(), DecLnkStk() -> {}
     }
   }
 
@@ -1076,7 +1202,7 @@ public class CFGCompiler {
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and return that register.
   private Argument insertAndReturn(Expression expression) {
-    var tempVar = cfg.scope().addLocal();
+    var tempVar = cfg.scope().addLocal(trivialTypeOf(expression));
     insert(new Statement(tempVar, expression));
     return new Read(tempVar);
   }
@@ -1178,7 +1304,7 @@ public class CFGCompiler {
   /// The bytecode is stack-based and IR is SSA-form. To convert properly, when the compiler
   /// encounters `BcInstr.Ld...` and other instructions that push real values onto the
   /// interpreter stack, it pushes the node that stores their abstract value ([Argument]) onto
-  /// the "virtual stack"; and when the compiler encounters [BcInstr.Pop] and other instructions
+  /// the "virtual stack"; and when the compiler encounters [Pop] and other instructions
   /// that read/pop real values from the interpreter stack, it reads/pops the corresponding
   /// abstract values from the "virtual stack" and passes them as arguments to the IR
   /// instructions those bytecode instructions that pop values compile into.
@@ -1312,7 +1438,7 @@ public class CFGCompiler {
 
   /// Prepend a value to the current call stack ([#topCall()]).
   ///
-  /// This is required for [BcInstr.GetterCall] and [BcInstr.SetterCall], since the `lhs` of the
+  /// This is required for [GetterCall] and [SetterCall], since the `lhs` of the
   /// complex assignment is prepended in the GNU-R. See also [#pushCallArg(Argument)], which
   /// appends the argument.
   private void prependCallArg(Argument value) {
@@ -1436,17 +1562,58 @@ public class CFGCompiler {
   }
 
   /// Get the [SEXP] in the constant pool corresponding to the given index.
-  private <S extends SEXP> S get(ConstPool.Idx<S> idx) {
+  private <S extends SEXP> S get(Idx<S> idx) {
     return bc.consts().get(idx);
   }
 
   /// Get the [SEXP] in the constant pool corresponding to the given index,
   /// then cast it into a variable.
-  private NamedVariable getVar(ConstPool.Idx<RegSymSXP> idx) {
+  private NamedVariable getVar(Idx<RegSymSXP> idx) {
     return Variable.named(get(idx).name());
   }
 
   // endregion misc getters
+
+  // region misc helpers
+  private static Type trivialTypeOf(Expression expression) {
+    return switch (expression) {
+      case Aea(var argument) -> trivialTypeOf(argument);
+      case org.prlprg.fir.ir.expression.Call call ->
+          switch (call.callee()) {
+            case DispatchCallee(var callee, var _) -> callee.guaranteedReturnType();
+            case DynamicCallee _ -> Type.ANY_VALUE;
+            case InlineCallee(var callee) -> callee.returnType();
+            case StaticCallee(var _, var callee) -> callee.returnType();
+          };
+      case Cast(var _, var castType) -> castType;
+      case Closure _ -> Type.CLOSURE;
+      case Dup _ -> Type.ANY;
+      case Force _ -> Type.ANY_VALUE;
+      case Load _ -> Type.ANY;
+      case LoadFun _ -> Type.CLOSURE;
+      case MaybeForce _, MkVector _ -> Type.ANY_VALUE;
+      case Placeholder _ -> Type.ANY;
+      case Promise _ -> Type.ANY_PROMISE;
+      case ReflectiveLoad _,
+              ReflectiveStore _,
+              Store _,
+              SubscriptLoad _,
+              SubscriptStore _,
+              SuperLoad _,
+              SuperStore _ ->
+          Type.ANY;
+    };
+  }
+
+  private static Type trivialTypeOf(Argument argument) {
+    return switch (argument) {
+      case Read _ -> Type.ANY;
+      case Constant(var sexp) -> Type.of(sexp);
+      case Use _ -> Type.ANY;
+    };
+  }
+
+  // endregion misc helpers
 
   // region exceptions
   private void require(boolean condition, Supplier<String> message) {
