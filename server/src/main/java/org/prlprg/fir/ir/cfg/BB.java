@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -102,7 +103,7 @@ public final class BB {
             "BB#appendParameter",
             List.of(this),
             () -> {
-              var parameter = owner.scope().addLocal();
+              var parameter = owner.scope().addLocal(Type.ANY);
               parameters.add(parameter);
               return parameter;
             });

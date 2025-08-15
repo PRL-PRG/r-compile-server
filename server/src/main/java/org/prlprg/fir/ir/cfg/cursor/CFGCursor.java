@@ -353,6 +353,19 @@ public final class CFGCursor {
     var w = p.writer();
     var f = w.formatter();
 
+    var scope = cfg.scope();
+    p.printAsList("(", ")", scope.parameters());
+    w.write(" -");
+    p.print(scope.effects());
+    w.write("> ");
+    p.print(scope.returnType());
+    w.write(", ");
+    p.printSeparated(", ", scope.locals());
+    if (!scope.locals().isEmpty()) {
+      w.write(' ');
+    }
+    w.write("|\n");
+
     if (!bb.isEntry()) {
       w.write(bb.label());
       p.printAsList("(", ")", bb.phiParameters());

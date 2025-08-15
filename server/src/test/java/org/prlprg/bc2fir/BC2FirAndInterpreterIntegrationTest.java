@@ -3,7 +3,6 @@ package org.prlprg.bc2fir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
-import static org.prlprg.fir.interpret.Builtins.addAndRegisterHelpers;
 import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 
 import java.io.IOException;
@@ -50,7 +49,6 @@ public class BC2FirAndInterpreterIntegrationTest {
       firModule = compile(rModuleEnv, R.getSession());
       var interpreter = new Interpreter(firModule);
       registerBuiltins(interpreter);
-      addAndRegisterHelpers(interpreter);
       var firOutput = interpreter.call("main");
 
       // Use `toString()` because we only care about structural equivalence (environments won't be

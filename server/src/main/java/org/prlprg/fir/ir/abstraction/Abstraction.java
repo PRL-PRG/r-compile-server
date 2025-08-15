@@ -40,7 +40,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   // Data
   private final ImmutableList<Parameter> parameters;
   private Type returnType;
-  private Effects returnEffects;
+  private Effects effects;
   private final Map<String, Local> locals = new LinkedHashMap<>();
   private final CFG cfg;
 
@@ -54,7 +54,7 @@ public final class Abstraction implements Comparable<Abstraction> {
 
     nameToParam = computeNameToParam(parameters);
     returnType = Type.ANY_VALUE;
-    returnEffects = Effects.ANY;
+    effects = Effects.ANY;
     cfg = new CFG(this);
 
     while (contains(nextLocalRegister())) {
@@ -91,24 +91,21 @@ public final class Abstraction implements Comparable<Abstraction> {
         "Abstraction#setReturnType", List.of(this, returnType), () -> this.returnType = returnType);
   }
 
-  public Effects returnEffects() {
-    return returnEffects;
+  public Effects effects() {
+    return effects;
   }
 
-  public void setReturnEffects(Effects returnEffects) {
-    module.record(
-        "Abstraction#setReturnEffects",
-        List.of(this, returnEffects),
-        () -> this.returnEffects = returnEffects);
+  public void setEffects(Effects effects) {
+    module.record("Abstraction#setEffects", List.of(this, effects), () -> this.effects = effects);
   }
 
   public @UnmodifiableView Collection<Local> locals() {
     return Collections.unmodifiableCollection(locals.values());
   }
 
-  public Register addLocal() {
+  public Register addLocal(Type type) {
     var variable = nextLocalRegister();
-    this.addLocal(new Local(variable, Type.ANY));
+    addLocal(new Local(variable, type));
     return variable;
   }
 
@@ -208,7 +205,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     return new Signature(
         parameters.stream().map(Parameter::type).collect(ImmutableList.toImmutableList()),
         returnType,
-        returnEffects);
+        effects);
   }
 
   /// Sort by parameter types (smallest type first), then by number of parameters, then by hash.
@@ -243,7 +240,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     w.write(')');
 
     w.write(" -");
-    p.print(returnEffects);
+    p.print(effects);
     w.write("> ");
     p.print(returnType);
 
@@ -274,7 +271,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     nameToParam = computeNameToParam(parameters);
 
     s.assertAndSkip('-');
-    returnEffects = p.parse(Effects.class);
+    effects = p.parse(Effects.class);
     s.assertAndSkip('>');
     returnType = p.parse(Type.class);
 

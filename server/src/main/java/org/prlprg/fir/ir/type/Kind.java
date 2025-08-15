@@ -161,9 +161,12 @@ public sealed interface Kind extends Comparable<Kind> {
       var effects = p.parse(Effects.class);
       s.assertAndSkip(')');
       return new Promise(type, effects);
-    } else {
+    } else if (s.nextCharSatisfies(c -> c == 'L' || c == 'I' || c == 'R' || c == 'S')) {
       var primitive = p.parse(PrimitiveKind.class);
       return new PrimitiveScalar(primitive);
+    } else {
+      throw s.fail(
+          "expected '*', 'V', 'v('..., 'cls', 'p('..., or a primitive kind ('L', 'I', 'R', or 'S')");
     }
   }
 }

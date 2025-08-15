@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -60,10 +59,39 @@ import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 
+/// Checks type, effect, and flow (`use` invariants) soundness.
 public final class TypeChecker extends Checker {
   @Override
-  public void run(Abstraction abstraction) {
-    new OnAbstraction(abstraction).run();
+  public void doRun(Abstraction version) {
+    // Check guaranteed effects and return type
+    var function = function();
+    var guaranteedEffects = function.guaranteedEffects();
+    var guaranteedReturnType = function.guaranteedReturnType();
+    if (!version.effects().isSubsetOf(guaranteedEffects)) {
+      report(
+          version,
+          "Version's effects must be a subset of its function's guaranteed effects: "
+              + version.effects()
+              + " doesn't subtype "
+              + guaranteedEffects
+              + "\nIn fun "
+              + function.name()
+              + " { ... }");
+    }
+    if (!version.returnType().isSubtypeOf(guaranteedReturnType)) {
+      report(
+          version,
+          "Version's return type must subtype its function's guaranteed return type: "
+              + version.returnType()
+              + " doesn't subtype "
+              + guaranteedReturnType
+              + "\nIn fun "
+              + function.name()
+              + " { ... }");
+    }
+
+    // Run function-independent checks
+    new OnAbstraction(version).run();
   }
 
   private class OnAbstraction {
@@ -96,7 +124,7 @@ public final class TypeChecker extends Checker {
       cfg.run(initialFlow);
 
       cfg.checkSubtype(cfg.returnType, abstraction.returnType(), "Return type mismatch");
-      cfg.checkSubEffects(cfg.effects, abstraction.returnEffects(), "Function effects mismatch");
+      cfg.checkSubEffects(cfg.effects, abstraction.effects(), "Function effects mismatch");
     }
 
     class OnCfg {
@@ -167,7 +195,7 @@ public final class TypeChecker extends Checker {
           case Call call -> {
             var argumentTypes = call.callArguments().stream().map(this::run).toList();
 
-            Function<Abstraction, Type> finish =
+            java.util.function.Function<Abstraction, Type> finish =
                 callee -> {
                   if (callee.parameters().size() != argumentTypes.size()) {
                     report(
@@ -185,20 +213,20 @@ public final class TypeChecker extends Checker {
                     checkMatches(argType, param.type(), "Type mismatch in argument " + i);
                   }
 
-                  effects = effects.union(callee.returnEffects());
+                  effects = effects.union(callee.effects());
                   return callee.returnType();
                 };
 
             yield switch (call.callee()) {
               case StaticCallee(var _, var version) -> finish.apply(version);
               case DispatchCallee(var function, var signature) -> {
-                var version = function.guess(signature);
+                var version = signature == null ? null : function.guess(signature);
 
-                // If `version == null`, this is a call to an unknown version, so it could
-                // do and return anything.
+                // If `version == null`, this is a call to an unknown version,
+                // although we may still have some guarantees.
                 if (version == null) {
-                  effects = Effects.ANY;
-                  yield Type.ANY_VALUE;
+                  effects = function.guaranteedEffects();
+                  yield function.guaranteedReturnType();
                 }
 
                 yield finish.apply(version);
@@ -227,7 +255,7 @@ public final class TypeChecker extends Checker {
                 yield Type.ANY_VALUE;
               }
               case InlineCallee(var inlinee) -> {
-                TypeChecker.this.run(inlinee);
+                new OnAbstraction(inlinee).run();
                 yield finish.apply(inlinee);
               }
             };

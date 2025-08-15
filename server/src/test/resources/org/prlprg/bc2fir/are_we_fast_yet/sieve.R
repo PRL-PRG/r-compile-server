@@ -4,8 +4,10 @@ sieve <- function(n) {
   
   for (i in 2:floor(sqrt(n))) {
     if (primes[i]) {
-      for (j in seq(i * i, n, by = i)) {
+      j <- i * i
+      while (j <= n) {
         primes[j] <- FALSE
+        j <- j + i
       }
     }
   }

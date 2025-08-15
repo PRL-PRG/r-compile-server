@@ -268,6 +268,7 @@ public final class Interpreter {
                     Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
                     arguments.stream(),
                     (argName, arg) -> new TaggedElem(argName.isEmpty() ? null : argName, arg)));
+
         return callExternal(hijacker, function, argumentsSxp, environment);
       }
 
@@ -290,7 +291,10 @@ public final class Interpreter {
               + "]");
     }
 
-    return call(best, arguments, environment);
+    var result = call(best, arguments, environment);
+
+    checkType(result, function.guaranteedReturnType(), "return");
+    return result;
   }
 
   /// Calls the function version with the arguments in the environment.
@@ -324,7 +328,10 @@ public final class Interpreter {
     }
 
     // Execute CFG
-    return run(frame, abstraction.cfg());
+    var result = run(frame, abstraction.cfg());
+
+    checkType(result, abstraction.returnType(), "return");
+    return result;
   }
 
   private SEXP callExternal(
@@ -332,7 +339,10 @@ public final class Interpreter {
     checkStack();
 
     try {
-      return hijacker.call(this, hijacked, arguments, environment);
+      var result = hijacker.call(this, hijacked, arguments, environment);
+
+      checkType(result, hijacked.guaranteedReturnType(), "return (from external)");
+      return result;
     } catch (InterpretException e) {
       throw e;
     } catch (Throwable e) {
@@ -352,6 +362,8 @@ public final class Interpreter {
     SEXP result;
     try {
       result = hijacker.call(this, hijacked, arguments, environment);
+
+      checkType(result, hijacked.returnType(), "return (from external)");
     } catch (InterpretException e) {
       throw e;
     } catch (Throwable e) {
@@ -748,6 +760,7 @@ public final class Interpreter {
 
     var value = run(promCode.frame, promExpr.code());
     promSXP.bind(value);
+
     checkType(value, promExpr.valueType(), "promise");
     return value;
   }

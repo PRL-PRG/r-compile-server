@@ -12,7 +12,9 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -32,6 +34,8 @@ public final class Function {
   /// serialized calls.
   private final BiMap<Abstraction, Integer> versions = HashBiMap.create();
   private int nextVersionIndex = 0;
+  private Effects guaranteedEffects = Effects.ANY;
+  private Type guaranteedReturnType = Type.ANY_VALUE;
 
   // Cached
   /// Versions are sorted in a way that ensures better ones are before worse ones,
@@ -56,8 +60,17 @@ public final class Function {
     return name;
   }
 
+  /// Use [#version(int)] to get the version at an index.
   public @UnmodifiableView Collection<Abstraction> versions() {
     return Collections.unmodifiableCollection(versions.keySet());
+  }
+
+  /// Indexes of versions that exist in the function.
+  ///
+  /// When a version removed, it's index isn't reused, because that leads to tricky bugs when
+  /// said version or later ones are referenced by index (e.g. in serialized code).
+  public @UnmodifiableView Collection<Integer> versionIndices() {
+    return Collections.unmodifiableCollection(versions.values());
   }
 
   /// @throws IllegalArgumentException If there's no version at the index.
@@ -84,13 +97,7 @@ public final class Function {
 
   /// Gets the best version whose signature satisfies the provided one, i.e. the best version
   /// whose parameters are less and return type is more specific than `signature`'s.
-  ///
-  /// If `null` is provided, returns the version with the worst signature if there is any.
-  public @Nullable Abstraction guess(@Nullable Signature signature) {
-    if (signature == null) {
-      return versionsSorted.isEmpty() ? null : versionsSorted.last();
-    }
-
+  public @Nullable Abstraction guess(Signature signature) {
     for (var version : versionsSorted) {
       if (signature.satisfies(version.signature())) {
         return version;
@@ -125,6 +132,40 @@ public final class Function {
         });
   }
 
+  public Effects guaranteedEffects() {
+    return guaranteedEffects;
+  }
+
+  public Type guaranteedReturnType() {
+    return guaranteedReturnType;
+  }
+
+  public void setGuaranteedEffects(Effects guaranteedEffects) {
+    owner.record(
+        "Function#setGuaranteedEffects",
+        List.of(this, guaranteedEffects),
+        () -> {
+          this.guaranteedEffects = guaranteedEffects;
+        });
+  }
+
+  public void setGuaranteedReturnType(Type guaranteedReturnType) {
+    owner.record(
+        "Function#setGuaranteedReturnType",
+        List.of(this, guaranteedReturnType),
+        () -> {
+          if (!guaranteedReturnType.isSubtypeOf(Type.ANY_VALUE)) {
+            throw new IllegalArgumentException(
+                "Function's guaranteed return type must be a value: "
+                    + guaranteedReturnType
+                    + "\nIn "
+                    + name);
+          }
+
+          this.guaranteedReturnType = guaranteedReturnType;
+        });
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -141,21 +182,41 @@ public final class Function {
       w.write(name);
     }
 
-    w.write('{');
-    w.runIndented(
-        () -> {
-          for (int i = 0; i < nextVersionIndex; i++) {
-            w.write("\n");
+    if (nextVersionIndex == 0) {
+      if (guaranteedEffects.equals(Effects.ANY) && guaranteedReturnType.equals(Type.ANY_VALUE)) {
+        w.write("{}");
+      } else {
+        w.write("{ -");
+        p.print(guaranteedEffects);
+        w.write("> ");
+        p.print(guaranteedReturnType);
+        w.write(" }");
+      }
+    } else {
+      w.write('{');
+      w.runIndented(
+          () -> {
+            for (int i = 0; i < nextVersionIndex; i++) {
+              w.write('\n');
 
-            var version = versions.inverse().get(i);
-            if (version == null) {
-              w.write("<removed>");
-            } else {
-              p.print(version);
+              var version = versions.inverse().get(i);
+              if (version == null) {
+                w.write("<removed>");
+              } else {
+                p.print(version);
+              }
             }
-          }
-        });
-    w.write("\n}");
+
+            if (!guaranteedEffects.equals(Effects.ANY)
+                || !guaranteedReturnType.equals(Type.ANY_VALUE)) {
+              w.write("\n-");
+              p.print(guaranteedEffects);
+              w.write("> ");
+              p.print(guaranteedReturnType);
+            }
+          });
+      w.write("\n}");
+    }
   }
 
   public record ParseContext(
@@ -173,7 +234,7 @@ public final class Function {
     s.assertAndSkip('{');
 
     var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
-    for (; !s.trySkip('}'); nextVersionIndex++) {
+    for (; !s.nextCharSatisfies(c -> c == '-' || c == '}'); nextVersionIndex++) {
       CommentParser.skipComments(s);
 
       // Skip removed version but increment the index (hence the weird `for` loop).
@@ -185,5 +246,21 @@ public final class Function {
       versions.put(version, nextVersionIndex);
       versionsSorted.add(version);
     }
+
+    if (s.trySkip('-')) {
+      guaranteedEffects = p.parse(Effects.class);
+      s.assertAndSkip('>');
+      guaranteedReturnType = p.parse(Type.class);
+
+      if (!guaranteedReturnType.isSubtypeOf(Type.ANY_VALUE)) {
+        throw s.fail(
+            "Function's guaranteed return type must be a value: "
+                + guaranteedReturnType
+                + "\nIn "
+                + name);
+      }
+    }
+
+    s.assertAndSkip('}');
   }
 }
