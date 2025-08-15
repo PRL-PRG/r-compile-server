@@ -8,6 +8,7 @@ import java.util.Stack;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.fir.GlobalModules;
+import org.prlprg.fir.feedback.Feedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -97,6 +98,9 @@ public final class Interpreter {
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
   private int nextPromiseId = 0;
+
+  // Feedback (part of state but not depended on by [Interpreter], only updated).
+  private final Map<Abstraction, Feedback> feedbacks = new HashMap<>();
 
   /// Interpret the module in a global environment containing only its functions.
   ///
@@ -218,6 +222,10 @@ public final class Interpreter {
     return (BaseEnvSXP) globalEnv.parent();
   }
 
+  public Feedback feedback(Abstraction scope) {
+    return feedbacks.computeIfAbsent(scope, _ -> new Feedback());
+  }
+
   /// Looks up the function, gets the best applicable version, and calls it with the arguments
   /// in the global environment.
   public SEXP call(String functionName, SEXP... arguments) {
@@ -293,7 +301,8 @@ public final class Interpreter {
       return callExternal(hijacker, abstraction, arguments, environment);
     }
 
-    var frame = new StackFrame(environment);
+    var frame = mkFrame(abstraction, environment);
+    var feedback = frame.scopeFeedback();
 
     // Check number of parameters
     var params = abstraction.parameters();
@@ -307,7 +316,11 @@ public final class Interpreter {
       var param = params.get(i);
       var arg = arguments.get(i);
       checkType(arg, param.type(), "parameter " + param.variable().name());
+
       frame.put(param.variable(), arg);
+
+      feedback.recordConstant(param.variable(), arg);
+      recordTypeFeedback(feedback, param.variable(), arg);
     }
 
     // Execute CFG
@@ -332,7 +345,7 @@ public final class Interpreter {
     checkStack();
 
     // Add the frame for a nicer stack trace.
-    var frame = new StackFrame(environment);
+    var frame = mkFrame(hijacked, environment);
     frame.enter(new CFGCursor(hijacked.cfg()));
     stack.push(frame);
 
@@ -350,6 +363,10 @@ public final class Interpreter {
     frame.exit();
 
     return result;
+  }
+
+  private StackFrame mkFrame(Abstraction scope, EnvSXP parentEnv) {
+    return new StackFrame(scope, parentEnv, feedbacks.computeIfAbsent(scope, _ -> new Feedback()));
   }
 
   /// Interprets the control flow graph starting from the entry block.
@@ -393,8 +410,11 @@ public final class Interpreter {
   /// Executes a statement instruction.
   private void run(Statement statement) {
     var value = run(statement.expression());
-    if (statement.assignee() != null) {
-      topFrame().put(statement.assignee(), value);
+
+    var assignee = statement.assignee();
+    if (assignee != null) {
+      topFrame().put(assignee, value);
+      recordTypeFeedback(topFrame().scopeFeedback(), assignee, value);
     }
   }
 
@@ -403,8 +423,15 @@ public final class Interpreter {
     return switch (jump) {
       case Return(var ret) -> new ControlFlow.Return(run(ret));
       case Goto(var next) -> new ControlFlow.Goto(next);
-      case If(var condition, var ifTrue, var ifFalse) ->
-          new ControlFlow.Goto(isTrue(run(condition)) ? ifTrue : ifFalse);
+      case If(var condition, var ifTrue, var ifFalse) -> {
+        var condSexp = run(condition);
+
+        if (condition instanceof Read(var conditionReg)) {
+          topFrame().scopeFeedback().recordConstant(conditionReg, condSexp);
+        }
+
+        yield new ControlFlow.Goto(isTrue(condSexp) ? ifTrue : ifFalse);
+      }
       case Unreachable _ -> throw fail("Reached unimplemented or \"unreachable\" code");
     };
   }
@@ -425,6 +452,7 @@ public final class Interpreter {
       var phiVar = parameters.get(i);
       var phiValue = run(arguments.get(i));
       topFrame().put(phiVar, phiValue);
+      recordTypeFeedback(topFrame().scopeFeedback(), phiVar, phiValue);
     }
   }
 
@@ -452,6 +480,13 @@ public final class Interpreter {
             }
 
             var function = extractClosure(cloSXP);
+            if (function == null) {
+              throw fail("Can't call function not in this interpreter: " + cloSXP);
+            }
+
+            if (actualCallee instanceof Read(var calleeReg)) {
+              topFrame().scopeFeedback().recordCallee(calleeReg, function);
+            }
 
             yield call(function, null, argumentNames, arguments, environment);
           }
@@ -717,6 +752,10 @@ public final class Interpreter {
     return value;
   }
 
+  private void recordTypeFeedback(Feedback feedback, Register variable, SEXP value) {
+    feedback.recordType(variable, inferType(value, Ownership.SHARED));
+  }
+
   /// Casts the value to a boolean and returns it, throws if not a boolean.
   private boolean isTrue(SEXP value) {
     return switch (value.asScalarLogical().orElse(null)) {
@@ -771,7 +810,7 @@ public final class Interpreter {
               + expected
               + ", got "
               + value
-              + " {: "
+              + " {:"
               + actual
               + "}");
     }
@@ -792,7 +831,7 @@ public final class Interpreter {
   /// Ownership of the outermost type doesn't exist at runtime, so expected ownership must be
   /// provided. Note that ownership of inner promise types DOES exist. Also, if the type can
   /// only be shared and the given ownership isn't, it's returned ownership is unspecified.
-  private Type inferType(SEXP sexp, Ownership ownership) {
+  public Type inferType(SEXP sexp, Ownership ownership) {
     // We can do better than `Type.of` for promises,
     // since we create promises with stub code.
     if (sexp instanceof PromSXP promSxp) {
@@ -824,16 +863,17 @@ public final class Interpreter {
   private static final ListSXP CLOSURE_STUB_PARAMETERS = SEXPs.list(TaggedElem.DOTS);
 
   /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].
-  public Function extractClosure(CloSXP cloSxp) {
+  public @Nullable Function extractClosure(CloSXP cloSxp) {
     var function = closures.get(cloSxp);
     if (function == null) {
-      throw fail("Can't call closure created outside the interpreter: " + cloSxp);
+      // Closure wasn't created by this interpreter
+      return null;
     }
     // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
     if (module.localFunction(function.name()) != function
         && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
-      throw fail(
-          "Can't call function that was removed or is from another module: " + function.name());
+      // Closure was removed or is from another interpreter.
+      return null;
     }
     return function;
   }

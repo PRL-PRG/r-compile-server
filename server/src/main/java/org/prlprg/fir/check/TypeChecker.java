@@ -209,7 +209,7 @@ public final class TypeChecker extends Checker {
                   report(
                       "Dynamic callee must be a closure, got "
                           + actualCallee
-                          + " {: "
+                          + " {:"
                           + calleeType
                           + "}");
                 }
@@ -242,7 +242,7 @@ public final class TypeChecker extends Checker {
               report(
                   "Stupid cast: "
                       + value
-                      + " {: "
+                      + " {:"
                       + valueType
                       + "} as "
                       + castType

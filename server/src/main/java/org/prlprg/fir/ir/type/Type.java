@@ -184,7 +184,8 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
 
     return new Type(
         kind.union(other.kind, onOwnershipMismatch),
-        ownership,
+        // Technically these must be equal, but for graceful recovery and easier type feedback.
+        other.ownership == Ownership.SHARED ? Ownership.SHARED : ownership,
         concreteness.union(other.concreteness));
   }
 
