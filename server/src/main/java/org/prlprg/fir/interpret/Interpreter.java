@@ -53,6 +53,7 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
@@ -528,13 +529,7 @@ public final class Interpreter {
 
         yield force(promSXP);
       }
-      case Load(var variable) -> {
-        var value = topFrame().get(variable);
-        if (value == null) {
-          throw fail("Unbound variable: " + variable.name());
-        }
-        yield value;
-      }
+      case Load(var variable) -> load(variable);
       case LoadFun(var variable, var env) -> {
         var value =
             switch (env) {
@@ -656,7 +651,7 @@ public final class Interpreter {
     };
   }
 
-  /// Lookup the register and crash if it's not defined.
+  /// Lookup the register (on the stack) and crash if it's not defined.
   ///
   /// @throws IllegalStateException If called outside of evaluation.
   public SEXP read(Register register) {
@@ -664,6 +659,17 @@ public final class Interpreter {
     var value = topFrame().get(register);
     if (value == null) {
       throw fail("Uninitialized register: " + register);
+    }
+    return value;
+  }
+
+  /// Lookup the named variable (in the environment hierarchy) and crash if it's not defined.
+  ///
+  /// @throws IllegalStateException If called outside of evaluation.
+  public SEXP load(NamedVariable nv) {
+    var value = topFrame().get(nv);
+    if (value == null) {
+      throw fail("Unbound variable: " + nv.name());
     }
     return value;
   }

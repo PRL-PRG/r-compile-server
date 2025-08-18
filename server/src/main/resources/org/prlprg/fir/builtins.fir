@@ -13,6 +13,22 @@ fun `==` {
   (reg lhs:cls, reg rhs:cls) --> L { | ...; }
 }
 
+fun abs {
+  (reg x:I) --> I { | ...; }
+  (reg x:R) --> R { | ...; }
+}
+
+fun sqrt {
+  (reg x:I) --> R { | ...; }
+  (reg x:R) --> R { | ...; }
+}
+
+fun floor {
+  # Below is correct although unintuitive
+  (reg x:I) --> R { | ...; }
+  (reg x:R) --> R { | ...; }
+}
+
 fun `is.vector` { --> L }
 fun `is.numeric` { --> L }
 fun `is.integer` { --> L }

@@ -1,12 +1,18 @@
 package org.prlprg.fir.interpret;
 
+import static org.prlprg.primitive.Constants.NA_INT;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.DoubleUnaryOperator;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.primitive.Constants;
+import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RealSXP;
@@ -25,6 +31,9 @@ public final class Builtins {
   ///
   /// Use [#addAndRegisterHelpers(Interpreter)] to register non-builtin utility functions.
   public static void registerBuiltins(Interpreter interpreter) {
+    // TODO: refactor
+    //  - Abstract builtins like `+`, similar to how `abs` is abstracted via `registerMathBuiltin`
+    //  - Give other builtins some specific versions. Also requires modifying `builtins.fir`
     // Builtins
     interpreter.registerExternalFunction("+", ExternalFunction.strict(Builtins::add));
     interpreter.registerExternalVersion("+", 0, ExternalVersion.strict(Builtins::addInts));
@@ -40,7 +49,7 @@ public final class Builtins {
     interpreter.registerExternalFunction("!=", ExternalFunction.strict(Builtins::notEqual));
     interpreter.registerExternalFunction(">", ExternalFunction.strict(Builtins::greater));
     interpreter.registerExternalFunction(">=", ExternalFunction.strict(Builtins::greaterEqual));
-    interpreter.registerExternalFunction("rep", ExternalFunction.strict(Builtins::rep));
+    interpreter.registerExternalFunction("rep", ExternalFunction.special(Builtins::rep));
     interpreter.registerExternalFunction("[", ExternalFunction.strict(Builtins::index));
     interpreter.registerExternalFunction("[<-", ExternalFunction.strict(Builtins::subAssign));
     interpreter.registerExternalFunction("[[", ExternalFunction.strict(Builtins::index2));
@@ -48,6 +57,10 @@ public final class Builtins {
     interpreter.registerExternalFunction(":", ExternalFunction.strict(Builtins::colon));
     interpreter.registerExternalFunction("c", ExternalFunction.strict(Builtins::c));
     interpreter.registerExternalFunction("length", ExternalFunction.strict(Builtins::length));
+    registerMathBuiltin(interpreter, "abs", Math::abs);
+    registerMathBuiltin(interpreter, "sqrt", Math::sqrt);
+    registerMathBuiltin(interpreter, "floor", Math::floor);
+    interpreter.registerExternalFunction("sum", Builtins::sum);
     interpreter.registerExternalFunction("is.object", ExternalFunction.strict(Builtins::isObject));
 
     // Intrinsics
@@ -62,6 +75,32 @@ public final class Builtins {
     for (var i : function.versionIndices()) {
       interpreter.registerExternalVersion(name, i, javaClosure);
     }
+  }
+
+  private static void registerMathBuiltin(
+      Interpreter interpreter, String name, DoubleUnaryOperator javaFunction) {
+    interpreter.registerExternalVersion(
+        name,
+        0,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
+                throw new IllegalArgumentException("`" + name + "`.0 takes 1 scalar integer");
+              }
+              int value = args.getFirst().asScalarInteger().get();
+              return SEXPs.integer((int) javaFunction.applyAsDouble(value));
+            }));
+    interpreter.registerExternalVersion(
+        name,
+        1,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1 || args.getFirst().asScalarReal().isEmpty()) {
+                throw new IllegalArgumentException("`" + name + "`.1 takes 1 scalar real");
+              }
+              double value = args.getFirst().asScalarReal().get();
+              return SEXPs.real(javaFunction.applyAsDouble(value));
+            }));
   }
 
   private static SEXP add(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
@@ -303,13 +342,17 @@ public final class Builtins {
     }
 
     var value = args.value(0);
-    var times = args.value(1).asScalarInteger();
+    var times = args.value(1);
 
-    if (times.isEmpty()) {
-      throw new UnsupportedOperationException("Mock `rep` requires integer times argument");
+    int timesValue;
+    if (times.asScalarInteger().isPresent()) {
+      timesValue = times.asScalarInteger().get();
+    } else if (times.asScalarReal().isPresent()) {
+      // Convert real to integer, truncating
+      timesValue = times.asScalarReal().get().intValue();
+    } else {
+      throw new UnsupportedOperationException("Mock `rep` requires numeric times argument");
     }
-
-    int timesValue = times.get();
     if (timesValue < 0) {
       throw new IllegalArgumentException("rep() argument 'times' must be >= 0");
     }
@@ -334,9 +377,14 @@ public final class Builtins {
       var result = new double[timesValue];
       Arrays.fill(result, realValue);
       return SEXPs.real(result);
+    } else if (value.asScalarLogical().isPresent()) {
+      var logicalValue = value.asScalarLogical().get();
+      var result = new Logical[timesValue];
+      Arrays.fill(result, logicalValue);
+      return SEXPs.logical(result);
     } else {
       throw new UnsupportedOperationException(
-          "Mock `rep` not implemented for arguments except scalar integers or reals");
+          "Mock `rep` not implemented for arguments except scalar integers, reals, and logicals");
     }
   }
 
@@ -375,20 +423,21 @@ public final class Builtins {
       throw new UnsupportedOperationException("Mock `[<-` not implemented for non-vector objects");
     }
 
+    // Unlike FIŘ, the value is the second argument. The index (or indices for multidim) are after.
+    var value = args.value(1);
+
     // Get index as integer, truncating from real if necessary
     int index1;
-    if (args.value(1).asScalarInteger().isPresent()) {
-      index1 = args.value(1).asScalarInteger().get();
-    } else if (args.value(1).asScalarReal().isPresent()) {
-      index1 = args.value(1).asScalarReal().get().intValue();
+    if (args.value(2).asScalarInteger().isPresent()) {
+      index1 = args.value(2).asScalarInteger().get();
+    } else if (args.value(2).asScalarReal().isPresent()) {
+      index1 = args.value(2).asScalarReal().get().intValue();
     } else {
       throw new UnsupportedOperationException("Mock `[<-` requires numeric index argument");
     }
 
     // R uses 1-based indexing, but FIŘ uses 0
     int realIndex = index1 - 1;
-
-    var value = args.value(2);
 
     // Cast `value` to the correct type if possible.
     if (vector instanceof IntSXP && value.asScalarReal().isPresent()) {
@@ -489,6 +538,53 @@ public final class Builtins {
     }
 
     return SEXPs.integer(vector.size());
+  }
+
+  private static SEXP sum(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw new IllegalArgumentException("`sum` takes 1 argument");
+    }
+
+    return switch (args.value(0)) {
+      case IntSXP i -> {
+        // Sum of integers
+        int sum = 0;
+        for (var value : i) {
+          if (value == NA_INT) {
+            yield SEXPs.integer(Constants.NA_INT);
+          }
+          sum += value;
+        }
+        yield SEXPs.integer(sum);
+      }
+      case RealSXP r -> {
+        // Sum of reals
+        double sum = 0.0;
+        for (var value : r) {
+          sum += value;
+        }
+        yield SEXPs.real(sum);
+      }
+      case LglSXP l -> {
+        // Sum of logicals, treating TRUE as 1 and FALSE as 0
+        int sum = 0;
+        for (var value : l) {
+          boolean breakWithNa = false;
+          switch (value) {
+            case TRUE -> sum++;
+            case FALSE -> {}
+            case NA -> breakWithNa = true;
+          }
+          if (breakWithNa) {
+            yield SEXPs.integer(Constants.NA_INT);
+          }
+        }
+        yield SEXPs.integer(sum);
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Mock `sum` requires an int, real, or logical vector");
+    };
   }
 
   private static SEXP toForSeq(
