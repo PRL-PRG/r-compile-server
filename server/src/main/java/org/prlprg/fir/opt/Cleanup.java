@@ -56,6 +56,8 @@ public class Cleanup extends Optimization {
       substituter.commit();
 
       // Remove unused locals (must be after CFG cleanup and substitution, doesn't substitute).
+      // ???: Do we need to repeat this for long phi/jump-argument chains, since we remove jump
+      //  arguments? Or we may need to do something equivalent to repeating but more optimal.
       var defUses = new DefUses(scope);
       var toRemove = new ArrayList<Register>();
       for (var local : scope.locals()) {

@@ -1,6 +1,5 @@
 package org.prlprg.fir.check;
 
-import com.google.common.base.Joiner;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -17,12 +16,17 @@ public abstract class Checker {
   /// are any errors.
   public static void checkAll(Module module) {
     var cfgChecker = new CFGChecker();
-    cfgChecker.run(module);
-    cfgChecker.finish();
-
     var typeChecker = new TypeChecker();
+
+    cfgChecker.run(module);
     typeChecker.run(module);
-    typeChecker.finish();
+
+    cfgChecker.print();
+    typeChecker.print();
+
+    if (cfgChecker.hasErrors() || typeChecker.hasErrors()) {
+      throw new IllegalStateException("Verification failed");
+    }
   }
 
   private @Nullable Function function = null;
@@ -35,8 +39,7 @@ public abstract class Checker {
 
   /// Check all code in the module.
   ///
-  /// Reports errors in [#errors()]. Doesn't throw; call [#finish()] after to throw an exception
-  /// if there were reported errors.
+  /// Reports errors in [#errors()]. Doesn't print or throw.
   public final void run(Module module) {
     for (var function : module.localFunctions()) {
       // Check each function
@@ -46,8 +49,7 @@ public abstract class Checker {
 
   /// Check all code in the function.
   ///
-  /// Reports errors in [#errors()]. Doesn't throw; call [#finish()] after to throw an exception
-  /// if there were reported errors.
+  /// Reports errors in [#errors()]. Doesn't print or throw.
   public final void run(Function function) {
     for (var version : function.versions()) {
       run(function, version);
@@ -56,8 +58,7 @@ public abstract class Checker {
 
   /// Check all code in the version.
   ///
-  /// Reports errors in [#errors()]. Doesn't throw; call [#finish()] after to throw an exception
-  /// if there were reported errors.
+  /// Reports errors in [#errors()]. Doesn't print or throw.
   ///
   /// @throws IllegalArgumentException If `version` isn't in `function`.
   public final void run(Function function, Abstraction version) {
@@ -71,12 +72,20 @@ public abstract class Checker {
     this.function = null;
   }
 
-  /// Throws an [IllegalStateException] if there are any errors found during type-checking.
-  public final void finish() {
+  /// Prints any errors found during checking.
+  public final void print() {
     if (!errors.isEmpty()) {
-      throw new IllegalStateException(
-          "Encountered type errors:\n\n" + Joiner.on("\n\n").join(errors));
+      var name = getClass().getSimpleName().replace("Checker", "");
+      System.err.println("Encountered " + name + " errors:");
+      for (var error : errors) {
+        System.err.println();
+        System.err.println(error.getMessage());
+      }
     }
+  }
+
+  public final boolean hasErrors() {
+    return !errors.isEmpty();
   }
 
   protected abstract void doRun(Abstraction version);

@@ -1,6 +1,8 @@
 package org.prlprg.fir.ir.cfg.cursor;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.MultimapBuilder;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,8 @@ import org.prlprg.parseprint.Printer;
 public class Substituter {
   private final Abstraction scope;
   private final Map<Register, Argument> locals = new LinkedHashMap<>();
+  private final Multimap<Register, Register> backwards =
+      MultimapBuilder.hashKeys().arrayListValues().build();
 
   public Substituter(Abstraction scope) {
     this.scope = scope;
@@ -70,6 +74,37 @@ public class Substituter {
               if (locals.put(local, substitution) != null) {
                 throw new IllegalArgumentException(
                     "Local " + local + " has already been marked for substitution.");
+              }
+
+              // Handle transitive substitutions:
+
+              // Maintain O(1) lookup of rhs for the below checks: in backwards map, add `b <- a`.
+              if (substitution instanceof Read(var substReg)) {
+                backwards.put(substReg, local);
+              }
+
+              // If `a -> b` and we inserted `b -> c`, change the former to `a -> c`.
+              var aToLocal = backwards.get(local);
+              if (!aToLocal.isEmpty()) {
+                for (var a : aToLocal) {
+                  locals.put(a, substitution);
+                }
+
+                // In backwards map, add `c <- a`. Keep `c <- *`s in case we insert `c -> d`.
+                if (substitution instanceof Read(var substReg)) {
+                  backwards.putAll(substReg, aToLocal);
+                }
+              }
+
+              // Likewise, if `b -> c` and we inserted `a -> b`, change to `a -> c`.
+              if (substitution instanceof Read(var substReg) && locals.containsKey(substReg)) {
+                var c = locals.get(substReg);
+                locals.put(local, c);
+
+                // In backwards map, add `c <- a`. Keep `c <- b` etc. in case we insert `c -> d`.
+                if (c instanceof Read(var cReg)) {
+                  backwards.put(cReg, local);
+                }
               }
             });
   }
