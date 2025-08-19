@@ -15,7 +15,7 @@ RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
-MCMODEL ?= medium
+MCMODEL ?= large
 C_FLAGS_ADDITIONAL ?=
 
 SPECIALIZE_STEPFOR ?= 1
