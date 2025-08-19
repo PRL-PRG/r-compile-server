@@ -31,7 +31,8 @@ typedef enum
   R_X86_64_TLSLD,
   R_X86_64_DTPOFF32,
   R_X86_64_GOTTPOFF,
-  R_X86_64_TPOFF32
+  R_X86_64_TPOFF32,
+  R_X86_64_GOTPCRELX = 41
 } X86_64_RELOC_KIND;
 
 typedef struct NamedStencil {
@@ -95,7 +96,7 @@ static void print_byte_array(FILE *file, const unsigned char *arr, size_t len)
 
 static void export_body(FILE *file, const StencilMutable *stencil, const char *opcode_name)
 {
-  fprintf(file, "const Hole _%s_HOLES[] = {\n", opcode_name);
+  fprintf(file, "Hole _%s_HOLES[] = {\n", opcode_name);
   for (size_t j = 0; j < stencil->holes_size; ++j)
   {
     const Hole *hole = &stencil->holes[j];
@@ -106,6 +107,7 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
     switch (hole->kind)
     {
     case RELOC_RUNTIME_SYMBOL:
+    case RELOC_RUNTIME_SYMBOL_GOT:
       fprintf(file, ", .val.symbol = &%s", hole->val.symbol_name);
       break;
     case RELOC_RCP_EXEC_IMM:
@@ -124,7 +126,7 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
   }
 
   fprintf(file, "};\n\n");
-  fprintf(file, "const uint8_t _%s_BODY[] = {\n", opcode_name);
+  fprintf(file, "uint8_t _%s_BODY[] = {\n", opcode_name);
   print_byte_array(file, stencil->body, stencil->body_size);
   fprintf(file, "\n};\n\n");
 }
@@ -166,7 +168,7 @@ static void export_to_files(const Stencils *stencils)
       fprintf(file, "#include \"%s.h\"\n", OPCODES[i]);
   }
 
-  fprintf(file, "uint8_t rodata[] = { ");
+  fprintf(file, "const uint8_t rodata[] = { ");
   print_byte_array(file, stencils->rodata, stencils->rodata_size);
   fprintf(file, "};\n");
 
@@ -184,6 +186,15 @@ static void export_to_files(const Stencils *stencils)
   }
 
   fprintf(file, "};\n");
+
+  fprintf(file, "\nconst Stencil* stencils_all[] = {\n");
+  for (int i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+    if (stencils->stencils_opcodes[i].body_size != 0)
+      fprintf(file, "&stencils[%d],", i);
+  for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
+    fprintf(file, "&%s,", current->name);
+  fprintf(file, "};\n");
+
   fclose(file);
 }
 
@@ -307,13 +318,12 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     assert(rel->howto->size == 8);
   }
   break;
-  //case R_X86_64_REX_GOTPCRELX: // not tested
-  //{
-  //  assert(strcmp(rel->howto->name, "R_X86_64_REX_GOTPCRELX") == 0);
-  //  assert(rel->howto->pc_relative == 1);
-  //  hole->size = 4;
-  //  hole->indirection_level = 2;
-  //} break;
+  case R_X86_64_GOTPCRELX:
+  {
+    assert(strcmp(rel->howto->name, "R_X86_64_GOTPCRELX") == 0);
+    assert(rel->howto->pc_relative == 1);
+    assert(rel->howto->size == 4);
+  } break;
   default:
   {
     fprintf(stderr, "Unsupported relocation type: %d: %s (relocating: %s). Note that stencils need to be compiled with position dependent code (no-pic) switch.\n", rel->howto->type, rel->howto->name, (*rel->sym_ptr_ptr)->name);
@@ -349,19 +359,51 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     }
     else if (strcmp(descr, "EXEC_NEXT") == 0)
     {
-      if (rel->address - rel->addend == stencil->body_size && stencil->body[rel->address - 1] == 0xE9 /*JMP*/)
+      int is_last_instruction = rel->address - rel->addend == stencil->body_size;
+      int is_relative_jmp = stencil->body[rel->address - 1] == 0xE9; /*JMP*/
+      int is_got_jmp = stencil->body[rel->address - 2] == 0xFF && stencil->body[rel->address - 1] == 0x25; /*GOT JMP*/
+      int is_got_call = stencil->body[rel->address - 2] == 0xFF && stencil->body[rel->address - 1] == 0x15; /*GOT CALL*/
+
+      if (is_last_instruction)
       {
-        // This is the last instruction; safe to just delete
-        stencil->body_size = rel->address - 1;
-        return; // No relocation from this
+        if(is_relative_jmp)
+        {
+          // This is the last instruction; safe to just delete
+          stencil->body_size = rel->address - 1;
+          return; // No relocation from this
+        }
+        else if (is_got_jmp)
+        {
+          // This is the last instruction; safe to just delete
+          stencil->body_size = rel->address - 2;
+          return; // No relocation from this
+        }
+        else
+        {
+          fprintf(stderr, "Warning: EXEC_NEXT is called as the last instruction, but it is not a relative JMP or GOT JMP, cannot process EXEC_NEXT relocation at offset 0x%lx\n", rel->address);
+        }
       }
-      else
+      if(is_got_jmp) // Transform into relative JMP
       {
-        hole->kind = RELOC_RCP_EXEC_NEXT;
+        stencil->body[rel->address - 2] = 0x90; // NOP
+        stencil->body[rel->address - 1] = 0xE9; // JMP
       }
+      else if(is_got_call) // Transform into relative JMP
+      {
+        stencil->body[rel->address - 2] = 0x90; // NOP
+        stencil->body[rel->address - 1] = 0xE8; // CALL
+      }
+      hole->kind = RELOC_RCP_EXEC_NEXT;
     }
     else if (descr_imm = remove_prefix(descr, "EXEC_IMM"))
     {
+      int is_relative_jmp = stencil->body[rel->address - 1] == 0xE9; /*JMP*/
+      int is_got_jmp = stencil->body[rel->address - 2] == 0xFF && stencil->body[rel->address - 1] == 0x25; /*GOT JMP*/
+      if(is_got_jmp) // Transform into relative JMP
+      {
+        stencil->body[rel->address - 2] = 0x90; // NOP
+        stencil->body[rel->address - 1] = 0xE9; // JMP
+      }
       hole->kind = RELOC_RCP_EXEC_IMM;
     }
     else if (strcmp(descr, "RHO") == 0)
@@ -402,7 +444,16 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     }
     else
     {
-      hole->kind = RELOC_RUNTIME_SYMBOL;
+      switch (rel->howto->type)
+      {
+      case R_X86_64_GOTPCRELX:
+        hole->kind = RELOC_RUNTIME_SYMBOL_GOT;
+      break;
+      default:
+        hole->kind = RELOC_RUNTIME_SYMBOL;
+      break;
+      }
+
       hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
     }
   }

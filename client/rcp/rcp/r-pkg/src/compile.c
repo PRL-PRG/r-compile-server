@@ -10,12 +10,15 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <assert.h>
-#include <time.h> // Include for time measurement
+#include <time.h>
 #include <omp.h>
 
 #include "rcp_common.h"
 #include "runtime_internals.h"
+#include "stencils/stencils.h"
 
+// Used as a hint where to map address space close to R internals to allow relative addressing
+#define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
 
 #ifdef DEBUG_MODE
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
@@ -113,7 +116,7 @@ static void *near_memory_start = NULL;
 static void refresh_near_memory_ptr(size_t size)
 {
 #ifdef MCMODEL_SMALL
-    near_memory_start = find_free_space_near(&Rf_ScalarInteger, size);
+    near_memory_start = find_free_space_near(R_INTERNALS_ADDRESS, size);
 #endif
 }
 
@@ -289,11 +292,89 @@ static void prepare_precompiled(void* precompiled_functions[])
     assert(i <= PRECOMPILED_COUNT);
 }
 
-#include "stencils/stencils.h"
+int cmp_ptr(const void *a, const void *b) {
+    const void *pa = *(const void **)a;
+    const void *pb = *(const void **)b;
+    return (pa > pb) - (pa < pb);
+}
+
+static const void** prepare_got_table(size_t* got_size)
+{
+    // Pass 1: count the number of GOT relocations and patch those that can be transformed into relative addressing
+    size_t count = 0;
+    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    {
+        const Stencil *stencil = stencils_all[i];
+        for (size_t j = 0; j < stencil->holes_size; j++)
+        {
+            Hole *hole = &stencil->holes[j];
+            if (hole->kind == RELOC_RUNTIME_SYMBOL_GOT)
+            {
+                ptrdiff_t offset = (ptrdiff_t)hole->val.symbol - (ptrdiff_t)R_INTERNALS_ADDRESS;
+                if(fits_in(offset, hole->size)) // If the offset can fit in x86-64 relative address, transform it
+                {
+                    uint8_t* instr = &stencil->body[hole->offset - 2];
+                    if(instr[0] == 0xFF && instr[1] == 0x25) // jmp [rip + offset]
+                    {
+                        instr[0] = 0x90; // NOP
+                        instr[1] = 0xE9; // jmp rel32
+                    }
+                    else if(instr[0] == 0xFF && instr[1] == 0x15) // call [rip + offset]
+                    {
+                        instr[0] = 0x90; // NOP
+                        instr[1] = 0xE8; // call rel32
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Warning: Unsupported GOT relocation at offset 0x%lx in stencil %zu\n", hole->offset, i);
+                        count++;
+                        continue;
+                    }
+
+                    hole->kind = RELOC_RUNTIME_SYMBOL;
+                }
+                else
+                    count++;
+            }
+        }
+    }
+    DEBUG_PRINT("Total GOT relocations: %zu\n", count);
+
+    // Pass 2: collect unique GOT symbols
+    const void** got_table_tmp = malloc(count * sizeof(void*));
+    *got_size = 0;
+
+    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    {
+        const Stencil *stencil = stencils_all[i];
+        for (size_t j = 0; j < stencil->holes_size; j++)
+        {
+            const Hole *hole = &stencil->holes[j];
+            if (hole->kind == RELOC_RUNTIME_SYMBOL_GOT)
+            {
+                for (size_t k = 0; k < *got_size; k++)
+                {
+                    if(got_table_tmp[k] == hole->val.symbol)
+                        goto found;
+                }
+                got_table_tmp[(*got_size)++] = hole->val.symbol;
+                found:
+            }
+        }
+    }
+    DEBUG_PRINT("GOT table size: %zu\n", *got_size);
+
+    // Pass 3: sort the GOT table to allow binary search
+    qsort(got_table_tmp, *got_size, sizeof(void*), cmp_ptr);
+
+    return got_table_tmp;
+}
 
 typedef struct {
     uint8_t rodata[sizeof(rodata)];
     void* precompiled[PRECOMPILED_COUNT];
+    size_t got_table_size;
+    void* got_table[];
 } mem_shared_data;
 
 mem_shared_data *mem_shared_near = NULL;
@@ -305,18 +386,23 @@ static void prepare_shared_memory()
     void *precompiled[PRECOMPILED_COUNT];
     prepare_precompiled(precompiled);
 
-    // Allocate memory
-    const size_t rodata_size = align_to_higher(sizeof(rodata), sizeof(void *));
-    const size_t total_size = rodata_size + sizeof(precompiled);
+    size_t got_table_size = 0;
+    const void **got_table = prepare_got_table(&got_table_size);
 
-    mem_shared_near = mmap(get_near_memory(sizeof(mem_shared_data)), sizeof(mem_shared_data), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    const size_t total_size = sizeof(mem_shared_data) + got_table_size * sizeof(void*);
+
+    mem_shared_near = mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mem_shared_near == MAP_FAILED)
         exit(1);
 
     memcpy(mem_shared_near->rodata, rodata, sizeof(rodata));
     memcpy(mem_shared_near->precompiled, precompiled, sizeof(precompiled));
+    mem_shared_near->got_table_size = got_table_size;
+    memcpy(mem_shared_near->got_table, got_table, got_table_size * sizeof(void*));
+
+    free(got_table);
     
-    if (mprotect(mem_shared_near, sizeof(mem_shared_data), PROT_READ) != 0)
+    if (mprotect(mem_shared_near, total_size, PROT_READ) != 0)
     {
         perror("mprotect failed");
         exit(1);
@@ -429,6 +515,11 @@ X_STEPFOR_TYPES
 }
 #endif
 
+void** got_table_find(const mem_shared_data* data, const void *symbol)
+{
+    return (void**)bsearch(&symbol, data->got_table, data->got_table_size, sizeof(void *), cmp_ptr);
+}
+
 typedef struct {
     size_t total_size;
     size_t executable_size;
@@ -449,6 +540,17 @@ typedef struct {
 static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int nextop, void* smc_variants, const PatchContext *ctx)
 {
     ptrdiff_t ptr;
+    const mem_shared_data *shared;
+
+    #ifdef MCMODEL_SMALL
+    // Point to different memory regions to allow relative addressing in smaller memory model
+    if (hole->is_pc_relative)
+        shared = ctx->shared_near;
+    else
+        shared = ctx->shared_low;
+    #else
+    shared = ctx->shared_near;
+    #endif
 
     switch (hole->kind)
     {
@@ -457,30 +559,25 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
         ptr = (ptrdiff_t)hole->val.symbol;
     }
     break;
+    case RELOC_RUNTIME_SYMBOL_GOT:
+    {
+        void **got_entry = got_table_find(shared, hole->val.symbol);
+        if (got_entry == NULL)
+        {
+            error("GOT entry for symbol %p not found", hole->val.symbol);
+            return;
+        }
+        ptr = (ptrdiff_t)got_entry;
+    }
+    break;
     case RELOC_RODATA:
     {
-#ifdef MCMODEL_SMALL
-        // Point to different memory regions to allow efficient x86 relative addressing
-        if (hole->is_pc_relative)
-            ptr = (ptrdiff_t)ctx->shared_near->rodata;
-        else
-            ptr = (ptrdiff_t)ctx->shared_low->rodata;
-#else
-        ptr = (ptrdiff_t)ctx->shared_near->rodata;
-#endif
+        ptr = (ptrdiff_t)shared->rodata;
     }
     break;
     case RELOC_RCP_PRECOMPILED:
     {
-#ifdef MCMODEL_SMALL
-        // Point to different memory regions to allow efficient x86 relative addressing
-        if (hole->is_pc_relative)
-            ptr = (ptrdiff_t)ctx->shared_near->precompiled;
-        else
-            ptr = (ptrdiff_t)ctx->shared_low->precompiled;
-#else
-        ptr = (ptrdiff_t)ctx->shared_near->precompiled;
-#endif
+        ptr = (ptrdiff_t)shared->precompiled;
     }
     break;
     case RELOC_RHO:
