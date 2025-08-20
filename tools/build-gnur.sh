@@ -102,7 +102,6 @@ function build {
       REV_DATE='2018-07-02'
     fi
     echo "$REV_DATE" >>SVN-REVISION
-    exit 1
     rm -f non-tarball
   fi
 
