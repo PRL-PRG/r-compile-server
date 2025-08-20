@@ -292,7 +292,7 @@ static void prepare_precompiled(void* precompiled_functions[])
     assert(i <= PRECOMPILED_COUNT);
 }
 
-int cmp_ptr(const void *a, const void *b) {
+static int cmp_ptr(const void *a, const void *b) {
     const void *pa = *(const void **)a;
     const void *pb = *(const void **)b;
     return (pa > pb) - (pa < pb);
@@ -341,7 +341,7 @@ static const void** prepare_got_table(size_t* got_size)
     DEBUG_PRINT("Total GOT relocations: %zu\n", count);
 
     // Pass 2: collect unique GOT symbols
-    const void** got_table_tmp = malloc(count * sizeof(void*));
+    const void** got_table_tmp = (const void**)R_alloc(count, sizeof(void*));
     *got_size = 0;
 
     for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
@@ -377,19 +377,22 @@ typedef struct {
     void* got_table[];
 } mem_shared_data;
 
-mem_shared_data *mem_shared_near = NULL;
-mem_shared_data *mem_shared_low = NULL;
-size_t *mem_shared_ref_count = NULL;
+static rcp_sharedmem_ptrs *mem_shared;
+static SEXP mem_shared_sexp;
 
 static void prepare_shared_memory()
 {
     void *precompiled[PRECOMPILED_COUNT];
     prepare_precompiled(precompiled);
 
+    void *vmax = vmaxget();
     size_t got_table_size = 0;
     const void **got_table = prepare_got_table(&got_table_size);
 
     const size_t total_size = sizeof(mem_shared_data) + got_table_size * sizeof(void*);
+
+    mem_shared_data *mem_shared_near = NULL;
+    mem_shared_data *mem_shared_low = NULL;
 
     mem_shared_near = mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mem_shared_near == MAP_FAILED)
@@ -400,7 +403,7 @@ static void prepare_shared_memory()
     mem_shared_near->got_table_size = got_table_size;
     memcpy(mem_shared_near->got_table, got_table, got_table_size * sizeof(void*));
 
-    free(got_table);
+    vmaxset(vmax);
     
     if (mprotect(mem_shared_near, total_size, PROT_READ) != 0)
     {
@@ -420,8 +423,15 @@ static void prepare_shared_memory()
     }
 #endif
 
-    mem_shared_ref_count = malloc(sizeof(*mem_shared_ref_count));
-    *mem_shared_ref_count = 1;
+    mem_shared = R_Calloc(1, rcp_sharedmem_ptrs);
+    mem_shared->memory_shared_near = mem_shared_near;
+    mem_shared->memory_shared_low = mem_shared_low;
+    mem_shared->memory_shared_size = total_size;
+
+    mem_shared_sexp = PROTECT(R_MakeExternalPtr(mem_shared, R_NilValue, R_NilValue));
+    R_PreserveObject(mem_shared_sexp);
+    UNPROTECT(1); // mem_shared_sexp
+    R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, TRUE);
 }
 
 #ifdef STEPFOR_SPECIALIZE
@@ -451,7 +461,7 @@ typedef struct {
         sizeof(__RCP_STEPFOR_9_OP_BODY), \
         sizeof(__RCP_STEPFOR_10_OP_BODY))
 
-void prepare_variant_one(uint16_t *size, ptrdiff_t *offset, uint8_t *mem, size_t *pos, const Stencil* stencil)
+static void prepare_variant_one(uint16_t *size, ptrdiff_t *offset, uint8_t *mem, size_t *pos, const Stencil* stencil)
 {
     *size = stencil->body_size;
     
@@ -515,7 +525,7 @@ X_STEPFOR_TYPES
 }
 #endif
 
-void** got_table_find(const mem_shared_data* data, const void *symbol)
+static void** got_table_find(const mem_shared_data* data, const void *symbol)
 {
     return (void**)bsearch(&symbol, data->got_table, data->got_table_size, sizeof(void *), cmp_ptr);
 }
@@ -733,9 +743,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     size_t insts_size = _RCP_INIT.body_size;
     size_t for_count = 0;
 
-    uint8_t **inst_start = calloc(bytecode_size, sizeof(uint8_t *));
-    int *used_bcells = calloc(constpool_size, sizeof(int));
-    int *bytecode_lut = malloc(bytecode_size * sizeof(int *));
+    void *vmax = vmaxget(); // Save to restore it later to free memory allocated by the following calls
+    uint8_t **inst_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
+    int *used_bcells = (int *)S_alloc(constpool_size, sizeof(int));
+    int *bytecode_lut = (int *)R_alloc(bytecode_size, sizeof(int));
 
     int count_opcodes = 0;
 
@@ -746,12 +757,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         const Stencil *stencil = get_stencil(bytecode[i], imms, constpool);
         // DEBUG_PRINT("Opcode: %s\n", OPCODES[bytecode[i]]);
         if (stencil == NULL || stencil->body_size == 0)
-        {
-            free(inst_start);
-            free(used_bcells);
-            free(bytecode_lut);
             error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
-        }
         
 #ifdef STEPFOR_SPECIALIZE
         if(bytecode[i] == STARTFOR_OP)
@@ -859,18 +865,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.eval = (void *)executable;
     res.rho = rho;
 
-    res.memory_shared_near = mem_shared_near;
-    res.memory_shared_low = mem_shared_low;
-    res.memory_shared_size = sizeof(mem_shared_data);
-    res.memory_shared_refcount = mem_shared_ref_count;
-
     res.bcells = bcells;
     res.bcells_size = bcells_size;
 
     // Context for patching, passed to the patch function
     PatchContext ctx = {
-        .shared_near = mem_shared_near,
-        .shared_low = mem_shared_low,
+        .shared_near = mem_shared->memory_shared_near,
+        .shared_low = mem_shared->memory_shared_low,
         .constpool = constpool,
         .bcells = bcells,
         .executable_lookup = inst_start,
@@ -959,9 +960,7 @@ X_STEPFOR_TYPES
     fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
 #endif
 
-    free(bytecode_lut);
-    free(used_bcells);
-    free(inst_start);
+    vmaxset(vmax);
 
     int prot = PROT_EXEC;
 #ifdef STEPFOR_SPECIALIZE
@@ -1093,12 +1092,16 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
     for (int i = 0; i < res.bcells_size; ++i)
         res.bcells[i] = R_NilValue;
     *res.rho = R_NilValue;
-    (res.memory_shared_refcount)++;
 
-    rcp_exec_ptrs *res_ptr = malloc(sizeof(rcp_exec_ptrs));
+    rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
     *res_ptr = res;
 
-    SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, bcode_consts);
+    SEXP prot = PROTECT(Rf_allocVector(VECSXP, 2));
+    SET_VECTOR_ELT(prot, 0, bcode_consts);
+    SET_VECTOR_ELT(prot, 1, mem_shared_sexp);
+
+    SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
+    UNPROTECT(1); // prot
     PROTECT(ptr);
     R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
     UNPROTECT(1); // ptr
@@ -1118,15 +1121,9 @@ void rcp_init(void)
 
 void rcp_destr(void)
 {
-    if (--(*mem_shared_ref_count) == 0)
-    {
-        munmap(mem_shared_near, sizeof(mem_shared_data));
-        mem_shared_near = NULL;
-        munmap(mem_shared_low, sizeof(mem_shared_data));
-        mem_shared_low = NULL;
-        free(mem_shared_ref_count);
-        mem_shared_ref_count = NULL;
-    }
+    if(mem_shared_sexp != NULL)
+        R_ReleaseObject(mem_shared_sexp);
+    mem_shared_sexp = R_NilValue;
 }
 
 enum { STATS_COUNT = 5 };
