@@ -564,7 +564,8 @@ public class CFGCompiler {
       case CheckFun() -> {
         var fun = pop();
         insert(checkFun(fun));
-        pushCall(fun);
+        var castedFun = insertAndReturn(new Cast(fun, Type.CLOSURE));
+        pushCall(castedFun);
       }
       case MakeProm(var code) -> {
         if (!(this.get(code) instanceof BCodeSXP bcSxp)) {

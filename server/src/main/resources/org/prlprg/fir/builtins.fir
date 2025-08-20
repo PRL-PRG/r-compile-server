@@ -29,6 +29,8 @@ fun floor {
   (reg x:R) --> R { | ...; }
 }
 
+fun `as.logical` { --> L }
+
 fun `is.vector` { --> L }
 fun `is.numeric` { --> L }
 fun `is.integer` { --> L }
