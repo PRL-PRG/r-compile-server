@@ -1,6 +1,7 @@
 package org.prlprg.sexp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.ForAll;
@@ -142,7 +143,7 @@ public class SEXPParsePrintTest {
       var printed = Printer.toString(sexp, SEXPPrintOptions.FULL.withDelimited(forceDelimited));
       assertEquals(input, printed, "SEXP round-trip failed");
     } catch (ParseException e) {
-      throw new AssertionError("Failed to parse '" + input + "'", e);
+      fail("Failed to parse '" + input + "'", e);
     }
   }
 }

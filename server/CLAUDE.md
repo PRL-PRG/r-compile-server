@@ -105,8 +105,7 @@ R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
 ### Code Quality Tools
 
 - Google Java Format enforced via Spotless
-- PMD static analysis with custom rules (`.pmd-rules.xml`)
-- SpotBugs annotations for null safety (non-null by default)
+  \- SpotBugs annotations for null safety (non-null by default)
 - Pre-commit hooks run formatting automatically
 
 ### Development Notes

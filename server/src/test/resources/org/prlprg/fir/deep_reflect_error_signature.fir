@@ -8,7 +8,7 @@ fun main {
       return rx2;
     };
     # type-error: Type mismatch in argument 0 (for signature): p(V +) doesn't match p(V -)
-    # runtime-error: Type mismatch in argument 0 (for signature): <prom env=<user#0 ...> ⇒ .Interpret(0)> {:p(V +)} isn't a(n) p(V -)
+    # runtime-error: Type mismatch in argument 0 (for signature): <prom env=<user#0 ...> ⇒ .Interpret(...)> {:p(V +)} isn't a(n) p(V -)
     r1 = f< p(V -) -+> v(I) >(r0);
     return r1;
   }

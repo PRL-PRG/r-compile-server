@@ -14,7 +14,9 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
@@ -124,6 +126,23 @@ public final class Abstraction implements Comparable<Abstraction> {
         });
   }
 
+  public void addLocals(Collection<Local> locals) {
+    module.record(
+        "Abstraction#addLocals",
+        List.of(this, locals),
+        () -> {
+          for (var local : locals) {
+            if (this.locals.put(local.variable().name(), local) != null) {
+              throw new IllegalArgumentException(
+                  "Local " + local + " already exists in the abstraction.");
+            }
+          }
+          while (contains(nextLocalRegister())) {
+            nextLocalDisambiguator++;
+          }
+        });
+  }
+
   public Local removeLocal(Variable variable) {
     return module.record(
         "Abstraction#removeLocal",
@@ -150,21 +169,6 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   public CFG cfg() {
     return cfg;
-  }
-
-  /// Yields the function body's CFG ([#cfg()]) followed by each [Promise]'s CFG, in pre-order.
-  public Stream<CFG> streamCfgs() {
-    return Streams.worklist(
-        cfg,
-        (prev, worklist) -> {
-          for (var bb : prev.bbs()) {
-            for (var statement : bb.statements()) {
-              if (statement.expression() instanceof Promise promise) {
-                worklist.add(promise.code());
-              }
-            }
-          }
-        });
   }
 
   public boolean contains(Register register) {
@@ -206,6 +210,46 @@ public final class Abstraction implements Comparable<Abstraction> {
         parameters.stream().map(Parameter::type).collect(ImmutableList.toImmutableList()),
         returnType,
         effects);
+  }
+
+  /// Yields `self` followed by each [InlineCallee].
+  ///
+  /// Yields inline callees in promises.
+  public Stream<Abstraction> streamScopes() {
+    return Streams.worklist(
+        this,
+        (prev, worklist) -> {
+          prev.streamCfgs()
+              .forEach(
+                  cfg -> {
+                    for (var bb : cfg.bbs()) {
+                      for (var statement : bb.statements()) {
+                        if (statement.expression() instanceof Call call
+                            && call.callee() instanceof InlineCallee(var callee)) {
+                          worklist.add(callee);
+                        }
+                      }
+                    }
+                  });
+        });
+  }
+
+  /// Yields the function body's CFG ([#cfg()]) followed by each [Promise]'s CFG, in pre-order.
+  ///
+  /// Doesn't yield CFGs from inlined calls.
+  /// Use [#streamScopes()]`.flatMap(Abstraction::streamCfgs)` to do that.
+  public Stream<CFG> streamCfgs() {
+    return Streams.worklist(
+        cfg,
+        (prev, worklist) -> {
+          for (var bb : prev.bbs()) {
+            for (var statement : bb.statements()) {
+              if (statement.expression() instanceof Promise promise) {
+                worklist.add(promise.code());
+              }
+            }
+          }
+        });
   }
 
   /// Sort by parameter types (smallest type first), then by number of parameters, then by hash.

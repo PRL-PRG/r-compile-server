@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
@@ -29,14 +30,14 @@ import org.prlprg.primitive.Logical;
 /// - Convert branches whose condition is always true or false, or where both targets are the
 ///   same, into gotos.
 /// - Merge blocks with a single successor ([Goto]).
-public class Cleanup extends Optimization {
+public record Cleanup() implements Optimization {
   public static void cleanup(Module module) {
     new Cleanup().run(module);
   }
 
   @Override
-  public void run(Abstraction abstraction) {
-    new OnAbstraction(abstraction).run();
+  public void run(Function function, Abstraction version) {
+    version.streamScopes().forEach(abstraction -> new OnAbstraction(abstraction).run());
   }
 
   private static class OnAbstraction {

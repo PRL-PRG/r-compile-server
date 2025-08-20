@@ -2,18 +2,16 @@ package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Pattern;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.prlprg.fir.ir.module.Module;
-import org.prlprg.parseprint.ParseException;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.util.DirectorySource;
 
-public class CleanupTest {
+class CleanupTest {
   private static final Pattern CLEANUP_COMMENT_PATTERN = Pattern.compile("^(\\s*)# cleanup: (.*)$");
 
   /// Tests that all FIŘ files in the test resources directory are unaffected by the [Cleanup]
@@ -21,38 +19,28 @@ public class CleanupTest {
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
   void testCleanupNoOps(Path firFilePath) throws IOException {
+    var firText = Files.readString(firFilePath);
+    var firModule = parseModule(firText);
+
+    var firModuleBeforeCleanup = firModule.toString();
+    var expectedAfterCleanup = processCleanupComments(firText, firModuleBeforeCleanup);
+
     try {
-      var firText = Files.readString(firFilePath);
-      var firModule = Parser.fromString(firText, Module.class);
+      new Cleanup().run(firModule);
 
-      var firModuleBeforeCleanup = firModule.toString();
-      var expectedAfterCleanup = processCleanupComments(firText, firModuleBeforeCleanup);
+      var firModuleAfterCleanup = firModule.toString();
 
-      try {
-        new Cleanup().run(firModule);
-
-        var firModuleAfterCleanup = firModule.toString();
-
-        assertEquals(expectedAfterCleanup, firModuleAfterCleanup, "FIŘ module changed by cleanup");
-      } catch (Exception e) {
-        fail(
-            "Cleanup pass failed on FIŘ file: "
-                + firFilePath
-                + "\nError: "
-                + e.getMessage()
-                + "\nOriginal Content:\n"
-                + firModuleBeforeCleanup
-                + "\nExpected Content:\n"
-                + expectedAfterCleanup);
-      }
-    } catch (ParseException e) {
+      assertEquals(expectedAfterCleanup, firModuleAfterCleanup, "FIŘ module changed by cleanup");
+    } catch (Exception e) {
       fail(
-          "Failed to parse FIŘ file: "
+          "Cleanup pass failed on FIŘ file: "
               + firFilePath
               + "\nError: "
               + e.getMessage()
-              + "\nContent:\n"
-              + Files.readString(firFilePath));
+              + "\nOriginal Content:\n"
+              + firModuleBeforeCleanup
+              + "\nExpected Content:\n"
+              + expectedAfterCleanup);
     }
   }
 

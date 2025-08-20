@@ -35,7 +35,7 @@ public final class CFG {
     this.scope = scope;
 
     // Create an empty entry block
-    entry = new BB(this, "ENTRY");
+    entry = new BB(this, BB.ENTRY_LABEL);
     bbs.put(entry.label(), entry);
     exits.add(entry);
   }

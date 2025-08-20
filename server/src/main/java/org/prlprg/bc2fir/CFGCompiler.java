@@ -1176,7 +1176,8 @@ public class CFGCompiler {
     // Ensure the BB has phis for each stack value.
     if (bbsWithPhis.add(bb)) {
       for (var _ : stack) {
-        bb.appendParameter();
+        var phi = scope().addLocal(Type.ANY);
+        bb.appendParameter(phi);
       }
     } else {
       // Check number of phis equals number of arguments.

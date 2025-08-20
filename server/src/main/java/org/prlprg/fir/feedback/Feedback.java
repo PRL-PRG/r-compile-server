@@ -12,13 +12,13 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 
-/// Feedback for a closure version ([Abstraction]).
+/// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
 public class Feedback {
   /// Inferred types.
   ///
   /// `null` = nothing recorded, [Type#ANY] = different types recorded. Both are equivalent to
   /// [Type#ANY] when checked.
-  public final Map<Register, Type> types = new HashMap<>();
+  public final Map<Register, TypeFeedback> types = new HashMap<>();
   /// Inferred calls.
   ///
   /// `null` = nothing recorded, `Optional.empty()` = different things recorded. Both are
@@ -40,9 +40,7 @@ public class Feedback {
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
 
   public void recordType(Register register, Type type) {
-    var oldType = types.get(register);
-    var updatedType = oldType == null ? type : oldType.union(type, () -> {});
-    types.put(register, updatedType);
+    types.computeIfAbsent(register, _ -> new TypeFeedback()).record(type);
 
     recordCommon(register);
   }
@@ -77,8 +75,8 @@ public class Feedback {
     allRecorded.put(register, allRecorded.get(register) + 1);
   }
 
-  public Type type(Register register) {
-    return types.getOrDefault(register, Type.ANY);
+  public TypeFeedback type(Register register) {
+    return types.getOrDefault(register, TypeFeedback.EMPTY);
   }
 
   public @Nullable Function callee(Register register) {
@@ -139,7 +137,7 @@ public class Feedback {
         w.write("call");
       } else if (constant != null) {
         w.write("const");
-      } else if (!type.equals(Type.ANY)) {
+      } else if (!type.isEmpty()) {
         w.write(':');
         p.print(type);
       } else {

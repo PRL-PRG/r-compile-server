@@ -2,6 +2,7 @@ package org.prlprg.fir.check;
 
 import java.util.ArrayList;
 import java.util.List;
+import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
@@ -12,9 +13,10 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 
 public abstract class Checker {
-  /// Check types and CFG invariants in the module, and throw [IllegalStateException] if there
-  /// are any errors.
-  public static void checkAll(Module module) {
+  /// Check types and CFG invariants in the module. If there are any errors, [prints them to
+  /// `stderr`][Checker#print] and returns `false`.
+  @CheckReturnValue
+  public static boolean checkAll(Module module) {
     var cfgChecker = new CFGChecker();
     var typeChecker = new TypeChecker();
 
@@ -24,9 +26,7 @@ public abstract class Checker {
     cfgChecker.print();
     typeChecker.print();
 
-    if (cfgChecker.hasErrors() || typeChecker.hasErrors()) {
-      throw new IllegalStateException("Verification failed");
-    }
+    return !cfgChecker.hasErrors() && !typeChecker.hasErrors();
   }
 
   private @Nullable Function function = null;

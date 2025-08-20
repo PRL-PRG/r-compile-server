@@ -1,14 +1,19 @@
 package org.prlprg.util;
 
+import static org.prlprg.util.Math.permuteIndex;
+
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
+import java.util.stream.Gatherer;
 import java.util.stream.Stream;
 
 public class Streams {
@@ -22,6 +27,41 @@ public class Streams {
   public static <A, B, R> Stream<R> zip(
       Stream<A> streamA, Stream<B> streamB, BiFunction<? super A, ? super B, R> function) {
     return com.google.common.collect.Streams.zip(streamA, streamB, function);
+  }
+
+  /// A gatherer that collects the cartesian product of the input streams into lists, returning
+  /// them in a pseudo-random order.
+  ///
+  /// Example: `Stream.of(Stream.of(1, 2), Stream.of(3, 4),
+  // Stream.of(5)).gather(Streams.cartesian())`
+  /// yields a permutation of `List.of(1, 3, 5), List.of(2, 3, 5), List.of(1, 4, 5), List.of(2, 4,
+  // 5))`.
+  public static <T> Gatherer<Stream<T>, ?, ImmutableList<T>> cartesianShuffled() {
+    return Gatherer.ofSequential(
+        ArrayList<List<T>>::new,
+        (xss, xs, _) -> {
+          var xs1 = xs.toList();
+          xss.add(xs1);
+          // If `false`, we'll produce no elements anyway.
+          return !xs1.isEmpty();
+        },
+        (xss, downstream) -> {
+          var current = new Object[xss.size()];
+
+          var count = xss.stream().mapToInt(List::size).reduce((a, b) -> a * b).orElse(0);
+          for (var i = 0; i < count && !downstream.isRejecting(); i++) {
+            var index = permuteIndex(i, count);
+            for (var j = 0; j < xss.size(); j++) {
+              var xs = xss.get(j);
+              current[j] = xs.get(index % xs.size());
+              index /= xs.size();
+            }
+
+            @SuppressWarnings("unchecked")
+            var next = (ImmutableList<T>) ImmutableList.of(current);
+            downstream.push(next);
+          }
+        });
   }
 
   public interface Worklist<T> {

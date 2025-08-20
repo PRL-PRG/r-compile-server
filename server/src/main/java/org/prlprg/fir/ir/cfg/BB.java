@@ -17,7 +17,6 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -29,7 +28,7 @@ import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 
 public final class BB {
-  private static final String ENTRY_LABEL = "ENTRY";
+  static final String ENTRY_LABEL = "ENTRY";
   static final String DEFAULT_LABEL_PREFIX = "L";
 
   // Backlink
@@ -97,15 +96,39 @@ public final class BB {
     return Collections.unmodifiableCollection(predecessors);
   }
 
-  public Register appendParameter() {
-    return module()
+  public void appendParameter(Register parameter) {
+    module()
         .record(
             "BB#appendParameter",
-            List.of(this),
+            List.of(this, parameter),
             () -> {
-              var parameter = owner.scope().addLocal(Type.ANY);
+              if (parameters.contains(parameter)) {
+                throw new IllegalArgumentException(
+                    "Parameter '"
+                        + parameter
+                        + "' is already present in BB '"
+                        + label
+                        + "': "
+                        + parameter);
+              }
               parameters.add(parameter);
-              return parameter;
+            });
+  }
+
+  public void appendParameters(List<Register> parameters) {
+    module()
+        .record(
+            "BB#appendParameters",
+            List.of(this, parameters),
+            () -> {
+              if (parameters.stream().anyMatch(this.parameters::contains)) {
+                throw new IllegalArgumentException(
+                    "Some parameters are already present in BB '"
+                        + label
+                        + "': "
+                        + parameters.stream().filter(this.parameters::contains).toList());
+              }
+              this.parameters.addAll(parameters);
             });
   }
 
