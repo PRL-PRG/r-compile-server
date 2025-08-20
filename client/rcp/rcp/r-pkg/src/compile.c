@@ -292,12 +292,6 @@ static void prepare_precompiled(void* precompiled_functions[])
     assert(i <= PRECOMPILED_COUNT);
 }
 
-static int cmp_ptr(const void *a, const void *b) {
-    const void *pa = *(const void **)a;
-    const void *pb = *(const void **)b;
-    return (pa > pb) - (pa < pb);
-}
-
 static const void** prepare_got_table(size_t* got_size)
 {
     // Pass 1: count the number of GOT relocations and patch those that can be transformed into relative addressing
@@ -349,23 +343,29 @@ static const void** prepare_got_table(size_t* got_size)
         const Stencil *stencil = stencils_all[i];
         for (size_t j = 0; j < stencil->holes_size; j++)
         {
-            const Hole *hole = &stencil->holes[j];
+            Hole *hole = &stencil->holes[j];
+            hole->got_pos = 255;
             if (hole->kind == RELOC_RUNTIME_SYMBOL_GOT)
             {
                 for (size_t k = 0; k < *got_size; k++)
                 {
                     if(got_table_tmp[k] == hole->val.symbol)
+                    {
+                        hole->got_pos = k; // Already in the table, just set the position
                         goto found;
+                    }
                 }
-                got_table_tmp[(*got_size)++] = hole->val.symbol;
+
+                got_table_tmp[*got_size] = hole->val.symbol;
+                hole->got_pos = *got_size;
+                (*got_size)++;
                 found:
             }
         }
     }
     DEBUG_PRINT("GOT table size: %zu\n", *got_size);
-
-    // Pass 3: sort the GOT table to allow binary search
-    qsort(got_table_tmp, *got_size, sizeof(void*), cmp_ptr);
+    if(*got_size > UINT8_MAX)
+        error("Error: Too many GOT symbols, cannot fit into uint8_t. Increase the data type size to allow for more\n");
 
     return got_table_tmp;
 }
@@ -525,11 +525,6 @@ X_STEPFOR_TYPES
 }
 #endif
 
-static void** got_table_find(const mem_shared_data* data, const void *symbol)
-{
-    return (void**)bsearch(&symbol, data->got_table, data->got_table_size, sizeof(void *), cmp_ptr);
-}
-
 typedef struct {
     size_t total_size;
     size_t executable_size;
@@ -571,13 +566,7 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
     break;
     case RELOC_RUNTIME_SYMBOL_GOT:
     {
-        void **got_entry = got_table_find(shared, hole->val.symbol);
-        if (got_entry == NULL)
-        {
-            error("GOT entry for symbol %p not found", hole->val.symbol);
-            return;
-        }
-        ptr = (ptrdiff_t)got_entry;
+        ptr = (ptrdiff_t)&shared->got_table[hole->got_pos];
     }
     break;
     case RELOC_RODATA:

@@ -26,9 +26,10 @@ typedef struct {
   } val;
   uintptr_t offset;
   ptrdiff_t addend;
-  RELOC_KIND kind;
+  uint8_t kind;
   uint8_t size;
   uint8_t is_pc_relative;
+  uint8_t got_pos;
 } Hole; 
 
 typedef struct {
