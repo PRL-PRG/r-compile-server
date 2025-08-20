@@ -12,7 +12,7 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DirectorySource;
 
 /// Tests parsing and printing FIŘ files.
-public class ParseAndPrintTest {
+class ParseAndPrintTest {
   /// Tests that all FIŘ files in the test resources directory can be parsed.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
@@ -23,8 +23,7 @@ public class ParseAndPrintTest {
   }
 
   /// Tests that all FIŘ files in the test resources directory can be parsed and then printed back
-  // to
-  /// a string that matches the original content.
+  /// to a string that matches the original content.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
   void testParseAndPrintFirFiles(Path firFilePath) throws IOException {

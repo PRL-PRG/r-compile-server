@@ -38,10 +38,8 @@ final class BC2FirCompilerUtils {
       ClosureCompiler.compile(firModule, funName, funSexp);
       cleanup(firModule);
 
-      try {
-        checkAll(firModule);
-      } catch (IllegalStateException e) {
-        fail("FIŘ failed verification\n" + firModule, e);
+      if (!checkAll(firModule)) {
+        fail("FIŘ failed verification\n" + firModule);
       }
     }
     return firModule;
