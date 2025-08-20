@@ -88,20 +88,21 @@ function build {
     # see https://github.com/wch/r-source/wiki/Home/6d35777dcb772f86371bf221c194ca0aa7874016#building-r-from-source
     echo -n 'Revision: ' >SVN-REVISION
     # get the latest revision that is not a rir patch
-    REV=$(git log --grep "git-svn-id" -1 --format=%B | grep "^git-svn-id" | sed -E 's/^git-svn-id: https:\/\/svn.r-project.org\/R\/[^@]*@([0-9]+).*$/\1/')
+    REV=$(git log --grep "git-svn-id" -1 --format=%B | grep "^git-svn-id" | sed -E 's/^git-svn-id: https:\/\/svn.r-project.org\/R\/[^@]*@([0-9]+).*$/\1/' || true)
+    echo "--$REV--"
     # can fail on shallow checkouts, so let's put the last known there
     if [ "$REV" == "" ]; then
       REV='74948'
     fi
     echo "$REV" >>SVN-REVISION
     echo -n 'Last Changed Date: ' >>SVN-REVISION
-    REV_DATE=$(git log --grep "git-svn-id" -1 --pretty=format:"%ad" --date=iso | cut -d' ' -f1)
+    REV_DATE=$(git log --grep "git-svn-id" -1 --pretty=format:"%ad" --date=iso | cut -d' ' -f1 || true)
     # can fail on shallow checkouts, so let's put the last known there
     if [ "$REV_DATE" == "" ]; then
       REV_DATE='2018-07-02'
     fi
     echo "$REV_DATE" >>SVN-REVISION
-
+    exit 1
     rm -f non-tarball
   fi
 
