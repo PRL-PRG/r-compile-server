@@ -1,6 +1,6 @@
 package org.prlprg.util;
 
-import static org.prlprg.util.Math.permuteIndex;
+import static org.prlprg.util.Math2.permuteIndex;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
@@ -33,9 +33,8 @@ public class Streams {
   /// them in a pseudo-random order.
   ///
   /// Example: `Stream.of(Stream.of(1, 2), Stream.of(3, 4),
-  // Stream.of(5)).gather(Streams.cartesian())`
-  /// yields a permutation of `List.of(1, 3, 5), List.of(2, 3, 5), List.of(1, 4, 5), List.of(2, 4,
-  // 5))`.
+  /// Stream.of(5)).gather(Streams.cartesian())` yields a permutation of `List.of(1, 3, 5),
+  /// List.of(2, 3, 5), List.of(1, 4, 5), List.of(2, 4, 5))`.
   public static <T> Gatherer<Stream<T>, ?, ImmutableList<T>> cartesianShuffled() {
     return Gatherer.ofSequential(
         ArrayList<List<T>>::new,

@@ -1,6 +1,6 @@
 package org.prlprg.util;
 
-public class Math {
+public class Math2 {
   private static final int PERMUTE_SEED = 42;
 
   /// Returns an index that is a permutation of the given `index` in the range `[0, len)`.
@@ -48,5 +48,5 @@ public class Math {
     return index;
   }
 
-  private Math() {}
+  private Math2() {}
 }
