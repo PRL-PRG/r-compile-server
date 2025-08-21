@@ -235,5 +235,31 @@ final class ConcatListView<T> implements List<T> {
       return new ConcatListView<>(a.subList(fromIndex, aSize), b.subList(0, toIndex - aSize));
     }
   }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (!(obj instanceof List<?> other)) {
+      return false;
+    }
+    if (size() != other.size()) {
+      return false;
+    }
+    var it = other.iterator();
+    for (var x : this) {
+      var y = it.next();
+      if (!x.equals(y)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return this.stream().mapToInt(Object::hashCode).reduce(1, (a, b) -> 31 * a + b);
+  }
   // don't care about other `...View` duplicated code because it's all boilerplate - CPD-ON
 }

@@ -196,5 +196,31 @@ final class MapListView<I, O> implements List<O> {
   public List<O> subList(int fromIndex, int toIndex) {
     return new MapListView<>(backing.subList(fromIndex, toIndex), f);
   }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+    if (!(obj instanceof List<?> other)) {
+      return false;
+    }
+    if (size() != other.size()) {
+      return false;
+    }
+    var it = other.iterator();
+    for (var x : this) {
+      var y = it.next();
+      if (!x.equals(y)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return this.stream().mapToInt(Object::hashCode).reduce(1, (a, b) -> 31 * a + b);
+  }
   // don't care about other `Map...View` duplicated code because it's all boilerplate - CPD-ON
 }

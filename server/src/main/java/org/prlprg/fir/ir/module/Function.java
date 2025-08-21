@@ -182,6 +182,7 @@ public final class Function {
     } else {
       w.write(name);
     }
+    w.write(' ');
 
     if (nextVersionIndex == 0) {
       if (guaranteedEffects.equals(Effects.ANY) && guaranteedReturnType.equals(Type.ANY_VALUE)) {

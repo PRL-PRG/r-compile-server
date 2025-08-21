@@ -57,7 +57,7 @@ public class Streams {
             }
 
             @SuppressWarnings("unchecked")
-            var next = (ImmutableList<T>) ImmutableList.of(current);
+            var next = (ImmutableList<T>) ImmutableList.copyOf(current);
             downstream.push(next);
           }
         });
