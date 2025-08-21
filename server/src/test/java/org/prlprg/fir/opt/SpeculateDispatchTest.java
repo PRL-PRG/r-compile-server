@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.prlprg.fir.interpret.InterpretUtil.testInterpretFirFile;
 
 import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.util.DirectorySource;
 
@@ -23,58 +24,67 @@ class SpeculateDispatchTest {
         });
   }
 
+  @Test
   void testSpeculateDispatchCreatesVersion() {
     testInterpretFirFile(
         """
         fun main {
-          () --> I { r:I |
+          () --> I { reg r:I |
             f(1.0);
             f(2);
             r = f(3.0);
             f(r);
             f(5.0);
             f("Hello");
+            return 42;
           }
         }
 
-        fun f { (r:*) --> I { | return 42; } }
+        fun f { (reg r:*) --> I { | return 42; } }
         """,
         true,
         c -> {
-          new SpeculateDispatch(c.interpreter()::feedback, 2, 9, 99).run(c.module());
+          var pass = new SpeculateDispatch(c.interpreter()::feedback, 2, 9, 99);
 
           var f = c.module().lookupFunction("f");
           assertNotNull(f);
+
+          pass.run(c.module());
           assertEquals(
               """
               fun f {
-                (r:*) --> I { | return 42; }
-                (r:R) --> I { | return 42; }
-                (r:I) --> I { | return 42; }
-              }
-              """
+                (reg r:*) --> I { |
+                  return 42;
+                }
+                (reg r:R) --> I { |
+                  return 42;
+                }
+                (reg r:I) --> I { |
+                  return 42;
+                }
+              }"""
                   .stripIndent(),
               f.toString(),
               "'f' wasn't specialized as expected (first call to `main`)");
 
           c.retest();
+          pass.run(c.module());
           assertEquals(
               """
               fun f {
-                (r:*) --> I { |
+                (reg r:*) --> I { |
                   return 42;
                 }
-                (r:R) --> I { |
+                (reg r:R) --> I { |
                   return 42;
                 }
-                (r:I) --> I { |
+                (reg r:I) --> I { |
                   return 42;
                 }
-                (r:S) --> I { |
+                (reg r:S) --> I { |
                   return 42;
                 }
-              }
-              """
+              }"""
                   .stripIndent(),
               f.toString(),
               "'f' wasn't specialized as expected (second call to `main`)");

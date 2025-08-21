@@ -29,7 +29,7 @@ public record SpeculateDispatch(
   @Override
   public void run(Function function, Abstraction version) {
     // If the function has too many versions, don't add any more.
-    var newVersionLimit = function.versions().size() - versionLimit;
+    var newVersionLimit = versionLimit - function.versions().size();
     if (newVersionLimit <= 0) {
       return;
     }
@@ -80,5 +80,10 @@ public record SpeculateDispatch(
           copy.addLocals(version.locals());
           copyFrom(copy.cfg(), version.cfg());
         });
+  }
+
+  @Override
+  public boolean mayAddOrRemoveVersions() {
+    return true;
   }
 }

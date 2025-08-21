@@ -29,7 +29,7 @@ public class TypeFeedback {
   /// Types that were hit more than `threshold` times and are more specific than `existing`.
   public Stream<Type> streamHits(int threshold, Type existing) {
     return hits.entrySet().stream()
-        .filter(e -> e.getValue() > threshold && e.getKey().isSubtypeOf(existing))
+        .filter(e -> e.getValue() >= threshold && e.getKey().isSubtypeOf(existing))
         .map(Map.Entry::getKey);
   }
 
@@ -44,7 +44,7 @@ public class TypeFeedback {
   }
 
   @PrintMethod
-  public void print(Printer p) {
+  private void print(Printer p) {
     var w = p.writer();
 
     if (isEmpty()) {

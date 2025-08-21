@@ -16,9 +16,8 @@ public class Math2 {
       throw new IndexOutOfBoundsException("Index out of bounds: " + index + " for length " + len);
     }
 
-    // Get "next power of 2" - 1
-    var msb = Integer.highestOneBit(len);
-    var mask = msb == len ? msb : msb * 2 - 1;
+    // Get "next power of 2" - 1 of `len - 1`
+    var mask = Integer.MAX_VALUE >> (Integer.numberOfLeadingZeros(len - 1) - 1);
 
     // Find a hashed index that is in range.
     do {
