@@ -110,6 +110,7 @@ public final class TypeChecker extends Checker {
     }
 
     // Run function-independent checks
+    // Doesn't `streamScopes` because `run` includes inline callees.
     new OnAbstraction(version).run();
   }
 
@@ -140,6 +141,7 @@ public final class TypeChecker extends Checker {
           .map(Parameter::variable)
           .forEachOrdered(initialFlow.write::add);
 
+      // Doesn't `streamCfgs` because `run` includes promises.
       cfg.run(initialFlow);
 
       cfg.checkSubtype(cfg.returnType, abstraction.returnType(), "Return type mismatch");

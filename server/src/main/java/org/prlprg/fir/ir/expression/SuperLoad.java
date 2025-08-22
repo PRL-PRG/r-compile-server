@@ -16,7 +16,7 @@ public record SuperLoad(NamedVariable variable) implements Expression {
 
   @PrintMethod
   private void print(Printer p) {
-    p.writer().write("^");
+    p.writer().write("sld ");
     p.print(variable);
   }
 

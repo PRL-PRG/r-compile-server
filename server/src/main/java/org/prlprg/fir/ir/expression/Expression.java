@@ -154,11 +154,21 @@ public sealed interface Expression
           var variable = p2.parse(NamedVariable.class);
           return new Load(variable);
         }
+        case "sld" -> {
+          var variable = p2.parse(NamedVariable.class);
+          return new SuperLoad(variable);
+        }
         case "st" -> {
           var variable = p2.parse(NamedVariable.class);
           s.assertAndSkip('=');
           var value = p.parse(Argument.class);
           return new Store(variable, value);
+        }
+        case "sst" -> {
+          var variable = p2.parse(NamedVariable.class);
+          s.assertAndSkip('=');
+          var value = p.parse(Argument.class);
+          return new SuperStore(variable, value);
         }
         case "use" -> {
           var variable = p.parse(Register.class);
@@ -198,15 +208,6 @@ public sealed interface Expression
       if (s.nextCharIs('[')) {
         var elements = p.parseList("[", "]", Argument.class);
         return new MkVector(elements);
-      }
-
-      if (s.trySkip('^')) {
-        var variable = p2.parse(NamedVariable.class);
-        if (s.trySkip('=')) {
-          var value = p.parse(Argument.class);
-          return new SuperStore(variable, value);
-        }
-        return new SuperLoad(variable);
       }
     } else {
       // Parse what starts with a constant or identifier.

@@ -18,7 +18,7 @@ public record SuperStore(NamedVariable variable, Argument value) implements Expr
   private void print(Printer p) {
     var w = p.writer();
 
-    w.write("^");
+    w.write("sst ");
     p.print(variable);
     w.write(" = ");
     p.print(value);

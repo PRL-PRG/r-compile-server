@@ -2,6 +2,9 @@ package org.prlprg.fir.check;
 
 import com.google.common.collect.Iterables;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.DefUses;
 import org.prlprg.fir.analyze.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -31,16 +34,19 @@ import org.prlprg.fir.ir.variable.Register;
 public class CFGChecker extends Checker {
   @Override
   protected void doRun(Abstraction version) {
-    new OnAbstraction(version).run();
+    version.streamScopes().forEach(scope -> new OnAbstraction(scope).run());
   }
 
   private class OnAbstraction {
     final Abstraction scope;
     final DefUses defUses;
+    final Map<CFG, DominatorTree> dominatorTrees;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
       defUses = new DefUses(scope);
+      dominatorTrees =
+          scope.streamCfgs().collect(Collectors.toMap(Function.identity(), DominatorTree::new));
     }
 
     void run() {
@@ -74,8 +80,78 @@ public class CFGChecker extends Checker {
         }
       }
 
+      // Parameters should never be assigned
+      for (var parameter : scope.parameters()) {
+        var definitions = defUses.definitions(parameter.variable());
+        if (!definitions.isEmpty()) {
+          for (var def : definitions) {
+            report(def, "Parameter " + parameter + " can't be assigned");
+          }
+        }
+      }
+
+      // Locals should be assigned exactly once
+      for (var local : scope.locals()) {
+        if (!(local.variable() instanceof Register localReg)) {
+          continue;
+        }
+
+        var definitions = defUses.definitions(localReg);
+
+        if (definitions.isEmpty()) {
+          report(scope, "Local register " + localReg + " is never assigned");
+        } else if (definitions.size() > 1) {
+          for (var def : definitions) {
+            report(def, "Local register " + localReg + " assigned multiple times");
+          }
+        }
+      }
+
+      // Defs must dominate uses
+      for (var local : scope.locals()) {
+        if (!(local.variable() instanceof Register localReg)) {
+          continue;
+        }
+
+        var definitions = defUses.definitions(localReg);
+        var uses = defUses.uses(localReg);
+
+        if (definitions.size() != 1) {
+          continue;
+        }
+        var def = Iterables.getOnlyElement(definitions);
+
+        var reportedDef = false;
+        for (var use : uses) {
+          if (!isDefBeforeUse(def, use)) {
+            if (!reportedDef) {
+              report(def, "Local register " + localReg + " assigned after use(s)");
+              reportedDef = true;
+            }
+
+            report(use, "Local register " + localReg + " used before assignment");
+          }
+        }
+      }
+
       // Per-CFG checks
-      new OnCfg(scope.cfg()).run();
+      scope.streamCfgs().forEach(cfg -> new OnCfg(cfg).run());
+    }
+
+    private boolean isDefBeforeUse(ScopePosition definition, ScopePosition use) {
+      var localDef = definition.inInnermostCfg();
+      var localUse = use.inCfg(localDef.cfg());
+
+      if (localUse == null) {
+        // Use is in a sibling or outer promise
+        return false;
+      }
+
+      var dominatorTree = dominatorTrees.get(localDef.cfg());
+
+      return localDef.bb() == localUse.bb()
+          ? localDef.instructionIndex() < localUse.instructionIndex()
+          : dominatorTree.dominates(localDef.bb(), localUse.bb());
     }
 
     class OnCfg {
@@ -84,7 +160,7 @@ public class CFGChecker extends Checker {
 
       OnCfg(CFG cfg) {
         this.cfg = cfg;
-        dominatorTree = new DominatorTree(cfg);
+        dominatorTree = dominatorTrees.get(cfg);
       }
 
       void run() {
@@ -150,74 +226,6 @@ public class CFGChecker extends Checker {
             }
           }
         }
-
-        // Parameters should never be assigned
-        for (var parameter : scope.parameters()) {
-          var definitions = defUses.definitions(parameter.variable());
-          if (!definitions.isEmpty()) {
-            for (var def : definitions) {
-              report(def, "Parameter " + parameter + " can't be assigned");
-            }
-          }
-        }
-
-        // Locals should be assigned exactly once
-        for (var local : scope.locals()) {
-          if (!(local.variable() instanceof Register localReg)) {
-            continue;
-          }
-
-          var definitions = defUses.definitions(localReg);
-
-          if (definitions.isEmpty()) {
-            report(cfg.entry(), -1, "Local register " + localReg + " is never assigned");
-          } else if (definitions.size() > 1) {
-            for (var def : definitions) {
-              report(def, "Local register " + localReg + " assigned multiple times");
-            }
-          }
-        }
-
-        // Defs dominate uses
-        for (var local : scope.locals()) {
-          if (!(local.variable() instanceof Register localReg)) {
-            continue;
-          }
-
-          var definitions = defUses.definitions(localReg);
-          var uses = defUses.uses(localReg);
-
-          if (definitions.size() != 1) {
-            continue;
-          }
-          var def = Iterables.getOnlyElement(definitions);
-
-          var reportedDef = false;
-          for (var use : uses) {
-            if (!isDefBeforeUse(def, use)) {
-              if (!reportedDef) {
-                report(def, "Local register " + localReg + " assigned after use(s)");
-                reportedDef = true;
-              }
-
-              report(use, "Local register " + localReg + " used before assignment");
-            }
-          }
-        }
-      }
-
-      private boolean isDefBeforeUse(ScopePosition definition, ScopePosition use) {
-        var localDef = definition.inInnermostCfg();
-        var localUse = use.inCfg(definition.innermostCfg());
-
-        if (localUse == null) {
-          // Use is in a sibling or outer promise
-          return false;
-        }
-
-        return localDef.bb() == localUse.bb()
-            ? localDef.instructionIndex() < localUse.instructionIndex()
-            : dominatorTree.dominates(localDef.bb(), localUse.bb());
       }
     }
   }

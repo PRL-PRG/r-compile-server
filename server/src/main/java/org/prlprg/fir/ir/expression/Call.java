@@ -46,7 +46,7 @@ public final class Call implements Expression {
   /// [`DynamicCallee`][org.prlprg.fir.ir.callee.DynamicCallee].
   ///
   /// @deprecated You probably want [#callArguments()]. If not, do
-  // `((Expression)call).arguments()`.
+  /// `((Expression)call).arguments()`.
   @Deprecated
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {

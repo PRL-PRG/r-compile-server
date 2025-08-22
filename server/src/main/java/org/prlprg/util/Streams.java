@@ -87,13 +87,16 @@ public class Streams {
         };
 
     worklist.add(initial);
-    return Stream.iterate(
-        initial,
-        prev -> {
-          iterate.accept(prev, worklistFacade);
-          return !worklist.isEmpty();
-        },
-        _ -> worklist.removeLast());
+    return untilNull(
+        () -> {
+          if (worklist.isEmpty()) {
+            return null;
+          }
+
+          var next = worklist.removeLast();
+          iterate.accept(next, worklistFacade);
+          return next;
+        });
   }
 
   public static <T> boolean hasNoDuplicates(Stream<T> stream) {
