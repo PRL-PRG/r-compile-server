@@ -30,10 +30,6 @@ public class ScopePosition {
     return inInnermostCfg;
   }
 
-  public CFG innermostCfg() {
-    return inInnermostCfg.cfg();
-  }
-
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -41,6 +37,7 @@ public class ScopePosition {
 
   @PrintMethod
   private void print(Printer p) {
-    p.printSeparated("--------------------\n", inCfgs.values());
+    p.printSeparated(
+        "----------------------------------------\n", inCfgs.sequencedValues().reversed());
   }
 }

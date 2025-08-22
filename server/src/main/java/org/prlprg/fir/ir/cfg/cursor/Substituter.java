@@ -62,6 +62,10 @@ public class Substituter {
             "Substituter#stage",
             List.of(this, local, substitution),
             () -> {
+              if (substitution.equals(new Read(local))) {
+                throw new IllegalArgumentException(
+                    "Cannot substitute register " + local + " with itself.");
+              }
               if (!scope.contains(local)) {
                 throw new IllegalArgumentException("Register " + local + " is not in scope.");
               }
@@ -71,39 +75,35 @@ public class Substituter {
                         + local
                         + " is a parameter, substitution is currently only implemented for locals because we remove the register from the scope after substituting.");
               }
-              if (locals.put(local, substitution) != null) {
+              if (locals.containsKey(local)) {
                 throw new IllegalArgumentException(
                     "Local " + local + " has already been marked for substitution.");
               }
 
-              // Handle transitive substitutions:
+              // If `b -> c` and we have `a -> b`, change to `a -> c`.
+              var realSubst =
+                  substitution instanceof Read(var substReg) && locals.containsKey(substReg)
+                      ? locals.get(substReg)
+                      : substitution;
+              locals.put(local, realSubst);
 
-              // Maintain O(1) lookup of rhs for the below checks: in backwards map, add `b <- a`.
-              if (substitution instanceof Read(var substReg)) {
+              // Maintain O(1) lookup in case we substitute `b` later
+              // (or `c`, then we don't need to insert `b` because it can't be substituted again).
+              if (realSubst instanceof Read(var substReg)) {
                 backwards.put(substReg, local);
               }
 
-              // If `a -> b` and we inserted `b -> c`, change the former to `a -> c`.
+              // If `z -> a` and we inserted `a -> b`, change the former to `z -> b`
+              // (likewise `... -> c`).
               var aToLocal = backwards.get(local);
               if (!aToLocal.isEmpty()) {
                 for (var a : aToLocal) {
-                  locals.put(a, substitution);
+                  locals.put(a, realSubst);
                 }
 
-                // In backwards map, add `c <- a`. Keep `c <- *`s in case we insert `c -> d`.
-                if (substitution instanceof Read(var substReg)) {
+                // If we substitute `b` (or `c`) later, we must update `z` (and still also `a`).
+                if (realSubst instanceof Read(var substReg)) {
                   backwards.putAll(substReg, aToLocal);
-                }
-              }
-
-              // Likewise, if `b -> c` and we inserted `a -> b`, change to `a -> c`.
-              if (substitution instanceof Read(var substReg) && locals.containsKey(substReg)) {
-                var c = locals.get(substReg);
-                locals.put(local, c);
-
-                // In backwards map, add `c <- a`. Keep `c <- b` etc. in case we insert `c -> d`.
-                if (c instanceof Read(var cReg)) {
-                  backwards.put(cReg, local);
                 }
               }
             });
@@ -121,8 +121,8 @@ public class Substituter {
                 scope.removeLocal(local);
               }
 
-              // Replace occurrences of locals in the CFG.
-              run(scope.cfg());
+              // Replace occurrences of locals in every CFG.
+              scope.streamCfgs().forEach(this::run);
 
               // Clear substitutions so we can reuse this instance.
               locals.clear();
