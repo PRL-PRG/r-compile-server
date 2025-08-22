@@ -11,15 +11,21 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.CFG.ParseContext;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -196,6 +202,17 @@ public final class Abstraction implements Comparable<Abstraction> {
     return lookup != null && lookup.variable() instanceof NamedVariable ? lookup.type() : Type.ANY;
   }
 
+  public @Nullable Type typeOf(Argument argument) {
+    return switch (argument) {
+      case Constant(var constant) -> Type.of(constant);
+      case Read(var register) -> typeOf(register);
+      case Use(var register) -> {
+        var type = typeOf(register);
+        yield type == null ? null : type.withOwnership(Ownership.FRESH);
+      }
+    };
+  }
+
   private @Nullable Binding lookup(String variableName) {
     var param = nameToParam.get(variableName);
     return param != null ? param : locals.get(variableName);
@@ -252,21 +269,37 @@ public final class Abstraction implements Comparable<Abstraction> {
         });
   }
 
-  /// Sort by parameter types (smallest type first), then by number of parameters, then by hash.
-  ///
-  /// This means strictly better versions are before strictly worse ones.
+  /// Sort so that "better" versions are strictly less than "worse" ones. A version is "better"
+  /// if its parameter types, effects, and return type are narrower.
   @Override
   public int compareTo(Abstraction o) {
-    for (var i = 0; i < Math.min(parameters().size(), o.parameters().size()); i++) {
-      var cmp = parameters().get(i).type().compareTo(o.parameters().get(i).type());
+    // Parameter size (if different, neither is better).
+    var cmp = Integer.compare(parameters.size(), o.parameters.size());
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    // Parameter types
+    for (var i = 0; i < Math.min(parameters.size(), o.parameters.size()); i++) {
+      cmp = parameters.get(i).type().compareTo(o.parameters.get(i).type());
       if (cmp != 0) {
         return cmp;
       }
     }
-    var cmp = Integer.compare(parameters().size(), o.parameters().size());
+
+    // Effects
+    cmp = effects.compareTo(o.effects);
     if (cmp != 0) {
       return cmp;
     }
+
+    // Return type
+    cmp = returnType.compareTo(o.returnType);
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    // Tiebreaker
     return Integer.compare(hashCode(), o.hashCode());
   }
 
