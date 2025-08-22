@@ -83,11 +83,9 @@ TXT_NORM = \033[0m
 TXT_GREEN = \033[0;32m
 TXT_RED = \033[0;31m
 
-R := $(R_HOME)/bin/R --slave --no-restore
-LLVM_R := $(R) #LD_PRELOAD=$(LLVM_LIB) $(R)
+R ?= $(R_HOME)/bin/R
 BENCH_DIR = $(RSH_HOME)/inst/benchmarks
 HARNESS_BIN = harness.R
-BENCH_R = $(LLVM_R) -f
 FILTER ?=
 
 .PHONY: run
@@ -95,23 +93,29 @@ run: install
 	@$(R_HOME)/bin/R
 
 .PHONY: benchmark
-benchmark: install
+benchmark: 
 	mkdir -p $(BENCH_OUT_DIR)
-	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
+	@failures=0; \
+	for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		test=$${test%.*}; \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(HARNESS_BIN) --args --output-dir $(BENCH_OUT_DIR) $(BENCH_OPTS) --runs $(BENCH_ITER) $${file%.*}"; \
+		cmd="$(R) --slave --no-restore -f $(HARNESS_BIN) --args --output-dir $(BENCH_OUT_DIR) $(BENCH_OPTS) --runs $(BENCH_ITER) $${file%.*}"; \
 		echo $$cmd; \
 		eval "/usr/bin/time -v -o \"$(BENCH_OUT_DIR)/$$test.time\" $$cmd"; \
 		exit=$$?; \
 		echo -n "$(TXT_BOLD)└──── $$test: "; \
-	  if [ $$exit -eq 0 ]; then \
+		if [ $$exit -eq 0 ]; then \
 			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BENCH_OUT_DIR)/$$test.csv)"; \
 		else \
-		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+			echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+			failures=$$((failures + 1)); \
 		fi; \
-	done
+	done; \
+	echo "$(TXT_BOLD)Total failures: $$failures$(TXT_NORM)"; \
+	if [ $$failures -ne 0 ]; then \
+		exit 1; \
+	fi
 
 test: install
 
