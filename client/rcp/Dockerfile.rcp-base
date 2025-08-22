@@ -1,0 +1,46 @@
+FROM ubuntu:24.04
+
+# default to UTF-8 file.encoding
+ENV LANG=en_US.UTF-8
+
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends locales tzdata \
+  && echo "$LANG" >> /etc/locale.gen \
+  && locale-gen "$LANG" \
+  && update-locale LANG="$LANG"
+
+RUN apt update -y \
+  && apt install -y \
+  bear \
+  binutils-dev \
+  build-essential \
+  ca-certificates \
+  gdb \
+  gcc-14 \
+  gfortran \
+  git \
+  libbz2-dev \
+  libcairo2-dev \
+  libcurl4-openssl-dev \
+  libgrpc++-dev \
+  libgtk2.0-dev \
+  libicu-dev \
+  libjpeg-dev \
+  liblzma-dev \
+  libpango1.0-dev \
+  libpng-dev \
+  libreadline-dev \
+  libssl-dev \
+  libtiff5-dev \
+  libx11-dev \
+  libxt-dev \
+  libxxhash-dev \
+  libzmq3-dev \
+  rr \
+  rsync \
+  software-properties-common \
+  time \
+  xvfb \
+  zlib1g-dev
+
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14

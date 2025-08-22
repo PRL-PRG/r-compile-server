@@ -75,8 +75,8 @@ install: $(R_LIB)
 
 BENCH_ITER ?= 15
 BENCH_NAME ?= $(shell echo "rcp-$$(date +'%Y%m%d-%H%M%S')-$$(git rev-parse --short HEAD)")
-BENCH_OUT_DIR := $(shell echo "$$(pwd)/benchmark-results")/$(BENCH_NAME)
-OPTS ?= --rsh
+BENCH_OUT_DIR ?= $(shell echo "$$(pwd)/benchmark-results")/$(BENCH_NAME)
+BENCH_OPTS ?= --rsh
 
 TXT_BOLD = \033[1m
 TXT_NORM = \033[0m
@@ -101,7 +101,7 @@ benchmark: install
 		test=$$(basename $$file); \
 		test=$${test%.*}; \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(HARNESS_BIN) --args --output-dir $(BENCH_OUT_DIR) $(OPTS) --runs $(BENCH_ITER) $${file%.*}"; \
+		cmd="$(BENCH_R) $(HARNESS_BIN) --args --output-dir $(BENCH_OUT_DIR) $(BENCH_OPTS) --runs $(BENCH_ITER) $${file%.*}"; \
 		echo $$cmd; \
 		eval "/usr/bin/time -v -o \"$(BENCH_OUT_DIR)/$$test.time\" $$cmd"; \
 		exit=$$?; \
@@ -112,8 +112,6 @@ benchmark: install
 		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
 		fi; \
 	done
-	$(R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
-
 
 test: install
 

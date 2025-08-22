@@ -1,0 +1,140 @@
+name: benchmarks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-images:
+    name: Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Info
+        shell: bash
+        run: |
+          echo "Github SHA: ${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "Log:"
+          git log -1
+          echo "Submodules:"
+          git submodule status
+      - name: Compute hashes
+        id: vars
+        shell: bash
+        # We cannot use github.sha because for pull_request events the github.sha
+        # will point at a temporary merge commit, basically what would be the result of merging the PR.
+        # Such commit does not exists in the origin. Therefore we have to parse the log to
+        # get the merge commits (if they exist)
+        run: |
+          rsh_commit=$(git submodule status | sed -n 's/^[ +-]*\([0-9a-f]\{40\}\) .*external\/rsh.*/\1/p')
+          rcp_commit=$(git rev-parse HEAD)
+          echo "rsh_commit: $rsh_commit"
+          echo "rcp_commit: $rcp_commit"
+          echo "rsh_commit=$rsh_commit" >> "$GITHUB_OUTPUT"
+          echo "rcp_commit=$rcp_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build prl-rpg/rcp-base
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.rcp-base
+          tags: |
+            ghcr.io/prl-prg/rcp-base:latest
+            ghcr.io/prl-prg/rcp-base
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha,scope=rcp-base
+          cache-to: type=gha,mode=max,scope=rcp-base
+
+      - name: Build prl-prg/rcp-rsh
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.rcp-rsh
+          build-args: |
+            RSH_COMMIT=${{ steps.vars.outputs.rsh_commit }}
+          tags: ghcr.io/prl-prg/rcp-rsh:${{ steps.vars.outputs.rsh_commit }}
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha,scope=rcp-rsh
+          cache-to: type=gha,mode=max,scope=rcp-rsh
+
+      - name: Build prl-prg/rcp
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.rcp
+          build-args: |
+            RSH_COMMIT=${{ steps.vars.outputs.rsh_commit }}
+            RCP_COMMIT=${{ steps.vars.outputs.rcp_commit }}
+          tags: ghcr.io/prl-prg/rcp:${{ github.sha }}
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha,scope=rcp
+          cache-to: type=gha,mode=max,scope=rcp
+
+  run-benchmarks:
+    name: Benchmarks
+    runs-on: self-hosted
+    needs: build-images
+    strategy:
+      max-parallel: 1
+      matrix:
+        bench_type: ["bc", "rsh"]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Execute benchmarks
+        shell: bash
+        run: |
+          docker run \
+            --name bench-run \
+            ghcr.io/prl-prg/rcp:${{ github.sha }} \
+            make benchmark \
+              BENCH_OUT_DIR="/rcp/rcp/benchmark-results/${{ matrix.bench_type }}" \
+              BENCH_OPTS="--${{ matrix.bench_type }}" \
+              BENCH_ITER=15
+
+      - name: Copy results
+        run: |
+          rm -fr benchmark-results
+          mkdir -p benchmark-results
+          docker cp bench-run:/rcp/rcp/benchmark-results .
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f bench-run || true
+
+      - name: Archive results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmarks-${{ matrix.bench_type }}
+          path: |
+            benchmark-results
