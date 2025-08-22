@@ -1,5 +1,8 @@
 fun `+` {
   (reg lhs:I, reg rhs:I) --> I { | ...; }
+  (reg lhs:I, reg rhs:R) --> R { | ...; }
+  (reg lhs:R, reg rhs:I) --> R { | ...; }
+  (reg lhs:R, reg rhs:R) --> R { | ...; }
 }
 
 fun `<` {
@@ -7,6 +10,13 @@ fun `<` {
 }
 
 fun `==` {
+  (reg lhs:I, reg rhs:I) --> L { | ...; }
+  (reg lhs:R, reg rhs:R) --> L { | ...; }
+  (reg lhs:S, reg rhs:S) --> L { | ...; }
+  (reg lhs:cls, reg rhs:cls) --> L { | ...; }
+}
+
+fun `!=` {
   (reg lhs:I, reg rhs:I) --> L { | ...; }
   (reg lhs:R, reg rhs:R) --> L { | ...; }
   (reg lhs:S, reg rhs:S) --> L { | ...; }

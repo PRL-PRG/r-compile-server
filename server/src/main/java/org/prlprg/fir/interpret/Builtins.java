@@ -37,6 +37,9 @@ public final class Builtins {
     // Builtins
     interpreter.registerExternalFunction("+", ExternalFunction.strict(Builtins::add));
     interpreter.registerExternalVersion("+", 0, ExternalVersion.strict(Builtins::addInts));
+    interpreter.registerExternalVersion("+", 1, ExternalVersion.strict(Builtins::addIntAndReal));
+    interpreter.registerExternalVersion("+", 2, ExternalVersion.strict(Builtins::addRealAndInt));
+    interpreter.registerExternalVersion("+", 3, ExternalVersion.strict(Builtins::addReals));
     interpreter.registerExternalFunction("-", ExternalFunction.strict(Builtins::subtract));
     interpreter.registerExternalFunction("*", ExternalFunction.strict(Builtins::multiply));
     interpreter.registerExternalFunction("/", ExternalFunction.strict(Builtins::divide));
@@ -47,6 +50,8 @@ public final class Builtins {
     interpreter.registerExternalVersion("<", 0, Builtins::lessInts);
     interpreter.registerExternalFunction("<=", ExternalFunction.strict(Builtins::lessEqual));
     interpreter.registerExternalFunction("!=", ExternalFunction.strict(Builtins::notEqual));
+    registerExternalFunctionForAllVersions(
+        interpreter, "!=", ExternalVersion.strict(Builtins::notEqual));
     interpreter.registerExternalFunction(">", ExternalFunction.strict(Builtins::greater));
     interpreter.registerExternalFunction(">=", ExternalFunction.strict(Builtins::greaterEqual));
     interpreter.registerExternalFunction("rep", ExternalFunction.special(Builtins::rep));
@@ -135,6 +140,45 @@ public final class Builtins {
     int arg0 = args.getFirst().asScalarInteger().get();
     int arg1 = args.get(1).asScalarInteger().get();
     return SEXPs.integer(arg0 + arg1);
+  }
+
+  private static SEXP addIntAndReal(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2
+        || args.getFirst().asScalarInteger().isEmpty()
+        || args.get(1).asScalarReal().isEmpty()) {
+      throw new IllegalArgumentException("`+`.0 takes a scalar integer and real");
+    }
+
+    int arg0 = args.getFirst().asScalarInteger().get();
+    double arg1 = args.get(1).asScalarReal().get();
+    return SEXPs.real(arg0 + arg1);
+  }
+
+  private static SEXP addRealAndInt(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2
+        || args.getFirst().asScalarReal().isEmpty()
+        || args.get(1).asScalarInteger().isEmpty()) {
+      throw new IllegalArgumentException("`+`.0 takes a scalar real and integer");
+    }
+
+    double arg0 = args.getFirst().asScalarReal().get();
+    int arg1 = args.get(1).asScalarInteger().get();
+    return SEXPs.real(arg0 + arg1);
+  }
+
+  private static SEXP addReals(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2
+        || args.getFirst().asScalarReal().isEmpty()
+        || args.get(1).asScalarReal().isEmpty()) {
+      throw new IllegalArgumentException("`+`.0 takes 2 scalar reals");
+    }
+
+    double arg0 = args.getFirst().asScalarReal().get();
+    double arg1 = args.get(1).asScalarReal().get();
+    return SEXPs.real(arg0 + arg1);
   }
 
   private static SEXP equal(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
@@ -289,6 +333,17 @@ public final class Builtins {
     }
     var arg0 = args.value(0);
     var arg1 = args.value(1);
+
+    return SEXPs.logical(!arg0.equals(arg1));
+  }
+
+  private static SEXP notEqual(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2) {
+      throw new IllegalArgumentException("`!=` takes 2 arguments");
+    }
+    var arg0 = args.getFirst();
+    var arg1 = args.get(1);
 
     return SEXPs.logical(!arg0.equals(arg1));
   }

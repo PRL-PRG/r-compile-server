@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
@@ -39,8 +40,7 @@ public final class Function {
   private Type guaranteedReturnType = Type.ANY_VALUE;
 
   // Cached
-  /// Versions are sorted in a way that ensures better ones are before worse ones,
-  /// so getting the best version is easy.
+  /// See [#versionsSorted()].
   private final SortedSet<Abstraction> versionsSorted = new TreeSet<>();
 
   Function(Module owner, String name) {
@@ -64,6 +64,13 @@ public final class Function {
   /// Use [#version(int)] to get the version at an index.
   public @UnmodifiableView Collection<Abstraction> versions() {
     return Collections.unmodifiableCollection(versions.keySet());
+  }
+
+  /// Versions that are sorted so that "better" ones are before "worse" ones: a version is
+  /// "better" if its parameter types, effects, and return type are narrower (see
+  /// [Abstraction#compareTo(Abstraction)]).
+  public @UnmodifiableView SortedSet<Abstraction> versionsSorted() {
+    return Collections.unmodifiableSortedSet(versionsSorted);
   }
 
   /// Indexes of versions that exist in the function.
@@ -96,15 +103,31 @@ public final class Function {
     return index;
   }
 
-  /// Gets the best version whose signature satisfies the provided one, i.e. the best version
-  /// whose parameters are less and return type is more specific than `signature`'s.
+  /// Gets the best version whose signature can be substituted with `signature` in a call, i.e.
+  /// the best version with more permissive parameters and more restrictive effects/return.
   public @Nullable Abstraction guess(Signature signature) {
     for (var version : versionsSorted) {
-      if (signature.satisfies(version.signature())) {
+      if (signature.hasNarrowerParameters(version.signature())
+          && version.signature().hasNarrowerEffectsAndReturn(signature)) {
         return version;
       }
     }
     return null;
+  }
+
+  /// Gets all versions with a stricter precondition and postcondition than `version`.
+  ///
+  /// @throws IllegalArgumentException If `version` isn't in this function.
+  public Stream<Abstraction> improvementsOver(Abstraction version) {
+    if (!contains(version)) {
+      throw new IllegalArgumentException("Version not found: " + version);
+    }
+
+    return versionsSorted.headSet(version).reversed().stream()
+        .filter(
+            other ->
+                other.signature().hasNarrowerParameters(version.signature())
+                    && other.signature().hasNarrowerEffectsAndReturn(version.signature()));
   }
 
   public Abstraction addVersion(List<Parameter> params) {

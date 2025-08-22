@@ -63,8 +63,9 @@ import org.prlprg.fir.ir.variable.Register;
 public final class TypeChecker extends Checker {
   @Override
   public void doRun(Abstraction version) {
-    // Check guaranteed effects and return type
     var function = function();
+
+    // Check guaranteed effects and return type
     var guaranteedEffects = function.guaranteedEffects();
     var guaranteedReturnType = function.guaranteedReturnType();
     if (!version.effects().isSubsetOf(guaranteedEffects)) {
@@ -88,6 +89,24 @@ public final class TypeChecker extends Checker {
               + "\nIn fun "
               + function.name()
               + " { ... }");
+    }
+
+    // Check that versions with strictly worse parameters have strictly worse effects/return.
+    var signature = version.signature();
+    for (var worse : function.versionsSorted().tailSet(version)) {
+      var worseSignature = worse.signature();
+      if (signature.hasNarrowerParameters(worseSignature)
+          && !signature.hasNarrowerEffectsAndReturn(worseSignature)) {
+        report(
+            version,
+            "Version has strictly narrower parameters than another, but not strictly narrower effects and return type:"
+                + "\nThis version's signature: "
+                + signature
+                + "\nOther version's signature: "
+                + worseSignature
+                + "\nOther version:\n"
+                + worse);
+      }
     }
 
     // Run function-independent checks
