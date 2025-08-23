@@ -5,9 +5,15 @@ import java.util.Collection;
 import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collector;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 public class Strings {
+  @SafeVarargs
+  public static <T> String join(T... items) {
+    return Arrays.stream(items).map(Object::toString).collect(Collectors.joining());
+  }
+
   @SafeVarargs
   public static <T> String join(String sep, T... items) {
     return Arrays.stream(items).collect(joining(sep));

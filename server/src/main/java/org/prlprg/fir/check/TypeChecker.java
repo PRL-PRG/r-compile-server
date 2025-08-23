@@ -1,24 +1,18 @@
 package org.prlprg.fir.check;
 
 import com.google.common.collect.Iterables;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.Stack;
 import javax.annotation.Nullable;
+import org.prlprg.fir.analyze.type.Flow;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Binding;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
-import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
@@ -58,6 +52,7 @@ import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.util.Strings;
 
 /// Checks type, effect, and flow (`use` invariants) soundness.
 public final class TypeChecker extends Checker {
@@ -109,11 +104,22 @@ public final class TypeChecker extends Checker {
       }
     }
 
-    // Run function-independent checks
+    // Check type and effects.
     // Doesn't `streamScopes` because `run` includes inline callees.
     new OnAbstraction(version).run();
+
+    // Check flow
+    version
+        .streamScopes()
+        .forEach(
+            abstraction ->
+                new Flow(
+                    abstraction,
+                    (bb, instructionIndex, message) ->
+                        report(bb, instructionIndex, Strings.join(message))));
   }
 
+  /// Checks type and effects, but not flow.
   private class OnAbstraction {
     final Abstraction abstraction;
 
@@ -135,14 +141,8 @@ public final class TypeChecker extends Checker {
                 + abstraction.returnType());
       }
 
-      // Parameters are initially written to.
-      var initialFlow = new ActionSet();
-      abstraction.parameters().stream()
-          .map(Parameter::variable)
-          .forEachOrdered(initialFlow.write::add);
-
       // Doesn't `streamCfgs` because `run` includes promises.
-      cfg.run(initialFlow);
+      cfg.run();
 
       cfg.checkSubtype(cfg.returnType, abstraction.returnType(), "Return type mismatch");
       cfg.checkSubEffects(cfg.effects, abstraction.effects(), "Function effects mismatch");
@@ -152,39 +152,15 @@ public final class TypeChecker extends Checker {
       /// `null` is bottom.
       @Nullable Type returnType = null;
       Effects effects = Effects.NONE;
-      ActionSet returnFlow = new ActionSet();
       final CFGCursor cursor;
-
-      // Modifiers are only for decoration, to indicate these shouldn't be accessed by the outer
-      // class.
-      private final Map<BB, ActionSet> flowStates = new HashMap<>();
-      private final Stack<BB> worklist = new Stack<>();
-      private ActionSet flow;
-      private BB next;
 
       OnCfg(CFG cfg) {
         cursor = new CFGCursor(cfg);
-        // `flow` and `next` are set before use, so whatever they're set to here doesn't matter.
-        flow = new ActionSet();
-        next = cfg.entry();
       }
 
-      void run(ActionSet initialFlow) {
-        assert flowStates.isEmpty() && worklist.isEmpty() : "already run";
-
-        // Abstract interpretation.
-        // - [ActionSet] is the state at the start of each block.
-        // - There's global state in [#returnType] and [#effects].
-        // - [#cursor] is to traverse the CFG, [#flow] and [#next] are the state and
-        //   currently-iterated basic block (should be parameters but more convenient as fields).
-
-        flowStates.put(cursor.bb(), initialFlow.copy());
-        worklist.add(cursor.bb());
-
-        while (!worklist.isEmpty()) {
-          next = worklist.pop();
-          flow = flowStates.get(next).copy();
-          cursor.iterateBb(next, this::run, this::run);
+      void run() {
+        for (var bb : cursor.cfg().bbs()) {
+          cursor.iterateBb(bb, this::run, this::run);
         }
       }
 
@@ -201,12 +177,6 @@ public final class TypeChecker extends Checker {
           } else {
             checkAssignment(type, assigneeType, "Can't assign it to " + assignee);
           }
-
-          // Check and update flow state
-          if (flow.use.contains(assignee)) {
-            report("Write after use: " + assignee);
-          }
-          flow.write.add(assignee);
         }
       }
 
@@ -404,9 +374,8 @@ public final class TypeChecker extends Checker {
             }
 
             var promiseAnalysis = new OnCfg(promiseCode);
-            promiseAnalysis.run(flow);
+            promiseAnalysis.run();
             var actualInnerType = promiseAnalysis.returnType;
-            flow.mergePromise(promiseAnalysis.returnFlow);
 
             checkAssignment(actualInnerType, expectedInnerType, "Promise inner type mismatch");
             checkSubEffects(promiseAnalysis.effects, expectedEffects, "Promise effects mismatch");
@@ -538,15 +507,6 @@ public final class TypeChecker extends Checker {
               yield null;
             }
 
-            // Flow check: ensure register is written before read
-            if (!flow.write.contains(variable)) {
-              report("Read before write: " + variable);
-            }
-            if (flow.use.contains(variable)) {
-              report("Read after use: " + variable);
-            }
-            flow.read.add(variable);
-
             yield type;
           }
           case Use(var register) -> {
@@ -566,19 +526,6 @@ public final class TypeChecker extends Checker {
               yield null;
             }
 
-            // Flow check: ensure register is written before use, and not used or captured.
-            if (!flow.write.contains(register)) {
-              report("Use before write: " + register);
-            }
-            if (flow.use.contains(register)) {
-              report("Use after use: " + register);
-            }
-            if (flow.capture.contains(register)) {
-              report("Use after capture: " + register);
-            }
-            flow.read.add(register);
-            flow.use.add(register);
-
             yield type.withOwnership(Ownership.FRESH);
           }
         };
@@ -596,18 +543,12 @@ public final class TypeChecker extends Checker {
                 returnType == null
                     ? type
                     : type == null ? returnType : returnType.union(type, () -> {});
-            returnFlow.merge(flow);
           }
           case Goto(var _) -> {}
           case If(var condition, var _, var _) -> {
             var condType = run(condition);
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");
           }
-        }
-
-        for (var successor : next.successors()) {
-          var successorState = flowStates.computeIfAbsent(successor, _ -> new ActionSet());
-          successorState.merge(flow);
         }
       }
 
@@ -670,46 +611,6 @@ public final class TypeChecker extends Checker {
 
     Type typeOf(NamedVariable named) {
       return abstraction.typeOf(named);
-    }
-  }
-
-  private static class ActionSet {
-    final Set<Register> read = new HashSet<>();
-    final Set<Register> write = new HashSet<>();
-    final Set<Register> use = new HashSet<>();
-    final Set<Register> capture = new HashSet<>();
-
-    ActionSet copy() {
-      var clone = new ActionSet();
-      clone.read.addAll(read);
-      clone.write.addAll(write);
-      clone.use.addAll(use);
-      clone.capture.addAll(capture);
-      return clone;
-    }
-
-    /// Unifies requirements and intersects guarantees.
-    ///
-    /// [#read], [#use], and [#defer] are requirements, [#write] is a guarantee.
-    void merge(ActionSet other) {
-      read.addAll(other.read);
-      write.retainAll(other.write);
-      use.addAll(other.use);
-      capture.addAll(other.capture);
-    }
-
-    /// Unifies requirements, and adds *all* registers touched by the promise to `capture`.
-    ///
-    /// This is the stateful analogue to the formalism's compose operator.
-    ///
-    /// [#read], [#use], and [#defer] are requirements, [#write] is a guarantee.
-    void mergePromise(ActionSet promise) {
-      read.addAll(promise.read);
-      use.addAll(promise.use);
-      capture.addAll(promise.read);
-      capture.addAll(promise.write);
-      capture.addAll(promise.use);
-      capture.addAll(promise.capture);
     }
   }
 }
