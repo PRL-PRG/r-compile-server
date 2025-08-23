@@ -172,16 +172,49 @@ public final class CFGCursor {
   }
 
   /**
-   * Advances to the end of the block, calling the functions on each instruction (starting
-   * immediately after the current one).
+   * Starting at the next instruction (`instructionIndex + 1`), advances to the end of the current
+   * block, calling the functions on each (subsequent) instruction.
    *
-   * <p>Returns the result of the function taking jump instruction.
+   * @return The result of the function taking jump instruction.
    */
   public <T> T iterateBb(Consumer<Statement> runStmt, Function<Jump, T> runJump) {
     for (advance(); !isAtLocalEnd(); advance()) {
       runStmt.accept((Statement) Objects.requireNonNull(instruction()));
     }
     return runJump.apply((Jump) Objects.requireNonNull(instruction()));
+  }
+
+  /**
+   * Moves to the start of the block and advances to the given index (stops at `lastIndex + 1`),
+   * calling the functions on each instruction.
+   *
+   * @throws IndexOutOfBoundsException() If the index is out of bounds.
+   */
+  public void iterateBbUpTo(
+      BB bb, int lastIndex, Consumer<Statement> runStmt, Consumer<Jump> runJump) {
+    moveToStart(bb);
+    iterateBbUpTo(lastIndex, runStmt, runJump);
+  }
+
+  /**
+   * Starting at the next instruction (`instructionIndex + 1`), advances up to the given index
+   * (stops at `lastIndex + 1`), calling the functions on each (subsequent) instruction.
+   *
+   * @throws IndexOutOfBoundsException() If the index is out of bounds or before `instructionIndex`.
+   */
+  public void iterateBbUpTo(int lastIndex, Consumer<Statement> runStmt, Consumer<Jump> runJump) {
+    if (lastIndex < instructionIndex || lastIndex > bb.statements().size()) {
+      throw new IndexOutOfBoundsException(
+          "index " + lastIndex + " out of bounds for " + bb.label() + " at " + instructionIndex);
+    }
+    for (advance(); instructionIndex < lastIndex; advance()) {
+      runStmt.accept((Statement) Objects.requireNonNull(instruction()));
+    }
+    if (isAtLocalEnd()) {
+      runJump.accept((Jump) Objects.requireNonNull(instruction()));
+    } else {
+      runStmt.accept((Statement) Objects.requireNonNull(instruction()));
+    }
   }
 
   // endregion move (cursor)

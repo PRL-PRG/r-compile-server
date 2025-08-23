@@ -10,7 +10,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 
 /// Tracks loops in the control-flow graph.
-public class Loops {
+public final class Loops {
   private final CFG cfg;
   private final DominatorTree dominatorTree;
   private final Set<Loop> loops;
