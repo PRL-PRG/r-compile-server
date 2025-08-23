@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.type;
 
 import java.util.Objects;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
 import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -175,6 +176,13 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     if (cmp != 0) return cmp;
 
     return concreteness.compareTo(o.concreteness);
+  }
+
+  /// [Type#union(Type, Runnable)] but treats null as BOTTOM.
+  public static @Nullable Type union(@Nullable Type lhs, @Nullable Type rhs) {
+    if (lhs == null) return rhs;
+    if (rhs == null) return lhs;
+    return lhs.union(rhs, () -> {});
   }
 
   public Type union(Type other, Runnable onOwnershipMismatch) {

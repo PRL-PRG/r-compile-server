@@ -12,7 +12,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 
 /// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
 /// dominator of its children.
-public class DominatorTree {
+public final class DominatorTree {
   private final CFG cfg;
   private final Map<BB, BB> immediateDominators;
   private final Map<BB, Set<BB>> immediateDominees;
