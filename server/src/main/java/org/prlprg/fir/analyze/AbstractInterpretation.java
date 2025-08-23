@@ -33,7 +33,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
   /// Queries the analysis state at a specific instruction.
   ///
   /// @throws IllegalStateException If the analysis wasn't run (some analyses are run on
-  /// construction).
+  /// construction, check their constructor's javadoc).
   /// @throws IllegalArgumentException If [BB] isn't in the scope.
   public final State at(BB bb, int instructionIndex) {
     if (!ran) {
@@ -45,7 +45,21 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
       throw new IllegalArgumentException("BB's CFG not in scope");
     }
 
-    return cfgAnalysis.snapshot(bb, instructionIndex);
+    return cfgAnalysis.at(bb, instructionIndex);
+  }
+
+  /// Queries the analysis state at the scope's main (i.e. not promise) [CFG]'s return.
+  ///
+  /// Returns `null` iff there are no returns.
+  ///
+  /// @throws IllegalStateException If the analysis wasn't run (some analyses are run on
+  /// construction, check their constructor's javadoc).
+  public final @Nullable State returnState() {
+    if (!ran) {
+      throw new IllegalStateException("Analysis not yet run");
+    }
+
+    return analyses.get(scope.cfg()).returnState;
   }
 
   /// Runs the analysis.
@@ -61,7 +75,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
     ran = true;
   }
 
-  private OnCfg onCfg(CFG cfg) {
+  protected OnCfg onCfg(CFG cfg) {
     return analyses.computeIfAbsent(cfg, this::mkOnCfg);
   }
 
@@ -71,6 +85,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
   protected abstract class OnCfg {
     private final Map<BB, State> states = new HashMap<>();
     private @Nullable State returnState;
+    private boolean ran = false;
 
     private final CFGCursor cursor;
     private @Nullable State state;
@@ -79,7 +94,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
       cursor = new CFGCursor(cfg);
     }
 
-    private void run(State entryState) {
+    public final void run(State entryState) {
       var worklist = new ArrayList<Pair<BB, State>>();
 
       // Can add `entryState` in-place, because it won't be mutated until after the call,
@@ -125,6 +140,10 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
           worklist.add(Pair.of(target.bb(), state));
         }
       }
+
+      ran = true;
+      // Indicates that this isn't running.
+      state = null;
     }
 
     private State run(BB bb) {
@@ -133,15 +152,63 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
       return state;
     }
 
-    private State snapshot(BB bb, int instructionIndex) {
+    protected abstract void run(Statement statement);
+
+    protected abstract void run(Jump jump);
+
+    /// Queries the analysis state at a specific instruction.
+    ///
+    /// @throws IllegalStateException If the analysis wasn't run.
+    /// @throws IllegalArgumentException If [BB] isn't in the [CFG].
+    public final State at(BB bb, int instructionIndex) {
+      if (!ran) {
+        throw new IllegalStateException("Analysis not yet run");
+      }
+      if (bb.owner() != cursor.cfg()) {
+        throw new IllegalArgumentException("BB not in CFG");
+      }
+
       state = states.get(bb).copy();
       cursor.iterateBbUpTo(instructionIndex, this::run, this::run);
       return state;
     }
 
-    protected abstract void run(Statement statement);
+    /// Queries the analysis state at the [CFG]'s return.
+    ///
+    /// Returns `null` iff there are no returns.
+    ///
+    /// @throws IllegalStateException If the analysis wasn't run.
+    public final @Nullable State returnState() {
+      if (!ran) {
+        throw new IllegalStateException("Analysis not yet run");
+      }
 
-    protected abstract void run(Jump jump);
+      return returnState;
+    }
+
+    protected final BB bb() {
+      if (state == null) {
+        throw new IllegalStateException("Analysis isn't running");
+      }
+
+      return cursor.bb();
+    }
+
+    protected final int instructionIndex() {
+      if (state == null) {
+        throw new IllegalStateException("Analysis isn't running");
+      }
+
+      return cursor.instructionIndex();
+    }
+
+    protected final State state() {
+      if (state == null) {
+        throw new IllegalStateException("Analysis isn't running");
+      }
+
+      return state;
+    }
   }
 
   public interface State<Self extends State<Self>> {
