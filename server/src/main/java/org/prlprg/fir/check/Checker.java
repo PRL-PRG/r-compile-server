@@ -13,20 +13,36 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 
 public abstract class Checker {
-  /// Check types and CFG invariants in the module. If there are any errors, [prints them to
-  /// `stderr`][Checker#print] and returns `false`.
+  /// Check types, effects, flow, and CFG invariants in the module. If there are any errors,
+  /// [prints them to `stderr`][Checker#print] and returns `false`.
   @CheckReturnValue
   public static boolean checkAll(Module module) {
+    return checkAll(module, true);
+  }
+
+  /// Check types, effects, optionally flow, and CFG invariants in the module. If there are any
+  /// errors, [prints them to `stderr`][Checker#print] and returns `false`.
+  @CheckReturnValue
+  public static boolean checkAll(Module module, boolean includeFlow) {
     var cfgChecker = new CFGChecker();
-    var typeChecker = new TypeChecker();
+    var typeAndEffectChecker = new TypeAndEffectChecker();
+    var flowChecker = includeFlow ? new FlowChecker() : null;
 
     cfgChecker.run(module);
-    typeChecker.run(module);
+    typeAndEffectChecker.run(module);
+    if (flowChecker != null) {
+      flowChecker.run(module);
+    }
 
     cfgChecker.print();
-    typeChecker.print();
+    typeAndEffectChecker.print();
+    if (flowChecker != null) {
+      flowChecker.print();
+    }
 
-    return !cfgChecker.hasErrors() && !typeChecker.hasErrors();
+    return !cfgChecker.hasErrors()
+        && !typeAndEffectChecker.hasErrors()
+        && (flowChecker == null || !flowChecker.hasErrors());
   }
 
   private @Nullable Function function = null;

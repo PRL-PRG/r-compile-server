@@ -33,6 +33,10 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 
 /// Infer the effects of [CFG]s, [Instruction]s, and [Expression]s.
+///
+/// This analysis is **on-demand**: it only infers when called the type of the argument, and
+/// remains accurate if the code changes (except previous return values are invalidated when
+/// their argument changes).
 public final class InferEffects {
   private final InferType inferType;
 

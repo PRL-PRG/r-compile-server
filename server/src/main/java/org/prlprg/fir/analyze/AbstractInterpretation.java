@@ -20,7 +20,7 @@ import org.prlprg.util.Pair;
 /// Generic abstract interpretation over an [Abstraction].
 ///
 /// It traverses [CFG]s in promises but not callees.
-public abstract class AbstractInterpretation<State extends AbstractInterpretation.State<State>> {
+public abstract class AbstractInterpretation<S extends AbstractInterpretation.State<S>> {
   private final Abstraction scope;
   private boolean ran = false;
   private final Map<CFG, OnCfg> analyses = new HashMap<>();
@@ -35,7 +35,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
   /// @throws IllegalStateException If the analysis wasn't run (some analyses are run on
   /// construction, check their constructor's javadoc).
   /// @throws IllegalArgumentException If [BB] isn't in the scope.
-  public final State at(BB bb, int instructionIndex) {
+  public final S at(BB bb, int instructionIndex) {
     if (!ran) {
       throw new IllegalStateException("Analysis not yet run");
     }
@@ -54,7 +54,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
   ///
   /// @throws IllegalStateException If the analysis wasn't run (some analyses are run on
   /// construction, check their constructor's javadoc).
-  public final @Nullable State returnState() {
+  public final @Nullable S returnState() {
     if (!ran) {
       throw new IllegalStateException("Analysis not yet run");
     }
@@ -69,7 +69,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
   ///
   /// This can be called multiple times, in which case `entry` is merged with `scope.cfg()`'s
   /// entry (and won't actually rerun if they're equal).
-  protected final void run(State entry) {
+  protected final void run(S entry) {
     // Doesn't `streamCfgs` because `run` includes promises.
     onCfg(scope.cfg()).run(entry);
     ran = true;
@@ -83,23 +83,23 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
 
   /// An abstract interpretation over a [CFG].
   protected abstract class OnCfg {
-    private final Map<BB, State> states = new HashMap<>();
-    private @Nullable State returnState;
+    private final Map<BB, S> states = new HashMap<>();
+    private @Nullable S returnState;
     private boolean ran = false;
 
     private final CFGCursor cursor;
-    private @Nullable State state;
+    private @Nullable S state;
 
     protected OnCfg(CFG cfg) {
       cursor = new CFGCursor(cfg);
     }
 
-    public final void run(State entryState) {
-      var worklist = new ArrayList<Pair<BB, State>>();
+    public final void run(S entryState) {
+      var worklist = new ArrayList<Pair<BB, S>>();
 
       // Can add `entryState` in-place, because it won't be mutated until after the call,
       // and we don't assign `worklist` entries to `state` or put into `states` without copying.
-      worklist.add(Pair.of(cursor.bb(), entryState));
+      worklist.add(Pair.of(cursor.cfg().entry(), entryState));
 
       while (!worklist.isEmpty()) {
         var next = worklist.removeLast();
@@ -146,21 +146,24 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
       state = null;
     }
 
-    private State run(BB bb) {
+    private S run(BB bb) {
       state = states.get(bb).copy();
+      runEntry(bb);
       cursor.iterateBb(bb, this::run, this::run);
       return state;
     }
 
-    protected abstract void run(Statement statement);
+    protected void runEntry(BB bb) {}
 
-    protected abstract void run(Jump jump);
+    protected void run(Statement statement) {}
+
+    protected void run(Jump jump) {}
 
     /// Queries the analysis state at a specific instruction.
     ///
     /// @throws IllegalStateException If the analysis wasn't run.
     /// @throws IllegalArgumentException If [BB] isn't in the [CFG].
-    public final State at(BB bb, int instructionIndex) {
+    public final S at(BB bb, int instructionIndex) {
       if (!ran) {
         throw new IllegalStateException("Analysis not yet run");
       }
@@ -169,6 +172,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
       }
 
       state = states.get(bb).copy();
+      runEntry(bb);
       cursor.iterateBbUpTo(instructionIndex, this::run, this::run);
       return state;
     }
@@ -178,7 +182,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
     /// Returns `null` iff there are no returns.
     ///
     /// @throws IllegalStateException If the analysis wasn't run.
-    public final @Nullable State returnState() {
+    public final @Nullable S returnState() {
       if (!ran) {
         throw new IllegalStateException("Analysis not yet run");
       }
@@ -202,7 +206,7 @@ public abstract class AbstractInterpretation<State extends AbstractInterpretatio
       return cursor.instructionIndex();
     }
 
-    protected final State state() {
+    protected final S state() {
       if (state == null) {
         throw new IllegalStateException("Analysis isn't running");
       }

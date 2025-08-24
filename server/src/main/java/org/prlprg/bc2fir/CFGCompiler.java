@@ -143,14 +143,13 @@ import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool.Idx;
 import org.prlprg.bc.LabelName;
+import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -159,21 +158,13 @@ import org.prlprg.fir.ir.cfg.cursor.JumpInsertion;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
-import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
-import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.expression.ReflectiveLoad;
-import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -212,6 +203,7 @@ public class CFGCompiler {
 
   // region compiler data
   // - Some of it is constant through the compilation, some changes as instructions are compiled.
+  private final InferType inferType;
   private final CFG cfg;
   private final Bc bc;
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
@@ -234,6 +226,7 @@ public class CFGCompiler {
           "CFG must be empty, except assigning parameters to named variables");
     }
 
+    inferType = new InferType(cfg.scope());
     this.cfg = cfg;
     this.bc = bc;
 
@@ -371,7 +364,7 @@ public class CFGCompiler {
       case BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
         var cond = pop();
-        var condCasted = insertAndReturn(new Cast(cond, Type.LOGICAL));
+        var condCasted = insertAndReturn(builtin("as.logical", cond));
         insert(next -> branch(condCasted, next, bb));
       }
       case Pop() -> pop();
@@ -855,7 +848,7 @@ public class CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond = insertAndReturn(builtin("==", 2, value, new Constant(SEXPs.string(name))));
+              var cond = insertAndReturn(builtin("==", 5, value, new Constant(SEXPs.string(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -875,7 +868,7 @@ public class CFGCompiler {
           var asInteger = insertAndReturn(intrinsic("asSwitchIdx", value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond = insertAndReturn(builtin("==", 0, asInteger, new Constant(SEXPs.integer(i))));
+            var cond = insertAndReturn(builtin("==", 4, asInteger, new Constant(SEXPs.integer(i))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.
@@ -1176,8 +1169,11 @@ public class CFGCompiler {
   private void ensurePhiInputsForStack(BB bb) {
     // Ensure the BB has phis for each stack value.
     if (bbsWithPhis.add(bb)) {
-      for (var _ : stack) {
-        var phi = scope().addLocal(Type.ANY);
+      for (var arg : stack) {
+        var type = inferType.of(arg);
+        assert type != null : "argument on stack is an undeclared register";
+
+        var phi = scope().addLocal(type);
         bb.appendParameter(phi);
       }
     } else {
@@ -1194,6 +1190,26 @@ public class CFGCompiler {
                 + numArguments
                 + " arguments");
       }
+
+      // Union phi types
+      for (var i = 0; i < numParameters; i++) {
+        var phi = bb.phiParameters().get(i);
+        var arg = stack.get(i);
+
+        var oldType = scope().typeOf(phi);
+        var argType = inferType.of(arg);
+        assert oldType != null : "phi is an undeclared register";
+        assert argType != null : "argument on stack is an undeclared register";
+
+        scope()
+            .setLocalType(
+                phi,
+                oldType.union(
+                    argType,
+                    () -> {
+                      throw new AssertionError("ownership mismatch between phi arguments");
+                    }));
+      }
     }
   }
 
@@ -1208,7 +1224,8 @@ public class CFGCompiler {
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and return that register.
   private Argument insertAndReturn(Expression expression) {
-    var tempVar = cfg.scope().addLocal(trivialTypeOf(expression));
+    var exprType = inferType.of(expression);
+    var tempVar = cfg.scope().addLocal(exprType == null ? Type.ANY : exprType);
     insert(new Statement(tempVar, expression));
     return new Read(tempVar);
   }
@@ -1579,47 +1596,6 @@ public class CFGCompiler {
   }
 
   // endregion misc getters
-
-  // region misc helpers
-  private static Type trivialTypeOf(Expression expression) {
-    return switch (expression) {
-      case Aea(var argument) -> trivialTypeOf(argument);
-      case org.prlprg.fir.ir.expression.Call call ->
-          switch (call.callee()) {
-            case DispatchCallee(var callee, var _) -> callee.guaranteedReturnType();
-            case DynamicCallee _ -> Type.ANY_VALUE;
-            case InlineCallee(var callee) -> callee.returnType();
-            case StaticCallee(var _, var callee) -> callee.returnType();
-          };
-      case Cast(var _, var castType) -> castType;
-      case Closure _ -> Type.CLOSURE;
-      case Dup _ -> Type.ANY;
-      case Force _ -> Type.ANY_VALUE;
-      case Load _ -> Type.ANY;
-      case LoadFun _ -> Type.CLOSURE;
-      case MaybeForce _, MkVector _ -> Type.ANY_VALUE;
-      case Placeholder _ -> Type.ANY;
-      case Promise _ -> Type.ANY_PROMISE;
-      case ReflectiveLoad _,
-              ReflectiveStore _,
-              Store _,
-              SubscriptLoad _,
-              SubscriptStore _,
-              SuperLoad _,
-              SuperStore _ ->
-          Type.ANY;
-    };
-  }
-
-  private static Type trivialTypeOf(Argument argument) {
-    return switch (argument) {
-      case Read _ -> Type.ANY;
-      case Constant(var sexp) -> Type.of(sexp);
-      case Use _ -> Type.ANY;
-    };
-  }
-
-  // endregion misc helpers
 
   // region exceptions
   private void require(boolean condition, Supplier<String> message) {

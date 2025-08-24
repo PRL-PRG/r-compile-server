@@ -2,7 +2,8 @@ package org.prlprg.fir.check;
 
 import com.google.common.collect.Iterables;
 import javax.annotation.Nullable;
-import org.prlprg.fir.analyze.type.Flow;
+import org.prlprg.fir.analyze.type.InferEffects;
+import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -44,18 +45,14 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
-import org.prlprg.fir.ir.type.Kind.Any;
 import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
-import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
-import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.util.Strings;
 
-/// Checks type, effect, and flow (`use` invariants) soundness.
-public final class TypeChecker extends Checker {
+/// Checks type and effect soundness.
+public final class TypeAndEffectChecker extends Checker {
   @Override
   public void doRun(Abstraction version) {
     var function = function();
@@ -107,51 +104,47 @@ public final class TypeChecker extends Checker {
     // Check type and effects.
     // Doesn't `streamScopes` because `run` includes inline callees.
     new OnAbstraction(version).run();
-
-    // Check flow
-    version
-        .streamScopes()
-        .forEach(
-            abstraction ->
-                new Flow(
-                    abstraction,
-                    (bb, instructionIndex, message) ->
-                        report(bb, instructionIndex, Strings.join(message))));
   }
 
-  /// Checks type and effects, but not flow.
   private class OnAbstraction {
-    final Abstraction abstraction;
+    final Abstraction scope;
+    final InferType inferType;
+    final InferEffects inferEffects;
 
-    OnAbstraction(Abstraction abstraction) {
-      this.abstraction = abstraction;
+    OnAbstraction(Abstraction scope) {
+      this.scope = scope;
+      inferType = new InferType(scope);
+      inferEffects = new InferEffects(scope);
     }
 
     void run() {
-      var cfg = new OnCfg(abstraction.cfg());
+      var cfg = new OnCfg(scope.cfg());
 
-      for (var binding : Iterables.concat(abstraction.parameters(), abstraction.locals())) {
+      // Check parameters and locals well-formedness
+      for (var binding : Iterables.concat(scope.parameters(), scope.locals())) {
         cfg.checkWellFormed(binding);
       }
 
-      cfg.checkWellFormed(abstraction.returnType());
-      if (!abstraction.returnType().canBeAssignedTo(Type.ANY_VALUE)) {
+      // Check return type well-formedness
+      cfg.checkWellFormed(scope.returnType());
+      if (!scope.returnType().canBeAssignedTo(Type.ANY_VALUE)) {
         cfg.report(
-            "Return type's kind must subtype `V` and it must be definite: "
-                + abstraction.returnType());
+            "Return type's kind must subtype `V` and it must be definite: " + scope.returnType());
       }
 
+      // Check instruction invariants
       // Doesn't `streamCfgs` because `run` includes promises.
       cfg.run();
 
-      cfg.checkSubtype(cfg.returnType, abstraction.returnType(), "Return type mismatch");
-      cfg.checkSubEffects(cfg.effects, abstraction.effects(), "Function effects mismatch");
+      // Check return type and effects are expected.
+      var returnType = inferType.of(scope.cfg());
+      var effects = inferEffects.of(scope.cfg());
+
+      cfg.checkSubtype(returnType, scope.returnType(), "Return type mismatch");
+      cfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
     }
 
     class OnCfg {
-      /// `null` is bottom.
-      @Nullable Type returnType = null;
-      Effects effects = Effects.NONE;
       final CFGCursor cursor;
 
       OnCfg(CFG cfg) {
@@ -168,10 +161,11 @@ public final class TypeChecker extends Checker {
         var expr = statement.expression();
         var assignee = statement.assignee();
 
-        var type = run(expr);
+        run(expr);
 
+        var type = inferType.of(expr);
         if (type != null && assignee != null) {
-          var assigneeType = typeOf(assignee);
+          var assigneeType = scope.typeOf(assignee);
           if (assigneeType == null) {
             report("Undeclared register: " + assignee);
           } else {
@@ -180,15 +174,20 @@ public final class TypeChecker extends Checker {
         }
       }
 
-      @Nullable Type run(Expression expression) {
-        return switch (expression) {
-          case Aea(var value) -> run(value);
-          case Call call -> {
-            var argumentTypes = call.callArguments().stream().map(this::run).toList();
+      void run(Expression expression) {
+        if (!(expression instanceof Promise)) {
+          for (var argument : expression.arguments()) {
+            run(argument);
+          }
+        }
 
-            java.util.function.Function<Abstraction, Type> finish =
+        switch (expression) {
+          case Aea(var _) -> {}
+          case Call call -> {
+            var argumentTypes = call.callArguments().stream().map(inferType::of).toList();
+
+            java.util.function.Consumer<Abstraction> checkArguments =
                 callee -> {
-                  // Check arguments.
                   if (callee.parameters().size() != argumentTypes.size()) {
                     report(
                         "Call expects "
@@ -203,20 +202,15 @@ public final class TypeChecker extends Checker {
                     var argType = argumentTypes.get(i);
                     checkMatches(argType, param.type(), "Type mismatch in argument " + i);
                   }
-
-                  // Guarantees.
-                  effects = effects.union(callee.effects());
-                  return callee.returnType();
                 };
 
-            yield switch (call.callee()) {
-              case StaticCallee(var _, var version) -> finish.apply(version);
+            switch (call.callee()) {
+              case StaticCallee(var _, var version) -> checkArguments.accept(version);
               case DispatchCallee(var function, var signature) -> {
                 // If `signature == null`, this is a call to an unknown version,
                 // although we may still have some guarantees.
                 if (signature == null) {
-                  effects = function.guaranteedEffects();
-                  yield function.guaranteedReturnType();
+                  break;
                 }
 
                 var version = function.guess(signature);
@@ -249,13 +243,9 @@ public final class TypeChecker extends Checker {
                   checkMatches(
                       argType, paramType, "Type mismatch in argument " + i + " (for signature)");
                 }
-
-                // Only guarantee what's asked by the signature.
-                effects = effects.union(signature.effects());
-                yield signature.returnType();
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {
-                var calleeType = run(actualCallee);
+                var calleeType = scope.typeOf(actualCallee);
                 if (calleeType != null && !calleeType.isDefinitely(Kind.Closure.class)) {
                   report(
                       "Dynamic callee must be a closure, got "
@@ -273,18 +263,12 @@ public final class TypeChecker extends Checker {
                           + argumentTypes.size()
                           + ")");
                 }
-
-                effects = Effects.ANY;
-                yield Type.ANY_VALUE;
               }
-              case InlineCallee(var inlinee) -> {
-                new OnAbstraction(inlinee).run();
-                yield finish.apply(inlinee);
-              }
-            };
+              case InlineCallee(var inlinee) -> checkArguments.accept(inlinee);
+            }
           }
           case Cast(var value, var castType) -> {
-            var valueType = run(value);
+            var valueType = scope.typeOf(value);
             checkWellFormed(castType);
 
             if (valueType != null
@@ -299,69 +283,39 @@ public final class TypeChecker extends Checker {
                       + castType
                       + " will always fail");
             }
-
-            yield castType;
           }
-          case Closure _ -> Type.CLOSURE;
+          case Closure _ -> {}
           case Dup(var value) -> {
-            var type = run(value);
+            var type = scope.typeOf(value);
             if (type == null) {
-              yield null;
+              break;
             }
 
             if (!type.isDefinitely(PrimitiveVector.class)) {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
-              yield null;
             }
-
-            yield type.withOwnership(Ownership.FRESH);
           }
           case Force(var value) -> {
-            var type = run(value);
+            var type = scope.typeOf(value);
             if (type == null) {
-              yield null;
+              break;
             }
 
-            if (type.kind() instanceof Kind.Promise(var innerTy, var promFx)) {
-              if (type.concreteness() == Concreteness.MAYBE) {
-                report("Can't force maybe-non-promise (use maybe-force), got " + type);
-              }
-
-              effects = effects.union(promFx);
-              yield innerTy;
-            } else {
+            if (!(type.kind() instanceof Kind.Promise(var _, var _))) {
               report("Can't force non-promise, got " + type);
-              yield null;
+            } else if (type.concreteness() == Concreteness.MAYBE) {
+              report("Can't force maybe-non-promise (use maybe-force), got " + type);
             }
           }
-          case Load(var variable) -> typeOf(variable);
-          case LoadFun(var _, var _) -> Type.CLOSURE;
-          case MaybeForce(var value) -> {
-            var type = run(value);
-            if (type == null) {
-              yield null;
-            }
-
-            if (type.kind() instanceof Kind.Promise(var innerTy, var promFx)) {
-              effects = effects.union(promFx);
-              yield innerTy;
-            } else if (type.kind() instanceof Any) {
-              effects = Effects.ANY;
-              yield Type.ANY_VALUE;
-            } else {
-              yield type;
-            }
-          }
+          case Load(var _), LoadFun(var _, var _), MaybeForce(var _) -> {}
           case MkVector(var elements) -> {
             for (var i = 0; i < elements.size(); i++) {
               var element = elements.get(i);
-              var type = run(element);
+              var type = scope.typeOf(element);
               checkSubtype(type, Type.INTEGER, "Type mismatch in element " + i);
             }
-
-            yield Type.primitiveVector(PrimitiveKind.INTEGER, Ownership.FRESH);
           }
-          case Placeholder() -> null;
+          case Placeholder() -> {}
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
             if (expectedInnerType.ownership() != Ownership.SHARED) {
@@ -373,17 +327,16 @@ public final class TypeChecker extends Checker {
                       + ">)");
             }
 
-            var promiseAnalysis = new OnCfg(promiseCode);
-            promiseAnalysis.run();
-            var actualInnerType = promiseAnalysis.returnType;
+            new OnCfg(promiseCode).run();
+
+            var actualInnerType = inferType.of(promiseCode);
+            var actualEffects = inferEffects.of(promiseCode);
 
             checkAssignment(actualInnerType, expectedInnerType, "Promise inner type mismatch");
-            checkSubEffects(promiseAnalysis.effects, expectedEffects, "Promise effects mismatch");
-
-            yield Type.promise(expectedInnerType, expectedEffects);
+            checkSubEffects(actualEffects, expectedEffects, "Promise effects mismatch");
           }
           case ReflectiveLoad(var promise, var _) -> {
-            var promiseType = run(promise);
+            var promiseType = scope.typeOf(promise);
             if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
               report(
                   "Reflective read target must be a promise, got "
@@ -392,12 +345,9 @@ public final class TypeChecker extends Checker {
                       + promiseType
                       + "}");
             }
-
-            effects = Effects.ANY;
-            yield Type.ANY;
           }
-          case ReflectiveStore(var promise, var _, var value) -> {
-            var promiseType = run(promise);
+          case ReflectiveStore(var promise, var _, var _) -> {
+            var promiseType = scope.typeOf(promise);
             if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
               report(
                   "Reflective write target must be a promise, got "
@@ -406,24 +356,16 @@ public final class TypeChecker extends Checker {
                       + promiseType
                       + "}");
             }
-
-            var valueType = run(value);
-
-            effects = Effects.ANY;
-            yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
           }
           case Store(var variable, var value) -> {
-            var type = typeOf(variable);
-
-            var valueType = run(value);
+            var type = scope.typeOf(variable);
+            var valueType = scope.typeOf(value);
 
             checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
-
-            yield type;
           }
           case SubscriptLoad(var target, var index) -> {
-            var targetType = run(target);
-            var indexType = run(index);
+            var targetType = scope.typeOf(target);
+            var indexType = scope.typeOf(index);
 
             if (targetType != null && !targetType.isDefinitely(PrimitiveVector.class)) {
               report(
@@ -438,15 +380,11 @@ public final class TypeChecker extends Checker {
                 indexType,
                 Type.INTEGER,
                 "Subscript index must be an integer, got " + index + " {:" + indexType + "}");
-
-            yield targetType != null && targetType.kind() instanceof PrimitiveVector(var kind)
-                ? Type.primitiveScalar(kind)
-                : null;
           }
           case SubscriptStore(var target, var index, var value) -> {
-            var targetType = run(target);
-            var indexType = run(index);
-            var valueType = run(value);
+            var targetType = scope.typeOf(target);
+            var indexType = scope.typeOf(index);
+            var valueType = scope.typeOf(value);
 
             if (targetType != null) {
               if (!targetType.isDefinitely(PrimitiveVector.class)) {
@@ -485,68 +423,34 @@ public final class TypeChecker extends Checker {
               report(
                   "Subscript write kind mismatch: expected " + targetKind + ", got " + valueKind);
             }
-
-            yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
           }
-          case SuperLoad(var _) -> Type.ANY;
-          case SuperStore(var _, var value) -> {
-            var valueType = run(value);
-
-            yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
-          }
-        };
+          case SuperLoad(var _), SuperStore(var _, var _) -> {}
+        }
       }
 
-      @Nullable Type run(Argument argument) {
-        return switch (argument) {
-          case Constant(var sexp) -> Type.of(sexp);
-          case Read(var variable) -> {
-            var type = typeOf(variable);
-            if (type == null) {
-              report("Undeclared register: " + variable);
-              yield null;
-            }
-
-            yield type;
-          }
+      void run(Argument argument) {
+        switch (argument) {
+          case Constant(var _), Read(var _) -> {}
           case Use(var register) -> {
-            var type = typeOf(register);
+            var type = scope.typeOf(register);
             if (type == null) {
-              report("Undeclared register: " + register);
-              yield null;
+              break;
             }
 
             if (!type.isDefinitely(PrimitiveVector.class)) {
               report("Can't use non-vector, got " + type);
-              yield null;
-            }
-
-            if (type.ownership() != Ownership.OWNED) {
+            } else if (type.ownership() != Ownership.OWNED) {
               report("Can't use non-owned vector, got " + type);
-              yield null;
             }
-
-            yield type.withOwnership(Ownership.FRESH);
           }
-        };
+        }
       }
 
       void run(Jump jump) {
         switch (jump) {
-          case Unreachable() -> {}
-          case Return(var value) -> {
-            var type = run(value);
-            // Ignore ownership mismatches, because we check ownership against the expected return
-            // type. Ignoring lets us return fresh and shared values from a closure version whose
-            // explicit return type is shared, and that is sound.
-            returnType =
-                returnType == null
-                    ? type
-                    : type == null ? returnType : returnType.union(type, () -> {});
-          }
-          case Goto(var _) -> {}
+          case Unreachable(), Return(var _), Goto(var _) -> {}
           case If(var condition, var _, var _) -> {
-            var condType = run(condition);
+            var condType = scope.typeOf(condition);
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");
           }
         }
@@ -601,16 +505,8 @@ public final class TypeChecker extends Checker {
       }
 
       void report(String message) {
-        TypeChecker.this.report(cursor.bb(), cursor.instructionIndex(), message);
+        TypeAndEffectChecker.this.report(cursor.bb(), cursor.instructionIndex(), message);
       }
-    }
-
-    @Nullable Type typeOf(Register register) {
-      return abstraction.typeOf(register);
-    }
-
-    Type typeOf(NamedVariable named) {
-      return abstraction.typeOf(named);
     }
   }
 }

@@ -14,6 +14,8 @@ fun `==` {
   (reg lhs:R, reg rhs:R) --> L { | ...; }
   (reg lhs:S, reg rhs:S) --> L { | ...; }
   (reg lhs:cls, reg rhs:cls) --> L { | ...; }
+  (reg lhs:V, reg rhs:I) --> L { | ...; }
+  (reg lhs:V, reg rhs:S) --> L { | ...; }
 }
 
 fun `!=` {
@@ -21,6 +23,14 @@ fun `!=` {
   (reg lhs:R, reg rhs:R) --> L { | ...; }
   (reg lhs:S, reg rhs:S) --> L { | ...; }
   (reg lhs:cls, reg rhs:cls) --> L { | ...; }
+  (reg lhs:V, reg rhs:I) --> L { | ...; }
+  (reg lhs:V, reg rhs:S) --> L { | ...; }
+}
+
+fun `!` {
+  (reg x:L) --> L { | ...; }
+  (reg x:I) --> L { | ...; }
+  (reg x:R) --> L { | ...; }
 }
 
 fun abs {
@@ -38,6 +48,8 @@ fun floor {
   (reg x:I) --> R { | ...; }
   (reg x:R) --> R { | ...; }
 }
+
+fun length { --> I }
 
 fun `as.logical` { --> L }
 
