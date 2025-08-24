@@ -20,7 +20,6 @@ import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.cfg.CFG.ParseContext;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Module;
@@ -154,23 +153,36 @@ public final class Abstraction implements Comparable<Abstraction> {
         "Abstraction#removeLocal",
         List.of(this, variable),
         () -> {
-          var local = locals.get(variable.name());
-          if (local == null) {
-            throw new IllegalArgumentException(
-                "Local " + variable.name() + " does not exist in the abstraction.");
-          }
-          switch (variable) {
-            case Register _ when !(local.variable() instanceof Register) ->
-                throw new IllegalArgumentException(
-                    "Local " + variable.name() + " is not a register");
-            case NamedVariable _ when !(local.variable() instanceof NamedVariable) ->
-                throw new IllegalArgumentException(
-                    "Local " + variable.name() + " is not a named variable");
-            default -> {}
-          }
-
+          checkLocalExists(variable);
           return locals.remove(variable.name());
         });
+  }
+
+  /// Change the local's explicit type.
+  public void setLocalType(Variable variable, Type type) {
+    module.record(
+        "Abstraction#setLocalType",
+        List.of(this, variable, type),
+        () -> {
+          checkLocalExists(variable);
+          locals.put(variable.name(), new Local(variable, type));
+        });
+  }
+
+  private void checkLocalExists(Variable variable) {
+    var binding = locals.get(variable.name());
+    if (binding == null) {
+      throw new IllegalArgumentException(
+          "Local " + variable.name() + " does not exist in the abstraction.");
+    }
+    switch (variable) {
+      case Register _ when !(binding.variable() instanceof Register) ->
+          throw new IllegalArgumentException("Local " + variable.name() + " is not a register");
+      case NamedVariable _ when !(binding.variable() instanceof NamedVariable) ->
+          throw new IllegalArgumentException(
+              "Local " + variable.name() + " is not a named variable");
+      default -> {}
+    }
   }
 
   public CFG cfg() {

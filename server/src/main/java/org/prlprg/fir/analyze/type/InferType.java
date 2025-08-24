@@ -41,6 +41,10 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Infer the [Type] of [CFG]s and [Expression]s.
+///
+/// This analysis is **on-demand**: it only infers when called the type of the argument, and
+/// remains accurate if the code changes (except previous return values are invalidated when
+/// their argument changes).
 public final class InferType {
   private final Abstraction scope;
 
@@ -86,9 +90,9 @@ public final class InferType {
       case LoadFun(var _, var _) -> Type.CLOSURE;
       case MaybeForce(var value) -> {
         var type = of(value);
-        yield type == null || !(type.kind() instanceof Kind.Promise(var innerTy, var _))
+        yield type == null
             ? null
-            : innerTy;
+            : type.kind() instanceof Kind.Promise(var innerTy, var _) ? innerTy : Type.ANY_VALUE;
       }
       case MkVector(var _) -> Type.primitiveVector(PrimitiveKind.INTEGER, Ownership.FRESH);
       case Placeholder() -> null;

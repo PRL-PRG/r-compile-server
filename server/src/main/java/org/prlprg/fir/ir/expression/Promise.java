@@ -30,6 +30,11 @@ public record Promise(Type valueType, Effects effects, CFG code) implements Expr
 
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
+    throw new UnsupportedOperationException(
+        "Promise must be special-cased.\nTo get arguments of instructions in the promise's body, use `argumentsInCode()`");
+  }
+
+  public Collection<Argument> argumentsInCode() {
     return code.bbs().stream()
         .flatMap(bb -> bb.instructions().stream())
         .flatMap(i -> i.arguments().stream())

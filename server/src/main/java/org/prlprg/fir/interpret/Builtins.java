@@ -66,6 +66,8 @@ public final class Builtins {
     registerMathBuiltin(interpreter, "sqrt", Math::sqrt);
     registerMathBuiltin(interpreter, "floor", Math::floor);
     interpreter.registerExternalFunction("sum", Builtins::sum);
+    interpreter.registerExternalFunction(
+        "as.logical", ExternalFunction.strict(Builtins::asLogical));
     interpreter.registerExternalFunction("is.object", ExternalFunction.strict(Builtins::isObject));
 
     // Intrinsics
@@ -654,6 +656,40 @@ public final class Builtins {
 
     // Simply return the vector as-is after validation
     return vector;
+  }
+
+  private static SEXP asLogical(
+      Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw new IllegalArgumentException("`as.logical` takes 1 argument");
+    }
+
+    var arg = args.value(0);
+
+    if (arg.asScalarInteger().isPresent()) {
+      int intValue = arg.asScalarInteger().get();
+      if (intValue == 0) {
+        return SEXPs.logical(Logical.FALSE);
+      } else if (intValue == NA_INT) {
+        return SEXPs.logical(Logical.NA);
+      } else {
+        return SEXPs.logical(Logical.TRUE);
+      }
+    } else if (arg.asScalarReal().isPresent()) {
+      double realValue = arg.asScalarReal().get();
+      if (realValue == 0.0) {
+        return SEXPs.logical(Logical.FALSE);
+      } else if (Double.isNaN(realValue)) {
+        return SEXPs.logical(Logical.NA);
+      } else {
+        return SEXPs.logical(Logical.TRUE);
+      }
+    } else if (arg.asScalarLogical().isPresent()) {
+      return SEXPs.logical(arg.asScalarLogical().get());
+    } else {
+      throw new UnsupportedOperationException(
+          "Mock `as.logical` not implemented for arguments except scalar integers, reals, and logicals");
+    }
   }
 
   private static SEXP isObject(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
