@@ -1,8 +1,8 @@
-/// FIŘ analyses to infer type, effect, and provenance.
+/// FIŘ analyses for control-flow-graph structure.
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.fir.analyze.type;
+package org.prlprg.fir.analyze.cfg;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;

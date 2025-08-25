@@ -13,36 +13,36 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 
 public abstract class Checker {
-  /// Check types, effects, flow, and CFG invariants in the module. If there are any errors,
-  /// [prints them to `stderr`][Checker#print] and returns `false`.
+  /// Check types, effects, provenance, and CFG invariants in the module. If there are any
+  /// errors, [prints them to `stderr`][Checker#print] and returns `false`.
   @CheckReturnValue
   public static boolean checkAll(Module module) {
     return checkAll(module, true);
   }
 
-  /// Check types, effects, optionally flow, and CFG invariants in the module. If there are any
-  /// errors, [prints them to `stderr`][Checker#print] and returns `false`.
+  /// Check types, effects, optionally provenance, and CFG invariants in the module. If there
+  /// are any errors, [prints them to `stderr`][Checker#print] and returns `false`.
   @CheckReturnValue
-  public static boolean checkAll(Module module, boolean includeFlow) {
+  public static boolean checkAll(Module module, boolean includeProvenance) {
     var cfgChecker = new CFGChecker();
     var typeAndEffectChecker = new TypeAndEffectChecker();
-    var flowChecker = includeFlow ? new FlowChecker() : null;
+    var provenanceChecker = includeProvenance ? new ProvenanceChecker() : null;
 
     cfgChecker.run(module);
     typeAndEffectChecker.run(module);
-    if (flowChecker != null) {
-      flowChecker.run(module);
+    if (provenanceChecker != null) {
+      provenanceChecker.run(module);
     }
 
     cfgChecker.print();
     typeAndEffectChecker.print();
-    if (flowChecker != null) {
-      flowChecker.print();
+    if (provenanceChecker != null) {
+      provenanceChecker.print();
     }
 
     return !cfgChecker.hasErrors()
         && !typeAndEffectChecker.hasErrors()
-        && (flowChecker == null || !flowChecker.hasErrors());
+        && (provenanceChecker == null || !provenanceChecker.hasErrors());
   }
 
   private @Nullable Function function = null;

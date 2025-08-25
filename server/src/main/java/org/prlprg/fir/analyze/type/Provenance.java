@@ -6,8 +6,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
-import org.prlprg.fir.analyze.AbstractInterpretation;
-import org.prlprg.fir.analyze.type.Flow.ActionSet;
+import org.prlprg.fir.analyze.Analysis;
+import org.prlprg.fir.analyze.AnalysisConstructor;
+import org.prlprg.fir.analyze.generic.AbstractInterpretation;
+import org.prlprg.fir.analyze.type.Provenance.ActionSet;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -25,16 +27,24 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Lists;
 
-/// Compute the enforced liveness of registers within a [CFG].
+/// Compute which registers are read, written, `use`d, or captured at any point in a [CFG].
+///
+/// Effectively a general liveness analysis with extra information to enforce provenance
+/// invariants (registers that are `use`d can't be read afterward or captured anywhere).
 ///
 /// Unlike [InferType] and [InferEffects], this analysis isn't on-demand: constructing runs the
-/// full analysis, then [Flow#at(BB, int)] and [Flow#returnState()] queries the results.
-public final class Flow extends AbstractInterpretation<ActionSet> {
+/// full analysis, then [Provenance#at(BB, int)] and [Provenance#returnState()] queries the results.
+public final class Provenance extends AbstractInterpretation<ActionSet> implements Analysis {
   private final HashSet<List<Object>> reported = new HashSet<>();
   private final @Nullable Reporter reporter;
 
+  @AnalysisConstructor
+  public Provenance(Abstraction scope) {
+    this(scope, null);
+  }
+
   /// Creates and runs the analysis, reporting issues to `reporter`.
-  public Flow(Abstraction scope, @Nullable Reporter reporter) {
+  public Provenance(Abstraction scope, @Nullable Reporter reporter) {
     super(scope);
     this.reporter = reporter;
 

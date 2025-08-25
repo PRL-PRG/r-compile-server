@@ -46,7 +46,7 @@ public class InterpretUtil {
             .filter(line -> line.startsWith("# runtime-return: "))
             .map(line -> line.substring("# runtime-return: ".length()))
             .collect(
-                Streams.intoOneOrThrow(
+                Streams.zeroOneOrThrow(
                     () -> new AssertionError("Multiple runtime-return annotations (not allowed)")))
             .map(ParseUtil::parseSexp)
             .orElse(null);
@@ -57,7 +57,7 @@ public class InterpretUtil {
             .filter(line -> line.startsWith("# runtime-error: "))
             .map(line -> line.substring("# runtime-error: ".length()))
             .collect(
-                Streams.intoOneOrThrow(
+                Streams.zeroOneOrThrow(
                     () -> new AssertionError("Multiple runtime-error annotations not allowed")))
             .orElse(null);
 

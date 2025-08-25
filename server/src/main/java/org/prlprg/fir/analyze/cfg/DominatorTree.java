@@ -1,4 +1,4 @@
-package org.prlprg.fir.analyze;
+package org.prlprg.fir.analyze.cfg;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -7,17 +7,20 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.prlprg.fir.analyze.AnalysisConstructor;
+import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 
 /// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
 /// dominator of its children.
-public final class DominatorTree {
+public final class DominatorTree implements CfgAnalysis {
   private final CFG cfg;
   private final Map<BB, BB> immediateDominators;
   private final Map<BB, Set<BB>> immediateDominees;
   private final Map<BB, Set<BB>> dominators;
 
+  @AnalysisConstructor
   public DominatorTree(CFG cfg) {
     this.cfg = cfg;
     this.immediateDominators = new HashMap<>();

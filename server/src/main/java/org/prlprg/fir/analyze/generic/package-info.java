@@ -1,8 +1,8 @@
-/// FIŘ analyses to infer type, effect, and provenance.
+/// Common functionality shared between analyses, e.g. abstract classes.
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault
-package org.prlprg.fir.analyze.type;
+package org.prlprg.fir.analyze.generic;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.prlprg.util.FieldsAreNonNullByDefault;
