@@ -3,6 +3,7 @@ package org.prlprg.util;
 import static org.prlprg.util.Math2.permuteIndex;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -10,6 +11,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
@@ -27,6 +30,26 @@ public class Streams {
   public static <A, B, R> Stream<R> zip(
       Stream<A> streamA, Stream<B> streamB, BiFunction<? super A, ? super B, R> function) {
     return com.google.common.collect.Streams.zip(streamA, streamB, function);
+  }
+
+
+  /// [ImmutableMap#toImmutableMap(Function.identity(), Function)][
+  /// ImmutableMap#toImmutableMap(Function, Function)].
+  public static <I, V> Collector<I, ?, ImmutableMap<I, V>> toImmutableMap(
+      Function<I, V> valueFunction) {
+    return ImmutableMap.toImmutableMap(k -> k, valueFunction);
+  }
+
+  /// [ImmutableMap#toImmutableMap(Function, Function)] but without nullable annotations.
+  public static <I, K, V> Collector<I, ?, ImmutableMap<K, V>> toImmutableMap(
+      Function<I, K> keyFunction, Function<I, V> valueFunction) {
+    return ImmutableMap.toImmutableMap(keyFunction, valueFunction);
+  }
+
+  /// [ImmutableMap#toImmutableMap(Function, Function, BinaryOperator)] but without nullable annotations.
+  public static <I, K, V> Collector<I, ?, ImmutableMap<K, V>> toImmutableMap(
+      Function<I, K> keyFunction, Function<I, V> valueFunction, BinaryOperator<V> mergeFunction) {
+    return ImmutableMap.toImmutableMap(keyFunction, valueFunction, mergeFunction);
   }
 
   /// A gatherer that collects the cartesian product of the input streams into lists, returning
@@ -61,6 +84,12 @@ public class Streams {
             downstream.push(next);
           }
         });
+  }
+
+  public static <I, O> Gatherer<I, ?, O> mapWithIndex(BiFunction<I, Integer, O> mapper) {
+    final int[] index = {0};
+    return Gatherer.ofSequential((_, element, downstream) ->
+        downstream.push(mapper.apply(element, index[0]++)));
   }
 
   public interface Worklist<T> {
@@ -109,51 +138,78 @@ public class Streams {
   }
 
   /**
-   * Returns the only element of the stream, or {@link Optional#empty()} if the stream is empty or
-   * has multiple elements.
+   * Returns the only element of the stream or {@link Optional#empty()} if the stream is empty.
+   * Throws if the stream has multiple elements.
    */
-  public static <T> Collector<T, MutableOptional<T>, Optional<T>> intoOneOrEmpty() {
-    return Collector.of(
-        MutableOptional::empty,
-        (acc, elem) -> {
-          if (acc.isPresent()) {
-            acc.clear();
-          } else {
-            acc.set(elem);
-          }
-        },
-        (acc1, acc2) ->
-            acc1.isPresent() && acc2.isPresent()
-                ? MutableOptional.empty()
-                : acc1.isPresent() ? acc1 : acc2,
-        MutableOptional::toOptional,
-        Characteristics.CONCURRENT);
+  public static <T, E extends Throwable> Collector<T, ?, Optional<T>> zeroOneOrThrow(
+      Supplier<E> exception) throws E {
+    class WrappedException extends RuntimeException {
+      final E inner;
+
+      public WrappedException(E inner) {
+        this.inner = inner;
+      }
+    }
+
+    try {
+      return Collector.of(
+          MutableOptional::<T>empty,
+          (acc, elem) -> {
+            if (acc.isPresent()) {
+              throw new WrappedException(exception.get());
+            } else {
+              acc.set(elem);
+            }
+          },
+          (acc1, acc2) -> {
+            if (acc1.isPresent() && acc2.isPresent()) {
+              throw new WrappedException(exception.get());
+            } else {
+              return acc1.isPresent() ? acc1 : acc2;
+            }
+          },
+          MutableOptional::toOptional,
+          Characteristics.CONCURRENT);
+    } catch (WrappedException e) {
+      throw e.inner;
+    }
   }
 
   /**
-   * Returns the only element of the stream, {@link Optional#empty()} if the stream is empty, or
-   * throws {@link IllegalArgumentException} if the stream has multiple elements.
+   * Returns the only element of the stream. Throws if the stream has zero or multiple elements.
    */
-  public static <T> Collector<T, MutableOptional<T>, Optional<T>> intoOneOrThrow(
-      Supplier<Error> exception) {
-    return Collector.of(
-        MutableOptional::empty,
-        (acc, elem) -> {
-          if (acc.isPresent()) {
-            throw exception.get();
-          } else {
-            acc.set(elem);
-          }
-        },
-        (acc1, acc2) -> {
-          if (acc1.isPresent() && acc2.isPresent()) {
-            throw exception.get();
-          } else {
-            return acc1.isPresent() ? acc1 : acc2;
-          }
-        },
-        MutableOptional::toOptional,
-        Characteristics.CONCURRENT);
+  public static <T, E extends Throwable> Collector<T, ?, T> oneOrThrow(
+      Supplier<E> exception) throws E {
+    class WrappedException extends RuntimeException {
+      final E inner;
+
+      public WrappedException(E inner) {
+        this.inner = inner;
+      }
+    }
+
+    try {
+      return Collector.of(
+          MutableOptional::<T>empty,
+          (acc, elem) -> {
+            if (acc.isPresent()) {
+              throw new WrappedException(exception.get());
+            } else {
+              acc.set(elem);
+            }
+          },
+          (acc1, acc2) -> {
+            if (acc1.isPresent() && acc2.isPresent()) {
+              throw new WrappedException(exception.get());
+            } else {
+              return acc1.isPresent() ? acc1 : acc2;
+            }
+          },
+          mo -> mo.toOptional().orElseThrow(() -> new WrappedException(exception.get())),
+          Characteristics.CONCURRENT);
+    } catch (WrappedException e) {
+      throw e.inner;
+    }
   }
 
   private Streams() {}

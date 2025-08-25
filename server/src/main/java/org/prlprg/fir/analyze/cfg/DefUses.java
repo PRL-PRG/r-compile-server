@@ -1,4 +1,4 @@
-package org.prlprg.fir.analyze;
+package org.prlprg.fir.analyze.cfg;
 
 import com.google.common.collect.Sets;
 import java.util.Collections;
@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.Stack;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.analyze.Analysis;
+import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -21,11 +23,12 @@ import org.prlprg.fir.ir.variable.Register;
 
 /// Tracks where each register is assigned (i.e. [Statement#variable()])
 /// and every other occurrence.
-public final class DefUses {
+public final class DefUses implements Analysis {
   private final Map<Register, Set<ScopePosition>> definitions = new HashMap<>();
   private final Map<Register, Set<ScopePosition>> uses = new HashMap<>();
   private final Stack<CfgPosition> outerPromises = new Stack<>();
 
+  @AnalysisConstructor
   public DefUses(Abstraction scope) {
     analyze(scope.cfg());
   }

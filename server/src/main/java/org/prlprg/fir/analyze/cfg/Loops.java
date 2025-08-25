@@ -1,4 +1,4 @@
-package org.prlprg.fir.analyze;
+package org.prlprg.fir.analyze.cfg;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -6,19 +6,22 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
+import org.prlprg.fir.analyze.AnalysisConstructor;
+import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 
 /// Tracks loops in the control-flow graph.
-public final class Loops {
+public final class Loops implements CfgAnalysis {
   private final CFG cfg;
   private final DominatorTree dominatorTree;
   private final Set<Loop> loops;
   private final Map<BB, Set<Loop>> blockToLoops;
 
-  public Loops(CFG cfg) {
+  @AnalysisConstructor
+  public Loops(CFG cfg, DominatorTree dominatorTree) {
     this.cfg = cfg;
-    this.dominatorTree = new DominatorTree(cfg);
+    this.dominatorTree = dominatorTree;
     this.loops = new LinkedHashSet<>();
     this.blockToLoops = new HashMap<>();
     findLoops();

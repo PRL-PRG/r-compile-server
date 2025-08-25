@@ -15,7 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.util.DirectorySource;
 
 /// Tests checking FIŘ files' types, effects, and flow.
-class TypeEffectFlowCheckTest {
+class TypeEffectProvenanceCheckTest {
   /// Tests that all FIŘ files in the test resources directory, when type checked, raise expected
   /// type errors and no other errors.
   @ParameterizedTest
@@ -25,12 +25,12 @@ class TypeEffectFlowCheckTest {
     var firModule = parseModule(firText);
 
     var typeAndEffectChecker = new TypeAndEffectChecker();
-    var flowChecker = new FlowChecker();
+    var provenanceChecker = new ProvenanceChecker();
     typeAndEffectChecker.run(firModule);
-    flowChecker.run(firModule);
+    provenanceChecker.run(firModule);
 
     var unseenErrorMessages =
-        Stream.concat(typeAndEffectChecker.errors().stream(), flowChecker.errors().stream())
+        Stream.concat(typeAndEffectChecker.errors().stream(), provenanceChecker.errors().stream())
             .map(CheckException::mainMessage)
             .collect(Collectors.toCollection(HashSet::new));
     var unseenExpectedErrors =

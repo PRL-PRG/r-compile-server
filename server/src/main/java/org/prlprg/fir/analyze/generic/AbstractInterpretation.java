@@ -1,4 +1,4 @@
-package org.prlprg.fir.analyze;
+package org.prlprg.fir.analyze.generic;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,14 +25,14 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
   private boolean ran = false;
   private final Map<CFG, OnCfg> analyses = new HashMap<>();
 
-  /// Creates the analysis, but doesn't run. To do so, either call or expose [#run()].
+  /// Creates the analysis, but doesn't run. To do so, call [#run(State)].
   protected AbstractInterpretation(Abstraction scope) {
     this.scope = scope;
   }
 
   /// Queries the analysis state at a specific instruction.
   ///
-  /// @throws IllegalStateException If the analysis wasn't run (some analyses are run on
+  /// @throws IllegalStateException If the analysis wasn't run (most analyses are run on
   /// construction, check their constructor's javadoc).
   /// @throws IllegalArgumentException If [BB] isn't in the scope.
   public final S at(BB bb, int instructionIndex) {
@@ -52,7 +52,7 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
   ///
   /// Returns `null` iff there are no returns.
   ///
-  /// @throws IllegalStateException If the analysis wasn't run (some analyses are run on
+  /// @throws IllegalStateException If the analysis wasn't run (most analyses are run on
   /// construction, check their constructor's javadoc).
   public final @Nullable S returnState() {
     if (!ran) {

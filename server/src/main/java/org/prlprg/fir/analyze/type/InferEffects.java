@@ -1,5 +1,7 @@
 package org.prlprg.fir.analyze.type;
 
+import org.prlprg.fir.analyze.Analysis;
+import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -37,9 +39,10 @@ import org.prlprg.fir.ir.type.Kind;
 /// This analysis is **on-demand**: it only infers when called the type of the argument, and
 /// remains accurate if the code changes (except previous return values are invalidated when
 /// their argument changes).
-public final class InferEffects {
+public final class InferEffects implements Analysis {
   private final InferType inferType;
 
+  @AnalysisConstructor
   public InferEffects(Abstraction scope) {
     inferType = new InferType(scope);
   }

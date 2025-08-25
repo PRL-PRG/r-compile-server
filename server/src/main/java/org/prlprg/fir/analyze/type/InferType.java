@@ -1,6 +1,8 @@
 package org.prlprg.fir.analyze.type;
 
 import javax.annotation.Nullable;
+import org.prlprg.fir.analyze.Analysis;
+import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.callee.DispatchCallee;
@@ -45,9 +47,10 @@ import org.prlprg.fir.ir.variable.Register;
 /// This analysis is **on-demand**: it only infers when called the type of the argument, and
 /// remains accurate if the code changes (except previous return values are invalidated when
 /// their argument changes).
-public final class InferType {
+public final class InferType implements Analysis {
   private final Abstraction scope;
 
+  @AnalysisConstructor
   public InferType(Abstraction scope) {
     this.scope = scope;
   }

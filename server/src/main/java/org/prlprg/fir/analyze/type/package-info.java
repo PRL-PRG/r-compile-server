@@ -1,4 +1,4 @@
-/// FIŘ type, effect, and flow analysis used by [org.prlprg.fir.check] and [org.prlprg.fir.opt].
+/// FIŘ analyses to infer type, effect, and provenance.
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

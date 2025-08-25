@@ -5,8 +5,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.prlprg.fir.analyze.DefUses;
-import org.prlprg.fir.analyze.DominatorTree;
+import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.If;
@@ -45,8 +45,7 @@ public class CFGChecker extends Checker {
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
       defUses = new DefUses(scope);
-      dominatorTrees =
-          scope.streamCfgs().collect(Collectors.toMap(Function.identity(), DominatorTree::new));
+      dominatorTrees = scope.streamCfgs().collect(Collectors.toMap(c -> c, DominatorTree::new));
     }
 
     void run() {

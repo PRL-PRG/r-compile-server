@@ -72,7 +72,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   private static ImmutableMap<String, Parameter> computeNameToParam(List<Parameter> params) {
     return params.stream()
         .collect(
-            ImmutableMap.toImmutableMap(
+            Streams.toImmutableMap(
                 p -> p.variable().name(),
                 p -> p,
                 (p1, p2) -> {
