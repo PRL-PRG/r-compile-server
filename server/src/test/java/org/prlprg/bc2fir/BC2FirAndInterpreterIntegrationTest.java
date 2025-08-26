@@ -31,7 +31,7 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// - When interpreted by GNU-R.
   /// - When bytecode-compiled, converted into FIŘ, and interpreted by [Interpreter].
   @ParameterizedTest
-  @DirectorySource(root = ".", glob = "*.R", depth = 2)
+  @DirectorySource(glob = "*.R", depth = 2)
   void testCompilerAndInterpreter(Path rFilePath) throws IOException {
     Module firModule = null;
 

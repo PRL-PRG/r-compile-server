@@ -81,6 +81,10 @@ public class Specialize implements Optimization {
         var next = changes.removeFirst();
         run(next, changes);
       }
+
+      for (var subOptimization : subOptimizations) {
+        subOptimization.finish(scope, analyses);
+      }
     }
 
     void run(CfgPosition position, TreeSet<CfgPosition> changes) {
@@ -97,17 +101,22 @@ public class Specialize implements Optimization {
         expr = subOptimization.run(expr, scope, analyses);
       }
 
-      // If actually specialized...
-      if (expr != oldStmt.expression()) {
-        // ...replace statement...
+      // If actually specialized, replace statement
+      if (!expr.equals(oldStmt.expression())) {
         var newStmt = new Statement(assignee, expr);
         bb.replaceStatementAt(statementIndex, newStmt);
+      }
 
-        // ...and if the type changed, enqueue uses to be further specialized.
-        var oldType = analyses.get(InferType.class).of(oldStmt.expression());
-        var newType = analyses.get(InferType.class).of(expr);
-        if (assignee != null && newType != null) {
-          specializeType(assignee, oldType, newType, changes);
+      // If the type changed (even if the expression didn't),
+      // change the register's explicit type and enqueue uses to be further specialized.
+      if (assignee != null) {
+        var oldType = scope.typeOf(assignee);
+        if (oldType != null) {
+          var newType = analyses.get(InferType.class).of(expr);
+          if (newType != null) {
+            newType = newType.withOwnership(oldType.ownership());
+            specializeType(assignee, oldType, newType, changes);
+          }
         }
       }
     }

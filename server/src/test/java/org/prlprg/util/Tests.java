@@ -22,6 +22,15 @@ public interface Tests {
     LogManager.getLogManager().readConfiguration(config);
   }
 
+  /** Returns the test's simple name minus {@code Test.java} */
+  static String testName(Class<?> testClass) {
+    var className = testClass.getSimpleName();
+    if (!className.endsWith("Test")) {
+      throw new IllegalArgumentException("Test class name must end with 'Test': " + className);
+    }
+    return className.substring(0, className.length() - "Test".length());
+  }
+
   // region resources
   // region resource paths
 

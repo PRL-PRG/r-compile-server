@@ -40,9 +40,12 @@ public @interface DirectorySource {
 
   /**
    * Directory to list files from, defaults to corresponding resources directory of the test
-   * directory. Paths will be relative to this default unless they start with {@code /}
+   * directory. Paths will be relative to this default unless they start with {@code /}.
    */
   String root() default "";
+
+  /** If `true`, append the class's name, minus {@code Test.java}, to the path. */
+  boolean appendClassName() default false;
 
   /** Paths to exclude. */
   String[] exclude() default {};
@@ -62,6 +65,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
   private boolean relativize;
   private int depth;
   private Path root = Paths.get("");
+  private boolean appendClassName;
   private ImmutableSet<String> exclude = ImmutableSet.of();
   int fastLimit;
 
@@ -72,6 +76,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
     includeDirs = directorySource.includeDirs();
     relativize = directorySource.relativize();
     root = Paths.get(directorySource.root());
+    appendClassName = directorySource.appendClassName();
     depth = directorySource.depth();
     exclude = ImmutableSet.copyOf(directorySource.exclude());
     fastLimit = directorySource.fastLimit();
@@ -81,6 +86,10 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
   public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
     assert accepted;
     var path = Tests.getResourcePath(context.getRequiredTestClass(), root);
+    if (appendClassName) {
+      path = path.resolve(Tests.testName(context.getRequiredTestClass()));
+    }
+
     var cases =
         Files.listDir(path, glob, depth, includeDirs, relativize).stream()
             .filter(p -> !exclude.contains(p.toString()))
@@ -88,6 +97,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
     if (FAST_TESTS && fastLimit < Integer.MAX_VALUE) {
       cases = cases.limit(fastLimit);
     }
+
     return cases;
   }
 }
