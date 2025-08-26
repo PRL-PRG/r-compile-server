@@ -13,10 +13,10 @@ public interface SpecializeOptimization {
 
   /// If `false`, skips running the optimization on the abstraction.
   @SuppressWarnings("unused")
-  default boolean shouldRun(Abstraction scupe, Analyses analyses) {
+  default boolean shouldRun(Abstraction scope, Analyses analyses) {
     return true;
   }
 
   /// If unchanged, return `expression`.
-  Expression run(Expression expression, Abstraction scupe, Analyses analyses);
+  Expression run(Expression expression, Abstraction scope, Analyses analyses);
 }

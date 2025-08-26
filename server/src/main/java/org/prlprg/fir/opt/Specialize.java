@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
+import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.cfg.DefUses;
@@ -103,27 +104,27 @@ public class Specialize implements Optimization {
         bb.replaceStatementAt(statementIndex, newStmt);
 
         // ...and if the type changed, enqueue uses to be further specialized.
-        var oldType = assignee == null ? null : scope.typeOf(assignee);
+        var oldType = analyses.get(InferType.class).of(oldStmt.expression());
         var newType = analyses.get(InferType.class).of(expr);
-        if (oldType != null && newType != null) {
-          specializeType(assignee, newType.withOwnership(oldType.ownership()), changes);
+        if (assignee != null && newType != null) {
+          specializeType(assignee, oldType, newType, changes);
         }
       }
     }
 
-    void specializeType(Register assignee, Type newType, TreeSet<CfgPosition> changes) {
-      var oldType = scope.typeOf(assignee);
-      if (oldType == null || oldType.equals(newType)) {
+    void specializeType(
+        Register assignee, @Nullable Type oldType, Type newType, TreeSet<CfgPosition> changes) {
+      if (oldType != null && oldType.equals(newType)) {
         // No specialization occurred.
         return;
       }
 
-      if (!newType.isSubtypeOf(oldType)) {
+      if (oldType != null && !newType.isSubtypeOf(oldType)) {
         throw new IllegalStateException(
             "A specialized expression's type must always subtype the original's:"
-                + "\nOriginal type (when assigned): "
+                + "\nOriginal type: "
                 + oldType
-                + "\nCurrent type (when assigned): "
+                + "\nCurrent type: "
                 + newType
                 + "\n"
                 + analyses.get(DefUses.class).definitions(assignee).stream()
@@ -153,6 +154,7 @@ public class Specialize implements Optimization {
 
                 // Recompute the phi's best type (union of its arguments' types), then specialize.
                 // This always reaches a fixpoint because phi types only get more specific.
+                var oldPhiType = scope.typeOf(phi);
                 int i1 = i;
                 successor.predecessors().stream()
                     .map(
@@ -172,7 +174,7 @@ public class Specialize implements Optimization {
                     .map(t -> t.phiArgs().get(i1))
                     .map(scope::typeOf)
                     .reduce(Type::union)
-                    .ifPresent(newPhiType -> specializeType(phi, newPhiType, changes));
+                    .ifPresent(newPhiType -> specializeType(phi, oldPhiType, newPhiType, changes));
               }
             }
           }
