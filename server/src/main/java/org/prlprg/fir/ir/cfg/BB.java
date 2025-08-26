@@ -27,8 +27,10 @@ import org.prlprg.util.Lists;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 
-public final class BB {
-  static final String ENTRY_LABEL = "ENTRY";
+public final class BB implements Comparable<BB> {
+  /// Blocks can't jump to the entry, and it must be ordered first, so it starts with `$` to make
+  /// it unparseable and ordered before anything parsable.
+  static final String ENTRY_LABEL = "$ENTRY";
   static final String DEFAULT_LABEL_PREFIX = "L";
 
   // Backlink
@@ -45,8 +47,9 @@ public final class BB {
       new SmallBinarySet<>(4, Comparator.comparing(bb -> bb.label));
 
   BB(CFG owner, String label) {
-    if (!Strings.isIdentifierOrKeyword(label)) {
-      throw new IllegalArgumentException("BB labels must be valid identifiers: " + label);
+    if (!label.equals(ENTRY_LABEL) && !Strings.isIdentifierOrKeyword(label)) {
+      throw new IllegalArgumentException(
+          "BB labels (except entry) must be valid identifiers: " + label);
     }
 
     this.owner = owner;
@@ -275,6 +278,16 @@ public final class BB {
                 assert added : "BB " + label + " was already an exit of the CFG.";
               }
             });
+  }
+
+  /// Basic blocks are ordered by [CFG], then label.
+  @Override
+  public int compareTo(BB o) {
+    int cfgCmp = Integer.compare(owner.hashCode(), o.owner.hashCode());
+    if (cfgCmp != 0) {
+      return cfgCmp;
+    }
+    return label.compareTo(o.label);
   }
 
   @Override

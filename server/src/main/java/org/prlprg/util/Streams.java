@@ -32,7 +32,6 @@ public class Streams {
     return com.google.common.collect.Streams.zip(streamA, streamB, function);
   }
 
-
   /// [ImmutableMap#toImmutableMap(Function.identity(), Function)][
   /// ImmutableMap#toImmutableMap(Function, Function)].
   public static <I, V> Collector<I, ?, ImmutableMap<I, V>> toImmutableMap(
@@ -46,7 +45,8 @@ public class Streams {
     return ImmutableMap.toImmutableMap(keyFunction, valueFunction);
   }
 
-  /// [ImmutableMap#toImmutableMap(Function, Function, BinaryOperator)] but without nullable annotations.
+  /// [ImmutableMap#toImmutableMap(Function, Function, BinaryOperator)] but without nullable
+  // annotations.
   public static <I, K, V> Collector<I, ?, ImmutableMap<K, V>> toImmutableMap(
       Function<I, K> keyFunction, Function<I, V> valueFunction, BinaryOperator<V> mergeFunction) {
     return ImmutableMap.toImmutableMap(keyFunction, valueFunction, mergeFunction);
@@ -88,8 +88,8 @@ public class Streams {
 
   public static <I, O> Gatherer<I, ?, O> mapWithIndex(BiFunction<I, Integer, O> mapper) {
     final int[] index = {0};
-    return Gatherer.ofSequential((_, element, downstream) ->
-        downstream.push(mapper.apply(element, index[0]++)));
+    return Gatherer.ofSequential(
+        (_, element, downstream) -> downstream.push(mapper.apply(element, index[0]++)));
   }
 
   public interface Worklist<T> {
@@ -175,11 +175,9 @@ public class Streams {
     }
   }
 
-  /**
-   * Returns the only element of the stream. Throws if the stream has zero or multiple elements.
-   */
-  public static <T, E extends Throwable> Collector<T, ?, T> oneOrThrow(
-      Supplier<E> exception) throws E {
+  /** Returns the only element of the stream. Throws if the stream has zero or multiple elements. */
+  public static <T, E extends Throwable> Collector<T, ?, T> oneOrThrow(Supplier<E> exception)
+      throws E {
     class WrappedException extends RuntimeException {
       final E inner;
 

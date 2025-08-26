@@ -17,6 +17,10 @@ public final class Target {
   private final ImmutableList<Argument> phiArgs;
 
   public Target(BB bb, ImmutableList<Argument> phiArgs) {
+    if (bb.isEntry()) {
+      throw new IllegalArgumentException("Jump can't target entry block");
+    }
+
     this.bb = bb;
     this.phiArgs = phiArgs;
   }

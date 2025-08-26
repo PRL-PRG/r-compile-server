@@ -2,11 +2,12 @@ package org.prlprg.fir.ir.cfg;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -24,11 +25,11 @@ public final class CFG {
   private final Abstraction scope;
 
   // Data
-  private final Map<String, BB> bbs = new LinkedHashMap<>();
+  private final Map<String, BB> bbs = new TreeMap<>();
 
   // Cache
   private final BB entry;
-  final Set<BB> exits = new LinkedHashSet<>();
+  final Set<BB> exits = new TreeSet<>(Comparator.comparing(BB::label));
   private int nextLabelDisambiguator = 0;
 
   public CFG(Abstraction scope) {
@@ -102,6 +103,9 @@ public final class CFG {
             "CFG#removeBB(BB)",
             List.of(this, bb),
             () -> {
+              if (bb.isEntry()) {
+                throw new IllegalArgumentException("Cannot remove the entry block.");
+              }
               if (!bbs.remove(bb.label(), bb)) {
                 throw new IllegalArgumentException("Basic block '" + bb + "' does not exist.");
               }

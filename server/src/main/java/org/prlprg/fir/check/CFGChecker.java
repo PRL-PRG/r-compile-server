@@ -3,7 +3,6 @@ package org.prlprg.fir.check;
 import com.google.common.collect.Iterables;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
