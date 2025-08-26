@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 
 import com.google.common.collect.ImmutableList;
+import java.util.List;
 import org.prlprg.fir.feedback.Feedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
@@ -16,6 +17,8 @@ import org.prlprg.util.Streams;
 
 /// Compile a new version with feedback from parameters on an existing version.
 ///
+/// This is an optimization, but doesn't implement [Optimization] because it runs on functions.
+///
 /// TODO: Somewhere we should store removed specializations which were deoptimized.
 /// Also remove ones with more specific assumptions which turn out to not be optimizations over
 /// other verisons, and try to merge ones that are equal by compiling with the intersected
@@ -27,7 +30,14 @@ public record SpeculateDispatch(
     int versionLimit)
     implements Optimization {
   @Override
-  public void run(Function function, Abstraction version) {
+  public void run(Function function) {
+    // Copy `version` because we may modify it.
+    for (var version : List.copyOf(function.versions())) {
+      run(function, version);
+    }
+  }
+
+  private void run(Function function, Abstraction version) {
     // If the function has too many versions, don't add any more.
     var newVersionLimit = versionLimit - function.versions().size();
     if (newVersionLimit <= 0) {
@@ -80,10 +90,5 @@ public record SpeculateDispatch(
           copy.addLocals(version.locals());
           copyFrom(copy.cfg(), version.cfg());
         });
-  }
-
-  @Override
-  public boolean mayAddOrRemoveVersions() {
-    return true;
   }
 }
