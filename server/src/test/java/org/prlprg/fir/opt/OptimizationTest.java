@@ -11,7 +11,7 @@ import org.prlprg.fir.interpret.InterpretUtil.TestInterpretCtx;
 import org.prlprg.util.DirectorySource;
 import org.prlprg.util.Files;
 
-abstract class OptimizationTest {
+public abstract class OptimizationTest {
   /// Replace lines below `# commentType: ...` with `...` in `firText`.
   public static String replaceAfterComments(String commentType, String firText) {
     var commentRegex = Pattern.compile("^(\\s*)# " + Pattern.quote(commentType) + ": (.*)$");
