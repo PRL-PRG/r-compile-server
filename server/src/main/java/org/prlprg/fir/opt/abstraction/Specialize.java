@@ -1,4 +1,4 @@
-package org.prlprg.fir.opt;
+package org.prlprg.fir.opt.abstraction;
 
 import java.util.Arrays;
 import java.util.List;
@@ -13,7 +13,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
@@ -21,7 +20,7 @@ import org.prlprg.fir.opt.specialize.SpecializeOptimization;
 import org.prlprg.util.Streams;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
-public class Specialize implements Optimization {
+public class Specialize implements AbstractionOptimization {
   private final List<SpecializeOptimization> subOptimizations;
   private final AnalysisTypes analysisTypes;
 
@@ -34,26 +33,32 @@ public class Specialize implements Optimization {
   }
 
   @Override
-  public void run(Function function, Abstraction version) {
-    version
-        .streamScopes()
-        .forEach(
-            abstraction -> {
-              var analyses = new Analyses(abstraction, analysisTypes);
-              var subOptimizations =
-                  this.subOptimizations.stream()
-                      .filter(so -> so.shouldRun(abstraction, analyses))
-                      .toList();
-              if (subOptimizations.isEmpty()) {
-                return;
-              }
+  public boolean run(Abstraction abstraction) {
+    var analyses = new Analyses(abstraction, analysisTypes);
+    var subOptimizations =
+        this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();
+    if (subOptimizations.isEmpty()) {
+      return false;
+    }
 
-              new OnAbstraction(abstraction, analyses, subOptimizations).run();
-            });
+    var opt = new OnAbstraction(abstraction, analyses, subOptimizations);
+    opt.run();
+    return opt.changed;
   }
 
-  private record OnAbstraction(
-      Abstraction scope, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
+  private static class OnAbstraction {
+    final Abstraction scope;
+    final Analyses analyses;
+    final List<SpecializeOptimization> subOptimizations;
+    boolean changed = false;
+
+    public OnAbstraction(
+        Abstraction scope, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
+      this.scope = scope;
+      this.analyses = analyses;
+      this.subOptimizations = subOptimizations;
+    }
+
     void run() {
       var changes = new TreeSet<CfgPosition>();
 
@@ -105,6 +110,7 @@ public class Specialize implements Optimization {
       if (!expr.equals(oldStmt.expression())) {
         var newStmt = new Statement(assignee, expr);
         bb.replaceStatementAt(statementIndex, newStmt);
+        changed = true;
       }
 
       // If the type changed (even if the expression didn't),
@@ -142,6 +148,7 @@ public class Specialize implements Optimization {
       }
 
       scope.setLocalType(assignee, newType);
+      changed = true;
 
       for (var use : analyses.get(DefUses.class).uses(assignee)) {
         // The position in the innermost CFG is all we care about.

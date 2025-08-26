@@ -1,11 +1,13 @@
 package org.prlprg.fir.ir.module;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.SequencedCollection;
+import java.util.SequencedMap;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -31,10 +33,11 @@ public final class Function {
 
   // Data
   private final String name;
-  /// Versions are stored in a map so that removing a version doesn't decrement other versions'
-  /// indices, which would cause tricky bugs when said versions or later ones are referenced by
-  /// serialized calls.
-  private final BiMap<Abstraction, Integer> versions = HashBiMap.create();
+  /// Versions are stored so that removing a version doesn't decrement other versions' indices,
+  /// which would cause tricky bugs when said versions or later ones are referenced by serialized
+  /// calls.
+  private final SequencedMap<Integer, Abstraction> versions = new TreeMap<>();
+  private final Map<Abstraction, Integer> versionIndices = new HashMap<>();
   private int nextVersionIndex = 0;
   private Effects guaranteedEffects = Effects.ANY;
   private Type guaranteedReturnType = Type.ANY_VALUE;
@@ -62,8 +65,8 @@ public final class Function {
   }
 
   /// Use [#version(int)] to get the version at an index.
-  public @UnmodifiableView Collection<Abstraction> versions() {
-    return Collections.unmodifiableCollection(versions.keySet());
+  public @UnmodifiableView SequencedCollection<Abstraction> versions() {
+    return Collections.unmodifiableSequencedCollection(versions.sequencedValues());
   }
 
   /// Versions that are sorted so that "better" ones are before "worse" ones: a version is
@@ -77,13 +80,13 @@ public final class Function {
   ///
   /// When a version removed, it's index isn't reused, because that leads to tricky bugs when
   /// said version or later ones are referenced by index (e.g. in serialized code).
-  public @UnmodifiableView Collection<Integer> versionIndices() {
-    return Collections.unmodifiableCollection(versions.values());
+  public @UnmodifiableView SequencedCollection<Integer> versionIndices() {
+    return Collections.unmodifiableSequencedCollection(versions.sequencedKeySet());
   }
 
   /// @throws IllegalArgumentException If there's no version at the index.
   public Abstraction version(int index) {
-    var version = versions.inverse().get(index);
+    var version = versions.get(index);
     if (version == null) {
       throw new IllegalArgumentException("No version at index: " + index);
     }
@@ -91,12 +94,12 @@ public final class Function {
   }
 
   public boolean contains(Abstraction version) {
-    return versions.containsKey(version);
+    return versionIndices.containsKey(version);
   }
 
   /// @throws IllegalArgumentException If the version is not found.
   public int indexOf(Abstraction version) {
-    var index = versions.get(version);
+    var index = versionIndices.get(version);
     if (index == null) {
       throw new IllegalArgumentException("Version not found: " + version);
     }
@@ -136,7 +139,8 @@ public final class Function {
         List.of(this, params),
         () -> {
           var newVersion = new Abstraction(owner, params);
-          versions.put(newVersion, nextVersionIndex);
+          versions.put(nextVersionIndex, newVersion);
+          versionIndices.put(newVersion, nextVersionIndex);
           nextVersionIndex++;
           versionsSorted.add(newVersion);
           return newVersion;
@@ -148,10 +152,11 @@ public final class Function {
         "Function#removeVersion",
         List.of(this, version),
         () -> {
-          if (!versions.containsKey(version)) {
+          var index = versionIndices.remove(version);
+          if (index == null) {
             throw new IllegalArgumentException("Version not found: " + version);
           }
-          versions.remove(version);
+          versions.remove(index);
           versionsSorted.remove(version);
         });
   }
@@ -224,7 +229,7 @@ public final class Function {
             for (int i = 0; i < nextVersionIndex; i++) {
               w.write('\n');
 
-              var version = versions.inverse().get(i);
+              var version = versions.get(i);
               if (version == null) {
                 w.write("<removed>");
               } else {
@@ -268,7 +273,8 @@ public final class Function {
       }
 
       var version = p2.parse(Abstraction.class);
-      versions.put(version, nextVersionIndex);
+      versions.put(nextVersionIndex, version);
+      versionIndices.put(version, nextVersionIndex);
       versionsSorted.add(version);
     }
 

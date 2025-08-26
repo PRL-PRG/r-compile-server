@@ -1,4 +1,4 @@
-package org.prlprg.fir.opt;
+package org.prlprg.fir.opt.abstraction;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -18,7 +18,6 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
-import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
@@ -30,19 +29,22 @@ import org.prlprg.primitive.Logical;
 /// - Convert branches whose condition is always true or false, or where both targets are the
 ///   same, into gotos.
 /// - Merge blocks with a single successor ([Goto]).
-public record Cleanup() implements Optimization {
+public record Cleanup() implements AbstractionOptimization {
   public static void cleanup(Module module) {
     new Cleanup().run(module);
   }
 
   @Override
-  public void run(Function function, Abstraction version) {
-    version.streamScopes().forEach(abstraction -> new OnAbstraction(abstraction).run());
+  public boolean run(Abstraction abstraction) {
+    var opt = new OnAbstraction(abstraction);
+    opt.run();
+    return opt.changed;
   }
 
   private static class OnAbstraction {
     final Abstraction scope;
     final Substituter substituter;
+    boolean changed = false;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
@@ -93,6 +95,9 @@ public record Cleanup() implements Optimization {
       for (var localReg : toRemove) {
         scope.removeLocal(localReg);
       }
+      if (!toRemove.isEmpty()) {
+        changed = true;
+      }
     }
 
     private class OnCfg {
@@ -103,15 +108,16 @@ public record Cleanup() implements Optimization {
       }
 
       void run() {
-        var changed = true;
-        while (changed) {
-          // Use `|` so all passes are applied.
-          changed =
+        var locallyChanged = true;
+        do {
+          // Use `|` so later passes are applied even if earlier ones make progress.
+          locallyChanged =
               removeUnreachableBlocks()
                   | simplifyBranches()
                   | mergeBlocks()
                   | removeSinglePredecessorPhis();
-        }
+          changed |= locallyChanged;
+        } while (locallyChanged);
       }
 
       boolean removeUnreachableBlocks() {

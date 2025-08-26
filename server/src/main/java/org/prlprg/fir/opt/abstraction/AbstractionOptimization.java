@@ -1,0 +1,18 @@
+package org.prlprg.fir.opt.abstraction;
+
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.opt.Optimization;
+
+/// An optimization that runs on an [Abstraction].
+public interface AbstractionOptimization extends Optimization {
+  @Override
+  default void run(Function function) {
+    for (var version : function.versions()) {
+      version.streamScopes().forEach(this::run);
+    }
+  }
+
+  /// Returns `true` if it made progress.
+  boolean run(Abstraction abstraction);
+}
