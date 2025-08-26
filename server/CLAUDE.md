@@ -116,6 +116,10 @@ R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
 - The FIŘ system includes a type checker and optimization framework
 - Protocol buffers define the gRPC service interface (`src/main/proto/`)
 
-### More resource
+### More resources
 
 - FIŘ syntax: <doc/FIR_SYNTAX.md>
+
+### Important
+
+- If the user asks to write tests and the implementation is buggy, fix the implementation and test that the bug is fixed.

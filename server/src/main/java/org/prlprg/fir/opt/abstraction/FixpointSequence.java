@@ -30,22 +30,24 @@ public class FixpointSequence implements AbstractionOptimization {
     var changed = false;
 
     var iteration = 0;
-    do {
+    var iterationChanged = true;
+    while (iterationChanged && iteration < maxIterations) {
       // Run iterations.
-      var iterationChanged = false;
+      iterationChanged = false;
       for (var opt : subOptimizations) {
         iterationChanged |= opt.run(abstraction);
       }
 
-      changed = iterationChanged;
+      changed |= iterationChanged;
 
-      // Increment and check hard or (in `while (...)`) soft limit.
+      // Increment and check hard limit (soft limit checked in loop condition).
       iteration++;
       if (iteration >= HARD_LIMIT) {
         throw new IllegalStateException(
             "Didn't reach a fixpoint after " + HARD_LIMIT + " iterations, this is likely a bug");
       }
-    } while (!changed && iteration < maxIterations);
+    }
+    ;
 
     return changed;
   }
