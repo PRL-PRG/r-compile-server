@@ -14,7 +14,7 @@ class SpeculateDispatchTest {
   /// feedback (no optimizations), and runs once more.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testSpeculateDispatchDoesntCrash(Path firFilePath) {
+  void testNeverCrashes(Path firFilePath) {
     testInterpretFirFile(
         firFilePath,
         false,

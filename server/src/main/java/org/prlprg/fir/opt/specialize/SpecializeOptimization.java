@@ -19,4 +19,6 @@ public interface SpecializeOptimization {
 
   /// If unchanged, return `expression`.
   Expression run(Expression expression, Abstraction scope, Analyses analyses);
+
+  default void finish(Abstraction scope, Analyses analyses) {}
 }

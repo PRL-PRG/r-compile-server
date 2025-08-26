@@ -74,21 +74,17 @@ public record OptimizeCallee(OptionalFunction<Abstraction, Feedback> getFeedback
     }
     var argumentTypes = Lists.mapLazy(callArguments, scope::typeOf);
 
-    // Create best signature that can be called with these argument types.
+    // Create the best signature that can be called with these argument types.
     var bestSignature =
         new Signature(
             ImmutableList.copyOf(argumentTypes),
             oldSignature == null ? Type.ANY_VALUE : oldSignature.returnType(),
             oldSignature == null ? Effects.ANY : oldSignature.effects());
-    if (bestSignature.equals(oldSignature)) {
-      // No improvement.
-      return null;
-    }
 
-    // Look up best version that can be called with this signature.
+    // Look up the best version that can be called with this signature.
     var bestVersion = callFunction.guess(bestSignature);
     if (bestVersion == null) {
-      // No version, so can't improve.
+      // No known version, so can't even add a signature.
       return null;
     }
 

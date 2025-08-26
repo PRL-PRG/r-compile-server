@@ -95,7 +95,11 @@ public final class InferType implements Analysis {
         var type = of(value);
         yield type == null
             ? null
-            : type.kind() instanceof Kind.Promise(var innerTy, var _) ? innerTy : Type.ANY_VALUE;
+            : switch (type.kind()) {
+              case Kind.Promise(var innerTy, var _) -> innerTy;
+              case Kind.Any() -> Type.ANY_VALUE;
+              default -> type;
+            };
       }
       case MkVector(var _) -> Type.primitiveVector(PrimitiveKind.INTEGER, Ownership.FRESH);
       case Placeholder() -> null;
