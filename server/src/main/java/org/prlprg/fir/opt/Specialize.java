@@ -1,158 +1,183 @@
 package org.prlprg.fir.opt;
 
-import com.google.common.collect.ImmutableList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import javax.annotation.Nullable;
-import org.prlprg.fir.feedback.Feedback;
+import java.util.TreeSet;
+import org.prlprg.fir.analyze.Analyses;
+import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
-import org.prlprg.fir.ir.callee.Callee;
-import org.prlprg.fir.ir.callee.DispatchCallee;
-import org.prlprg.fir.ir.callee.StaticCallee;
-import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.type.Effects;
-import org.prlprg.fir.ir.type.Signature;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization;
-import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 
-/// Groups [Specializer] optimizations (see [org.prlprg.fir.opt.specialize]).
-public record Specialize(ImmutableList<SpecializeOptimization> subOptimizations)
-    implements Optimization {
+/// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
+public class Specialize implements Optimization {
+  private final List<SpecializeOptimization> subOptimizations;
+  private final AnalysisTypes analysisTypes;
+
+  public Specialize(SpecializeOptimization... subOptimizations) {
+    this.subOptimizations = List.of(subOptimizations);
+    this.analysisTypes =
+        Arrays.stream(subOptimizations)
+            .map(SpecializeOptimization::analyses)
+            .reduce(new AnalysisTypes(DefUses.class, InferType.class), AnalysisTypes::union);
+  }
+
   @Override
   public void run(Function function, Abstraction version) {
     version
         .streamScopes()
         .forEach(
             abstraction -> {
+              var analyses = new Analyses(abstraction, analysisTypes);
               var subOptimizations =
-                  this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction)).toList();
+                  this.subOptimizations.stream()
+                      .filter(so -> so.shouldRun(abstraction, analyses))
+                      .toList();
               if (subOptimizations.isEmpty()) {
                 return;
               }
 
-              new OnAbstraction(abstraction, subOptimizations).run();
+              new OnAbstraction(abstraction, analyses, subOptimizations).run();
             });
   }
 
-  private class OnAbstraction {
-    final Abstraction scope;
-    final SpecializeOptimization optimization;
-
-    OnAbstraction(Abstraction scope, Feedback feedback) {
-      this.scope = scope;
-      this.feedback = feedback;
-    }
-
+  private record OnAbstraction(
+      Abstraction scope, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
     void run() {
+      var changes = new TreeSet<CfgPosition>();
+
+      // Initially, run on every expression.
       scope
           .streamCfgs()
           .forEach(
               cfg -> {
                 for (var bb : cfg.bbs()) {
                   for (var i = 0; i < bb.statements().size(); i++) {
-                    var oldStmt = bb.statements().get(i);
-                    var newStmt = run(oldStmt);
-                    if (newStmt != null) {
-                      bb.replaceStatementAt(i, newStmt);
-                    }
+                    var next = new CfgPosition(bb, i, bb.statements().get(i));
+
+                    // Remove from `changes` in case it was added by an earlier expression,
+                    // since we change it here.
+                    changes.remove(next);
+
+                    run(next, changes);
                   }
                 }
               });
+
+      // Then, only run on expressions changed by other expressions, until there are no more.
+      // This always reaches a fixpoint because types only get more specific.
+      while (!changes.isEmpty()) {
+        var next = changes.removeFirst();
+        run(next, changes);
+      }
     }
 
-    @Nullable Statement run(Statement statement) {
-      if (!(statement.expression() instanceof Call call)) {
-        return null;
+    void run(CfgPosition position, TreeSet<CfgPosition> changes) {
+      var bb = position.bb();
+      var statementIndex = position.instructionIndex();
+      var oldStmt =
+          (Statement)
+              Objects.requireNonNull(position.instruction(), "only adds statements to changes");
+      var assignee = oldStmt.assignee();
+      var expr = oldStmt.expression();
+
+      // Specialize `expr`.
+      for (var subOptimization : subOptimizations) {
+        expr = subOptimization.run(expr, scope, analyses);
       }
 
-      var newCallee =
-          switch (call.callee()) {
-            case DispatchCallee(var function, var signature) ->
-                run(call.callArguments(), function, signature);
-            case StaticCallee(var function, var version) ->
-                run(call.callArguments(), function, version.signature());
-            default -> null;
-          };
-      if (newCallee == null) {
-        return null;
-      }
+      // If actually specialized...
+      if (expr != oldStmt.expression()) {
+        // ...replace statement...
+        var newStmt = new Statement(assignee, expr);
+        bb.replaceStatementAt(statementIndex, newStmt);
 
-      return new Statement(statement.assignee(), new Call(newCallee, call.callArguments()));
+        // ...and if the type changed, enqueue uses to be further specialized.
+        var oldType = assignee == null ? null : scope.typeOf(assignee);
+        var newType = analyses.get(InferType.class).of(expr);
+        if (oldType != null && newType != null) {
+          specializeType(assignee, newType.withOwnership(oldType.ownership()), changes);
+        }
+      }
     }
 
-    @Nullable Callee run(
-        List<Argument> callArguments, Function callFunction, @Nullable Signature oldSignature) {
-      // Get static types of the call arguments.
-      if (callArguments.stream().anyMatch(arg -> scope.typeOf(arg) == null)) {
-        // An argument is malformed.
-        return null;
-      }
-      var argumentTypes = Lists.mapLazy(callArguments, scope::typeOf);
-
-      // Create best signature that can be called with these argument types.
-      var bestSignature =
-          new Signature(
-              ImmutableList.copyOf(argumentTypes),
-              oldSignature == null ? Type.ANY_VALUE : oldSignature.returnType(),
-              oldSignature == null ? Effects.ANY : oldSignature.effects());
-      if (bestSignature.equals(oldSignature)) {
-        // No improvement.
-        return null;
+    void specializeType(Register assignee, Type newType, TreeSet<CfgPosition> changes) {
+      var oldType = scope.typeOf(assignee);
+      if (oldType == null || oldType.equals(newType)) {
+        // No specialization occurred.
+        return;
       }
 
-      // Look up best version that can be called with this signature.
-      var bestVersion = callFunction.guess(bestSignature);
-      if (bestVersion == null) {
-        // No version, so can't improve.
-        return null;
+      if (!newType.isSubtypeOf(oldType)) {
+        throw new IllegalStateException(
+            "A specialized expression's type must always subtype the original's:"
+                + "\nOriginal type (when assigned): "
+                + oldType
+                + "\nCurrent type (when assigned): "
+                + newType
+                + "\n"
+                + analyses.get(DefUses.class).definitions(assignee).stream()
+                    .findFirst()
+                    .orElse(null));
       }
 
-      // Check if there are better versions that can be called with recorded runtime types.
-      var isBestAtRuntime =
-          callFunction.versionsSorted().headSet(bestVersion).stream()
-              .noneMatch(
-                  better -> {
-                    var betterSignature = better.signature();
-                    return betterSignature.hasNarrowerParameters(bestSignature)
-                        && Streams.zip(
-                                betterSignature.parameterTypes().stream(),
-                                callArguments.stream(),
-                                (parameterType, argument) ->
-                                    switch (argument) {
-                                      case Constant(var constant) ->
-                                          Type.of(constant).isSubtypeOf(parameterType);
-                                      case Read(var _), Use(var _) -> {
-                                        var register = Objects.requireNonNull(argument.variable());
-                                        yield feedback
-                                            .type(register)
-                                            .streamHits(threshold, parameterType)
-                                            .findAny()
-                                            .isPresent();
-                                      }
-                                    })
-                            .allMatch(b -> b);
-                  });
-      if (isBestAtRuntime) {
-        return new StaticCallee(callFunction, bestVersion);
+      scope.setLocalType(assignee, newType);
+
+      for (var use : analyses.get(DefUses.class).uses(assignee)) {
+        // The position in the innermost CFG is all we care about.
+        var use1 = use.inInnermostCfg();
+
+        switch (Objects.requireNonNull(use1.instruction(), "phis are never uses")) {
+          case Statement _ -> changes.add(use1);
+          case Jump jump -> {
+            // If it's a phi argument, try to refine the phi type.
+            for (var target : jump.targets()) {
+              var successor = target.bb();
+              for (var i = 0; i < target.phiArgs().size(); i++) {
+                var argument = target.phiArgs().get(i);
+                if (!argument.equals(new Read(assignee))) {
+                  continue;
+                }
+
+                var phi = successor.phiParameters().get(i);
+
+                // Recompute the phi's best type (union of its arguments' types), then specialize.
+                // This always reaches a fixpoint because phi types only get more specific.
+                int i1 = i;
+                successor.predecessors().stream()
+                    .map(
+                        pred ->
+                            pred.jump().targets().stream()
+                                .filter(t -> t.bb() == successor)
+                                .collect(
+                                    Streams.oneOrThrow(
+                                        () ->
+                                            new AssertionError(
+                                                "BB isn't a successor of its predecessor: predecessor = "
+                                                    + pred.label()
+                                                    + ", successor = "
+                                                    + successor.label()
+                                                    + "\n"
+                                                    + successor.owner()))))
+                    .map(t -> t.phiArgs().get(i1))
+                    .map(scope::typeOf)
+                    .reduce(Type::union)
+                    .ifPresent(newPhiType -> specializeType(phi, newPhiType, changes));
+              }
+            }
+          }
+        }
       }
-
-      // Improve best signature: keep the better precondition from `argumentTypes`, but add
-      // the postcondition from `bestVersion`.
-      var bestSignature1 =
-          new Signature(
-              ImmutableList.copyOf(argumentTypes),
-              bestVersion.signature().returnType(),
-              bestVersion.signature().effects());
-
-      return new DispatchCallee(callFunction, bestSignature1);
     }
   }
 }

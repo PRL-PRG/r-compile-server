@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.position;
 
 import java.util.LinkedHashMap;
+import java.util.Objects;
 import java.util.SequencedMap;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -9,7 +10,7 @@ import org.prlprg.parseprint.Printer;
 
 /// Location of an [Instruction][org.prlprg.fir.ir.instruction.Instruction] within an
 /// [Abstraction][org.prlprg.fir.ir.abstraction.Abstraction].
-public class ScopePosition {
+public class ScopePosition implements Comparable<ScopePosition> {
   private final SequencedMap<CFG, CfgPosition> inCfgs = new LinkedHashMap<>();
   private final CfgPosition inInnermostCfg;
 
@@ -28,6 +29,27 @@ public class ScopePosition {
 
   public CfgPosition inInnermostCfg() {
     return inInnermostCfg;
+  }
+
+  @Override
+  public int compareTo(ScopePosition o) {
+    // `inCfgs` entirely depends on `inInnermostCfg`.
+    return inInnermostCfg.compareTo(o.inInnermostCfg);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof ScopePosition that)) {
+      return false;
+    }
+    // `inCfgs` entirely depends on `inInnermostCfg`.
+    return Objects.equals(inInnermostCfg, that.inInnermostCfg);
+  }
+
+  @Override
+  public int hashCode() {
+    // `inCfgs` entirely depends on `inInnermostCfg`.
+    return Objects.hash(inInnermostCfg);
   }
 
   @Override

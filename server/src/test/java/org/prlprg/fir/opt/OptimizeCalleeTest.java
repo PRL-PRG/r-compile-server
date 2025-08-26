@@ -7,9 +7,15 @@ import java.nio.file.Path;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.prlprg.fir.interpret.InterpretUtil.TestInterpretCtx;
+import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.util.DirectorySource;
 
 class OptimizeCalleeTest {
+  private Optimization optimizeCallee(TestInterpretCtx c) {
+    return new Specialize(new OptimizeCallee(c.interpreter()::feedback, 1));
+  }
+
   /// Runs all FIŘ files in the test resources, applies OptimizeCallee optimization,
   /// and ensures it doesn't crash.
   @ParameterizedTest
@@ -19,7 +25,7 @@ class OptimizeCalleeTest {
         firFilePath,
         false,
         c -> {
-          new OptimizeCallee(c.interpreter()::feedback, 1).run(c.module());
+          optimizeCallee(c).run(c.module());
           c.retest();
         });
   }
@@ -46,13 +52,11 @@ class OptimizeCalleeTest {
         """,
         true,
         c -> {
-          var pass = new OptimizeCallee(c.interpreter()::feedback, 1);
-
           var main = Objects.requireNonNull(c.module().lookupFunction("main")).version(0);
 
           var original = main.toString();
 
-          pass.run(c.module());
+          optimizeCallee(c).run(c.module());
 
           var optimized = main.toString();
 
@@ -87,8 +91,6 @@ class OptimizeCalleeTest {
         """,
         true,
         c -> {
-          var pass = new OptimizeCallee(c.interpreter()::feedback, 1);
-
           var main = Objects.requireNonNull(c.module().lookupFunction("main")).version(0);
 
           // Before optimization, should have dispatch call
@@ -101,7 +103,7 @@ class OptimizeCalleeTest {
                   .stripIndent(),
               main.toString());
 
-          pass.run(c.module());
+          optimizeCallee(c).run(c.module());
 
           // After optimization, the call should be optimized to use the more specific version
           assertEquals(
@@ -140,11 +142,9 @@ class OptimizeCalleeTest {
         """,
         true,
         c -> {
-          var pass = new OptimizeCallee(c.interpreter()::feedback, 1);
-
           var main = Objects.requireNonNull(c.module().lookupFunction("main")).version(0);
 
-          pass.run(c.module());
+          optimizeCallee(c).run(c.module());
 
           assertEquals(
               """
@@ -183,11 +183,9 @@ class OptimizeCalleeTest {
         """,
         true,
         c -> {
-          var pass = new OptimizeCallee(c.interpreter()::feedback, 1);
-
           var main = Objects.requireNonNull(c.module().lookupFunction("main")).version(0);
 
-          pass.run(c.module());
+          optimizeCallee(c).run(c.module());
 
           assertEquals(
               """
@@ -230,11 +228,9 @@ class OptimizeCalleeTest {
         """,
         true,
         c -> {
-          var pass = new OptimizeCallee(c.interpreter()::feedback, 1);
-
           var main = Objects.requireNonNull(c.module().lookupFunction("main")).version(0);
 
-          pass.run(c.module());
+          optimizeCallee(c).run(c.module());
 
           // First call: can't guarantee `r` is an integer, but feedback says so, so dispatch
           // Second call: can guarantee `24` is an integer, so static
