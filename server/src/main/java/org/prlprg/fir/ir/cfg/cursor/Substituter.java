@@ -109,6 +109,10 @@ public class Substituter {
             });
   }
 
+  public boolean isEmpty() {
+    return locals.isEmpty();
+  }
+
   public void commit() {
     scope
         .module()
