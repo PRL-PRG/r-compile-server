@@ -21,7 +21,7 @@ import org.prlprg.util.Pair;
 ///
 /// It traverses [CFG]s in promises but not callees.
 public abstract class AbstractInterpretation<S extends AbstractInterpretation.State<S>> {
-  private final Abstraction scope;
+  protected final Abstraction scope;
   private boolean ran = false;
   private final Map<CFG, OnCfg> analyses = new HashMap<>();
 
@@ -73,6 +73,10 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
     // Doesn't `streamCfgs` because `run` includes promises.
     onCfg(scope.cfg()).run(entry);
     ran = true;
+  }
+
+  protected final boolean ran() {
+    return ran;
   }
 
   protected OnCfg onCfg(CFG cfg) {

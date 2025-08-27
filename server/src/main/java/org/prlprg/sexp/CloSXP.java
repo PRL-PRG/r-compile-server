@@ -51,7 +51,9 @@ public sealed interface CloSXP extends SEXP {
 record CloSXPImpl(ListSXP parameters, SEXP body, EnvSXP env, @Override Attributes attributes)
     implements CloSXP {
   CloSXPImpl {
-    if (Streams.hasDuplicates(parameters.names().stream().filter(Predicate.not(String::isEmpty)))) {
+    if (parameters.names().stream()
+        .filter(Predicate.not(String::isEmpty))
+        .collect(Streams.hasDuplicates())) {
       throw new IllegalArgumentException("Parameters must have unique names");
     }
   }

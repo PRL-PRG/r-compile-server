@@ -3,18 +3,19 @@ package org.prlprg.fir.analyze.generic;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.analyze.OriginAnalysis.State;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
 
 /// Simple tests for ScopeAnalysis that don't require parsing FIR
-class ScopeAnalysisSimpleTest {
+class OriginAnalysisSimpleTest {
 
   @Test
   void testStateEquality() {
-    var state1 = new ScopeAnalysis.ScopeState();
-    var state2 = new ScopeAnalysis.ScopeState();
+    var state1 = new State();
+    var state2 = new State();
 
     assertEquals(state1, state2);
 
@@ -30,8 +31,8 @@ class ScopeAnalysisSimpleTest {
 
   @Test
   void testStateMerging() {
-    var state1 = new ScopeAnalysis.ScopeState();
-    var state2 = new ScopeAnalysis.ScopeState();
+    var state1 = new State();
+    var state2 = new State();
 
     var register = Variable.register("r0");
     var constant1 = new Constant(SEXPs.integer(42));
@@ -51,7 +52,7 @@ class ScopeAnalysisSimpleTest {
 
   @Test
   void testBasicSourceTracking() {
-    var state = new ScopeAnalysis.ScopeState();
+    var state = new State();
     var register = Variable.register("r0");
     var variable = Variable.named("x");
     var constant = new Constant(SEXPs.integer(42));
@@ -71,7 +72,7 @@ class ScopeAnalysisSimpleTest {
 
   @Test
   void testStateCopy() {
-    var original = new ScopeAnalysis.ScopeState();
+    var original = new State();
     var register = Variable.register("r0");
     var constant = new Constant(SEXPs.integer(42));
 

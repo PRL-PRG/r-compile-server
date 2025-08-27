@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.analyze.OriginAnalysis;
+import org.prlprg.fir.analyze.OriginAnalysis.State;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
 
-class ScopeAnalysisTest {
+class OriginAnalysisTest {
 
   @Test
   void testBasicRegisterTracking() {
@@ -29,7 +31,7 @@ class ScopeAnalysisTest {
     assertNotNull(function);
 
     var version = function.version(0);
-    var analysis = new ScopeAnalysis(version);
+    var analysis = new OriginAnalysis(version);
 
     var cfg = version.cfg();
     var bb = cfg.entry();
@@ -67,7 +69,7 @@ class ScopeAnalysisTest {
     assertNotNull(function);
 
     var version = function.version(0);
-    var analysis = new ScopeAnalysis(version);
+    var analysis = new OriginAnalysis(version);
 
     var cfg = version.cfg();
     var bb = cfg.entry();
@@ -110,7 +112,7 @@ class ScopeAnalysisTest {
     assertNotNull(function);
 
     var version = function.version(0);
-    var analysis = new ScopeAnalysis(version);
+    var analysis = new OriginAnalysis(version);
 
     var cfg = version.cfg();
     var bb3 = cfg.bb("bb3");
@@ -126,8 +128,8 @@ class ScopeAnalysisTest {
 
   @Test
   void testStateEquality() {
-    var state1 = new ScopeAnalysis.ScopeState();
-    var state2 = new ScopeAnalysis.ScopeState();
+    var state1 = new State();
+    var state2 = new State();
 
     assertEquals(state1, state2);
 
@@ -143,8 +145,8 @@ class ScopeAnalysisTest {
 
   @Test
   void testStateMerging() {
-    var state1 = new ScopeAnalysis.ScopeState();
-    var state2 = new ScopeAnalysis.ScopeState();
+    var state1 = new State();
+    var state2 = new State();
 
     var register = Variable.register("r0");
     var constant1 = new Constant(SEXPs.integer(42));
