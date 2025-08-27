@@ -17,7 +17,6 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization;
-import org.prlprg.util.Streams;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
 public class Specialize implements AbstractionOptimization {
@@ -167,27 +166,12 @@ public class Specialize implements AbstractionOptimization {
                 }
 
                 var phi = successor.phiParameters().get(i);
+                var arguments = successor.phiArguments(i);
 
                 // Recompute the phi's best type (union of its arguments' types), then specialize.
                 // This always reaches a fixpoint because phi types only get more specific.
                 var oldPhiType = scope.typeOf(phi);
-                int i1 = i;
-                successor.predecessors().stream()
-                    .map(
-                        pred ->
-                            pred.jump().targets().stream()
-                                .filter(t -> t.bb() == successor)
-                                .collect(
-                                    Streams.oneOrThrow(
-                                        () ->
-                                            new AssertionError(
-                                                "BB isn't a successor of its predecessor: predecessor = "
-                                                    + pred.label()
-                                                    + ", successor = "
-                                                    + successor.label()
-                                                    + "\n"
-                                                    + successor.owner()))))
-                    .map(t -> t.phiArgs().get(i1))
+                arguments.stream()
                     .map(scope::typeOf)
                     .reduce(Type::union)
                     .ifPresent(newPhiType -> specializeType(phi, oldPhiType, newPhiType, changes));

@@ -6,8 +6,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -128,15 +128,6 @@ public class Streams {
         });
   }
 
-  public static <T> boolean hasNoDuplicates(Stream<T> stream) {
-    // From https://stackoverflow.com/a/40977178
-    return stream.sequential().allMatch(new HashSet<>()::add);
-  }
-
-  public static <T> boolean hasDuplicates(Stream<T> stream) {
-    return !hasNoDuplicates(stream);
-  }
-
   /**
    * Returns the only element of the stream or {@link Optional#empty()} if the stream is empty.
    * Throws if the stream has multiple elements.
@@ -208,6 +199,48 @@ public class Streams {
     } catch (WrappedException e) {
       throw e.inner;
     }
+  }
+
+  /**
+   * Returns the first element of the stream if it exists and equals all other elements, otherwise
+   * `Optional.empty()`.
+   */
+  public static <T> Collector<T, ?, Optional<T>> uniqueOrEmpty() {
+    return Collector.of(
+        MutableOptional::<Optional<T>>empty,
+        (acc, elem) -> {
+          var inner = acc.get();
+          //noinspection OptionalAssignedToNull
+          acc.set(
+              inner == null
+                  ? Optional.of(elem)
+                  : inner.filter(i -> i.equals(elem)).isEmpty() ? inner : Optional.empty());
+        },
+        (acc1, acc2) ->
+            Objects.equals(acc1.get(), acc2.get()) ? acc1 : MutableOptional.of(Optional.<T>empty()),
+        mo -> mo.toOptional().flatMap(x -> x),
+        Characteristics.CONCURRENT);
+  }
+
+  public static <T> Collector<T, ?, Boolean> hasDuplicates() {
+    return Collector.of(
+        MutableOptional::<Optional<T>>empty,
+        (acc, elem) -> {
+          var inner = acc.get();
+          //noinspection OptionalAssignedToNull
+          acc.set(
+              inner == null
+                  ? Optional.of(elem)
+                  : inner.filter(i -> i.equals(elem)).isEmpty() ? inner : Optional.empty());
+        },
+        (acc1, acc2) ->
+            Objects.equals(acc1.get(), acc2.get()) ? acc1 : MutableOptional.of(Optional.<T>empty()),
+        mo -> {
+          var inner = mo.get();
+          //noinspection OptionalAssignedToNull
+          return inner != null && inner.isEmpty();
+        },
+        Characteristics.CONCURRENT);
   }
 
   private Streams() {}

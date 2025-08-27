@@ -1,30 +1,32 @@
 package org.prlprg.fir.ir.cfg;
 
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Collections2;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Lists;
 import org.prlprg.util.SmallBinarySet;
+import org.prlprg.util.Streams;
 import org.prlprg.util.Strings;
 
 public final class BB implements Comparable<BB> {
@@ -92,11 +94,41 @@ public final class BB implements Comparable<BB> {
   }
 
   public @UnmodifiableView Collection<BB> successors() {
-    return Collections2.transform(jump.targets(), t -> Objects.requireNonNull(t).bb());
+    return Collections2.mapLazy(jump.targets(), Target::bb);
   }
 
   public @UnmodifiableView Collection<BB> predecessors() {
     return Collections.unmodifiableCollection(predecessors);
+  }
+
+  /// [Target]s in predecessors to this [BB].
+  public @UnmodifiableView Collection<Target> incomingTargets() {
+    return Collections2.mapLazy(
+        predecessors,
+        pred ->
+            pred.jump().targets().stream()
+                .filter(t -> t.bb() == this)
+                .collect(
+                    Streams.oneOrThrow(
+                        () ->
+                            new AssertionError(
+                                "BB isn't a successor of its predecessor: predecessor = "
+                                    + pred.label
+                                    + ", successor = "
+                                    + label
+                                    + "\n"
+                                    + owner))));
+  }
+
+  /// Arguments from predecessor jumps to the parameter at the index.
+  ///
+  /// @throws IndexOutOfBoundsException If the index is out of bounds.
+  public @UnmodifiableView Collection<Argument> phiArguments(int parameterIndex) {
+    if (parameterIndex < 0 || parameterIndex >= parameters.size()) {
+      throw new IndexOutOfBoundsException(
+          "Index " + parameterIndex + " is out of bounds for parameters of BB '" + label + "'.");
+    }
+    return Collections2.mapLazy(incomingTargets(), target -> target.phiArgs().get(parameterIndex));
   }
 
   public void appendParameter(Register parameter) {
