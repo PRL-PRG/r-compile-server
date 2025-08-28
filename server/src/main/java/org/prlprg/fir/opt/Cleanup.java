@@ -1,4 +1,4 @@
-package org.prlprg.fir.opt.abstraction;
+package org.prlprg.fir.opt;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;

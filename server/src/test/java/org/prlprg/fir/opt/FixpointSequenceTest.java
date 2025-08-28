@@ -6,8 +6,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.opt.abstraction.AbstractionOptimization;
-import org.prlprg.fir.opt.abstraction.FixpointSequence;
 
 class FixpointSequenceTest {
   /// Test optimization that tracks how many times it's called and can be configured to return
