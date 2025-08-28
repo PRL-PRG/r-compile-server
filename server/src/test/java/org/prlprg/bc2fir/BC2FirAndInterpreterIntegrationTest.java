@@ -5,9 +5,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
 import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Objects;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.bc.CompilerException;
@@ -16,6 +13,7 @@ import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.util.DirectorySource;
+import org.prlprg.util.TestPath;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
@@ -32,11 +30,11 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// - When bytecode-compiled, converted into FIŘ, and interpreted by [Interpreter].
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
-  void testCompilerAndInterpreter(Path rFilePath) throws IOException {
+  void testCompilerAndInterpreter(TestPath rFilePath) {
     Module firModule = null;
 
     try {
-      var rText = Files.readString(rFilePath);
+      var rText = rFilePath.read();
 
       var rModuleEnv = R.evalEnvironment(rText);
       if (!(rModuleEnv.getLocal("main").orElse(null) instanceof CloSXP main)

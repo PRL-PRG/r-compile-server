@@ -1,7 +1,6 @@
 package org.prlprg.util;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import static org.prlprg.TestConfig.VERBOSE;
 import static org.prlprg.util.TestsPrivate.SNAPSHOT_RESOURCES_ROOT;
 import static org.prlprg.util.TestsPrivate.TEST_RESOURCES_ROOT;
 
@@ -168,29 +167,6 @@ public interface Tests {
   }
 
   // endregion assumptions
-
-  // region logging
-
-  /**
-   * {@code System.out.println} if {@link org.prlprg.TestConfig#VERBOSE VERBOSE} is set, otherwise
-   * no-op.
-   */
-  static void printlnIfVerbose(Object message) {
-    if (VERBOSE) {
-      System.out.println(message);
-    }
-  }
-
-  /**
-   * {@code System.out.println} if {@link org.prlprg.TestConfig#VERBOSE VERBOSE} is set, otherwise
-   * no-op.
-   */
-  static void printlnIfVerbose() {
-    if (VERBOSE) {
-      System.out.println();
-    }
-  }
-  // endregion logging
 }
 
 class TestsPrivate {

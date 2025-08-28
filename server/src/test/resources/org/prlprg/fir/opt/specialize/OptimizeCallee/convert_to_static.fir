@@ -1,5 +1,6 @@
 fun main {
-  () --> I { reg r:I |
+  # after: () -+> V { reg r:I |
+  () -+> V { reg r:V |
     # after: r = f.1(42);
     r = f(42);
     return r;

@@ -1,5 +1,5 @@
 fun main {
-  # type-error: Stupid cast: r0 {:v(I)o} as I will always fail
+  # We explicitly *allow* stupid casts, because when FIŘ improves types it can create them.
   () --> I { reg r0:v(I)o, reg r1:I |
     r0 = [1, 2, 3];
     # runtime-error: Type mismatch in cast: <int 1, 2, 3> {:v(I)} isn't a(n) I

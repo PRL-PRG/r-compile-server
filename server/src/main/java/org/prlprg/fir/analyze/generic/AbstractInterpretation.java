@@ -152,8 +152,9 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
     private S run(BB bb) {
       state = states.get(bb).copy();
+      cursor.moveToStart(bb);
       runEntry(bb);
-      cursor.iterateBb(bb, this::run, this::run);
+      cursor.iterateCurrentBb(this::run, this::run);
       return state;
     }
 
@@ -176,8 +177,9 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
       }
 
       state = states.get(bb).copy();
+      cursor.moveToStart(bb);
       runEntry(bb);
-      cursor.iterateBbUpTo(instructionIndex, this::run, this::run);
+      cursor.iterateCurrentBbUpTo(instructionIndex, this::run, this::run);
       return state;
     }
 

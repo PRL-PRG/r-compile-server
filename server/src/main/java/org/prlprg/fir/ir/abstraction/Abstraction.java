@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
@@ -148,7 +149,11 @@ public final class Abstraction implements Comparable<Abstraction> {
         });
   }
 
-  public Local removeLocal(Variable variable) {
+  /// Remove the binding.
+  ///
+  /// @throws IllegalArgumentException If `variable` isn't declared, or declared as a named
+  /// variable.
+  public Local removeLocal(Register variable) {
     return module.record(
         "Abstraction#removeLocal",
         List.of(this, variable),
@@ -159,7 +164,10 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   /// Change the local's explicit type.
-  public void setLocalType(Variable variable, Type type) {
+  ///
+  /// @throws IllegalArgumentException If `variable` isn't declared, or declared as a named
+  /// variable.
+  public void setLocalType(Register variable, Type type) {
     module.record(
         "Abstraction#setLocalType",
         List.of(this, variable, type),
@@ -169,19 +177,43 @@ public final class Abstraction implements Comparable<Abstraction> {
         });
   }
 
-  private void checkLocalExists(Variable variable) {
+  /// Change the local's explicit type.
+  ///
+  /// This functions differently than [#setLocalType(Register, Type)]. If `type` is ANY, it
+  /// removes the binding if it exists. Otherwise, it creates the binding if necessary. If the
+  /// `type` isn't ANY and a binding with the same name exists but for a register, that register
+  /// will be substituted with a fresh one.
+  public void setLocalType(NamedVariable variable, Type type) {
+    module.record(
+        "Abstraction#setLocalType",
+        List.of(this, variable, type),
+        () -> {
+          if (type.equals(Type.ANY)) {
+            locals.remove(variable.name());
+            return;
+          }
+
+          var binding = locals.get(variable.name());
+          if (binding != null && binding.variable() instanceof Register oldRegister) {
+            var newRegister = addLocal(binding.type());
+            // This is inefficient but rare
+            var substituter = new Substituter(this);
+            substituter.stage(oldRegister, new Read(newRegister));
+            substituter.commit();
+          }
+
+          locals.put(variable.name(), new Local(variable, type));
+        });
+  }
+
+  private void checkLocalExists(Register variable) {
     var binding = locals.get(variable.name());
     if (binding == null) {
       throw new IllegalArgumentException(
           "Local " + variable.name() + " does not exist in the abstraction.");
     }
-    switch (variable) {
-      case Register _ when !(binding.variable() instanceof Register) ->
-          throw new IllegalArgumentException("Local " + variable.name() + " is not a register");
-      case NamedVariable _ when !(binding.variable() instanceof NamedVariable) ->
-          throw new IllegalArgumentException(
-              "Local " + variable.name() + " is not a named variable");
-      default -> {}
+    if (!(binding.variable() instanceof Register)) {
+      throw new IllegalArgumentException("Local " + variable.name() + " is not a register");
     }
   }
 
@@ -192,6 +224,15 @@ public final class Abstraction implements Comparable<Abstraction> {
   public boolean contains(Register register) {
     var lookup = lookup(register.name());
     return lookup != null && lookup.variable() instanceof Register;
+  }
+
+  /// Whether [#locals()] includes a binding for this named variable.
+  ///
+  /// Named variables may be loaded and stored without being declared, the purpose of declaring
+  /// is to give a specific maybe-type, or for documentation (no semantic meaning) if type ANY.
+  public boolean isDeclared(NamedVariable nv) {
+    var lookup = lookup(nv.name());
+    return lookup != null && lookup.variable() instanceof NamedVariable;
   }
 
   public boolean isParameter(Register register) {

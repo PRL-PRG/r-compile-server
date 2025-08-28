@@ -18,6 +18,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
 import java.util.stream.Gatherer;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 public class Streams {
   /// Keeps yielding elements by calling `supplier` until it returns `null`.
@@ -134,6 +135,10 @@ public class Streams {
    */
   public static <T, E extends Throwable> Collector<T, ?, Optional<T>> zeroOneOrThrow(
       Supplier<E> exception) throws E {
+    class MutableOptional {
+      @Nullable T value = null;
+    }
+
     class WrappedException extends RuntimeException {
       final E inner;
 
@@ -144,22 +149,22 @@ public class Streams {
 
     try {
       return Collector.of(
-          MutableOptional::<T>empty,
-          (acc, elem) -> {
-            if (acc.isPresent()) {
+          MutableOptional::new,
+          (o, elem) -> {
+            if (o.value != null) {
               throw new WrappedException(exception.get());
             } else {
-              acc.set(elem);
+              o.value = elem;
             }
           },
-          (acc1, acc2) -> {
-            if (acc1.isPresent() && acc2.isPresent()) {
+          (o1, o2) -> {
+            if (o1.value != null && o2.value != null) {
               throw new WrappedException(exception.get());
             } else {
-              return acc1.isPresent() ? acc1 : acc2;
+              return o1.value != null ? o1 : o2;
             }
           },
-          MutableOptional::toOptional,
+          o -> Optional.ofNullable(o.value),
           Characteristics.CONCURRENT);
     } catch (WrappedException e) {
       throw e.inner;
@@ -169,6 +174,10 @@ public class Streams {
   /** Returns the only element of the stream. Throws if the stream has zero or multiple elements. */
   public static <T, E extends Throwable> Collector<T, ?, T> oneOrThrow(Supplier<E> exception)
       throws E {
+    class MutableOptional {
+      @Nullable T value = null;
+    }
+
     class WrappedException extends RuntimeException {
       final E inner;
 
@@ -179,22 +188,23 @@ public class Streams {
 
     try {
       return Collector.of(
-          MutableOptional::<T>empty,
-          (acc, elem) -> {
-            if (acc.isPresent()) {
+          MutableOptional::new,
+          (o, elem) -> {
+            if (o.value != null) {
               throw new WrappedException(exception.get());
             } else {
-              acc.set(elem);
+              o.value = elem;
             }
           },
-          (acc1, acc2) -> {
-            if (acc1.isPresent() && acc2.isPresent()) {
+          (o1, o2) -> {
+            if (o1.value != null && o2.value != null) {
               throw new WrappedException(exception.get());
             } else {
-              return acc1.isPresent() ? acc1 : acc2;
+              return o1.value != null ? o1 : o2;
             }
           },
-          mo -> mo.toOptional().orElseThrow(() -> new WrappedException(exception.get())),
+          o ->
+              Optional.ofNullable(o.value).orElseThrow(() -> new WrappedException(exception.get())),
           Characteristics.CONCURRENT);
     } catch (WrappedException e) {
       throw e.inner;
@@ -206,40 +216,68 @@ public class Streams {
    * `Optional.empty()`.
    */
   public static <T> Collector<T, ?, Optional<T>> uniqueOrEmpty() {
+    class State {
+      @Nullable T value = null;
+      boolean isAmbiguous = false;
+    }
+
+    var ambiguous = new State();
+    ambiguous.isAmbiguous = true;
+
     return Collector.of(
-        MutableOptional::<Optional<T>>empty,
-        (acc, elem) -> {
-          var inner = acc.get();
-          //noinspection OptionalAssignedToNull
-          acc.set(
-              inner == null
-                  ? Optional.of(elem)
-                  : inner.filter(i -> i.equals(elem)).isEmpty() ? inner : Optional.empty());
+        State::new,
+        (state, elem) -> {
+          if (!state.isAmbiguous && state.value == null) {
+            state.value = elem;
+          } else if (!Objects.equals(state.value, elem)) {
+            state.value = null;
+            state.isAmbiguous = true;
+          }
         },
-        (acc1, acc2) ->
-            Objects.equals(acc1.get(), acc2.get()) ? acc1 : MutableOptional.of(Optional.<T>empty()),
-        mo -> mo.toOptional().flatMap(x -> x),
+        (state1, state2) ->
+            state1.isAmbiguous
+                ? state1
+                : state2.isAmbiguous
+                    ? state2
+                    : state1.value == null
+                        ? state2
+                        : state2.value == null
+                            ? state1
+                            : Objects.equals(state1.value, state2.value) ? state1 : ambiguous,
+        state -> Optional.ofNullable(state.value),
         Characteristics.CONCURRENT);
   }
 
   public static <T> Collector<T, ?, Boolean> hasDuplicates() {
+    class State {
+      @Nullable T value = null;
+      boolean isAmbiguous = false;
+    }
+
+    var ambiguous = new State();
+    ambiguous.isAmbiguous = true;
+
     return Collector.of(
-        MutableOptional::<Optional<T>>empty,
-        (acc, elem) -> {
-          var inner = acc.get();
-          //noinspection OptionalAssignedToNull
-          acc.set(
-              inner == null
-                  ? Optional.of(elem)
-                  : inner.filter(i -> i.equals(elem)).isEmpty() ? inner : Optional.empty());
+        State::new,
+        (state, elem) -> {
+          if (!state.isAmbiguous && state.value == null) {
+            state.value = elem;
+          } else if (!Objects.equals(state.value, elem)) {
+            state.value = null;
+            state.isAmbiguous = true;
+          }
         },
-        (acc1, acc2) ->
-            Objects.equals(acc1.get(), acc2.get()) ? acc1 : MutableOptional.of(Optional.<T>empty()),
-        mo -> {
-          var inner = mo.get();
-          //noinspection OptionalAssignedToNull
-          return inner != null && inner.isEmpty();
-        },
+        (state1, state2) ->
+            state1.isAmbiguous
+                ? state1
+                : state2.isAmbiguous
+                    ? state2
+                    : state1.value == null
+                        ? state2
+                        : state2.value == null
+                            ? state1
+                            : Objects.equals(state1.value, state2.value) ? state1 : ambiguous,
+        state -> state.isAmbiguous,
         Characteristics.CONCURRENT);
   }
 

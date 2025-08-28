@@ -4,12 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.fir.interpret.InterpretUtil.testInterpretFirFile;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
-import java.nio.file.Path;
 import java.util.regex.Pattern;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.interpret.InterpretUtil.TestInterpretCtx;
 import org.prlprg.util.DirectorySource;
-import org.prlprg.util.Files;
+import org.prlprg.util.TestPath;
 
 public abstract class OptimizationTest {
   /// Replace lines below `# commentType: ...` with `...` in `firText`.
@@ -40,10 +39,10 @@ public abstract class OptimizationTest {
 
   /// Tests that the optimization never crashes on valid FIŘ.
   @ParameterizedTest
-  @DirectorySource(root = "..", glob = "*.fir")
-  void testNeverCrashes(Path firFilePath) {
+  @DirectorySource(root = "..", rootClass = OptimizationTest.class, glob = "*.fir")
+  void testNeverCrashes(TestPath firPath) {
     testInterpretFirFile(
-        firFilePath,
+        firPath,
         false,
         c -> {
           optimization(c).run(c.module());
@@ -54,8 +53,8 @@ public abstract class OptimizationTest {
   /// Tests that the optimization works as expected on specific tests.
   @ParameterizedTest
   @DirectorySource(appendClassName = true, glob = "*.fir")
-  void test(Path firFilePath) {
-    var firText = Files.readString(firFilePath);
+  void test(TestPath firPath) {
+    var firText = firPath.read();
 
     testInterpretFirFile(
         firText,

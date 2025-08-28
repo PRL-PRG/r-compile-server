@@ -1,9 +1,11 @@
 package org.prlprg.fir.analyze.resolve;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.cfg.DefUses;
@@ -90,12 +92,19 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     return new OnCfg(cfg);
   }
 
+  /// Gets the origins of all registers.
+  public @UnmodifiableView Map<Register, Argument> registerOrigins() {
+    return Collections.unmodifiableMap(registerOrigins);
+  }
+
   /// Gets the origin of a register.
   public Argument get(Register register) {
     if (!scope.contains(register)) {
       throw new IllegalArgumentException("Register " + register + " is not in scope");
     }
-    return registerOrigins.get(register);
+    return registerOrigins.containsKey(register)
+        ? registerOrigins.get(register)
+        : new Read(register);
   }
 
   /// If the argument is a [Read] or [Use], looks up its origin.
@@ -137,24 +146,6 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     @Override
-    protected void runEntry(BB bb) {
-      // If all arguments to a phi parameter share the same origin, that is its origin.
-      // Otherwise, it's the phi itself.
-      for (var i = 0; i < bb.phiParameters().size(); i++) {
-        var phi = bb.phiParameters().get(i);
-        var arguments = bb.phiArguments(i);
-
-        var sharedOrigin =
-            arguments.stream()
-                .map(OriginAnalysis.this::resolve)
-                .collect(Streams.uniqueOrEmpty())
-                .orElse(null);
-
-        put(phi, sharedOrigin);
-      }
-    }
-
-    @Override
     protected void run(Statement statement) {
       var expr = statement.expression();
       var assignee = statement.assignee();
@@ -189,11 +180,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           yield loadOrigin;
         }
         case Aea(var arg) -> resolve(arg);
+        case Cast(var value, var _) -> resolve(value);
         case Force(var value) -> runForce(value);
         case MaybeForce(var value) -> runForce(value);
           // TODO: Constant-fold some calls.
         case Call _,
-            Cast _,
             Closure _,
             Dup _,
             MkVector _,
@@ -238,6 +229,31 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     protected void run(Jump jump) {
       if (jump instanceof Return(var value)) {
         returnOrigin = new ReturnOrigin(value).merge(returnOrigin);
+      }
+
+      // Recompute BB phis from here, not `runEntry`,
+      // because we may run a predecessor after a block,
+      // then merge an equal state into the block,
+      // not running `runEntry` except before we've resolved the predecessor's block arguments.
+      for (var target : jump.targets()) {
+        recomputePhis(target.bb());
+      }
+    }
+
+    private void recomputePhis(BB bb) {
+      // If all arguments to a phi parameter share the same origin, that is its origin.
+      // Otherwise, it's the phi itself.
+      for (var i = 0; i < bb.phiParameters().size(); i++) {
+        var phi = bb.phiParameters().get(i);
+        var arguments = bb.phiArguments(i);
+
+        var sharedOrigin =
+            arguments.stream()
+                .map(OriginAnalysis.this::resolve)
+                .collect(Streams.uniqueOrEmpty())
+                .orElse(null);
+
+        put(phi, sharedOrigin);
       }
     }
 

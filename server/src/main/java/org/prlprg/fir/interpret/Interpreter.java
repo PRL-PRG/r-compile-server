@@ -395,7 +395,7 @@ public final class Interpreter {
     stack.push(frame);
 
     while (true) {
-      var nextControl = cursor.iterateBb(this::run, this::run);
+      var nextControl = cursor.iterateCurrentBb1(this::run, this::run);
 
       switch (nextControl) {
         case ControlFlow.Goto(var nextTarget) -> {

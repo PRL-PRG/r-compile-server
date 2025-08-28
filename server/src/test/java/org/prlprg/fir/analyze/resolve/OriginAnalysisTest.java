@@ -3,21 +3,20 @@ package org.prlprg.fir.analyze.resolve;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.analyze.resolve.OriginAnalysis.State;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
 
 class OriginAnalysisTest {
-
   @Test
   void testBasicRegisterTracking() {
     var firText =
         """
-      fun test {
-        () --> Any { reg r0:I, reg r1:I |
+      fun main {
+        () --> I { reg r0:I, reg r1:I |
           r0 = 42;
           r1 = r0;
           return r1;
@@ -26,140 +25,77 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var function = module.lookupFunction("test");
-    assertNotNull(function);
+    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
 
-    var version = function.version(0);
-    var analysis = new OriginAnalysis(version);
+    var analysis = new OriginAnalysis(main);
 
-    var cfg = version.cfg();
-    var bb = cfg.entry();
+    var r0Origin = analysis.get(Variable.register("r0"));
+    assertEquals(new Constant(SEXPs.integer(42)), r0Origin);
 
-    // After first statement (r0 = 42), r0 should have constant source
-    var state = analysis.at(bb, 0);
-    var r0Source = state.getRegisterSource(Variable.register("r0"));
-    assertNotNull(r0Source);
-    assertTrue(r0Source instanceof Constant);
-
-    // After second statement (r1 = r0), r1 should have r0's source (the constant)
-    state = analysis.at(bb, 1);
-    var r1Source = state.getRegisterSource(Variable.register("r1"));
-    assertNotNull(r1Source);
-    assertTrue(r1Source instanceof Constant);
-    assertEquals(r0Source, r1Source);
+    var r1Origin = analysis.get(Variable.register("r1"));
+    assertEquals(r0Origin, r1Origin);
   }
 
   @Test
   void testVariableTracking() {
     var firText =
         """
-      fun test {
-        () --> Any { var x:I?, reg r0:I, reg r1:I |
+      fun main {
+        () --> I { var x:I?, reg r0:I, reg r1:I? |
           r0 = 42;
           st x = r0;
           r1 = ld x;
-          return r1;
+          return r0;
         }
       }
       """;
 
     var module = parseModule(firText);
-    var function = module.lookupFunction("test");
-    assertNotNull(function);
+    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
 
-    var version = function.version(0);
-    var analysis = new OriginAnalysis(version);
+    var analysis = new OriginAnalysis(main);
 
-    var cfg = version.cfg();
+    var cfg = main.cfg();
     var bb = cfg.entry();
 
-    // After store statement, variable x should have r0's source
-    var state = analysis.at(bb, 1);
-    var xSource = state.getVariableSource(Variable.named("x"));
-    assertNotNull(xSource);
-    assertTrue(xSource instanceof Constant);
+    // After store statement, variable x should have r0's origin
+    var xOrigin = analysis.get(bb, 1, Variable.named("x"));
+    assertEquals(new Constant(SEXPs.integer(42)), xOrigin);
 
-    // After load statement, r1 should have x's source (the constant)
-    state = analysis.at(bb, 2);
-    var r1Source = state.getRegisterSource(Variable.register("r1"));
-    assertNotNull(r1Source);
-    assertTrue(r1Source instanceof Constant);
-    assertEquals(xSource, r1Source);
+    // After load statement, r1 should have x's origin (the constant)
+    var r1Origin = analysis.get(Variable.register("r1"));
+    assertEquals(xOrigin, r1Origin);
   }
 
   @Test
   void testPhiMerging() {
     var firText =
         """
-      fun test(r0: Any) -> Any {
-      bb0:
-        r1 = 42
-        if r0 bb1 bb2
-      bb1:
-        r2 = 100
-        goto bb3(r2)
-      bb2:
-        r3 = 200
-        goto bb3(r3)
-      bb3(r4: Any):
-        return r4
+      fun main {
+        (reg r0:I) --> V { reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r5:I |
+          r1 = 42;
+          if r0 then BB1() else BB2();
+        BB1():
+          r2 = r1;
+          goto BB3(100, r2);
+        BB2():
+          r3 = r1;
+          goto BB3(200, r3);
+        BB3(r4, r5):
+          return r4;
+        }
       }
       """;
 
     var module = parseModule(firText);
-    var function = module.lookupFunction("test");
-    assertNotNull(function);
+    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
 
-    var version = function.version(0);
-    var analysis = new OriginAnalysis(version);
+    var analysis = new OriginAnalysis(main);
 
-    var cfg = version.cfg();
-    var bb3 = cfg.bb("bb3");
-    assertNotNull(bb3);
-
-    // In bb3, r4 should have itself as source due to conflicting inputs
-    var state = analysis.at(bb3, 0);
-    var r4Source = state.getRegisterSource(Variable.register("r4"));
-    assertNotNull(r4Source);
-    assertTrue(r4Source instanceof Read);
-    assertEquals(Variable.register("r4"), ((Read) r4Source).variable());
-  }
-
-  @Test
-  void testStateEquality() {
-    var state1 = new State();
-    var state2 = new State();
-
-    assertEquals(state1, state2);
-
-    var register = Variable.register("r0");
-    var constant = new Constant(SEXPs.integer(42));
-
-    state1.setRegisterSource(register, constant);
-    assertNotEquals(state1, state2);
-
-    state2.setRegisterSource(register, constant);
-    assertEquals(state1, state2);
-  }
-
-  @Test
-  void testStateMerging() {
-    var state1 = new State();
-    var state2 = new State();
-
-    var register = Variable.register("r0");
-    var constant1 = new Constant(SEXPs.integer(42));
-    var constant2 = new Constant(SEXPs.integer(100));
-
-    state1.setRegisterSource(register, constant1);
-    state2.setRegisterSource(register, constant2);
-
-    state1.merge(state2);
-
-    // After merging conflicting sources, should default to register itself
-    var mergedSource = state1.getRegisterSource(register);
-    assertNotNull(mergedSource);
-    assertTrue(mergedSource instanceof Read);
-    assertEquals(register, ((Read) mergedSource).variable());
+    // In bb3, r4 should have itself as origin due to conflicting inputs
+    var r4Origin = analysis.get(Variable.register("r4"));
+    var r5Origin = analysis.get(Variable.register("r5"));
+    assertEquals(new Read(Variable.register("r4")), r4Origin);
+    assertEquals(new Constant(SEXPs.integer(42)), r5Origin);
   }
 }
