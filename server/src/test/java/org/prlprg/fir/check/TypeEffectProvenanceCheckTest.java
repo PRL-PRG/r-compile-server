@@ -3,9 +3,6 @@ package org.prlprg.fir.check;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Predicate;
@@ -13,6 +10,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.util.DirectorySource;
+import org.prlprg.util.TestPath;
 
 /// Tests checking FIŘ files' types, effects, and flow.
 class TypeEffectProvenanceCheckTest {
@@ -20,8 +18,8 @@ class TypeEffectProvenanceCheckTest {
   /// type errors and no other errors.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testTypeCheckFirFiles(Path firFilePath) throws IOException {
-    var firText = Files.readString(firFilePath);
+  void testTypeCheckFirFiles(TestPath firPath) {
+    var firText = firPath.read();
     var firModule = parseModule(firText);
 
     var typeAndEffectChecker = new TypeAndEffectChecker();

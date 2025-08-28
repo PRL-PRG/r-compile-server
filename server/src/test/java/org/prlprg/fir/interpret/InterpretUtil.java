@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assumptions.abort;
 import static org.prlprg.fir.check.Checker.checkAll;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
-import java.nio.file.Path;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.ParseUtil;
@@ -14,8 +13,8 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.Files;
 import org.prlprg.util.Streams;
+import org.prlprg.util.TestPath;
 
 public class InterpretUtil {
   /// Tests that the FIŘ file, when interpreted, produces the expected output, and raises
@@ -23,8 +22,8 @@ public class InterpretUtil {
   ///
   /// Then, depending on the given function, optimizes the FIŘ file and tests more.
   public static void testInterpretFirFile(
-      Path firFile, boolean testInvalid, Consumer<TestInterpretCtx> optimize) {
-    testInterpretFirFile(Files.readString(firFile), testInvalid, optimize);
+      TestPath firPath, boolean testInvalid, Consumer<TestInterpretCtx> optimize) {
+    testInterpretFirFile(firPath.read(), testInvalid, optimize);
   }
 
   /// Tests that the FIŘ file, when interpreted, produces the expected output, and raises
@@ -35,7 +34,8 @@ public class InterpretUtil {
       String firText, boolean testInvalid, Consumer<TestInterpretCtx> optimize) {
     var firModule = parseModule(firText);
 
-    if (!testInvalid && !checkAll(firModule)) {
+    var expectedIsValid = checkAll(firModule);
+    if (!testInvalid && !expectedIsValid) {
       abort("This test only checks valid FIŘ");
     }
 
@@ -72,10 +72,11 @@ public class InterpretUtil {
     var interpreter = new Interpreter(firModule);
     registerStubs(interpreter);
 
-    runAndCheck(interpreter, expectedOutput, expectedErrorMsg);
+    verifyRunAndCheck(interpreter, expectedOutput, expectedErrorMsg);
 
     // Ok, now test optimizations.
-    optimize.accept(new TestInterpretCtx(interpreter, expectedOutput, expectedErrorMsg));
+    optimize.accept(
+        new TestInterpretCtx(interpreter, expectedIsValid, expectedOutput, expectedErrorMsg));
   }
 
   /// Hijack unimplemented functions in the examples, e.g. `inc`.
@@ -147,8 +148,8 @@ public class InterpretUtil {
     }
   }
 
-  /// Call `main`, then check the output and error (if any) against expected.
-  private static void runAndCheck(
+  /// Run verifiers, then call `main`, then check the output and error (if any) against expected.
+  private static void verifyRunAndCheck(
       Interpreter interpreter, @Nullable SEXP expectedOutput, @Nullable String expectedErrorMsg) {
     try {
       var actualReturnSexp = interpreter.call("main");
@@ -181,12 +182,17 @@ public class InterpretUtil {
 
   public static class TestInterpretCtx {
     private final Interpreter interpreter;
+    private final boolean expectedIsValid;
     private final @Nullable SEXP expectedOutput;
     private final @Nullable String expectedErrorMsg;
 
     private TestInterpretCtx(
-        Interpreter interpreter, @Nullable SEXP expectedOutput, @Nullable String expectedErrorMsg) {
+        Interpreter interpreter,
+        boolean expectedIsValid,
+        @Nullable SEXP expectedOutput,
+        @Nullable String expectedErrorMsg) {
       this.interpreter = interpreter;
+      this.expectedIsValid = expectedIsValid;
       this.expectedOutput = expectedOutput;
       this.expectedErrorMsg = expectedErrorMsg;
     }
@@ -199,10 +205,14 @@ public class InterpretUtil {
       return interpreter.module();
     }
 
-    /// Rerun the interpreter and check that it still produces the expected output and raises
-    /// expected errors.
+    /// Re-verify if initially valid, then rerun the interpreter, then check that it still produces
+    /// the expected output and raises expected errors.
     public void retest() {
-      runAndCheck(interpreter, expectedOutput, expectedErrorMsg);
+      if (expectedIsValid && !checkAll(interpreter.module())) {
+        fail("Module failed verification");
+      }
+
+      verifyRunAndCheck(interpreter, expectedOutput, expectedErrorMsg);
     }
   }
 }

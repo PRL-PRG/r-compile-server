@@ -3,23 +3,21 @@ package org.prlprg.fir.check;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.util.DirectorySource;
+import org.prlprg.util.TestPath;
 
 class CFGCheckTest {
   /// Tests that all FIŘ files in the test resources directory, when CFG checked, raise expected
   /// CFG errors and no other errors.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir", depth = 2)
-  void testCFGCheckFirFiles(Path firFilePath) throws IOException {
-    var firText = Files.readString(firFilePath);
+  void testCFGCheckFirFiles(TestPath firPath) {
+    var firText = firPath.read();
     var firModule = parseModule(firText);
 
     var cfgChecker = new CFGChecker();

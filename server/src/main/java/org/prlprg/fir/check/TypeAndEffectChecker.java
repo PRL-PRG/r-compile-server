@@ -132,16 +132,15 @@ public final class TypeAndEffectChecker extends Checker {
             "Return type's kind must subtype `V` and it must be definite: " + scope.returnType());
       }
 
+      // Check return type and effects are expected
+      var returnType = inferType.of(scope.cfg());
+      var effects = inferEffects.of(scope.cfg());
+      cfg.checkSubtype(returnType, scope.returnType(), "Return type mismatch");
+      cfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
+
       // Check instruction invariants
       // Doesn't `streamCfgs` because `run` includes promises.
       cfg.run();
-
-      // Check return type and effects are expected.
-      var returnType = inferType.of(scope.cfg());
-      var effects = inferEffects.of(scope.cfg());
-
-      cfg.checkSubtype(returnType, scope.returnType(), "Return type mismatch");
-      cfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
     }
 
     class OnCfg {
@@ -267,24 +266,7 @@ public final class TypeAndEffectChecker extends Checker {
               case InlineCallee(var inlinee) -> checkArguments.accept(inlinee);
             }
           }
-          case Cast(var value, var castType) -> {
-            var valueType = scope.typeOf(value);
-            checkWellFormed(castType);
-
-            if (valueType != null
-                && !valueType.isSubtypeOf(castType)
-                && !castType.isSubtypeOf(valueType)) {
-              report(
-                  "Stupid cast: "
-                      + value
-                      + " {:"
-                      + valueType
-                      + "} as "
-                      + castType
-                      + " will always fail");
-            }
-          }
-          case Closure _ -> {}
+          case Cast(var _, var _), Closure _ -> {}
           case Dup(var value) -> {
             var type = scope.typeOf(value);
             if (type == null) {

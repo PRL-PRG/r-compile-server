@@ -5,19 +5,17 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 import static org.prlprg.fir.opt.OptimizationTest.replaceAfterComments;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.util.DirectorySource;
+import org.prlprg.util.TestPath;
 
 class CleanupTest {
   /// Tests that all FIŘ files in the test resources directory are unaffected by the [Cleanup]
   /// pass.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testCleanupNoOps(Path firFilePath) throws IOException {
-    var firText = Files.readString(firFilePath);
+  void testCleanupNoOps(TestPath firPath) {
+    var firText = firPath.read();
     var firModule = parseModule(firText);
 
     var firModuleBeforeCleanup = firModule.toString();
@@ -32,7 +30,7 @@ class CleanupTest {
     } catch (Exception e) {
       fail(
           "Cleanup pass failed on FIŘ file: "
-              + firFilePath
+              + firPath
               + "\nError: "
               + e.getMessage()
               + "\nOriginal Content:\n"
