@@ -1,4 +1,4 @@
-/// FIŘ analyses for control-flow-graph structure.
+/// FIŘ analyses for general control-flow-graph structure.
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

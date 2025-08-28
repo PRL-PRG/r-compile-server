@@ -1,12 +1,14 @@
-package org.prlprg.fir.analyze;
+package org.prlprg.fir.analyze.resolve;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
-import org.prlprg.fir.analyze.OriginAnalysis.State;
+import org.prlprg.fir.analyze.Analysis;
+import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.generic.AbstractInterpretation;
+import org.prlprg.fir.analyze.resolve.OriginAnalysis.State;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;

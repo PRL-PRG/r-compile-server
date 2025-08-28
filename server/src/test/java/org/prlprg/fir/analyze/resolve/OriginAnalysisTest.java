@@ -1,11 +1,10 @@
-package org.prlprg.fir.analyze.generic;
+package org.prlprg.fir.analyze.resolve;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.analyze.OriginAnalysis;
-import org.prlprg.fir.analyze.OriginAnalysis.State;
+import org.prlprg.fir.analyze.resolve.OriginAnalysis.State;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.variable.Variable;

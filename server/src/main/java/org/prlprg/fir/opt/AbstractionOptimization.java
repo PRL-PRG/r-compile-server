@@ -1,8 +1,7 @@
-package org.prlprg.fir.opt.abstraction;
+package org.prlprg.fir.opt;
 
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.opt.Optimization;
 
 /// An optimization that runs on an [Abstraction].
 public interface AbstractionOptimization extends Optimization {

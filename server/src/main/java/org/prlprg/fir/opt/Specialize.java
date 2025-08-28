@@ -1,4 +1,4 @@
-package org.prlprg.fir.opt.abstraction;
+package org.prlprg.fir.opt;
 
 import java.util.Arrays;
 import java.util.List;

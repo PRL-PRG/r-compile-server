@@ -2,7 +2,7 @@ package org.prlprg.bc2fir;
 
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.fir.check.Checker.checkAll;
-import static org.prlprg.fir.opt.abstraction.Cleanup.cleanup;
+import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.fir.ir.module.Module;

@@ -1,8 +1,9 @@
-package org.prlprg.fir.opt;
+package org.prlprg.fir.opt.specialize;
 
 import org.prlprg.fir.interpret.InterpretUtil.TestInterpretCtx;
-import org.prlprg.fir.opt.abstraction.Specialize;
-import org.prlprg.fir.opt.specialize.OptimizeCallee;
+import org.prlprg.fir.opt.Optimization;
+import org.prlprg.fir.opt.OptimizationTest;
+import org.prlprg.fir.opt.Specialize;
 
 class OptimizeCalleeTest extends OptimizationTest {
   @Override

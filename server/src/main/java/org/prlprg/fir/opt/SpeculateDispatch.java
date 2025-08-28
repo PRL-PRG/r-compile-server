@@ -17,8 +17,6 @@ import org.prlprg.util.Streams;
 
 /// Compile a new version with feedback from parameters on an existing version.
 ///
-/// This is an optimization, but doesn't implement [Optimization] because it runs on functions.
-///
 /// TODO: Somewhere we should store removed specializations which were deoptimized.
 /// Also remove ones with more specific assumptions which turn out to not be optimizations over
 /// other verisons, and try to merge ones that are equal by compiling with the intersected

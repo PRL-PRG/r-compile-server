@@ -1,11 +1,11 @@
-package org.prlprg.fir.opt.abstraction;
+package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.prlprg.fir.analyze.OriginAnalysis;
 import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -32,7 +32,7 @@ import org.prlprg.fir.ir.type.Kind;
 /// 1. Replace variable loads with registers
 /// 2. Substitute registers whose origin is another register or constant
 /// 3. Inline forces, maybe-forces, and static calls when possible
-public final class OriginOptimization implements AbstractionOptimization {
+public final class OptimizeOrigin implements AbstractionOptimization {
   @Override
   public boolean run(Abstraction abstraction) {
     // Run origin analysis
