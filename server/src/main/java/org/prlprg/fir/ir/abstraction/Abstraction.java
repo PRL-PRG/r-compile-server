@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +110,34 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   public @UnmodifiableView Collection<Local> locals() {
     return Collections.unmodifiableCollection(locals.values());
+  }
+
+  /// Like [#locals()], but you can remove elements (equivalent to [#removeLocal(Register)]).
+  public Iterator<Local> mutablyIterateLocals() {
+    return new Iterator<>() {
+      private @Nullable Local last = null;
+      private final Iterator<Local> inner = locals.values().iterator();
+
+      @Override
+      public boolean hasNext() {
+        return inner.hasNext();
+      }
+
+      @Override
+      public Local next() {
+        last = inner.next();
+        return last;
+      }
+
+      @Override
+      public void remove() {
+        if (last == null) {
+          throw new IllegalStateException("`next()` has not been called yet");
+        }
+
+        module.record("Abstraction#removeLocal", List.of(Abstraction.this, last), inner::remove);
+      }
+    };
   }
 
   public Register addLocal(Type type) {

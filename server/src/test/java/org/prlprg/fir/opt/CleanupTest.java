@@ -10,11 +10,11 @@ import org.prlprg.util.DirectorySource;
 import org.prlprg.util.TestPath;
 
 class CleanupTest {
-  /// Tests that all FIŘ files in the test resources directory are unaffected by the [Cleanup]
-  /// pass.
+  /// Tests that all FIŘ files in the test resources directory are affected by [Cleanup] as
+  /// expected. Doesn't substitute origins because that changes a lot.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testCleanupNoOps(TestPath firPath) {
+  void testWorksAsExpectedWithoutOriginSubstitutions(TestPath firPath) {
     var firText = firPath.read();
     var firModule = parseModule(firText);
 
@@ -22,7 +22,7 @@ class CleanupTest {
     var expectedAfterCleanup = parseModule(replaceAfterComments("cleanup", firText)).toString();
 
     try {
-      new Cleanup().run(firModule);
+      new Cleanup(false).run(firModule);
 
       var firModuleAfterCleanup = firModule.toString();
 
@@ -37,6 +37,21 @@ class CleanupTest {
               + firModuleBeforeCleanup
               + "\nExpected Content:\n"
               + expectedAfterCleanup);
+    }
+  }
+
+  /// Tests that all FIŘ files in the test resources directory don't crash when the [Cleanup] pass
+  /// is run on them.
+  @ParameterizedTest
+  @DirectorySource(root = "..", glob = "*.fir")
+  void testDoesntCrash(TestPath firPath) {
+    var firText = firPath.read();
+    var firModule = parseModule(firText);
+
+    try {
+      new Cleanup(true).run(firModule);
+    } catch (Exception e) {
+      fail("Cleanup pass failed on FIŘ file: " + firPath + "\nError: " + e.getMessage());
     }
   }
 }

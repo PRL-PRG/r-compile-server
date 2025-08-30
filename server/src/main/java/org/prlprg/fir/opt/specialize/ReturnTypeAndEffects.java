@@ -5,6 +5,7 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.type.Ownership;
@@ -17,7 +18,8 @@ public record ReturnTypeAndEffects() implements SpecializeOptimization {
   }
 
   @Override
-  public Expression run(Expression expression, Abstraction scope, Analyses analyses) {
+  public Expression run(
+      BB bb, int index, Expression expression, Abstraction scope, Analyses analyses) {
     if (!(expression instanceof Promise(var oldType, var _, var code))) {
       return expression;
     }

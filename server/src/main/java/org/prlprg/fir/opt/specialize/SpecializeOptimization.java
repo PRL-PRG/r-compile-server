@@ -3,6 +3,7 @@ package org.prlprg.fir.opt.specialize;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 
 /// An optimization that replaces individual expressions with those that are faster and/or have
@@ -18,7 +19,7 @@ public interface SpecializeOptimization {
   }
 
   /// If unchanged, return `expression`.
-  Expression run(Expression expression, Abstraction scope, Analyses analyses);
+  Expression run(BB bb, int index, Expression expression, Abstraction scope, Analyses analyses);
 
   default void finish(Abstraction scope, Analyses analyses) {}
 }

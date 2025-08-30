@@ -24,14 +24,16 @@ fun f {
 }
 
 fun g {
+  # Slow case with variables, no optimizations due to `force r` causing reflection
   (reg r:*) -+> V { |
-    # Slow case with variables, no optimizations due to `force r` causing reflection
+    # cleanup:
     40;
+    # cleanup:
     41;
     return 42;
   }
+  # Fast case with registers, optimizations
   (reg r:I) --> I { |
-    # Fast case with registers, optimizations
     return 42;
   }
 }

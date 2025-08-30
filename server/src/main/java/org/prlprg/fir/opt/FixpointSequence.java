@@ -3,8 +3,7 @@ package org.prlprg.fir.opt;
 import java.util.List;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 
-/// An optimization that runs sub-optimizations in a sequence repeatedly until there are no more
-/// changes.
+/// An optimization that runs sub-optimizations in a sequence repeatedly until a fixpoint.
 ///
 /// It can't reuse analyses, and will rerun every optimization in the sequence until there is a
 /// full pass where none make any changes. You can optionally limit the number of iterations.
@@ -27,18 +26,18 @@ public class FixpointSequence implements AbstractionOptimization {
 
   @Override
   public boolean run(Abstraction abstraction) {
-    var changed = false;
-
     var iteration = 0;
-    var iterationChanged = true;
-    while (iterationChanged && iteration < maxIterations) {
+    while (iteration < maxIterations) {
       // Run iterations.
-      iterationChanged = false;
+      var iterationChanged = false;
       for (var opt : subOptimizations) {
         iterationChanged |= opt.run(abstraction);
       }
 
-      changed |= iterationChanged;
+      // Stop if no changes.
+      if (!iterationChanged) {
+        break;
+      }
 
       // Increment and check hard limit (soft limit checked in loop condition).
       iteration++;
@@ -47,8 +46,7 @@ public class FixpointSequence implements AbstractionOptimization {
             "Didn't reach a fixpoint after " + HARD_LIMIT + " iterations, this is likely a bug");
       }
     }
-    ;
 
-    return changed;
+    return iteration > 0;
   }
 }

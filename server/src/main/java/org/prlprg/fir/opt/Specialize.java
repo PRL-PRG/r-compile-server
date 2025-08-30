@@ -102,7 +102,7 @@ public class Specialize implements AbstractionOptimization {
 
       // Specialize `expr`.
       for (var subOptimization : subOptimizations) {
-        expr = subOptimization.run(expr, scope, analyses);
+        expr = subOptimization.run(bb, statementIndex, expr, scope, analyses);
       }
 
       // If actually specialized, replace statement
