@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.fir.interpret.InterpretUtil.testInterpretFirFile;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
+import java.util.ArrayList;
 import java.util.regex.Pattern;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.interpret.InterpretUtil.TestInterpretCtx;
@@ -13,22 +14,42 @@ import org.prlprg.util.TestPath;
 public abstract class OptimizationTest {
   /// Replace lines below `# commentType: ...` with `...` in `firText`.
   public static String replaceAfterComments(String commentType, String firText) {
-    var commentRegex = Pattern.compile("^(\\s*)# " + Pattern.quote(commentType) + ": (.*)$");
+    var commentRegex = Pattern.compile("^(\\s*)# " + Pattern.quote(commentType) + ":( ?.*)$");
     var firLines = firText.split("\n");
 
-    for (int i = 0; i < firLines.length; i++) {
-      var matcher = commentRegex.matcher(firLines[i]);
+    for (int i = 0; i < firLines.length; ) {
+      var matcher = commentRegex.matcher(firLines[i++]);
       if (matcher.matches()) {
         var indentation = matcher.group(1);
-        var replacement = matcher.group(2);
+        var inlineReplacement = matcher.group(2);
+
+        var replacementLines = new ArrayList<String>();
+        if (inlineReplacement.startsWith(" ")) {
+          replacementLines.add(inlineReplacement.substring(1));
+        } else if (inlineReplacement.isEmpty()) {
+          while (i < firLines.length && firLines[i].stripLeading().startsWith("# ")) {
+            replacementLines.add(firLines[i++].stripLeading().substring(2));
+          }
+          if (replacementLines.isEmpty()) {
+            replacementLines.add("");
+          }
+        } else {
+          throw new IllegalArgumentException(
+              "Expected space or newline after \":\" in:\n"
+                  + firLines[i]
+                  + "\nFull text:\n"
+                  + firText);
+        }
 
         // Fail if there's no line after the replacement.
-        if (i + 1 == firLines.length) {
+        if (i + replacementLines.size() > firLines.length) {
           throw new IllegalArgumentException(
               "No line after replacement:\n" + firLines[i] + "\nIn:\n" + firText);
         }
 
-        firLines[i + 1] = indentation + replacement;
+        for (var line : replacementLines) {
+          firLines[i++] = indentation + line;
+        }
       }
     }
 

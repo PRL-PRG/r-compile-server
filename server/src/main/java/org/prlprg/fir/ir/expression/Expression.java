@@ -28,6 +28,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Characters;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
@@ -52,6 +53,8 @@ public sealed interface Expression
         SubscriptStore,
         SuperLoad,
         SuperStore {
+  Expression NOOP = new Aea(new Constant(SEXPs.NULL));
+
   @UnmodifiableView
   Collection<Argument> arguments();
 

@@ -1,5 +1,6 @@
 package org.prlprg.fir.analyze.resolve;
 
+import com.google.common.collect.Iterables;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -118,6 +119,27 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     };
   }
 
+  /// If the argument is a [Read] or [Use], looks up the expression it's assigned to.
+  public @Nullable Expression resolveExpression(Argument arg) {
+    return definitionExpression(resolve(arg));
+  }
+
+  /// Same as [#resolveExpression(Argument)] but skips finding the argument's origin.
+  private @Nullable Expression definitionExpression(Argument origin) {
+    if (!(origin instanceof Read(var originReg))) {
+      return null;
+    }
+
+    var defs = defUses.definitions(originReg);
+    if (defs.size() != 1
+        || !(Iterables.getOnlyElement(defs).inInnermostCfg().instruction()
+            instanceof Statement(var _, var expr))) {
+      return null;
+    }
+
+    return expr;
+  }
+
   /// Gets the origin of a named variable at a specific location.
   public @Nullable Argument get(BB bb, int instructionIndex, NamedVariable variable) {
     var state = at(bb, instructionIndex);
@@ -207,8 +229,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     private @Nullable Argument runForce(Argument forced) {
       var forceeOrigin = resolve(forced);
       var forceeType = inferType.of(forceeOrigin);
-      if (forceeOrigin instanceof Read(var r)
-          && defUses.definitionExpression(r) instanceof Promise(var _, var _, var code)) {
+      if (definitionExpression(forceeOrigin) instanceof Promise(var _, var _, var code)) {
         // We're forcing this promise, so run it's sub-analysis and return the return.
         var subAnalysis = (OnCfg) onCfg(code);
         subAnalysis.run(state());

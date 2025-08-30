@@ -2,15 +2,18 @@ package org.prlprg.fir.analyze;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.util.Pair;
 import org.prlprg.util.Streams;
 
 /// A group of analyses to be shared between many optimizations.
@@ -25,44 +28,31 @@ import org.prlprg.util.Streams;
 /// when queried.
 public class Analyses {
   private final Abstraction target;
-  private final Map<Class<? extends Analysis>, AnalysisInfo> abstractionAnalysisTypes;
-  private final Map<Class<? extends CfgAnalysis>, AnalysisInfo> cfgAnalysisTypes;
+
+  private final AnalysisTypeMap<Analysis> abstractionAnalysisTypes;
+  private final AnalysisTypeMap<CfgAnalysis> cfgAnalysisTypes;
 
   private final Analysis[] abstractionAnalyses;
   private final Map<CFG, CfgAnalysis[]> cfgAnalyses = new HashMap<>();
 
   public Analyses(Abstraction target, AnalysisTypes analysisTypes) {
     this.target = target;
-    this.abstractionAnalysisTypes =
-        analysisTypes.abstraction().stream()
-            .gather(Streams.mapWithIndex(Pair::new))
-            .collect(Collectors.toMap(Pair::first, p -> new AnalysisInfo(p.first(), p.second())));
-    this.cfgAnalysisTypes =
-        analysisTypes.cfg().stream()
-            .gather(Streams.mapWithIndex(Pair::new))
-            .collect(Collectors.toMap(Pair::first, p -> new AnalysisInfo(p.first(), p.second())));
 
-    for (var entry : abstractionAnalysisTypes.entrySet()) {
-      var type = entry.getKey();
-      var info = entry.getValue();
-
-      info.checkDependenciesAreInContext(type, abstractionAnalysisTypes);
-    }
-    for (var entry : cfgAnalysisTypes.entrySet()) {
-      var type = entry.getKey();
-      var info = entry.getValue();
-
-      info.checkDependenciesAreInContext(type, cfgAnalysisTypes);
-    }
+    abstractionAnalysisTypes = new AnalysisTypeMap<>(Analysis.class, analysisTypes.abstraction());
+    cfgAnalysisTypes = new AnalysisTypeMap<>(CfgAnalysis.class, analysisTypes.cfg());
 
     abstractionAnalyses = new Analysis[abstractionAnalysisTypes.size()];
   }
 
   /// @throws NoSuchElementException If `analysisType` wasn't an element of `analysisTypes` in
   /// the constructor.
-  @SuppressWarnings("unchecked")
   public <T extends Analysis> T get(Class<T> analysisType) {
-    var info = abstractionAnalysisTypes.get(analysisType);
+    return get(analysisType, false);
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T extends Analysis> T get(Class<T> analysisType, boolean allowDependencies) {
+    var info = abstractionAnalysisTypes.get(analysisType, allowDependencies);
     if (info == null) {
       throw new NoSuchElementException(
           "Analysis " + analysisType.getSimpleName() + " not in this `Analysis`");
@@ -70,7 +60,7 @@ public class Analyses {
 
     if (abstractionAnalyses[info.index] == null) {
       abstractionAnalyses[info.index] =
-          construct(target, this::get, Analysis.class, info.analysisConstructor);
+          construct(target, t -> get(t, true), Analysis.class, info.analysisConstructor);
     }
 
     // Cast is safe because forall `T`,
@@ -82,15 +72,19 @@ public class Analyses {
   /// constructor.
   /// @throws NoSuchElementException If `analysisType` wasn't an element of `analysisTypes` in
   /// the constructor.
-  @SuppressWarnings("unchecked")
   public <T extends CfgAnalysis> T get(CFG cfg, Class<T> analysisType) {
+    return get(cfg, analysisType, false);
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T extends CfgAnalysis> T get(CFG cfg, Class<T> analysisType, boolean allowDependencies) {
     if (cfg.scope() != target) {
       throw new NoSuchElementException("CFG not in Abstraction");
     }
     var cfgAnalyses =
         this.cfgAnalyses.computeIfAbsent(cfg, _ -> new CfgAnalysis[cfgAnalysisTypes.size()]);
 
-    var info = cfgAnalysisTypes.get(analysisType);
+    var info = cfgAnalysisTypes.get(analysisType, allowDependencies);
     if (info == null) {
       throw new NoSuchElementException(
           "Analysis " + analysisType.getSimpleName() + " not in this `Analysis`");
@@ -98,7 +92,7 @@ public class Analyses {
 
     if (cfgAnalyses[info.index] == null) {
       cfgAnalyses[info.index] =
-          construct(cfg, t -> get(cfg, t), CfgAnalysis.class, info.analysisConstructor);
+          construct(cfg, t -> get(cfg, t, true), CfgAnalysis.class, info.analysisConstructor);
     }
 
     // Cast is safe because forall `T`,
@@ -127,10 +121,44 @@ public class Analyses {
     }
   }
 
-  private record AnalysisInfo(int index, Constructor<?> analysisConstructor) {
-    AnalysisInfo(Class<?> analysis, int index) {
-      this(
-          index,
+  private static class AnalysisTypeMap<A> {
+    private final Map<Class<? extends A>, AnalysisInfo<A>> map = new HashMap<>();
+    private final Set<Class<? extends A>> inherent;
+
+    AnalysisTypeMap(Class<A> superclass, Collection<? extends Class<? extends A>> analysisTypes) {
+      inherent = Set.copyOf(analysisTypes);
+
+      var queue = new ArrayList<>(inherent);
+      while (!queue.isEmpty()) {
+        var next = queue.removeLast();
+        if (map.containsKey(next)) {
+          continue;
+        }
+
+        var info = new AnalysisInfo<>(superclass, next, map.size());
+        map.put(next, info);
+
+        info.streamDependencyTypes().forEach(queue::add);
+      }
+    }
+
+    @Nullable AnalysisInfo<A> get(Class<? extends A> analysisType, boolean allowDependencies) {
+      return !allowDependencies && !inherent.contains(analysisType) ? null : map.get(analysisType);
+    }
+
+    int size() {
+      return map.size();
+    }
+  }
+
+  private static class AnalysisInfo<A> {
+    private final int index;
+    private final Constructor<?> analysisConstructor;
+
+    AnalysisInfo(Class<A> superclass, Class<? extends A> analysis, int index) {
+      this.index = index;
+
+      analysisConstructor =
           Arrays.stream(analysis.getDeclaredConstructors())
               .filter(c -> c.isAnnotationPresent(AnalysisConstructor.class))
               .collect(
@@ -138,62 +166,49 @@ public class Analyses {
                       () ->
                           new IllegalArgumentException(
                               "Analysis must have exactly one `@AnalysisConstructor`: "
-                                  + analysis.getSimpleName()))));
+                                  + analysis.getSimpleName())));
 
+      checkConstructorParameters(superclass, analysis);
+    }
+
+    private void checkConstructorParameters(Class<A> superclass, Class<? extends A> analysis) {
       var constructorParameters = analysisConstructor.getParameters();
-      if (Analysis.class.isAssignableFrom(analysis)) {
+      if (superclass == Analysis.class) {
         if (constructorParameters.length == 0
             || constructorParameters[0].getType() != Abstraction.class) {
           throw new IllegalArgumentException(
               "`@AnalysisConstructor` in `Analysis`'s first parameter must be an `Abstraction`: of "
                   + analysis.getSimpleName());
         }
-        for (int i = 1; i < constructorParameters.length; i++) {
-          if (!Analysis.class.isAssignableFrom(constructorParameters[i].getType())) {
-            throw new IllegalArgumentException(
-                "`@AnalysisConstructor` in `Analysis`'s subsequent parameters must be subclasses of `Analysis`: of "
-                    + analysis.getSimpleName()
-                    + " index "
-                    + i);
-          }
-        }
-      } else if (CfgAnalysis.class.isAssignableFrom(analysis)) {
+      } else if (superclass == CfgAnalysis.class) {
         if (constructorParameters.length == 0 || constructorParameters[0].getType() != CFG.class) {
           throw new IllegalArgumentException(
               "`@AnalysisConstructor` in `CfgAnalysis`'s first parameter must be an `CFG`: of "
                   + analysis.getSimpleName());
         }
-        for (int i = 1; i < constructorParameters.length; i++) {
-          if (!CfgAnalysis.class.isAssignableFrom(constructorParameters[i].getType())) {
-            throw new IllegalArgumentException(
-                "`@AnalysisConstructor` in `CfgAnalysis`'s subsequent parameters must be subclasses of `CfgAnalysis`: of "
-                    + analysis.getSimpleName()
-                    + " index "
-                    + i);
-          }
-        }
       } else {
         throw new IllegalArgumentException(
             "`@AnalysisConstructor` can only be applied to `Analysis` or `CfgAnalysis`, not "
-                + analysis.getSimpleName());
+                + superclass.getSimpleName());
+      }
+      for (int i = 1; i < constructorParameters.length; i++) {
+        if (!superclass.isAssignableFrom(constructorParameters[i].getType())) {
+          throw new IllegalArgumentException(
+              "`@AnalysisConstructor` in `"
+                  + superclass.getSimpleName()
+                  + "`'s subsequent parameters must be subclasses of `Analysis`: of "
+                  + analysis.getSimpleName()
+                  + " index "
+                  + i);
+        }
       }
     }
 
-    /// REACH: Also check cyclic dependencies (currently they'll hang [Analyses#get(Class)]).
-    void checkDependenciesAreInContext(
-        Class<?> analysisType, Map<? extends Class<?>, AnalysisInfo> analysisTypes) {
-      var constructorParameters = analysisConstructor.getParameters();
-      for (int i = 1; i < constructorParameters.length; i++) {
-        var paramType = constructorParameters[i].getType();
-        if (!analysisTypes.containsKey(paramType)) {
-          throw new IllegalArgumentException(
-              "`@AnalysisConstructor` in `Analysis` "
-                  + analysisType.getSimpleName()
-                  + " depends on "
-                  + paramType.getSimpleName()
-                  + ", which wasn't provided to `Analyses`");
-        }
-      }
+    @SuppressWarnings("unchecked")
+    Stream<Class<? extends A>> streamDependencyTypes() {
+      return Arrays.stream(analysisConstructor.getParameters())
+          .skip(1)
+          .map(t -> (Class<? extends A>) t.getType());
     }
   }
 }

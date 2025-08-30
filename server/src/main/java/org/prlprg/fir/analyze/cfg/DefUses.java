@@ -1,6 +1,5 @@
 package org.prlprg.fir.analyze.cfg;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,7 +14,6 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -38,16 +36,6 @@ public final class DefUses implements Analysis {
   /// Get all assignments (defs) of a register.
   public @UnmodifiableView Set<ScopePosition> definitions(Register register) {
     return Collections.unmodifiableSet(definitions.getOrDefault(register, Set.of()));
-  }
-
-  /// If the definition is a [Statement], returns its [Expression].
-  public @Nullable Expression definitionExpression(Register register) {
-    var defs = definitions(register);
-    return defs.size() == 1
-            && Iterables.getOnlyElement(defs).inInnermostCfg().instruction()
-                instanceof Statement(var _, var expr)
-        ? expr
-        : null;
   }
 
   /// Get all reads (uses) of a register.

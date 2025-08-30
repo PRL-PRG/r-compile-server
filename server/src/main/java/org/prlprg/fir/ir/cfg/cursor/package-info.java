@@ -1,4 +1,4 @@
-/** Helpers to mutate a {@link org.prlprg.fir.ir.cfg.CFG CFG}. */
+/// Helpers to mutate a [CFG][org.prlprg.fir.ir.cfg.CFG].
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

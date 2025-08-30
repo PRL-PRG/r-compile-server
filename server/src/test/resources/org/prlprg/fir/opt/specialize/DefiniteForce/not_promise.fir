@@ -1,7 +1,7 @@
 fun main {
   () --> I { reg r:I, reg p:I |
     p = 42;
-    r = force? p;
+    r = p;
     return r;
   }
 }

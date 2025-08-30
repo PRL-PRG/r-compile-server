@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.module.Function;
@@ -42,7 +43,8 @@ public record OptimizeCallee(OptionalFunction<Abstraction, Feedback> getFeedback
   }
 
   @Override
-  public Expression run(Expression expression, Abstraction scope, Analyses analyses) {
+  public Expression run(
+      BB bb, int index, Expression expression, Abstraction scope, Analyses analyses) {
     if (!(expression instanceof Call call)) {
       return expression;
     }
