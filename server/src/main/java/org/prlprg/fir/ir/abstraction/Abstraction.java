@@ -445,6 +445,10 @@ public final class Abstraction implements Comparable<Abstraction> {
     }
     s.assertAndSkip('|');
 
+    while (contains(nextLocalRegister())) {
+      nextLocalDisambiguator++;
+    }
+
     var p2 = p.withContext(new CFG.ParseContext(this, ctx.postModule, p.context()));
     cfg = p2.parse(CFG.class);
 

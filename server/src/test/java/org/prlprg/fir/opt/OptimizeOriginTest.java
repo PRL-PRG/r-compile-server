@@ -8,8 +8,9 @@ import org.prlprg.fir.opt.specialize.ResolveLoadFun;
 class OptimizeOriginTest extends OptimizationTest {
   @Override
   protected Optimization optimization(TestInterpretCtx c) {
-    return new SimpleSequence(
+    return new Sequence(
         new Specialize(new ResolveLoad(), new ResolveLoadFun(), new ResolveDynamicCallee()),
-        new Inline(10000));
+        new Inline(10000),
+        new Cleanup(true));
   }
 }

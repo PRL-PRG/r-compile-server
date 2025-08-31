@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -99,6 +100,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         List<Argument> arguments) {
       // Don't inline if:
       // - Callee is too big
+      // - Callee has a placeholder expression
       // - Callee and caller load or store the same named variable
       // - Callee has effects
       // - Argument and parameter count mismatch (invalid CFG)
@@ -108,8 +110,15 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               .flatMap(cfg -> cfg.bbs().stream())
               .mapToInt(bb1 -> bb1.instructions().size())
               .sum();
+      var hasPlaceholder =
+          callee
+              .streamCfgs()
+              .flatMap(cfg -> cfg.bbs().stream())
+              .flatMap(bb1 -> bb1.statements().stream())
+              .anyMatch(s -> s.expression() instanceof Placeholder);
       var calleeNamedVariables = namedVariablesOf(callee);
       if (instructionCount > maxInlineeSize
+          || hasPlaceholder
           || !Sets.intersection(calleeNamedVariables, namedVariables).isEmpty()
           || callee.effects().reflect()
           || callee.parameters().size() != arguments.size()) {

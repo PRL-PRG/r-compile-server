@@ -205,13 +205,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         case Cast(var value, var _) -> resolve(value);
         case Force(var value) -> runForce(value);
         case MaybeForce(var value) -> runForce(value);
+          // We must run promises because `AbstractInterpretation` doesn't.
+        case Promise(var _, var _, var code) -> {
+          onCfg(code).run(state());
+          yield null;
+        }
           // TODO: Constant-fold some calls.
         case Call _,
             Closure _,
             Dup _,
             MkVector _,
             Placeholder _,
-            Promise _,
             ReflectiveLoad _,
             ReflectiveStore _,
             SubscriptLoad _,
