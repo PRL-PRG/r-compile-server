@@ -14,7 +14,7 @@ import org.prlprg.util.OptionalFunction;
 public class Optimizations {
   public static Optimization defaultOptimizations(
       OptionalFunction<Abstraction, Feedback> getFeedback) {
-    return new SimpleSequence(
+    return new Sequence(
         new SpeculateDispatch(getFeedback, 10, 3, 9),
         new FixpointSequence(
             new Specialize(

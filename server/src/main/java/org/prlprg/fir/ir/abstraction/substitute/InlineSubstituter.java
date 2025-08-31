@@ -1,5 +1,6 @@
 package org.prlprg.fir.ir.abstraction.substitute;
 
+import java.util.ArrayList;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -36,11 +37,17 @@ public class InlineSubstituter extends AbstractSubstituter {
 
   @Override
   protected void commitAffectLocals() {
+    var newLocals = new ArrayList<Local>();
     for (var entry : locals.entrySet()) {
       var oldRegister = entry.getKey();
       var newRegister = ((Read) entry.getValue()).variable();
       var type = scope.removeLocal(oldRegister).type();
-      scope.addLocal(new Local(newRegister, type));
+      newLocals.add(new Local(newRegister, type));
+    }
+    // Must add new locals after,
+    // otherwise we may add a local that already exists, but will be removed later.
+    for (var local : newLocals) {
+      scope.addLocal(local);
     }
   }
 

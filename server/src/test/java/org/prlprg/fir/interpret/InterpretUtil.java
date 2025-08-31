@@ -209,7 +209,7 @@ public class InterpretUtil {
     /// the expected output and raises expected errors.
     public void retest() {
       if (expectedIsValid && !checkAll(interpreter.module())) {
-        fail("Module failed verification");
+        fail("Module failed verification:\n" + interpreter.module());
       }
 
       verifyRunAndCheck(interpreter, expectedOutput, expectedErrorMsg);

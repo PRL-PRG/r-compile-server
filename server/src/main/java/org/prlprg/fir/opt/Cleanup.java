@@ -16,6 +16,25 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Cast;
+import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.expression.Dup;
+import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Force;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.LoadFun;
+import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.expression.ReflectiveLoad;
+import org.prlprg.fir.ir.expression.ReflectiveStore;
+import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.SubscriptLoad;
+import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SuperLoad;
+import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -39,7 +58,7 @@ import org.prlprg.primitive.Logical;
 ///     substitute occurrences of `a` with `b`).
 ///   - Remove unused assignees (convert `r = e` to `e` if `r` is unused) and phis.
 /// - Instructions
-///   - Remove trivial no-ops: register and constants that aren't assigned to anything.
+///   - Remove trivial no-ops (pure expressions not assigned to anything).
 public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptimization {
   public static void cleanup(Module module) {
     new Cleanup().run(module);
@@ -82,7 +101,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       removeUnusedLocals();
 
       // Instructions
-      scope.streamCfgs().forEach(this::removeNoOps);
+      scope.streamCfgs().forEach(this::removeTrivialNoOps);
     }
 
     void removeUnreachableBlocks(CFG cfg) {
@@ -300,11 +319,11 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       }
     }
 
-    void removeNoOps(CFG cfg) {
+    void removeTrivialNoOps(CFG cfg) {
       for (var bb : cfg.bbs()) {
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
-          if (stmt.assignee() != null || !(stmt.expression() instanceof Aea)) {
+          if (stmt.assignee() != null || !isTriviallyPure(stmt.expression())) {
             i++;
             continue;
           }
@@ -314,6 +333,32 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
           changed = true;
         }
       }
+    }
+
+    boolean isTriviallyPure(Expression expression) {
+      return switch (expression) {
+        case Aea _ -> true;
+        case Call _ -> false;
+          // Other instructions may implicitly depend on it succeeding
+        case Cast _ -> false;
+        case Closure _, Dup _ -> true;
+        case Force _ -> false;
+          // May error
+        case Load _ -> false;
+          // May force
+        case LoadFun _ -> false;
+        case MaybeForce _ -> false;
+        case MkVector _ -> true;
+        case Placeholder _ -> false;
+        case Promise _ -> true;
+        case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
+          // May error
+        case SubscriptLoad _ -> false;
+        case SubscriptStore _ -> false;
+          // May error
+        case SuperLoad _ -> false;
+        case SuperStore _ -> false;
+      };
     }
 
     /// Find the target in a jump that points to the given basic block
