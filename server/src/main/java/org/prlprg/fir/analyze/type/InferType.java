@@ -26,8 +26,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -110,13 +110,13 @@ public final class InferType implements Analysis {
         yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
       }
       case Store(var variable, var _) -> of(variable);
-      case SubscriptLoad(var target, var _) -> {
+      case SubscriptRead(var target, var _) -> {
         var targetType = of(target);
         yield targetType != null && targetType.kind() instanceof PrimitiveVector(var kind)
             ? Type.primitiveScalar(kind)
             : null;
       }
-      case SubscriptStore(var _, var _, var value) -> {
+      case SubscriptWrite(var _, var _, var value) -> {
         var valueType = of(value);
         yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
       }

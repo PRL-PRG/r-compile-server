@@ -76,6 +76,11 @@ public class Substituter extends AbstractSubstituter {
   }
 
   @Override
+  protected void clearOtherSubstitutionData() {
+    backwards.clear();
+  }
+
+  @Override
   protected @Nullable Register substituteAssignee(@Nullable Register assignee) {
     return assignee != null && locals.containsKey(assignee) ? null : assignee;
   }

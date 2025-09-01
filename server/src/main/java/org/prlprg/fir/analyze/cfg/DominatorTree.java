@@ -11,6 +11,7 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.position.CfgPosition;
 
 /// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
 /// dominator of its children.
@@ -46,9 +47,21 @@ public final class DominatorTree implements CfgAnalysis {
     return dominators.getOrDefault(bb, Set.of());
   }
 
-  /// Check if block `dominator` dominates block `bb`.
-  public boolean dominates(BB dominator, BB bb) {
-    return dominators(bb).contains(dominator);
+  /// Check if `dominator` dominates `dominee`.
+  public boolean dominates(CfgPosition dominator, CfgPosition dominee) {
+    return dominates(
+        dominator.bb(), dominator.instructionIndex(), dominee.bb(), dominee.instructionIndex());
+  }
+
+  public boolean dominates(BB dominatorBb, int dominatorIndex, BB domineeBb, int domineeIndex) {
+    return dominatorBb == domineeBb
+        ? dominatorIndex <= domineeIndex
+        : dominates(dominatorBb, domineeBb);
+  }
+
+  /// Check if `dominator` dominates `dominee`.
+  public boolean dominates(BB dominator, BB dominee) {
+    return dominators(dominee).contains(dominator);
   }
 
   private void compute() {

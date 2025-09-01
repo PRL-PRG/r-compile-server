@@ -24,8 +24,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Instruction;
@@ -92,8 +92,8 @@ public final class InferEffects implements Analysis {
       case MkVector(var _), Placeholder(), Promise(var _, var _, var _) -> Effects.NONE;
       case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.ANY;
       case Store(var _, var _),
-              SubscriptLoad(var _, var _),
-              SubscriptStore(var _, var _, var _),
+              SubscriptRead(var _, var _),
+              SubscriptWrite(var _, var _, var _),
               SuperLoad(var _),
               SuperStore(var _, var _) ->
           Effects.NONE;

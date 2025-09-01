@@ -7,7 +7,8 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record SubscriptLoad(Argument target, Argument index) implements Expression {
+public record SubscriptWrite(Argument target, Argument index, Argument value)
+    implements Expression {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -15,14 +16,17 @@ public record SubscriptLoad(Argument target, Argument index) implements Expressi
 
   @PrintMethod
   private void print(Printer p) {
+    var w = p.writer();
+
     p.print(target);
-    p.writer().write("[");
+    w.write("[");
     p.print(index);
-    p.writer().write("]");
+    w.write("] = ");
+    p.print(value);
   }
 
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
-    return List.of(target, index);
+    return List.of(target, index, value);
   }
 }

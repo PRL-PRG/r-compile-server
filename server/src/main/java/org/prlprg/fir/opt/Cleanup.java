@@ -31,8 +31,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -91,13 +91,13 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::simplifyBranches));
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeSinglePredecessorPhis));
       scope.streamCfgs().forEach(this::mergeBlocks);
+      substituter.commit();
 
       // Registers
       if (substituteWithOrigins) {
         substituteWithOrigins();
+        substituter.commit();
       }
-      // Run all substitutions here, later stages don't substitute and rely on them.
-      substituter.commit();
       removeUnusedLocals();
 
       // Instructions
@@ -353,8 +353,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case Promise _ -> true;
         case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
           // May error
-        case SubscriptLoad _ -> false;
-        case SubscriptStore _ -> false;
+        case SubscriptRead _ -> false;
+        case SubscriptWrite _ -> false;
           // May error
         case SuperLoad _ -> false;
         case SuperStore _ -> false;

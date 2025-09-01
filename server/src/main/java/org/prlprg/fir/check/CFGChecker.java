@@ -147,9 +147,7 @@ public class CFGChecker extends Checker {
 
       var dominatorTree = dominatorTrees.get(localDef.cfg());
 
-      return localDef.bb() == localUse.bb()
-          ? localDef.instructionIndex() < localUse.instructionIndex()
-          : dominatorTree.dominates(localDef.bb(), localUse.bb());
+      return dominatorTree.dominates(localDef, localUse);
     }
 
     class OnCfg {

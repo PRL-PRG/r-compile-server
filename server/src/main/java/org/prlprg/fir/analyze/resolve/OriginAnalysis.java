@@ -38,8 +38,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -202,9 +202,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           yield loadOrigin;
         }
         case Aea(var arg) -> resolve(arg);
-        case Cast(var value, var _) -> resolve(value);
-        case Force(var value) -> runForce(value);
-        case MaybeForce(var value) -> runForce(value);
+        case Cast(var value, var type) -> {
+          var valueOrigin = resolve(value);
+          // Only see through the cast if it's guaranteed to succeed.
+          // Otherwise we'll get a type error substituting,
+          // and a runtime error iff the instruction gets rearranged before the cast
+          // and the cast would fail.
+          var valueType = inferType.of(valueOrigin);
+          yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
+        }
+        case Force(var value) -> runForce(value, false);
+        case MaybeForce(var value) -> runForce(value, true);
           // We must run promises because `AbstractInterpretation` doesn't.
         case Promise(var _, var _, var code) -> {
           onCfg(code).run(state());
@@ -218,8 +226,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             Placeholder _,
             ReflectiveLoad _,
             ReflectiveStore _,
-            SubscriptLoad _,
-            SubscriptStore _,
+            SubscriptRead _,
+            SubscriptWrite _,
             SuperLoad _,
             SuperStore _ -> {
           if (inferEffects.of(expr).reflect()) {
@@ -230,7 +238,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       };
     }
 
-    private @Nullable Argument runForce(Argument forced) {
+    private @Nullable Argument runForce(Argument forced, boolean isMaybe) {
       var forceeOrigin = resolve(forced);
       var forceeType = inferType.of(forceeOrigin);
       if (definitionExpression(forceeOrigin) instanceof Promise(var _, var _, var code)) {
@@ -238,8 +246,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         var subAnalysis = (OnCfg) onCfg(code);
         subAnalysis.run(state());
         return subAnalysis.returnOrigin();
-      } else if (forceeType != null && forceeType.isDefinitely(Kind.AnyValue.class)) {
-        // We're maybe-forcing (or erroring on) a value, so we just return it.
+      } else if (isMaybe && forceeType != null && forceeType.isDefinitely(Kind.AnyValue.class)) {
+        // We're maybe-forcing a value, so just return it.
         return forceeOrigin;
       } else {
         // We're forcing an unknown thing.

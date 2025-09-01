@@ -52,6 +52,9 @@ public class InlineSubstituter extends AbstractSubstituter {
   }
 
   @Override
+  protected void clearOtherSubstitutionData() {}
+
+  @Override
   protected @Nullable Register substituteAssignee(@Nullable Register assignee) {
     if (assignee == null) {
       return null;
