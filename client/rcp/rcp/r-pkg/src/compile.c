@@ -28,16 +28,26 @@
 
 void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function);
 
-#define MAX2(a, b) ((a) > (b) ? (a) : (b))
-#define MAX3(a, b, c) MAX2(MAX2(a, b), c)
-#define MAX4(a, b, c, d) MAX2(MAX3(a, b, c), d)
-#define MAX5(a, b, c, d, e) MAX2(MAX4(a, b, c, d), e)
-#define MAX6(a, b, c, d, e, f) MAX2(MAX5(a, b, c, d, e), f)
-#define MAX7(a, b, c, d, e, f, g) MAX2(MAX6(a, b, c, d, e, f), g)
-#define MAX8(a, b, c, d, e, f, g, h) MAX2(MAX7(a, b, c, d, e, f, g), h)
-#define MAX9(a, b, c, d, e, f, g, h, i) MAX2(MAX8(a, b, c, d, e, f, g, h), i)
-#define MAX10(a, b, c, d, e, f, g, h, i, j) MAX2(MAX9(a, b, c, d, e, f, g, h, i), j)
-#define MAX11(a, b, c, d, e, f, g, h, i, j, k) MAX2(MAX10(a, b, c, d, e, f, g, h, i, j), k)
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MAX3(a, b, c) MAX(MAX(a, b), c)
+#define MAX4(a, b, c, d) MAX(MAX3(a, b, c), d)
+#define MAX5(a, b, c, d, e) MAX(MAX4(a, b, c, d), e)
+#define MAX6(a, b, c, d, e, f) MAX(MAX5(a, b, c, d, e), f)
+#define MAX7(a, b, c, d, e, f, g) MAX(MAX6(a, b, c, d, e, f), g)
+#define MAX8(a, b, c, d, e, f, g, h) MAX(MAX7(a, b, c, d, e, f, g), h)
+#define MAX9(a, b, c, d, e, f, g, h, i) MAX(MAX8(a, b, c, d, e, f, g, h), i)
+#define MAX10(a, b, c, d, e, f, g, h, i, j) MAX(MAX9(a, b, c, d, e, f, g, h, i), j)
+#define MAX11(a, b, c, d, e, f, g, h, i, j, k) MAX(MAX10(a, b, c, d, e, f, g, h, i, j), k)
+
+#ifndef ALIGNMENT_LABELS
+#define ALIGNMENT_LABELS 1
+#endif
+#ifndef ALIGNMENT_JUMPS
+#define ALIGNMENT_JUMPS ALIGNMENT_LABELS
+#endif
+#ifndef ALIGNMENT_LOOPS
+#define ALIGNMENT_LOOPS ALIGNMENT_LABELS
+#endif
 
 static int fits_in(int64_t value, int size)
 {
@@ -732,15 +742,89 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     size_t insts_size = _RCP_INIT.body_size;
     size_t for_count = 0;
 
-    void *vmax = vmaxget(); // Save to restore it later to free memory allocated by the following calls
+    const void *vmax = vmaxget(); // Save to restore it later to free memory allocated by the following calls
     uint8_t **inst_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
     int *used_bcells = (int *)S_alloc(constpool_size, sizeof(int));
     int *bytecode_lut = (int *)R_alloc(bytecode_size, sizeof(int));
+    uint8_t *bytecode_alignment = (uint8_t *)S_alloc(bytecode_size, sizeof(uint8_t));
 
     int count_opcodes = 0;
+    uint8_t can_fallthrough = 0; // Whether the previous instruction can fallthrough to the next one. First instruction is always jumped at from shim.
+
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    {
+        int jmp_target;
+        const int *imms = &bytecode[i + 1];
+
+        switch (bytecode[i])
+        {
+        case (GOTO_OP):
+        case (STEPFOR_OP):
+            jmp_target = imms[0];
+            break;
+        case (BRIFNOT_OP):
+        case (STARTSUBSET_OP):
+        case (STARTSUBSET2_OP):
+        case (AND1ST_OP):
+        case (OR1ST_OP):
+        case (STARTSUBSET_N_OP):
+        case (STARTSUBASSIGN_N_OP):
+        case (STARTSUBSET2_N_OP):
+        case (STARTSUBASSIGN2_N_OP):
+            jmp_target = imms[1];
+            break;
+        case (STARTFOR_OP):
+            jmp_target = imms[2];
+            break;
+        default:
+            jmp_target = -1;
+            break;
+        }
+
+        // If the previous instruction cannot fallthrough, this instruction is aligned (at least) to ALIGNMENT_JUMPS
+        if(!can_fallthrough)
+        {
+            DEBUG_PRINT("Instruction %d is aligned due to previous instruction not falling through\n", i);
+            bytecode_alignment[i] = MAX(bytecode_alignment[i], ALIGNMENT_JUMPS);
+        }
+
+        if (jmp_target > 0)
+        {
+            jmp_target -= 1; // Convert to 0-based index
+            if (jmp_target > i) // Forward jump (not a loop)
+            {
+                DEBUG_PRINT("Forward jump from %d to %d\n", i, jmp_target);
+                bytecode_alignment[jmp_target] = MAX(bytecode_alignment[jmp_target], ALIGNMENT_LABELS);
+            }
+            else // Backward jump (a loop)
+            {
+                DEBUG_PRINT("Backward jump from %d to %d\n", i, jmp_target);
+                bytecode_alignment[jmp_target] = MAX(bytecode_alignment[jmp_target], ALIGNMENT_LOOPS);
+            }
+        }
+
+        // Update alignment based on stencil requirements
+        bytecode_alignment[i] = MAX(bytecode_alignment[i], get_stencil(bytecode[i], imms, constpool)->alignment);
+
+        // Determine whether the next instruction can be jumped to directly or not
+        switch (bytecode[i])
+        {
+        case (RETURN_OP):
+        case (GOTO_OP):
+        case (STARTFOR_OP):
+            can_fallthrough = 0; // Always jumps
+            break;
+        default:
+            can_fallthrough = 1; // Can fallthrough
+            break;
+        }
+    }
+
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+        DEBUG_PRINT("Instruction %d (%s) alignment: %d\n", i, OPCODES[bytecode[i]], bytecode_alignment[i]);
 
     // First pass to calculate the sizes
-    for (int i = 0; i < bytecode_size; ++i)
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
         const int *imms = &bytecode[i + 1];
         const Stencil *stencil = get_stencil(bytecode[i], imms, constpool);
@@ -753,7 +837,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             for_count++;
 #endif
 
-        size_t aligned_size = align_to_higher(insts_size, stencil->alignment);
+        size_t aligned_size = align_to_higher(insts_size, bytecode_alignment[i]);
         size_t aligned_diff = aligned_size - insts_size;
         //DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff: %zu\n", OPCODES[bytecode[i]], insts_size, aligned_size, aligned_diff);
 
@@ -782,11 +866,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             }
             break;
             default:
-            break;
+                break;
             }
         }
-
-        i += imms_cnt[bytecode[i]];
     }
 
     stats->count_opcodes += count_opcodes;
@@ -1106,6 +1188,10 @@ void rcp_init(void)
 #ifdef STEPFOR_SPECIALIZE
     prepare_stepfor();
 #endif
+
+    DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d\n", ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS);
+
+    DEBUG_PRINT("RCP initialized\n");
 }
 
 void rcp_destr(void)
