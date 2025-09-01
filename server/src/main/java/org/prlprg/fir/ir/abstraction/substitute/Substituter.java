@@ -13,6 +13,10 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Registers that are substituted are removed from the scope. Assignments to those registers
 /// are converted into non-assigning statements. Substitutions are transitive.
+///
+/// `use`-ness is preserved at the substitution site: staging `r -> use r2` is equivalent to
+/// staging `r -> r2`, and in both cases, if the target is `use r`, it will be `use r2`. Trying
+/// to substitute a `use` with a constant raises [IllegalStateException].
 public class Substituter extends AbstractSubstituter {
   private final Multimap<Register, Register> backwards =
       MultimapBuilder.hashKeys().arrayListValues().build();

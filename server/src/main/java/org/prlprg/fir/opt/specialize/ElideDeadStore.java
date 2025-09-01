@@ -2,6 +2,8 @@ package org.prlprg.fir.opt.specialize;
 
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.Loads;
+import org.prlprg.fir.analyze.cfg.Reachability;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;

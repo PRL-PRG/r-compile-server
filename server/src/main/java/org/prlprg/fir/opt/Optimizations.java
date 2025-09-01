@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import org.prlprg.fir.feedback.Feedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
+import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;

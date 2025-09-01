@@ -20,6 +20,10 @@ import org.prlprg.fir.ir.variable.Register;
 /// - Adds substituted registers into the scope (like [Substituter], registers that are
 ///   substituted are removed from the scope, unless they're the target of another substitution).
 /// - Doesn't do transitive substitutions.
+///
+/// `use`-ness is preserved at the substitution site: staging `r -> use r2` is equivalent to
+/// staging `r -> r2`, and in both cases, if the target is `use r`, it will be `use r2`. Trying
+/// to substitute a `use` with a constant raises [IllegalStateException].
 public class InlineSubstituter extends AbstractSubstituter {
   public InlineSubstituter(Abstraction scope) {
     super(scope);

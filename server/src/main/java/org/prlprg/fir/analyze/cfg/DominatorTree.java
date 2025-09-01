@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
@@ -17,34 +18,40 @@ import org.prlprg.fir.ir.position.CfgPosition;
 /// dominator of its children.
 public final class DominatorTree implements CfgAnalysis {
   private final CFG cfg;
-  private final Map<BB, BB> immediateDominators;
-  private final Map<BB, Set<BB>> immediateDominees;
-  private final Map<BB, Set<BB>> dominators;
+  private final Map<BB, BB> immediateDominators = new HashMap<>();
+  private final Map<BB, Set<BB>> immediateDominees = new HashMap<>();
+  private final Map<BB, Set<BB>> dominators = new HashMap<>();
 
   @AnalysisConstructor
   public DominatorTree(CFG cfg) {
     this.cfg = cfg;
-    this.immediateDominators = new HashMap<>();
-    this.immediateDominees = new HashMap<>();
-    this.dominators = new HashMap<>();
-    compute();
+    run();
   }
 
   /// Get the immediate dominator of a basic block.
   ///
   /// Returns `null` for the entry block.
   public @Nullable BB immediateDominator(BB bb) {
+    if (bb.owner() != cfg) {
+      throw new IllegalArgumentException("BB not in CFG");
+    }
     return immediateDominators.get(bb);
   }
 
   /// Get all blocks immediately dominated by this block.
   public Set<BB> immediateDominees(BB bb) {
-    return immediateDominees.getOrDefault(bb, Set.of());
+    if (bb.owner() != cfg) {
+      throw new IllegalArgumentException("BB not in CFG");
+    }
+    return Objects.requireNonNull(immediateDominees.get(bb));
   }
 
   /// Get all dominators of a basic block (including itself).
   public Set<BB> dominators(BB bb) {
-    return dominators.getOrDefault(bb, Set.of());
+    if (bb.owner() != cfg) {
+      throw new IllegalArgumentException("BB not in CFG");
+    }
+    return Objects.requireNonNull(dominators.get(bb));
   }
 
   /// Check if `dominator` dominates `dominee`.
@@ -64,7 +71,7 @@ public final class DominatorTree implements CfgAnalysis {
     return dominators(dominee).contains(dominator);
   }
 
-  private void compute() {
+  private void run() {
     var bbs = cfg.bbs();
     var entry = cfg.entry();
 
