@@ -78,7 +78,8 @@ abstract class AbstractSubstituter {
                     "Local " + local + " has already been marked for substitution.");
               }
 
-              doStage(local, substitution);
+              // Don't substitute reads with `use`s, instead preserve `use`-ness of substituted.
+              doStage(local, substitution instanceof Use(var r) ? new Read(r) : substitution);
             });
   }
 
@@ -198,6 +199,7 @@ abstract class AbstractSubstituter {
   private Argument substitute(Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
+        // Preserve `use`-ness of substituted
       case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
       default -> argument;
     };
