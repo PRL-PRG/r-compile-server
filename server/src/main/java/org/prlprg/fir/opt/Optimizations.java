@@ -3,7 +3,8 @@ package org.prlprg.fir.opt;
 import org.prlprg.fir.feedback.Feedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
-import org.prlprg.fir.opt.specialize.ElideUselessCast;
+import org.prlprg.fir.opt.specialize.ElideTrivialCast;
+import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
@@ -19,8 +20,9 @@ public class Optimizations {
         new FixpointSequence(
             new Specialize(
                 new DefiniteForce(),
-                // new ElideDeadStore(),
-                new ElideUselessCast(),
+                new ElideDeadStore(),
+                new ElideTrivialCast(),
+                new ElideUseSubscriptWrite(),
                 new OptimizeCallee(getFeedback, 10),
                 new ResolveDynamicCallee(),
                 new ResolveLoad(),

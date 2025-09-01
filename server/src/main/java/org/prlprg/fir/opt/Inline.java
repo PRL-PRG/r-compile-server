@@ -1,9 +1,8 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
-import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
 import static org.prlprg.fir.ir.cfg.cursor.NamedVariablesOf.namedVariablesOf;
-import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfs;
+import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
 
 import com.google.common.collect.Sets;
 import java.util.List;
@@ -17,6 +16,8 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.cursor.CFGInliner;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.MaybeForce;
@@ -37,8 +38,8 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
   private class OnAbstraction {
     private final Abstraction abstraction;
 
-    private final OriginAnalysis originAnalysis;
-    private final Set<NamedVariable> namedVariables;
+    private OriginAnalysis originAnalysis;
+    private Set<NamedVariable> namedVariables;
 
     boolean changed = false;
 
@@ -48,14 +49,20 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       namedVariables = namedVariablesOf(abstraction);
     }
 
+    private void recomputeAnalyses() {
+      originAnalysis = new OriginAnalysis(abstraction);
+      namedVariables = namedVariablesOf(abstraction);
+    }
+
     void run() {
       abstraction
           .streamCfgs()
           .forEach(
               cfg -> {
-                // Do reverse-DFS because inlines affect later positions.
-                for (var bb : reverseDfs(cfg)) {
-                  for (int i = bb.statements().size() - 1; i >= 0; i--) {
+                // We run DFS to recursively try inlined code.
+                // Then we don't need to repeat the analysis to reach a fixpoint.
+                for (var bb : dfs(cfg)) {
+                  for (int i = 0; i < bb.statements().size(); i++) {
                     tryInline(bb, i);
                   }
                 }
@@ -89,7 +96,6 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // Replace statement with inline
       bb.removeStatementAt(statementIndex);
       inline(code, bb, statementIndex - 1, assignee);
-      changed = true;
     }
 
     private void tryInlineCall(
@@ -99,10 +105,11 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         Abstraction callee,
         List<Argument> arguments) {
       // Don't inline if:
-      // - Callee is too big
-      // - Callee has a placeholder expression
-      // - Callee and caller load or store the same named variable
+      // - Callee is caller (recursive)
       // - Callee has effects
+      // - Callee has a placeholder expression
+      // - Callee is too big
+      // - Callee and caller load or store the same named variable
       // - Argument and parameter count mismatch (invalid CFG)
       var instructionCount =
           callee
@@ -116,11 +123,12 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               .flatMap(cfg -> cfg.bbs().stream())
               .flatMap(bb1 -> bb1.statements().stream())
               .anyMatch(s -> s.expression() instanceof Placeholder);
-      var calleeNamedVariables = namedVariablesOf(callee);
-      if (instructionCount > maxInlineeSize
-          || hasPlaceholder
-          || !Sets.intersection(calleeNamedVariables, namedVariables).isEmpty()
+      var variablesClash = !Sets.intersection(namedVariablesOf(callee), namedVariables).isEmpty();
+      if (callee == abstraction
           || callee.effects().reflect()
+          || hasPlaceholder
+          || instructionCount > maxInlineeSize
+          || variablesClash
           || callee.parameters().size() != arguments.size()) {
         return;
       }
@@ -167,7 +175,12 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // Replace statement with inline
       bb.removeStatementAt(statementIndex);
       inline(body.cfg(), bb, statementIndex - 1, assignee);
+    }
+
+    private void inline(CFG cfg, BB bb, int statementIndex, @Nullable Register assignee) {
+      CFGInliner.inline(cfg, bb, statementIndex, assignee);
       changed = true;
+      recomputeAnalyses();
     }
   }
 }

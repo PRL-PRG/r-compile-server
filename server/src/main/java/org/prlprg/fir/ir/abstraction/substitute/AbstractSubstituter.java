@@ -7,7 +7,9 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -26,8 +28,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -101,10 +103,13 @@ abstract class AbstractSubstituter {
 
               // Clear substitutions so we can reuse this instance.
               locals.clear();
+              clearOtherSubstitutionData();
             });
   }
 
   protected abstract void commitAffectLocals();
+
+  protected abstract void clearOtherSubstitutionData();
 
   private void run(CFG cfg) {
     for (var bb : cfg.bbs()) {
@@ -165,10 +170,10 @@ abstract class AbstractSubstituter {
       case ReflectiveStore(var promise, var variable, var value) ->
           new ReflectiveStore(substitute(promise), variable, substitute(value));
       case Store(var variable, var value) -> new Store(variable, substitute(value));
-      case SubscriptLoad(var target, var index) ->
-          new SubscriptLoad(substitute(target), substitute(index));
-      case SubscriptStore(var target, var index, var value) ->
-          new SubscriptStore(substitute(target), substitute(index), substitute(value));
+      case SubscriptRead(var target, var index) ->
+          new SubscriptRead(substitute(target), substitute(index));
+      case SubscriptWrite(var target, var index, var value) ->
+          new SubscriptWrite(substitute(target), substitute(index), substitute(value));
       case SuperLoad(var variable) -> new SuperLoad(variable);
       case SuperStore(var variable, var value) -> new SuperStore(variable, substitute(value));
     };
@@ -191,7 +196,21 @@ abstract class AbstractSubstituter {
   }
 
   private Argument substitute(Argument argument) {
-    return argument instanceof Read(var r) && locals.containsKey(r) ? locals.get(r) : argument;
+    return switch (argument) {
+      case Read(var r) when locals.containsKey(r) -> locals.get(r);
+      case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
+      default -> argument;
+    };
+  }
+
+  private Argument convertIntoUse(Argument argument) {
+    return switch (argument) {
+      case Read(var r) -> new Use(r);
+      case Use(var _) -> argument;
+      case Constant(var _) ->
+          throw new IllegalStateException(
+              "can't substitute use with constant:\n" + this + "\n" + scope);
+    };
   }
 
   @Override

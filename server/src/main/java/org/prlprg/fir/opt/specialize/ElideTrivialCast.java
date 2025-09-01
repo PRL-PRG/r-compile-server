@@ -10,7 +10,7 @@ import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Expression;
 
 /// Optimization that removes [Cast]s that statically succeed.
-public record ElideUselessCast() implements SpecializeOptimization {
+public record ElideTrivialCast() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
     return new AnalysisTypes(InferType.class);

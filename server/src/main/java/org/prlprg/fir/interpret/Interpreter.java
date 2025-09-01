@@ -36,8 +36,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -582,7 +582,7 @@ public final class Interpreter {
         topFrame().put(variable, sexp);
         yield sexp;
       }
-      case SubscriptLoad(var vectorArg, var indexArg) -> {
+      case SubscriptRead(var vectorArg, var indexArg) -> {
         var vectorSxp = run(vectorArg);
         var indexSxp = run(indexArg);
 
@@ -597,7 +597,7 @@ public final class Interpreter {
 
         yield subscriptLoad(vector, index);
       }
-      case SubscriptStore(var vectorArg, var indexArg, var valueArg) -> {
+      case SubscriptWrite(var vectorArg, var indexArg, var valueArg) -> {
         var vectorSxp = run(vectorArg);
         var indexSxp = run(indexArg);
         var value = run(valueArg);

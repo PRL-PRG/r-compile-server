@@ -49,8 +49,8 @@ public sealed interface Expression
         ReflectiveLoad,
         ReflectiveStore,
         Store,
-        SubscriptLoad,
-        SubscriptStore,
+        SubscriptRead,
+        SubscriptWrite,
         SuperLoad,
         SuperStore {
   Expression NOOP = new Aea(new Constant(SEXPs.NULL));
@@ -281,9 +281,9 @@ public sealed interface Expression
         s.assertAndSkip(']');
         if (s.trySkip('=')) {
           var value = p.parse(Argument.class);
-          return new SubscriptStore(headAsArg, subscript, value);
+          return new SubscriptWrite(headAsArg, subscript, value);
         } else {
-          return new SubscriptLoad(headAsArg, subscript);
+          return new SubscriptRead(headAsArg, subscript);
         }
       } else if (s.trySkip("as ")) {
         if (headAsArg == null) {

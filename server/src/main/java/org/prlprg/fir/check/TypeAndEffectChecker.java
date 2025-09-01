@@ -32,8 +32,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptLoad;
-import org.prlprg.fir.ir.expression.SubscriptStore;
+import org.prlprg.fir.ir.expression.SubscriptRead;
+import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -345,7 +345,7 @@ public final class TypeAndEffectChecker extends Checker {
 
             checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
           }
-          case SubscriptLoad(var target, var index) -> {
+          case SubscriptRead(var target, var index) -> {
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
 
@@ -363,7 +363,7 @@ public final class TypeAndEffectChecker extends Checker {
                 Type.INTEGER,
                 "Subscript index must be an integer, got " + index + " {:" + indexType + "}");
           }
-          case SubscriptStore(var target, var index, var value) -> {
+          case SubscriptWrite(var target, var index, var value) -> {
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
             var valueType = scope.typeOf(value);
@@ -377,9 +377,10 @@ public final class TypeAndEffectChecker extends Checker {
                         + targetType
                         + "}");
               }
-              if (targetType.ownership() != Ownership.OWNED) {
+              if (targetType.ownership() != Ownership.OWNED
+                  && targetType.ownership() != Ownership.FRESH) {
                 report(
-                    "Subscript write target must be owned, got "
+                    "Subscript write target must be owned or fresh, got "
                         + target
                         + " {:"
                         + targetType
