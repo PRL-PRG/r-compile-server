@@ -48,6 +48,12 @@ void __assert_fail(const char * assertion, const char * file, unsigned int line,
 #ifndef ALIGNMENT_LOOPS
 #define ALIGNMENT_LOOPS ALIGNMENT_LABELS
 #endif
+#ifndef ALIGNMENT_LABELS_UNLIKELY
+#define ALIGNMENT_LABELS_UNLIKELY 1
+#endif
+#ifndef ALIGNMENT_LOOPS_UNLIKELY
+#define ALIGNMENT_LOOPS_UNLIKELY 1
+#endif
 
 static int fits_in(int64_t value, int size)
 {
@@ -754,7 +760,28 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
         int jmp_target;
+        int alignment_labels;
+        int alignment_loops;
+
         const int *imms = &bytecode[i + 1];
+
+        switch (bytecode[i])
+        {
+        case (STARTSUBSET_OP):
+        case (STARTSUBSET2_OP):
+        case (STARTSUBSET_N_OP):
+        case (STARTSUBASSIGN_N_OP):
+        case (STARTSUBSET2_N_OP):
+        case (STARTSUBASSIGN2_N_OP):
+            // These instructions are very unlikely to jump (mostly just in case of errors)
+            alignment_labels = ALIGNMENT_LABELS_UNLIKELY;
+            alignment_loops = ALIGNMENT_LOOPS_UNLIKELY;
+            break;
+        default:
+            alignment_labels = ALIGNMENT_LABELS;
+            alignment_loops = ALIGNMENT_LOOPS;
+            break;
+        }
 
         switch (bytecode[i])
         {
@@ -794,12 +821,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             if (jmp_target > i) // Forward jump (not a loop)
             {
                 DEBUG_PRINT("Forward jump from %d to %d\n", i, jmp_target);
-                bytecode_alignment[jmp_target] = MAX(bytecode_alignment[jmp_target], ALIGNMENT_LABELS);
+                bytecode_alignment[jmp_target] = MAX(bytecode_alignment[jmp_target], alignment_labels);
             }
             else // Backward jump (a loop)
             {
                 DEBUG_PRINT("Backward jump from %d to %d\n", i, jmp_target);
-                bytecode_alignment[jmp_target] = MAX(bytecode_alignment[jmp_target], ALIGNMENT_LOOPS);
+                bytecode_alignment[jmp_target] = MAX(bytecode_alignment[jmp_target], alignment_loops);
             }
         }
 
@@ -1189,7 +1216,7 @@ void rcp_init(void)
     prepare_stepfor();
 #endif
 
-    DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d\n", ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS);
+    DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, UNLIKELY_LOOPS=%d\n", ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS, ALIGNMENT_LABELS_UNLIKELY, ALIGNMENT_LOOPS_UNLIKELY);
 
     DEBUG_PRINT("RCP initialized\n");
 }
