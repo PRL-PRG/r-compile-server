@@ -2,6 +2,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#ifdef DEBUG_MODE
+#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) // No-op
+#endif
+
 typedef enum {
   RELOC_RUNTIME_SYMBOL,
   RELOC_RUNTIME_SYMBOL_GOT,

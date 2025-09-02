@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <bfd.h>
 #include <string.h>
-#include "../rcp_common.h"
 #include <stddef.h>
 #include <assert.h>
+#include "../rcp_common.h"
 
 typedef enum
 {
@@ -50,7 +50,23 @@ typedef struct
   NamedStencil *stencil_extra_last;
 } Stencils;
 
-// Function to check if str starts with prefix
+static int fits_in(int64_t value, int size)
+{
+    switch (size)
+    {
+    case 1:
+        return value >= INT8_MIN && value <= INT8_MAX;
+    case 2:
+        return value >= INT16_MIN && value <= INT16_MAX;
+    case 4:
+        return value >= INT32_MIN && value <= INT32_MAX;
+    case 8:
+        return value >= INT64_MIN && value <= INT64_MAX;
+    default:
+        return 0;
+    }
+}
+
 static int starts_with(const char *str, const char *prefix)
 {
   while (*prefix)
@@ -86,6 +102,62 @@ static int get_opcode(const char *str)
     if (strcmp(str, OPCODES[i]) == 0)
       return i;
   return -1;
+}
+
+static void prepare_variant_one(StencilMutable* stencil, size_t stepfor_max_size)
+{
+    int32_t offset_comparison = stepfor_max_size - stencil->body_size;
+
+    // Different variants of StepFor (can) have different sizes, we need to ensure that all will finish executing at the same memory address.
+    // This can be done by filling the gap with NOPs (0x90) for very small differences
+    if (offset_comparison <= 2)
+    {
+        DEBUG_PRINT("StepFor correction: NOP\n");
+        size_t gap_fill = stepfor_max_size - stencil->body_size;
+        stencil->body = realloc(stencil->body, stencil->body_size + gap_fill);
+        memset(&stencil->body[stencil->body_size], 0x90, gap_fill); // NOPs to fill the gap
+        stencil->body_size += gap_fill; // Adjust size to include the NOPs
+    }
+    // If the offset fits in 1 byte, we can use a short jump (0xEB)
+    else if (fits_in(offset_comparison - 2, 1))
+    {
+        DEBUG_PRINT("StepFor correction: Short jump\n");
+        stencil->body = realloc(stencil->body, stencil->body_size + sizeof(uint8_t) + sizeof(int8_t));
+
+        uint8_t jmp = 0xEB; // JMP instruction
+        memcpy(&stencil->body[stencil->body_size], &jmp, sizeof(jmp));
+        stencil->body_size += sizeof(jmp);
+
+        int8_t offset = (int8_t)(offset_comparison - 2);
+        memcpy(&stencil->body[stencil->body_size], &offset, sizeof(offset));
+        stencil->body_size += sizeof(offset); // Adjust size to include the JMP instruction
+    }
+    // If it doesn't, we need to use a near jump (0xE9)
+    else
+    {
+        DEBUG_PRINT("StepFor correction: Near jump\n");
+        stencil->body = realloc(stencil->body, stencil->body_size + sizeof(uint8_t) + sizeof(int32_t));
+
+        uint8_t jmp = 0xE9; // JMP instruction
+        memcpy(&stencil->body[stencil->body_size], &jmp, sizeof(jmp));
+        stencil->body_size += sizeof(jmp);
+
+        int32_t offset = offset_comparison - 5;
+        memcpy(&stencil->body[stencil->body_size], &offset, sizeof(offset));
+        stencil->body_size += sizeof(offset); // Adjust size to include the JMP instruction
+    }
+}
+
+void prepare_stepfor(NamedStencil* stencil_list)
+{
+  size_t stepfor_max_size = 0;
+  for(const NamedStencil* current = stencil_list; current != NULL; current = current->next)
+    if(starts_with(current->name, "_RCP_STEPFOR_"))
+      stepfor_max_size = MAX(stepfor_max_size, current->stencil.body_size);
+
+  for(NamedStencil* current = stencil_list; current != NULL; current = current->next)
+    if(starts_with(current->name, "_RCP_STEPFOR_"))
+        prepare_variant_one(&current->stencil, stepfor_max_size);
 }
 
 static void print_byte_array(FILE *file, const unsigned char *arr, size_t len)
@@ -667,6 +739,8 @@ int main(int argc, char **argv)
   };
 
   analyze_object_file(argv[1], &stencils);
+
+  prepare_stepfor(&stencils.stencil_extra_first);
 
   //export_body();
   export_to_files(&stencils);

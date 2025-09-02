@@ -20,15 +20,8 @@
 // Used as a hint where to map address space close to R internals to allow relative addressing
 #define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
 
-#ifdef DEBUG_MODE
-#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define DEBUG_PRINT(...) // No-op
-#endif
-
 void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function);
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MAX3(a, b, c) MAX(MAX(a, b), c)
 #define MAX4(a, b, c, d) MAX(MAX3(a, b, c), d)
 #define MAX5(a, b, c, d, e) MAX(MAX4(a, b, c, d), e)
@@ -456,7 +449,7 @@ typedef struct {
   uint8_t *dst;
   uint8_t *src[11];
   uint16_t sizes[11];
-  uint8_t data[10 * (sizeof(uint8_t) + sizeof(int32_t)) /*JMPS*/
+  uint8_t data[0
 #define X(a, b)                          \
   + sizeof(__RCP_STEPFOR_##a##_OP_BODY) 
   X_STEPFOR_TYPES
@@ -484,47 +477,7 @@ static void prepare_variant_one(uint16_t *size, ptrdiff_t *offset, uint8_t *mem,
     *offset = *pos;
     memcpy(&mem[*pos], stencil->body, stencil->body_size);
     *pos += stencil->body_size;
-
-    int32_t offset_comparison = stepfor_max_size - stencil->body_size;
-
-    // Different variants of StepFor (can) have different sizes, we need to ensure that all will finish executing at the same memory address.
-    // This can be done by filling the gap with NOPs (0x90) for very small differences
-    if (offset_comparison <= 2)
-    {
-        DEBUG_PRINT("StepFor correction: NOP\n");
-        size_t gap_fill = stepfor_max_size - stencil->body_size;
-        memset(&mem[*pos], 0x90, gap_fill); // NOPs to fill the gap
-        *pos += gap_fill;
-        *size += gap_fill; // Adjust size to include the NOPs
-    }
-    // If the offset fits in 1 byte, we can use a short jump (0xEB)
-    else if (fits_in(offset_comparison - 2, 1))
-    {
-        DEBUG_PRINT("StepFor correction: Short jump\n");
-        uint8_t jmp = 0xEB; // JMP instruction
-        memcpy(&mem[*pos], &jmp, sizeof(jmp));
-        *pos += sizeof(jmp);
-
-        int8_t offset = (int8_t)(offset_comparison - 2);
-        memcpy(&mem[*pos], &offset, sizeof(offset));
-        *pos += sizeof(offset);
-        *size += sizeof(jmp) + sizeof(offset); // Adjust size to include the JMP instruction
-    }
-    // If it doesn't, we need to use a near jump (0xE9)
-    else
-    {
-        DEBUG_PRINT("StepFor correction: Near jump\n");
-        uint8_t jmp = 0xE9; // JMP instruction
-        memcpy(&mem[*pos], &jmp, sizeof(jmp));
-        *pos += sizeof(jmp);
-
-        int32_t offset = offset_comparison - 5;
-        memcpy(&mem[*pos], &offset, sizeof(offset));
-        *pos += sizeof(offset);
-        *size += sizeof(jmp) + sizeof(offset); // Adjust size to include the JMP instruction
-    }
 }
-
 
 StepFor_specialized stepfor_data;
 
