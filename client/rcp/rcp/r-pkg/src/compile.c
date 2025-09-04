@@ -834,15 +834,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             case RELOC_RCP_CONSTCELL_AT_IMM:
             {
                 int bcell_index = imms[hole->val.imm_pos];
-                // DEBUG_PRINT("bcell_index: %d\n", bcell_index);
-                used_bcells[bcell_index]++;
+                used_bcells[bcell_index] = 1;
             }
             break;
             case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
             {
                 int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
-                // DEBUG_PRINT("bcell_index: %d\n", bcell_index);
-                used_bcells[bcell_index]++;
+                used_bcells[bcell_index] = 1;
             }
             break;
             default:
@@ -859,18 +857,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     // Create bcell lookup table
     int bcells_size = 0;
     for (int i = 0; i < constpool_size; ++i)
-    {
         if (used_bcells[i] != 0)
-            bcells_size++;
-    }
+            used_bcells[i] = bcells_size++;
 
-    DEBUG_PRINT("BCells used for this closure: %d\n", bcells_size);
-
-    for (int i = 0, index = 0; i < constpool_size; ++i)
-    {
-        if (used_bcells[i] != 0)
-            used_bcells[i] = index++;
-    }
+    DEBUG_PRINT("Unique bcells used in this closure: %d\n", bcells_size);
 
     // Allocate memory
     size_t executable_size_aligned = align_to_higher(insts_size, getpagesize()); // Align to page size to be able to map it as executable memory
