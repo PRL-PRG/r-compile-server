@@ -5,6 +5,7 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Expression;
@@ -26,7 +27,8 @@ public record ResolveLoadFun() implements SpecializeOptimization {
       return expression;
     }
     var origin = analyses.get(OriginAnalysis.class).get(bb, index, variable);
-    if (origin == null) {
+    // `origin instanceof Use` - see the comment in `ResolveLoad.java`
+    if (origin == null || origin instanceof Use) {
       return expression;
     }
     // LoadFun "sees through" bindings that aren't closures, so we must check the type

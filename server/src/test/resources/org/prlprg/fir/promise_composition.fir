@@ -4,10 +4,10 @@ fun main {
     r2 = prom<I ->{ return 200; };
 
     r3 = prom<v(I) ->{
-    r5 = force r1;
-    r6 = force r2;
-    r = [r5, r6, 300];
-    return use r;
+      r5 = force r1;
+      r6 = force r2;
+      r = [r5, r6, 300];
+      return use r;
     };
     r4 = force r3;
     return r4;

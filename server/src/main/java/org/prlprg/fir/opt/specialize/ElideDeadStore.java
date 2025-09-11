@@ -29,10 +29,15 @@ public record ElideDeadStore() implements SpecializeOptimization {
     }
 
     var cfg = bb.owner();
-    var loads = analyses.get(cfg, Loads.class);
+    var loads = analyses.get(Loads.class);
     var reachability = analyses.get(cfg, Reachability.class);
     if (loads.get(variable).stream()
-        .anyMatch(p -> reachability.isReachable(bb, index, p.bb(), p.instructionIndex()))) {
+        .anyMatch(
+            scopePos -> {
+              var cfgPos = scopePos.inCfg(cfg);
+              return cfgPos != null
+                  && reachability.isReachable(bb, index, cfgPos.bb(), cfgPos.instructionIndex());
+            })) {
       return expression;
     }
 

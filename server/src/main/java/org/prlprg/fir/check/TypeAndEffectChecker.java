@@ -344,6 +344,11 @@ public final class TypeAndEffectChecker extends Checker {
             var valueType = scope.typeOf(value);
 
             checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
+
+            if (value instanceof Use) {
+              report(
+                  "Never store a `use` because the load can't be optimized. Instead, assign it to a register and store that.");
+            }
           }
           case SubscriptRead(var target, var index) -> {
             var targetType = scope.typeOf(target);

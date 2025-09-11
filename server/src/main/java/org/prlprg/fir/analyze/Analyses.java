@@ -44,6 +44,12 @@ public class Analyses {
     abstractionAnalyses = new Analysis[abstractionAnalysisTypes.size()];
   }
 
+  /// Clear all analyses so they must be recomputed.
+  public void evict() {
+    Arrays.fill(abstractionAnalyses, null);
+    cfgAnalyses.clear();
+  }
+
   /// @throws NoSuchElementException If `analysisType` wasn't an element of `analysisTypes` in
   /// the constructor.
   public <T extends Analysis> T get(Class<T> analysisType) {
