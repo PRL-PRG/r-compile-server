@@ -4,6 +4,7 @@ import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Expression;
@@ -23,7 +24,13 @@ public record ResolveLoad() implements SpecializeOptimization {
       return expression;
     }
     var origin = analyses.get(OriginAnalysis.class).get(bb, index, variable);
-    if (origin == null) {
+    // If a register is `use`d to store it in a variable, we must still reference the variable,
+    // because the register is dead.
+    // Right now the verifier rejects code that stores `use`s, so the guard only affects
+    // already-invalid code. If necessary, we could have an optimization that converts
+    // `st x = use r` into `r2 = use r; st x = r2`, but we probably shouldn't be generating such
+    // code in the first place.
+    if (origin == null || origin instanceof Use) {
       return expression;
     }
     return new Aea(origin);

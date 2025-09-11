@@ -51,7 +51,7 @@ class CleanupTest {
     try {
       new Cleanup(true).run(firModule);
     } catch (Exception e) {
-      fail("Cleanup pass failed on FIŘ file: " + firPath + "\nError: " + e.getMessage());
+      fail("Cleanup pass failed on FIŘ file: " + firPath, e);
     }
   }
 }

@@ -13,6 +13,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -272,7 +273,19 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
     void substituteWithOrigins() {
       var originAnalysis = new OriginAnalysis(scope);
-      substituter.stageAll(originAnalysis.registerOrigins());
+
+      for (var entry : originAnalysis.registerOrigins().entrySet()) {
+        var register = entry.getKey();
+        var origin = entry.getValue();
+
+        // Can't substitute with `use` (TODO: unless there's exactly one occurrence).
+        if (origin instanceof Use) {
+          continue;
+        }
+
+        substituter.stage(register, origin);
+      }
+
       changed |= !originAnalysis.registerOrigins().isEmpty();
     }
 
