@@ -22,6 +22,9 @@ import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.AssumeConstant;
+import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -32,8 +35,10 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -151,7 +156,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// `null` iff there are no returns, a return has unknown origin, or the return origins are
   /// different.
   public @Nullable Argument getReturn() {
-    return ((OnCfg) onCfg(scope.cfg())).returnOrigin();
+    var mainCfg = scope.cfg();
+    if (mainCfg == null) {
+      // Stub
+      return null;
+    }
+
+    return ((OnCfg) onCfg(mainCfg)).returnOrigin();
   }
 
   private class OnCfg extends AbstractInterpretation<State>.OnCfg {
@@ -211,6 +222,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           var valueType = inferType.of(valueOrigin);
           yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
         }
+        case AssumeType(var value, var type) -> {
+          var valueOrigin = resolve(value);
+          // Only see through the assumption if it's guaranteed to succeed.
+          // Otherwise we'll get a type error substituting,
+          // and a deopt iff the instruction gets rearranged before the assumption
+          // and the assumption fails.
+          var valueType = inferType.of(valueOrigin);
+          yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
+        }
         case Force(var value) -> runForce(value, false);
         case MaybeForce(var value) -> runForce(value, true);
           // We must run promises because `AbstractInterpretation` doesn't.
@@ -219,11 +239,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           yield null;
         }
           // TODO: Constant-fold some calls.
-        case Call _,
+        case AssumeConstant _,
+            AssumeFunction _,
+            Call _,
             Closure _,
             Dup _,
             MkVector _,
+            MkEnv _,
             Placeholder _,
+            PopEnv _,
             ReflectiveLoad _,
             ReflectiveStore _,
             SubscriptRead _,

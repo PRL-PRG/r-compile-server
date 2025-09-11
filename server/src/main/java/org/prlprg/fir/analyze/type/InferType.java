@@ -11,6 +11,9 @@ import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.AssumeConstant;
+import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -20,8 +23,10 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -30,14 +35,11 @@ import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
-import org.prlprg.fir.ir.instruction.Goto;
-import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Return;
-import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
-import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -58,9 +60,8 @@ public final class InferType implements Analysis {
   public @Nullable Type of(CFG cfg) {
     Type result = null;
     for (var bb : cfg.bbs()) {
-      switch (bb.jump()) {
-        case Return(var value) -> result = Type.union(result, of(value));
-        case Goto(var _), If(var _, var _, var _), Unreachable() -> {}
+      if (bb.jump() instanceof Return(var value)) {
+        result = Type.union(result, of(value));
       }
     }
     return result;
@@ -69,11 +70,13 @@ public final class InferType implements Analysis {
   public @Nullable Type of(Expression expression) {
     return switch (expression) {
       case Aea(var value) -> of(value);
+      case AssumeType(var _, var type) -> type;
+      case AssumeConstant(var _, var _), AssumeFunction(var _, var _) -> Type.ANY_VALUE;
       case Call call ->
           switch (call.callee()) {
             case StaticCallee(var _, var version) -> version.returnType();
             case DispatchCallee(var function, var signature) ->
-                signature == null ? function.guaranteedReturnType() : signature.returnType();
+                signature == null ? function.baseline().returnType() : signature.returnType();
             case DynamicCallee(var _, var _) -> Type.ANY_VALUE;
             case InlineCallee(var inlinee) -> inlinee.returnType();
           };
@@ -101,9 +104,10 @@ public final class InferType implements Analysis {
               default -> type;
             };
       }
-      case MkVector(var _) -> Type.primitiveVector(PrimitiveKind.INTEGER, Ownership.FRESH);
+      case MkVector(var kind, var _) -> new Type(kind, Ownership.FRESH, Concreteness.DEFINITE);
+      case MkEnv(), PopEnv() -> Type.ANY;
       case Placeholder() -> null;
-      case Promise(var innerType, var effects, var _) -> Type.promise(innerType, effects);
+      case Promise(var valueType, var effects, var _) -> Type.promise(valueType, effects);
       case ReflectiveLoad(var _, var _) -> Type.ANY;
       case ReflectiveStore(var _, var _, var value) -> {
         var valueType = of(value);

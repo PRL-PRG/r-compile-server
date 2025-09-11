@@ -8,11 +8,15 @@ import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.AssumeConstant;
+import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -22,8 +26,10 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -32,6 +38,8 @@ import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
+import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -148,9 +156,14 @@ abstract class AbstractSubstituter {
 
   protected abstract @Nullable Register substituteAssignee(@Nullable Register assignee);
 
-  private Expression substitute(Expression exression) {
-    return switch (exression) {
+  private Expression substitute(Expression expression) {
+    return switch (expression) {
       case Aea(var value) -> new Aea(substitute(value));
+      case AssumeConstant(var target, var constant) ->
+          new AssumeConstant(substitute(target), constant);
+      case AssumeFunction(var target, var function) ->
+          new AssumeFunction(substitute(target), function);
+      case AssumeType(var target, var type) -> new AssumeType(substitute(target), type);
       case Call call ->
           new Call(
               call.callee(),
@@ -164,9 +177,14 @@ abstract class AbstractSubstituter {
       case Load(var variable) -> new Load(variable);
       case LoadFun(var variable, var env) -> new LoadFun(variable, env);
       case MaybeForce(var value) -> new MaybeForce(substitute(value));
-      case MkVector(var elements) ->
+      case MkEnv() -> new MkEnv();
+      case PopEnv() -> new PopEnv();
+      case MkVector(var kind, var elements) ->
           new MkVector(
-              elements.stream().map(this::substitute).collect(ImmutableList.toImmutableList()));
+              kind,
+              elements.stream()
+                  .map(ne -> new NamedArgument(ne.name(), substitute(ne.argument())))
+                  .collect(ImmutableList.toImmutableList()));
       case Placeholder() -> new Placeholder();
       case Promise(var valueType, var effects, var code) -> new Promise(valueType, effects, code);
       case ReflectiveLoad(var promise, var variable) ->
@@ -189,6 +207,12 @@ abstract class AbstractSubstituter {
       case If(var condition, var ifTrue, var ifFalse) ->
           new If(substitute(condition), substitute(ifTrue), substitute(ifFalse));
       case Return(var value) -> new Return(substitute(value));
+      case Checkpoint(var success, var deopt) ->
+          new Checkpoint(substitute(success), substitute(deopt));
+      case Deopt(var pc, var arguments) ->
+          new Deopt(
+              pc,
+              arguments.stream().map(this::substitute).collect(ImmutableList.toImmutableList()));
       case Unreachable() -> new Unreachable();
     };
   }

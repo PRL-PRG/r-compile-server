@@ -9,12 +9,9 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
-import org.prlprg.fir.ir.instruction.Goto;
-import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.util.Pair;
 
 /// Generic abstract interpretation over an [Abstraction].
@@ -71,7 +68,11 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
   /// entry (and won't actually rerun if they're equal).
   protected final void run(S entry) {
     // Doesn't `streamCfgs` because `run` includes promises.
-    onCfg(scope.cfg()).run(entry);
+    // Do handle stubs (`mainCfg == null`).
+    var mainCfg = scope.cfg();
+    if (mainCfg != null) {
+      onCfg(mainCfg).run(entry);
+    }
     ran = true;
   }
 
@@ -126,15 +127,12 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
         state = run(bb);
 
         // Update return state if needed
-        switch (bb.jump()) {
-          case Return(var _) -> {
-            if (returnState == null) {
-              returnState = state.copy();
-            } else {
-              returnState.merge(state);
-            }
+        if (bb.jump() instanceof Return) {
+          if (returnState == null) {
+            returnState = state.copy();
+          } else {
+            returnState.merge(state);
           }
-          case Unreachable(), Goto(var _), If(var _, var _, var _) -> {}
         }
 
         // Add successors to worklist (may need to update their entry states and recurse)

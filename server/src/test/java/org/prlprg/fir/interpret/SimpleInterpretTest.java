@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.argument.Constant;
@@ -12,6 +13,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
@@ -32,10 +34,10 @@ class SimpleInterpretTest {
   void testSimpleConstantReturn() {
     // Create a function that returns constant 42
     // fun test { () --> I { | return 42; } }
-    var function = module.addFunction("test");
-    var version = function.addVersion(List.of());
+    var function = module.addFunction("test", List.of());
+    var version = function.baseline();
 
-    var cfg = version.cfg();
+    var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();
 
     // Add return instruction: return 42
@@ -53,11 +55,11 @@ class SimpleInterpretTest {
   void testParameterAccess() {
     // Create a function that returns its parameter
     // fun test { (reg r:I) --> I { | return r; } }
-    var function = module.addFunction("test");
+    var function = module.addFunction("test", List.of());
     var param = new Parameter(Variable.register("r"), Type.INTEGER);
-    var version = function.addVersion(List.of(param));
+    var version = function.baseline();
 
-    var cfg = version.cfg();
+    var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();
 
     // Add return instruction: return r
@@ -75,11 +77,11 @@ class SimpleInterpretTest {
   @Test
   void testArgumentCountMismatch() {
     // Create a function that expects one parameter
-    var function = module.addFunction("test");
-    var param = new Parameter(Variable.register("r"), Type.INTEGER);
-    var version = function.addVersion(List.of(param));
+    var function =
+        module.addFunction("test", List.of(new ParameterDefinition(Variable.named("r"))));
+    var version = function.baseline();
 
-    var cfg = version.cfg();
+    var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();
     entry.setJump(new Return(new Constant(SEXPs.integer(0))));
 
@@ -92,21 +94,12 @@ class SimpleInterpretTest {
   }
 
   @Test
-  void testNoVersionsAvailable() {
-    // Create a function with no versions
-    module.addFunction("test");
-
-    // Try to interpret
-    assertThrows(InterpretException.class, () -> interpreter.call("test"));
-  }
-
-  @Test
   void testUninitializedRegister() {
     // Create a function that tries to read uninitialized register
-    var function = module.addFunction("test");
-    var version = function.addVersion(List.of());
+    var function = module.addFunction("test", List.of());
+    var version = function.baseline();
 
-    var cfg = version.cfg();
+    var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();
 
     // Try to return uninitialized register

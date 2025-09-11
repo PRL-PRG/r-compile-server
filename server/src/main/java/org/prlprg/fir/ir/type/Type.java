@@ -39,6 +39,11 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public static final Type CLOSURE =
       new Type(new Kind.Closure(), Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type BOOLEAN = LOGICAL;
+  public static final Type DOTS =
+      new Type(new Kind.Dots(), Ownership.SHARED, Concreteness.DEFINITE);
+
+  /// Alias for [#ANY_VALUE] because we don't have a special type for missing.
+  public static final Type MISSING = ANY_VALUE;
 
   private static final Logger LOGGER = Logger.getLogger(Type.class.getName());
 
@@ -50,8 +55,8 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     return new Type(new Kind.PrimitiveVector(kind), ownership, Concreteness.DEFINITE);
   }
 
-  public static Type promise(Type innerType, Effects effects) {
-    return new Type(new Kind.Promise(innerType, effects), Ownership.SHARED, Concreteness.DEFINITE);
+  public static Type promise(Type valueType, Effects effects) {
+    return new Type(new Kind.Promise(valueType, effects), Ownership.SHARED, Concreteness.DEFINITE);
   }
 
   public static Type of(SEXP sexp) {

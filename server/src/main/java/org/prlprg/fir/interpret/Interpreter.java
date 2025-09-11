@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Stack;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -21,6 +22,9 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.AssumeConstant;
+import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -30,8 +34,10 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -40,6 +46,8 @@ import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
+import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -50,12 +58,15 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Kind.Dots;
+import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.CloSXP;
@@ -76,6 +87,8 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Lists;
+import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Streams;
 import org.prlprg.util.Strings;
 
@@ -197,10 +210,7 @@ public final class Interpreter {
               + function);
     }
     var version = function.version(versionIndex);
-    if (!version.locals().isEmpty()
-        || version.cfg().bbs().size() != 1
-        || !version.cfg().entry().statements().isEmpty()
-        || !(version.cfg().entry().jump() instanceof Unreachable)) {
+    if (!version.isStub()) {
       throw new IllegalArgumentException(
           "Function " + functionName + " version " + versionIndex + " isn't a stub:\n" + version);
     }
@@ -294,7 +304,7 @@ public final class Interpreter {
 
     var result = call(best, arguments, environment);
 
-    checkType(result, function.guaranteedReturnType(), "return");
+    checkType(result, function.baseline().returnType(), "return");
     return result;
   }
 
@@ -304,6 +314,11 @@ public final class Interpreter {
     var hijacker = externalVersions.get(abstraction);
     if (hijacker != null) {
       return callExternal(hijacker, abstraction, arguments, environment);
+    }
+
+    var cfg = abstraction.cfg();
+    if (cfg == null) {
+      throw fail("Can't call unregistered stub");
     }
 
     var frame = mkFrame(abstraction, environment);
@@ -330,7 +345,7 @@ public final class Interpreter {
     }
 
     // Execute CFG
-    var result = run(frame, abstraction.cfg());
+    var result = run(frame, cfg);
 
     checkType(result, abstraction.returnType(), "return");
     return result;
@@ -343,7 +358,7 @@ public final class Interpreter {
     try {
       var result = hijacker.call(this, hijacked, arguments, environment);
 
-      checkType(result, hijacked.guaranteedReturnType(), "return (from external)");
+      checkType(result, hijacked.baseline().returnType(), "return (from external)");
       return result;
     } catch (InterpretException e) {
       throw e;
@@ -356,27 +371,16 @@ public final class Interpreter {
       ExternalVersion hijacker, Abstraction hijacked, List<SEXP> arguments, EnvSXP environment) {
     checkStack();
 
-    // Add the frame for a nicer stack trace.
-    var frame = mkFrame(hijacked, environment);
-    frame.enter(new CFGCursor(hijacked.cfg()));
-    stack.push(frame);
-
-    SEXP result;
     try {
-      result = hijacker.call(this, hijacked, arguments, environment);
+      var result = hijacker.call(this, hijacked, arguments, environment);
 
       checkType(result, hijacked.returnType(), "return (from external)");
+      return result;
     } catch (InterpretException e) {
       throw e;
     } catch (Throwable e) {
       throw fail("External call failed", e);
     }
-
-    var f = stack.pop();
-    assert f == frame : "stack imbalance";
-    frame.exit();
-
-    return result;
   }
 
   private StackFrame mkFrame(Abstraction scope, EnvSXP parentEnv) {
@@ -435,7 +439,6 @@ public final class Interpreter {
   /// Executes a jump instruction and returns the next control-flow action.
   private ControlFlow run(Jump jump) {
     return switch (jump) {
-      case Return(var ret) -> new ControlFlow.Return(run(ret));
       case Goto(var next) -> new ControlFlow.Goto(next);
       case If(var condition, var ifTrue, var ifFalse) -> {
         var condSexp = run(condition);
@@ -446,6 +449,8 @@ public final class Interpreter {
 
         yield new ControlFlow.Goto(isTrue(condSexp) ? ifTrue : ifFalse);
       }
+      case Return(var ret) -> new ControlFlow.Return(run(ret));
+      case Checkpoint(var _, var _), Deopt(var _, var _) -> throw new NotImplementedError();
       case Unreachable _ -> throw fail("Reached unimplemented or \"unreachable\" code");
     };
   }
@@ -477,6 +482,8 @@ public final class Interpreter {
     checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
+      case AssumeType(var _, var _), AssumeConstant(var _, var _), AssumeFunction(var _, var _) ->
+          throw new NotImplementedError();
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
@@ -550,8 +557,12 @@ public final class Interpreter {
 
         yield force(promSXP);
       }
-      case MkVector(var elements) ->
-          mkVector(elements.stream().map(this::run).collect(ImmutableList.toImmutableList()));
+      case MkVector(var kind, var elements) ->
+          mkVector(
+              kind,
+              Lists.mapLazy(elements, e -> Optional.ofNullable(e.name())),
+              Lists.mapLazy(elements, e -> run(e.argument())));
+      case MkEnv(), PopEnv() -> throw new NotImplementedError();
       case Placeholder() -> throw fail("Can't evaluate placeholder");
       case Promise promise -> promiseStub(promise);
       case ReflectiveLoad(var promArg, var variable) -> {
@@ -676,32 +687,52 @@ public final class Interpreter {
 
   /// Create a vector of the correct type to hold `values`
   ///
-  /// @throws InterpretException If `values` aren't scalars or are mixed types (the former is
-  /// ambiguous, the latter is unsupported).
-  public SEXP mkVector(List<SEXP> values) {
-    // TODO: If empty, we must provide or guess the type.
-    if (values.stream().allMatch(v -> v.asScalarInteger().isPresent())) {
-      return SEXPs.integer(
-          values.stream().mapToInt(v -> v.asScalarInteger().orElseThrow()).toArray());
-    } else if (values.stream().allMatch(v -> v.asScalarLogical().isPresent())) {
-      return SEXPs.logical(
-          values.stream().map(v -> v.asScalarLogical().orElseThrow()).toArray(Logical[]::new));
-    } else if (values.stream().allMatch(v -> v.asScalarReal().isPresent())) {
-      return SEXPs.real(values.stream().mapToDouble(v -> v.asScalarReal().orElseThrow()).toArray());
-    } else if (values.stream().allMatch(v -> v.asScalarComplex().isPresent())) {
-      return SEXPs.complex(
-          values.stream().map(v -> v.asScalarComplex().orElseThrow()).toArray(Complex[]::new));
-    } else if (values.stream().allMatch(v -> v.asScalarString().isPresent())) {
-      return SEXPs.string(
-          values.stream().map(v -> v.asScalarString().orElseThrow()).toArray(String[]::new));
-    } else if (values.stream().allMatch(v -> v.asScalarRaw().isPresent())) {
-      return SEXPs.raw(
-          values.stream().map(v -> v.asScalarRaw().orElseThrow()).toArray(Byte[]::new));
-    } else {
-      throw fail(
-          "FIŘ doesn't support creating a vector from mixed types: "
-              + values.stream().map(SEXP::type).distinct().toList());
+  /// @throws IllegalArgumentException If `names` and `values` are different sizes.
+  /// @throws InterpretException If `values` aren't elements of `kind`
+  public SEXP mkVector(Kind kind, List<Optional<NamedVariable>> elementNames, List<SEXP> elements) {
+    if (elementNames.size() != elements.size()) {
+      throw new IllegalArgumentException(
+          "Element names and values count mismatch: "
+              + elementNames.size()
+              + " names, "
+              + elements.size()
+              + " values");
     }
+
+    return switch (kind) {
+      case PrimitiveVector(var primitiveKind) -> {
+        if (elementNames.stream().anyMatch(Optional::isPresent)) {
+          throw fail("Primitive vector elements can't have names");
+        }
+
+        yield switch (primitiveKind) {
+          case PrimitiveKind.INTEGER ->
+              SEXPs.integer(
+                  elements.stream()
+                      .mapToInt(
+                          v -> v.asScalarInteger().orElseThrow(() -> fail("Not an integer: " + v)))
+                      .toArray());
+          case PrimitiveKind.REAL ->
+              SEXPs.real(
+                  elements.stream()
+                      .mapToDouble(
+                          v -> v.asScalarReal().orElseThrow(() -> fail("Not a real: " + v)))
+                      .toArray());
+          case PrimitiveKind.LOGICAL ->
+              SEXPs.logical(
+                  elements.stream()
+                      .map(v -> v.asScalarLogical().orElseThrow(() -> fail("Not a logical: " + v)))
+                      .toArray(Logical[]::new));
+          case PrimitiveKind.STRING ->
+              SEXPs.string(
+                  elements.stream()
+                      .map(v -> v.asScalarString().orElseThrow(() -> fail("Not a string: " + v)))
+                      .toArray(String[]::new));
+        };
+      }
+      case Dots() -> throw new NotImplementedError();
+      default -> throw fail("Unsupported vector kind: " + kind);
+    };
   }
 
   public SEXP subscriptLoad(ListOrVectorSXP<?> vector, int index) {

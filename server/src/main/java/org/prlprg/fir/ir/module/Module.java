@@ -14,6 +14,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.observer.Observer;
+import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -48,7 +49,7 @@ public final class Module {
     return functions.get(name);
   }
 
-  public Function addFunction(String name) {
+  public Function addFunction(String name, List<ParameterDefinition> parameterDefinitions) {
     return this.record(
         "Module#addFunction",
         List.of(this, name),
@@ -56,7 +57,7 @@ public final class Module {
           if (functions.containsKey(name)) {
             throw new IllegalArgumentException("Function with name '" + name + "' already exists.");
           }
-          var function = new Function(this, name);
+          var function = new Function(this, name, parameterDefinitions);
           functions.put(name, function);
           return function;
         });

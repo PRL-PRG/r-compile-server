@@ -5,9 +5,12 @@ import static org.prlprg.primitive.Constants.NA_INT;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.DoubleUnaryOperator;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.EnvSXP;
@@ -18,6 +21,7 @@ import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Lists;
 
 /// Java implementations of GNU-R builtins for [Interpreter] (specifically
 /// [Interpreter#registerExternalFunction(String, ExternalFunction)]).
@@ -582,7 +586,17 @@ public final class Builtins {
   }
 
   private static SEXP c(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    return interpreter.mkVector(args.values());
+    if (args.values().isEmpty()) {
+      return SEXPs.NULL;
+    }
+
+    var inferredKind = Type.of(args.value(0)).kind();
+    return interpreter.mkVector(
+        inferredKind,
+        Lists.mapLazy(
+            args.names(),
+            name -> name.isEmpty() ? Optional.empty() : Optional.of(Variable.named(name))),
+        args.values());
   }
 
   private static SEXP length(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
