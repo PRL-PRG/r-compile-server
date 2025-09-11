@@ -16,7 +16,7 @@ public record Unreachable() implements Jump {
 
   @PrintMethod
   private void print(Printer p) {
-    p.writer().write("...");
+    p.writer().write("unreachable");
   }
 
   @Override

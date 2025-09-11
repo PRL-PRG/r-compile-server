@@ -1,19 +1,18 @@
 package org.prlprg.fir.ir.expression;
 
-import com.google.common.collect.ImmutableList;
 import java.util.Collection;
+import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.argument.NamedArgument;
-import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.Lists;
 
-public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) implements Expression {
+/// Assume that an argument has a certain type.
+public record AssumeType(Argument target, Type type) implements Assume {
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
-    return Lists.mapLazy(elements, NamedArgument::argument);
+    return List.of(target);
   }
 
   @Override
@@ -23,7 +22,8 @@ public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) impleme
 
   @PrintMethod
   private void print(Printer p) {
-    p.print(kind);
-    p.printAsList("[", "]", elements);
+    p.print(target);
+    p.writer().write(" :? ");
+    p.print(type);
   }
 }

@@ -1,19 +1,20 @@
 package org.prlprg.fir.ir.expression;
 
-import com.google.common.collect.ImmutableList;
 import java.util.Collection;
+import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.argument.NamedArgument;
-import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.Lists;
 
-public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) implements Expression {
+/// Creates a closure environment.
+/// Every closure compiled from GNU-R bytecode starts with mkenv, because
+/// every GNU-R call implicitly creates an environment, but we may delay or
+/// elide it if we remove stores and disprove reflection.
+public record MkEnv() implements Expression {
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
-    return Lists.mapLazy(elements, NamedArgument::argument);
+    return List.of();
   }
 
   @Override
@@ -23,7 +24,6 @@ public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) impleme
 
   @PrintMethod
   private void print(Printer p) {
-    p.print(kind);
-    p.printAsList("[", "]", elements);
+    p.writer().write("mkenv");
   }
 }

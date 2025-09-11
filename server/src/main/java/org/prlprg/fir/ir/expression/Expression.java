@@ -8,6 +8,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.DispatchCallee;
@@ -18,6 +19,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -34,17 +36,20 @@ import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
 
 public sealed interface Expression
-    permits Call,
+    permits Aea,
+        Assume,
+        Call,
         Cast,
         Closure,
         Dup,
-        Aea,
         Force,
         Load,
         LoadFun,
         MaybeForce,
+        MkEnv,
         MkVector,
         Placeholder,
+        PopEnv,
         Promise,
         ReflectiveLoad,
         ReflectiveStore,
@@ -116,18 +121,9 @@ public sealed interface Expression
 
           return result;
         }
-        case "prom" -> {
-          s.assertAndSkip('<');
-          var valueType = p.parse(Type.class);
-          var effects = p.parse(Effects.class);
-          s.assertAndSkip('>');
-
-          s.assertAndSkip('{');
-          var code =
-              p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner())).parse(CFG.class);
-          s.assertAndSkip('}');
-
-          return new Promise(valueType, effects, code);
+        case "dup" -> {
+          var value = p.parse(Argument.class);
+          return new Dup(value);
         }
         case "dyn" -> {
           var actualCallee = p.parse(Argument.class);
@@ -141,10 +137,6 @@ public sealed interface Expression
           var value = p.parse(Argument.class);
           return isMaybe ? new MaybeForce(value) : new Force(value);
         }
-        case "dup" -> {
-          var value = p.parse(Argument.class);
-          return new Dup(value);
-        }
         case "ldf" -> {
           var variable = p2.parse(NamedVariable.class);
           var env =
@@ -156,6 +148,25 @@ public sealed interface Expression
         case "ld" -> {
           var variable = p2.parse(NamedVariable.class);
           return new Load(variable);
+        }
+        case "mkenv" -> {
+          return new MkEnv();
+        }
+        case "popenv" -> {
+          return new PopEnv();
+        }
+        case "prom" -> {
+          s.assertAndSkip('<');
+          var valueType = p.parse(Type.class);
+          var effects = p.parse(Effects.class);
+          s.assertAndSkip('>');
+
+          s.assertAndSkip('{');
+          var code =
+              p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner())).parse(CFG.class);
+          s.assertAndSkip('}');
+
+          return new Promise(valueType, effects, code);
         }
         case "sld" -> {
           var variable = p2.parse(NamedVariable.class);
@@ -176,6 +187,11 @@ public sealed interface Expression
         case "use" -> {
           var variable = p.parse(Register.class);
           headAsArg = new Use(variable);
+        }
+        case "v", "dots" -> {
+          var kind = p.parse(Kind.class);
+          var elements = p.parseList("[", "]", NamedArgument.class);
+          return new MkVector(kind, elements);
         }
           // Constant
         case String headAsName1 when Names.isReserved(headAsName1) ->
@@ -206,11 +222,6 @@ public sealed interface Expression
         s.assertAndSkip("->");
         var arguments = p.parseList("(", ")", Argument.class);
         return new Call(new InlineCallee(inlinee), arguments);
-      }
-
-      if (s.nextCharIs('[')) {
-        var elements = p.parseList("[", "]", Argument.class);
-        return new MkVector(elements);
       }
     } else {
       // Parse what starts with a constant or identifier.

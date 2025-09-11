@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.BcInstr.Add;
@@ -179,6 +180,7 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.LangSXP;
@@ -197,12 +199,13 @@ import org.prlprg.util.Strings;
 /// variables. Instead, it's a class and those commonly-passed variables are fields.
 public class CFGCompiler {
   /// Compile the given bytecode into the given control-flow-graph.
-  public static void compile(CFG cfg, Bc bc) {
-    new CFGCompiler(cfg, bc);
+  public static void compile(@Nullable RSession r, CFG cfg, Bc bc) {
+    new CFGCompiler(r, cfg, bc);
   }
 
   // region compiler data
   // - Some of it is constant through the compilation, some changes as instructions are compiled.
+  private final @Nullable RSession r;
   private final InferType inferType;
   private final CFG cfg;
   private final Bc bc;
@@ -220,12 +223,13 @@ public class CFGCompiler {
 
   // region constructor and loop
   /// Compile everything.
-  private CFGCompiler(CFG cfg, Bc bc) {
+  private CFGCompiler(@Nullable RSession r, CFG cfg, Bc bc) {
     if (cfg.bbs().size() != 1 || !(cfg.entry().jump() instanceof Unreachable)) {
       throw new IllegalArgumentException(
           "CFG must be empty, except assigning parameters to named variables");
     }
 
+    this.r = r;
     inferType = new InferType(cfg.scope());
     this.cfg = cfg;
     this.bc = bc;
@@ -287,7 +291,7 @@ public class CFGCompiler {
   /// Multiple instructions may point to the same bytecode position. In that case, after the block
   /// is inserted, subsequent instructions don't insert another block for the same position.
   private void addBcLabelBBs(BcInstr instr) {
-    if (!(instr instanceof Record r)) {
+    if (!(instr instanceof Record instrAsRecord)) {
       throw new AssertionError("bytecode instructions should all be java records");
     }
 
@@ -313,7 +317,7 @@ public class CFGCompiler {
     for (var component : instr.getClass().getRecordComponents()) {
       var clazz = component.getType();
       var labelName = component.getAnnotation(LabelName.class);
-      var value = Reflection.getComponentValue(r, component);
+      var value = Reflection.getComponentValue(instrAsRecord, component);
       assert clazz == BcLabel.class || labelName == null
           : "only BcLabel fields should be annotated with @LabelName";
       assert clazz != BcLabel.class || labelName != null
@@ -561,13 +565,24 @@ public class CFGCompiler {
         pushCall(castedFun);
       }
       case MakeProm(var code) -> {
-        if (!(this.get(code) instanceof BCodeSXP bcSxp)) {
-          throw failUnsupported("Promise with non-bytecode body at index " + code);
+        var sexp = this.get(code);
+        Bc bc;
+        if (sexp instanceof BCodeSXP bcSxp) {
+          bc = bcSxp.bc();
+        } else {
+          if (r == null) {
+            throw failUnsupported("No RSession, and promise has non-bytecode body: " + sexp);
+          }
+
+          var astThunk = SEXPs.closure(SEXPs.list(), sexp, r.globalEnv());
+          bc =
+              new BCCompiler(astThunk, r)
+                  .compile()
+                  .orElseThrow(() -> failUnsupported("promise has uncompilable AST body: " + sexp));
         }
-        var bc = bcSxp.bc();
 
         var cfg = new CFG(scope());
-        compile(cfg, bc);
+        compile(r, cfg, bc);
 
         var prom = insertAndReturn(new Promise(Type.ANY_VALUE, Effects.ANY, cfg));
         pushCallArg(prom);
@@ -618,7 +633,7 @@ public class CFGCompiler {
         // TODO: infer name if possible. Eventually, we also must handle name conflicts.
         var generatedName = "inner" + module().localFunctions().size();
 
-        var code = ClosureCompiler.compile(module(), generatedName, cloSxp);
+        var code = ClosureCompiler.compile(r, module(), generatedName, cloSxp);
 
         pushInsert(new Closure(code));
       }

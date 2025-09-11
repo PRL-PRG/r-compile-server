@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.session.GNURSession;
+import org.prlprg.util.NotImplementedError;
 
 public final class GlobalModules {
   /// Module containing GNU-R builtins.
@@ -20,7 +21,8 @@ public final class GlobalModules {
         // Already defined.
         continue;
       }
-      BUILTINS.addFunction(bltName);
+      throw new NotImplementedError();
+      // BUILTINS.addFunction(bltName, bltFormals);
     }
 
     // Ensure intrinsic names don't conflict with builtins.

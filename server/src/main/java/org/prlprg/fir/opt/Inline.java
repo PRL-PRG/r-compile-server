@@ -105,7 +105,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
 
       // Check if the origin is a non-reflective `Promise`
       var forcedExpr = analyses.get(OriginAnalysis.class).resolveExpression(forced);
-      if (!(forcedExpr instanceof Promise(var innerType, var effects, var code))
+      if (!(forcedExpr instanceof Promise(var valueType, var effects, var code))
           || effects.reflect()) {
         return;
       }
@@ -161,7 +161,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         // First, if there are other forces, we need to assign this force's result to a register,
         // so they can read it.
         if (!otherForcePositions.isEmpty() && assignee == null) {
-          assignee = abstraction.addLocal(innerType);
+          assignee = abstraction.addLocal(valueType);
         }
 
         // Now, convert all other forces into reads before we inline,

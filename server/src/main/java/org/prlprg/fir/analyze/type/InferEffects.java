@@ -9,6 +9,7 @@ import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -18,8 +19,10 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -64,12 +67,12 @@ public final class InferEffects implements Analysis {
 
   public Effects of(Expression expression) {
     return switch (expression) {
-      case Aea(var _) -> Effects.NONE;
+      case Aea(var _), Assume _ -> Effects.NONE;
       case Call call ->
           switch (call.callee()) {
             case StaticCallee(var _, var version) -> version.effects();
             case DispatchCallee(var function, var signature) ->
-                signature == null ? function.guaranteedEffects() : signature.effects();
+                signature == null ? function.baseline().effects() : signature.effects();
             case DynamicCallee(var _, var _) -> Effects.ANY;
             case InlineCallee(var inlinee) -> inlinee.effects();
           };
@@ -89,7 +92,8 @@ public final class InferEffects implements Analysis {
             ? Effects.NONE
             : innerEffects;
       }
-      case MkVector(var _), Placeholder(), Promise(var _, var _, var _) -> Effects.NONE;
+      case MkVector(var _, var _), MkEnv(), PopEnv(), Placeholder(), Promise(var _, var _, var _) ->
+          Effects.NONE;
       case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.ANY;
       case Store(var _, var _),
               SubscriptRead(var _, var _),

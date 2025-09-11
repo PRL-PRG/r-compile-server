@@ -1,24 +1,30 @@
 package org.prlprg.fir.ir.module;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedCollection;
 import java.util.SequencedMap;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
-import org.prlprg.fir.ir.type.Effects;
-import org.prlprg.fir.ir.type.Kind.AnyValue;
+import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -33,20 +39,19 @@ public final class Function {
 
   // Data
   private final String name;
+  private final List<ParameterDefinition> parameterDefinitions;
   /// Versions are stored so that removing a version doesn't decrement other versions' indices,
   /// which would cause tricky bugs when said versions or later ones are referenced by serialized
   /// calls.
   private final SequencedMap<Integer, Abstraction> versions = new TreeMap<>();
   private final Map<Abstraction, Integer> versionIndices = new HashMap<>();
   private int nextVersionIndex = 0;
-  private Effects guaranteedEffects = Effects.ANY;
-  private Type guaranteedReturnType = Type.ANY_VALUE;
 
   // Cached
   /// See [#versionsSorted()].
   private final SortedSet<Abstraction> versionsSorted = new TreeSet<>();
 
-  Function(Module owner, String name) {
+  Function(Module owner, String name, List<ParameterDefinition> parameterDefinitions) {
     if (name.isEmpty()) {
       throw new IllegalArgumentException(
           "Illegal function name (function names must not be empty): " + name);
@@ -54,6 +59,41 @@ public final class Function {
 
     this.owner = owner;
     this.name = name;
+    this.parameterDefinitions = List.copyOf(parameterDefinitions);
+
+    // Add baseline version
+    addVersion(computeBaselineParameters());
+  }
+
+  private List<Parameter> computeBaselineParameters() {
+    var paramNames = new HashSet<Register>(parameterDefinitions.size());
+    return parameterDefinitions.stream()
+        .map(
+            paramDef -> {
+              var paramName = resemblance(paramDef.name(), paramNames);
+              // Not `defaultBody().returnType()`, because that's the default value.
+              var paramType = paramDef == ParameterDefinition.DOTS ? Type.DOTS : Type.ANY;
+              paramNames.add(paramName);
+              return new Parameter(paramName, paramType);
+            })
+        .toList();
+  }
+
+  /// Returns a [Register] which resembles `nv` but syntactically valid and not in `existing`.
+  private static Register resemblance(NamedVariable nv, Set<Register> existing) {
+    var base = nv.equals(NamedVariable.DOTS) ? "ddd" : nv.name().replaceAll("[^a-zA-Z0-9_]", "_");
+    if ((base.charAt(0) >= '0' && base.charAt(0) <= '9') || base.equals("_")) {
+      base = "_" + base;
+    }
+
+    var result = base;
+    var disambiguator = 1;
+    while (existing.contains(Variable.register(result))) {
+      result = base + disambiguator;
+      disambiguator++;
+    }
+
+    return Variable.register(result);
   }
 
   public Module owner() {
@@ -62,6 +102,10 @@ public final class Function {
 
   public String name() {
     return name;
+  }
+
+  public @Unmodifiable List<ParameterDefinition> parameterDefinitions() {
+    return parameterDefinitions;
   }
 
   /// Use [#version(int)] to get the version at an index.
@@ -82,6 +126,10 @@ public final class Function {
   /// said version or later ones are referenced by index (e.g. in serialized code).
   public @UnmodifiableView SequencedCollection<Integer> versionIndices() {
     return Collections.unmodifiableSequencedCollection(versions.sequencedKeySet());
+  }
+
+  public Abstraction baseline() {
+    return versions.firstEntry().getValue();
   }
 
   /// @throws IllegalArgumentException If there's no version at the index.
@@ -152,46 +200,16 @@ public final class Function {
         "Function#removeVersion",
         List.of(this, version),
         () -> {
+          if (version == baseline()) {
+            throw new IllegalArgumentException("Can't remove baseline");
+          }
+
           var index = versionIndices.remove(version);
           if (index == null) {
             throw new IllegalArgumentException("Version not found: " + version);
           }
           versions.remove(index);
           versionsSorted.remove(version);
-        });
-  }
-
-  public Effects guaranteedEffects() {
-    return guaranteedEffects;
-  }
-
-  public Type guaranteedReturnType() {
-    return guaranteedReturnType;
-  }
-
-  public void setGuaranteedEffects(Effects guaranteedEffects) {
-    owner.record(
-        "Function#setGuaranteedEffects",
-        List.of(this, guaranteedEffects),
-        () -> {
-          this.guaranteedEffects = guaranteedEffects;
-        });
-  }
-
-  public void setGuaranteedReturnType(Type guaranteedReturnType) {
-    owner.record(
-        "Function#setGuaranteedReturnType",
-        List.of(this, guaranteedReturnType),
-        () -> {
-          if (!guaranteedReturnType.isDefinitely(AnyValue.class)) {
-            throw new IllegalArgumentException(
-                "Function's guaranteed return type must be a value: "
-                    + guaranteedReturnType
-                    + "\nIn "
-                    + name);
-          }
-
-          this.guaranteedReturnType = guaranteedReturnType;
         });
   }
 
@@ -210,43 +228,38 @@ public final class Function {
     } else {
       w.write(name);
     }
-    w.write(' ');
 
-    if (nextVersionIndex == 0) {
-      if (guaranteedEffects.equals(Effects.ANY) && guaranteedReturnType.equals(Type.ANY_VALUE)) {
-        w.write("{}");
-      } else {
-        w.write("{ -");
-        p.print(guaranteedEffects);
-        w.write("> ");
-        p.print(guaranteedReturnType);
-        w.write(" }");
-      }
+    if (parameterDefinitions.isEmpty()) {
+      w.write("()");
     } else {
-      w.write('{');
+      // Print trailing comma in parameter definitions since they're multiline.
+      w.write('(');
       w.runIndented(
           () -> {
-            for (int i = 0; i < nextVersionIndex; i++) {
+            for (var paramDef : parameterDefinitions) {
               w.write('\n');
-
-              var version = versions.get(i);
-              if (version == null) {
-                w.write("<removed>");
-              } else {
-                p.print(version);
-              }
-            }
-
-            if (!guaranteedEffects.equals(Effects.ANY)
-                || !guaranteedReturnType.equals(Type.ANY_VALUE)) {
-              w.write("\n-");
-              p.print(guaranteedEffects);
-              w.write("> ");
-              p.print(guaranteedReturnType);
+              p.print(paramDef);
+              w.write(',');
             }
           });
-      w.write("\n}");
+      w.write(')');
     }
+
+    w.write(" {");
+    w.runIndented(
+        () -> {
+          for (int i = 0; i < nextVersionIndex; i++) {
+            w.write('\n');
+
+            var version = versions.get(i);
+            if (version == null) {
+              w.write("<removed>");
+            } else {
+              p.print(version);
+            }
+          }
+        });
+    w.write("\n}");
   }
 
   public record ParseContext(
@@ -261,14 +274,27 @@ public final class Function {
 
     s.assertAndSkip("fun ");
     name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
-    s.assertAndSkip('{');
 
+    // Permit trailing comma in parameter definitions since they're usually multiline.
+    parameterDefinitions = new ArrayList<>();
+    s.assertAndSkip('(');
+    while (!s.trySkip(')')) {
+      parameterDefinitions.add(p.parse(ParameterDefinition.class));
+      if (!s.nextCharIs(')')) {
+        s.assertAndSkip(',');
+      }
+    }
+
+    s.assertAndSkip('{');
     var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
     for (; !s.nextCharSatisfies(c -> c == '-' || c == '}'); nextVersionIndex++) {
       CommentParser.skipComments(s);
 
       // Skip removed version but increment the index (hence the weird `for` loop).
       if (s.trySkip("<removed>")) {
+        if (versions.isEmpty()) {
+          throw s.fail("function must have a baseline version");
+        }
         continue;
       }
 
@@ -276,22 +302,18 @@ public final class Function {
       versions.put(nextVersionIndex, version);
       versionIndices.put(version, nextVersionIndex);
       versionsSorted.add(version);
-    }
 
-    if (s.trySkip('-')) {
-      guaranteedEffects = p.parse(Effects.class);
-      s.assertAndSkip('>');
-      guaranteedReturnType = p.parse(Type.class);
-
-      if (!guaranteedReturnType.isDefinitely(AnyValue.class)) {
+      if (nextVersionIndex == 0 && !baseline().parameters().equals(computeBaselineParameters())) {
         throw s.fail(
-            "Function's guaranteed return type must be a value: "
-                + guaranteedReturnType
-                + "\nIn "
-                + name);
+            "Function's baseline version must have regularized parameters corresponding to its parameter definitions.\nRequired: "
+                + computeBaselineParameters()
+                + "\nActual: "
+                + baseline().parameters());
       }
     }
-
+    if (versions.isEmpty()) {
+      throw s.fail("function must have a baseline version");
+    }
     s.assertAndSkip('}');
   }
 }

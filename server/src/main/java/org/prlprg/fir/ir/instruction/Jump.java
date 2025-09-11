@@ -7,7 +7,8 @@ import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 
-public sealed interface Jump extends Instruction permits If, Goto, Return, Unreachable {
+public sealed interface Jump extends Instruction
+    permits Checkpoint, Deopt, Goto, If, Return, Unreachable {
   @UnmodifiableView
   Collection<Target> targets();
 
@@ -19,12 +20,19 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
 
     var s = p.scanner();
 
-    if (s.trySkip("...")) {
-      return new Unreachable();
-    }
-
     var k = s.readIdentifierOrKeyword();
     return switch (k) {
+      case "check" -> {
+        var success = p2.parse(Target.class);
+        s.assertAndSkip("else");
+        var failure = p2.parse(Target.class);
+        yield new Checkpoint(success, failure);
+      }
+      case "deopt" -> {
+        var pc = s.readInt();
+        var stack = p.parseList("[", "]", Argument.class);
+        yield new Deopt(pc, stack);
+      }
       case "if" -> {
         var cond = p.parse(Argument.class);
         s.assertAndSkip("then");
@@ -41,7 +49,8 @@ public sealed interface Jump extends Instruction permits If, Goto, Return, Unrea
         var ret = p.parse(Argument.class);
         yield new Return(ret);
       }
-      default -> throw s.fail("'if', 'goto', 'return' or '...'", k);
+      case "unreachable" -> new Unreachable();
+      default -> throw s.fail("'check', 'deopt', 'if', 'goto', 'return' or 'unreachable'", k);
     };
   }
 }

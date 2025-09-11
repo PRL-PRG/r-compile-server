@@ -51,20 +51,32 @@ public final class Abstraction implements Comparable<Abstraction> {
   private Type returnType;
   private Effects effects;
   private final Map<String, Local> locals = new LinkedHashMap<>();
-  private final CFG cfg;
+  private final @Nullable CFG cfg;
 
   // Cached
   private final ImmutableMap<String, Parameter> nameToParam;
   private int nextLocalDisambiguator = 0;
 
+  public static Abstraction stub(
+      Module module, List<Parameter> parameters, Type returnType, Effects effects) {
+    var stub = new Abstraction(module, parameters, true);
+    stub.setReturnType(returnType);
+    stub.setEffects(effects);
+    return stub;
+  }
+
   public Abstraction(Module module, List<Parameter> parameters) {
+    this(module, parameters, false);
+  }
+
+  private Abstraction(Module module, List<Parameter> parameters, boolean isStub) {
     this.module = module;
     this.parameters = ImmutableList.copyOf(parameters);
 
     nameToParam = computeNameToParam(parameters);
     returnType = Type.ANY_VALUE;
     effects = Effects.ANY;
-    cfg = new CFG(this);
+    cfg = isStub ? null : new CFG(this);
 
     while (contains(nextLocalRegister())) {
       nextLocalDisambiguator++;
@@ -151,6 +163,9 @@ public final class Abstraction implements Comparable<Abstraction> {
         "Abstraction#addLocal",
         List.of(this, local),
         () -> {
+          if (cfg == null) {
+            throw new IllegalArgumentException("can't add local to stub");
+          }
           if (locals.put(local.variable().name(), local) != null) {
             throw new IllegalArgumentException(
                 "Local " + local + " already exists in the abstraction.");
@@ -166,6 +181,9 @@ public final class Abstraction implements Comparable<Abstraction> {
         "Abstraction#addLocals",
         List.of(this, locals),
         () -> {
+          if (cfg == null) {
+            throw new IllegalArgumentException("can't add locals to stub");
+          }
           for (var local : locals) {
             if (this.locals.put(local.variable().name(), local) != null) {
               throw new IllegalArgumentException(
@@ -246,7 +264,15 @@ public final class Abstraction implements Comparable<Abstraction> {
     }
   }
 
-  public CFG cfg() {
+  /// True iff this was constructed via [#stub(Module, Type , Type, Effects)] as opposed to
+  /// [Abstraction(Module, List)].
+  public boolean isStub() {
+    return cfg == null;
+  }
+
+  /// This is null iff [#isStub] is `true`, which is iff this was constructed via
+  /// [#stub(Module, List, Type, Effects)] as opposed to [Abstraction(Module, List)].
+  public @Nullable CFG cfg() {
     return cfg;
   }
 
@@ -317,20 +343,19 @@ public final class Abstraction implements Comparable<Abstraction> {
   public Stream<Abstraction> streamScopes() {
     return Streams.worklist(
         this,
-        (prev, worklist) -> {
-          prev.streamCfgs()
-              .forEach(
-                  cfg -> {
-                    for (var bb : cfg.bbs()) {
-                      for (var statement : bb.statements()) {
-                        if (statement.expression() instanceof Call call
-                            && call.callee() instanceof InlineCallee(var callee)) {
-                          worklist.add(callee);
+        (prev, worklist) ->
+            prev.streamCfgs()
+                .forEach(
+                    cfg -> {
+                      for (var bb : cfg.bbs()) {
+                        for (var statement : bb.statements()) {
+                          if (statement.expression() instanceof Call call
+                              && call.callee() instanceof InlineCallee(var callee)) {
+                            worklist.add(callee);
+                          }
                         }
                       }
-                    }
-                  });
-        });
+                    }));
   }
 
   /// Yields the function body's CFG ([#cfg()]) followed by each [Promise]'s CFG, in pre-order.
@@ -338,17 +363,19 @@ public final class Abstraction implements Comparable<Abstraction> {
   /// Doesn't yield CFGs from inlined calls.
   /// Use [#streamScopes()]`.flatMap(Abstraction::streamCfgs)` to do that.
   public Stream<CFG> streamCfgs() {
-    return Streams.worklist(
-        cfg,
-        (prev, worklist) -> {
-          for (var bb : prev.bbs()) {
-            for (var statement : bb.statements()) {
-              if (statement.expression() instanceof Promise promise) {
-                worklist.add(promise.code());
+    return cfg == null
+        ? Stream.of()
+        : Streams.worklist(
+            cfg,
+            (prev, worklist) -> {
+              for (var bb : prev.bbs()) {
+                for (var statement : bb.statements()) {
+                  if (statement.expression() instanceof Promise promise) {
+                    worklist.add(promise.code());
+                  }
+                }
               }
-            }
-          }
-        });
+            });
   }
 
   /// Sort so that "better" versions are strictly less than "worse" ones. A version is "better"
@@ -405,15 +432,21 @@ public final class Abstraction implements Comparable<Abstraction> {
 
     w.write(" { ");
 
-    p.printSeparated(", ", locals.values());
-    if (!locals.isEmpty()) {
-      w.write(' ');
+    if (cfg == null) {
+      w.write("... ");
+    } else {
+      p.printSeparated(", ", locals.values());
+      if (!locals.isEmpty()) {
+        w.write(' ');
+      }
+      w.write("|");
+
+      w.write('\n');
+      p.print(cfg);
+      w.write('\n');
     }
-    w.write("|\n");
 
-    p.print(cfg);
-
-    w.write("\n}");
+    w.write('}');
   }
 
   public record ParseContext(
@@ -435,6 +468,13 @@ public final class Abstraction implements Comparable<Abstraction> {
     returnType = p.parse(Type.class);
 
     s.assertAndSkip('{');
+
+    if (s.trySkip("...")) {
+      cfg = null;
+      s.assertAndSkip('}');
+      return;
+    }
+
     if (!s.nextCharIs('|')) {
       do {
         var local = p.parse(Local.class);

@@ -17,6 +17,9 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.AssumeConstant;
+import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -26,8 +29,10 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -36,6 +41,8 @@ import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
+import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -45,6 +52,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
@@ -58,26 +66,26 @@ public final class TypeAndEffectChecker extends Checker {
     var function = function();
 
     // Check guaranteed effects and return type
-    var guaranteedEffects = function.guaranteedEffects();
-    var guaranteedReturnType = function.guaranteedReturnType();
-    if (!version.effects().isSubsetOf(guaranteedEffects)) {
+    var baselineEffects = function.baseline().effects();
+    var baselineReturnType = function.baseline().returnType();
+    if (!version.effects().isSubsetOf(baselineEffects)) {
       report(
           version,
-          "Version's effects must be a subset of its function's guaranteed effects: "
+          "Version's effects must be a subset of its function's baseline's effects: "
               + version.effects()
               + " doesn't subtype "
-              + guaranteedEffects
+              + baselineEffects
               + "\nIn fun "
               + function.name()
               + " { ... }");
     }
-    if (!version.returnType().canBeAssignedTo(guaranteedReturnType)) {
+    if (!version.returnType().canBeAssignedTo(baselineReturnType)) {
       report(
           version,
-          "Version's return type must be assignable to its function's guaranteed return type: "
+          "Version's return type must be assignable to its function's baseline's return type: "
               + version.returnType()
               + " isn't assignable to "
-              + guaranteedReturnType
+              + baselineReturnType
               + "\nIn fun "
               + function.name()
               + " { ... }");
@@ -118,29 +126,35 @@ public final class TypeAndEffectChecker extends Checker {
     }
 
     void run() {
-      var cfg = new OnCfg(scope.cfg());
+      var cfg = scope.cfg();
+      if (cfg == null) {
+        // Stub
+        return;
+      }
+
+      var onCfg = new OnCfg(cfg);
 
       // Check parameters and locals well-formedness
       for (var binding : Iterables.concat(scope.parameters(), scope.locals())) {
-        cfg.checkWellFormed(binding);
+        onCfg.checkWellFormed(binding);
       }
 
       // Check return type well-formedness
-      cfg.checkWellFormed(scope.returnType());
+      onCfg.checkWellFormed(scope.returnType());
       if (!scope.returnType().canBeAssignedTo(Type.ANY_VALUE)) {
-        cfg.report(
+        onCfg.report(
             "Return type's kind must subtype `V` and it must be definite: " + scope.returnType());
       }
 
       // Check return type and effects are expected
       var returnType = inferType.of(scope.cfg());
       var effects = inferEffects.of(scope.cfg());
-      cfg.checkSubtype(returnType, scope.returnType(), "Return type mismatch");
-      cfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
+      onCfg.checkSubtype(returnType, scope.returnType(), "Return type mismatch");
+      onCfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
 
       // Check instruction invariants
       // Doesn't `streamCfgs` because `run` includes promises.
-      cfg.run();
+      onCfg.run();
     }
 
     class OnCfg {
@@ -182,6 +196,33 @@ public final class TypeAndEffectChecker extends Checker {
 
         switch (expression) {
           case Aea(var _) -> {}
+          case AssumeType(var arg, var type) -> {
+            var argType = scope.typeOf(arg);
+            if (argType == null) {
+              break;
+            }
+
+            checkSubtype(type, argType, "Assumption can't succeed, clearly we didn't record it");
+          }
+          case AssumeConstant(var arg, var constant) -> {
+            var argType = scope.typeOf(arg);
+            if (argType == null) {
+              break;
+            }
+
+            var constantType = Type.of(constant.sexp());
+            checkSubtype(
+                constantType, argType, "Assumption can't succeed, clearly we didn't record it");
+          }
+          case AssumeFunction(var arg, var _) -> {
+            var argType = scope.typeOf(arg);
+            if (argType == null) {
+              break;
+            }
+
+            checkSubtype(
+                Type.CLOSURE, argType, "Assumption can't succeed, clearly we didn't record it");
+          }
           case Call call -> {
             var argumentTypes = call.callArguments().stream().map(inferType::of).toList();
 
@@ -290,14 +331,27 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case Load(var _), LoadFun(var _, var _), MaybeForce(var _) -> {}
-          case MkVector(var elements) -> {
-            for (var i = 0; i < elements.size(); i++) {
-              var element = elements.get(i);
-              var type = scope.typeOf(element);
-              checkSubtype(type, Type.INTEGER, "Type mismatch in element " + i);
+          case MkVector(var kind, var elements) -> {
+            switch (kind) {
+              case PrimitiveVector(var primitiveKind) -> {
+                var elementType = Type.primitiveScalar(primitiveKind);
+
+                for (var i = 0; i < elements.size(); i++) {
+                  var element = elements.get(i);
+
+                  if (element.name() != null) {
+                    report("Element of primitive vector can't be named: at " + i);
+                  }
+
+                  var type = scope.typeOf(element.argument());
+                  checkSubtype(type, elementType, "Type mismatch in element " + i);
+                }
+              }
+              case Dots() -> {}
+              default -> report("Can't create a vector of kind " + kind);
             }
           }
-          case Placeholder() -> {}
+          case MkEnv(), PopEnv(), Placeholder() -> {}
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
             if (expectedInnerType.ownership() != Ownership.SHARED) {
@@ -436,7 +490,11 @@ public final class TypeAndEffectChecker extends Checker {
 
       void run(Jump jump) {
         switch (jump) {
-          case Unreachable(), Return(var _), Goto(var _) -> {}
+          case Checkpoint(var _, var _),
+              Deopt(var _, var _),
+              Goto(var _),
+              Return(var _),
+              Unreachable() -> {}
           case If(var condition, var _, var _) -> {
             var condType = scope.typeOf(condition);
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");

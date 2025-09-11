@@ -1,19 +1,19 @@
 package org.prlprg.fir.ir.expression;
 
-import com.google.common.collect.ImmutableList;
 import java.util.Collection;
+import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.argument.NamedArgument;
-import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.Lists;
 
-public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) implements Expression {
+/// Destroys the last environment created by mkenv and sets rho to its parent.
+/// Created when inlining a closure that has mkenv. If we later manage to defer
+/// the mkenv until the popenv, we elide both.
+public record PopEnv() implements Expression {
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
-    return Lists.mapLazy(elements, NamedArgument::argument);
+    return List.of();
   }
 
   @Override
@@ -23,7 +23,6 @@ public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) impleme
 
   @PrintMethod
   private void print(Printer p) {
-    p.print(kind);
-    p.printAsList("[", "]", elements);
+    p.writer().write("popenv");
   }
 }

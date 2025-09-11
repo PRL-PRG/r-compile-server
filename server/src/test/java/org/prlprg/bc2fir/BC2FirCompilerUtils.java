@@ -35,7 +35,7 @@ final class BC2FirCompilerUtils {
               funSexpNotCompiled.env(),
               funSexpNotCompiled.attributes());
 
-      ClosureCompiler.compile(firModule, funName, funSexp);
+      ClosureCompiler.compile(null, firModule, funName, funSexp);
       cleanup(firModule);
 
       // Don't check flow, because it's trivial (no `use` annotations) but expensive.
