@@ -4,7 +4,8 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /** A list or vector SEXP (the 2 main collection types in R) */
-public sealed interface ListOrVectorSXP<T> extends SEXP, Iterable<T> permits ListSXP, VectorSXP {
+public sealed interface ListOrVectorSXP<T> extends SEXP, Iterable<T>
+    permits AbstractListSXP, VectorSXP {
   /**
    * Get the element at index i.
    *

@@ -29,6 +29,30 @@ public final class NamedVariable implements Variable {
     return name;
   }
 
+  public boolean isDdNum() {
+    if (name.startsWith("..")) {
+      try {
+        Integer.parseInt(name.substring(2));
+        return true;
+      } catch (NumberFormatException e) {
+        // fall through
+      }
+    }
+    return false;
+  }
+
+  /// @throws IllegalStateException if not a `..n` variable
+  public int ddIndex() {
+    if (name.startsWith("..")) {
+      try {
+        return Integer.parseInt(name.substring(2));
+      } catch (NumberFormatException e) {
+        // fall through
+      }
+    }
+    throw new IllegalStateException("Not a ..n variable: " + name);
+  }
+
   @Override
   public boolean equals(Object obj) {
     if (obj == this) {
