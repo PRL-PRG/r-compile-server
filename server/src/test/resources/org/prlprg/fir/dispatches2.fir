@@ -1,6 +1,7 @@
-fun main {
+fun main(...) {
   () -+> V { var x:I?, reg rx0:I?, reg rx1:I, reg ry:p(I +), var y:p(I +)?, reg r0:p(I -), reg r1:V |
-    st x = 4;
+    mkenv;
+        st x = 4;
     ry = prom<I ->{
       rx0 = ld x;
       rx1 = rx0 as I;
@@ -13,9 +14,10 @@ fun main {
   }
 }
 
-fun f {
+fun f(...) {
   (reg r:p(I -)) -+> V { reg r1:V, reg r2:*, reg r3:* |
-    r2 = r$x;
+    mkenv;
+        r2 = r$x;
     g(r2);
     r3 = r$y;
     r1 = g(r3);
@@ -23,10 +25,11 @@ fun f {
   }
 }
 
-fun g {
+fun g(...) {
   # Slow case with variables, no optimizations due to `force r` causing reflection
   (reg r:*) -+> V { |
-    # cleanup:
+    mkenv;
+        # cleanup:
     40;
     # cleanup:
     41;

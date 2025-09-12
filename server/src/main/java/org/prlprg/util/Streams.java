@@ -33,13 +33,6 @@ public class Streams {
     return com.google.common.collect.Streams.zip(streamA, streamB, function);
   }
 
-  /// [ImmutableMap#toImmutableMap(Function.identity(), Function)][
-  /// ImmutableMap#toImmutableMap(Function, Function)].
-  public static <I, V> Collector<I, ?, ImmutableMap<I, V>> toImmutableMap(
-      Function<I, V> valueFunction) {
-    return ImmutableMap.toImmutableMap(k -> k, valueFunction);
-  }
-
   /// [ImmutableMap#toImmutableMap(Function, Function)] but without nullable annotations.
   public static <I, K, V> Collector<I, ?, ImmutableMap<K, V>> toImmutableMap(
       Function<I, K> keyFunction, Function<I, V> valueFunction) {

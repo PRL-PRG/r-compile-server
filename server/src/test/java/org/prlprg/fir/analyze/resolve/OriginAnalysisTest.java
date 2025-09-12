@@ -15,9 +15,10 @@ class OriginAnalysisTest {
   void testBasicRegisterTracking() {
     var firText =
         """
-      fun main {
+      fun main(...) {
         () --> I { reg r0:I, reg r1:I |
-          r0 = 42;
+          mkenv;
+              r0 = 42;
           r1 = r0;
           return r1;
         }
@@ -40,9 +41,10 @@ class OriginAnalysisTest {
   void testVariableTracking() {
     var firText =
         """
-      fun main {
+      fun main(...) {
         () --> I { var x:I?, reg r0:I, reg r1:I? |
-          r0 = 42;
+          mkenv;
+              r0 = 42;
           st x = r0;
           r1 = ld x;
           return r0;
@@ -55,7 +57,7 @@ class OriginAnalysisTest {
 
     var analysis = new OriginAnalysis(main);
 
-    var cfg = main.cfg();
+    var cfg = Objects.requireNonNull(main.cfg());
     var bb = cfg.entry();
 
     // After store statement, variable x should have r0's origin
@@ -71,9 +73,10 @@ class OriginAnalysisTest {
   void testPhiMerging() {
     var firText =
         """
-      fun main {
+      fun main(...) {
         (reg r0:I) --> V { reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r5:I |
-          r1 = 42;
+          mkenv;
+              r1 = 42;
           if r0 then BB1() else BB2();
         BB1():
           r2 = r1;

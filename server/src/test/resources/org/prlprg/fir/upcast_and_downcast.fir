@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   # cleanup: () --> V { reg r0:I, reg r2:I, reg r4:V, reg r5:p(I -), reg r6:p(I -) |
   () --> V { reg r0:I, reg r1:I, reg r2:I, reg r3:V, reg r4:V, reg r5:p(I -), reg r6:p(I -) |
     r0 = upcast.0(1);  # nil
@@ -14,7 +14,7 @@ fun main {
   }
 }
 
-fun upcast {
+fun upcast(...) {
   (reg r:*) --> I { reg r0:p(I -), reg r1:I |
     # runtime-error: Type mismatch in cast: 1 {:I} isn't a(n) p(I -)
     r0 = r as p(I -);
@@ -23,7 +23,7 @@ fun upcast {
   }
 }
 
-fun downcast {
+fun downcast(...) {
   (reg r:I) --> V { reg r0:V |
     r0 = r as V;
     return r0;

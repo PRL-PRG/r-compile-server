@@ -1,15 +1,17 @@
-fun main {
+fun main(...) {
   () -+> I { reg c0:cls |
-    c0 = clos f;
+    mkenv;
+        c0 = clos f;
     f(42, c0);
     return 100;
   }
 }
 
-fun f {
+fun f(...) {
   # after: (reg r0:I, reg c0:cls) -+> I { var x:I? |
   (reg r0:I, reg c0:cls) -+> I { var x:I?, reg r1:I?, reg r2:cls, reg r3:cls, reg r4:I |
-    st x = r0;
+    mkenv;
+        st x = r0;
     st y = c0;
     st z = r0;
     # after:
@@ -27,5 +29,5 @@ fun f {
   }
 }
 
-fun y {}
-fun z {}
+fun y(...) {}
+fun z(...) {}

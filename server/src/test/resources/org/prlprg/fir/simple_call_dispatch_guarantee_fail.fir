@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   # type-error: Function effects mismatch: + don't subset -
   () --> v(I)f { reg r1:v(I)o |
     # type-error: Can't assign it to r1: can't assign v(I) to v(I)o
@@ -7,7 +7,7 @@ fun main {
   }
 }
 
-fun g {
+fun g(...) {
   () --> v(I)f { reg r:v(I)o |
     r = [1, 2];
     return use r;

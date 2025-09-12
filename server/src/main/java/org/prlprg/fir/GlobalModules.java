@@ -1,10 +1,11 @@
 package org.prlprg.fir;
 
 import java.nio.file.Path;
+import java.util.List;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.session.GNURSession;
-import org.prlprg.util.NotImplementedError;
 
 public final class GlobalModules {
   /// Module containing GNU-R builtins.
@@ -21,8 +22,9 @@ public final class GlobalModules {
         // Already defined.
         continue;
       }
-      throw new NotImplementedError();
-      // BUILTINS.addFunction(bltName, bltFormals);
+      // Builtin that we haven't manually defined.
+      // Its builtin formals are unknown, hence `List.of(ParameterDefinition.DOTS)`.
+      BUILTINS.addFunction(bltName, List.of(ParameterDefinition.DOTS));
     }
 
     // Ensure intrinsic names don't conflict with builtins.

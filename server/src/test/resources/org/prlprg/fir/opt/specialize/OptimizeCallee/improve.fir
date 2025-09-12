@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () --> I { reg r:I |
     # after: r = f.1(42);
     r = f.0(42);
@@ -6,7 +6,7 @@ fun main {
   }
 }
 
-fun f {
+fun f(...) {
   (reg r:*) --> I { |
     return 24;
   }

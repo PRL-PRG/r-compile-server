@@ -1,7 +1,8 @@
-fun main {
+fun main(...) {
   # after: () --> I { reg p:p(I -), reg r:I |
   () -+> V { reg p:p(V +), reg r:V |
-    # after: p = prom<I ->{
+    mkenv;
+        # after: p = prom<I ->{
     p = prom<V +>{
       return 42;
     };

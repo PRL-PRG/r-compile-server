@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () --> v(I)f { reg r:v(I)o, reg r0:I, reg r1:I, reg r2:I |
     r = [1, 2, 3, 4, 5];
     r0 = r[2];
@@ -10,6 +10,6 @@ fun main {
   }
 }
 
-fun inc {
-  (reg r:I) --> I { | ...; }
+fun inc(...) {
+  (reg r:I) --> I { ... }
 }

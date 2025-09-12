@@ -192,8 +192,8 @@ public final class Interpreter {
     externalFunctions.put(function, javaClosure);
   }
 
-  /// "Hijack" the function version, so when it's called, the Java closure runs. The version's
-  /// body must consist of a single [Unreachable] (`{ | ...; }`).
+  /// "Hijack" the function version, so when it's called, the Java closure runs. The version
+  /// must be a [stub](Abstraction#isStub).
   public void registerExternalVersion(
       String functionName, int versionIndex, ExternalVersion javaClosure) {
     var function = module.lookupFunction(functionName);

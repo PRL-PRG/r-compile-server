@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () --> I { reg r:I, reg r1:I |
     r = 42;
     return r;

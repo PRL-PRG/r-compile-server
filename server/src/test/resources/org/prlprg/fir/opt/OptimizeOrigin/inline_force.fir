@@ -1,11 +1,12 @@
-fun main {
+fun main(...) {
   () -+> I { |
-    f(42);
+    mkenv;
+        f(42);
     return 42;
   }
 }
 
-fun f {
+fun f(...) {
   # after: (reg r0:I) --> I { |
   (reg r0:I) --> I { reg r1:p(I -), reg r2:I |
     # after:

@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () --> v(I)f { reg r:v(I)o, reg r1:I |
     r = [1, 2, 3];
     # cleanup:
