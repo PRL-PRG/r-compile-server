@@ -21,7 +21,7 @@ import org.prlprg.util.Lists;
  * use an array-list because it's more efficient.
  */
 public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListSXP
-    permits NilSXP, ListSXPImpl {
+    permits NilSXP, AbstractListSXPImpl {
   /**
    * Flatten {@code src} while adding its elements to {@code target}. Ex:
    *
@@ -93,11 +93,11 @@ public sealed interface ListSXP extends ListOrVectorSXP<TaggedElem>, LangOrListS
   }
 }
 
-final class ListSXPImpl implements ListSXP {
-  private final TaggedElem[] data;
+abstract sealed class AbstractListSXPImpl implements ListSXP permits ListSXPImpl, DotsListSXPImpl {
+  protected final TaggedElem[] data;
   private final Attributes attributes;
 
-  ListSXPImpl(TaggedElem[] data, Attributes attributes) {
+  AbstractListSXPImpl(TaggedElem[] data, Attributes attributes) {
     this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }
@@ -108,9 +108,7 @@ final class ListSXPImpl implements ListSXP {
   }
 
   @Override
-  public SEXPType type() {
-    return data.length == 0 ? SEXPType.NIL : SEXPType.LIST;
-  }
+  public abstract SEXPType type();
 
   @Override
   public Iterator<TaggedElem> iterator() {
@@ -137,6 +135,8 @@ final class ListSXPImpl implements ListSXP {
     return names().subList(fromIndex, size());
   }
 
+  protected abstract ListSXP createInstance(TaggedElem[] data, Attributes attributes);
+
   @Override
   public ListSXP with(int index, @Nullable String tag, SEXP value) {
     var old = data[index];
@@ -152,22 +152,22 @@ final class ListSXPImpl implements ListSXP {
     System.arraycopy(this.data, 0, data, 0, this.data.length);
     data[this.data.length] = new TaggedElem(tag, value);
 
-    return new ListSXPImpl(data, attributes);
+    return createInstance(data, attributes);
   }
 
   @Override
   public ListSXP appended(ListSXP other) {
     var data = new TaggedElem[this.data.length + other.size()];
     System.arraycopy(this.data, 0, data, 0, this.data.length);
-    System.arraycopy(((ListSXPImpl) other).data, 0, data, this.data.length, other.size());
-    return new ListSXPImpl(data, attributes);
+    System.arraycopy(((AbstractListSXPImpl) other).data, 0, data, this.data.length, other.size());
+    return createInstance(data, attributes);
   }
 
   @Override
   public ListSXP subList(int fromIndex) {
     var data = new TaggedElem[size() - fromIndex];
     System.arraycopy(this.data, fromIndex, data, 0, data.length);
-    return new ListSXPImpl(data, attributes);
+    return createInstance(data, attributes);
   }
 
   @Override
@@ -176,7 +176,7 @@ final class ListSXPImpl implements ListSXP {
       throw new IllegalArgumentException(
           "The empty tag doesn't exist, pass `null` to remove untagged elements.");
     }
-    return new ListSXPImpl(
+    return createInstance(
         stream().filter(e -> !Objects.equals(tag, e.tag())).toArray(TaggedElem[]::new), attributes);
   }
 
@@ -195,7 +195,7 @@ final class ListSXPImpl implements ListSXP {
     var data = new TaggedElem[this.data.length + 1];
     data[0] = elem;
     System.arraycopy(this.data, 0, data, 1, this.data.length);
-    return new ListSXPImpl(data, attributes);
+    return createInstance(data, attributes);
   }
 
   @Override
@@ -219,18 +219,16 @@ final class ListSXPImpl implements ListSXP {
   }
 
   @Override
-  public ListSXPImpl withAttributes(Attributes attributes) {
-    return new ListSXPImpl(data, attributes);
-  }
+  public abstract ListSXP withAttributes(Attributes attributes);
 
   @Override
   public ListSXP copy() {
-    return new ListSXPImpl(data, attributes);
+    return createInstance(data, attributes);
   }
 
   @Override
   public boolean equals(Object o) {
-    if (!(o instanceof ListSXPImpl that)) {
+    if (!(o instanceof AbstractListSXPImpl that)) {
       return false;
     }
     return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
@@ -244,5 +242,47 @@ final class ListSXPImpl implements ListSXP {
   @Override
   public String toString() {
     return Printer.toString(this);
+  }
+}
+
+final class ListSXPImpl extends AbstractListSXPImpl {
+  ListSXPImpl(TaggedElem[] data, Attributes attributes) {
+    super(data, attributes);
+  }
+
+  @Override
+  public SEXPType type() {
+    return data.length == 0 ? SEXPType.NIL : SEXPType.LIST;
+  }
+
+  @Override
+  protected ListSXP createInstance(TaggedElem[] data, Attributes attributes) {
+    return new ListSXPImpl(data, attributes);
+  }
+
+  @Override
+  public ListSXP withAttributes(Attributes attributes) {
+    return new ListSXPImpl(data, attributes);
+  }
+}
+
+final class DotsListSXPImpl extends AbstractListSXPImpl {
+  DotsListSXPImpl(TaggedElem[] data, Attributes attributes) {
+    super(data, attributes);
+  }
+
+  @Override
+  public SEXPType type() {
+    return data.length == 0 ? SEXPType.NIL : SEXPType.DOT;
+  }
+
+  @Override
+  protected ListSXP createInstance(TaggedElem[] data, Attributes attributes) {
+    return new DotsListSXPImpl(data, attributes);
+  }
+
+  @Override
+  public ListSXP withAttributes(Attributes attributes) {
+    return new DotsListSXPImpl(data, attributes);
   }
 }
