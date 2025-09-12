@@ -143,9 +143,6 @@ public class InterpretUtil {
             return condition == 0 ? interpreter.force(ifTrue) : interpreter.force(ifFalse);
           });
     }
-    if (interpreter.module().lookupFunction("external") != null) {
-      interpreter.registerExternalFunction("external", (_, _, __, ___) -> SEXPs.integer(42));
-    }
   }
 
   /// Run verifiers, then call `main`, then check the output and error (if any) against expected.

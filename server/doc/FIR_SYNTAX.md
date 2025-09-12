@@ -241,7 +241,7 @@ Effects track potential side effects of expressions:
 #### Simple Function
 
 ```fir
-fun main(...) {
+fun main() {
   () --> I { |
     return 42;
   }
@@ -251,7 +251,7 @@ fun main(...) {
 #### Register Usage
 
 ```fir
-fun main(...) {
+fun main() {
   () --> I { reg r:I |
     r = 42;
     return r;
@@ -262,13 +262,13 @@ fun main(...) {
 #### Promise Composition
 
 ```fir
-fun main(...) {
+fun main() {
   () --> v(I)f { reg r1:p(I -), reg r2:p(I -), reg r3:I, reg r4:I, reg r:v(I)o |
     r1 = prom<I ->{ return 100; };
     r2 = prom<I ->{ return 200; };
     r3 = force r1;
     r4 = force r2;
-    r = [r3, r4, 300];
+    r = v(I)[r3, r4, 300];
     return use r;
   }
 }

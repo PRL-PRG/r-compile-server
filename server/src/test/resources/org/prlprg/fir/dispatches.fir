@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   () --> v(I)f { reg r:v(I)o |
     r = f< I --> v(I)f >(42);
     return use r;
@@ -32,27 +32,27 @@ fun g(...) {
     r1 = rb as p(I-);
     r2 = force r0;
     r3 = force r1;
-    r4 = [r2, r3];
+    r4 = v(I)[r2, r3];
     return use r4;
   }
   (reg ra:p(I -), reg rb:p(I -)) --> v(I)f { reg r0:I, reg r1:I, reg r2:v(I)o |
     r0 = force ra;
     r1 = force rb;
-    r2 = [r0, r1];
+    r2 = v(I)[r0, r1];
     return use r2;
   }
   (reg ra:I, reg rb:p(I -)) --> v(I)f { reg r0:I, reg r1:v(I)o |
     r0 = force rb;
-    r1 = [ra, r0];
+    r1 = v(I)[ra, r0];
     return use r1;
   }
   (reg ra:p(I -), reg rb:I) --> v(I)f { reg r0:I, reg r1:v(I)o |
     r0 = force ra;
-    r1 = [r0, rb];
+    r1 = v(I)[r0, rb];
     return use r1;
   }
   (reg ra:I, reg rb:I) --> v(I)f { reg r0:v(I)o |
-    r0 = [ra, rb];
+    r0 = v(I)[ra, rb];
     return use r0;
   }
 }

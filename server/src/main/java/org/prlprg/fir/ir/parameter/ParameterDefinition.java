@@ -2,10 +2,10 @@ package org.prlprg.fir.ir.parameter;
 
 import java.util.List;
 import java.util.Objects;
-import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.instruction.Return;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.fir.ir.type.Type;
@@ -17,8 +17,7 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXPs;
 
 public record ParameterDefinition(NamedVariable name, Abstraction defaultBody) {
-  private static final Abstraction MISSING_DEFAULT_BODY =
-      new Abstraction(GlobalModules.INTRINSICS, List.of());
+  private static final Abstraction MISSING_DEFAULT_BODY = new Abstraction(new Module(), List.of());
 
   static {
     MISSING_DEFAULT_BODY.setEffects(Effects.NONE);
@@ -46,6 +45,10 @@ public record ParameterDefinition(NamedVariable name, Abstraction defaultBody) {
     if (!defaultBody.returnType().isDefinitely(AnyValue.class)) {
       throw new IllegalArgumentException("default body must return a value");
     }
+  }
+
+  public boolean hasDefault() {
+    return defaultBody != MISSING_DEFAULT_BODY;
   }
 
   @Override

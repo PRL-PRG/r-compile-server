@@ -32,7 +32,6 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -187,14 +186,10 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // - Callee is caller (recursive)
       // - Callee calls itself (another recursive case)
       // - Callee has effects
-      // - Callee is a placeholder
+      // - Callee is a stub
       // - Callee is too big
       // - Callee and caller load or store the same named variable
       // - Argument and parameter count mismatch (invalid CFG)
-      var isPlaceholder =
-          callee.cfg().bbs().size() == 1
-              && callee.cfg().entry().statements().isEmpty()
-              && callee.cfg().entry().jump() instanceof Unreachable;
       var instructionCount =
           callee
               .streamCfgs()
@@ -215,7 +210,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       var variablesClash = !Sets.intersection(namedVariablesOf(callee), namedVariables).isEmpty();
       if (callee == abstraction
           || callee.effects().reflect()
-          || isPlaceholder
+          || callee.isStub()
           || instructionCount > maxInlineeSize
           || callsItself
           || variablesClash

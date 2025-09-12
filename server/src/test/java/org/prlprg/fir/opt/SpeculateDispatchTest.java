@@ -28,7 +28,7 @@ class SpeculateDispatchTest {
   void testSpeculateDispatchCreatesVersion() {
     testInterpretFirFile(
         """
-        fun main(...) {
+        fun main() {
           () --> I { reg r:V |
             f(1.0);
             f(2);

@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   () --> I { reg x:I, reg y:I, reg z:I |
     x = 42;
     prom<I ->{

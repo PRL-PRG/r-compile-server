@@ -51,7 +51,11 @@ public final class Function {
   /// See [#versionsSorted()].
   private final SortedSet<Abstraction> versionsSorted = new TreeSet<>();
 
-  Function(Module owner, String name, List<ParameterDefinition> parameterDefinitions) {
+  Function(
+      Module owner,
+      String name,
+      List<ParameterDefinition> parameterDefinitions,
+      List<Parameter> baselineParameters) {
     if (name.isEmpty()) {
       throw new IllegalArgumentException(
           "Illegal function name (function names must not be empty): " + name);
@@ -62,10 +66,10 @@ public final class Function {
     this.parameterDefinitions = List.copyOf(parameterDefinitions);
 
     // Add baseline version
-    addVersion(computeBaselineParameters());
+    addVersion(baselineParameters);
   }
 
-  private List<Parameter> computeBaselineParameters() {
+  static List<Parameter> computeBaselineParameters(List<ParameterDefinition> parameterDefinitions) {
     var paramNames = new HashSet<Register>(parameterDefinitions.size());
     return parameterDefinitions.stream()
         .map(
@@ -229,10 +233,12 @@ public final class Function {
       w.write(name);
     }
 
-    if (parameterDefinitions.isEmpty()) {
-      w.write("()");
+    if (parameterDefinitions.stream().noneMatch(ParameterDefinition::hasDefault)) {
+      // Print single-line because they're single-line and probably small
+      p.printAsList("(", ")", parameterDefinitions);
     } else {
-      // Print trailing comma in parameter definitions since they're multiline.
+      // Print multiline because at least one is multiline.
+      // Also print trailing comma for style
       w.write('(');
       w.runIndented(
           () -> {
@@ -287,13 +293,13 @@ public final class Function {
 
     s.assertAndSkip('{');
     var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
-    for (; !s.nextCharSatisfies(c -> c == '-' || c == '}'); nextVersionIndex++) {
+    for (; !s.nextCharIs('}'); nextVersionIndex++) {
       CommentParser.skipComments(s);
 
       // Skip removed version but increment the index (hence the weird `for` loop).
       if (s.trySkip("<removed>")) {
         if (versions.isEmpty()) {
-          throw s.fail("function must have a baseline version");
+          throw s.fail("function's baseline can't be removed");
         }
         continue;
       }
@@ -302,17 +308,9 @@ public final class Function {
       versions.put(nextVersionIndex, version);
       versionIndices.put(version, nextVersionIndex);
       versionsSorted.add(version);
-
-      if (nextVersionIndex == 0 && !baseline().parameters().equals(computeBaselineParameters())) {
-        throw s.fail(
-            "Function's baseline version must have regularized parameters corresponding to its parameter definitions.\nRequired: "
-                + computeBaselineParameters()
-                + "\nActual: "
-                + baseline().parameters());
-      }
     }
     if (versions.isEmpty()) {
-      throw s.fail("function must have a baseline version");
+      throw s.fail("function must have at least one version (the baseline)");
     }
     s.assertAndSkip('}');
   }

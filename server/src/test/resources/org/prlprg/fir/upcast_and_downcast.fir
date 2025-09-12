@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   # cleanup: () --> V { reg r0:I, reg r2:I, reg r4:V, reg r5:p(I -), reg r6:p(I -) |
   () --> V { reg r0:I, reg r1:I, reg r2:I, reg r3:V, reg r4:V, reg r5:p(I -), reg r6:p(I -) |
     r0 = upcast.0(1);  # nil

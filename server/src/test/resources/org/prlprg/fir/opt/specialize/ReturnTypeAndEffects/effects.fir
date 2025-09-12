@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   # after: () --> I { |
   () -+> I { |
     mkenv;

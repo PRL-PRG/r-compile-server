@@ -53,7 +53,7 @@ record CloSXPImpl(ListSXP parameters, SEXP body, EnvSXP env, @Override Attribute
   CloSXPImpl {
     if (parameters.names().stream()
         .filter(Predicate.not(String::isEmpty))
-        .collect(Streams.hasDuplicates())) {
+        .collect(Streams.hasDuplicate())) {
       throw new IllegalArgumentException("Parameters must have unique names");
     }
   }

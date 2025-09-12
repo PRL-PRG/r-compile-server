@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   () -+> I { reg c0:cls |
     mkenv;
         c0 = clos f;
@@ -29,5 +29,9 @@ fun f(...) {
   }
 }
 
-fun y(...) {}
-fun z(...) {}
+fun y(...) {
+  () --> V { ... }
+}
+fun z(...) {
+  () --> V { ... }
+}

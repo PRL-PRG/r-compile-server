@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   # after: () -+> V { reg r:I |
   () -+> V { reg r:V |
     mkenv;

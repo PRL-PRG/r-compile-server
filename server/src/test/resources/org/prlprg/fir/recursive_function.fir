@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   () --> V { reg r1:I |
     r1 = recursive.0(123, 0);
     return r1;

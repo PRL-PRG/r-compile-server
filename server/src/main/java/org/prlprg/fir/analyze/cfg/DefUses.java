@@ -30,7 +30,9 @@ public final class DefUses implements Analysis {
 
   @AnalysisConstructor
   public DefUses(Abstraction scope) {
-    analyze(scope.cfg());
+    if (scope.cfg() != null) {
+      analyze(scope.cfg());
+    }
   }
 
   /// Get all assignments (defs) of a register.

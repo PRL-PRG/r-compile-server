@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   (reg cond:L) --> I { reg r:I, reg x:I |
     if cond then BB1() else BB2();
   BB1():

@@ -33,7 +33,7 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
   }
 
   @ParseMethod
-  public static NamedArgument parse(Parser p) {
+  private static NamedArgument parse(Parser p) {
     var s = p.scanner();
 
     if (s.nextCharSatisfies(Characters::isIdentifierStart)) {
@@ -52,11 +52,16 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
       } else {
         return new NamedArgument(new Read(Variable.register(nameOrUseOrRegister)));
       }
+    } else if (s.nextCharIs('`')) {
+      // Definitely named
+      var name = p.parse(NamedVariable.class);
+      s.assertAndSkip('=');
+      var value = p.parse(Argument.class);
+      return new NamedArgument(name, value);
+    } else {
+      // Definitely unnamed
+      var value = p.parse(Argument.class);
+      return new NamedArgument(null, value);
     }
-
-    var name = p.parse(NamedVariable.class);
-    s.assertAndSkip('=');
-    var value = p.parse(Argument.class);
-    return new NamedArgument(name, value);
   }
 }

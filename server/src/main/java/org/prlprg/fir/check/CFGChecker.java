@@ -48,6 +48,10 @@ public class CFGChecker extends Checker {
     }
 
     void run() {
+      if (scope.cfg() == null) {
+        return;
+      }
+
       var entry = scope.cfg().entry();
 
       // No duplicate variable declarations in the scope

@@ -15,7 +15,7 @@ class OriginAnalysisTest {
   void testBasicRegisterTracking() {
     var firText =
         """
-      fun main(...) {
+      fun main() {
         () --> I { reg r0:I, reg r1:I |
           mkenv;
               r0 = 42;
@@ -41,10 +41,10 @@ class OriginAnalysisTest {
   void testVariableTracking() {
     var firText =
         """
-      fun main(...) {
+      fun main() {
         () --> I { var x:I?, reg r0:I, reg r1:I? |
           mkenv;
-              r0 = 42;
+          r0 = 42;
           st x = r0;
           r1 = ld x;
           return r0;
@@ -61,7 +61,7 @@ class OriginAnalysisTest {
     var bb = cfg.entry();
 
     // After store statement, variable x should have r0's origin
-    var xOrigin = analysis.get(bb, 1, Variable.named("x"));
+    var xOrigin = analysis.get(bb, 2, Variable.named("x"));
     assertEquals(new Constant(SEXPs.integer(42)), xOrigin);
 
     // After load statement, r1 should have x's origin (the constant)
@@ -73,7 +73,7 @@ class OriginAnalysisTest {
   void testPhiMerging() {
     var firText =
         """
-      fun main(...) {
+      fun main() {
         (reg r0:I) --> V { reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r5:I |
           mkenv;
               r1 = 42;

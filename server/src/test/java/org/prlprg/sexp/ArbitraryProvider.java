@@ -134,7 +134,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
                     l ->
                         !l.names().stream()
                             .filter(Predicate.not(String::isEmpty))
-                            .collect(Streams.hasDuplicates())),
+                            .collect(Streams.hasDuplicate())),
             sexps,
             envs(sexps))
         .as(SEXPs::closure);
