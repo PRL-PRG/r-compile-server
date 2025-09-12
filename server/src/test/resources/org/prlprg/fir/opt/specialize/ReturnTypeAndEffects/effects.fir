@@ -1,6 +1,7 @@
-fun main {
+fun main(...) {
   # after: () --> I { |
   () -+> I { |
-    return 42;
+    mkenv;
+        return 42;
   }
 }

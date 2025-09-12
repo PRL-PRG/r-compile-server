@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () --> v(I) { var x:I?, var y:I?, reg rx0:I, reg ry0:I, reg rx1:I?, reg ry1:I?, reg r:v(I)o, reg r0:p(v(I) -), reg r1:v(I), reg r2:p(I -), reg r3:p(I -), reg r4:I, reg r5:I |
     r0 = prom<v(I) ->{
       r2 = prom<I ->{ return 10; };

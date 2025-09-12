@@ -1,6 +1,7 @@
-fun main {
+fun main(...) {
   () --> I { var x:I?, reg rx0:I?, reg rx1:I, reg rx2:I?, reg r:p(I -), reg r0:I, reg r1:I, reg r2:I |
-    st x = 0;
+    mkenv;
+        st x = 0;
 
     r = prom<I ->{
       rx0 = ld x;
@@ -17,7 +18,7 @@ fun main {
   }
 }
 
-fun force_twice {
+fun force_twice(...) {
   (reg r:p(I -)) --> I { reg r1:I |
     force r;
     r1 = force r;
@@ -25,6 +26,6 @@ fun force_twice {
   }
 }
 
-fun inc {
-  (reg r:I) --> I { | ...; }
+fun inc(...) {
+  (reg r:I) --> I { ... }
 }

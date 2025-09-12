@@ -452,10 +452,10 @@ public class CFGCompiler {
         // For loop step
         moveTo(stepBb);
         // Increment the index
-        var index1 = insertAndReturn(builtin("+", 0, pop(), new Constant(SEXPs.integer(1))));
+        var index1 = insertAndReturn(builtin("+", 1, pop(), new Constant(SEXPs.integer(1))));
         push(index1);
         // Compare the index to the length
-        var cond = insertAndReturn(builtin("<", 0, length, index1));
+        var cond = insertAndReturn(builtin("<", 1, length, index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         setJump(branch(cond, endBb, forBodyBb));
 
@@ -863,7 +863,7 @@ public class CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond = insertAndReturn(builtin("==", 5, value, new Constant(SEXPs.string(name))));
+              var cond = insertAndReturn(builtin("==", 6, value, new Constant(SEXPs.string(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -883,7 +883,7 @@ public class CFGCompiler {
           var asInteger = insertAndReturn(intrinsic("asSwitchIdx", value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond = insertAndReturn(builtin("==", 4, asInteger, new Constant(SEXPs.integer(i))));
+            var cond = insertAndReturn(builtin("==", 5, asInteger, new Constant(SEXPs.integer(i))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.
@@ -931,7 +931,7 @@ public class CFGCompiler {
         var fun = Variable.named(((RegSymSXP) expr.fun()).name());
         var sym = insertAndReturn(new LoadFun(fun, Env.LOCAL));
         var base = insertAndReturn(new LoadFun(fun, Env.BASE));
-        var guard = insertAndReturn(builtin("==", 3, sym, base));
+        var guard = insertAndReturn(builtin("==", 4, sym, base));
 
         var safeBb = cfg.addBB();
         var fallbackBb = cfg.addBB();

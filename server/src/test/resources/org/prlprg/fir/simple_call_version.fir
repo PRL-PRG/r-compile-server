@@ -1,11 +1,11 @@
-fun main {
+fun main(...) {
   () --> I { reg r1:I |
     r1 = g.1(0);
     return r1;
   }
 }
 
-fun g {
+fun g(...) {
   () --> I { |
     return 0;
   }

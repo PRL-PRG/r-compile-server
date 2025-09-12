@@ -1,11 +1,11 @@
-fun main {
+fun main(...) {
   () --> v(I)f { reg r:v(I)o |
     r = f< I --> v(I)f >(42);
     return use r;
   }
 }
 
-fun f {
+fun f(...) {
   (reg rx:I) --> v(I)f { reg r0:p(I -), reg r1:p(I -), reg r2:p(I -), reg r3:p(I -), reg r4:p(I -), reg r5:p(I -), reg r6:v(I)o |
     r0 = prom<I ->{ return rx; };
     r1 = prom<I ->{ return 0; };
@@ -26,7 +26,7 @@ fun f {
   }
 }
 
-fun g {
+fun g(...) {
   (reg ra:*, reg rb:*) --> v(I)f { reg r0:p(I -), reg r1:p(I -), reg r2:I, reg r3:I, reg r4:v(I)o |
     r0 = ra as p(I-);
     r1 = rb as p(I-);

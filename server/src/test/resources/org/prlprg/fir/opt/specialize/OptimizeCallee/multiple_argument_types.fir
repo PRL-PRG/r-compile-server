@@ -1,7 +1,8 @@
-fun main {
+fun main(...) {
   # after: () -+> V { reg r:I |
   () -+> V { reg r:V |
-    # after: f.2(1, 2.0);
+    mkenv;
+        # after: f.2(1, 2.0);
     f(1, 2.0);
     # after: r = f.1(3, 4);
     r = f(3, 4);
@@ -9,7 +10,7 @@ fun main {
   }
 }
 
-fun f {
+fun f(...) {
   (reg a:*, reg b:*) --> V { |
     return 42;
   }

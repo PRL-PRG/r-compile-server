@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () --> I { reg r:I |
     external(1, 2, 3);
     r = identity.0(42);
@@ -6,9 +6,9 @@ fun main {
   }
 }
 
-fun external { --> I }
+fun external(...) { --> I }
 
-fun identity {
+fun identity(...) {
   (reg x:I) --> I { |
     return x;
   }

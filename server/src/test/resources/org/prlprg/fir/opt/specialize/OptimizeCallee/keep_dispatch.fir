@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () -+> V { reg r:V, reg r1:V |
     r = 42 as V;
     r1 = 4.2 as V;
@@ -14,7 +14,7 @@ fun main {
   }
 }
 
-fun f {
+fun f(...) {
   (reg r:V) --> V { |
     return r;
   }

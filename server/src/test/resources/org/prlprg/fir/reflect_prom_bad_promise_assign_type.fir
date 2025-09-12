@@ -1,5 +1,6 @@
-fun main {
+fun main(...) {
   () -+> v(I) { reg r0:v(I)s, reg r1:p(I -), reg r2:p(I -), reg r3:v(I)o, var x:v(I)?, reg rx0:v(I)?, reg rx1:v(I) |
+    mkenv;
     r0 = [0, 1, 2];
     st x = r0;
 
@@ -21,7 +22,7 @@ fun main {
   }
 }
 
-fun f {
+fun f(...) {
   (reg r:p(I -)) --> I { reg r0:I |
     r0 = force r;
     return r0;

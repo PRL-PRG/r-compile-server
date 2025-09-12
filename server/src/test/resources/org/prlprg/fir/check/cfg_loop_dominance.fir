@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   () --> I { reg counter0:I, reg counter1:I, reg counter2:I, reg cond:L, reg limit:I |
     counter0 = 0;
     limit = 10;
@@ -14,5 +14,5 @@ fun main {
   }
 }
 
-fun lt { (reg lhs:I, reg rhs:I) --> L { | ...; } }
-fun add { (reg lhs:I, reg rhs:I) --> I { | ...; } }
+fun lt(...) { (reg lhs:I, reg rhs:I) --> L { ... } }
+fun add(...) { (reg lhs:I, reg rhs:I) --> I { ... } }

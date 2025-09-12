@@ -28,7 +28,7 @@ class SpeculateDispatchTest {
   void testSpeculateDispatchCreatesVersion() {
     testInterpretFirFile(
         """
-        fun main {
+        fun main(...) {
           () --> I { reg r:V |
             f(1.0);
             f(2);
@@ -40,7 +40,7 @@ class SpeculateDispatchTest {
           }
         }
 
-        fun f { (reg r:*) --> I { | return 42; } }
+        fun f(...) { (reg r:*) --> I { | return 42; } }
         """,
         true,
         c -> {
@@ -52,7 +52,7 @@ class SpeculateDispatchTest {
           pass.run(c.module());
           assertEquals(
               """
-              fun f {
+              fun f(...) {
                 (reg r:*) --> I { |
                   return 42;
                 }
@@ -71,7 +71,7 @@ class SpeculateDispatchTest {
           pass.run(c.module());
           assertEquals(
               """
-              fun f {
+              fun f(...) {
                 (reg r:*) --> I { |
                   return 42;
                 }

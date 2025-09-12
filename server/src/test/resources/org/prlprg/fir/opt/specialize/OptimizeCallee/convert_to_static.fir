@@ -1,13 +1,14 @@
-fun main {
+fun main(...) {
   # after: () -+> V { reg r:I |
   () -+> V { reg r:V |
-    # after: r = f.1(42);
+    mkenv;
+        # after: r = f.1(42);
     r = f(42);
     return r;
   }
 }
 
-fun f {
+fun f(...) {
   (reg r:*) --> I { |
     return 24;
   }

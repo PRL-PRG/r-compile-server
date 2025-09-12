@@ -1,4 +1,4 @@
-fun main {
+fun main(...) {
   # We explicitly *allow* stupid casts, because when FIŘ improves types it can create them.
   () --> I { reg r0:v(I)o, reg r1:I |
     r0 = [1, 2, 3];

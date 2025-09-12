@@ -33,7 +33,7 @@ class SimpleInterpretTest {
   @Test
   void testSimpleConstantReturn() {
     // Create a function that returns constant 42
-    // fun test { () --> I { | return 42; } }
+    // fun test(...) { () --> I { | return 42; } }
     var function = module.addFunction("test", List.of());
     var version = function.baseline();
 
@@ -54,7 +54,7 @@ class SimpleInterpretTest {
   @Test
   void testParameterAccess() {
     // Create a function that returns its parameter
-    // fun test { (reg r:I) --> I { | return r; } }
+    // fun test(...) { (reg r:I) --> I { | return r; } }
     var function = module.addFunction("test", List.of());
     var param = new Parameter(Variable.register("r"), Type.INTEGER);
     var version = function.baseline();

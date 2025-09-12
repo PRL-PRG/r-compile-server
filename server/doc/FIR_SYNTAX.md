@@ -15,7 +15,7 @@ FIŘ is a functional intermediate representation designed for analyzing and opti
 A FIŘ module consists of one or more functions:
 
 ```fir
-fun functionName {
+fun functionName(...) {
   signature { body }
   signature { body }  # Multiple versions allowed
 }
@@ -241,7 +241,7 @@ Effects track potential side effects of expressions:
 #### Simple Function
 
 ```fir
-fun main {
+fun main(...) {
   () --> I { |
     return 42;
   }
@@ -251,7 +251,7 @@ fun main {
 #### Register Usage
 
 ```fir
-fun main {
+fun main(...) {
   () --> I { reg r:I |
     r = 42;
     return r;
@@ -262,7 +262,7 @@ fun main {
 #### Promise Composition
 
 ```fir
-fun main {
+fun main(...) {
   () --> v(I)f { reg r1:p(I -), reg r2:p(I -), reg r3:I, reg r4:I, reg r:v(I)o |
     r1 = prom<I ->{ return 100; };
     r2 = prom<I ->{ return 200; };
@@ -277,7 +277,7 @@ fun main {
 #### Multiple Function Versions
 
 ```fir
-fun add {
+fun add(...) {
   (reg x:I, reg y:I) --> I { reg r:I |
     r = add_integers(x, y)
     return r;
