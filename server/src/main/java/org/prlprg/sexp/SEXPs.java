@@ -366,29 +366,29 @@ public final class SEXPs {
     return data.length == 0 ? NULL : new ListSXPImpl(data, attributes);
   }
 
-  public static ListSXP dots() {
+  public static DotsListSXP dots() {
     return dots(ImmutableList.of());
   }
 
-  public static ListSXP dots(SEXP... data) {
+  public static DotsListSXP dots(SEXP... data) {
     return dots(Arrays.stream(data).map(TaggedElem::new).toArray(TaggedElem[]::new));
   }
 
   /// FIXME: ugly
-  public static ListSXP dots1(List<SEXP> data) {
+  public static DotsListSXP dots1(List<SEXP> data) {
     return dots(data.stream().map(TaggedElem::new).toArray(TaggedElem[]::new));
   }
 
-  public static ListSXP dots(TaggedElem... data) {
+  public static DotsListSXP dots(TaggedElem... data) {
     return dots(data, Attributes.NONE);
   }
 
-  public static ListSXP dots(List<TaggedElem> data) {
+  public static DotsListSXP dots(List<TaggedElem> data) {
     return dots(data, Attributes.NONE);
   }
 
-  public static Collector<TaggedElem, ?, ListSXP> toDots() {
-    return Collector.<TaggedElem, ArrayList<TaggedElem>, ListSXP>of(
+  public static Collector<TaggedElem, ?, DotsListSXP> toDots() {
+    return Collector.<TaggedElem, ArrayList<TaggedElem>, DotsListSXP>of(
         ArrayList::new,
         ArrayList::add,
         (left, right) -> {
@@ -398,11 +398,11 @@ public final class SEXPs {
         SEXPs::dots);
   }
 
-  public static ListSXP dots(List<TaggedElem> data, Attributes attributes) {
+  public static DotsListSXP dots(List<TaggedElem> data, Attributes attributes) {
     return dots(data.toArray(TaggedElem[]::new), attributes);
   }
 
-  public static ListSXP dots(TaggedElem[] data, Attributes attributes) {
+  public static DotsListSXP dots(TaggedElem[] data, Attributes attributes) {
     if (data.length == 0 && !attributes.isEmpty()) {
       throw new IllegalArgumentException("Cannot create dots with attributes but no elements");
     }

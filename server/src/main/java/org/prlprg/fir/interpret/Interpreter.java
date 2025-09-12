@@ -71,6 +71,7 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
+import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.ExprSXP;
@@ -678,6 +679,27 @@ public final class Interpreter {
   ///
   /// @throws IllegalStateException If called outside of evaluation.
   public SEXP load(NamedVariable nv) {
+    // `..n` is a special case.
+    if (nv.isDdNum()) {
+      var n = nv.ddIndex();
+
+      if (n == 0) {
+        throw fail("Error: indexing '...' with non-positive index 0");
+      }
+
+      var dots = topFrame().get(NamedVariable.DOTS);
+      if (dots == null) {
+        throw fail("Error: '" + nv + "' used in an incorrect context, no ... to look in");
+      }
+
+      var dots1 = (DotsListSXP) dots;
+
+      if (n > dots1.size()) {
+        throw fail("Error: the ... list contains fewer than " + n + " element(s)");
+      }
+      return dots1.value(n - 1);
+    }
+
     var value = topFrame().get(nv);
     if (value == null) {
       throw fail("Unbound variable: " + nv.name());
@@ -751,6 +773,7 @@ public final class Interpreter {
       case RawSXP r -> SEXPs.raw(r.get(index));
       case VecSXP v -> v.get(index);
       case ListSXP l -> l.get(index).value();
+      case DotsListSXP d -> d.get(index).value();
       case ExprSXP e -> e.get(index);
     };
   }
@@ -775,6 +798,7 @@ public final class Interpreter {
       case RawSXP r -> r.set(index, value.asScalarRaw().orElseThrow());
       case VecSXP v -> v.set(index, value);
       case ListSXP l -> l.set(index, value);
+      case DotsListSXP d -> d.set(index, value);
       case ExprSXP e -> e.get(index);
     }
 
