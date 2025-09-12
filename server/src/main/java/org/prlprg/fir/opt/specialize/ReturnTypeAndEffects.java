@@ -33,6 +33,10 @@ public record ReturnTypeAndEffects() implements SpecializeOptimization {
 
   @Override
   public void finish(Abstraction scope, Analyses analyses) {
+    if (scope.cfg() == null) {
+      return;
+    }
+
     var newReturnType = analyses.get(InferType.class).of(scope.cfg());
     var newEffects = analyses.get(InferEffects.class).of(scope.cfg());
 

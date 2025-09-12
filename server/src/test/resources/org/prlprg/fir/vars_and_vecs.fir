@@ -1,7 +1,7 @@
-fun main(...) {
+fun main() {
   () --> v(I)f { reg ry:p(I -), reg rz:v(I), reg r:v(I)o |
     ry = prom<I ->{ return 42; };
-    rz = [1, 2, 3];
+    rz = v(I)[1, 2, 3];
     r = f.0(24, ry, rz);
     return use r;
   }
@@ -21,7 +21,7 @@ fun f(...) {
     r2 = ry1 as I;
     rz1 = ld z;
     r3 = rz1 as I;
-    ret = [r1, r2, r3];
+    ret = v(I)[r1, r2, r3];
     r4 = rz[1];
     ret[r4] = 4;
     return use ret;

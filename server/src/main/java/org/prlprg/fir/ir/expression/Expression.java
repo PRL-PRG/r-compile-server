@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -188,10 +189,16 @@ public sealed interface Expression
           var variable = p.parse(Register.class);
           headAsArg = new Use(variable);
         }
-        case "v", "dots" -> {
-          var kind = p.parse(Kind.class);
+        case "v" -> {
+          s.assertAndSkip('(');
+          var primitiveKind = p.parse(PrimitiveKind.class);
+          s.assertAndSkip(')');
           var elements = p.parseList("[", "]", NamedArgument.class);
-          return new MkVector(kind, elements);
+          return new MkVector(new Kind.PrimitiveVector(primitiveKind), elements);
+        }
+        case "dots" -> {
+          var elements = p.parseList("[", "]", NamedArgument.class);
+          return new MkVector(new Kind.Dots(), elements);
         }
           // Constant
         case String headAsName1 when Names.isReserved(headAsName1) ->

@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   () -+> V { var x:I?, reg rx0:I?, reg rx1:I, reg ry:p(I +), var y:p(I +)?, reg r0:p(I -), reg r1:V |
     mkenv;
         st x = 4;

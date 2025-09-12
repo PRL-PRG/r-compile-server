@@ -563,8 +563,15 @@ public final class Interpreter {
               kind,
               Lists.mapLazy(elements, e -> Optional.ofNullable(e.name())),
               Lists.mapLazy(elements, e -> run(e.argument())));
-      case MkEnv(), PopEnv() -> throw new NotImplementedError();
+      case MkEnv() -> {
+        topFrame().mkEnv();
+        yield SEXPs.NULL;
+      }
       case Placeholder() -> throw fail("Can't evaluate placeholder");
+      case PopEnv() -> {
+        topFrame().popEnv();
+        yield SEXPs.NULL;
+      }
       case Promise promise -> promiseStub(promise);
       case ReflectiveLoad(var promArg, var variable) -> {
         var promSxp = run(promArg);
@@ -935,10 +942,6 @@ public final class Interpreter {
     return stack.getLast();
   }
 
-  /// We don't actually know the function's possible parameters in the general case,
-  /// nor do we use them, so we statically specify that it may take any parameters.
-  private static final ListSXP CLOSURE_STUB_PARAMETERS = SEXPs.list(TaggedElem.DOTS);
-
   /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].
   public @Nullable Function extractClosure(CloSXP cloSxp) {
     var function = closures.get(cloSxp);
@@ -959,7 +962,13 @@ public final class Interpreter {
   /// called by the interpreter.
   public CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
     var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name()));
-    var sexp = SEXPs.closure(CLOSURE_STUB_PARAMETERS, codeStub, enclosingEnv);
+    // Some parameters may have explicit defaults, but they're not R ASTs.
+    // Fortunately, R accepts optional parameters without explicit defaults.
+    var rParams =
+        function.parameterDefinitions().stream()
+            .map(paramDef -> new TaggedElem(paramDef.name().name(), SEXPs.MISSING_ARG))
+            .collect(SEXPs.toList());
+    var sexp = SEXPs.closure(rParams, codeStub, enclosingEnv);
     closures.put(sexp, function);
     return sexp;
   }

@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.observer.Observer;
 import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.parseprint.ParseMethod;
@@ -50,6 +51,14 @@ public final class Module {
   }
 
   public Function addFunction(String name, List<ParameterDefinition> parameterDefinitions) {
+    return addFunction(
+        name, parameterDefinitions, Function.computeBaselineParameters(parameterDefinitions));
+  }
+
+  public Function addFunction(
+      String name,
+      List<ParameterDefinition> parameterDefinitions,
+      List<Parameter> baselineParameters) {
     return this.record(
         "Module#addFunction",
         List.of(this, name),
@@ -57,7 +66,7 @@ public final class Module {
           if (functions.containsKey(name)) {
             throw new IllegalArgumentException("Function with name '" + name + "' already exists.");
           }
-          var function = new Function(this, name, parameterDefinitions);
+          var function = new Function(this, name, parameterDefinitions, baselineParameters);
           functions.put(name, function);
           return function;
         });

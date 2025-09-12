@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -14,8 +15,10 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -45,6 +48,7 @@ public class NamedVariablesOf {
                   case SuperLoad(var v) -> Stream.of(v);
                   case SuperStore(var v, var _) -> Stream.of(v);
                   case Aea _,
+                          Assume _,
                           Call _,
                           Cast _,
                           Closure _,
@@ -52,7 +56,9 @@ public class NamedVariablesOf {
                           Force _,
                           MaybeForce _,
                           MkVector _,
+                          MkEnv _,
                           Placeholder _,
+                          PopEnv _,
                           Promise _,
                           ReflectiveLoad _,
                           ReflectiveStore _,

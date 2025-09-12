@@ -55,8 +55,9 @@ class SimpleInterpretTest {
   void testParameterAccess() {
     // Create a function that returns its parameter
     // fun test(...) { (reg r:I) --> I { | return r; } }
-    var function = module.addFunction("test", List.of());
-    var param = new Parameter(Variable.register("r"), Type.INTEGER);
+    var paramDef = new ParameterDefinition(Variable.named("r"));
+    var param = new Parameter(Variable.register(paramDef.name().name()), Type.INTEGER);
+    var function = module.addFunction("test", List.of(paramDef), List.of(param));
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());

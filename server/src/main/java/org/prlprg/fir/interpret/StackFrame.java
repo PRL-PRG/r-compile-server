@@ -25,12 +25,12 @@ final class StackFrame {
   /// If there are multiple, that's because we're in a promise being forced.
   private final List<CFGCursor> positions = new ArrayList<>();
   private final Map<Register, SEXP> registers = new LinkedHashMap<>();
-  private final EnvSXP environment;
+  private EnvSXP environment;
   private final Feedback scopeFeedback;
 
   StackFrame(Abstraction scope, EnvSXP parentEnv, Feedback scopeFeedback) {
     this.scope = scope;
-    this.environment = new UserEnvSXP(parentEnv);
+    this.environment = parentEnv;
     this.scopeFeedback = scopeFeedback;
   }
 
@@ -93,6 +93,14 @@ final class StackFrame {
       case Register r -> registers.put(r, value);
       case NamedVariable nv -> environment.set(nv.name(), value);
     }
+  }
+
+  public void mkEnv() {
+    environment = new UserEnvSXP(environment);
+  }
+
+  public void popEnv() {
+    environment = environment.parent();
   }
 
   @Override

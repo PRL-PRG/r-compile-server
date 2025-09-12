@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   () --> I { reg r:I |
     # cfg-error: Local register r used before assignment
     st x = r;

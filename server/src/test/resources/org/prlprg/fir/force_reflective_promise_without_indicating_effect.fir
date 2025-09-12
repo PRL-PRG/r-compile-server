@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   # type-error: Function effects mismatch: + don't subset -
   () --> I { reg r:p(I +), reg r0:I |
     r = prom<I +>{ return 1; };

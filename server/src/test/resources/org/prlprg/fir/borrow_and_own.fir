@@ -1,7 +1,7 @@
-fun main(...) {
+fun main() {
   () --> v(I)f { reg r1:v(I)o, reg r2:v(I)o, reg r3:v(I)o |
-    r1 = [1, 2, 3];
-    r2 = [4, 5, 6];
+    r1 = v(I)[1, 2, 3];
+    r2 = v(I)[4, 5, 6];
     r3 = f.0(use r1, r2);
     return use r3;
   }

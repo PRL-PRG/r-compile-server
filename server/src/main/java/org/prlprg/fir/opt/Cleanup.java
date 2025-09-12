@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -26,8 +27,10 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
@@ -36,6 +39,8 @@ import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
+import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -350,7 +355,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
     boolean isTriviallyPure(Expression expression) {
       return switch (expression) {
-        case Aea _ -> true;
+        case Aea _, Assume _ -> true;
         case Call _ -> false;
           // Other instructions may implicitly depend on it succeeding
         case Cast _ -> false;
@@ -362,7 +367,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case LoadFun _ -> false;
         case MaybeForce _ -> false;
         case MkVector _ -> true;
-        case Placeholder _ -> false;
+        case MkEnv _, Placeholder _, PopEnv _ -> false;
         case Promise _ -> true;
         case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
           // May error
@@ -394,6 +399,11 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
                 removingJumpArgument(ifTrue, targetBb, index),
                 removingJumpArgument(ifFalse, targetBb, index));
         case Return(var value) -> new Return(value);
+        case Checkpoint(var success, var deopt) ->
+            new Checkpoint(
+                removingJumpArgument(success, targetBb, index),
+                removingJumpArgument(deopt, targetBb, index));
+        case Deopt(var pc, var stack) -> new Deopt(pc, stack);
         case Unreachable() -> new Unreachable();
       };
     }
@@ -408,6 +418,11 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
                 removingAllJumpArguments(ifTrue, targetBb),
                 removingAllJumpArguments(ifFalse, targetBb));
         case Return(var value) -> new Return(value);
+        case Checkpoint(var success, var deopt) ->
+            new Checkpoint(
+                removingAllJumpArguments(success, targetBb),
+                removingAllJumpArguments(deopt, targetBb));
+        case Deopt(var pc, var stack) -> new Deopt(pc, stack);
         case Unreachable() -> new Unreachable();
       };
     }

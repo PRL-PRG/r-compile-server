@@ -6,6 +6,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -241,36 +242,35 @@ public class Streams {
         Characteristics.CONCURRENT);
   }
 
-  public static <T> Collector<T, ?, Boolean> hasDuplicates() {
+  public static <T> Collector<T, ?, Boolean> hasDuplicate() {
     class State {
-      @Nullable T value = null;
-      boolean isAmbiguous = false;
+      final HashSet<T> seen = new HashSet<>();
+      boolean hasDuplicate = false;
     }
-
-    var ambiguous = new State();
-    ambiguous.isAmbiguous = true;
 
     return Collector.of(
         State::new,
         (state, elem) -> {
-          if (!state.isAmbiguous && state.value == null) {
-            state.value = elem;
-          } else if (!Objects.equals(state.value, elem)) {
-            state.value = null;
-            state.isAmbiguous = true;
+          if (!state.hasDuplicate) {
+            state.hasDuplicate = !state.seen.add(elem);
           }
         },
-        (state1, state2) ->
-            state1.isAmbiguous
-                ? state1
-                : state2.isAmbiguous
-                    ? state2
-                    : state1.value == null
-                        ? state2
-                        : state2.value == null
-                            ? state1
-                            : Objects.equals(state1.value, state2.value) ? state1 : ambiguous,
-        state -> state.isAmbiguous,
+        (state1, state2) -> {
+          if (state1.hasDuplicate) {
+            return state1;
+          } else if (state2.hasDuplicate) {
+            return state2;
+          } else {
+            for (var elem : state2.seen) {
+              if (!state1.seen.add(elem)) {
+                state1.hasDuplicate = true;
+                break;
+              }
+            }
+            return state1;
+          }
+        },
+        state -> state.hasDuplicate,
         Characteristics.CONCURRENT);
   }
 

@@ -1,4 +1,4 @@
-fun main(...) {
+fun main() {
   () --> I { reg r:I |
     r = f.0(42);
     return r;
