@@ -2593,4 +2593,38 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
+/* Check whether a call is to a base function; if not use AST interpreter */
+/***** need a faster guard check */
+static INLINE SEXP SymbolValue(SEXP sym)
+{
+  if (IS_ACTIVE_BINDING(sym))
+    return Rf_eval(sym, R_BaseEnv);
+  else
+  {
+    SEXP value = SYMVALUE(sym);
+    if (TYPEOF(value) == PROMSXP)
+    {
+      if (PROMISE_IS_EVALUATED(value))
+        value = PRVALUE(value);
+      else
+        value = Rf_eval(sym, R_BaseEnv);
+    }
+    return value;
+  }
+}
+
+static INLINE Rboolean Rsh_Baseguard(SEXP expr, SEXP rho)
+{
+	SEXP sym = CAR(expr);
+	if (Rf_findFun(sym, rho) != SymbolValue(sym)) {
+    // function redefined -- bail out to R interpreter
+    PUSH_VAL(1);
+    SET_SXP_VAL(GET_VAL(1), Rf_eval(expr, rho));
+	  return TRUE;
+	}
+  else {
+    return FALSE;
+  }
+}
+
 #endif // RUNTIME_H
