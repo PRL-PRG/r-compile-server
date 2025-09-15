@@ -2593,4 +2593,9 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
+static INLINE void Rsh_DotsErr(void)
+{
+  Rf_error("'...' used in an incorrect context");
+}
+
 #endif // RUNTIME_H
