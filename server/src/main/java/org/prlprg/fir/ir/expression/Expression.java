@@ -310,6 +310,43 @@ public sealed interface Expression
 
         var type = p.parse(Type.class);
         return new Cast(headAsArg, type);
+      } else if (s.trySkip("?:")) {
+        if (headAsArg == null) {
+          throw s.fail("In 'a ?: t', 'a' must be a register or constant");
+        }
+
+        var type = p.parse(Type.class);
+        return new AssumeType(headAsArg, type);
+      } else if (s.trySkip("?- ")) {
+        if (headAsArg == null) {
+          throw s.fail("In 'a ?- t', 'a' must be a register or constant");
+        }
+
+        var functionName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+
+        // We must defer setting the function in case it's a forward reference.
+        @SuppressWarnings("DataFlowIssue")
+        var assume = new AssumeFunction(headAsArg, null);
+        postModule.add(
+            m -> {
+              assert m == module;
+
+              var function = m.lookupFunction(functionName);
+              if (function == null) {
+                throw s.fail(
+                    "Assumption references a function that wasn't defined: " + functionName);
+              }
+              assume.unsafeSetFunction(function);
+            });
+
+        return assume;
+      } else if (s.trySkip("?= ")) {
+        if (headAsArg == null) {
+          throw s.fail("In 'a ?= t', 'a' must be a register or constant");
+        }
+
+        var constant = p.parse(Constant.class);
+        return new AssumeConstant(headAsArg, constant);
       }
 
       if (headAsArg != null) {

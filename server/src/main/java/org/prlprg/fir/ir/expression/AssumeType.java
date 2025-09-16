@@ -23,7 +23,7 @@ public record AssumeType(Argument target, Type type) implements Assume {
   @PrintMethod
   private void print(Printer p) {
     p.print(target);
-    p.writer().write(" :? ");
+    p.writer().write(" ?: ");
     p.print(type);
   }
 }

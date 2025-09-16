@@ -45,11 +45,11 @@ public sealed interface ListSXP extends AbstractListSXP, LangOrListSXP permits N
 
   ListSXP with(int index, @Nullable String tag, SEXP value);
 
-  ListSXP appended(String tag, SEXP value);
+  ListSXP appended(@Nullable String tag, SEXP value);
 
   ListSXP appended(ListSXP other);
 
-  ListSXP subList(int fromIndex);
+  ListSXP fromIndex(int fromIndex);
 
   ListSXP prepend(TaggedElem elem);
 }
@@ -91,7 +91,7 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
   }
 
   @Override
-  public ListSXP subList(int fromIndex) {
+  public ListSXP fromIndex(int fromIndex) {
     var data = new TaggedElem[size() - fromIndex];
     System.arraycopy(this.data, fromIndex, data, 0, data.length);
     return new ListSXPImpl(data, attributes);

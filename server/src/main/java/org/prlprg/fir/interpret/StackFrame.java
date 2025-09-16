@@ -26,6 +26,7 @@ final class StackFrame {
   private final List<CFGCursor> positions = new ArrayList<>();
   private final Map<Register, SEXP> registers = new LinkedHashMap<>();
   private EnvSXP environment;
+  private int numEnvsPushed = 0;
   private final Feedback scopeFeedback;
 
   StackFrame(Abstraction scope, EnvSXP parentEnv, Feedback scopeFeedback) {
@@ -97,10 +98,16 @@ final class StackFrame {
 
   public void mkEnv() {
     environment = new UserEnvSXP(environment);
+    numEnvsPushed++;
   }
 
   public void popEnv() {
+    if (numEnvsPushed == 0) {
+      throw new IllegalStateException("Stack frame popped more environments than it pushed");
+    }
+
     environment = environment.parent();
+    numEnvsPushed--;
   }
 
   @Override

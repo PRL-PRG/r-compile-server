@@ -214,8 +214,8 @@ public final class TypeAndEffectChecker extends Checker {
             checkSubtype(
                 constantType, argType, "Assumption can't succeed, clearly we didn't record it");
           }
-          case AssumeFunction(var arg, var _) -> {
-            var argType = scope.typeOf(arg);
+          case AssumeFunction assume -> {
+            var argType = scope.typeOf(assume.target());
             if (argType == null) {
               break;
             }

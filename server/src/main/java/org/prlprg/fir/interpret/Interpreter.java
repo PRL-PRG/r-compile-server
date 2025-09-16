@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Stack;
 import java.util.stream.Stream;
@@ -22,6 +23,7 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
 import org.prlprg.fir.ir.expression.AssumeType;
@@ -85,13 +87,14 @@ import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Lists;
-import org.prlprg.util.NotImplementedError;
 import org.prlprg.util.Streams;
 import org.prlprg.util.Strings;
+import org.prlprg.util.UnreachableError;
 
 /// FIŘ interpreter.
 public final class Interpreter {
@@ -303,14 +306,18 @@ public final class Interpreter {
               + "]");
     }
 
-    var result = call(best, arguments, environment);
+    var result = call(best, arguments, environment, function.baseline().cfg());
 
     checkType(result, function.baseline().returnType(), "return");
     return result;
   }
 
   /// Calls the function version with the arguments in the environment.
-  public SEXP call(Abstraction abstraction, List<SEXP> arguments, EnvSXP environment) {
+  public SEXP call(
+      Abstraction abstraction,
+      List<SEXP> arguments,
+      EnvSXP environment,
+      @Nullable CFG deoptRestoreCfg) {
     // Hijack if we registered external code for this version
     var hijacker = externalVersions.get(abstraction);
     if (hijacker != null) {
@@ -346,7 +353,7 @@ public final class Interpreter {
     }
 
     // Execute CFG
-    var result = run(frame, cfg);
+    var result = run(frame, cfg, deoptRestoreCfg);
 
     checkType(result, abstraction.returnType(), "return");
     return result;
@@ -392,7 +399,7 @@ public final class Interpreter {
   ///
   /// Also pushes/pops `frame`; every [CFG] runs at its own stack frame index (the frame itself
   /// is reused across all CFGs in the [Abstraction]).
-  private SEXP run(StackFrame frame, CFG cfg) {
+  private SEXP run(StackFrame frame, CFG cfg, @Nullable CFG deoptRestoreCfg) {
     checkStack();
 
     var cursor = new CFGCursor(cfg);
@@ -413,6 +420,8 @@ public final class Interpreter {
           frame.exit();
           return value;
         }
+        case ControlFlow.Deopt(var pc, var sexpStack) ->
+            cursor = restoreDeopt(pc, sexpStack, deoptRestoreCfg);
       }
     }
   }
@@ -451,7 +460,11 @@ public final class Interpreter {
         yield new ControlFlow.Goto(isTrue(condSexp) ? ifTrue : ifFalse);
       }
       case Return(var ret) -> new ControlFlow.Return(run(ret));
-      case Checkpoint(var _, var _), Deopt(var _, var _) -> throw new NotImplementedError();
+      case Checkpoint(var ok, var deopt) -> new ControlFlow.Goto(check(ok) ? ok : deopt);
+      case Deopt(var pc, var argStack) -> {
+        var valueStack = argStack.stream().map(this::run).collect(ImmutableList.toImmutableList());
+        yield new ControlFlow.Deopt(pc, valueStack);
+      }
       case Unreachable _ -> throw fail("Reached unimplemented or \"unreachable\" code");
     };
   }
@@ -483,18 +496,23 @@ public final class Interpreter {
     checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
-      case AssumeType(var _, var _), AssumeConstant(var _, var _), AssumeFunction(var _, var _) ->
-          throw new NotImplementedError();
+      case AssumeType(var arg, var type) -> {
+        var value = run(arg);
+        checkType(value, type, "assume-type");
+        yield value;
+      }
+      case AssumeConstant(var _, var _), AssumeFunction _ -> SEXPs.NULL;
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
         var environment = topFrame().environment();
 
         yield switch (callee) {
-          case StaticCallee(var _, var version) -> call(version, arguments, environment);
+          case StaticCallee(var function, var version) ->
+              call(version, arguments, environment, function.baseline().cfg());
           case DispatchCallee(var function, var signature) ->
               call(function, signature, arguments, environment);
-          case InlineCallee(var inlinee) -> call(inlinee, arguments, environment);
+          case InlineCallee(var inlinee) -> call(inlinee, arguments, environment, null);
           case DynamicCallee(var actualCallee, var argumentNames) -> {
             var calleeSexp = run(actualCallee);
             if (!(calleeSexp instanceof CloSXP cloSXP)) {
@@ -569,7 +587,12 @@ public final class Interpreter {
       }
       case Placeholder() -> throw fail("Can't evaluate placeholder");
       case PopEnv() -> {
-        topFrame().popEnv();
+        try {
+          topFrame().popEnv();
+        } catch (IllegalStateException e) {
+          // There was no pushed env
+          throw fail(e.getMessage());
+        }
         yield SEXPs.NULL;
       }
       case Promise promise -> promiseStub(promise);
@@ -759,7 +782,13 @@ public final class Interpreter {
                       .toArray(String[]::new));
         };
       }
-      case Dots() -> throw new NotImplementedError();
+      case Dots() ->
+          Streams.zip(
+                  elementNames.stream(),
+                  elements.stream(),
+                  (name, element) ->
+                      new TaggedElem(name.map(NamedVariable::name).orElse(null), element))
+              .collect(SEXPs.toDots());
       default -> throw fail("Unsupported vector kind: " + kind);
     };
   }
@@ -827,15 +856,147 @@ public final class Interpreter {
     }
     var promExpr = promCode.expression;
 
-    var value = run(promCode.frame, promExpr.code());
+    // No restore CFG = can't deopt in promises, at least for now.
+    var value = run(promCode.frame, promExpr.code(), null);
     promSXP.bind(value);
 
     checkType(value, promExpr.valueType(), "promise");
     return value;
   }
 
-  private void recordTypeFeedback(Feedback feedback, Register variable, SEXP value) {
-    feedback.recordType(variable, inferType(value, Ownership.SHARED));
+  /// Run assumptions in `target` and return true if they all hold.
+  private boolean check(Target target) {
+    if (!target.phiArgs().isEmpty()) {
+      throw fail("checkpoint target has arguments? Can they be in assumptions?");
+    }
+
+    for (var stmt : target.bb().statements()) {
+      if (!(stmt.expression() instanceof Assume assume)) {
+        break;
+      }
+      if (!check(assume)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private boolean check(Assume assume) {
+    switch (assume) {
+      case AssumeConstant(var arg, var constant) -> {
+        var value = run(arg);
+        return Objects.equals(value, constant.sexp());
+      }
+      case AssumeFunction af -> {
+        var arg = af.target();
+        var function = af.function();
+
+        var value = run(arg);
+        if (!(value instanceof CloSXP cloSXP) || !(cloSXP.env() instanceof StaticEnvSXP)) {
+          return false;
+        }
+        var sexpFun = extractClosure(cloSXP);
+        return sexpFun == function;
+      }
+      case AssumeType(var arg, var type) -> {
+        var value = run(arg);
+        var actualType = inferType(value, type.ownership());
+        return actualType.isSubtypeOf(type);
+      }
+    }
+  }
+
+  /// Simulate deoptless: go to the [Deopt] in `deoptRestoreCfg` at `pc`, assign deopt stack
+  /// arguments `sexpStack` values, then "reverse-evaluate" until the checkpoint (pop env for
+  /// each [MkEnv]).
+  private CFGCursor restoreDeopt(int pc, List<SEXP> sexpStack, @Nullable CFG deoptRestoreCfg) {
+    CFGCursor cursor;
+    if (deoptRestoreCfg == null) {
+      throw fail("can't deopt without restore CFG");
+    }
+
+    // Get corresponding deopt BC and run sanity checks
+    var deoptBc =
+        deoptRestoreCfg.bbs().stream()
+            .filter(bb -> bb.jump() instanceof Deopt(var pc1, var _) && pc == pc1)
+            .collect(
+                Streams.zeroOneOrThrow(() -> fail("multiple deopt branches with the same pc?")))
+            .orElseThrow(
+                () ->
+                    fail(
+                        "restore CFG has no deopt corresponding to "
+                            + pc
+                            + "\n"
+                            + deoptRestoreCfg));
+    if (!(deoptBc.jump() instanceof Deopt(var _, var argStack))) {
+      throw new UnreachableError();
+    }
+    var checkBc =
+        deoptBc.predecessors().stream()
+            .findAny()
+            .orElseThrow(() -> fail("deopt branch has no predecessors?\n" + deoptRestoreCfg));
+    if (!(checkBc.jump() instanceof Checkpoint)) {
+      throw fail("deopt branch predecessor is not a checkpoint?\n" + deoptRestoreCfg);
+    }
+    if (argStack.size() != sexpStack.size()) {
+      throw fail(
+          "deopt stack size mismatch: expected " + argStack.size() + ", got " + sexpStack.size());
+    }
+
+    // Replace arguments
+    for (var i = 0; i < argStack.size(); i++) {
+      var arg = argStack.get(i);
+      var sexp = sexpStack.get(i);
+      switch (arg) {
+        case Constant(var constant) -> {
+          if (!sexp.equals(constant)) {
+            throw fail(
+                "constant in one restore branch is different than the register in deopt: expected "
+                    + constant
+                    + ", got "
+                    + sexp);
+          }
+        }
+        case Read(var variable) -> {
+          topFrame().put(variable, sexp);
+          recordTypeFeedback(topFrame().scopeFeedback(), variable, sexp);
+        }
+        case Use(var variable) -> {
+          topFrame().put(variable, sexp);
+          recordTypeFeedback(topFrame().scopeFeedback(), variable, sexp);
+        }
+      }
+    }
+
+    // Reverse-evaluate from deopt to checkpoint
+    cursor = new CFGCursor(deoptBc, deoptBc.statements().size() - 1);
+    while (cursor.instructionIndex() >= 0) {
+      var expression = ((Statement) Objects.requireNonNull(cursor.instruction())).expression();
+      switch (expression) {
+        case MkEnv() -> {
+          try {
+            topFrame().popEnv();
+          } catch (IllegalStateException e) {
+            // There was no pushed env
+            throw fail(e.getMessage());
+          }
+        }
+        case Store(var _, var _) -> {}
+        default ->
+            throw fail(
+                "unexpected expression in deopt branch: "
+                    + expression
+                    + "\nBB:\n"
+                    + deoptBc
+                    + "CFG:\n"
+                    + deoptRestoreCfg);
+      }
+      cursor.unadvance();
+    }
+    cursor.moveToEnd(checkBc);
+    // Interpreter expects us to be before the next instruction (the checkpoint), not at it.
+    cursor.unadvance();
+    return cursor;
   }
 
   /// Casts the value to a boolean and returns it, throws if not a boolean.
@@ -846,6 +1007,10 @@ public final class Interpreter {
       case NA -> throw fail("Booleans can't be NA");
       case null -> throw fail("Booleans must be scalar logicals");
     };
+  }
+
+  private void recordTypeFeedback(Feedback feedback, Register variable, SEXP value) {
+    feedback.recordType(variable, inferType(value, Ownership.SHARED));
   }
 
   /// Compute the runtime signature to select a dispatch version of a function.
@@ -996,6 +1161,8 @@ public final class Interpreter {
     record Goto(Target next) implements ControlFlow {}
 
     record Return(SEXP value) implements ControlFlow {}
+
+    record Deopt(int pc, List<SEXP> stack) implements ControlFlow {}
   }
 
   private record PromiseCode(Promise expression, StackFrame frame) {}

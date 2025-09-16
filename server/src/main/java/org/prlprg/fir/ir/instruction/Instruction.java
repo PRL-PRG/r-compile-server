@@ -23,7 +23,9 @@ public sealed interface Instruction permits Statement, Jump {
   @ParseMethod
   private static Instruction parse(Parser p, ParseContext _ctx) {
     var s = p.scanner();
-    if (s.nextCharsAre("if ")
+    if (s.nextCharsAre("check ")
+        || s.nextCharsAre("deopt ")
+        || s.nextCharsAre("if ")
         || s.nextCharsAre("goto ")
         || s.nextCharsAre("return ")
         || s.nextCharsAre("...")) {
