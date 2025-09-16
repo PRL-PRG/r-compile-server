@@ -10,7 +10,7 @@ import org.prlprg.parseprint.Printer;
 
 /// Assume that an argument equals a specific constant.
 /// This is a no-op when evaluated, but is checked when reaching a checkpoint.
-public record AssumeConstant(Argument target, Constant constant) implements Assume {
+public record AssumeConstant(@Override Argument target, Constant constant) implements Assume {
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(target, constant);

@@ -7,7 +7,7 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 
 public final class NamedVariable implements Variable {
-  public static final NamedVariable DOTS = Variable.named("...");
+  public static final NamedVariable DOTS = new NamedVariable("...");
 
   private final String name;
 

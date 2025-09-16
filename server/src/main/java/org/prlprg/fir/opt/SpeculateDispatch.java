@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt;
 
+import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 
 import com.google.common.collect.ImmutableList;
@@ -7,6 +8,7 @@ import java.util.List;
 import org.prlprg.fir.feedback.Feedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
@@ -36,6 +38,11 @@ public record SpeculateDispatch(
   }
 
   private void run(Function function, Abstraction version) {
+    // Don't specialize stubs
+    if (version.cfg() == null) {
+      return;
+    }
+
     // If the function has too many versions, don't add any more.
     var newVersionLimit = versionLimit - function.versions().size();
     if (newVersionLimit <= 0) {
@@ -69,6 +76,38 @@ public record SpeculateDispatch(
                       || !Lists.mapLazy(existing.parameters(), Parameter::type)
                           .equals(parameterTypes);
                 })
+            // Check the specialized types don't guarantee any speculations to fail.
+            .filter(
+                parameterTypes ->
+                    version
+                        .streamScopes()
+                        .flatMap(Abstraction::streamCfgs)
+                        .flatMap(cfg -> cfg.bbs().stream())
+                        .flatMap(bb -> bb.statements().stream())
+                        .noneMatch(
+                            stmt -> {
+                              if (!(stmt.expression() instanceof Assume assume)
+                                  || assume.target().variable() == null) {
+                                return false;
+                              }
+
+                              Type argType = null;
+                              for (int i = 0; i < version.parameters().size(); i++) {
+                                if (version
+                                    .parameters()
+                                    .get(i)
+                                    .variable()
+                                    .equals(assume.target().variable())) {
+                                  argType = parameterTypes.get(i);
+                                  break;
+                                }
+                              }
+                              if (argType == null) {
+                                return false;
+                              }
+
+                              return !assumeCanSucceed(assume, argType);
+                            }))
             .limit(newVersionLimit);
 
     // Create each candidate.
@@ -83,6 +122,7 @@ public record SpeculateDispatch(
 
           // Copy `version` except change the parameters.
           var copy = function.addVersion(copyParameters);
+          assert copy.cfg() != null;
           copy.setReturnType(version.returnType());
           copy.setEffects(version.effects());
           copy.addLocals(version.locals());

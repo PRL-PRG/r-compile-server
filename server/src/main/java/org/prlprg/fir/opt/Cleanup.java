@@ -7,6 +7,7 @@ import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
 import javax.annotation.Nullable;
+import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -277,14 +278,16 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     }
 
     void substituteWithOrigins() {
-      var originAnalysis = new OriginAnalysis(scope);
+      var analyses = new Analyses(scope, OriginAnalysis.class, DefUses.class);
+      var defUseAnalysis = analyses.get(DefUses.class);
+      var originAnalysis = analyses.get(OriginAnalysis.class);
 
       for (var entry : originAnalysis.registerOrigins().entrySet()) {
         var register = entry.getKey();
         var origin = entry.getValue();
 
-        // Can't substitute with `use` (TODO: unless there's exactly one occurrence).
-        if (origin instanceof Use) {
+        // Can't substitute with `use`, unless there's exactly one occurrence besides this one.
+        if (origin instanceof Use(var used) && defUseAnalysis.uses(used).size() > 2) {
           continue;
         }
 

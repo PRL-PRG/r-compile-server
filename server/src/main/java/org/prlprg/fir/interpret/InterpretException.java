@@ -1,14 +1,11 @@
 package org.prlprg.fir.interpret;
 
-// TODO: Rewrite to add `CFGCursor` and `List<StackFrame>` and display them in `getMessage`,
-//  like `CheckException` does with only `CFGCursor`.
-
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import javax.annotation.Nullable;
 import org.prlprg.sexp.GlobalEnvSXP;
 
-/// Exception thrown during FIR interpretation.
+/// Exception thrown during FIŘ interpretation.
 public final class InterpretException extends RuntimeException {
   private final ImmutableList<StackFrame> stack;
   private final GlobalEnvSXP globalEnv;

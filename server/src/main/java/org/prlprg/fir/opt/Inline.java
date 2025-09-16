@@ -11,7 +11,6 @@ import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
-import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.cfg.Reachability;
@@ -58,8 +57,10 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       analyses =
           new Analyses(
               abstraction,
-              new AnalysisTypes(
-                  DominatorTree.class, Reachability.class, DefUses.class, OriginAnalysis.class));
+              DominatorTree.class,
+              Reachability.class,
+              DefUses.class,
+              OriginAnalysis.class);
       namedVariables = namedVariablesOf(abstraction);
     }
 
@@ -210,7 +211,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       var variablesClash = !Sets.intersection(namedVariablesOf(callee), namedVariables).isEmpty();
       if (callee == abstraction
           || callee.effects().reflect()
-          || callee.isStub()
+          || callee.cfg() == null
           || instructionCount > maxInlineeSize
           || callsItself
           || variablesClash
@@ -229,6 +230,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // Copy `callee` (since these are in-place mutations), then prepare it for inlining:
       // substitute parameters with arguments, and substitute locals with new locals.
       var body = new Abstraction(abstraction.module(), List.of());
+      assert body.cfg() != null;
       for (var parameter : callee.parameters()) {
         body.addLocal(new Local(parameter.variable(), parameter.type()));
       }
