@@ -455,7 +455,7 @@ public class RDSReader implements Closeable {
 
       ListSXP args = SEXPs.NULL;
       if (ansList.size() > 1) {
-        args = ansList.subList(1);
+        args = ansList.fromIndex(1);
       }
 
       ans = SEXPs.lang(funSymOrLang, args, attributes);

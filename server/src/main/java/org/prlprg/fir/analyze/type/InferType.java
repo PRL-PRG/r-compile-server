@@ -71,7 +71,7 @@ public final class InferType implements Analysis {
     return switch (expression) {
       case Aea(var value) -> of(value);
       case AssumeType(var _, var type) -> type;
-      case AssumeConstant(var _, var _), AssumeFunction(var _, var _) -> Type.ANY_VALUE;
+      case AssumeConstant(var _, var _), AssumeFunction _ -> Type.ANY_VALUE;
       case Call call ->
           switch (call.callee()) {
             case StaticCallee(var _, var version) -> version.returnType();

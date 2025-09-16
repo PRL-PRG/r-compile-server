@@ -345,7 +345,7 @@ public class RDSWriter implements Closeable {
     writeItem(first.value());
 
     // Write the rest of the list
-    for (var el : lsxp.subList(1)) {
+    for (var el : lsxp.fromIndex(1)) {
       // Write flags
       var itemFlags = listFlags.withTag(el.hasTag()).withAttributes(false);
       out.writeInt(itemFlags.encode());
@@ -542,7 +542,7 @@ public class RDSWriter implements Closeable {
           // write head
           writeByteCodeLang(list.value(0), reps, nextRepIndex);
           // write tail
-          writeByteCodeLang(list.subList(1), reps, nextRepIndex);
+          writeByteCodeLang(list.fromIndex(1), reps, nextRepIndex);
         }
       }
     } else { // Print a zero as padding and write the item normally

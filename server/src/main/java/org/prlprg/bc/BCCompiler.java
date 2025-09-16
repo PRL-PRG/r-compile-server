@@ -1869,7 +1869,7 @@ public class BCCompiler {
         var ci = cb.addConst(afunSym);
         cb.addInstr(new GetFun(ci));
         cb.addInstr(new PushNullArg());
-        compileArgs(flhs.temp().args().subList(1), false);
+        compileArgs(flhs.temp().args().fromIndex(1), false);
         var cci = cb.addConst(acall);
         var cvi = cb.addConst(value);
         cb.addInstr(new SetterCall(cci, cvi));
@@ -1878,7 +1878,7 @@ public class BCCompiler {
       compile(afun);
       cb.addInstr(new CheckFun());
       cb.addInstr(new PushNullArg());
-      compileArgs(flhs.temp().args().subList(1), false);
+      compileArgs(flhs.temp().args().fromIndex(1), false);
       var cci = cb.addConst(acall);
       var cvi = cb.addConst(value);
       cb.addInstr(new SetterCall(cci, cvi));
@@ -1899,7 +1899,7 @@ public class BCCompiler {
         var ci = cb.addConst(funSym);
         cb.addInstr(new GetFun(ci));
         cb.addInstr(new PushNullArg());
-        compileArgs(place.args().subList(1), false);
+        compileArgs(place.args().fromIndex(1), false);
         var cci = cb.addConst(place);
         cb.addInstr(new GetterCall(cci));
         cb.addInstr(new SpecialSwap());
@@ -1908,7 +1908,7 @@ public class BCCompiler {
       compile(fun);
       cb.addInstr(new CheckFun());
       cb.addInstr(new PushNullArg());
-      compileArgs(place.args().subList(1), false);
+      compileArgs(place.args().fromIndex(1), false);
       var cci = cb.addConst(place);
       cb.addInstr(new GetterCall(cci));
       cb.addInstr(new SpecialSwap());
@@ -2005,7 +2005,7 @@ public class BCCompiler {
       cb.addInstr(new Dup2nd());
       cb.addInstr(doubleBracket ? new StartSubset2(ci, label) : new StartSubset(ci, label));
 
-      var args = call.args().subList(1);
+      var args = call.args().fromIndex(1);
       compileBuiltinArgs(args, true);
 
       cb.addInstr(doubleBracket ? new DfltSubset2() : new DfltSubset());
@@ -2019,7 +2019,7 @@ public class BCCompiler {
     var endLabel = cb.makeLabel();
     cb.addInstr(new Dup2nd());
     cb.addInstr(doubleBracket ? new StartSubset2N(ci, endLabel) : new StartSubsetN(ci, endLabel));
-    var indices = call.args().subList(1);
+    var indices = call.args().fromIndex(1);
     compileIndices(indices);
 
     switch (indices.size()) {
@@ -2073,7 +2073,7 @@ public class BCCompiler {
       var endLabel = cb.makeLabel();
       cb.addInstr(
           doubleSquare ? new StartSubassign2(ci, endLabel) : new StartSubassign(ci, endLabel));
-      var args = place.args().subList(1);
+      var args = place.args().fromIndex(1);
       compileBuiltinArgs(args, true);
       cb.addInstr(doubleSquare ? new DfltSubassign2() : new DfltSubassign());
       cb.patchLabel(endLabel);
@@ -2083,7 +2083,7 @@ public class BCCompiler {
     var ci = cb.addConst(call);
     var label = cb.makeLabel();
     cb.addInstr(doubleSquare ? new StartSubassign2N(ci, label) : new StartSubassignN(ci, label));
-    var indices = place.args().subList(1);
+    var indices = place.args().fromIndex(1);
     compileIndices(indices);
 
     switch (indices.size()) {
@@ -2125,7 +2125,7 @@ public class BCCompiler {
       var ci = cb.addConst(call);
       var endLabel = cb.makeLabel();
       cb.addInstr(doubleSquare ? new StartSubset2(ci, endLabel) : new StartSubset(ci, endLabel));
-      var args = call.args().subList(1);
+      var args = call.args().fromIndex(1);
       compileBuiltinArgs(args, true);
       cb.addInstr(doubleSquare ? new DfltSubset2() : new DfltSubset());
       cb.patchLabel(endLabel);
@@ -2143,7 +2143,7 @@ public class BCCompiler {
     var endLabel = cb.makeLabel();
     usingCtx(ctx.argContext(), () -> compile(oe));
     cb.addInstr(doubleSquare ? new StartSubset2N(ci, endLabel) : new StartSubsetN(ci, endLabel));
-    var indices = call.args().subList(1);
+    var indices = call.args().fromIndex(1);
     usingCtx(ctx.argContext(), () -> compileIndices(indices));
 
     switch (indices.size()) {

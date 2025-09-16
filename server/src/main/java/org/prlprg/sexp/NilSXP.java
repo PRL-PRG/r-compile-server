@@ -90,7 +90,7 @@ public final class NilSXP implements ListSXP, DotsListSXP {
   }
 
   @Override
-  public ListSXP appended(String tag, SEXP value) {
+  public ListSXP appended(@Nullable String tag, SEXP value) {
     return new ListSXPImpl(new TaggedElem[] {new TaggedElem(tag, value)}, Attributes.NONE);
   }
 
@@ -100,7 +100,7 @@ public final class NilSXP implements ListSXP, DotsListSXP {
   }
 
   @Override
-  public ListSXP subList(int fromIndex) {
+  public ListSXP fromIndex(int fromIndex) {
     if (fromIndex == 0) {
       return this;
     } else {

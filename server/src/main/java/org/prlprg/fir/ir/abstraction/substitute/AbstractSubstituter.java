@@ -161,8 +161,8 @@ abstract class AbstractSubstituter {
       case Aea(var value) -> new Aea(substitute(value));
       case AssumeConstant(var target, var constant) ->
           new AssumeConstant(substitute(target), constant);
-      case AssumeFunction(var target, var function) ->
-          new AssumeFunction(substitute(target), function);
+      case AssumeFunction assume ->
+          new AssumeFunction(substitute(assume.target()), assume.function());
       case AssumeType(var target, var type) -> new AssumeType(substitute(target), type);
       case Call call ->
           new Call(

@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.CommentParser;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.observer.Observer;
 import org.prlprg.fir.ir.parameter.ParameterDefinition;
@@ -138,12 +139,14 @@ public final class Module {
     var postModule = new DeferredCallbacks<Module>();
 
     var p1 = p.withContext(new Function.ParseContext(module, postModule, p.context()));
+    CommentParser.skipComments(s);
     while (!s.isAtEof() && !s.nextCharIs('}')) {
       var function = p1.parse(Function.class);
       if (module.functions.put(function.name(), function) != null) {
         throw new IllegalArgumentException(
             "Function with name '" + function.name() + "' already exists.");
       }
+      CommentParser.skipComments(s);
     }
 
     postModule.run(module);

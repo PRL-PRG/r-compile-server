@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -85,10 +86,9 @@ public class InterpretUtil {
       interpreter.registerExternalVersion(
           "inc",
           0,
-          (_, _, args, _) -> {
+          (interpreter1, _, args, _) -> {
             if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
-              throw new IllegalArgumentException(
-                  "`inc`'s arguments must consist of one scalar integer");
+              throw interpreter1.fail("`inc`'s arguments must consist of one scalar integer");
             }
             var arg = args.getFirst().asScalarInteger().get();
 
@@ -99,10 +99,9 @@ public class InterpretUtil {
       interpreter.registerExternalVersion(
           "dec",
           0,
-          (_, _, args, _) -> {
+          (interpreter1, _, args, _) -> {
             if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
-              throw new IllegalArgumentException(
-                  "`dec`'s arguments must consist of one scalar integer");
+              throw interpreter1.fail("`dec`'s arguments must consist of one scalar integer");
             }
             var arg = args.getFirst().asScalarInteger().get();
 
@@ -113,12 +112,11 @@ public class InterpretUtil {
       interpreter.registerExternalVersion(
           "add",
           0,
-          (_, _, args, _) -> {
+          (interpreter1, _, args, _) -> {
             if (args.size() != 2
                 || args.getFirst().asScalarInteger().isEmpty()
                 || args.get(1).asScalarInteger().isEmpty()) {
-              throw new IllegalArgumentException(
-                  "`add`'s arguments must consist of two scalar integers");
+              throw interpreter1.fail("`add`'s arguments must consist of two scalar integers");
             }
             var arg0 = args.getFirst().asScalarInteger().get();
             var arg1 = args.get(1).asScalarInteger().get();
@@ -130,12 +128,12 @@ public class InterpretUtil {
       interpreter.registerExternalVersion(
           "if0",
           0,
-          (_, _, args, _) -> {
+          (interpreter1, _, args, _) -> {
             if (args.size() != 3
                 || args.getFirst().asScalarInteger().isEmpty()
                 || !(args.get(1) instanceof PromSXP ifTrue)
                 || !(args.get(2) instanceof PromSXP ifFalse)) {
-              throw new IllegalArgumentException(
+              throw interpreter1.fail(
                   "`if0`'s arguments must consist of one scalar integer and two promises");
             }
             var condition = args.getFirst().asScalarInteger().get();
@@ -143,6 +141,69 @@ public class InterpretUtil {
             return condition == 0 ? interpreter.force(ifTrue) : interpreter.force(ifFalse);
           });
     }
+    if (interpreter.module().lookupFunction("provide") != null) {
+      interpreter.registerExternalVersion(
+          "provide",
+          0,
+          (interpreter1, _, args, _) -> {
+            if (args.size() != 1) {
+              throw interpreter1.fail("`provide`'s arguments must consist of one value");
+            }
+            var nextProvided = provided(interpreter).appended(null, args.getFirst());
+            setProvided(interpreter, nextProvided);
+            return SEXPs.NULL;
+          });
+    }
+    if (interpreter.module().lookupFunction("require") != null) {
+      interpreter.registerExternalVersion(
+          "require",
+          0,
+          (interpreter1, _, args, _) -> {
+            if (args.size() != 1) {
+              throw interpreter1.fail("`require`'s arguments must consist of one value");
+            }
+            var provided = provided(interpreter);
+            if (provided.isEmpty()) {
+              throw interpreter1.fail("No value was `require`d");
+            }
+            var nextProvided = provided.fromIndex(1);
+            if (!args.getFirst().equals(provided.value(0))) {
+              throw interpreter1.fail(
+                  "`require`d value doesn't match the first `provide`d value: expected "
+                      + args.getFirst()
+                      + " but got "
+                      + provided.value(0)
+                      + "\nrest = "
+                      + nextProvided);
+            }
+            setProvided(interpreter, nextProvided);
+            return SEXPs.NULL;
+          });
+    }
+    if (interpreter.module().lookupFunction("print") != null) {
+      interpreter.registerExternalVersion(
+          "print",
+          0,
+          (interpreter1, _, args, _) -> {
+            if (args.size() != 1) {
+              throw interpreter1.fail("`print`'s arguments must consist of one value");
+            }
+            System.out.println("PRINT " + args.getFirst());
+            return SEXPs.NULL;
+          });
+    }
+  }
+
+  private static ListSXP provided(Interpreter interpreter) {
+    var sexp = interpreter.globalEnv().getLocal("provided").orElse(SEXPs.list());
+    if (!(sexp instanceof ListSXP listSXP)) {
+      throw interpreter.fail("expected `provided` to be a list, but got: " + sexp);
+    }
+    return listSXP;
+  }
+
+  private static void setProvided(Interpreter interpreter, ListSXP values) {
+    interpreter.globalEnv().set("provided", values);
   }
 
   /// Run verifiers, then call `main`, then check the output and error (if any) against expected.

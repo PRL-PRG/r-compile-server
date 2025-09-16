@@ -161,6 +161,8 @@ public class Scanner {
    * @throws ParseException if the next character isn't a digit.
    */
   public int readInt() {
+    skipWhitespaceAccordingToPolicy();
+
     return runWithWhitespacePolicy(
         SkipWhitespace.NONE, () -> trySkip('-') ? -readUInt() : readUInt());
   }
@@ -171,6 +173,8 @@ public class Scanner {
    * @throws ParseException if the next character isn't a digit.
    */
   public long readLong() {
+    skipWhitespaceAccordingToPolicy();
+
     return runWithWhitespacePolicy(
         SkipWhitespace.NONE, () -> trySkip('-') ? -readULong() : readULong());
   }
