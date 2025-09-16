@@ -1294,6 +1294,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1)
   record IncLnkStk() implements BcInstr {
     @Override
     public BcOp op() {
@@ -1301,6 +1302,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 2)
   record DecLnkStk() implements BcInstr {
     @Override
     public BcOp op() {
