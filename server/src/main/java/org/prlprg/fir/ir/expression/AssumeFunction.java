@@ -27,6 +27,7 @@ public final class AssumeFunction implements Assume {
     this.function = function;
   }
 
+  @Override
   public Argument target() {
     return target;
   }

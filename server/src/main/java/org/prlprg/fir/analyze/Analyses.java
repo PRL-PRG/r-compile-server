@@ -35,6 +35,10 @@ public class Analyses {
   private final Analysis[] abstractionAnalyses;
   private final Map<CFG, CfgAnalysis[]> cfgAnalyses = new HashMap<>();
 
+  public Analyses(Abstraction target, Class<?>... analysisClasses) {
+    this(target, new AnalysisTypes(analysisClasses));
+  }
+
   public Analyses(Abstraction target, AnalysisTypes analysisTypes) {
     this.target = target;
 

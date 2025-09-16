@@ -5,6 +5,8 @@ import java.util.function.Function;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -43,7 +45,10 @@ public class CFGCopier {
       case Goto(var next) -> new Goto(replacingTargetBBs(copy, next));
       case If(var condition, var ifTrue, var ifFalse) ->
           new If(condition, replacingTargetBBs(copy, ifTrue), replacingTargetBBs(copy, ifFalse));
+      case Checkpoint(var success, var deopt) ->
+          new Checkpoint(replacingTargetBBs(copy, success), replacingTargetBBs(copy, deopt));
       case Return(var value) -> replaceReturn.apply(value);
+      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
       case Unreachable() -> new Unreachable();
     };
   }

@@ -9,7 +9,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 /// Assume that an argument has a certain type.
-public record AssumeType(Argument target, Type type) implements Assume {
+public record AssumeType(@Override Argument target, Type type) implements Assume {
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(target);

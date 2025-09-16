@@ -1,15 +1,15 @@
 fun main() {
   () --> I { |
     # Optimized
-    g.1(1);
+    g.1(1, 1);
     # Baseline
-    g.0(2);
+    g.0(2, 2.0);
     # Optimized -> baseline
-    g.1(3.0);
+    g.1(3.0, 3);
     # Baseline
-    g.0(4.0);
+    g.0(4.0, 4.0);
     # Optimized
-    g.1(5);
+    g.1(5, 5);
 
     require(1);
     require("bar");
@@ -26,12 +26,13 @@ fun main() {
   }
 }
 
-fun g(n) {
-  (reg n:V) --> I { reg r:V, var x:* |
+fun g(n, a) {
+  (reg n:V, reg a:V) --> I { reg r:V, var x:* |
     provide(n);
     r = 14;
     check BB1() else BB2();
   BB1():
+    # cleanup:
     r ?= 14;
     provide("foo");
     return 42;
@@ -40,11 +41,13 @@ fun g(n) {
     st x = r;
     deopt 5 [r, n];
   }
-  (reg n:V) --> I { reg r:I, reg r1:V, var x:* |
+  # cleanup: (reg n:V, reg a:I) --> I { reg r1:V, var x:* |
+  (reg n:V, reg a:I) --> I { reg r:I, reg r1:V, var x:* |
     provide(n);
     r1 = n;
     check BB1() else BB2();
   BB1():
+    # cleanup:
     r = n ?: I;
     provide("bar");
     return 24;

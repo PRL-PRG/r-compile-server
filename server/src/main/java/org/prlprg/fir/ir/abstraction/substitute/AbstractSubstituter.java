@@ -85,10 +85,6 @@ abstract class AbstractSubstituter {
                 throw new IllegalArgumentException(
                     "Local " + local + " has already been marked for substitution.");
               }
-              if (substitution instanceof Use) {
-                throw new IllegalArgumentException(
-                    "Can't substitute with a `use`: " + local + " -> " + substitution);
-              }
 
               doStage(local, substitution);
             });

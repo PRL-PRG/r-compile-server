@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
 import org.prlprg.fir.ir.expression.AssumeType;
@@ -114,6 +115,18 @@ public final class TypeAndEffectChecker extends Checker {
     new OnAbstraction(version).run();
   }
 
+  public static boolean assumeCanSucceed(Assume assume, Type argType) {
+    var requiredType =
+        switch (assume) {
+          case AssumeType(var _, var type) -> type;
+          case AssumeConstant(var _, var constant) -> Type.of(constant.sexp());
+          case AssumeFunction _ -> Type.CLOSURE;
+        };
+    // Every runtime value's type is guaranteed to either be `argType` or a subtype.
+    // If and only if `requiredType` is a subtype, it's possible that a runtime type will be it.
+    return requiredType.isSubtypeOf(argType);
+  }
+
   private class OnAbstraction {
     final Abstraction scope;
     final InferType inferType;
@@ -196,32 +209,18 @@ public final class TypeAndEffectChecker extends Checker {
 
         switch (expression) {
           case Aea(var _) -> {}
-          case AssumeType(var arg, var type) -> {
-            var argType = scope.typeOf(arg);
-            if (argType == null) {
-              break;
-            }
+          case Assume assume -> {
+            var target = assume.target();
+            var argType = scope.typeOf(target);
 
-            checkSubtype(type, argType, "Assumption can't succeed, clearly we didn't record it");
-          }
-          case AssumeConstant(var arg, var constant) -> {
-            var argType = scope.typeOf(arg);
-            if (argType == null) {
-              break;
+            if (argType != null && !assumeCanSucceed(assume, argType)) {
+              report(
+                  "Assumption can't succeed, clearly we never recorded it ("
+                      + target
+                      + ": "
+                      + argType
+                      + ")");
             }
-
-            var constantType = Type.of(constant.sexp());
-            checkSubtype(
-                constantType, argType, "Assumption can't succeed, clearly we didn't record it");
-          }
-          case AssumeFunction assume -> {
-            var argType = scope.typeOf(assume.target());
-            if (argType == null) {
-              break;
-            }
-
-            checkSubtype(
-                Type.CLOSURE, argType, "Assumption can't succeed, clearly we didn't record it");
           }
           case Call call -> {
             var argumentTypes = call.callArguments().stream().map(inferType::of).toList();

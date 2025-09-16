@@ -21,8 +21,7 @@ import org.prlprg.fir.ir.variable.Register;
 ///   substituted are removed from the scope, unless they're the target of another substitution).
 /// - Doesn't do transitive substitutions.
 ///
-/// Like [Substituter], `use`-ness is preserved at substitution sites, and substituting with a
-/// `use` throws [IllegalArgumentException].
+/// Like [Substituter], `use`-ness is preserved at substitution sites.
 public class InlineSubstituter extends AbstractSubstituter {
   public InlineSubstituter(Abstraction scope) {
     super(scope);
