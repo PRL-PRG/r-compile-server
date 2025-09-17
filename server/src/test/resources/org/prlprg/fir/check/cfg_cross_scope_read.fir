@@ -7,6 +7,7 @@ fun main() {
       return x;
     };
     # cfg-error: Local register y used before assignment
+    # provenance-error: Read before write: y
     return y;
   }
 }

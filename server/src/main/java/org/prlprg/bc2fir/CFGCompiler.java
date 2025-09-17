@@ -164,6 +164,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SuperLoad;
@@ -353,6 +354,9 @@ public class CFGCompiler {
         // For whatever reason, this is necessary to keep the stack balanced.
         push(new Constant(SEXPs.NULL));
 
+        if (!cfg.isPromise()) {
+          insert(new PopEnv());
+        }
         insert(_ -> new Return(retVal));
       }
       case BcInstr.Goto(var label) -> {
@@ -814,6 +818,9 @@ public class CFGCompiler {
         assertStackForReturn();
         // ???: non-local return?
         // ???: Do we need to push `NULL` like in `BcInstr.Return`?
+        if (!cfg.isPromise()) {
+          insert(new PopEnv());
+        }
         insert(_ -> new Return(retVal));
       }
       case Switch(var _, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
@@ -1034,8 +1041,8 @@ public class CFGCompiler {
     var funNameSexp = new Constant(SEXPs.string(fun.name()));
     var dispatchExpr =
         rhs == null
-            ? intrinsic("tryDispatchBuiltin", funNameSexp, target1)
-            : intrinsic("tryDispatchBuiltin", funNameSexp, target1, rhs);
+            ? intrinsic("tryDispatchBuiltin", 1, funNameSexp, target1)
+            : intrinsic("tryDispatchBuiltin", 0, funNameSexp, target1, rhs);
     var dispatchResult = insertAndReturn(dispatchExpr);
     var dispatched = insertAndReturn(intrinsic("getTryDispatchBuiltinDispatched", dispatchResult));
 

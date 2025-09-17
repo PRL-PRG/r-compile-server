@@ -2,6 +2,7 @@ package org.prlprg.fir.check;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -13,6 +14,15 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 
 public abstract class Checker {
+  /// Never reports errors.
+  private static final Checker NULL =
+      new Checker() {
+        @Override
+        protected void doRun(Abstraction version) {
+          // Do nothing
+        }
+      };
+
   /// Check types, effects, provenance, and CFG invariants in the module. If there are any
   /// errors, [prints them to `stderr`][Checker#print] and returns `false`.
   @CheckReturnValue
@@ -20,29 +30,26 @@ public abstract class Checker {
     return checkAll(module, true);
   }
 
-  /// Check types, effects, optionally provenance, and CFG invariants in the module. If there
-  /// are any errors, [prints them to `stderr`][Checker#print] and returns `false`.
+  /// Check invariants (CFG, types, effects, optionally provenance, and environments) in the
+  /// module. If there are any errors, [prints them to `stderr`][Checker#print] and returns
+  /// `false`.
   @CheckReturnValue
   public static boolean checkAll(Module module, boolean includeProvenance) {
-    var cfgChecker = new CFGChecker();
-    var typeAndEffectChecker = new TypeAndEffectChecker();
-    var provenanceChecker = includeProvenance ? new ProvenanceChecker() : null;
+    var checkers =
+        List.of(
+            new CFGChecker(),
+            new TypeAndEffectChecker(),
+            includeProvenance ? new ProvenanceChecker() : NULL,
+            new EnvironmentChecker());
 
-    cfgChecker.run(module);
-    typeAndEffectChecker.run(module);
-    if (provenanceChecker != null) {
-      provenanceChecker.run(module);
+    // Don't short-circuit.
+    for (var checker : checkers) {
+      checker.run(module);
     }
-
-    cfgChecker.print();
-    typeAndEffectChecker.print();
-    if (provenanceChecker != null) {
-      provenanceChecker.print();
+    for (var checker : checkers) {
+      checker.print();
     }
-
-    return !cfgChecker.hasErrors()
-        && !typeAndEffectChecker.hasErrors()
-        && (provenanceChecker == null || !provenanceChecker.hasErrors());
+    return checkers.stream().noneMatch(Checker::hasErrors);
   }
 
   private @Nullable Function function = null;
@@ -119,7 +126,7 @@ public abstract class Checker {
 
   /// @throws IllegalStateException If [#doRun(Abstraction)] isn't being called.
   protected final void report(Abstraction abstraction, String message) {
-    report(abstraction.cfg().entry(), 0, message);
+    report(Objects.requireNonNull(abstraction.cfg()).entry(), 0, message);
   }
 
   /// @throws IllegalStateException If [#doRun(Abstraction)] isn't being called.

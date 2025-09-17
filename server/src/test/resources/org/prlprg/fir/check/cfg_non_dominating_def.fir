@@ -9,6 +9,7 @@ fun main() {
     goto BB3();
   BB3():
     # cfg-error: Local register r used before assignment
+    # provenance-error: Read before write: r
     x = r;  # r is not defined in BB2 path, so doesn't dominate
     return x;
   }

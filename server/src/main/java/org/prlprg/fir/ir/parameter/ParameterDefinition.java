@@ -73,7 +73,7 @@ public record ParameterDefinition(NamedVariable name, Abstraction defaultBody) {
   }
 
   @ParseMethod
-  private static ParameterDefinition parse(Parser p) {
+  private static ParameterDefinition parse(Parser p, Abstraction.ParseContext ignoredButNecessary) {
     var s = p.scanner();
 
     if (s.trySkip("...")) {

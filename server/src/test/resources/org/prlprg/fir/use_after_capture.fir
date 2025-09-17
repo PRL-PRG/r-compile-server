@@ -3,7 +3,7 @@ fun main() {
     r = v(I)[1, 2, 3];
     # cleanup:
     prom<I ->{ r1 = r[0]; return r1; };
-    # type-error: Use after capture: r
+    # provenance-error: Use after capture: r
     return use r;
   }
 }

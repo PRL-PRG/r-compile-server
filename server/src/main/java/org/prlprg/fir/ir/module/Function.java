@@ -280,6 +280,7 @@ public final class Function {
   private Function(Parser p1, ParseContext ctx) {
     owner = ctx.owner;
     var p = p1.withContext(ctx.inner);
+    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
 
     var s = p.scanner();
 
@@ -290,14 +291,13 @@ public final class Function {
     parameterDefinitions = new ArrayList<>();
     s.assertAndSkip('(');
     while (!s.trySkip(')')) {
-      parameterDefinitions.add(p.parse(ParameterDefinition.class));
+      parameterDefinitions.add(p2.parse(ParameterDefinition.class));
       if (!s.nextCharIs(')')) {
         s.assertAndSkip(',');
       }
     }
 
     s.assertAndSkip('{');
-    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
     for (; !s.nextCharIs('}'); nextVersionIndex++) {
       CommentParser.skipComments(s);
 

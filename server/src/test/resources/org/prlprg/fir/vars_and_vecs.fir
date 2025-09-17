@@ -10,7 +10,7 @@ fun main() {
 fun f(...) {
   (reg rx:I, reg ry:p(I -), reg rz:v(I)) --> v(I)f { var x:I?, var y:I?, var z:I?, reg ry0:I, reg rz0:I, reg rx1:I?, reg ry1:I?, reg rz1:I?, reg ret:v(I)o, reg r1:I, reg r2:I, reg r3:I, reg r4:I |
     mkenv;
-        st x = rx;
+    st x = rx;
     ry0 = force ry;
     st y = ry0;
     rz0 = rz[0];
@@ -24,6 +24,7 @@ fun f(...) {
     ret = v(I)[r1, r2, r3];
     r4 = rz[1];
     ret[r4] = 4;
+    popenv;
     return use ret;
   }
 }

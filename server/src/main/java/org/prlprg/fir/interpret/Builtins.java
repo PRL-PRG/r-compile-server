@@ -41,7 +41,11 @@ public final class Builtins {
     interpreter.registerExternal("+", 2, ExternalVersion.strict(Builtins::addIntAndReal));
     interpreter.registerExternal("+", 3, ExternalVersion.strict(Builtins::addRealAndInt));
     interpreter.registerExternal("+", 4, ExternalVersion.strict(Builtins::addReals));
-    interpreter.registerExternal("-", ExternalVersion.strict(Builtins::subtract));
+    interpreter.registerExternal("-", 0, ExternalVersion.strict(Builtins::subtract));
+    interpreter.registerExternal("-", 1, ExternalVersion.strict(Builtins::subtract));
+    interpreter.registerExternal("-", 2, ExternalVersion.strict(Builtins::subtract));
+    interpreter.registerExternal("-", 3, ExternalVersion.strict(Builtins::subtract));
+    interpreter.registerExternal("-", 4, ExternalVersion.strict(Builtins::subtract));
     interpreter.registerExternal("*", ExternalVersion.strict(Builtins::multiply));
     interpreter.registerExternal("/", ExternalVersion.strict(Builtins::divide));
     interpreter.registerExternal("==", ExternalVersion.strict(Builtins::equal));

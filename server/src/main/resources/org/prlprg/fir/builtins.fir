@@ -1,17 +1,21 @@
-fun `+`(lhs, rhs) {
+fun `+`(...) {
   (reg lhs:*, reg rhs:*) -+> V { ... }
   (reg lhs:I, reg rhs:I) --> I { ... }
   (reg lhs:I, reg rhs:R) --> R { ... }
   (reg lhs:R, reg rhs:I) --> R { ... }
   (reg lhs:R, reg rhs:R) --> R { ... }
+  (reg unary:I) --> I { ... }
+  (reg unary:R) --> R { ... }
 }
 
-fun `-`(lhs, rhs) {
+fun `-`(...) {
   (reg lhs:*, reg rhs:*) -+> V { ... }
   (reg lhs:I, reg rhs:I) --> I { ... }
   (reg lhs:I, reg rhs:R) --> R { ... }
   (reg lhs:R, reg rhs:I) --> R { ... }
   (reg lhs:R, reg rhs:R) --> R { ... }
+  (reg unary:I) --> I { ... }
+  (reg unary:R) --> R { ... }
 }
 
 fun `*`(lhs, rhs) {
@@ -87,7 +91,7 @@ fun `:`(lhs, rhs) {
   (reg lhs:R, reg rhs:R) --> v(R) { ... }
 }
 
-fun `[`(x, i) {
+fun `[`(x, i, ...) {
   (reg x:*, reg i:*) -+> V { ... }
   (reg x:v(L), reg i:I) --> L { ... }
   (reg x:v(I), reg i:I) --> I { ... }
@@ -95,7 +99,7 @@ fun `[`(x, i) {
   (reg x:v(S), reg i:I) --> S { ... }
 }
 
-fun `[[`(x, i) {
+fun `[[`(x, i, ...) {
   (reg x:*, reg i:*) -+> V { ... }
   (reg x:v(L), reg i:I) --> L { ... }
   (reg x:v(I), reg i:I) --> I { ... }
@@ -103,7 +107,7 @@ fun `[[`(x, i) {
   (reg x:v(S), reg i:I) --> S { ... }
 }
 
-fun `[<-`(x, i) {
+fun `[<-`(x, i, ..., u) {
   (reg x:*, reg i:*, reg u:*) -+> V { ... }
   (reg x:v(L), reg i:I, reg u:L) --> v(L) { ... }
   (reg x:v(I), reg i:I, reg u:I) --> v(I) { ... }
@@ -111,7 +115,7 @@ fun `[<-`(x, i) {
   (reg x:v(S), reg i:I, reg u:S) --> v(S) { ... }
 }
 
-fun `[[<-`(x, i) {
+fun `[[<-`(x, i, ..., u) {
   (reg x:*, reg i:*, reg u:*) -+> V { ... }
   (reg x:v(L), reg i:I, reg u:L) --> v(L) { ... }
   (reg x:v(I), reg i:I, reg u:I) --> v(I) { ... }
@@ -119,7 +123,7 @@ fun `[[<-`(x, i) {
   (reg x:v(S), reg i:I, reg u:S) --> v(S) { ... }
 }
 
-fun rep(x, times) {
+fun rep(x, ...) {
   (reg x:*, reg times:*) -+> V { ... }
   (reg x:L, reg times:I) --> v(L) { ... }
   (reg x:I, reg times:I) --> v(I) { ... }
@@ -127,7 +131,10 @@ fun rep(x, times) {
   (reg x:S, reg times:I) --> v(S) { ... }
 }
 
-fun sum(x) {
+fun sum(
+  ...,
+  `na.rm` = () --> L { | return FALSE; },
+) {
   (reg x:*) -+> V { ... }
   (reg x:v(L)) --> I { ... }
   (reg x:v(I)) --> I { ... }
@@ -163,7 +170,10 @@ fun `as.logical`(x) {
   (reg x:V) --> L { ... }
 }
 
-fun `is.vector`(x) {
+fun `is.vector`(
+  x,
+  mode = () --> S { | return "any"; },
+) {
   (reg x:*) -+> L { ... }
   (reg x:V) --> L { ... }
 }
@@ -213,9 +223,13 @@ fun `is.list`(x) {
   (reg x:V) --> L { ... }
 }
 
-fun inherits(x, class) {
-  (reg x:*, reg class:*) -+> L { ... }
-  (reg x:V, reg class:V) --> L { ... }
+fun inherits(
+  x,
+  what,
+  which = () --> L { | return FALSE; },
+) {
+  (reg x:*, reg what:*) -+> L { ... }
+  (reg x:V, reg what:V) --> L { ... }
 }
 
 fun `is.character`(x) {

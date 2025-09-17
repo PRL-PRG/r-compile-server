@@ -50,34 +50,31 @@ public class CFGCopier {
       bbCopy.appendParameters(bb.phiParameters());
       bbCopy.appendStatements(bb.statements());
       bbCopy.setJump(
-          substLabelsAndReplaceReturn(dst, bb.jump(), substitutedBbLabels, replaceReturn));
+          bb.jump() instanceof Return(var value)
+              ? replaceReturn.apply(value)
+              : substLabels(dst, bb.jump(), substitutedBbLabels));
     }
   }
 
-  private static Jump substLabelsAndReplaceReturn(
-      CFG dst,
-      Jump jump,
-      Map<BB, String> substitutedBbLabels,
-      Function<Argument, Jump> replaceReturn) {
+  private static Jump substLabels(CFG dst, Jump jump, Map<BB, String> substitutedBbLabels) {
     return switch (jump) {
-      case Goto(var next) -> new Goto(substLabelsAndReplaceReturn(dst, next, substitutedBbLabels));
+      case Goto(var next) -> new Goto(substLabels(dst, next, substitutedBbLabels));
       case If(var condition, var ifTrue, var ifFalse) ->
           new If(
               condition,
-              substLabelsAndReplaceReturn(dst, ifTrue, substitutedBbLabels),
-              substLabelsAndReplaceReturn(dst, ifFalse, substitutedBbLabels));
+              substLabels(dst, ifTrue, substitutedBbLabels),
+              substLabels(dst, ifFalse, substitutedBbLabels));
       case Checkpoint(var success, var deopt) ->
           new Checkpoint(
-              substLabelsAndReplaceReturn(dst, success, substitutedBbLabels),
-              substLabelsAndReplaceReturn(dst, deopt, substitutedBbLabels));
-      case Return(var value) -> replaceReturn.apply(value);
+              substLabels(dst, success, substitutedBbLabels),
+              substLabels(dst, deopt, substitutedBbLabels));
+      case Return(var value) -> new Return(value);
       case Deopt(var pc, var stack) -> new Deopt(pc, stack);
       case Unreachable() -> new Unreachable();
     };
   }
 
-  private static Target substLabelsAndReplaceReturn(
-      CFG dst, Target target, Map<BB, String> substitutedBbLabels) {
+  private static Target substLabels(CFG dst, Target target, Map<BB, String> substitutedBbLabels) {
     var substitutedLabel = substitutedBbLabels.getOrDefault(target.bb(), target.bb().label());
     var substitutedBb =
         Objects.requireNonNull(
