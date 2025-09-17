@@ -241,13 +241,7 @@ public final class TypeAndEffectChecker extends Checker {
                 }
               }
               case DispatchCallee(var function, var signature) -> {
-                // If `signature == null`, this is a call to an unknown version,
-                // although we may still have some guarantees.
-                if (signature == null) {
-                  break;
-                }
-
-                var version = function.guess(signature);
+                var version = signature == null ? function.baseline() : function.guess(signature);
 
                 // If there's no explicit version, the actual version is unknown, but this is
                 // also an error: an explicit signature means we expect a known version, though
@@ -261,21 +255,41 @@ public final class TypeAndEffectChecker extends Checker {
                           + " has no matching version");
                 }
 
-                // Check arguments against signature parameters.
-                if (signature.parameterTypes().size() != argumentTypes.size()) {
-                  report(
-                      "Signature expects "
-                          + signature.parameterTypes().size()
-                          + " arguments, got "
-                          + argumentTypes.size());
-                }
-                for (int i = 0;
-                    i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
-                    i++) {
-                  var paramType = signature.parameterTypes().get(i);
-                  var argType = argumentTypes.get(i);
-                  checkMatches(
-                      argType, paramType, "Type mismatch in argument " + i + " (for signature)");
+                // Check arguments against baseline or signature parameters.
+                if (signature == null) {
+                  if (version.parameters().size() != argumentTypes.size()) {
+                    report(
+                        "Baseline expects "
+                            + version.parameters().size()
+                            + " arguments, got "
+                            + argumentTypes.size());
+                  }
+                  for (int i = 0;
+                      i < Math.min(version.parameters().size(), argumentTypes.size());
+                      i++) {
+                    var param = version.parameters().get(i);
+                    var argType = argumentTypes.get(i);
+                    checkMatches(
+                        argType,
+                        param.type(),
+                        "Type mismatch in argument " + i + " (for baseline)");
+                  }
+                } else {
+                  if (signature.parameterTypes().size() != argumentTypes.size()) {
+                    report(
+                        "Signature expects "
+                            + signature.parameterTypes().size()
+                            + " arguments, got "
+                            + argumentTypes.size());
+                  }
+                  for (int i = 0;
+                      i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
+                      i++) {
+                    var paramType = signature.parameterTypes().get(i);
+                    var argType = argumentTypes.get(i);
+                    checkMatches(
+                        argType, paramType, "Type mismatch in argument " + i + " (for signature)");
+                  }
                 }
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {
