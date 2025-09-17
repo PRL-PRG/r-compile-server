@@ -101,9 +101,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     response.setHash(function.getHash());
 
     // Cache requests
-    NativeClosure ccCached = null;
-    Pair<Bc, ByteString> bcCached = null;
-    Bc bc = null;
+    @Nullable NativeClosure ccCached = null;
+    @Nullable Pair<Bc, ByteString> bcCached = null;
+    @Nullable Bc bc = null;
     var nativeKey = Triple.of(function.getHash(), bcOpt, ccOpt);
     var bcKey = Pair.of(function.getHash(), bcOpt);
 
@@ -160,6 +160,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                     + ". Not caching and returning the original body.");
             // We will keep the code field empty
           } else {
+            assert bc != null;
             bc = bcRes.get();
             if (!request.getNoCache()) { // We do not cache if the client does not want to
               serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
