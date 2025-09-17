@@ -4,27 +4,24 @@ import static org.prlprg.primitive.Constants.NA_INT;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.DoubleUnaryOperator;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
-import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
-import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.Lists;
 
 /// Java implementations of GNU-R builtins for [Interpreter] (specifically
-/// [Interpreter#registerExternalFunction(String, ExternalFunction)]).
+/// [Interpreter#registerExternal(String, ExternalVersion)]).
 ///
 /// Note that these are only behaviorally equivalent to GNU-R implementations in some common
 /// scenarios. They're not a complete substitute for GNU-R, but a way to test functions which
@@ -39,60 +36,64 @@ public final class Builtins {
     //  - Abstract builtins like `+`, similar to how `abs` is abstracted via `registerMathBuiltin`
     //  - Give other builtins some specific versions. Also requires modifying `builtins.fir`
     // Builtins
-    interpreter.registerExternalFunction("+", ExternalFunction.strict(Builtins::add));
-    interpreter.registerExternalVersion("+", 0, ExternalVersion.strict(Builtins::addInts));
-    interpreter.registerExternalVersion("+", 1, ExternalVersion.strict(Builtins::addIntAndReal));
-    interpreter.registerExternalVersion("+", 2, ExternalVersion.strict(Builtins::addRealAndInt));
-    interpreter.registerExternalVersion("+", 3, ExternalVersion.strict(Builtins::addReals));
-    interpreter.registerExternalFunction("-", ExternalFunction.strict(Builtins::subtract));
-    interpreter.registerExternalFunction("*", ExternalFunction.strict(Builtins::multiply));
-    interpreter.registerExternalFunction("/", ExternalFunction.strict(Builtins::divide));
-    interpreter.registerExternalFunction("==", ExternalFunction.strict(Builtins::equal));
-    registerExternalFunctionForAllVersions(
-        interpreter, "==", ExternalVersion.strict(Builtins::equal));
-    interpreter.registerExternalFunction("<", ExternalFunction.strict(Builtins::less));
-    interpreter.registerExternalVersion("<", 0, Builtins::lessInts);
-    interpreter.registerExternalFunction("<=", ExternalFunction.strict(Builtins::lessEqual));
-    interpreter.registerExternalFunction("!=", ExternalFunction.strict(Builtins::notEqual));
-    registerExternalFunctionForAllVersions(
-        interpreter, "!=", ExternalVersion.strict(Builtins::notEqual));
-    interpreter.registerExternalFunction(">", ExternalFunction.strict(Builtins::greater));
-    interpreter.registerExternalFunction(">=", ExternalFunction.strict(Builtins::greaterEqual));
-    interpreter.registerExternalFunction("rep", ExternalFunction.special(Builtins::rep));
-    interpreter.registerExternalFunction("[", ExternalFunction.strict(Builtins::index));
-    interpreter.registerExternalFunction("[<-", ExternalFunction.strict(Builtins::subAssign));
-    interpreter.registerExternalFunction("[[", ExternalFunction.strict(Builtins::index2));
-    interpreter.registerExternalFunction("[[<-", ExternalFunction.strict(Builtins::subAssign2));
-    interpreter.registerExternalFunction(":", ExternalFunction.strict(Builtins::colon));
-    interpreter.registerExternalFunction("c", ExternalFunction.strict(Builtins::c));
-    interpreter.registerExternalFunction("length", ExternalFunction.strict(Builtins::length));
+    interpreter.registerExternal("+", 0, ExternalVersion.strict(Builtins::add));
+    interpreter.registerExternal("+", 1, ExternalVersion.strict(Builtins::addInts));
+    interpreter.registerExternal("+", 2, ExternalVersion.strict(Builtins::addIntAndReal));
+    interpreter.registerExternal("+", 3, ExternalVersion.strict(Builtins::addRealAndInt));
+    interpreter.registerExternal("+", 4, ExternalVersion.strict(Builtins::addReals));
+    interpreter.registerExternal("-", ExternalVersion.strict(Builtins::subtract));
+    interpreter.registerExternal("*", ExternalVersion.strict(Builtins::multiply));
+    interpreter.registerExternal("/", ExternalVersion.strict(Builtins::divide));
+    interpreter.registerExternal("==", ExternalVersion.strict(Builtins::equal));
+    interpreter.registerExternal("!=", ExternalVersion.strict(Builtins::notEqual));
+    interpreter.registerExternal("<", ExternalVersion.strict(Builtins::less));
+    interpreter.registerExternal("<=", ExternalVersion.strict(Builtins::lessEqual));
+    interpreter.registerExternal(">", ExternalVersion.strict(Builtins::greater));
+    interpreter.registerExternal(">=", ExternalVersion.strict(Builtins::greaterEqual));
+    interpreter.registerExternal("rep", ExternalVersion.special(Builtins::rep));
+    interpreter.registerExternal("[", ExternalVersion.strict(Builtins::index));
+    interpreter.registerExternal("[<-", ExternalVersion.strict(Builtins::subAssign));
+    interpreter.registerExternal("[[", ExternalVersion.strict(Builtins::index2));
+    interpreter.registerExternal("[[<-", ExternalVersion.strict(Builtins::subAssign2));
+    interpreter.registerExternal(":", ExternalVersion.strict(Builtins::colon));
+    interpreter.registerExternal("c", ExternalVersion.strict(Builtins::c));
+    interpreter.registerExternal("length", ExternalVersion.strict(Builtins::length));
     registerMathBuiltin(interpreter, "abs", Math::abs);
     registerMathBuiltin(interpreter, "sqrt", Math::sqrt);
     registerMathBuiltin(interpreter, "floor", Math::floor);
-    interpreter.registerExternalFunction("sum", Builtins::sum);
-    interpreter.registerExternalFunction(
-        "as.logical", ExternalFunction.strict(Builtins::asLogical));
-    interpreter.registerExternalFunction("is.object", ExternalFunction.strict(Builtins::isObject));
+    interpreter.registerExternal("sum", Builtins::sum);
+    interpreter.registerExternal("as.logical", ExternalVersion.strict(Builtins::asLogical));
+    interpreter.registerExternal("is.object", ExternalVersion.strict(Builtins::isObject));
 
     // Intrinsics
-    interpreter.registerExternalVersion("toForSeq", 0, Builtins::toForSeq);
-  }
-
-  private static void registerExternalFunctionForAllVersions(
-      Interpreter interpreter, String name, ExternalVersion javaClosure) {
-    var function =
-        Objects.requireNonNull(
-            interpreter.module().lookupFunction(name), "builtin doesn't exist named " + name);
-    for (var i : function.versionIndices()) {
-      interpreter.registerExternalVersion(name, i, javaClosure);
-    }
+    interpreter.registerExternal("toForSeq", 0, Builtins::toForSeq);
   }
 
   private static void registerMathBuiltin(
       Interpreter interpreter, String name, DoubleUnaryOperator javaFunction) {
-    interpreter.registerExternalVersion(
+    interpreter.registerExternal(
         name,
         0,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1) {
+                throw new IllegalArgumentException(
+                    "`" + name + "`.0 takes 1 scalar integer or real");
+              }
+              if (args.getFirst().asScalarInteger().isPresent()) {
+                int value = args.getFirst().asScalarInteger().get();
+                return SEXPs.integer((int) javaFunction.applyAsDouble(value));
+              } else if (args.getFirst().asScalarReal().isPresent()) {
+                double value = args.getFirst().asScalarReal().get();
+                return SEXPs.real(javaFunction.applyAsDouble(value));
+              } else {
+                throw new IllegalArgumentException(
+                    "`" + name + "`.0 takes 1 scalar integer or real");
+              }
+            }));
+    interpreter.registerExternal(
+        name,
+        1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
@@ -101,9 +102,9 @@ public final class Builtins {
               int value = args.getFirst().asScalarInteger().get();
               return SEXPs.integer((int) javaFunction.applyAsDouble(value));
             }));
-    interpreter.registerExternalVersion(
+    interpreter.registerExternal(
         name,
-        1,
+        2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || args.getFirst().asScalarReal().isEmpty()) {
@@ -114,20 +115,21 @@ public final class Builtins {
             }));
   }
 
-  private static SEXP add(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP add(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
       throw new IllegalArgumentException("`+` takes 2 arguments");
     }
 
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      int arg0 = args.value(0).asScalarInteger().get();
-      int arg1 = args.value(1).asScalarInteger().get();
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      int arg0 = args.getFirst().asScalarInteger().get();
+      int arg1 = args.get(1).asScalarInteger().get();
       return SEXPs.integer(arg0 + arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
       return SEXPs.real(arg0 + arg1);
     } else {
       throw new UnsupportedOperationException(
@@ -187,16 +189,6 @@ public final class Builtins {
     return SEXPs.real(arg0 + arg1);
   }
 
-  private static SEXP equal(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`==` takes 2 arguments");
-    }
-    var arg0 = args.value(0);
-    var arg1 = args.value(1);
-
-    return SEXPs.logical(arg0.equals(arg1));
-  }
-
   private static SEXP equal(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
@@ -206,141 +198,6 @@ public final class Builtins {
     var arg1 = args.get(1);
 
     return SEXPs.logical(arg0.equals(arg1));
-  }
-
-  private static SEXP subtract(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`-` takes 2 arguments");
-    }
-
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      var arg0 = args.value(0).asScalarInteger().get();
-      var arg1 = args.value(1).asScalarInteger().get();
-      return SEXPs.integer(arg0 - arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
-      return SEXPs.real(arg0 - arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `-` not implemented for arguments except two integers or two reals");
-    }
-  }
-
-  private static SEXP multiply(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`*` takes 2 arguments");
-    }
-
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      var arg0 = args.value(0).asScalarInteger().get();
-      var arg1 = args.value(1).asScalarInteger().get();
-      return SEXPs.integer(arg0 * arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
-      return SEXPs.real(arg0 * arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `*` not implemented for arguments except two integers or two reals");
-    }
-  }
-
-  private static SEXP divide(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`/` takes 2 arguments");
-    }
-
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      int arg0 = args.value(0).asScalarInteger().get();
-      int arg1 = args.value(1).asScalarInteger().get();
-      if (arg1 == 0) {
-        return SEXPs.real(
-            arg0 == 0
-                ? Double.NaN
-                : (arg0 > 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY));
-      }
-      return SEXPs.real((double) arg0 / arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
-      return SEXPs.real(arg0 / arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `/` not implemented for arguments except two integers or two reals");
-    }
-  }
-
-  private static SEXP less(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`<` takes 2 arguments");
-    }
-
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      int arg0 = args.value(0).asScalarInteger().get();
-      int arg1 = args.value(1).asScalarInteger().get();
-      return SEXPs.logical(arg0 < arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
-      return SEXPs.logical(arg0 < arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `<` not implemented for arguments except two integers or two reals");
-    }
-  }
-
-  private static SEXP lessInts(
-      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 2
-        || args.getFirst().asScalarInteger().isEmpty()
-        || args.get(1).asScalarInteger().isEmpty()) {
-      throw new IllegalArgumentException("`<`.0 takes 2 scalar integers");
-    }
-
-    int arg0 = args.getFirst().asScalarInteger().get();
-    int arg1 = args.get(1).asScalarInteger().get();
-    return SEXPs.logical(arg0 < arg1);
-  }
-
-  private static SEXP lessEqual(
-      Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`<=` takes 2 arguments");
-    }
-
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      int arg0 = args.value(0).asScalarInteger().get();
-      int arg1 = args.value(1).asScalarInteger().get();
-      return SEXPs.logical(arg0 <= arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
-      return SEXPs.logical(arg0 <= arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `<=` not implemented for arguments except two integers or two reals");
-    }
-  }
-
-  private static SEXP notEqual(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`!=` takes 2 arguments");
-    }
-    var arg0 = args.value(0);
-    var arg1 = args.value(1);
-
-    return SEXPs.logical(!arg0.equals(arg1));
   }
 
   private static SEXP notEqual(
@@ -354,20 +211,137 @@ public final class Builtins {
     return SEXPs.logical(!arg0.equals(arg1));
   }
 
-  private static SEXP greater(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP subtract(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2) {
+      throw new IllegalArgumentException("`-` takes 2 arguments");
+    }
+
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      var arg0 = args.getFirst().asScalarInteger().get();
+      var arg1 = args.get(1).asScalarInteger().get();
+      return SEXPs.integer(arg0 - arg1);
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
+      return SEXPs.real(arg0 - arg1);
+    } else {
+      throw new UnsupportedOperationException(
+          "Mock `-` not implemented for arguments except two integers or two reals");
+    }
+  }
+
+  private static SEXP multiply(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2) {
+      throw new IllegalArgumentException("`*` takes 2 arguments");
+    }
+
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      var arg0 = args.getFirst().asScalarInteger().get();
+      var arg1 = args.get(1).asScalarInteger().get();
+      return SEXPs.integer(arg0 * arg1);
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
+      return SEXPs.real(arg0 * arg1);
+    } else {
+      throw new UnsupportedOperationException(
+          "Mock `*` not implemented for arguments except two integers or two reals");
+    }
+  }
+
+  private static SEXP divide(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2) {
+      throw new IllegalArgumentException("`/` takes 2 arguments");
+    }
+
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      int arg0 = args.getFirst().asScalarInteger().get();
+      int arg1 = args.get(1).asScalarInteger().get();
+      if (arg1 == 0) {
+        return SEXPs.real(
+            arg0 == 0
+                ? Double.NaN
+                : (arg0 > 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY));
+      }
+      return SEXPs.real((double) arg0 / arg1);
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
+      return SEXPs.real(arg0 / arg1);
+    } else {
+      throw new UnsupportedOperationException(
+          "Mock `/` not implemented for arguments except two integers or two reals");
+    }
+  }
+
+  private static SEXP less(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2) {
+      throw new IllegalArgumentException("`<` takes 2 arguments");
+    }
+
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      int arg0 = args.getFirst().asScalarInteger().get();
+      int arg1 = args.get(1).asScalarInteger().get();
+      return SEXPs.logical(arg0 < arg1);
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
+      return SEXPs.logical(arg0 < arg1);
+    } else {
+      throw new UnsupportedOperationException(
+          "Mock `<` not implemented for arguments except two integers or two reals");
+    }
+  }
+
+  private static SEXP lessEqual(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 2) {
+      throw new IllegalArgumentException("`<=` takes 2 arguments");
+    }
+
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      int arg0 = args.getFirst().asScalarInteger().get();
+      int arg1 = args.get(1).asScalarInteger().get();
+      return SEXPs.logical(arg0 <= arg1);
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
+      return SEXPs.logical(arg0 <= arg1);
+    } else {
+      throw new UnsupportedOperationException(
+          "Mock `<=` not implemented for arguments except two integers or two reals");
+    }
+  }
+
+  private static SEXP greater(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
       throw new IllegalArgumentException("`>` takes 2 arguments");
     }
 
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      int arg0 = args.value(0).asScalarInteger().get();
-      int arg1 = args.value(1).asScalarInteger().get();
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      int arg0 = args.getFirst().asScalarInteger().get();
+      int arg1 = args.get(1).asScalarInteger().get();
       return SEXPs.logical(arg0 > arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
       return SEXPs.logical(arg0 > arg1);
     } else {
       throw new UnsupportedOperationException(
@@ -376,20 +350,20 @@ public final class Builtins {
   }
 
   private static SEXP greaterEqual(
-      Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
       throw new IllegalArgumentException("`>=` takes 2 arguments");
     }
 
-    if (args.value(0).asScalarInteger().isPresent()
-        && args.value(1).asScalarInteger().isPresent()) {
-      int arg0 = args.value(0).asScalarInteger().get();
-      int arg1 = args.value(1).asScalarInteger().get();
+    if (args.getFirst().asScalarInteger().isPresent()
+        && args.get(1).asScalarInteger().isPresent()) {
+      int arg0 = args.getFirst().asScalarInteger().get();
+      int arg1 = args.get(1).asScalarInteger().get();
       return SEXPs.logical(arg0 >= arg1);
-    } else if (args.value(0).asScalarReal().isPresent()
-        && args.value(1).asScalarReal().isPresent()) {
-      double arg0 = args.value(0).asScalarReal().get();
-      double arg1 = args.value(1).asScalarReal().get();
+    } else if (args.getFirst().asScalarReal().isPresent()
+        && args.get(1).asScalarReal().isPresent()) {
+      double arg0 = args.getFirst().asScalarReal().get();
+      double arg1 = args.get(1).asScalarReal().get();
       return SEXPs.logical(arg0 >= arg1);
     } else {
       throw new UnsupportedOperationException(
@@ -397,13 +371,14 @@ public final class Builtins {
     }
   }
 
-  private static SEXP rep(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP rep(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
       throw new IllegalArgumentException("`rep` takes 2 arguments");
     }
 
-    var value = args.value(0);
-    var times = args.value(1);
+    var value = args.getFirst();
+    var times = args.get(1);
 
     int timesValue;
     if (times.asScalarInteger().isPresent()) {
@@ -449,21 +424,22 @@ public final class Builtins {
     }
   }
 
-  private static SEXP index(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP index(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
       throw new IllegalArgumentException("`[` takes 2 arguments");
     }
 
-    if (!(args.value(0) instanceof ListOrVectorSXP<?> vector)) {
+    if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
       throw new UnsupportedOperationException("Mock `[` not implemented for non-vector objects");
     }
 
     // Get index as integer, truncating from real if necessary
     int index1;
-    if (args.value(1).asScalarInteger().isPresent()) {
-      index1 = args.value(1).asScalarInteger().get();
-    } else if (args.value(1).asScalarReal().isPresent()) {
-      index1 = args.value(1).asScalarReal().get().intValue();
+    if (args.get(1).asScalarInteger().isPresent()) {
+      index1 = args.get(1).asScalarInteger().get();
+    } else if (args.get(1).asScalarReal().isPresent()) {
+      index1 = args.get(1).asScalarReal().get().intValue();
     } else {
       throw new UnsupportedOperationException("Mock `[` requires numeric index argument");
     }
@@ -475,24 +451,24 @@ public final class Builtins {
   }
 
   private static SEXP subAssign(
-      Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 3) {
       throw new IllegalArgumentException("`[<-` takes 3 arguments");
     }
 
-    if (!(args.value(0) instanceof ListOrVectorSXP<?> vector)) {
+    if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
       throw new UnsupportedOperationException("Mock `[<-` not implemented for non-vector objects");
     }
 
     // Unlike FIŘ, the value is the second argument. The index (or indices for multidim) are after.
-    var value = args.value(1);
+    var value = args.get(1);
 
     // Get index as integer, truncating from real if necessary
     int index1;
-    if (args.value(2).asScalarInteger().isPresent()) {
-      index1 = args.value(2).asScalarInteger().get();
-    } else if (args.value(2).asScalarReal().isPresent()) {
-      index1 = args.value(2).asScalarReal().get().intValue();
+    if (args.get(2).asScalarInteger().isPresent()) {
+      index1 = args.get(2).asScalarInteger().get();
+    } else if (args.get(2).asScalarReal().isPresent()) {
+      index1 = args.get(2).asScalarReal().get().intValue();
     } else {
       throw new UnsupportedOperationException("Mock `[<-` requires numeric index argument");
     }
@@ -513,45 +489,47 @@ public final class Builtins {
     return result;
   }
 
-  private static SEXP index2(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP index2(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     // Mock [[ behaves the same as [
     return index(interpreter, callee, args, env);
   }
 
   private static SEXP subAssign2(
-      Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     // Mock [[<- behaves the same as [<-
     return subAssign(interpreter, callee, args, env);
   }
 
-  private static SEXP colon(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP colon(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
       throw new IllegalArgumentException("`:` takes 2 arguments");
     }
 
     // Get start argument as double
     double start;
-    if (args.value(0).asScalarInteger().isPresent()) {
-      start = args.value(0).asScalarInteger().get().doubleValue();
-    } else if (args.value(0).asScalarReal().isPresent()) {
-      start = args.value(0).asScalarReal().get();
+    if (args.getFirst().asScalarInteger().isPresent()) {
+      start = args.getFirst().asScalarInteger().get().doubleValue();
+    } else if (args.getFirst().asScalarReal().isPresent()) {
+      start = args.getFirst().asScalarReal().get();
     } else {
       throw new UnsupportedOperationException("Mock `:` requires numeric start argument");
     }
 
     // Get end argument as double
     double end;
-    if (args.value(1).asScalarInteger().isPresent()) {
-      end = args.value(1).asScalarInteger().get().doubleValue();
-    } else if (args.value(1).asScalarReal().isPresent()) {
-      end = args.value(1).asScalarReal().get();
+    if (args.get(1).asScalarInteger().isPresent()) {
+      end = args.get(1).asScalarInteger().get().doubleValue();
+    } else if (args.get(1).asScalarReal().isPresent()) {
+      end = args.get(1).asScalarReal().get();
     } else {
       throw new UnsupportedOperationException("Mock `:` requires numeric end argument");
     }
 
     // Check if both arguments are integers for return type decision
     boolean bothIntegers =
-        args.value(0).asScalarInteger().isPresent() && args.value(1).asScalarInteger().isPresent();
+        args.getFirst().asScalarInteger().isPresent() && args.get(1).asScalarInteger().isPresent();
 
     if (start == end) {
       if (bothIntegers) {
@@ -585,38 +563,42 @@ public final class Builtins {
     }
   }
 
-  private static SEXP c(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
-    if (args.values().isEmpty()) {
+  private static SEXP c(Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    // TODO: Once the interpreter is changed to pass arguments correctly, it will always pass a
+    //  single argument that is dots list. Handle that instead of variadic `args`.
+    if (args.isEmpty()) {
       return SEXPs.NULL;
     }
 
-    var inferredKind = Type.of(args.value(0)).kind();
+    var inferredKind = Type.of(args.getFirst()).kind();
+    if (inferredKind instanceof Kind.PrimitiveScalar(var primitiveKind)) {
+      inferredKind = new Kind.PrimitiveVector(primitiveKind);
+    }
+
     return interpreter.mkVector(
-        inferredKind,
-        Lists.mapLazy(
-            args.names(),
-            name -> name.isEmpty() ? Optional.empty() : Optional.of(Variable.named(name))),
-        args.values());
+        inferredKind, args.stream().map(_ -> Optional.<NamedVariable>empty()).toList(), args);
   }
 
-  private static SEXP length(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP length(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
       throw new IllegalArgumentException("`length` takes 1 argument");
     }
 
-    if (!(args.value(0) instanceof ListOrVectorSXP<?> vector)) {
+    if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
       throw new UnsupportedOperationException("Mock `length` requires a vector argument");
     }
 
     return SEXPs.integer(vector.size());
   }
 
-  private static SEXP sum(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP sum(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
       throw new IllegalArgumentException("`sum` takes 1 argument");
     }
 
-    return switch (args.value(0)) {
+    return switch (args.getFirst()) {
       case IntSXP i -> {
         // Sum of integers
         int sum = 0;
@@ -673,12 +655,12 @@ public final class Builtins {
   }
 
   private static SEXP asLogical(
-      Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
       throw new IllegalArgumentException("`as.logical` takes 1 argument");
     }
 
-    var arg = args.value(0);
+    var arg = args.getFirst();
 
     if (arg.asScalarInteger().isPresent()) {
       int intValue = arg.asScalarInteger().get();
@@ -706,7 +688,8 @@ public final class Builtins {
     }
   }
 
-  private static SEXP isObject(Interpreter interpreter, Function callee, ListSXP args, EnvSXP env) {
+  private static SEXP isObject(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     // Currently there's no object support, so this is always `FALSE`.
     return SEXPs.FALSE;
   }

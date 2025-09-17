@@ -11,7 +11,7 @@ import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
  *
  * <p>Compilation either failed because the {@link Bc} contained invalid data (nonsensical
  * instructions), there's a bug in the {@link CFGCompiler}, or the {@link Bc} contains an
- * unsupported instruction (in which case this is a {@link CFGCompilerUnsupportedBcException}).
+ * unsupported instruction (in which case this is a {@link CFGCompilerUnsupportedException}).
  */
 public class CFGCompilerException extends RuntimeException {
   private final Bc bc;

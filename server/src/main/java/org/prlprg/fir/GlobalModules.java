@@ -24,7 +24,7 @@ public final class GlobalModules {
       }
       // Builtin that we haven't manually defined.
       // Its builtin formals are unknown, hence `List.of(ParameterDefinition.DOTS)`.
-      BUILTINS.addFunction(bltName, List.of(ParameterDefinition.DOTS));
+      BUILTINS.addFunction(bltName, List.of(ParameterDefinition.DOTS), true);
     }
 
     // Ensure intrinsic names don't conflict with builtins.

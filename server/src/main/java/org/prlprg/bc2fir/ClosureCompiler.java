@@ -6,20 +6,25 @@ import javax.annotation.Nullable;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.parameter.ParameterDefinition;
+import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.PrimVectorSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Streams;
@@ -56,7 +61,8 @@ public class ClosureCompiler {
                 .gather(
                     Streams.mapWithIndex(
                         (p, i) -> compileParameter(r, closure, module, i, p.tag(), p.value())))
-                .toList());
+                .toList(),
+            false);
     var outputBaseline = output.baseline();
     var outputCfg = Objects.requireNonNull(outputBaseline.cfg(), "baseline is never a stub");
 
@@ -84,6 +90,10 @@ public class ClosureCompiler {
       int index,
       @Nullable String name,
       SEXP ast) {
+    if (Objects.equals(name, "...")) {
+      return ParameterDefinition.DOTS;
+    }
+
     var name1 = name == null ? "p" + index : name;
     var nameForDef = Variable.named(name1);
 
@@ -91,31 +101,41 @@ public class ClosureCompiler {
       return new ParameterDefinition(nameForDef);
     }
 
-    // Compile parameter
-
-    // Compile AST into bytecode if needed
-    Bc bc;
-    if (ast instanceof BCodeSXP bcSxp) {
-      bc = bcSxp.bc();
-    } else {
-      if (r == null) {
-        throw new ClosureCompilerUnsupportedException(
-            "RSession is required to compile AST default argument: " + name1, closure);
-      }
-      var astThunk = SEXPs.closure(SEXPs.list(), ast, r.globalEnv());
-      bc =
-          new BCCompiler(astThunk, r)
-              .compile()
-              .orElseThrow(
-                  () ->
-                      new ClosureCompilerUnsupportedException(
-                          "Failed to compile AST default argument: " + name1, closure));
-    }
-
-    // Compile bytecode into FIŘ
+    // Compile default parameter
     var bcThunk = new Abstraction(module, List.of());
     var bcThunkCfg = Objects.requireNonNull(bcThunk.cfg());
-    CFGCompiler.compile(r, bcThunkCfg, bc);
+
+    switch (ast) {
+        // Handle constants
+      case NilSXP _, PrimVectorSXP<?> _ -> {
+        bcThunk.setEffects(Effects.NONE);
+        bcThunk.setReturnType(Type.of(ast));
+        bcThunkCfg.entry().setJump(new Return(new Constant(ast)));
+      }
+        // Compile bytecode
+      case BCodeSXP bcSxp -> {
+        var bc = bcSxp.bc();
+        CFGCompiler.compile(r, bcThunkCfg, bc);
+      }
+        // Otherwise, if we have `RSession`, compile into bytecode, then compile bytecode
+      case SEXP _ when r != null -> {
+        var astThunk = SEXPs.closure(SEXPs.list(), ast, r.globalEnv());
+        var bc =
+            new BCCompiler(astThunk, r)
+                .compile()
+                .orElseThrow(
+                    () ->
+                        new ClosureCompilerUnsupportedException(
+                            "Failed to compile AST default argument: " + name1 + " = " + ast,
+                            closure));
+        CFGCompiler.compile(r, bcThunkCfg, bc);
+      }
+        // Otherwise, we don't support compiling this default argument
+      default ->
+          throw new ClosureCompilerUnsupportedException(
+              "RSession is required to compile AST default argument: " + name1 + " = " + ast,
+              closure);
+    }
 
     return new ParameterDefinition(nameForDef, bcThunk);
   }

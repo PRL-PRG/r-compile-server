@@ -1,8 +1,10 @@
 package org.prlprg.bc2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 import java.util.function.Function;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.prlprg.bc2c.BC2CSnapshotTestExtension.BC2CSnapshot;
@@ -14,12 +16,18 @@ import org.prlprg.util.gnur.GNURTestSupport;
 
 @GNURTestSupport
 @ExtendWith(BC2CSnapshotTestExtension.class)
-public class BC2CCompilerTest {
-
+class BC2CCompilerTest {
   protected final GNUR R;
 
   public BC2CCompilerTest(GNUR R) {
     this.R = R;
+  }
+
+  @BeforeEach
+  public void skipArm() {
+    if (System.getProperty("os.arch").equals("aarch64")) {
+      abort("Doesn't work on ARM");
+    }
   }
 
   @Test

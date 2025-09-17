@@ -73,7 +73,13 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (other) {
       case Any() -> true;
       case AnyValue() -> !(this instanceof Any) && !(this instanceof Promise);
-      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure(), Dots() -> this.equals(other);
+      case PrimitiveVector(var otherPrimitiveKind) ->
+          switch (this) {
+            case PrimitiveScalar(var primitiveKind) -> primitiveKind == otherPrimitiveKind;
+            case PrimitiveVector(var primitiveKind) -> primitiveKind == otherPrimitiveKind;
+            default -> false;
+          };
+      case PrimitiveScalar(var _), Closure(), Dots() -> this.equals(other);
       case Promise(var otherValue, var otherEffects) ->
           this instanceof Promise(var value, var effects)
               && value.isSubtypeOf(otherValue)
@@ -92,33 +98,33 @@ public sealed interface Kind extends Comparable<Kind> {
             case AnyValue() -> 0;
             default -> -1;
           };
-      case PrimitiveScalar(var otherPrimitive) ->
-          switch (this) {
-            case Any(), AnyValue() -> 1;
-            case PrimitiveScalar(var primitive) -> primitive.compareTo(otherPrimitive);
-            default -> -1;
-          };
       case PrimitiveVector(var otherPrimitive) ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveScalar(_) -> 1;
+            case Any(), AnyValue() -> 1;
             case PrimitiveVector(var primitive) -> primitive.compareTo(otherPrimitive);
+            default -> -1;
+          };
+      case PrimitiveScalar(var otherPrimitive) ->
+          switch (this) {
+            case Any(), AnyValue(), PrimitiveVector(_) -> 1;
+            case PrimitiveScalar(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case Closure() ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_) -> 1;
+            case Any(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_) -> 1;
             case Closure() -> 0;
             default -> -1;
           };
       case Dots() ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_), Closure() -> 1;
+            case Any(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_), Closure() -> 1;
             case Dots() -> 0;
             default -> -1;
           };
       case Promise(var otherValue, var otherEffects) ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveScalar(_), PrimitiveVector(_), Closure(), Dots() -> 1;
+            case Any(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_), Closure(), Dots() -> 1;
             case Promise(var value, var effects) -> {
               int cmp = value.compareTo(otherValue);
               if (cmp != 0) yield cmp;
@@ -132,7 +138,23 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (other) {
       case Any() -> other;
       case AnyValue() -> this instanceof Any || this instanceof Promise ? new Any() : other;
-      case PrimitiveScalar(var _), PrimitiveVector(var _), Closure(), Dots() ->
+      case PrimitiveScalar(var otherPrimitiveKind) ->
+          switch (this) {
+            case PrimitiveScalar(var primitiveKind) when primitiveKind == otherPrimitiveKind ->
+                this;
+            case PrimitiveVector(var primitiveKind) when primitiveKind == otherPrimitiveKind ->
+                this;
+            default -> union(new AnyValue(), onOwnershipMismatch);
+          };
+      case PrimitiveVector(var otherPrimitiveKind) ->
+          switch (this) {
+            case PrimitiveScalar(var primitiveKind) when primitiveKind == otherPrimitiveKind ->
+                other;
+            case PrimitiveVector(var primitiveKind) when primitiveKind == otherPrimitiveKind ->
+                this;
+            default -> union(new AnyValue(), onOwnershipMismatch);
+          };
+      case Closure(), Dots() ->
           this.equals(other) ? this : union(new AnyValue(), onOwnershipMismatch);
       case Promise(var otherValue, var otherEffects) ->
           this instanceof Promise(var value, var effects)

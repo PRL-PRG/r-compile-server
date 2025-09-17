@@ -30,6 +30,7 @@ import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -74,7 +75,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           .streamCfgs()
           .forEach(
               cfg -> {
-                // We run DFS to recursively try inlined code.
+                // We run DFS to run inlined instructions, trying to inline recursively.
                 // Then we don't need to repeat the analysis to reach a fixpoint.
                 for (var bb : dfs(cfg)) {
                   for (int i = 0; i < bb.statements().size(); i++) {
@@ -216,6 +217,17 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           || callsItself
           || variablesClash
           || callee.parameters().size() != arguments.size()) {
+        return;
+      }
+
+      // TODO: Handle functions with deopt branches. For now we just don't inline them.
+      var hasDeopt =
+          callee
+              .streamScopes()
+              .flatMap(Abstraction::streamCfgs)
+              .flatMap(cfg -> cfg.bbs().stream())
+              .anyMatch(bb1 -> bb1.jump() instanceof Deopt);
+      if (hasDeopt) {
         return;
       }
 

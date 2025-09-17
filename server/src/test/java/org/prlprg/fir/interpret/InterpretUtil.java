@@ -48,7 +48,7 @@ public class InterpretUtil {
             .map(line -> line.substring("# runtime-return: ".length()))
             .collect(
                 Streams.zeroOneOrThrow(
-                    () -> new AssertionError("Multiple runtime-return annotations (not allowed)")))
+                    () -> fail("Multiple runtime-return annotations (not allowed)")))
             .map(ParseUtil::parseSexp)
             .orElse(null);
     var expectedErrorMsg =
@@ -59,7 +59,7 @@ public class InterpretUtil {
             .map(line -> line.substring("# runtime-error: ".length()))
             .collect(
                 Streams.zeroOneOrThrow(
-                    () -> new AssertionError("Multiple runtime-error annotations not allowed")))
+                    () -> fail("Multiple runtime-error annotations not allowed")))
             .orElse(null);
 
     var mainFun = firModule.localFunction("main");
@@ -83,7 +83,7 @@ public class InterpretUtil {
   /// Hijack unimplemented functions in the examples, e.g. `inc`.
   private static void registerStubs(Interpreter interpreter) {
     if (interpreter.module().lookupFunction("inc") != null) {
-      interpreter.registerExternalVersion(
+      interpreter.registerExternal(
           "inc",
           0,
           (interpreter1, _, args, _) -> {
@@ -96,7 +96,7 @@ public class InterpretUtil {
           });
     }
     if (interpreter.module().lookupFunction("dec") != null) {
-      interpreter.registerExternalVersion(
+      interpreter.registerExternal(
           "dec",
           0,
           (interpreter1, _, args, _) -> {
@@ -109,7 +109,7 @@ public class InterpretUtil {
           });
     }
     if (interpreter.module().lookupFunction("add") != null) {
-      interpreter.registerExternalVersion(
+      interpreter.registerExternal(
           "add",
           0,
           (interpreter1, _, args, _) -> {
@@ -125,7 +125,7 @@ public class InterpretUtil {
           });
     }
     if (interpreter.module().lookupFunction("if0") != null) {
-      interpreter.registerExternalVersion(
+      interpreter.registerExternal(
           "if0",
           0,
           (interpreter1, _, args, _) -> {
@@ -142,7 +142,7 @@ public class InterpretUtil {
           });
     }
     if (interpreter.module().lookupFunction("provide") != null) {
-      interpreter.registerExternalVersion(
+      interpreter.registerExternal(
           "provide",
           0,
           (interpreter1, _, args, _) -> {
@@ -155,7 +155,7 @@ public class InterpretUtil {
           });
     }
     if (interpreter.module().lookupFunction("require") != null) {
-      interpreter.registerExternalVersion(
+      interpreter.registerExternal(
           "require",
           0,
           (interpreter1, _, args, _) -> {
@@ -181,7 +181,7 @@ public class InterpretUtil {
           });
     }
     if (interpreter.module().lookupFunction("print") != null) {
-      interpreter.registerExternalVersion(
+      interpreter.registerExternal(
           "print",
           0,
           (interpreter1, _, args, _) -> {
@@ -190,6 +190,29 @@ public class InterpretUtil {
             }
             System.out.println("PRINT " + args.getFirst());
             return SEXPs.NULL;
+          });
+    }
+    if (interpreter.module().lookupFunction("keepLive") != null) {
+      interpreter.registerExternal(
+          "keepLive",
+          0,
+          (interpreter1, _, args, _) -> {
+            if (args.size() != 1) {
+              throw interpreter1.fail("`keepLive`'s arguments must consist of one value");
+            }
+            // Keeps the argument alive
+            return SEXPs.NULL;
+          });
+    }
+    if (interpreter.module().lookupFunction("blackBox") != null) {
+      interpreter.registerExternal(
+          "blackBox",
+          0,
+          (interpreter1, _, args, _) -> {
+            if (args.size() != 1) {
+              throw interpreter1.fail("`blackBox`'s arguments must consist of one value");
+            }
+            return args.getFirst();
           });
     }
   }
@@ -228,11 +251,15 @@ public class InterpretUtil {
                 .findFirst()
                 .orElseThrow()
                 .replaceAll("\\.Interpret\\(([^)]*)\\)", ".Interpret(...)");
+        if (!expectedErrorMsg.equals(actualErrorMsg)) {
+          System.out.println(interpreter.module());
+        }
         assertEquals(
             expectedErrorMsg,
             actualErrorMsg,
             "Interpreter crashed with WRONG ERROR\nFull message:\n" + e.mainMessage());
       } else {
+        System.out.println(interpreter.module());
         fail("Interpreter crashed", e);
       }
     }

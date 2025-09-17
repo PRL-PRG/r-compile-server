@@ -162,7 +162,7 @@ public final class TypeAndEffectChecker extends Checker {
       // Check return type and effects are expected
       var returnType = inferType.of(scope.cfg());
       var effects = inferEffects.of(scope.cfg());
-      onCfg.checkSubtype(returnType, scope.returnType(), "Return type mismatch");
+      onCfg.checkAssignment(returnType, scope.returnType(), "Return type mismatch");
       onCfg.checkSubEffects(effects, scope.effects(), "Function effects mismatch");
 
       // Check instruction invariants

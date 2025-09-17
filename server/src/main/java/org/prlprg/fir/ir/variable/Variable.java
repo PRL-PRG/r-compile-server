@@ -1,12 +1,8 @@
 package org.prlprg.fir.ir.variable;
 
 import java.util.HashMap;
-import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
 import org.prlprg.util.Strings;
 
 public sealed interface Variable permits NamedVariable, Register {
@@ -43,17 +39,6 @@ public sealed interface Variable permits NamedVariable, Register {
     } else {
       w.write(name());
     }
-  }
-
-  record ParseContext(Abstraction scope) {}
-
-  @ParseMethod
-  private static Variable parse(Parser p, ParseContext ctx) {
-    var scope = ctx.scope();
-    var s = p.scanner();
-
-    var name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
-    return scope.isRegister(name) ? register(name) : named(name);
   }
 }
 

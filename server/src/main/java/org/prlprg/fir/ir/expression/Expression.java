@@ -77,13 +77,11 @@ public sealed interface Expression
   private static Expression parse(Parser p1, ParseContext ctx) {
     var headAsName = ctx.headAsName;
     Argument headAsArg = null;
-    NamedVariable headAsNv = null;
     var cfg = ctx.cfg;
     var scope = cfg.scope();
     var module = scope.module();
     var postModule = ctx.postModule;
     var p = p1.withContext(ctx.inner());
-    var p2 = p.withContext(new Variable.ParseContext(scope));
 
     var s = p.scanner();
 
@@ -139,7 +137,7 @@ public sealed interface Expression
           return isMaybe ? new MaybeForce(value) : new Force(value);
         }
         case "ldf" -> {
-          var variable = p2.parse(NamedVariable.class);
+          var variable = p.parse(NamedVariable.class);
           var env =
               s.runWithWhitespacePolicy(
                   SkipWhitespace.ALL_EXCEPT_NEWLINES,
@@ -147,7 +145,7 @@ public sealed interface Expression
           return new LoadFun(variable, env);
         }
         case "ld" -> {
-          var variable = p2.parse(NamedVariable.class);
+          var variable = p.parse(NamedVariable.class);
           return new Load(variable);
         }
         case "mkenv" -> {
@@ -170,17 +168,17 @@ public sealed interface Expression
           return new Promise(valueType, effects, code);
         }
         case "sld" -> {
-          var variable = p2.parse(NamedVariable.class);
+          var variable = p.parse(NamedVariable.class);
           return new SuperLoad(variable);
         }
         case "st" -> {
-          var variable = p2.parse(NamedVariable.class);
+          var variable = p.parse(NamedVariable.class);
           s.assertAndSkip('=');
           var value = p.parse(Argument.class);
           return new Store(variable, value);
         }
         case "sst" -> {
-          var variable = p2.parse(NamedVariable.class);
+          var variable = p.parse(NamedVariable.class);
           s.assertAndSkip('=');
           var value = p.parse(Argument.class);
           return new SuperStore(variable, value);
@@ -205,11 +203,9 @@ public sealed interface Expression
             headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
           // Variable
         default -> {
-          if (scope.isRegister(headAsName)) {
-            var headAsReg = Variable.register(headAsName);
+          var headAsReg = Variable.register(headAsName);
+          if (scope.contains(headAsReg)) {
             headAsArg = new Read(headAsReg);
-          } else {
-            headAsNv = Variable.named(headAsName);
           }
         }
       }
@@ -235,8 +231,6 @@ public sealed interface Expression
       // `headAsName != null` iff it starts with an identifier.
       // `headAsArg != null` iff it starts with an argument, which may be a constant or
       // identifier which happens to be a register.
-      // `headAsNv != null` iff it starts with an identifier which is not a register (i.e. is a
-      // named variable).
 
       if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
         if (headAsName == null) {
@@ -283,7 +277,7 @@ public sealed interface Expression
           throw s.fail("In 'a$...', 'a' must be a register (or constant)");
         }
 
-        var variable = p2.parse(NamedVariable.class);
+        var variable = p.parse(NamedVariable.class);
         if (s.trySkip('=')) {
           var value = p.parse(Argument.class);
           return new ReflectiveStore(headAsArg, variable, value);
@@ -347,17 +341,10 @@ public sealed interface Expression
 
         var constant = p.parse(Constant.class);
         return new AssumeConstant(headAsArg, constant);
-      }
-
-      if (headAsArg != null) {
+      } else if (headAsArg != null) {
         return new Aea(headAsArg);
       } else {
-        throw s.fail(
-            "Named variable '"
-                + headAsNv.name()
-                + "' used without 'ld' prefix. Use 'ld "
-                + headAsNv.name()
-                + "' to load");
+        throw s.fail("Not a keyword or in-scope register: '" + headAsName + "'");
       }
     }
 

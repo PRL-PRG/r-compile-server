@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
 import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 
-import java.util.Objects;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.bc.CompilerException;
 import org.prlprg.fir.interpret.InterpretException;
@@ -58,7 +57,8 @@ public class BC2FirAndInterpreterIntegrationTest {
     } catch (CFGCompilerException | ClosureCompilerUnsupportedException e) {
       fail("Bytecode->FIŘ compiler crashed", e);
     } catch (InterpretException e) {
-      fail("FIŘ interpreter crashed.\n\nFIŘ module:\n" + Objects.requireNonNull(firModule), e);
+      System.out.println(firModule);
+      fail("FIŘ interpreter crashed", e);
     }
   }
 }

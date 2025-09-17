@@ -1,15 +1,21 @@
 fun main() {
-  () --> I { |
+  () --> I { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
+    r1 = blackBox(1);
+    r2 = blackBox(2);
+    r3 = blackBox(3.0);
+    r4 = blackBox(4.0);
+    r5 = blackBox(5);
+
     # Optimized
-    g.1(1, 1);
+    g.1(r1, 1);
     # Baseline
-    g.0(2, 2.0);
+    g.0(r2, 2.0);
     # Optimized -> baseline
-    g.1(3.0, 3);
+    g.1(r3, 3);
     # Baseline
-    g.0(4.0, 4.0);
+    g.0(r4, 4.0);
     # Optimized
-    g.1(5, 5);
+    g.1(r5, 5);
 
     require(1);
     require("bar");
@@ -32,7 +38,6 @@ fun g(n, a) {
     r = 14;
     check BB1() else BB2();
   BB1():
-    # cleanup:
     r ?= 14;
     provide("foo");
     return 42;
@@ -47,7 +52,7 @@ fun g(n, a) {
     r1 = n;
     check BB1() else BB2();
   BB1():
-    # cleanup:
+    # cleanup: n ?: I;
     r = n ?: I;
     provide("bar");
     return 24;
@@ -58,10 +63,15 @@ fun g(n, a) {
 }
 
 # Asserts the last argument given to `provide`
-fun require(...) {
+fun require(x) {
   (reg x:*) --> V { ... }
 }
 
-fun provide(...) {
+fun provide(x) {
   (reg x:*) --> V { ... }
+}
+
+# Returns the argument as is, but marks the call as an optimization barrier
+fun blackBox(x) {
+  (reg x:V) --> V { ... }
 }

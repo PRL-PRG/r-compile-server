@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Stack;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.feedback.Feedback;
@@ -100,7 +99,6 @@ import org.prlprg.util.UnreachableError;
 public final class Interpreter {
   // Input
   private final Module module;
-  private final Map<Function, ExternalFunction> externalFunctions = new HashMap<>();
   private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
 
   // State
@@ -155,7 +153,6 @@ public final class Interpreter {
             }
             case "Module#removeFunction" -> {
               var f = (Function) arguments.getFirst();
-              externalFunctions.remove(f);
               for (var v : f.versions()) {
                 externalVersions.remove(v);
               }
@@ -183,37 +180,37 @@ public final class Interpreter {
     env.set(function.name(), stub);
   }
 
-  /// "Hijack" the function, so when it's dispatch-called and no versions match, the Java closure
-  /// runs (instead of the interpreter crashing).
-  public void registerExternalFunction(String functionName, ExternalFunction javaClosure) {
+  /// "Hijack" the function version, so when it's called, the Java closure runs. Every version
+  /// must be a [stub](Abstraction#isStub).
+  ///
+  /// [#registerExternal(String, int, ExternalVersion)] for every function version.
+  public void registerExternal(String functionName, ExternalVersion javaClosure) {
     var function = module.lookupFunction(functionName);
     if (function == null) {
       throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
     }
-    if (externalFunctions.containsKey(function)) {
-      throw new IllegalArgumentException("Function " + functionName + " is already hijacked");
+    for (var version : function.versions()) {
+      registerExternal(functionName, function.indexOf(version), version, javaClosure);
     }
-    externalFunctions.put(function, javaClosure);
   }
 
   /// "Hijack" the function version, so when it's called, the Java closure runs. The version
   /// must be a [stub](Abstraction#isStub).
-  public void registerExternalVersion(
-      String functionName, int versionIndex, ExternalVersion javaClosure) {
+  public void registerExternal(String functionName, int versionIndex, ExternalVersion javaClosure) {
     var function = module.lookupFunction(functionName);
     if (function == null) {
       throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
     }
-    if (versionIndex < 0 || versionIndex >= function.versions().size()) {
+    if (!function.containsIndex(versionIndex)) {
       throw new IllegalArgumentException(
-          "Function "
-              + functionName
-              + " version "
-              + versionIndex
-              + " is out of bounds:\n"
-              + function);
+          "Function " + functionName + " has no version at " + versionIndex + ":\n" + function);
     }
     var version = function.version(versionIndex);
+    registerExternal(functionName, versionIndex, version, javaClosure);
+  }
+
+  private void registerExternal(
+      String functionName, int versionIndex, Abstraction version, ExternalVersion javaClosure) {
     if (!version.isStub()) {
       throw new IllegalArgumentException(
           "Function " + functionName + " version " + versionIndex + " isn't a stub:\n" + version);
@@ -259,38 +256,12 @@ public final class Interpreter {
       @Nullable Signature explicitSignature,
       List<SEXP> arguments,
       EnvSXP environment) {
-    return call(function, explicitSignature, List.of(), arguments, environment);
-  }
-
-  /// Gets the function's best applicable version, and calls it with the arguments in the
-  /// environment.
-  public SEXP call(
-      Function function,
-      @Nullable Signature explicitSignature,
-      List<String> argumentNames,
-      List<SEXP> arguments,
-      EnvSXP environment) {
     var signature = computeSignature(explicitSignature, arguments);
 
     var best = function.guess(signature);
     if (best == null) {
-      // See if we registered external code for this function.
-      var hijacker = externalFunctions.get(function);
-      if (hijacker != null) {
-        var argumentsSxp =
-            Streams.zip(
-                    Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
-                    arguments.stream(),
-                    (argName, arg) -> new TaggedElem(argName.isEmpty() ? null : argName, arg))
-                .collect(SEXPs.toList());
-
-        return callExternal(hijacker, function, argumentsSxp, environment);
-      }
-
-      // Otherwise we called a function with no valid overloads, a runtime error (not `Rf_error`,
-      // which is an R error but OK in the runtime, either).
       throw fail(
-          "No versions match signature and arguments, and no catch-all:"
+          "No versions match signature and arguments:"
               + "\nFunction: "
               + function.name()
               + "\nExplicit signature: "
@@ -357,22 +328,6 @@ public final class Interpreter {
 
     checkType(result, abstraction.returnType(), "return");
     return result;
-  }
-
-  private SEXP callExternal(
-      ExternalFunction hijacker, Function hijacked, ListSXP arguments, EnvSXP environment) {
-    checkStack();
-
-    try {
-      var result = hijacker.call(this, hijacked, arguments, environment);
-
-      checkType(result, hijacked.baseline().returnType(), "return (from external)");
-      return result;
-    } catch (InterpretException e) {
-      throw e;
-    } catch (Throwable e) {
-      throw fail("External dispatch call failed", e);
-    }
   }
 
   private SEXP callExternal(
@@ -513,7 +468,7 @@ public final class Interpreter {
           case DispatchCallee(var function, var signature) ->
               call(function, signature, arguments, environment);
           case InlineCallee(var inlinee) -> call(inlinee, arguments, environment, null);
-          case DynamicCallee(var actualCallee, var argumentNames) -> {
+          case DynamicCallee(var actualCallee, var ignoredArgumentNames) -> {
             var calleeSexp = run(actualCallee);
             if (!(calleeSexp instanceof CloSXP cloSXP)) {
               throw fail("Not a function: " + calleeSexp);
@@ -528,7 +483,8 @@ public final class Interpreter {
               topFrame().scopeFeedback().recordCallee(calleeReg, function);
             }
 
-            yield call(function, null, argumentNames, arguments, environment);
+            // TODO: Determine correct arguments via `argumentNames` and matching algorithm.
+            yield call(function, null, arguments, environment);
           }
         };
       }

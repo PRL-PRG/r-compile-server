@@ -51,15 +51,20 @@ public final class Module {
     return functions.get(name);
   }
 
-  public Function addFunction(String name, List<ParameterDefinition> parameterDefinitions) {
+  public Function addFunction(
+      String name, List<ParameterDefinition> parameterDefinitions, boolean baselineIsStub) {
     return addFunction(
-        name, parameterDefinitions, Function.computeBaselineParameters(parameterDefinitions));
+        name,
+        parameterDefinitions,
+        Function.computeBaselineParameters(parameterDefinitions),
+        baselineIsStub);
   }
 
   public Function addFunction(
       String name,
       List<ParameterDefinition> parameterDefinitions,
-      List<Parameter> baselineParameters) {
+      List<Parameter> baselineParameters,
+      boolean baselineIsStub) {
     return this.record(
         "Module#addFunction",
         List.of(this, name),
@@ -67,7 +72,8 @@ public final class Module {
           if (functions.containsKey(name)) {
             throw new IllegalArgumentException("Function with name '" + name + "' already exists.");
           }
-          var function = new Function(this, name, parameterDefinitions, baselineParameters);
+          var function =
+              new Function(this, name, parameterDefinitions, baselineParameters, baselineIsStub);
           functions.put(name, function);
           return function;
         });

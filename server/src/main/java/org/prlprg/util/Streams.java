@@ -127,82 +127,57 @@ public class Streams {
    * Returns the only element of the stream or {@link Optional#empty()} if the stream is empty.
    * Throws if the stream has multiple elements.
    */
-  public static <T, E extends Throwable> Collector<T, ?, Optional<T>> zeroOneOrThrow(
-      Supplier<E> exception) throws E {
+  public static <T, E extends RuntimeException> Collector<T, ?, Optional<T>> zeroOneOrThrow(
+      Supplier<E> exception) {
     class MutableOptional {
       @Nullable T value = null;
     }
 
-    class WrappedException extends RuntimeException {
-      final E inner;
-
-      public WrappedException(E inner) {
-        this.inner = inner;
-      }
-    }
-
-    try {
-      return Collector.of(
-          MutableOptional::new,
-          (o, elem) -> {
-            if (o.value != null) {
-              throw new WrappedException(exception.get());
-            } else {
-              o.value = elem;
-            }
-          },
-          (o1, o2) -> {
-            if (o1.value != null && o2.value != null) {
-              throw new WrappedException(exception.get());
-            } else {
-              return o1.value != null ? o1 : o2;
-            }
-          },
-          o -> Optional.ofNullable(o.value),
-          Characteristics.CONCURRENT);
-    } catch (WrappedException e) {
-      throw e.inner;
-    }
+    return Collector.of(
+        MutableOptional::new,
+        (o, elem) -> {
+          if (o.value != null) {
+            throw exception.get();
+          } else {
+            o.value = elem;
+          }
+        },
+        (o1, o2) -> {
+          if (o1.value != null && o2.value != null) {
+            throw exception.get();
+          } else {
+            return o1.value != null ? o1 : o2;
+          }
+        },
+        o -> Optional.ofNullable(o.value),
+        Characteristics.CONCURRENT);
   }
 
   /** Returns the only element of the stream. Throws if the stream has zero or multiple elements. */
-  public static <T, E extends Throwable> Collector<T, ?, T> oneOrThrow(Supplier<E> exception)
+  public static <T, E extends RuntimeException> Collector<T, ?, T> oneOrThrow(Supplier<E> exception)
       throws E {
     class MutableOptional {
       @Nullable T value = null;
     }
 
-    class WrappedException extends RuntimeException {
-      final E inner;
-
-      public WrappedException(E inner) {
-        this.inner = inner;
-      }
-    }
-
-    try {
-      return Collector.of(
-          MutableOptional::new,
-          (o, elem) -> {
-            if (o.value != null) {
-              throw new WrappedException(exception.get());
-            } else {
-              o.value = elem;
-            }
-          },
-          (o1, o2) -> {
-            if (o1.value != null && o2.value != null) {
-              throw new WrappedException(exception.get());
-            } else {
-              return o1.value != null ? o1 : o2;
-            }
-          },
-          o ->
-              Optional.ofNullable(o.value).orElseThrow(() -> new WrappedException(exception.get())),
-          Characteristics.CONCURRENT);
-    } catch (WrappedException e) {
-      throw e.inner;
-    }
+    return Collector.of(
+        MutableOptional::new,
+        (o, elem) -> {
+          if (o.value != null) {
+            throw exception.get();
+          } else {
+            o.value = elem;
+          }
+        },
+        (o1, o2) -> {
+          if (o1.value != null && o2.value != null) {
+            throw exception.get();
+          } else {
+            return o1.value != null ? o1 : o2;
+          }
+        },
+        o -> Optional.ofNullable(o.value).orElseThrow(exception),
+        Characteristics.CONCURRENT);
   }
 
   /**

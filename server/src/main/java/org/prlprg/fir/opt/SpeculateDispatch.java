@@ -121,7 +121,7 @@ public record SpeculateDispatch(
                   .collect(ImmutableList.toImmutableList());
 
           // Copy `version` except change the parameters.
-          var copy = function.addVersion(copyParameters);
+          var copy = function.addVersion(copyParameters, false);
           assert copy.cfg() != null;
           copy.setReturnType(version.returnType());
           copy.setEffects(version.effects());

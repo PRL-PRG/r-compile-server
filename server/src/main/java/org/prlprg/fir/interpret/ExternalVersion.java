@@ -2,19 +2,39 @@ package org.prlprg.fir.interpret;
 
 import java.util.List;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 
 /// Function version that executes Java code which can be called from the interpreter.
 ///
-/// Like [ExternalFunction], except it "hijacks" a function version. Specifically, the version's
-/// body must be a single [Unreachable][org.prlprg.fir.ir.instruction.Unreachable]; when the
-/// version is called, instead of running the body (and crashing), the interpreter runs this code.
+/// "Hijacks" a function version whose body is a [stub](Abstraction#isStub); when the version
+/// is called, the interpreter runs this code.
 ///
-/// Add to a runtime with [Interpreter#registerExternalVersion(String, int, ExternalVersion)].
+/// Add to a runtime with [Interpreter#registerExternal(String, int, ExternalVersion)].
 @FunctionalInterface
 public interface ExternalVersion {
+  /// Forces promise arguments *and* evaluates simple AST arguments (symbols), then calls `inner`.
+  ///
+  /// @throws UnsupportedOperationException If given complex AST arguments (language objects).
+  static ExternalVersion special(ExternalVersion inner) {
+    return (runtime, hijacked, arguments, environment) -> {
+      var forcedAndEvaldArgs =
+          arguments.stream()
+              .map(
+                  argument ->
+                      switch (argument) {
+                        case PromSXP promSxp -> runtime.force(promSxp);
+                        case RegSymSXP symSxp -> runtime.load(Variable.named(symSxp.name()));
+                        default -> argument;
+                      })
+              .toList();
+      return inner.call(runtime, hijacked, forcedAndEvaldArgs, environment);
+    };
+  }
+
   /// Forces all arguments, then calls `inner`.
   static ExternalVersion strict(ExternalVersion inner) {
     return (runtime, hijacked, arguments, environment) -> {

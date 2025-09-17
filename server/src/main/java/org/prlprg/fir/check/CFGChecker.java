@@ -57,7 +57,7 @@ public class CFGChecker extends Checker {
       // No duplicate variable declarations in the scope
       var seenBindings = new HashSet<>();
       for (var binding : Iterables.concat(scope.parameters(), scope.locals())) {
-        if (!seenBindings.add(binding.variable().name())) {
+        if (!seenBindings.add(binding.variable())) {
           report(entry, -1, "Duplicate variable declaration: " + binding.variable());
         }
       }

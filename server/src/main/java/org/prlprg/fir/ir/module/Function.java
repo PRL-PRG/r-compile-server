@@ -55,7 +55,8 @@ public final class Function {
       Module owner,
       String name,
       List<ParameterDefinition> parameterDefinitions,
-      List<Parameter> baselineParameters) {
+      List<Parameter> baselineParameters,
+      boolean baselineIsStub) {
     if (name.isEmpty()) {
       throw new IllegalArgumentException(
           "Illegal function name (function names must not be empty): " + name);
@@ -66,7 +67,7 @@ public final class Function {
     this.parameterDefinitions = List.copyOf(parameterDefinitions);
 
     // Add baseline version
-    addVersion(baselineParameters);
+    addVersion(baselineParameters, baselineIsStub);
   }
 
   static List<Parameter> computeBaselineParameters(List<ParameterDefinition> parameterDefinitions) {
@@ -149,6 +150,10 @@ public final class Function {
     return versionIndices.containsKey(version);
   }
 
+  public boolean containsIndex(int index) {
+    return versions.containsKey(index);
+  }
+
   /// @throws IllegalArgumentException If the version is not found.
   public int indexOf(Abstraction version) {
     var index = versionIndices.get(version);
@@ -185,12 +190,12 @@ public final class Function {
                     && other.signature().hasNarrowerEffectsAndReturn(version.signature()));
   }
 
-  public Abstraction addVersion(List<Parameter> params) {
+  public Abstraction addVersion(List<Parameter> params, boolean isStub) {
     return owner.record(
         "Function#addVersion",
         List.of(this, params),
         () -> {
-          var newVersion = new Abstraction(owner, params);
+          var newVersion = new Abstraction(owner, params, isStub);
           versions.put(nextVersionIndex, newVersion);
           versionIndices.put(newVersion, nextVersionIndex);
           nextVersionIndex++;

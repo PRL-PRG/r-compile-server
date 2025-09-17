@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
 
 import java.lang.reflect.Method;
+import org.opentest4j.TestAbortedException;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
@@ -60,8 +61,10 @@ public class BC2FirSnapshotTestExtension
             var res = new TestResult(rModuleCode, firOutput);
 
             BC2FirSnapshotTestExtension.this.verify(testMethod, snapshotName, res, null);
-          } catch (BcCompilerUnsupportedException | CFGCompilerUnsupportedBcException e) {
-            // Silently fail, because these are expected.
+          } catch (BcCompilerUnsupportedException
+              | ClosureCompilerUnsupportedException
+              | CFGCompilerUnsupportedException e) {
+            throw new TestAbortedException("Closure isn't compilable", e);
           }
         };
   }
