@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
@@ -50,26 +49,18 @@ public final class Abstraction implements Comparable<Abstraction> {
   private final ImmutableList<Parameter> parameters;
   private Type returnType;
   private Effects effects;
-  private final Map<String, Local> locals = new LinkedHashMap<>();
+  private final Map<Variable, Local> locals = new LinkedHashMap<>();
   private final @Nullable CFG cfg;
 
   // Cached
   private final ImmutableMap<String, Parameter> nameToParam;
   private int nextLocalDisambiguator = 0;
 
-  public static Abstraction stub(
-      Module module, List<Parameter> parameters, Type returnType, Effects effects) {
-    var stub = new Abstraction(module, parameters, true);
-    stub.setReturnType(returnType);
-    stub.setEffects(effects);
-    return stub;
-  }
-
   public Abstraction(Module module, List<Parameter> parameters) {
     this(module, parameters, false);
   }
 
-  private Abstraction(Module module, List<Parameter> parameters, boolean isStub) {
+  public Abstraction(Module module, List<Parameter> parameters, boolean isStub) {
     this.module = module;
     this.parameters = ImmutableList.copyOf(parameters);
 
@@ -166,7 +157,7 @@ public final class Abstraction implements Comparable<Abstraction> {
           if (cfg == null) {
             throw new IllegalArgumentException("can't add local to stub");
           }
-          if (locals.put(local.variable().name(), local) != null) {
+          if (locals.put(local.variable(), local) != null) {
             throw new IllegalArgumentException(
                 "Local " + local + " already exists in the abstraction.");
           }
@@ -185,7 +176,7 @@ public final class Abstraction implements Comparable<Abstraction> {
             throw new IllegalArgumentException("can't add locals to stub");
           }
           for (var local : locals) {
-            if (this.locals.put(local.variable().name(), local) != null) {
+            if (this.locals.put(local.variable(), local) != null) {
               throw new IllegalArgumentException(
                   "Local " + local + " already exists in the abstraction.");
             }
@@ -198,70 +189,51 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   /// Remove the binding.
   ///
-  /// @throws IllegalArgumentException If `variable` isn't declared, or declared as a named
-  /// variable.
+  /// @throws IllegalArgumentException If `variable` isn't declared.
   public Local removeLocal(Register variable) {
     return module.record(
         "Abstraction#removeLocal",
         List.of(this, variable),
         () -> {
-          checkLocalExists(variable);
-          return locals.remove(variable.name());
+          if (!locals.containsKey(variable)) {
+            throw new IllegalArgumentException(
+                "Local " + variable.name() + " does not exist in the abstraction.");
+          }
+          return locals.remove(variable);
         });
   }
 
   /// Change the local's explicit type.
   ///
-  /// @throws IllegalArgumentException If `variable` isn't declared, or declared as a named
-  /// variable.
+  /// @throws IllegalArgumentException If `variable` isn't declared.
   public void setLocalType(Register variable, Type type) {
     module.record(
         "Abstraction#setLocalType",
         List.of(this, variable, type),
         () -> {
-          checkLocalExists(variable);
-          locals.put(variable.name(), new Local(variable, type));
+          if (!locals.containsKey(variable)) {
+            throw new IllegalArgumentException(
+                "Local " + variable.name() + " does not exist in the abstraction.");
+          }
+          locals.put(variable, new Local(variable, type));
         });
   }
 
   /// Change the local's explicit type.
   ///
   /// This functions differently than [#setLocalType(Register, Type)]. If `type` is ANY, it
-  /// removes the binding if it exists. Otherwise, it creates the binding if necessary. If the
-  /// `type` isn't ANY and a binding with the same name exists but for a register, that register
-  /// will be substituted with a fresh one.
+  /// removes the binding if it exists. Otherwise, it creates the binding if necessary.
   public void setLocalType(NamedVariable variable, Type type) {
     module.record(
         "Abstraction#setLocalType",
         List.of(this, variable, type),
         () -> {
           if (type.equals(Type.ANY)) {
-            locals.remove(variable.name());
-            return;
+            locals.remove(variable);
+          } else {
+            locals.put(variable, new Local(variable, type));
           }
-
-          var binding = locals.get(variable.name());
-          if (binding != null && binding.variable() instanceof Register oldRegister) {
-            var newRegister = addLocal(binding.type());
-            // This is inefficient but rare
-            var substituter = new Substituter(this);
-            substituter.stage(oldRegister, new Read(newRegister));
-            substituter.commit();
-          }
-
-          locals.put(variable.name(), new Local(variable, type));
         });
-  }
-
-  private void checkLocalExists(Register variable) {
-    var binding = locals.get(variable.name());
-    if (binding == null) {
-      throw new IllegalArgumentException(
-          "Local " + variable.name() + " does not exist in the abstraction.");
-    }
-    if (!(binding.variable() instanceof Register)) {
-      throw new IllegalArgumentException("Local " + variable.name() + " is not a register");
-    }
   }
 
   /// True iff this was constructed via [#stub(Module, Type , Type, Effects)] as opposed to
@@ -277,8 +249,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public boolean contains(Register register) {
-    var lookup = lookup(register.name());
-    return lookup != null && lookup.variable() instanceof Register;
+    return lookup(register) != null;
   }
 
   /// Whether [#locals()] includes a binding for this named variable.
@@ -286,28 +257,22 @@ public final class Abstraction implements Comparable<Abstraction> {
   /// Named variables may be loaded and stored without being declared, the purpose of declaring
   /// is to give a specific maybe-type, or for documentation (no semantic meaning) if type ANY.
   public boolean isDeclared(NamedVariable nv) {
-    var lookup = lookup(nv.name());
-    return lookup != null && lookup.variable() instanceof NamedVariable;
+    return lookup(nv) != null;
   }
 
   public boolean isParameter(Register register) {
     return nameToParam.containsKey(register.name());
   }
 
-  public boolean isRegister(String variableName) {
-    var lookup = lookup(variableName);
-    return lookup != null && lookup.variable() instanceof Register;
-  }
-
   public @Nullable Type typeOf(Register register) {
-    var lookup = lookup(register.name());
-    return lookup != null && lookup.variable() instanceof Register ? lookup.type() : null;
+    var lookup = lookup(register);
+    return lookup != null ? lookup.type() : null;
   }
 
   public Type typeOf(NamedVariable named) {
-    var lookup = lookup(named.name());
+    var lookup = lookup(named);
     // `lookup == null` means it's an unknown named variable, i.e. has type ANY.
-    return lookup != null && lookup.variable() instanceof NamedVariable ? lookup.type() : Type.ANY;
+    return lookup != null ? lookup.type() : Type.ANY;
   }
 
   public @Nullable Type typeOf(Argument argument) {
@@ -321,9 +286,9 @@ public final class Abstraction implements Comparable<Abstraction> {
     };
   }
 
-  private @Nullable Binding lookup(String variableName) {
-    var param = nameToParam.get(variableName);
-    return param != null ? param : locals.get(variableName);
+  private @Nullable Binding lookup(Variable variable) {
+    var param = variable instanceof Register r ? nameToParam.get(r.name()) : null;
+    return param != null ? param : locals.get(variable);
   }
 
   public Register nextLocalRegister() {
@@ -478,7 +443,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     if (!s.nextCharIs('|')) {
       do {
         var local = p.parse(Local.class);
-        if (locals.put(local.variable().name(), local) != null) {
+        if (locals.put(local.variable(), local) != null) {
           throw s.fail("Local " + local + " already exists in the abstraction.");
         }
       } while (s.trySkip(','));

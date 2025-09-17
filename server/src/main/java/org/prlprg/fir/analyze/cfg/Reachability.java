@@ -2,11 +2,14 @@ package org.prlprg.fir.analyze.cfg;
 
 import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfs;
 
+import com.google.common.collect.Streams;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
@@ -26,11 +29,11 @@ public final class Reachability implements CfgAnalysis {
   }
 
   /// Get all blocks reachable from the given block (including the block itself).
-  public Set<BB> reachable(BB from) {
+  public @Unmodifiable Set<BB> reachable(BB from) {
     if (from.owner() != cfg) {
       throw new IllegalArgumentException("BB not in CFG");
     }
-    return Objects.requireNonNull(reachableFrom.get(from));
+    return Collections.unmodifiableSet(Objects.requireNonNull(reachableFrom.get(from)));
   }
 
   /// Check if the target position is reachable from the source position.
@@ -50,12 +53,8 @@ public final class Reachability implements CfgAnalysis {
   }
 
   private void run() {
-    for (var bb : reverseDfs(cfg)) {
-      reachableFrom.put(
-          bb,
-          bb.successors().stream()
-              .flatMap(s -> reachableFrom.get(s).stream())
-              .collect(Collectors.toSet()));
+    for (var bb : cfg.bbs()) {
+      reachableFrom.put(bb, Streams.stream(reverseDfs(bb)).collect(Collectors.toSet()));
     }
   }
 }

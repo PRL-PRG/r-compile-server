@@ -1,6 +1,7 @@
 package org.prlprg.fir.analyze.cfg;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -8,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
@@ -39,19 +41,19 @@ public final class DominatorTree implements CfgAnalysis {
   }
 
   /// Get all blocks immediately dominated by this block.
-  public Set<BB> immediateDominees(BB bb) {
+  public @Unmodifiable Set<BB> immediateDominees(BB bb) {
     if (bb.owner() != cfg) {
       throw new IllegalArgumentException("BB not in CFG");
     }
-    return Objects.requireNonNull(immediateDominees.get(bb));
+    return Collections.unmodifiableSet(Objects.requireNonNull(immediateDominees.get(bb)));
   }
 
   /// Get all dominators of a basic block (including itself).
-  public Set<BB> dominators(BB bb) {
+  public @Unmodifiable Set<BB> dominators(BB bb) {
     if (bb.owner() != cfg) {
       throw new IllegalArgumentException("BB not in CFG");
     }
-    return Objects.requireNonNull(dominators.get(bb));
+    return Collections.unmodifiableSet(Objects.requireNonNull(dominators.get(bb)));
   }
 
   /// Check if `dominator` dominates `dominee`.

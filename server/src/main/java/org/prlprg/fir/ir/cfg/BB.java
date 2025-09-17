@@ -110,14 +110,15 @@ public final class BB implements Comparable<BB> {
                 .filter(t -> t.bb() == this)
                 .collect(
                     Streams.oneOrThrow(
-                        () ->
-                            new AssertionError(
-                                "BB isn't a successor of its predecessor: predecessor = "
-                                    + pred.label
-                                    + ", successor = "
-                                    + label
-                                    + "\n"
-                                    + owner))));
+                        () -> {
+                          throw new AssertionError(
+                              "BB isn't a successor of its predecessor: predecessor = "
+                                  + pred.label
+                                  + ", successor = "
+                                  + label
+                                  + "\n"
+                                  + owner);
+                        })));
   }
 
   /// Arguments from predecessor jumps to the parameter at the index.

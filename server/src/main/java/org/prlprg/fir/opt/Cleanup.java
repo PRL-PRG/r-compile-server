@@ -67,8 +67,8 @@ import org.prlprg.primitive.Logical;
 /// - Instructions
 ///   - Remove trivial no-ops (pure expressions not assigned to anything).
 public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptimization {
-  public static void cleanup(Module module) {
-    new Cleanup().run(module);
+  public static void cleanup(Module module, boolean substituteWithOrigins) {
+    new Cleanup(substituteWithOrigins).run(module);
   }
 
   public Cleanup() {
@@ -358,8 +358,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
     boolean isTriviallyPure(Expression expression) {
       return switch (expression) {
-        case Aea _, Assume _ -> true;
-        case Call _ -> false;
+        case Aea _ -> true;
+        case Assume _, Call _ -> false;
           // Other instructions may implicitly depend on it succeeding
         case Cast _ -> false;
         case Closure _, Dup _ -> true;

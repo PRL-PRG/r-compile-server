@@ -266,9 +266,12 @@ public class CFGCompiler {
       }
     } catch (Throwable e) {
       // If we get a real error, we still want position information when this gets printed.
-      throw e instanceof CFGCompilerException e1
-          ? e1
-          : new CFGCompilerException("uncaught exception: " + e, bc, bcPos, cursor, e);
+      throw switch (e) {
+        case CFGCompilerException e1 -> e1;
+        case ClosureCompilerUnsupportedException e1 ->
+            new CFGCompilerUnsupportedException("can't compile nested", bc, bcPos, cursor, e1);
+        default -> new CFGCompilerException("uncaught exception", bc, bcPos, cursor, e);
+      };
     }
   }
 
@@ -630,10 +633,19 @@ public class CFGCompiler {
             SEXPs.closure(
                 forms, body, SEXPs.EMPTY_ENV, ast == null ? null : Attributes.srcref(ast));
 
-        // TODO: infer name if possible. Eventually, we also must handle name conflicts.
-        var generatedName = "inner" + module().localFunctions().size();
+        // This causes snapshots to fail if we change how SEXPs are printed.
+        // We just need to update them because the generated names are different.
+        // `String#hashCode` is stable, so it shouldn't fail otherwise.
+        var generatedName = "inner" + cloSxp.toString().hashCode();
 
-        var code = ClosureCompiler.compile(r, module(), generatedName, cloSxp);
+        // Since we generate the name from a hash of the closure's body, we may have a name
+        // conflict, but it's only with an identical closure we've already compiled.
+        // Therefore, we can reuse it.
+        var alreadyGenerated = module().lookupFunction(generatedName);
+        var code =
+            alreadyGenerated != null
+                ? alreadyGenerated
+                : ClosureCompiler.compile(r, module(), generatedName, cloSxp);
 
         pushInsert(new Closure(code));
       }
@@ -1619,8 +1631,8 @@ public class CFGCompiler {
     }
   }
 
-  private CFGCompilerUnsupportedBcException failUnsupported(String message) {
-    return new CFGCompilerUnsupportedBcException(message, bc, bcPos, cursor, null);
+  private CFGCompilerUnsupportedException failUnsupported(String message) {
+    return new CFGCompilerUnsupportedException(message, bc, bcPos, cursor, null);
   }
 
   private CFGCompilerException fail(String message) {

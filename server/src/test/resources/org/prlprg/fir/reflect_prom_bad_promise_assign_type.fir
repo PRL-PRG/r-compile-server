@@ -13,7 +13,7 @@ fun main() {
       r1$x = r3;
       return 42;
     };
-    # runtime-error: No versions match signature and arguments, and no catch-all:
+    # runtime-error: No versions match signature and arguments:
     f(r2);
 
     rx0 = ld x;

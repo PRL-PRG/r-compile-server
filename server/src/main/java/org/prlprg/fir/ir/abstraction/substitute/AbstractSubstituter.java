@@ -228,7 +228,7 @@ abstract class AbstractSubstituter {
     };
   }
 
-  private Argument convertIntoUse(Argument argument) {
+  protected final Argument convertIntoUse(Argument argument) {
     return switch (argument) {
       case Read(var r) -> new Use(r);
       case Use(var _) -> argument;
