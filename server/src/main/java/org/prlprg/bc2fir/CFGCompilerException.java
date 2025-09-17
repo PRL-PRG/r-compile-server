@@ -46,6 +46,14 @@ public class CFGCompilerException extends RuntimeException {
 
   @Override
   public String getMessage() {
-    return super.getMessage() + "\n" + irPos + "\n\nAt BC instruction " + bcPos + " in:\n\n" + bc;
+    return super.getMessage()
+        + "\n"
+        + irPos
+        + "\n\nAt BC instruction "
+        + bcPos
+        + " in:\n\n"
+        + bc
+        + "\n\nCFG:\n"
+        + irPos.cfg();
   }
 }
