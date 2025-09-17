@@ -248,6 +248,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(push = 1)
   record DdVal(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
@@ -747,6 +749,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop = 2, push = 1)
   record DollarGets(ConstPool.Idx<LangSXP> ast, ConstPool.Idx<RegSymSXP> member)
       implements BcInstr {
     @Override
@@ -920,6 +924,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(push = 1)
   record DdValMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
@@ -1226,6 +1232,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
   record DotCall(ConstPool.Idx<LangSXP> ast, int numArgs) implements BcInstr {
     @Override
     public BcOp op() {
