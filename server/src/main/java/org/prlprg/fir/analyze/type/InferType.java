@@ -7,7 +7,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -78,7 +77,6 @@ public final class InferType implements Analysis {
             case DispatchCallee(var function, var signature) ->
                 signature == null ? function.baseline().returnType() : signature.returnType();
             case DynamicCallee(var _, var _) -> Type.ANY_VALUE;
-            case InlineCallee(var inlinee) -> inlinee.returnType();
           };
       case Cast(var _, var castType) -> castType;
       case Closure _ -> Type.CLOSURE;

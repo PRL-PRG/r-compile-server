@@ -8,7 +8,7 @@ public interface AbstractionOptimization extends Optimization {
   @Override
   default void run(Function function) {
     for (var version : function.versions()) {
-      version.streamScopes().forEach(this::run);
+      run(version);
     }
   }
 

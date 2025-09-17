@@ -200,8 +200,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               .sum();
       var callsItself =
           callee
-              .streamScopes()
-              .flatMap(Abstraction::streamCfgs)
+              .streamCfgs()
               .flatMap(cfg -> cfg.bbs().stream())
               .flatMap(bb1 -> bb1.statements().stream())
               .anyMatch(
@@ -223,8 +222,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // TODO: Handle functions with deopt branches. For now we just don't inline them.
       var hasDeopt =
           callee
-              .streamScopes()
-              .flatMap(Abstraction::streamCfgs)
+              .streamCfgs()
               .flatMap(cfg -> cfg.bbs().stream())
               .anyMatch(bb1 -> bb1.jump() instanceof Deopt);
       if (hasDeopt) {

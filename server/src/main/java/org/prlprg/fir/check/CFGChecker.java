@@ -33,7 +33,7 @@ import org.prlprg.fir.ir.variable.Register;
 public class CFGChecker extends Checker {
   @Override
   protected void doRun(Abstraction version) {
-    version.streamScopes().forEach(scope -> new OnAbstraction(scope).run());
+    new OnAbstraction(version).run();
   }
 
   private class OnAbstraction {

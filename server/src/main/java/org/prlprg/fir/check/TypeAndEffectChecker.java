@@ -12,7 +12,6 @@ import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -111,7 +110,6 @@ public final class TypeAndEffectChecker extends Checker {
     }
 
     // Check type and effects.
-    // Doesn't `streamScopes` because `run` includes inline callees.
     new OnAbstraction(version).run();
   }
 
@@ -225,26 +223,23 @@ public final class TypeAndEffectChecker extends Checker {
           case Call call -> {
             var argumentTypes = call.callArguments().stream().map(inferType::of).toList();
 
-            java.util.function.Consumer<Abstraction> checkArguments =
-                callee -> {
-                  if (callee.parameters().size() != argumentTypes.size()) {
-                    report(
-                        "Call expects "
-                            + callee.parameters().size()
-                            + " arguments, got "
-                            + argumentTypes.size());
-                  }
-                  for (int i = 0;
-                      i < Math.min(callee.parameters().size(), argumentTypes.size());
-                      i++) {
-                    var param = callee.parameters().get(i);
-                    var argType = argumentTypes.get(i);
-                    checkMatches(argType, param.type(), "Type mismatch in argument " + i);
-                  }
-                };
-
             switch (call.callee()) {
-              case StaticCallee(var _, var version) -> checkArguments.accept(version);
+              case StaticCallee(var _, var callee) -> {
+                if (callee.parameters().size() != argumentTypes.size()) {
+                  report(
+                      "Call expects "
+                          + callee.parameters().size()
+                          + " arguments, got "
+                          + argumentTypes.size());
+                }
+                for (int i = 0;
+                    i < Math.min(callee.parameters().size(), argumentTypes.size());
+                    i++) {
+                  var param = callee.parameters().get(i);
+                  var argType = argumentTypes.get(i);
+                  checkMatches(argType, param.type(), "Type mismatch in argument " + i);
+                }
+              }
               case DispatchCallee(var function, var signature) -> {
                 // If `signature == null`, this is a call to an unknown version,
                 // although we may still have some guarantees.
@@ -303,7 +298,6 @@ public final class TypeAndEffectChecker extends Checker {
                           + ")");
                 }
               }
-              case InlineCallee(var inlinee) -> checkArguments.accept(inlinee);
             }
           }
           case Cast(var _, var _), Closure _ -> {}

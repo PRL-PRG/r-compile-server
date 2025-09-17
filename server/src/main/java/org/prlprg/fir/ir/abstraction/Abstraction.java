@@ -19,9 +19,7 @@ import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
@@ -302,31 +300,7 @@ public final class Abstraction implements Comparable<Abstraction> {
         effects);
   }
 
-  /// Yields `self` followed by each [InlineCallee].
-  ///
-  /// Yields inline callees in promises.
-  public Stream<Abstraction> streamScopes() {
-    return Streams.worklist(
-        this,
-        (prev, worklist) ->
-            prev.streamCfgs()
-                .forEach(
-                    cfg -> {
-                      for (var bb : cfg.bbs()) {
-                        for (var statement : bb.statements()) {
-                          if (statement.expression() instanceof Call call
-                              && call.callee() instanceof InlineCallee(var callee)) {
-                            worklist.add(callee);
-                          }
-                        }
-                      }
-                    }));
-  }
-
   /// Yields the function body's CFG ([#cfg()]) followed by each [Promise]'s CFG, in pre-order.
-  ///
-  /// Doesn't yield CFGs from inlined calls.
-  /// Use [#streamScopes()]`.flatMap(Abstraction::streamCfgs)` to do that.
   public Stream<CFG> streamCfgs() {
     return cfg == null
         ? Stream.of()

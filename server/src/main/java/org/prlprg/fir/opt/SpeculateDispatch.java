@@ -80,8 +80,7 @@ public record SpeculateDispatch(
             .filter(
                 parameterTypes ->
                     version
-                        .streamScopes()
-                        .flatMap(Abstraction::streamCfgs)
+                        .streamCfgs()
                         .flatMap(cfg -> cfg.bbs().stream())
                         .flatMap(bb -> bb.statements().stream())
                         .noneMatch(

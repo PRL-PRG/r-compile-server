@@ -17,7 +17,6 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -467,7 +466,6 @@ public final class Interpreter {
               call(version, arguments, environment, function.baseline().cfg());
           case DispatchCallee(var function, var signature) ->
               call(function, signature, arguments, environment);
-          case InlineCallee(var inlinee) -> call(inlinee, arguments, environment, null);
           case DynamicCallee(var actualCallee, var ignoredArgumentNames) -> {
             var calleeSexp = run(actualCallee);
             if (!(calleeSexp instanceof CloSXP cloSXP)) {
