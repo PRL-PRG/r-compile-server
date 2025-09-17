@@ -169,6 +169,8 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
+import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -214,11 +216,13 @@ public class CFGCompiler {
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
   private final CFGCursor cursor;
+  private int numDeopts = 0;
   private final List<Argument> stack = new ArrayList<>();
   private final List<Loop> loopStack = new ArrayList<>();
   private final List<ComplexAssign> complexAssignStack = new ArrayList<>();
   private final List<Call> callStack = new ArrayList<>();
   private final List<Dispatch> dispatchStack = new ArrayList<>();
+  private @Nullable String lastLoadedFunName;
 
   // endregion compiler data
 
@@ -545,20 +549,26 @@ public class CFGCompiler {
       case GetVar(var name) -> {
         pushInsert(new Load(getVar(name)));
         pushInsert(new MaybeForce(pop()));
+        tryAddCheckpoint();
       }
       case DdVal(var name) -> {
         var ddIndex = NamedVariable.ddNum(get(name).ddNum());
         pushInsert(new Load(ddIndex));
         pushInsert(new MaybeForce(pop()));
+        tryAddCheckpoint();
       }
       case SetVar(var name) -> insert(new Store(getVar(name), top()));
       case GetFun(var name) -> {
         var fun = insertAndReturn(new LoadFun(getVar(name), Env.LOCAL));
         pushCall(fun);
+        lastLoadedFunName = getVar(name).name();
+        tryAddCheckpoint();
       }
       case GetGlobFun(var name) -> {
         var fun = insertAndReturn(new LoadFun(getVar(name), Env.GLOBAL));
         pushCall(fun);
+        lastLoadedFunName = getVar(name).name();
+        tryAddCheckpoint();
       }
         // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
         //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
@@ -1130,32 +1140,43 @@ public class CFGCompiler {
     // \* If `stop` is overridden in the function, the bytecode compiler will use the overridden
     // call, which is different than the AST interpreter which errors regardless. This and the fact
     // that the stack now has an extra value until the function returns, are why it may be a bug.
-    if (callInstr instanceof org.prlprg.fir.ir.expression.Call c
-        && c.callee() instanceof DynamicCallee(var ac, var _)
-        && ac instanceof Read(var v)
-        && cursor.instructionIndex() > 0
-        && v.equals(cursor.bb().statements().get(cursor.instructionIndex() - 1).assignee())
-        && cursor.bb().statements().get(cursor.instructionIndex() - 1).expression()
-            instanceof LoadFun(var lf, var lfenv)
-        && lfenv == Env.LOCAL
-        && lf.name().equals("stop")
-        && c.callArguments().size() == 1
-        && c.callArguments()
-            .getFirst()
-            .equals(new Constant(SEXPs.string("empty alternative in numeric switch")))
+    if (Objects.equals(lastLoadedFunName, "stop")
+        && args.size() == 1
+        && args.getFirst().equals(new Constant(SEXPs.string("empty alternative in numeric switch")))
         && !(bc.code().get(bcPos + 1) instanceof BcInstr.Return)) {
       pop();
+    } else {
+      tryAddCheckpoint();
     }
   }
 
   // endregion compile instructions
 
+  // region checkpoints
+  void tryAddCheckpoint() {
+    // Don't add checkpoints/deopts in promises for now
+    if (cfg.isPromise()) {
+      return;
+    }
+
+    var deopt = cfg.addBB("D" + numDeopts++);
+    deopt.setJump(new Deopt(bcPos, ImmutableList.copyOf(stack)));
+
+    // Don't add phis because they're never necessary.
+    // Don't use `insert` because it adds phis.
+    var success = cfg.addBB();
+    cursor.bb().setJump(new Checkpoint(new Target(success), new Target(deopt)));
+    cursor.moveToStart(success);
+  }
+
+  // endregion checkpoints
+
   // region get BB for bytecode label or position
   /// Returns the basic block corresponding to the given label
   ///
-  /// Specifically, this returns the block inserted by [#ensureBbAt(BcLabel)], which should've
-  /// been compiled before we started "actually" compiling the bytecode instructions, and this is
-  /// called while actually compiling the instructions.
+  /// Specifically, this returns the block inserted by [#ensureBbAt(BcLabel)], which was created
+  /// before we started "actually" compiling the bytecode instructions, and this is called while
+  /// actually compiling the instructions.
   private BB bbAt(BcLabel label) {
     int pos = label.target();
     assert bbByLabel.containsKey(pos) : "no BB at position " + pos;
@@ -1474,11 +1495,13 @@ public class CFGCompiler {
   /// Begin a new call of the given function (abstract value).
   private void pushCall(Argument fun) {
     callStack.add(new Call(new Call.Fun.Dynamic(fun)));
+    lastLoadedFunName = null;
   }
 
   /// Begin a new call of the given function (statically known builtin).
   private void pushCall(Builtin fun) {
     callStack.add(new Call(new Call.Fun.Builtin(fun)));
+    lastLoadedFunName = null;
   }
 
   /// Get the current call (the one that was pushed by the last call to `pushCall`).
