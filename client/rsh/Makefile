@@ -110,6 +110,6 @@ benchmark:
 	$(LLVM_R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
 
 .PHONY: benchmark-baseline
-benchmark-baseline: 
+benchmark-baseline:
 	$(MAKE) benchmark OPTS=--bc BENCH_NAME=baseline
 

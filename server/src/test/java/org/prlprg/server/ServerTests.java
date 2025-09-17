@@ -93,7 +93,7 @@ public class ServerTests {
   }
 
   // TODO: factorize this test and the testCompile above
-  @Test 
+  @Test
   void testCompileNoCache(Resources resources) throws Exception {
     assert server != null;
     resources.register(server, Duration.ofSeconds(3));

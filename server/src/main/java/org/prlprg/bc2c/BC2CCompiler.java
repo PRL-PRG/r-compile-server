@@ -292,6 +292,7 @@ class ClosureCompiler {
                                 .formatted(builder.cell(cell).compile(), label(label));
                     }
                     case BcInstr.Math1(var _, var op) -> builder.addArgs(String.valueOf(op)).compileStmt();
+                    case BcInstr.DotCall(var call, var numArgs) -> compileDotCall(builder, call, numArgs);
                     default -> {
                         if (instr.label().orElse(null) instanceof BcLabel l) {
                             yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(l));
@@ -348,6 +349,18 @@ class ClosureCompiler {
                 .compileStmt();
         // manually apply the instruction stack effect
         for (int i = 0; i < rank + 2; i++) stack.pop();
+        stack.push();
+        return line;
+    }
+
+    private String compileDotCall(InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int numArgs) {
+        var line = builder
+                .push(0)
+                .pop(0)
+                .args(stack.get(stack.top()), String.valueOf(numArgs), constantSXP(call))
+                .compileStmt();
+        // manually apply the instruction stack effect
+        for (int i = 0; i < numArgs + 1; i++) stack.pop();
         stack.push();
         return line;
     }
@@ -658,7 +671,12 @@ class ClosureCompiler {
                     BcOp.LOG,
                     BcOp.LOGBASE,
                     BcOp.MATH1,
-                    BcOp.DODOTS);
+                    BcOp.DODOTS,
+                    BcOp.DOTCALL,
+                    BcOp.DDVAL_MISSOK,
+                    BcOp.DOLLARGETS,
+                    BcOp.DDVAL
+                    );
 
     private void checkSupported(BcInstr instr) {
         if (!SUPPORTED_OPS.contains(instr.op())) {
