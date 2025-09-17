@@ -45,6 +45,7 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
                 st x = x;
                 r0 = ld x;
                 r1 = force? r0;
+                popenv;
                 return r1;
               }
             }
@@ -67,6 +68,7 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
                 r0 = ld x;
                 r1 = force? r0;
                 r2 = `+`(r1, 1.0);
+                popenv;
                 return r2;
               }
             }

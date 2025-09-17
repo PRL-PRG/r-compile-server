@@ -1,7 +1,7 @@
 fun main() {
   () --> I { var x:I?, reg rx0:I?, reg rx1:I, reg rx2:I?, reg r:p(I -), reg r0:I, reg r1:I, reg r2:I |
     mkenv;
-        st x = 0;
+    st x = 0;
 
     r = prom<I ->{
       rx0 = ld x;
@@ -14,6 +14,7 @@ fun main() {
     };
 
     r0 = force_twice< p(I -) --> I >(r);
+    popenv;
     return r0;
   }
 }

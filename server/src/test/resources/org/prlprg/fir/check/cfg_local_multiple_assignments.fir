@@ -1,5 +1,6 @@
 fun main() {
   () --> I { reg r:I |
+    # cfg-error: Local register r assigned multiple times
     r = 42;
     # cfg-error: Local register r assigned multiple times
     r = 24;

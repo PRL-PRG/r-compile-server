@@ -1,8 +1,9 @@
 fun main() {
   () -+> I { reg c0:cls |
     mkenv;
-        c0 = clos f;
+    c0 = clos f;
     f(42, c0);
+    popenv;
     return 100;
   }
 }
@@ -11,7 +12,7 @@ fun f(...) {
   # after: (reg r0:I, reg c0:cls) -+> I { var x:I? |
   (reg r0:I, reg c0:cls) -+> I { var x:I?, reg r1:I?, reg r2:cls, reg r3:cls, reg r4:I |
     mkenv;
-        st x = r0;
+    st x = r0;
     st y = c0;
     st z = r0;
     # after:
@@ -24,6 +25,7 @@ fun f(...) {
     r3 = ldf z;
     # after: r0 as I;
     r4 = r1 as I;
+    popenv;
     # after: return r0;
     return r4;
   }

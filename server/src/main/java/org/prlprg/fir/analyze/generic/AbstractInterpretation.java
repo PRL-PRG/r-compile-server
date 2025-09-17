@@ -29,10 +29,15 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
   /// Queries the analysis state at a specific instruction.
   ///
+  /// Pass `-1` to `instructionIndex` to get the state at the entry.
+  ///
   /// @throws IllegalStateException If the analysis wasn't run (most analyses are run on
   /// construction, check their constructor's javadoc).
   /// @throws IllegalArgumentException If [BB] isn't in the scope.
-  public final S at(BB bb, int instructionIndex) {
+  /// @throws IllegalArgumentException If [BB] is unreachable.
+  /// @throws IllegalArgumentException If `instructionIndex` is outside the range `[-1,
+  // bb.statements().size()]`.
+  protected final S at(BB bb, int instructionIndex) {
     if (!ran) {
       throw new IllegalStateException("Analysis not yet run");
     }
@@ -51,7 +56,7 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
   ///
   /// @throws IllegalStateException If the analysis wasn't run (most analyses are run on
   /// construction, check their constructor's javadoc).
-  public final @Nullable S returnState() {
+  protected final @Nullable S returnState() {
     if (!ran) {
       throw new IllegalStateException("Analysis not yet run");
     }
@@ -162,16 +167,24 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
     protected void run(Jump jump) {}
 
-    /// Queries the analysis state at a specific instruction.
+    /// Queries the analysis state after a specific instruction.
+    ///
+    /// Pass `-1` to `instructionIndex` to get the state at the entry.
     ///
     /// @throws IllegalStateException If the analysis wasn't run.
     /// @throws IllegalArgumentException If [BB] isn't in the [CFG].
+    /// @throws IllegalArgumentException If [BB] is unreachable.
+    /// @throws IllegalArgumentException If `instructionIndex` is outside the range `[-1,
+    // bb.statements().size()]`.
     public final S at(BB bb, int instructionIndex) {
       if (!ran) {
         throw new IllegalStateException("Analysis not yet run");
       }
       if (bb.owner() != cursor.cfg()) {
         throw new IllegalArgumentException("BB not in CFG");
+      }
+      if (!states.containsKey(bb)) {
+        throw new IllegalArgumentException("BB is unreachable");
       }
 
       state = states.get(bb).copy();

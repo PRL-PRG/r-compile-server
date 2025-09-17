@@ -1,7 +1,8 @@
 fun main() {
   () -+> I { |
     mkenv;
-        f(42);
+    f(42);
+    popenv;
     return 42;
   }
 }

@@ -18,6 +18,7 @@ fun main() {
 
     rx0 = ld x;
     rx1 = rx0 as v(I);
+    popenv;
     return rx1;
   }
 }

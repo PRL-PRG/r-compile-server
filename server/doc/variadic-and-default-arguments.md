@@ -19,6 +19,7 @@
     - If the callee has a dots parameter, insert a statement `r = dots[…]` before the call and pass `r` to the call in the dots parameter's index
     - Replace the call with a static call to the version in the callee that has the exact parameters corresponding to the provided arguments, with the arguments in the correct indices according to the argument matching algorithm
   - If any of the arguments are `...`, don't convert into a static call. This prevents the baseline from being optimized, but we'll eventually create a specialized version of the caller that doesn't have a dots parameter, in which the argument isn't `...` so the call can be converted.
+    - EDIT: alternatively, covert into a dynamically-dispatching call without a signature. Unlike a dynamically-dispatching call with a signature or a static call, this type of call runs the argument-matching algorithm at runtime. TBD whether we'll implement this.
 
 ## Example: call a function that has a dots parameter
 

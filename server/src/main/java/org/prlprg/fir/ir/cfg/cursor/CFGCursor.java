@@ -204,6 +204,9 @@ public final class CFGCursor {
       throw new IndexOutOfBoundsException(
           "index " + lastIndex + " out of bounds for " + bb.label() + " at " + instructionIndex);
     }
+    if (lastIndex == instructionIndex) {
+      return;
+    }
     for (advance(); instructionIndex < lastIndex; advance()) {
       runStmt.accept((Statement) Objects.requireNonNull(instruction()));
     }

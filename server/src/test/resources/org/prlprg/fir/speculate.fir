@@ -34,15 +34,16 @@ fun main() {
 
 fun g(n, a) {
   (reg n:V, reg a:V) --> I { reg r:V, var x:* |
+    mkenv;
     provide(n);
     r = 14;
     check BB1() else BB2();
   BB1():
     r ?= 14;
     provide("foo");
+    popenv;
     return 42;
   BB2():
-    mkenv;
     st x = r;
     deopt 5 [r, n];
   }

@@ -1,10 +1,6 @@
 package org.prlprg.fir.analyze.resolve;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import javax.annotation.Nullable;
-import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.generic.AbstractInterpretation;
@@ -14,18 +10,15 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.instruction.Jump;
-import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 /// Tracks the number of environments that may exist at each instruction.
-public final class EnvCount extends AbstractInterpretation<EnvCount.State> implements Analysis {
-  private final Map<Return, Range> returnRanges = new HashMap<>();
-
+public final class EnvironmentCount extends AbstractInterpretation<EnvironmentCount.State>
+    implements Analysis {
   @AnalysisConstructor
-  public EnvCount(Abstraction scope) {
+  public EnvironmentCount(Abstraction scope) {
     super(scope);
     run(new State());
   }
@@ -35,21 +28,14 @@ public final class EnvCount extends AbstractInterpretation<EnvCount.State> imple
     return new OnCfg(cfg);
   }
 
-  /// Returns the range of environments that may exist at `(bb, instructionIndex)`.
+  /// Returns the possible number of environments that may exist at `(bb, instructionIndex)`.
   public Range rangeAt(BB bb, int instructionIndex) {
-    var state = at(bb, instructionIndex);
-    return state.asRange();
+    return at(bb, instructionIndex).asRange();
   }
 
-  /// Returns whether every execution reaching `(bb, instructionIndex)` has at least one
-  /// environment available.
-  public boolean hasEnvironment(BB bb, int instructionIndex) {
-    return at(bb, instructionIndex).min() > 0;
-  }
-
-  /// Returns the environment ranges observed at each return instruction.
-  public @UnmodifiableView Map<Return, Range> returnRanges() {
-    return Collections.unmodifiableMap(returnRanges);
+  /// Returns whether there's an environment at `(bb, instructionIndex)`.
+  public boolean hasEnvironmentAt(BB bb, int instructionIndex) {
+    return at(bb, instructionIndex).min > 0;
   }
 
   private final class OnCfg extends AbstractInterpretation<State>.OnCfg {
@@ -71,18 +57,6 @@ public final class EnvCount extends AbstractInterpretation<EnvCount.State> imple
         state().decrement();
       }
     }
-
-    @Override
-    protected void run(Jump jump) {
-      if (jump instanceof Return ret) {
-        recordReturn(ret);
-      }
-    }
-
-    private void recordReturn(Return ret) {
-      var range = state().asRange();
-      returnRanges.merge(ret, range, Range::merge);
-    }
   }
 
   /// Abstract state tracking how many environments may exist. Effectively a mutable [Range].
@@ -99,26 +73,18 @@ public final class EnvCount extends AbstractInterpretation<EnvCount.State> imple
       this.max = max;
     }
 
-    public int min() {
-      return min;
-    }
-
-    public int max() {
-      return max;
-    }
-
     public Range asRange() {
       return new Range(min, max);
     }
 
     public void increment() {
-      min = Math.addExact(min, 1);
-      max = Math.addExact(max, 1);
+      min = Math.incrementExact(min);
+      max = Math.incrementExact(max);
     }
 
     public void decrement() {
-      min = Math.addExact(min, -1);
-      max = Math.addExact(max, -1);
+      min = Math.decrementExact(min);
+      max = Math.decrementExact(max);
     }
 
     @Override
@@ -165,10 +131,6 @@ public final class EnvCount extends AbstractInterpretation<EnvCount.State> imple
       if (min > max) {
         throw new IllegalArgumentException("min cannot exceed max");
       }
-    }
-
-    private Range merge(Range other) {
-      return new Range(Math.min(min, other.min), Math.max(max, other.max));
     }
 
     @Override

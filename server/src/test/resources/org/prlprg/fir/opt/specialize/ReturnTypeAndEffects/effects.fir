@@ -1,7 +1,6 @@
 fun main() {
   # after: () --> I { |
   () -+> I { |
-    mkenv;
-        return 42;
+    return 42;
   }
 }
