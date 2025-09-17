@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
@@ -13,7 +12,6 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
@@ -218,14 +216,6 @@ public sealed interface Expression
         return new Placeholder();
       }
 
-      if (s.nextCharIs('(')) {
-        var inlinee =
-            p.withContext(new Abstraction.ParseContext(module, postModule, ctx.inner()))
-                .parse(Abstraction.class);
-        s.assertAndSkip("->");
-        var arguments = p.parseList("(", ")", Argument.class);
-        return new Call(new InlineCallee(inlinee), arguments);
-      }
     } else {
       // Parse what starts with a constant or identifier.
       // `headAsName != null` iff it starts with an identifier.

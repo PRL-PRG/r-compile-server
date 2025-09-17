@@ -5,7 +5,6 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -74,7 +73,6 @@ public final class InferEffects implements Analysis {
             case DispatchCallee(var function, var signature) ->
                 signature == null ? function.baseline().effects() : signature.effects();
             case DynamicCallee(var _, var _) -> Effects.ANY;
-            case InlineCallee(var inlinee) -> inlinee.effects();
           };
       case Cast(var _, var _), Closure _, Dup(var _) -> Effects.NONE;
       case Force(var value) -> {

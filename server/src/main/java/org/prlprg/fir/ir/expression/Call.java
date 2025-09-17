@@ -10,7 +10,6 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.InlineCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -53,7 +52,7 @@ public final class Call implements Expression {
     var calleeArguments =
         switch (callee()) {
           case DynamicCallee(var actualCallee, var _) -> List.of(actualCallee);
-          case DispatchCallee _, StaticCallee _, InlineCallee _ -> List.<Argument>of();
+          case DispatchCallee _, StaticCallee _ -> List.<Argument>of();
         };
     return Lists.concatLazy(calleeArguments, callArguments);
   }

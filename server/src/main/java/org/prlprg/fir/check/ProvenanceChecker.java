@@ -8,13 +8,8 @@ import org.prlprg.util.Strings;
 public final class ProvenanceChecker extends Checker {
   @Override
   public void doRun(Abstraction version) {
-    version
-        .streamScopes()
-        .forEach(
-            abstraction ->
-                new Provenance(
-                    abstraction,
-                    (bb, instructionIndex, message) ->
-                        report(bb, instructionIndex, Strings.join(message))));
+    new Provenance(
+        version,
+        (bb, instructionIndex, message) -> report(bb, instructionIndex, Strings.join(message)));
   }
 }

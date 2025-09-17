@@ -113,7 +113,6 @@ f<t,t,... -fx> t>(arg1, arg2, ...)  # Dispatch call (alternate form)
 f.n(arg1, arg2, ...)  # Static call
 dyn x(arg1, arg2, ...)  # Dynamic call without named arguments
 dyn x[name1, name2, ...](arg1, arg2, ...)  # Dynamic call with named arguments
-(signature { body }) <- (arg1, arg2, ...)  # Inlined call
 ```
 
 ### Promise Creation
