@@ -144,7 +144,7 @@ JIT_DEF SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho) {
 JIT_DEF SEXP create_wrapper_body(SEXP original_body, Rsh_closure fun_ptr,
                                  SEXP c_cp) {
   PROTECT(c_cp);
-  SEXP body = R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp);
+  SEXP body = R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp);
   UNPROTECT(1);
   return body;
 }

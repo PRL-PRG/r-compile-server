@@ -740,9 +740,9 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
   Rsh_get_var(res, symbol, cell, rho, FALSE, FALSE)
 #define Rsh_GetVarMissOk(res, symbol, cell, rho)                               \
   Rsh_get_var(res, symbol, cell, rho, FALSE, TRUE)
-#define Rsh_DdVal(res, symbol, cell, rho)                               \
+#define Rsh_DdVal(res, symbol, cell, rho)                                      \
   Rsh_get_var(res, symbol, cell, rho, TRUE, FALSE)
-#define Rsh_DdValMissOk(res, symbol, cell, rho)                               \
+#define Rsh_DdValMissOk(res, symbol, cell, rho)                                \
   Rsh_get_var(res, symbol, cell, rho, TRUE, TRUE)
 
 static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
@@ -1278,10 +1278,10 @@ static INLINE void Rsh_MakeClosure(Value *res, SEXP mkclos_arg,
                                    Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
 
   SEXP forms = VECTOR_ELT(mkclos_arg, 0);
-  SEXP original_body = VECTOR_ELT(mkclos_arg, 1);
+  // SEXP original_body = VECTOR_ELT(mkclos_arg, 1);
   // SEXP body = PROTECT(create_wrapper_body(original_body, fun_ptr, consts));
   SEXP body =
-      PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+      PROTECT(R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp));
   SEXP closure = PROTECT(Rf_mkCLOSXP(forms, body, rho));
 
   if (LENGTH(mkclos_arg) > 2) {
@@ -1361,33 +1361,34 @@ static INLINE void Rsh_Dollar(Value *x_res, SEXP call, SEXP symbol, SEXP rho) {
   R_Visible = TRUE;
   SET_VAL(res, value_sxp);
 }
-static INLINE void Rsh_DollarGets(Value *x_res, Value rhs, SEXP call, SEXP symbol, SEXP rho) {
-    SEXP value_sxp;
-    SEXP x_sxp = val_as_sexp(*x_res);
-    SEXP rhs_sxp = val_as_sexp(rhs);
-    int dispatched = FALSE;
-    
-    MARK_ASSIGNMENT_CALL(call);
+static INLINE void Rsh_DollarGets(Value *x_res, Value rhs, SEXP call,
+                                  SEXP symbol, SEXP rho) {
+  SEXP value_sxp;
+  SEXP x_sxp = val_as_sexp(*x_res);
+  SEXP rhs_sxp = val_as_sexp(rhs);
+  int dispatched = FALSE;
 
-    if (MAYBE_SHARED(x_sxp)) {
-        x_sxp = Rf_shallow_duplicate(x_sxp);
-        SET_VAL(x_res, x_sxp);
-        ENSURE_NAMED(x_sxp);
-    }
+  MARK_ASSIGNMENT_CALL(call);
 
-    if (isObject(x_sxp)) {
-        SEXP ncall = PROTECT(Rf_duplicate(call));
-        SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol)));
-        SETCAR(CDDDR(ncall), rhs_sxp);
-        dispatched = tryDispatch("$<-", ncall, x_sxp, rho, &value_sxp);
-        UNPROTECT(1);
-    }
+  if (MAYBE_SHARED(x_sxp)) {
+    x_sxp = Rf_shallow_duplicate(x_sxp);
+    SET_VAL(x_res, x_sxp);
+    ENSURE_NAMED(x_sxp);
+  }
 
-    if (!dispatched) {
-        value_sxp = R_subassign3_dflt(call, x_sxp, symbol, rhs_sxp);
-    }
-    SET_VAL(x_res, value_sxp);
-    R_Visible = TRUE;
+  if (isObject(x_sxp)) {
+    SEXP ncall = PROTECT(Rf_duplicate(call));
+    SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol)));
+    SETCAR(CDDDR(ncall), rhs_sxp);
+    dispatched = tryDispatch("$<-", ncall, x_sxp, rho, &value_sxp);
+    UNPROTECT(1);
+  }
+
+  if (!dispatched) {
+    value_sxp = R_subassign3_dflt(call, x_sxp, symbol, rhs_sxp);
+  }
+  SET_VAL(x_res, value_sxp);
+  R_Visible = TRUE;
 }
 #define Rsh_StartSubsetN(value, call, rho)                                     \
   Rsh_start_subset_dispatch_n("[", value, call, rho)
@@ -2577,33 +2578,61 @@ static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXP rho) {
   RSH_PC_INC(slow_math1);
 }
 
+#define DOTCALL_MAX 16
 static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
-    Value *inFunc = stack - nargs - 1;
-    SEXP op = val_as_sexp(*inFunc);
-    int DotCall_Max = 16;
+  // stack organization:
+  //           <- top
+  // last arg
+  // ...
+  // first arg
+  // op         <- the external symbol
 
-    DL_FUNC ofun = R_dotCallFn(op, call, nargs);
+  Value *dot_call_fun = stack - nargs - 1;
+  SEXP op = val_as_sexp(*dot_call_fun);
 
-    if (ofun && nargs <= DotCall_Max) {
-	    SEXP cargs[DotCall_Max];					
-	    for (int i = 0; i < nargs; i++){
-      cargs[i] = val_as_sexp(inFunc[i+1]);
-      }
+  DL_FUNC ofun = R_dotCallFn(op, call, nargs);
 
-	    SEXP val = R_doDotCall(ofun, nargs, cargs, call);
-
-	    SET_VAL(inFunc+nargs, val);
-	    R_Visible = TRUE;
-      return;
+  if (ofun && nargs <= DOTCALL_MAX) {
+    SEXP cargs[DOTCALL_MAX];
+    for (int i = 0; i < nargs; i++) {
+      cargs[i] = val_as_sexp(dot_call_fun[i + 1]);
     }
-  SEXP args = R_NilValue;
-  for (int i = 0; i < nargs; i++) {
-      args = CONS_NR(val_as_sexp(inFunc[i+1]), args);
+
+    void *vmax = vmaxget();
+    SEXP val = R_doDotCall(ofun, nargs, cargs, call);
+    vmaxset(vmax);
+
+    SET_VAL(dot_call_fun + nargs, val);
+    R_Visible = TRUE;
+    return;
   }
+
+  // TODO: ugly - there should be a better API
+
+  // build a temporary argument list
+  // btw: this is quite unfortunate that the calling convention is not
+  // compatible and we have to move from stack based arguments to the list based
+  // arguments
+
+  // 1. allocate a space on the stack to protect it
+  PUSH_VAL(1);
+  SEXP args = VAL_SXP(*GET_VAL(1));
+
+  // 2. fill it from the args passed on the stack
+  for (int i = 0; i < nargs; i++) {
+    args = CONS_NR(val_as_sexp(*(stack - 1 - i)), args);
+  }
+
+  // 3. call the builtin
   SEXP sym = CADR(call);
   SEXP opPrim = getPrimitive(sym, BUILTINSXP);
   SEXP val = do_dotcall(call, opPrim, args, rho);
-  SET_VAL(inFunc+nargs, val);
+
+  // 4. remove the temporary argument list
+  POP_VAL(1);
+
+  // 5. set the result
+  SET_VAL(stack - 1, val);
   R_Visible = TRUE;
   return;
 }
@@ -2656,9 +2685,4 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
-/*static INLINE void Rsh_IncLnkStk(Value *stack){
-  int offset = (int)(R_BCProtTop - stack);
-  INCLNK_stack(R_BCNodeStackTop);
-  SET_VAL(stack, offset);
-}*/
 #endif // RUNTIME_H

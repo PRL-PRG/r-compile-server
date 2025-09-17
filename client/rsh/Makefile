@@ -30,7 +30,7 @@ install:
 
 .PHONY: setup
 setup:
-	$(R) -e 'install.packages(c("microbenchmark"), repos="https://cloud.r-project.org", Ncpus=4)'
+	$(R) -e 'install.packages(c("microbenchmark", "inline"), repos="https://cloud.r-project.org", Ncpus=4)'
 
 .PHONY: compile_commands.json
 compile_commands.json:

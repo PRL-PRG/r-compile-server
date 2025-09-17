@@ -305,12 +305,6 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   return do_relop_dflt(call, op, x, y);
 }
 
-// from: eval.c
-/*static R_INLINE void INCLNK_stack(R_bcstack_t *top)
-{
-    R_BCProtTop = top;
-}*/
-
 #define RSH_LIST_APPEND_EX(/* Value* */ head, /* Value* */ tail,               \
                            /* SEXP */ value, /* RBoolean */ RC)                \
   do {                                                                         \

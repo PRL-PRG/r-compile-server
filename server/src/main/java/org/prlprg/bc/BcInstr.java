@@ -248,8 +248,8 @@ public sealed interface BcInstr {
     }
   }
 
-  @StackEffect(push = 1)
   @NeedsRho
+  @StackEffect(push = 1)
   record DdVal(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {

@@ -3,6 +3,7 @@ package org.prlprg.bc2c;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.function.Function;
+import org.junit.Ignore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.prlprg.bc2c.BC2CSnapshotTestExtension.BC2CSnapshot;
@@ -35,7 +36,6 @@ public class BC2CCompilerTest {
 
   @Test
   public void testDdVal(BC2CSnapshot snapshot) {
-    snapshot.setClean(false);
     snapshot.verify(
         "e <- new.env(parent = emptyenv()); e$x <- 42; " + "get('x', envir = e, inherits = FALSE)");
     snapshot.verify("f <- function(...) print(..1); f(42)", returns(42.0));
@@ -513,11 +513,6 @@ public class BC2CCompilerTest {
 
   @Test
   public void testIf(BC2CSnapshot snapshot) {
-    snapshot.setClean(false);
-    //    snapshot.verify("""
-    //            if (T) 1 else 2
-    //            2
-    //            """);
     snapshot.verify(
         """
             x <- 10
@@ -600,13 +595,6 @@ public class BC2CCompilerTest {
   }
 
   @Test
-  public void testA(BC2CSnapshot snapshot) {
-    snapshot.setClean(false);
-    // snapshot.verify("x <- 1; if (x) print(x) else 2");
-    snapshot.verify("x <- 1; x == 1");
-  }
-
-  @Test
   public void testMath1(BC2CSnapshot snapshot) {
     snapshot.verify("x <- 1; sin(x)", fastMath1());
     snapshot.verify("x <- 1L; sin(x)");
@@ -617,6 +605,32 @@ public class BC2CCompilerTest {
   public void testDotCall(BC2CSnapshot snapshot) {
     snapshot.verify(".Call(tools:::C_nonASCII, 'Ř')", returns(SEXPs.TRUE));
     snapshot.verify(".Call(tools:::C_check_nonASCII, 'Ř', TRUE)", returns(SEXPs.TRUE));
+
+    // tests the case with over 16 arguments which has to go through do_dotCall builtin
+    snapshot.verify(
+        """
+            src <- '
+              int sum = INTEGER(a1)[0] + INTEGER(a2)[0] + INTEGER(a3)[0] + INTEGER(a4)[0] +
+                        INTEGER(a5)[0] + INTEGER(a6)[0] + INTEGER(a7)[0] + INTEGER(a8)[0] +
+                        INTEGER(a9)[0] + INTEGER(a10)[0] + INTEGER(a11)[0] + INTEGER(a12)[0] +
+                        INTEGER(a13)[0] + INTEGER(a14)[0] + INTEGER(a15)[0] + INTEGER(a16)[0] +
+                        INTEGER(a17)[0];
+
+              SEXP out = PROTECT(Rf_allocVector(INTSXP, 1));
+              INTEGER(out)[0] = sum;
+              UNPROTECT(1);
+              return out;
+            '
+            manyargs <- inline::cfunction(
+              sig = setNames(rep("integer", 17), paste0("a", 1:17)),
+              body = src,
+              convention = ".Call",
+              name = "manyargs"
+            )
+
+            manyargs(1L,2L,3L,4L,5L,6L,7L,8L,9L,10L,11L,12L,13L,14L,15L,16L,17L)
+            """,
+        returns(153));
   }
 
   @Test
@@ -677,7 +691,7 @@ public class BC2CCompilerTest {
   eval(quote(x4$b <- 2))
 
   identical(x1, x2) && identical(obj1, obj2) && !identical(x3, original) && !identical(x4, original) && identical(x3, x4)
-            """,
+  """,
         returns(SEXPs.TRUE));
   }
 
@@ -685,83 +699,12 @@ public class BC2CCompilerTest {
   //  - try with R BC interpreter
   //  - a tryCatch / just an error in a call called from REPL
 
-  @Test
-  public void testAdhoc2(BC2CSnapshot snapshot) {
-    snapshot.verify(
-        """
-            min_depth <- 4L
-            max_depth <- 6L
-            depth <- 4L
-            as.integer(2^(max_depth - depth + min_depth))
-            """);
-  }
-
+  @Ignore
   @Test
   public void testAdhoc(BC2CSnapshot snapshot) {
     snapshot.setClean(false);
     snapshot.verify(
         """
-lim <- 2
-iter <- 50
-
-execute <- function(size=300L) {
-    sum = 0
-    byteAcc = 0
-    bitNum  = 0
-
-    y = 0
-
-    while (y < size) {
-      ci = (2.0 * y / size) - 1.0
-      x = 0
-
-      while (x < size) {
-        zr   = 0.0
-        zrzr = 0.0
-        zi   = 0.0
-        zizi = 0.0
-        cr = (2.0 * x / size) - 1.5
-
-        z = 0
-        notDone = TRUE
-        escape = 0
-        while (notDone && (z < 50)) {
-          zr = zrzr - zizi + cr
-          zi = 2.0 * zr * zi + ci
-
-          # preserve recalculation
-          zrzr = zr * zr
-          zizi = zi * zi
-
-          if ((zrzr + zizi) > 4.0) {
-            notDone = FALSE
-            escape  = 1
-          }
-          z = z + 1
-        }
-
-        byteAcc = bitwShiftL(byteAcc, 1) + escape
-
-        bitNum = bitNum + 1
-
-        if (bitNum == 8) {
-          sum = bitwXor(sum, byteAcc)
-          byteAcc = 0
-          bitNum  = 0
-        } else if (x == (size - 1)) {
-          byteAcc = bitwShiftL(byteAcc, 8 - bitNum)
-          sum = bitwXor(sum, byteAcc)
-          byteAcc = 0
-          bitNum  = 0
-        }
-        x = x + 1
-      }
-      y = y + 1
-    }
-    return (sum);
-}
-
-execute()
         """);
   }
 

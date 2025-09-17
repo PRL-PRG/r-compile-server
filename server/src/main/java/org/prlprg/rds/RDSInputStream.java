@@ -5,7 +5,6 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 
 class RDSInputStream implements Closeable {
   private final DataInputStream in;
@@ -44,9 +43,6 @@ class RDSInputStream implements Closeable {
   public String readString(int natEncSize, Charset charset) throws IOException {
     var buf = new byte[natEncSize];
     in.readFully(buf, 0, natEncSize);
-    if (charset == null) {
-      charset = StandardCharsets.UTF_8;
-    }
     return new String(buf, charset);
   }
 
