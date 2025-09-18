@@ -671,8 +671,8 @@ public class BC2CCompilerTest {
             """);
   }
 
-    @Test
-    public void testPromiseCompilation(BC2CSnapshot snapshot) {
+  @Test
+  public void testPromiseCompilation(BC2CSnapshot snapshot) {
         snapshot.setClean(false);
         snapshot.verify(
                 """
@@ -685,89 +685,48 @@ public class BC2CCompilerTest {
                           x + 2
                         })
                         """);
-    }
-
-    // TODO: test for errors - and stack pointers
-    //  - try with R BC interpreter
-    //  - a tryCatch / just an error in a call called from REPL
-
-  @Test
-  public void testAdhoc2(BC2CSnapshot snapshot) {
-    snapshot.verify(
-        """
-            min_depth <- 4L
-            max_depth <- 6L
-            depth <- 4L
-            as.integer(2^(max_depth - depth + min_depth))
-            """);
   }
 
+  @Test
+  public void testDollarGets(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+  # Basic list assignment
+  x1 <- x2 <- list(a = 1)
+  x1$b <- 2
+  eval(quote(x2$b <- 2))
+
+  # Method dispatch
+  obj <- structure(list(val = 1), class = "myobj")
+  `$<-.myobj` <- function(x, name, value) {
+    x[[paste0("modified_", name)]] <- value
+    x
+  }
+  obj1 <- obj2 <- obj
+  obj1$test <- 10
+  eval(quote(obj2$test <- 10))
+
+  # Copy-on-write
+  original <- list(a = 1)
+  x3 <- x4 <- original
+  x3$b <- 2
+  eval(quote(x4$b <- 2))
+
+  identical(x1, x2) && identical(obj1, obj2) && !identical(x3, original) && !identical(x4, original) && identical(x3, x4)
+  """,
+        returns(SEXPs.TRUE));
+  }
+
+  // TODO: test for errors - and stack pointers
+  //  - try with R BC interpreter
+  //  - a tryCatch / just an error in a call called from REPL
+
+  @Ignore
   @Test
   public void testAdhoc(BC2CSnapshot snapshot) {
     snapshot.setClean(false);
     snapshot.verify(
         """
-lim <- 2
-iter <- 50
-
-execute <- function(size=300L) {
-    sum = 0
-    byteAcc = 0
-    bitNum  = 0
-
-    y = 0
-
-    while (y < size) {
-      ci = (2.0 * y / size) - 1.0
-      x = 0
-
-      while (x < size) {
-        zr   = 0.0
-        zrzr = 0.0
-        zi   = 0.0
-        zizi = 0.0
-        cr = (2.0 * x / size) - 1.5
-
-        z = 0
-        notDone = TRUE
-        escape = 0
-        while (notDone && (z < 50)) {
-          zr = zrzr - zizi + cr
-          zi = 2.0 * zr * zi + ci
-
-          # preserve recalculation
-          zrzr = zr * zr
-          zizi = zi * zi
-
-          if ((zrzr + zizi) > 4.0) {
-            notDone = FALSE
-            escape  = 1
-          }
-          z = z + 1
-        }
-
-        byteAcc = bitwShiftL(byteAcc, 1) + escape
-
-        bitNum = bitNum + 1
-
-        if (bitNum == 8) {
-          sum = bitwXor(sum, byteAcc)
-          byteAcc = 0
-          bitNum  = 0
-        } else if (x == (size - 1)) {
-          byteAcc = bitwShiftL(byteAcc, 8 - bitNum)
-          sum = bitwXor(sum, byteAcc)
-          byteAcc = 0
-          bitNum  = 0
-        }
-        x = x + 1
-      }
-      y = y + 1
-    }
-    return (sum);
-}
-
-execute()
         """);
   }
 

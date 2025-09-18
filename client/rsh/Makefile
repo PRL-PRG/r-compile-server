@@ -72,7 +72,7 @@ test:
 		fi; \
 	done
 
-BENCH_ITER := 30
+BENCH_ITER ?= 15
 
 BENCH_DIR = $(RSH_HOME)/inst/benchmarks
 BENCH_NAME ?= $(shell echo "$$(date +'%Y%m%d-%H%M%S')-$$(git rev-parse --short HEAD)")
@@ -88,7 +88,7 @@ benchmark:
 		test=$$(basename $$file); \
 		total=$$((total + 1)); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --output-dir $(BENCH_OUT_DIR) $(OPTS) $${file%.*}"; \
+		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --runs $(BENCH_ITER) --output-dir $(BENCH_OUT_DIR) $(OPTS) $${file%.*}"; \
 		echo $$cmd; \
 		eval "$$cmd"; \
 		exit=$$?; \
