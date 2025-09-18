@@ -323,16 +323,25 @@ static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
   }
 }
 
+#ifndef NDEBUG
+#define CHECK_OVERFLOW(__n__)                                                  \
+  do {                                                                         \
+    if (R_BCNodeStackTop + __n__ > R_BCNodeStackEnd) {                         \
+      nodeStackOverflow();                                                     \
+    }                                                                          \
+  } while (0)
+#else
+#define CHECK_OVERFLOW(__n__)
+#endif
+
 // FIXME: we do not need to set it to R_NilValue
 //  it would not be bad to set it to some sentinel when in ASSERT
 #define PUSH_VAL(n)                                                            \
   do {                                                                         \
     int __n__ = (n);                                                           \
-    if (R_BCNodeStackTop + __n__ > R_BCNodeStackEnd) {                         \
-      nodeStackOverflow();                                                     \
-    }                                                                          \
+    CHECK_OVERFLOW(__n__);                                                     \
     while (__n__-- > 0) {                                                      \
-      SET_SXP_VAL(R_BCNodeStackTop++, R_NilValue);                             \
+      (R_BCNodeStackTop++)->tag = INTSXP;                                      \
     }                                                                          \
   } while (0)
 
@@ -745,8 +754,9 @@ static INLINE SEXP Rsh_do_get_var(SEXP symbol, SEXP rho, Rboolean dd,
 #define Rsh_DdValMissOk(res, symbol, cell, rho)                                \
   Rsh_get_var(res, symbol, cell, rho, TRUE, TRUE)
 
-static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
-                               Rboolean dd, Rboolean keepmiss) {
+static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
+                                      SEXP rho, Rboolean dd,
+                                      Rboolean keepmiss) {
   switch (BCELL_TAG(*cell)) {
   case REALSXP:
     SET_DBL_VAL(res, BCELL_DVAL(*cell));
@@ -808,7 +818,8 @@ static INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell, SEXP rho,
   SET_VAL(res, Rsh_do_get_var(symbol, rho, dd, keepmiss, cell));
 }
 
-static INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell, SEXP rho) {
+static ALWAYS_INLINE void Rsh_SetVar(Value *v, SEXP symbol, BCell *cell,
+                                     SEXP rho) {
   Value value = *v;
   int tag = VAL_TAG(value);
 
@@ -965,10 +976,41 @@ static INLINE void Rsh_Call(Value *fun, Value args_head, UNUSED Value args_tail,
       R_Visible = (Rboolean)(flag != 1);
     }
     break;
-  case CLOSXP:
+  case CLOSXP: {
     args_sxp = Rsh_closure_call_args(args_sxp);
+    SEXP body = BODY(fun_sxp);
+
+    // inline our call
+    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body)) {
+      // TODO: R_GlobalContext->callflag != CTXT_GENERIC
+
+      SEXP newrho =
+          make_applyClosure_env(call, fun_sxp, args_sxp, rho, R_NilValue);
+      PROTECT(newrho);
+      RCNTXT ctx;
+      Rf_begincontext(&ctx, CTXT_RETURN, call, newrho, rho, args_sxp, fun_sxp);
+      R_Visible = TRUE;
+
+      // FIXME: the same code is in the eval.c
+      SEXP c_cp = R_ExternalPtrProtected(body);
+      if (TYPEOF(c_cp) != VECSXP) {
+        Rf_error("Expected a vector, got: %d", TYPEOF(c_cp));
+      }
+
+      // seems like unnecesary complicated casting, but otherwise C complains
+      // cf. https://stackoverflow.com/a/19487645
+      Rsh_closure fun;
+      *(void **)(&fun) = R_ExternalPtrAddr(body);
+      value = fun(newrho, c_cp);
+      UNPROTECT(1);
+      Rf_endcontext(&ctx);
+      break;
+    }
+
+    // slow path
     value = Rf_applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
     break;
+  }
   default:
     Rf_error("bad function");
   }
@@ -1065,8 +1107,8 @@ static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
     SET_VAL(res, __res_sxp__);                                                 \
   } while (0)
 
-static INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
-                             RshArithOp op, SEXP rho) {
+static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
+                                    RshArithOp op, SEXP rho) {
   double res_dbl = 0;
 
   if (VAL_IS_DBL(lhs)) {
@@ -1110,14 +1152,15 @@ static INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
+  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call,      \
+                                    SEXP rho) {                                \
     Rsh_arith(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_ARITH_OPS
 #undef X
 
-static INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
-                             RshRelOp op, SEXP rho) {
+static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
+                                    RshRelOp op, SEXP rho) {
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
@@ -1148,7 +1191,8 @@ static INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
 }
 
 #define X(a, b, c)                                                             \
-  static INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call, SEXP rho) { \
+  static ALWAYS_INLINE void Rsh_##c(Value *lhs_res, Value rhs, SEXP call,      \
+                                    SEXP rho) {                                \
     Rsh_relop(lhs_res, *lhs_res, rhs, call, b, rho);                           \
   }
 X_REL_OPS
@@ -2125,6 +2169,13 @@ typedef struct {
   SEXP symbol;
 } RshLoopInfo;
 
+#define SET_FOR_LOOP_VAR(value, cell, symbol, rho)                             \
+  do {                                                                         \
+    if (BCELL_IS_UNBOUND(cell) || !bcell_set_value(cell, value)) {             \
+      Rf_defineVar(symbol, value, rho);                                        \
+    }                                                                          \
+  } while (0)
+
 static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
                                 SEXP symbol, BCell *cell, SEXP rho) {
   SEXP seq;
@@ -2197,10 +2248,20 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
   // top -->
 }
 
-#define SET_FOR_LOOP_VAR(value, cell, symbol, rho)                             \
+#define FAST_STEP_NEXT(cell, value, v, s, ctype, rtype, btype)                 \
   do {                                                                         \
-    if (BCELL_IS_UNBOUND(cell) || !bcell_set_value(cell, value)) {             \
-      Rf_defineVar(symbol, value, rho);                                        \
+    SEXP __c__ = *(cell);                                                      \
+    ctype __v__ = (v);                                                         \
+    if (!BINDING_IS_LOCKED(__c__)) {                                           \
+      if (BCELL_TAG(__c__) == rtype) {                                         \
+        BCELL_##btype##_SET(__c__, __v__);                                     \
+      } else if (!IS_ACTIVE_BINDING(__c__)) {                                  \
+        BCELL_##btype##_NEW(__c__, __v__);                                     \
+      }                                                                        \
+      return TRUE;                                                             \
+    } else {                                                                   \
+      value = VAL_SXP(*(s));                                                   \
+      SET_SCALAR_##btype((value), __v__);                                      \
     }                                                                          \
   } while (0)
 
@@ -2217,23 +2278,12 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
   RSH_CHECK_SIGINT();
 
   SEXP value;
-  SEXP c = *cell;
-
   // it is important to use info->type and not TYPEOF(seq)
   // as it could be the ISQSXP
   switch (info->type) {
   case INTSXP: {
     int v = INTEGER_ELT(seq, i);
-    if (BCELL_TAG_WR(*cell) == INTSXP) {
-      BCELL_IVAL_SET(*cell, v);
-      return TRUE;
-    } else if (BCELL_WRITABLE(*cell)) {
-      BCELL_IVAL_NEW(*cell, v);
-      return TRUE;
-    } else {
-      value = VAL_SXP(*s0);
-      SET_SCALAR_IVAL(value, v);
-    }
+    FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);
     break;
   }
   case ISQSXP: {
@@ -2243,47 +2293,17 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
     int ii = (int)i;
     int v = n1 <= n2 ? n1 + ii : n1 - ii;
     RSH_PC_INC(isq_for);
-
-    if (BCELL_TAG_WR(c) == INTSXP) {
-      BCELL_IVAL_SET(c, v);
-      return TRUE;
-    } else if (BCELL_WRITABLE(*cell)) {
-      BCELL_IVAL_NEW(*cell, v);
-      return TRUE;
-    } else {
-      value = VAL_SXP(*s0);
-      SET_SCALAR_IVAL(value, v);
-    }
+    FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);
     break;
   }
   case REALSXP: {
     double v = REAL_ELT(seq, i);
-
-    if (BCELL_TAG_WR(*cell) == REALSXP) {
-      BCELL_DVAL_SET(*cell, v);
-      return TRUE;
-    } else if (BCELL_WRITABLE(*cell)) {
-      BCELL_DVAL_NEW(*cell, v);
-      return TRUE;
-    } else {
-      value = VAL_SXP(*s0);
-      SET_SCALAR_DVAL(value, v);
-    }
+    FAST_STEP_NEXT(cell, value, v, s0, double, REALSXP, DVAL);
     break;
   }
   case LGLSXP: {
     int v = LOGICAL_ELT(seq, i);
-
-    if (BCELL_TAG_WR(*cell) == LGLSXP) {
-      BCELL_LVAL_SET(*cell, v);
-      return TRUE;
-    } else if (BCELL_WRITABLE(*cell)) {
-      BCELL_LVAL_NEW(*cell, v);
-      return TRUE;
-    } else {
-      value = VAL_SXP(*s0);
-      SET_SCALAR_LVAL(value, v);
-    }
+    FAST_STEP_NEXT(cell, value, v, s0, int, LGLSXP, LVAL);
     break;
   }
   case CPLXSXP:
