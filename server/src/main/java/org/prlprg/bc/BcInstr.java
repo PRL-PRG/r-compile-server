@@ -2,7 +2,6 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
 import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
@@ -29,10 +28,8 @@ public sealed interface BcInstr {
   /** The instruction's operation. */
   BcOp op();
 
-    /**
-     * The instruction's labels.
-     */
-    // FIXME: do a default reflection-based implementation
+  /** The instruction's labels. */
+  // FIXME: do a default reflection-based implementation
   default Optional<BcLabel> label() {
     return Optional.empty();
   }
@@ -47,30 +44,30 @@ public sealed interface BcInstr {
     return stackEffect == null ? 0 : stackEffect.push();
   }
 
-    default Optional<ConstPool.Idx<RegSymSXP>> bindingCell() {
-        var cls = getClass();
+  default Optional<ConstPool.Idx<RegSymSXP>> bindingCell() {
+    var cls = getClass();
 
-        if (cls.isRecord()) {
-            for (RecordComponent rc : cls.getRecordComponents()) {
-                if (rc.isAnnotationPresent(BindingCell.class)) {
-                    Method accessor = null;
-                    try {
-                        accessor = this.getClass().getDeclaredMethod(rc.getName());
-                        accessor.setAccessible(true);
-                        return Optional.ofNullable((ConstPool.Idx<RegSymSXP>) accessor.invoke(this));
-                    } catch (Exception e) {
-                        throw new RuntimeException("Unable to access @BindingCell field", e);
-                    }
-                }
-            }
+    if (cls.isRecord()) {
+      for (RecordComponent rc : cls.getRecordComponents()) {
+        if (rc.isAnnotationPresent(BindingCell.class)) {
+          Method accessor = null;
+          try {
+            accessor = this.getClass().getDeclaredMethod(rc.getName());
+            accessor.setAccessible(true);
+            return Optional.ofNullable((ConstPool.Idx<RegSymSXP>) accessor.invoke(this));
+          } catch (Exception e) {
+            throw new RuntimeException("Unable to access @BindingCell field", e);
+          }
         }
-
-        return Optional.empty();
+      }
     }
 
-    default boolean needsRho() {
-        return getClass().getAnnotation(NeedsRho.class) != null;
-    }
+    return Optional.empty();
+  }
+
+  default boolean needsRho() {
+    return getClass().getAnnotation(NeedsRho.class) != null;
+  }
 
   default Collection<ConstPool.Idx<? extends SEXP>> args() {
     var fields = getClass().getRecordComponents();
@@ -183,7 +180,7 @@ public sealed interface BcInstr {
   @NeedsRho
   record StartFor(
       ConstPool.Idx<LangSXP> ast,
-            @BindingCell ConstPool.Idx<RegSymSXP> elemName,
+      @BindingCell ConstPool.Idx<RegSymSXP> elemName,
       @LabelName("forStep") BcLabel step)
       implements BcInstr {
     @Override
@@ -268,7 +265,7 @@ public sealed interface BcInstr {
 
   @StackEffect(push = 1)
   @NeedsRho
-    record GetVar(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record GetVar(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.GETVAR;
@@ -286,7 +283,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 1)
-    record SetVar(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record SetVar(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SETVAR;
@@ -636,7 +633,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 4)
-    record StartAssign(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record StartAssign(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTASSIGN;
@@ -645,7 +642,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 3, push = 1)
-    record EndAssign(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record EndAssign(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.ENDASSIGN;
@@ -944,7 +941,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(push = 1)
-    record GetVarMissOk(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record GetVarMissOk(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.GETVAR_MISSOK;

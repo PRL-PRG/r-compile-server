@@ -93,10 +93,16 @@ public class BC2CSnapshotTestExtension
     return new BC2CSnapshot() {
       int seq = 0;
       boolean clean = true;
+      boolean compilePromises = false;
 
-      @Override
+        @Override
+        public void setCompilePromises(boolean compilePromises) {
+            this.compilePromises = compilePromises;
+        }
+
+        @Override
       public void verify(String code, TestResultCheck... extraChecks) {
-        var artifact = compileAndCall(code);
+        var artifact = compileAndCall(code, compilePromises);
         try {
           if (artifact.result.isLeft()) {
             throw artifact.result.getLeft();
@@ -149,7 +155,7 @@ public class BC2CSnapshotTestExtension
     };
   }
 
-  TestArtifact compileAndCall(String code) {
+  TestArtifact compileAndCall(String code, boolean compilePromises) {
     // this has to be the same as in the test/resources/.../Makefile
     var prefix = "test";
 
@@ -178,7 +184,7 @@ public class BC2CSnapshotTestExtension
 
     try {
       var name = "f_" + (bc.hashCode() < 0 ? "n" + -bc.hashCode() : bc.hashCode());
-      var bc2c = new BC2CCompiler(bc, name);
+      var bc2c = new BC2CCompiler(bc, name, compilePromises);
       var module = bc2c.finish();
 
       RDSWriter.writeFile(cpFile, module.constantPool());
@@ -237,5 +243,7 @@ public class BC2CSnapshotTestExtension
     void verify(String code, TestResultCheck... extraChecks);
 
     void setClean(boolean clean);
+
+    void setCompilePromises(boolean compilePromises);
   }
 }

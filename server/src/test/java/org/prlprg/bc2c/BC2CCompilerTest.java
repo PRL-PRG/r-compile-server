@@ -34,11 +34,11 @@ public class BC2CCompilerTest {
     snapshot.verify("y <- 42; x <- y; x");
   }
 
-    @Test
-    public void testStack(BC2CSnapshot snapshot) {
-        snapshot.verify("a <- 1; b <- 2; c <- 3; (a + b) * (a + c)");
-        snapshot.verify("a <- 1; b <- 2; c <- 3; x <- if (a) b + c else b; x + 1");
-    }
+  @Test
+  public void testStack(BC2CSnapshot snapshot) {
+    snapshot.verify("a <- 1; b <- 2; c <- 3; (a + b) * (a + c)");
+    snapshot.verify("a <- 1; b <- 2; c <- 3; x <- if (a) b + c else b; x + 1");
+  }
 
   @Test
   public void testDdVal(BC2CSnapshot snapshot) {
@@ -673,13 +673,13 @@ public class BC2CCompilerTest {
 
   @Test
   public void testPromiseCompilation(BC2CSnapshot snapshot) {
-        snapshot.setClean(false);
-        snapshot.verify(
-                """
+    snapshot.setCompilePromises(true);
+    snapshot.verify(
+        """
                         f <- function(x) {
                           print(x)
                         }
-                        
+
                         f({
                           x <- 1
                           x + 2
