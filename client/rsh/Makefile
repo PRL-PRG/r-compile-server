@@ -72,7 +72,7 @@ test:
 		fi; \
 	done
 
-BENCH_ITER := 30
+BENCH_ITER ?= 15
 
 BENCH_DIR = $(RSH_HOME)/inst/benchmarks
 BENCH_NAME ?= $(shell echo "$$(date +'%Y%m%d-%H%M%S')-$$(git rev-parse --short HEAD)")
@@ -86,7 +86,7 @@ benchmark:
 	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --output-dir $(BENCH_OUT_DIR) $(OPTS) $${file%.*}"; \
+		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --runs $(BENCH_ITER) --output-dir $(BENCH_OUT_DIR) $(OPTS) $${file%.*}"; \
 		echo $$cmd; \
 		eval "$$cmd"; \
 		exit=$$?; \
@@ -100,6 +100,6 @@ benchmark:
 	$(R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
 
 .PHONY: benchmark-baseline
-benchmark-baseline: 
+benchmark-baseline:
 	$(MAKE) benchmark OPTS=--bc BENCH_NAME=baseline
 
