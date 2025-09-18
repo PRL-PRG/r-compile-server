@@ -1,48 +1,125 @@
 #!/usr/bin/env Rscript
 
+SAME_TRESHOLD <- .03
 DEFAULT_WARMUP <- 5
 DEFAULT_RESULT_FILE <- "result.csv"
 
-do_result <- function(args) {
-  if (length(args) < 1 || length(args) > 3) {
-    stop("Usage: result <input file> [<warmup>] [<output file>]")
+geom_mean <- function(xs) {
+  exp(mean(log(xs)))
+}
+
+load_package <- function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    stop(sprintf("Package '%s' is not installed.", pkg), call. = FALSE)
   }
+  suppressPackageStartupMessages(library(pkg, character.only = TRUE, quietly = TRUE, warn.conflicts = FALSE))
+}
 
-  input_dir <- args[1]
-  D_raw <- read_csv(input_dir)
-
+do_compare <- function(args) {
+  load_package("tidyverse")
+  load_package("lubridate")
+  load_package("glue")
+  load_package("crayon")
+  
+  files <- args
   warmup <- DEFAULT_WARMUP
-  if (length(args) > 1) {
-    warmup <- as.integer(args[2])
+  
+  if (length(files) == 0) {
+    stop("Usage: result <file1> <file2> [ ... <fileN> ]")
   }
+  
+  data <- map_dfr(files, function(f) {
+    df <- 
+      read_csv(f, show_col_types = FALSE) %>%
+      rename(VM=expr) %>% 
+      mutate(
+        time=time/1e6,
+        timestamp=as_datetime(timestamp),
+        file=f
+      ) %>%
+      slice(-(1:warmup))
+    
+    if (ncol(df) != 9) {
+      warning("File does not have 8 columns: ", f)
+      NULL
+    } else {
+      df
+    }
+  })
 
-  D <- D_raw %>%
-    group_by(suite, name, expr) %>%
-    slice(-(1:warmup)) %>%
+  slower <- Vectorize(red $ bold)
+  faster <- Vectorize(green $ bold)
+  same <- Vectorize(yellow $ bold)
+  
+  categorize <- Vectorize(function(x) {
+      d <- x - 1
+      if (abs(d) <= SAME_TRESHOLD) {
+        "same"
+      } else if (d > 0) {
+        "faster"
+      } else {
+        "slower"
+      }
+  })
+
+  print_result <- function(df) {
+    header <- str_c("Benchmark: ", blue(df$name[1]), "\n")
+    res <- 
+      df %>%
+      arrange(speedup) %>% 
+      slice(n():1) %>%
+      mutate(speedup_s=speedup) %>% 
+      mutate_at(c("mt", "sd", "min", "max", "speedup_s"), \(x) sprintf("%6.2f", x)) %>% 
+      mutate(speedup_s = 
+        case_match(
+          categorize(speedup),
+          "same"   ~ same(speedup_s),
+          "faster" ~ faster(speedup_s),
+          "slower" ~ slower(speedup_s)
+        )
+      )  %>% 
+      glue_data("\t- {speedup_s}x {mt} ± {sd} ({min} ... {max}): {VM}") %>% 
+      str_c(collapse = "\n")
+    footer <- "\n"
+    tibble(t=paste(header, res, footer, collapse = "\n"))
+  }
+    
+  summ <- data %>%
+    group_by(name, file) %>% 
     summarise(
-      n = n(),
-      min = min(time),
-      mean = mean(time),
-      median = median(time),
-      max = max(time),
-      sd = sd(time)
-    )
+      VM=str_c(VM[1], " [", file[1], "] (", compiler_options[1], ")"),
+      mt=geom_mean(time),
+      sd=sd(time),
+      min=min(time),
+      max=max(time),
+      .groups = "drop"
+    ) %>%
+    group_by(name) %>% 
+    do({
+      df <- .
+      baseline <- filter(df, str_starts(VM, "bc"))$mt
+      s <- NA
+      if (length(baseline) == 1) {
+        s <- baseline/df$mt
+      }
+      mutate(df, speedup=s)
+    }) %>% 
+    ungroup()
 
-  D_sp <- pivot_wider(D, id_cols = c(suite, name), names_from = expr, values_from = median) %>%
-    mutate(
-      speedup = RBC / RSH
-    )
-
-  res <- D_sp %>%
-    arrange(speedup)
-
-  result_file <- DEFAULT_RESULT_FILE
-  if (length(args) == 3) {
-    result_file <- args[3]
-  }
-  write_csv(res, result_file)
-
-  print(res, n=Inf)
+  summ %>% 
+    group_by(name) %>% 
+    do(print_result(.)) %>% 
+    pull(t) %>%
+    str_c(collapse = "\n") %>% 
+    cat("\n")
+  
+  summ %>% 
+    filter(!str_starts(VM, "bc")) %>%
+    mutate(speedup=categorize(speedup)) %>%
+    count(VM, speedup) %>%
+    pivot_wider(names_from=speedup, values_from=n) %>%
+    arrange(desc(faster)) %>%
+    knitr::kable()
 }
 
 do_save <- function(args) {
@@ -50,22 +127,25 @@ do_save <- function(args) {
     stop("Usage: save <output file> <benchmark directory>")
   }
 
+  load_package("tidyverse")
+  
   output_file <- args[1]
   input_dir   <- args[2]
 
   files <- list.files(path = input_dir, recursive = TRUE, pattern = "*\\.csv$", full.names = TRUE)
 
   map_dfr(files, function(file) {
-    df <- read_csv(file) %>%
-      mutate(suite = basename(dirname(file)))
-    if (ncol(df) != 5) {
-      warning("File does not have 5 columns: ", file)
+    df <- read_csv(file, show_col_types = FALSE)
+    if (ncol(df) != 8) {
+      warning("File does not have 8 columns: ", file)
       NULL
     } else {
       df
     }
   }) %>%
   write_csv(output_file)
+
+  cat("Merged", length(files), "into", output_file, "\n")
 }
 
 main <- function() {
@@ -78,13 +158,9 @@ main <- function() {
   cmd  <- args[1]
   rest <- if (length(args) > 1) args[-1] else character(0)
 
-  suppressPackageStartupMessages({
-    library(tidyverse)
-  })
-
   switch(cmd,
     save   = do_save(rest),
-    result = do_result(rest),
+    compare = do_compare(rest),
     stop(sprintf("Unknown command '%s'. Use 'save' or 'result'.", cmd))
   )
 }

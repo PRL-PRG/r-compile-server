@@ -89,6 +89,12 @@ NORET void nodeStackOverflow(void);
 SEXP R_findVar(SEXP symbol, SEXP rho);
 SEXP getPrimitive(SEXP symbol, SEXPTYPE type);
 
+SEXP make_applyClosure_env(SEXP call, SEXP op, SEXP arglist, SEXP rho,
+                           SEXP suppliedvars);
+void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
+                     SEXP promargs, SEXP callfun);
+void Rf_endcontext(RCNTXT *cptr);
+
 // from arithmetic.h
 static INLINE double R_log(double x) {
   return x > 0 ? log(x) : x == 0 ? R_NegInf : R_NaN;
