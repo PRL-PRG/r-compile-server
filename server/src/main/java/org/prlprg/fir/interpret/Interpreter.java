@@ -1,5 +1,7 @@
 package org.prlprg.fir.interpret;
 
+import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
+
 import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
 import java.util.List;
@@ -7,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Stack;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.feedback.Feedback;
@@ -68,6 +71,7 @@ import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.primitive.Logical;
+import org.prlprg.sexp.ArgumentMatcher.MatchException;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
@@ -466,7 +470,7 @@ public final class Interpreter {
               call(version, arguments, environment, function.baseline().cfg());
           case DispatchCallee(var function, var signature) ->
               call(function, signature, arguments, environment);
-          case DynamicCallee(var actualCallee, var ignoredArgumentNames) -> {
+          case DynamicCallee(var actualCallee, var argumentNames) -> {
             var calleeSexp = run(actualCallee);
             if (!(calleeSexp instanceof CloSXP cloSXP)) {
               throw fail("Not a function: " + calleeSexp);
@@ -481,8 +485,19 @@ public final class Interpreter {
               topFrame().scopeFeedback().recordCallee(calleeReg, function);
             }
 
-            // TODO: Determine correct arguments via `argumentNames` and matching algorithm.
-            yield call(function, null, arguments, environment);
+            List<SEXP> matchedArguments;
+            try {
+              var namedArguments = Streams.zip(
+                  Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
+                  arguments.stream(),
+                  (name, value) -> new TaggedElem(name.isEmpty() ? null : name, value)
+              ).collect(SEXPs.toList());
+              matchedArguments = matchArguments(cloSXP.parameters(), namedArguments);
+            } catch (MatchException e) {
+              throw fail(e.getMessage());
+            }
+
+            yield call(function, null, matchedArguments, environment);
           }
         };
       }

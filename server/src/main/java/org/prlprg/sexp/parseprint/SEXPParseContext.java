@@ -140,7 +140,7 @@ public class SEXPParseContext {
       var base =
           switch (type) {
             case SEXPType.SYM, SEXPType.LANG -> parseSymOrLangSXP(p);
-            case SEXPType.LIST -> {
+            case SEXPType.LIST, SEXPType.DOT -> {
               var elems = ImmutableList.<TaggedElem>builder();
 
               if (!s.trySkip('>') && !s.trySkip('|')) {
@@ -157,7 +157,7 @@ public class SEXPParseContext {
                 } while (s.trySkip(','));
               }
 
-              yield SEXPs.list(elems.build());
+              yield type == SEXPType.LIST ? SEXPs.list(elems.build()) : SEXPs.dots(elems.build());
             }
             case SEXPType.LGL,
                 SEXPType.INT,

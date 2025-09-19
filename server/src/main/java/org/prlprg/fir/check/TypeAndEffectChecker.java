@@ -242,14 +242,6 @@ public final class TypeAndEffectChecker extends Checker {
                 }
               }
               case DispatchCallee(var function, var signature) -> {
-                if (signature == null
-                    && function.parameterDefinitions().stream()
-                        .anyMatch(pdef -> pdef == ParameterDefinition.DOTS || pdef.hasDefault())) {
-                  // Arguments are computed variadically at runtime.
-                  // TODO: Try to run argument matching and check anyways.
-                  return;
-                }
-
                 var version = signature == null ? function.baseline() : function.guess(signature);
 
                 // If there's no explicit version, the actual version is unknown, but this is

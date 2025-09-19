@@ -9,6 +9,7 @@ import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.AbstractListSXP;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.BaseEnvSXP;
@@ -125,11 +126,11 @@ public class SEXPPrintContext {
   }
 
   @PrintMethod
-  private void print(ListSXP sexp, Printer p) {
+  private void print(AbstractListSXP sexp, Printer p) {
     handleDepth(
         p,
         () -> {
-          if (sexp.hasAttributes() || options.printDelimited()) {
+          if (sexp.hasAttributes() || options.printDelimited() || !(sexp instanceof ListSXP)) {
             printGeneralStart(sexp.type(), p);
             runNotDelimited(
                 () -> {
@@ -320,6 +321,8 @@ public class SEXPPrintContext {
 
     var i = 0;
     for (var attribute : attributes.entrySet()) {
+      assert attribute.getKey() != null;
+
       if (i == options.maxAttributes()) {
         w.write("\n...");
         break;

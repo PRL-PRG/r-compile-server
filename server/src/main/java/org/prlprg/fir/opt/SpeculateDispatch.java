@@ -68,6 +68,7 @@ public record SpeculateDispatch(
             // If there are *many* versions even checking them all is too slow.
             // If there are many parameters we may get many versions.
             .limit(newVersionLimit * 9L)
+            // Check the version is more specific than an existing one.
             .filter(
                 parameterTypes -> {
                   var existing =
