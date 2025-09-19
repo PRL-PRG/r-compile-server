@@ -67,7 +67,7 @@ class CModule {
     this.compilePromises = compilePromises;
   }
 
-    CFunction createFun(String returnType, String name, String args) {
+  CFunction createFun(String returnType, String name, String args) {
     var fun = new CFunction(returnType, name, args);
     funs.add(fun);
     return fun;
@@ -142,7 +142,6 @@ class ClosureCompiler {
   private int extraConstPoolIdx;
   private final String name;
   private boolean debug = true;
-  private boolean useCells = true;
   private boolean compilePromises = true;
 
   protected CModule module;
@@ -161,7 +160,7 @@ class ClosureCompiler {
   }
 
   public void setCompilePromises(boolean compilePromises) {
-      this.compilePromises = compilePromises;
+    this.compilePromises = compilePromises;
   }
 
   public void setDebug(boolean debug) {
@@ -283,6 +282,7 @@ class ClosureCompiler {
           case BcInstr.Subassign2N(var call, var rank) -> compileSubassignN(builder, call, rank);
           case BcInstr.StartFor(var _, var symbol, var label) -> {
             var cell = cells.get(symbol.idx());
+            assert cell != null;
             var c = builder.cell(cell).compileStmt();
             yield c + "\ngoto " + label(label) + ";";
           }
@@ -396,15 +396,12 @@ class ClosureCompiler {
   }
 
   private void compileCells() {
-    if (cells.isEmpty() || !useCells) {
+    if (cells.isEmpty()) {
       return;
     }
 
     prologue.comment("CELLS");
     for (var cell : cells.values()) {
-      if (cell.uses() <= 1) {
-        continue; // skip unused cells
-      }
       var line = "DEFINE_BCELL2(%s%d);".formatted(BCELL_PREFIX, cell.id());
       if (debug) {
         line += " // symbol: '%s' (used: %d)".formatted(cell.name(), cell.uses());
@@ -413,18 +410,13 @@ class ClosureCompiler {
     }
   }
 
-  public void setUseCells(boolean useCells) {
-    this.useCells = useCells;
-  }
-
   // API
   class InstrCallBuilder {
     private String fun = "";
     private int push = 0;
     private int pop = 0;
     private boolean needsRho = false;
-    private boolean needsCell = false;
-    private BCell cell = null;
+    @Nullable private BCell cell = null;
     private List<String> args = new ArrayList<>();
     private final List<String> debugMessages = new ArrayList<>();
 
@@ -442,10 +434,7 @@ class ClosureCompiler {
           .bindingCell()
           .ifPresent(
               s -> {
-                needsCell = true;
-                if (useCells) {
-                  cell = cells.get(s.idx());
-                }
+                cell = cells.get(s.idx());
               });
     }
 
@@ -466,7 +455,6 @@ class ClosureCompiler {
 
     public InstrCallBuilder cell(BCell cell) {
       this.cell = cell;
-      this.needsCell = true;
       return this;
     }
 
@@ -497,13 +485,9 @@ class ClosureCompiler {
         xs[n++] = arg;
       }
 
-      if (needsCell) {
-        if (cell != null && cell.uses() > 1) {
-          xs[n++] = "&C" + cell.id();
-          debugMessages.add("symbol: '%s'".formatted(cell.name()));
-        } else {
-          xs[n++] = "NULL";
-        }
+      if (cell != null) {
+        xs[n++] = "&C" + cell.id();
+        debugMessages.add("symbol: '%s'".formatted(cell.name()));
       }
 
       if (needsRho) {
