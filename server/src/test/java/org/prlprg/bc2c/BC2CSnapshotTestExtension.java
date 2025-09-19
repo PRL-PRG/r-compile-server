@@ -95,12 +95,12 @@ public class BC2CSnapshotTestExtension
       boolean clean = true;
       boolean compilePromises = false;
 
-        @Override
-        public void setCompilePromises(boolean compilePromises) {
-            this.compilePromises = compilePromises;
-        }
+      @Override
+      public void setCompilePromises(boolean compilePromises) {
+        this.compilePromises = compilePromises;
+      }
 
-        @Override
+      @Override
       public void verify(String code, TestResultCheck... extraChecks) {
         var artifact = compileAndCall(code, compilePromises);
         try {
