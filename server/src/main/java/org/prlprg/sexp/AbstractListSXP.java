@@ -86,7 +86,7 @@ abstract sealed class AbstractListSXPImpl permits ListSXPImpl, DotsListSXPImpl {
 
   // @Override
   public List<String> names() {
-    return Arrays.stream(data).map(TaggedElem::tagOrEmpty).toList();
+    return Lists.mapLazy(Arrays.asList(data), TaggedElem::tagOrEmpty);
   }
 
   // @Override

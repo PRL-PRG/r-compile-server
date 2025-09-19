@@ -11,6 +11,7 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.PromSXP;
@@ -65,6 +66,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
       case LglSXP l when !sexp.hasAttributes() -> l.isScalar() ? LOGICAL : SHARED_LOGICAL_VECTOR;
       case RealSXP r when !sexp.hasAttributes() -> r.isScalar() ? REAL : SHARED_REAL_VECTOR;
       case StrSXP s when !sexp.hasAttributes() -> s.isScalar() ? STRING : SHARED_STRING_VECTOR;
+      case DotsListSXP _ -> DOTS;
       case CloSXP _, BuiltinOrSpecialSXP _ -> CLOSURE;
       case PromSXP p ->
           promise(

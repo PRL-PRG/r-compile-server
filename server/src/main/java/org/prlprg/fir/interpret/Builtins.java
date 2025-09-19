@@ -10,8 +10,10 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
@@ -19,6 +21,7 @@ import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Lists;
 
 /// Java implementations of GNU-R builtins for [Interpreter] (specifically
 /// [Interpreter#registerExternal(String, ExternalVersion)]).
@@ -430,8 +433,8 @@ public final class Builtins {
 
   private static SEXP index(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw new IllegalArgumentException("`[` takes 2 arguments");
+    if (args.size() != 4) {
+      throw new IllegalArgumentException("`[` takes 4 arguments");
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
@@ -568,25 +571,30 @@ public final class Builtins {
   }
 
   private static SEXP c(Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    // TODO: Once the interpreter is changed to pass arguments correctly, it will always pass a
-    //  single argument that is dots list. Handle that instead of variadic `args`.
-    if (args.isEmpty()) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`c` takes 1 argument (a dots list)");
+    }
+    if (!(args.getFirst() instanceof DotsListSXP realArgs)) {
+      throw interpreter.fail("`c` requires a `...` argument");
+    }
+
+    if (realArgs.isEmpty()) {
       return SEXPs.NULL;
     }
 
-    var inferredKind = Type.of(args.getFirst()).kind();
+    var inferredKind = Type.of(realArgs.value(0)).kind();
     if (inferredKind instanceof Kind.PrimitiveScalar(var primitiveKind)) {
       inferredKind = new Kind.PrimitiveVector(primitiveKind);
     }
 
-    return interpreter.mkVector(
-        inferredKind, args.stream().map(_ -> Optional.<NamedVariable>empty()).toList(), args);
+    return interpreter.mkVector(inferredKind, Lists.mapLazy(realArgs.names(), name -> name.isEmpty() ? Optional.empty() : Optional.of(
+        Variable.named(name))), realArgs.values());
   }
 
   private static SEXP length(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
-      throw new IllegalArgumentException("`length` takes 1 argument");
+      throw interpreter.fail("`length` takes 1 argument");
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
@@ -599,7 +607,7 @@ public final class Builtins {
   private static SEXP sum(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
-      throw new IllegalArgumentException("`sum` takes 1 argument");
+      throw interpreter.fail("`sum` takes 1 argument");
     }
 
     return switch (args.getFirst()) {
@@ -647,11 +655,11 @@ public final class Builtins {
   private static SEXP toForSeq(
       Interpreter interpreter, Abstraction version, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
-      throw new IllegalArgumentException("`toForSeq` takes 1 argument");
+      throw interpreter.fail("`toForSeq` takes 1 argument");
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new IllegalArgumentException("toForSeq() requires a vector argument");
+      throw interpreter.fail("`toForSeq` requires a vector argument");
     }
 
     // Simply return the vector as-is after validation
@@ -661,7 +669,7 @@ public final class Builtins {
   private static SEXP asLogical(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
-      throw new IllegalArgumentException("`as.logical` takes 1 argument");
+      throw interpreter.fail("`as.logical` takes 1 argument");
     }
 
     var arg = args.getFirst();

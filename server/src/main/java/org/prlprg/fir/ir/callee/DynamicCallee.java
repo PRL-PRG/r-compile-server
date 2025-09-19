@@ -8,6 +8,10 @@ import org.prlprg.parseprint.Printer;
 
 public record DynamicCallee(Argument actualCallee, ImmutableList<String> callArgumentNames)
     implements Callee {
+  public DynamicCallee(Argument actualCallee) {
+    this(actualCallee, ImmutableList.of());
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);

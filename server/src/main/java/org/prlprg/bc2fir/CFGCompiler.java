@@ -148,6 +148,7 @@ import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -164,6 +165,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
@@ -180,6 +182,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
@@ -192,7 +195,6 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.SymSXP;
-import org.prlprg.util.Lists;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
 
@@ -473,7 +475,7 @@ public class CFGCompiler {
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
-        var elem = insertAndReturn(builtin("[[", seq, index1));
+        var elem = insertAndReturn(builtin("[[", seq, index1, new Constant(SEXPs.dots()), new Constant(SEXPs.logical(true))));
         // Store in the element variable
         insert(new Store(getVar(elemName), elem));
         // Now we compile the rest of the body...
@@ -635,8 +637,11 @@ public class CFGCompiler {
         // like `eval`. We also assume builtins never use names.
         // GNU-R just passes `CDR(call)` to the builtin.
         var args =
-            ast.args().stream().map(arg -> new Constant(arg.value())).toArray(Argument[]::new);
-        pushInsert(builtin(builtinName, args));
+            ast.args().stream().map(arg -> new Constant(arg.value())).collect(ImmutableList.<Argument>toImmutableList());
+        // REACH: Like `compileCall`, we must insert a dynamic call, because we don't have the
+        // formal parameters of all specials, and some arguments may be `...`.
+        var loadFun = insertAndReturn(new LoadFun(Variable.named(builtinName), Env.BASE));
+        pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args));
       }
       case MakeClosure(var arg) -> {
         var fb = get(arg);
@@ -663,8 +668,8 @@ public class CFGCompiler {
 
         pushInsert(new Closure(code));
       }
-      case UMinus(var _) -> pushInsert(mkUnop("-"));
-      case UPlus(var _) -> pushInsert(mkUnop("+"));
+      case UMinus(var _) -> pushInsert(builtin("-", new Constant(SEXPs.MISSING_ARG), pop()));
+      case UPlus(var _) -> pushInsert(builtin("+", new Constant(SEXPs.MISSING_ARG), pop()));
       case Sqrt(var _) -> pushInsert(mkUnop("sqrt"));
       case Add(var _) -> pushInsert(mkBinop("+"));
       case Sub(var _) -> pushInsert(mkBinop("-"));
@@ -852,7 +857,7 @@ public class CFGCompiler {
 
         moveTo(isVectorBb);
         var isFactor =
-            insertAndReturn(builtin("inherits", value, new Constant(SEXPs.string("factor"))));
+            insertAndReturn(builtin("inherits", value, new Constant(SEXPs.string("factor")), new Constant(SEXPs.logical(false))));
         var isFactorBb = cfg.addBB();
         var isNotFactorBb = cfg.addBB();
         setJump(branch(isFactor, isFactorBb, isNotFactorBb));
@@ -938,7 +943,7 @@ public class CFGCompiler {
       case Subset2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, n + 1);
       case SubassignN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
       case Subassign2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
-      case Log(var _) -> pushInsert(mkUnop("log"));
+      case Log(var _) -> pushInsert(builtin("log", pop(), new Constant(SEXPs.real(Math.E))));
       case LogBase(var _) -> pushInsert(mkBinop("log"));
       case Math1(var _, var funId) -> pushInsert(mkUnop(MATH1_FUNS.get(funId)));
       case DotCall(var _, var numArgs) -> {
@@ -946,10 +951,16 @@ public class CFGCompiler {
           throw fail("stack underflow");
         }
         var funAndArgs = stack.subList(stack.size() - numArgs - 1, stack.size());
-        var args = funAndArgs.toArray(Argument[]::new);
+        var fun = funAndArgs.getFirst();
+        var args = funAndArgs.subList(1, funAndArgs.size()).stream()
+            .map(NamedArgument::new)
+            .collect(ImmutableList.toImmutableList());
         funAndArgs.clear();
 
-        pushInsert(builtin(".Call", args));
+        // Insert dots list for arguments
+        var argsDots = insertAndReturn(new MkVector(new Kind.Dots(), args));
+
+        pushInsert(builtin(".Call", fun, argsDots, new Constant(SEXPs.MISSING_ARG)));
       }
       case Colon(var _) -> pushInsert(mkBinop(":"));
       case SeqAlong(var _) -> pushInsert(builtin("seq_along", pop()));
@@ -1077,30 +1088,35 @@ public class CFGCompiler {
     }
 
     var dispatch = popDispatch(type);
+
     var call = popCall();
 
     pop();
 
-    var argValues = Lists.mapStrict(call.args, Call.Arg::node).toArray(Argument[]::new);
-    pushInsert(builtin(type.builtin.name(), argValues));
-
-    if (bbAfterCurrent() != dispatch.after) {
-      throw fail("expected to be immediately before `after` BB " + dispatch.after.label());
-    }
+    var argValues = call.args.stream().map(Call.Arg::node).collect(ImmutableList.toImmutableList());
+    finishCompilingDefaultDispatch(type, dispatch, argValues);
   }
 
   private void compileDefaultDispatchN(Dispatch.Type type, int numArgs) {
     assert type.isNForm : "use compileDefaultDispatch for non-`...N` bytecodes";
 
     var dispatch = popDispatch(type);
-    var argsList = stack.subList(stack.size() - numArgs, stack.size());
-    var args = argsList.toArray(Argument[]::new);
-    argsList.clear();
 
     // Unlike `compileDefaultDispatch`, there's no `Call`, instead we take the args from the stack.
     // Like `compileDefaultDispatch`, there's either a specialized instruction or a fallback call,
     // although in this the number of arguments is known.
-    pushInsert(builtin(type.builtin.name(), args));
+    var argsView = stack.subList(stack.size() - numArgs, stack.size());
+    var args = argsView.stream().collect(ImmutableList.toImmutableList());
+    argsView.clear();
+
+    finishCompilingDefaultDispatch(type, dispatch, args);
+  }
+
+  private void finishCompilingDefaultDispatch(Dispatch.Type type, Dispatch dispatch,
+      ImmutableList<Argument> argValues) {
+    // See `compileCall` for why we can't compile builtins directly.
+    var loadFun = insertAndReturn(new LoadFun(Variable.named(type.builtin.name()), Env.BASE));
+    pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), argValues));
 
     if (bbAfterCurrent() != dispatch.after) {
       throw fail("expected to be immediately before `after` BB " + dispatch.after.label());
@@ -1121,8 +1137,16 @@ public class CFGCompiler {
         switch (call.fun) {
           case Call.Fun.Dynamic(var fun) ->
               new org.prlprg.fir.ir.expression.Call(new DynamicCallee(fun, names), args);
-          case Call.Fun.Builtin(var builtin) ->
-              builtin(builtin.name, args.toArray(Argument[]::new));
+          case Call.Fun.Builtin(var builtin) -> {
+              // REACH: We can't compile builtins directly, only because we don't know how to
+              // match arguments.
+              // The created `LdFun` will be optimized into a builtin call if we know the
+              // builtin's formals and none of the arguments are `...`. Eventually we can add
+              // the formals of all builtins programatically and do this in the compiler, or at
+              // least pre-optimize here when the above conditions are met if it's too expensive.
+              var loadFun = insertAndReturn(new LoadFun(Variable.named(builtin.name()), Env.BASE));
+              yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args);
+          }
         };
     pushInsert(callInstr);
 
@@ -1601,12 +1625,12 @@ public class CFGCompiler {
 
   /// An expression that raises an error with the given message.
   private Expression stop(String message) {
-    return builtin("stop", new Constant(SEXPs.string(message)));
+    return builtin("stop", new Constant(SEXPs.dots(SEXPs.string(message))), new Constant(SEXPs.logical(true)), new Constant(SEXPs.NULL));
   }
 
   /// An expression that raises a warning with the given message.
   private Expression warning(String message) {
-    return builtin("warning", new Constant(SEXPs.string(message)));
+    return builtin("warning", new Constant(SEXPs.dots(SEXPs.string(message))), new Constant(SEXPs.logical(true)), new Constant(SEXPs.logical(false)), new Constant(SEXPs.logical(false)), new Constant(SEXPs.NULL));
   }
 
   /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to

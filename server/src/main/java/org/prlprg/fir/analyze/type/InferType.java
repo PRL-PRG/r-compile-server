@@ -102,7 +102,7 @@ public final class InferType implements Analysis {
               default -> type;
             };
       }
-      case MkVector(var kind, var _) -> new Type(kind, Ownership.FRESH, Concreteness.DEFINITE);
+      case MkVector(var kind, var _) -> new Type(kind, kind.isWellFormedWithOwnership() ? Ownership.FRESH : Ownership.SHARED, Concreteness.DEFINITE);
       case MkEnv(), PopEnv() -> Type.ANY;
       case Placeholder() -> null;
       case Promise(var valueType, var effects, var _) -> Type.promise(valueType, effects);
