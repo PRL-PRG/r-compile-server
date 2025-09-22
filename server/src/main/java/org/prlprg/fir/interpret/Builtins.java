@@ -629,11 +629,18 @@ public final class Builtins {
     if (args.size() != 2) {
       throw interpreter.fail("`sum` takes 2 arguments");
     }
+    if (!(args.getFirst() instanceof DotsListSXP dots)) {
+      throw interpreter.fail("`sum` first argument must be a dots list");
+    }
+    if (dots.size() != 1) {
+      throw interpreter.fail("Mock `sum` dots must have exactly 1 value");
+    }
     if (!args.get(1).equals(SEXPs.MISSING_ARG)) {
       throw interpreter.fail("Mock `sum` second argument (`na.rm`) must be unset");
     }
+    var arg = dots.value(0);
 
-    return switch (args.getFirst()) {
+    return switch (arg) {
       case IntSXP i -> {
         // Sum of integers
         int sum = 0;
