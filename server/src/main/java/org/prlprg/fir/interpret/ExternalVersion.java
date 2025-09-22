@@ -23,13 +23,7 @@ public interface ExternalVersion {
     return (runtime, hijacked, arguments, environment) -> {
       var forcedAndEvaldArgs =
           arguments.stream()
-              .map(
-                  argument ->
-                      switch (argument) {
-                        case PromSXP promSxp -> runtime.force(promSxp);
-                        case RegSymSXP symSxp -> runtime.load(Variable.named(symSxp.name()));
-                        default -> argument;
-                      })
+              .map(runtime::eval)
               .toList();
       return inner.call(runtime, hijacked, forcedAndEvaldArgs, environment);
     };

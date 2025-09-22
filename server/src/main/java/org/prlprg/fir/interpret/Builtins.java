@@ -84,7 +84,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1) {
-                throw new IllegalArgumentException(
+                throw interpreter.fail(
                     "`" + name + "`.0 takes 1 scalar integer or real");
               }
               if (args.getFirst().asScalarInteger().isPresent()) {
@@ -94,7 +94,7 @@ public final class Builtins {
                 double value = args.getFirst().asScalarReal().get();
                 return SEXPs.real(javaFunction.applyAsDouble(value));
               } else {
-                throw new IllegalArgumentException(
+                throw interpreter.fail(
                     "`" + name + "`.0 takes 1 scalar integer or real");
               }
             }));
@@ -104,7 +104,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
-                throw new IllegalArgumentException("`" + name + "`.0 takes 1 scalar integer");
+                throw interpreter.fail("`" + name + "`.0 takes 1 scalar integer");
               }
               int value = args.getFirst().asScalarInteger().get();
               return SEXPs.integer((int) javaFunction.applyAsDouble(value));
@@ -115,7 +115,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || args.getFirst().asScalarReal().isEmpty()) {
-                throw new IllegalArgumentException("`" + name + "`.1 takes 1 scalar real");
+                throw interpreter.fail("`" + name + "`.1 takes 1 scalar real");
               }
               double value = args.getFirst().asScalarReal().get();
               return SEXPs.real(javaFunction.applyAsDouble(value));
@@ -125,7 +125,7 @@ public final class Builtins {
   private static SEXP add(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`+` takes 2 arguments");
+      throw interpreter.fail("`+` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -149,7 +149,7 @@ public final class Builtins {
     if (args.size() != 2
         || args.getFirst().asScalarInteger().isEmpty()
         || args.get(1).asScalarInteger().isEmpty()) {
-      throw new IllegalArgumentException("`+`.0 takes 2 scalar integers");
+      throw interpreter.fail("`+`.0 takes 2 scalar integers");
     }
 
     int arg0 = args.getFirst().asScalarInteger().get();
@@ -162,7 +162,7 @@ public final class Builtins {
     if (args.size() != 2
         || args.getFirst().asScalarInteger().isEmpty()
         || args.get(1).asScalarReal().isEmpty()) {
-      throw new IllegalArgumentException("`+`.0 takes a scalar integer and real");
+      throw interpreter.fail("`+`.0 takes a scalar integer and real");
     }
 
     int arg0 = args.getFirst().asScalarInteger().get();
@@ -175,7 +175,7 @@ public final class Builtins {
     if (args.size() != 2
         || args.getFirst().asScalarReal().isEmpty()
         || args.get(1).asScalarInteger().isEmpty()) {
-      throw new IllegalArgumentException("`+`.0 takes a scalar real and integer");
+      throw interpreter.fail("`+`.0 takes a scalar real and integer");
     }
 
     double arg0 = args.getFirst().asScalarReal().get();
@@ -188,7 +188,7 @@ public final class Builtins {
     if (args.size() != 2
         || args.getFirst().asScalarReal().isEmpty()
         || args.get(1).asScalarReal().isEmpty()) {
-      throw new IllegalArgumentException("`+`.0 takes 2 scalar reals");
+      throw interpreter.fail("`+`.0 takes 2 scalar reals");
     }
 
     double arg0 = args.getFirst().asScalarReal().get();
@@ -199,7 +199,7 @@ public final class Builtins {
   private static SEXP equal(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`==` takes 2 arguments");
+      throw interpreter.fail("`==` takes 2 arguments");
     }
     var arg0 = args.getFirst();
     var arg1 = args.get(1);
@@ -210,7 +210,7 @@ public final class Builtins {
   private static SEXP notEqual(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`!=` takes 2 arguments");
+      throw interpreter.fail("`!=` takes 2 arguments");
     }
     var arg0 = args.getFirst();
     var arg1 = args.get(1);
@@ -221,7 +221,7 @@ public final class Builtins {
   private static SEXP subtract(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`-` takes 2 arguments");
+      throw interpreter.fail("`-` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -243,7 +243,7 @@ public final class Builtins {
   private static SEXP multiply(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`*` takes 2 arguments");
+      throw interpreter.fail("`*` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -265,7 +265,7 @@ public final class Builtins {
   private static SEXP divide(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`/` takes 2 arguments");
+      throw interpreter.fail("`/` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -293,7 +293,7 @@ public final class Builtins {
   private static SEXP less(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`<` takes 2 arguments");
+      throw interpreter.fail("`<` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -315,7 +315,7 @@ public final class Builtins {
   private static SEXP lessEqual(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`<=` takes 2 arguments");
+      throw interpreter.fail("`<=` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -337,7 +337,7 @@ public final class Builtins {
   private static SEXP greater(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`>` takes 2 arguments");
+      throw interpreter.fail("`>` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -359,7 +359,7 @@ public final class Builtins {
   private static SEXP greaterEqual(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`>=` takes 2 arguments");
+      throw interpreter.fail("`>=` takes 2 arguments");
     }
 
     if (args.getFirst().asScalarInteger().isPresent()
@@ -381,11 +381,17 @@ public final class Builtins {
   private static SEXP rep(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`rep` takes 2 arguments");
+      throw interpreter.fail("`rep` takes 2 arguments");
+    }
+    if (!(args.get(1) instanceof DotsListSXP dots)) {
+      throw interpreter.fail("`rep` second argument must be a dots list");
+    }
+    if (dots.size() != 1) {
+      throw interpreter.fail("Mock `rep` dots must have exactly 1 value");
     }
 
     var value = args.getFirst();
-    var times = args.get(1);
+    var times = dots.value(0);
 
     int timesValue;
     if (times.asScalarInteger().isPresent()) {
@@ -397,7 +403,7 @@ public final class Builtins {
       throw new UnsupportedOperationException("Mock `rep` requires numeric times argument");
     }
     if (timesValue < 0) {
-      throw new IllegalArgumentException("rep() argument 'times' must be >= 0");
+      throw interpreter.fail("rep() argument 'times' must be >= 0");
     }
 
     if (timesValue == 0) {
@@ -433,12 +439,40 @@ public final class Builtins {
 
   private static SEXP index(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    // Mock [ behaves the same as [[
+    return index2(interpreter, callee, args, env);
+  }
+
+  private static SEXP subAssign(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 4) {
-      throw new IllegalArgumentException("`[` takes 4 arguments");
+      throw interpreter.fail("`[<-` takes 4 arguments (last is a dots list)");
+    }
+    if (!(args.get(3) instanceof DotsListSXP dots)) {
+      throw interpreter.fail("`[<-` fourth argument must be a dots list");
+    }
+    if (!dots.isEmpty()) {
+      throw interpreter.fail("Mock `[<-` dots must be empty");
+    }
+
+    // Mock [[<- behaves the same as [<-, but with no fourth argument
+    return subAssign2(interpreter, callee, args.subList(0, 3), env);
+  }
+
+  private static SEXP index2(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 4) {
+      throw interpreter.fail("`[` and `[[` take 4 arguments");
+    }
+    if (!(args.get(2) instanceof DotsListSXP dots)) {
+      throw interpreter.fail("`[` and `[[` third argument must be a dots list");
+    }
+    if (!dots.isEmpty()) {
+      throw interpreter.fail("Mock `[` and `[[` dots must be empty");
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new UnsupportedOperationException("Mock `[` not implemented for non-vector objects");
+      throw new UnsupportedOperationException("Mock `[` and `[[` not implemented for non-vector objects");
     }
 
     // Get index as integer, truncating from real if necessary
@@ -448,7 +482,7 @@ public final class Builtins {
     } else if (args.get(1).asScalarReal().isPresent()) {
       index1 = args.get(1).asScalarReal().get().intValue();
     } else {
-      throw new UnsupportedOperationException("Mock `[` requires numeric index argument");
+      throw new UnsupportedOperationException("Mock `[` and `[[` require numeric index argument");
     }
 
     // R uses 1-based indexing, but FIŘ uses 0
@@ -457,14 +491,13 @@ public final class Builtins {
     return interpreter.subscriptLoad(vector, index0);
   }
 
-  private static SEXP subAssign(
+  private static SEXP subAssign2(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 3) {
-      throw new IllegalArgumentException("`[<-` takes 3 arguments");
+      throw interpreter.fail("`[<-` takes 3 arguments");
     }
-
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new UnsupportedOperationException("Mock `[<-` not implemented for non-vector objects");
+      throw new UnsupportedOperationException("Mock `[<-` and `[[<-` not implemented for non-vector objects");
     }
 
     // Unlike FIŘ, the value is the second argument. The index (or indices for multidim) are after.
@@ -477,7 +510,7 @@ public final class Builtins {
     } else if (args.get(2).asScalarReal().isPresent()) {
       index1 = args.get(2).asScalarReal().get().intValue();
     } else {
-      throw new UnsupportedOperationException("Mock `[<-` requires numeric index argument");
+      throw new UnsupportedOperationException("Mock `[<-` and `[[<-` require numeric index argument");
     }
 
     // R uses 1-based indexing, but FIŘ uses 0
@@ -496,22 +529,10 @@ public final class Builtins {
     return result;
   }
 
-  private static SEXP index2(
-      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    // Mock [[ behaves the same as [
-    return index(interpreter, callee, args, env);
-  }
-
-  private static SEXP subAssign2(
-      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    // Mock [[<- behaves the same as [<-
-    return subAssign(interpreter, callee, args, env);
-  }
-
   private static SEXP colon(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 2) {
-      throw new IllegalArgumentException("`:` takes 2 arguments");
+      throw interpreter.fail("`:` takes 2 arguments");
     }
 
     // Get start argument as double
@@ -606,8 +627,11 @@ public final class Builtins {
 
   private static SEXP sum(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 1) {
-      throw interpreter.fail("`sum` takes 1 argument");
+    if (args.size() != 2) {
+      throw interpreter.fail("`sum` takes 2 arguments");
+    }
+    if (!args.get(1).equals(SEXPs.MISSING_ARG)) {
+      throw interpreter.fail("Mock `sum` second argument (`na.rm`) must be unset");
     }
 
     return switch (args.getFirst()) {

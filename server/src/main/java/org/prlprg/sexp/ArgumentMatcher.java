@@ -26,36 +26,30 @@ public class ArgumentMatcher {
   /// parameter with the same priority, or too many arguments.
   public static List<SEXP> matchArguments(ListSXP formalParameters, ListSXP unmatchedArguments) {
     // Expand `...`s if present (yes, there can be multiple).
-    if (unmatchedArguments.names().contains("...")) {
-      unmatchedArguments = unmatchedArguments.stream()
+    var unmatchedArguments1 = unmatchedArguments.names().contains("...")
+        ? unmatchedArguments.stream()
           .flatMap(argument -> argument.tagOrEmpty().equals("...")
               ? (argument.value() instanceof DotsListSXP ddd
                 ? ddd.stream()
                 : raise(new MatchException("`...` argument value isn't dots")))
               : Stream.of(argument))
-          .collect(SEXPs.toList());
-    }
+          .collect(SEXPs.toList())
+        : unmatchedArguments;
 
     // Match parameter names to argument indices
-    var nameMatches = matchArgumentNames(formalParameters.names(), unmatchedArguments.names());
+    var nameMatches = matchArgumentNames(formalParameters.names(), unmatchedArguments1.names());
 
     // Build list by iterating parameter names and extracting argument values from indices in
     // `nameMatches`.
-    var result = ImmutableList.<SEXP>builderWithExpectedSize(formalParameters.size());
-    for (var param : formalParameters) {
+    return formalParameters.stream().map(param -> {
       var paramName = param.tagOrEmpty();
       var paramValue = param.value();
       var paramMatch = nameMatches.arguments.get(paramName);
 
-      if (paramName.equals("...")) {
-        result.addAll(Lists.mapLazy(nameMatches.dddIndices, unmatchedArguments::value));
-      } else if (paramMatch != null) {
-        result.add(unmatchedArguments.value(paramMatch));
-      } else {
-        result.add(paramValue);
-      }
-    }
-    return result.build();
+      return paramName.equals("...")
+          ? nameMatches.dddIndices.stream().map(unmatchedArguments1::get).collect(SEXPs.toDots())
+          : paramMatch != null ? unmatchedArguments1.value(paramMatch) : paramValue;
+    }).collect(ImmutableList.toImmutableList());
   }
 
   /// Returns a map of parameter name to index and a list of dots parameter names and indices

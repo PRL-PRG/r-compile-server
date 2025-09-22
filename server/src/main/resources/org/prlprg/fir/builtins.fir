@@ -152,20 +152,20 @@ fun `[[`(
   (reg x:v(S), reg i:I) --> S { ... }
 }
 
-fun `[<-`(x, i, ..., u) {
-  (reg x:*, reg i:*, reg ddd:dots, reg u:*) -+> V { ... }
-  (reg x:v(L), reg i:I, reg u:L) --> v(L) { ... }
-  (reg x:v(I), reg i:I, reg u:I) --> v(I) { ... }
-  (reg x:v(R), reg i:I, reg u:R) --> v(R) { ... }
-  (reg x:v(S), reg i:I, reg u:S) --> v(S) { ... }
+fun `[<-`(x, i, value, ...) {
+  (reg x:*, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
+  (reg x:v(L), reg i:I, reg value:L) --> v(L) { ... }
+  (reg x:v(I), reg i:I, reg value:I) --> v(I) { ... }
+  (reg x:v(R), reg i:I, reg value:R) --> v(R) { ... }
+  (reg x:v(S), reg i:I, reg value:S) --> v(S) { ... }
 }
 
-fun `[[<-`(x, i, ..., u) {
-  (reg x:*, reg i:*, reg ddd:dots, reg u:*) -+> V { ... }
-  (reg x:v(L), reg i:I, reg u:L) --> v(L) { ... }
-  (reg x:v(I), reg i:I, reg u:I) --> v(I) { ... }
-  (reg x:v(R), reg i:I, reg u:R) --> v(R) { ... }
-  (reg x:v(S), reg i:I, reg u:S) --> v(S) { ... }
+fun `[[<-`(x, i, value) {
+  (reg x:*, reg i:*, reg value:*) -+> V { ... }
+  (reg x:v(L), reg i:I, reg value:L) --> v(L) { ... }
+  (reg x:v(I), reg i:I, reg value:I) --> v(I) { ... }
+  (reg x:v(R), reg i:I, reg value:R) --> v(R) { ... }
+  (reg x:v(S), reg i:I, reg value:S) --> v(S) { ... }
 }
 
 fun `$`(x, name) {

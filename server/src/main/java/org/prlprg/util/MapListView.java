@@ -127,12 +127,22 @@ final class MapListView<I, O> implements List<O> {
 
   @Override
   public int indexOf(Object o) {
-    return backing.indexOf(o);
+    for (int i = 0; i < backing.size(); i++) {
+      if (o.equals(f.apply(backing.get(i)))) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   @Override
   public int lastIndexOf(Object o) {
-    return backing.lastIndexOf(o);
+    for (int i = backing.size() - 1; i >= 0; i--) {
+      if (o.equals(f.apply(backing.get(i)))) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   @Override
