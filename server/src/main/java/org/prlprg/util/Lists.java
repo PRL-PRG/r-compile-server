@@ -1,11 +1,29 @@
 package org.prlprg.util;
 
+import com.google.common.collect.ImmutableList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.expression.AssumeConstant;
+import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeType;
 
 public class Lists {
+  @SafeVarargs
+  public static <T> ImmutableList<T> ofNonNull(@Nullable T... elements) {
+    Objects.requireNonNull(elements, "the arguments list itself can't be null");
+    var builder = ImmutableList.<T>builderWithExpectedSize(elements.length);
+    for (var e : elements) {
+      if (e != null) {
+        builder.add(e);
+      }
+    }
+    return builder.build();
+  }
+
   /**
    * Returns an unmodifiable list with the elements in the original list transformed using the given
    * function. The transformation happens within this call, and further updates to the original list
