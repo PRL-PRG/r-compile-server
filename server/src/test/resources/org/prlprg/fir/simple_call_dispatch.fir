@@ -5,7 +5,7 @@ fun main() {
   }
 }
 
-fun g(...) {
+fun g(`...`) {
   () --> I { |
     return 1;
   }

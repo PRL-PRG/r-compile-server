@@ -14,5 +14,5 @@ fun main() {
   }
 }
 
-fun lt(...) { (reg lhs:I, reg rhs:I) --> L { ... } }
-fun add(...) { (reg lhs:I, reg rhs:I) --> I { ... } }
+fun lt(`...`) { (reg lhs:I, reg rhs:I) --> L { ... } }
+fun add(`...`) { (reg lhs:I, reg rhs:I) --> I { ... } }

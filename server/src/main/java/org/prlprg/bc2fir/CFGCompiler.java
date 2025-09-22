@@ -150,6 +150,8 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.binding.Local;
+import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
@@ -165,6 +167,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -181,6 +184,7 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
@@ -191,6 +195,8 @@ import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.PrimVectorSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -203,9 +209,21 @@ import org.prlprg.util.Strings;
 /// This could be a set of functions but they would be *very* large and/or pass around lots of
 /// variables. Instead, it's a class and those commonly-passed variables are fields.
 public class CFGCompiler {
-  /// Compile the given bytecode into the given control-flow-graph.
+  /// Compile the given bytecode into the given control-flow-graph
+  ///
+  /// @throws IllegalArgumentException If the control-flow graph isn't empty
+  /// ([#compile(RSession, CFGCursor, Bc)] doesn't have this restriction).
   public static void compile(@Nullable RSession r, CFG cfg, Bc bc) {
-    new CFGCompiler(r, cfg, bc);
+    if (cfg.bbs().size() != 1 || !cfg.entry().statements().isEmpty() || !(cfg.entry().jump() instanceof Unreachable)) {
+      throw new IllegalArgumentException("CFG must be empty");
+    }
+
+    compile(r, new CFGCursor(cfg), bc);
+  }
+
+  /// Compile the given bytecode into the given control-flow-graph, starting at the cursor
+  public static void compile(@Nullable RSession r, CFGCursor cursor, Bc bc) {
+    new CFGCompiler(r, cursor, bc).compileBc();
   }
 
   // region compiler data
@@ -228,28 +246,89 @@ public class CFGCompiler {
 
   // endregion compiler data
 
-  // region constructor and loop
-  /// Compile everything.
-  private CFGCompiler(@Nullable RSession r, CFG cfg, Bc bc) {
-    if (cfg.bbs().size() != 1 || !(cfg.entry().jump() instanceof Unreachable)) {
-      throw new IllegalArgumentException(
-          "CFG must be empty, except assigning parameters to named variables");
-    }
-
+  // region constructor
+  /// Create the compiler, but don't compile `bc` into `cfg` yet.
+  CFGCompiler(@Nullable RSession r, CFGCursor cursor, Bc bc) {
     this.r = r;
+    cfg = cursor.cfg();
     inferType = new InferType(cfg.scope());
-    this.cfg = cfg;
     this.bc = bc;
+    this.cursor = cursor;
+  }
+  // endregion constructor
 
-    cursor = new CFGCursor(cfg);
-    cursor.moveToLocalEnd();
-    cursor.unadvance();
+  // region compile closure entry
+  /// Compile initial environment with parameters.
+  void compileClosureEntry(List<NamedVariable> parameterNames, List<SEXP> parameterValues) {
+    // Create the closure's environment
+    cursor.insert(new Statement(new MkEnv()));
 
-    doCompile();
+    // Compile parameters
+    for (var i = 0; i < parameterNames.size(); i++) {
+      var parameter = scope().parameters().get(i);
+      var parameterName = parameterNames.get(i);
+      var parameterDefault = parameterValues.get(i);
+      compileParameter(parameter, parameterName, parameterDefault);
+    }
   }
 
+  private void compileParameter(Parameter parameter, NamedVariable parameterName,
+      SEXP parameterDefault) {
+    // Note: We don't use all `CFGCompiler` machinery,
+    // e.g. we don't track phis because they're trivial.
+
+    // Add parameter local named variable (only for documentation unless type is DOTS)
+    var parameterVarType = parameter.type().withConcreteness(Concreteness.MAYBE);
+    scope().addLocal(new Local(parameterName, parameterVarType));
+
+    // Compile "compute default" if necessary, then "store parameter"
+    if (parameterDefault == SEXPs.MISSING_ARG) {
+      // The parameter never has a default, so just compile "store provided parameter"
+      insert(new Store(parameterName, new Read(parameter.variable())));
+    } else {
+      // Compile "compute default if missing, otherwise store provided parameter"
+
+      // Small optimization: if the parameter is a constant, we don't need to create a promise
+      // and branch to store the promise.
+      // It's also particularly useful for testing to generate branches to the same BB,
+      // since they're an SSA edge case.
+      var defaultIsConstant = parameterDefault instanceof NilSXP || parameterDefault instanceof PrimVectorSXP<?>;
+
+      var parameterIsMissing = scope().addLocal(Type.LOGICAL);
+      var parameterPhi = scope().addLocal(Type.ANY);
+
+      var computeDefaultBb = defaultIsConstant ? null : cfg.addBB();
+      var afterBb = cfg.addBB();
+
+      insert(new Statement(parameterIsMissing, builtin("missing", 0, new Read(parameter.variable()))));
+      cursor.advance();
+      if (defaultIsConstant) {
+        cursor.replace(new If(
+            new Read(parameterIsMissing),
+            new Target(afterBb, new Constant(parameterDefault)),
+            new Target(afterBb, new Read(parameter.variable()))));
+      } else {
+        cursor.replace(new If(
+            new Read(parameterIsMissing),
+            new Target(computeDefaultBb),
+            new Target(afterBb, new Read(parameter.variable()))));
+
+        cursor.moveToStart(computeDefaultBb);
+        var defaultParameter = compilePromise(parameterDefault);
+        cursor.advance();
+        cursor.replace(new Goto(new Target(afterBb, defaultParameter)));
+      }
+
+      cursor.moveToStart(afterBb);
+      afterBb.appendParameter(parameterPhi);
+      insert(new Store(parameterName, new Read(parameterPhi)));
+    }
+  }
+  // endregion compile closure entry
+
+  // region compile bc loop
   /// Actually compile `bc` into `cfg`.
-  private void doCompile() {
+  void compileBc() {
     // Start with a basic block for each section of bytecode separated by a label.
     addBcLabelBBs();
 
@@ -282,7 +361,7 @@ public class CFGCompiler {
     }
   }
 
-  // endregion constructor and loop
+  // endregion compile bc loop
 
   // region add BB for each bytecode label
   /// Add a basic block for every label in the bytecode.
@@ -584,26 +663,7 @@ public class CFGCompiler {
         pushCall(castedFun);
       }
       case MakeProm(var code) -> {
-        var sexp = this.get(code);
-        Bc bc;
-        if (sexp instanceof BCodeSXP bcSxp) {
-          bc = bcSxp.bc();
-        } else {
-          if (r == null) {
-            throw failUnsupported("No RSession, and promise has non-bytecode body: " + sexp);
-          }
-
-          var astThunk = SEXPs.closure(SEXPs.list(), sexp, r.globalEnv());
-          bc =
-              new BCCompiler(astThunk, r)
-                  .compile()
-                  .orElseThrow(() -> failUnsupported("promise has uncompilable AST body: " + sexp));
-        }
-
-        var cfg = new CFG(scope());
-        compile(r, cfg, bc);
-
-        var prom = insertAndReturn(new Promise(Type.ANY_VALUE, Effects.ANY, cfg));
+        var prom = compilePromise(this.get(code));
         pushCallArg(prom);
       }
       case DoMissing() -> pushMissingCallArg();
@@ -1007,6 +1067,28 @@ public class CFGCompiler {
     var rhs = pop();
     var lhs = pop();
     return builtin(builtinName, lhs, rhs);
+  }
+
+  private Argument compilePromise(SEXP codeSexp) {
+    Bc bc;
+    if (codeSexp instanceof BCodeSXP bcSxp) {
+      bc = bcSxp.bc();
+    } else {
+      if (r == null) {
+        throw failUnsupported("No RSession, and promise has non-bytecode body: " + codeSexp);
+      }
+
+      var astThunk = SEXPs.closure(SEXPs.list(), codeSexp, r.globalEnv());
+      bc =
+          new BCCompiler(astThunk, r)
+              .compile()
+              .orElseThrow(() -> failUnsupported("promise has uncompilable AST body: " + codeSexp));
+    }
+
+    var cfg = new CFG(scope());
+    compile(r, cfg, bc);
+
+    return insertAndReturn(new Promise(Type.ANY_VALUE, Effects.ANY, cfg));
   }
 
   /// End the previously-compiled for loop instruction (the latest [#pushWhileOrRepeatLoop(BB,

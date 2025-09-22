@@ -7,7 +7,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   (reg r1:v(I)o, reg r2:v(I)b) --> v(I)f { reg rx:v(I)o, reg ry:v(I)o |
     rx = use r1;
     ry = dup r2;

@@ -15,7 +15,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   (reg r:p(I -)) -+> V { reg r1:V, reg r2:*, reg r3:* |
     mkenv;
     r2 = r$x;
@@ -27,7 +27,7 @@ fun f(...) {
   }
 }
 
-fun g(...) {
+fun g(`...`) {
   # Slow case with variables, no optimizations due to `force r` causing reflection
   (reg r:*) -+> V { |
     mkenv;

@@ -1,6 +1,7 @@
 package org.prlprg.fir.analyze.resolve;
 
 import com.google.common.collect.Iterables;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -292,8 +293,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // because we may run a predecessor after a block,
       // then merge an equal state into the block,
       // not running `runEntry` except before we've resolved the predecessor's block arguments.
-      for (var target : jump.targets()) {
-        recomputePhis(target.bb());
+      for (var targetBb : jump.targetBBs()) {
+        recomputePhis(targetBb);
       }
     }
 
@@ -306,6 +307,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
         var sharedOrigin =
             arguments.stream()
+                .flatMap(Collection::stream)
                 .map(OriginAnalysis.this::resolve)
                 .collect(Streams.uniqueOrEmpty())
                 .orElse(null);

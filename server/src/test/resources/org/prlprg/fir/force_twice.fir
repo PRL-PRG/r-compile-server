@@ -19,7 +19,7 @@ fun main() {
   }
 }
 
-fun force_twice(...) {
+fun force_twice(`...`) {
   (reg r:p(I -)) --> I { reg r1:I |
     force r;
     r1 = force r;
@@ -27,6 +27,6 @@ fun force_twice(...) {
   }
 }
 
-fun inc(...) {
+fun inc(`...`) {
   (reg r:I) --> I { ... }
 }

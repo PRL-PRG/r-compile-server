@@ -8,7 +8,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   # after: (reg r0:I, reg c0:cls) -+> I { var x:I? |
   (reg r0:I, reg c0:cls) -+> I { var x:I?, reg r1:I?, reg r2:cls, reg r3:cls, reg r4:I |
     mkenv;
@@ -31,9 +31,9 @@ fun f(...) {
   }
 }
 
-fun y(...) {
+fun y(`...`) {
   () --> V { ... }
 }
-fun z(...) {
+fun z(`...`) {
   () --> V { ... }
 }

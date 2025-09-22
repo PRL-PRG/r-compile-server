@@ -8,10 +8,9 @@
 
 - Add a new type, `dots`, and a new expression, `dots[…]`
 
-- Add "parameter definitions" (language-agnostic `FORMALS`) to function definitions in FIŘ
-
-  - Parameter definitions may be: `x` (no default), `x = { code }` (has default), or `...` (the dots parameter).
-  - Every function's baseline version must have exactly one parameter for each parameter definition, and the parameter's type must be `dots` if it's corresponding definition is `...`, otherwise `*`
+- Add "parameter names" (language-agnostic `FORMALS`) to function definitions in FIŘ
+    - Every function's baseline version must have exactly one parameter for each parameter name, and the parameter's type must be `dots` if it's name is `...`, otherwise `*`
+    - Default parameters don't exist in FIŘ. Instead, R functions with default parameters explicitly (in the function body) check if their default parameters' values are `R_MissingVal` and compute the default values if so.
 - When resolving a dynamic call:
   - If none of the arguments are `...`, run the argument matching algorithm to determine which argument indices are assigned to which parameters, which parameters have missing/default values, which argument indices are part of the dots parameter (if the callee has one), and whether there are extra arguments (if the callee has no dots parameter)
     - If there are extra arguments and no parameters, replace the entire call with a call to `fail` that gives the same message as GNU-R (`"Error in …, unused argument(s) (…)"`)
@@ -57,16 +56,13 @@ cat(..., file = "", sep = " ", fill = FALSE, labels = NULL, append = FALSE)
 Definition of `cat` in FIŘ
 
 ```fir
-fun cat(
-  # These are cat's parameter definitions
-  ...,
-  file = { | return "" },
-  sep = { | return " "; },
-  fill = { | return FALSE; },
-  labels = { | return NULL; },
-  append = { | return FALSE; }
-) {
-  (reg ddd:dots, reg file:*, reg sep:*, reg fill:*, reg labels:*, reg append:*) -+> V { ... }
+# ``(`...`, file, sep, fill, labels, append)`` are cat's parameter names
+fun cat(..., file, sep, fill, labels, append) { 
+  (reg ddd:dots, reg file:*, reg sep:*, reg fill:*, reg labels:*, reg append:*) -+> V {
+      var `...`:dots?, var file:*, var sep:*, var fill:*, var labels:*, var append:* |
+    # stores `""` in `file` iff missing, `" "` in `sep`, etc.
+    ...
+  }
 }
 ```
 
@@ -83,20 +79,13 @@ labels = default
 append = #3
 ```
 
-Lazily create a version for `cat` which computes default arguments and calls the baseline version (lazy to prevent exponential blowup, since we only add a version if there's a call that uses it)
+Lazily create a version for `cat` which calls the baseline version (lazy to prevent exponential blowup, since we only add a version if there's a call that uses it)
 
 ```fir
-fun cat(
-  ...,
-  file = { | return "" },
-  sep = { | return " "; },
-  fill = { | return FALSE; },
-  labels = { | return NULL; },
-  append = { | return FALSE; }
-) {
+fun cat(`...`, file, sep, fill, labels, append) {
   …
   (reg ddd:dots, reg sep:*, reg append:*) -+> V { r0:V |
-    r0 = cat.0(ddd, "", sep, FALSE, NULL, append);
+    r0 = cat.0(ddd, <missing>, sep, <missing>, <missing>, append);
     return r0;
   }
 }
@@ -133,7 +122,7 @@ fun h(a, b) {
     return r0;
   }
 }
-fun i(...) {
+fun i(`...`) {
   (reg ddd:dots) -+> V { reg r0:cls; reg r1:V |
     r0 = ldf h;
     r1 = dyn r0[`...`](ddd);
@@ -148,7 +137,7 @@ Since we pass `...`, we can't statically resolve the call in `i`'s baseline vers
 However, we'll eventually create a specialized version of `i` if we repeatedly call `i(b = <integer>)`
 
 ```fir
-fun i(...) {
+fun i(`...`) {
   …
   (reg b:I) -+> V { reg r0:cls; reg r1:V |
     r0 = ldf h;
@@ -180,7 +169,7 @@ fun h(a, b) {
 Optimize `i.1` by statically resolving `h` (assume speculation always succeeds)
 
 ```fir
-fun i(...) {
+fun i(`...`) {
   …
   (reg b:I) -+> V { reg r1:V |
     r1 = h.1(b);
@@ -194,10 +183,9 @@ fun i(...) {
 Syntax changes
 
 ```bnf
-fun  ::= fun f(pdef*) { abs+ }   # add "parameter definitions" (pdef*)
-pdef ::= x | x = { code } | ...
-t  ::= … | dots    # add dots type
-e  ::= … | t[ve*]  # support dots and different types of vectors
-ve ::= a | x = a   # `x = a` in a vector constructor is forbidden
+fun ::= fun f(x*) { abs+ }   # add "parameter names" (x*)
+t   ::= … | dots    # add dots type
+e   ::= … | t[ve*]  # support dots and different types of vectors
+ve  ::= a | x = a   # `x = a` in a vector constructor is forbidden
 # subscript syntax is unchanged, but now works on dots (for `..n`)
 ```

@@ -14,7 +14,7 @@ fun main() {
   }
 }
 
-fun upcast(...) {
+fun upcast(`...`) {
   (reg r:*) --> I { reg r0:p(I -), reg r1:I |
     # runtime-error: Type mismatch in cast: 1 {:I} isn't a(n) p(I -)
     r0 = r as p(I -);
@@ -23,7 +23,7 @@ fun upcast(...) {
   }
 }
 
-fun downcast(...) {
+fun downcast(`...`) {
   (reg r:I) --> V { reg r0:V |
     r0 = r as V;
     return r0;

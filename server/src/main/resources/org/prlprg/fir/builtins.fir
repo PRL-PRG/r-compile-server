@@ -126,12 +126,7 @@ fun `:`(lhs, rhs) {
   (reg lhs:R, reg rhs:R) --> v(R) { ... }
 }
 
-fun `[`(
-  x,
-  i,
-  ...,
-  drop = () --> L { | return TRUE; },
-) {
+fun `[`(x, i, `...`, drop) {
   (reg x:*, reg i:*, reg ddd:dots, reg drop:*) -+> V { ... }
   (reg x:v(L), reg i:I) --> L { ... }
   (reg x:v(I), reg i:I) --> I { ... }
@@ -139,12 +134,7 @@ fun `[`(
   (reg x:v(S), reg i:I) --> S { ... }
 }
 
-fun `[[`(
-  x,
-  i,
-  ...,
-  exact = () --> L { | return TRUE; },
-) {
+fun `[[`(x, i, `...`, exact) {
   (reg x:*, reg i:*, reg ddd:dots, reg exact:*) -+> V { ... }
   (reg x:v(L), reg i:I) --> L { ... }
   (reg x:v(I), reg i:I) --> I { ... }
@@ -152,7 +142,7 @@ fun `[[`(
   (reg x:v(S), reg i:I) --> S { ... }
 }
 
-fun `[<-`(x, i, value, ...) {
+fun `[<-`(x, i, value, `...`) {
   (reg x:*, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
   (reg x:v(L), reg i:I, reg value:L) --> v(L) { ... }
   (reg x:v(I), reg i:I, reg value:I) --> v(I) { ... }
@@ -178,7 +168,7 @@ fun `$<-`(x, name, value) {
   (reg x:V, reg name:V, reg value:V) --> V { ... }
 }
 
-fun rep(x, ...) {
+fun rep(x, `...`) {
   (reg x:*, reg ddd:dots) -+> V { ... }
   (reg x:L, reg times:I) --> v(L) { ... }
   (reg x:I, reg times:I) --> v(I) { ... }
@@ -186,30 +176,23 @@ fun rep(x, ...) {
   (reg x:S, reg times:I) --> v(S) { ... }
 }
 
-fun sum(
-  ...,
-  `na.rm` = () --> L { | return FALSE; },
-) {
+fun sum(`...`, `na.rm`) {
   (reg ddd:dots, reg naRm:*) -+> V { ... }
   (reg x:v(L)) --> I { ... }
   (reg x:v(I)) --> I { ... }
   (reg x:v(R)) --> R { ... }
 }
 
-fun `.Call`(
-  name,
-  ...,
-  PACKAGE,
-) {
+fun `.Call`(name, `...`, PACKAGE) {
   (reg name:*, reg ddd:dots, reg package:*) -+> V { ... }
 }
 
-fun `.External`(
-  name,
-  ...,
-  PACKAGE,
-) {
+fun `.External`(name, `...`, PACKAGE) {
   (reg name:*, reg ddd:dots, reg package:*) -+> V { ... }
+}
+
+fun missing(x) {
+  (reg x:*) --> L { ... }
 }
 
 fun seq_along(`along.with`) {
@@ -240,10 +223,7 @@ fun exp(x) {
   (reg x:R) --> R { ... }
 }
 
-fun log(
-  x,
-  base = () --> R { | return 2.718282; }
-) {
+fun log(x, base) {
   (reg x:*, reg base:*) -+> V { ... }
   (reg x:I, reg base:R) --> R { ... }
   (reg x:R, reg base:R) --> R { ... }
@@ -412,21 +392,11 @@ fun `as.character`(x) {
   (reg x:V) --> S { ... }
 }
 
-fun stop(
-  ...,
-  `call.` = () --> L { | return TRUE; },
-  domain = () --> V { | return NULL; },
-) {
+fun stop(`...`, `call.`, domain) {
   (reg ddd:dots, reg call:*, reg domain:*) -+> V { ... }
 }
 
-fun warning(
-  ...,
-  `call.` = () --> L { | return TRUE; },
-  `immediate.` = () --> L { | return FALSE; },
-  `noBreaks.` = () --> L { | return FALSE; },
-  domain = () --> V { | return NULL; },
-) {
+fun warning(`...`, `call.`, `immediate.`, `noBreaks.`, domain) {
   (reg ddd:dots, reg call:*, reg immediate:*, reg noBreaks:*, reg domain:*) -+> V { ... }
 }
 
@@ -435,10 +405,7 @@ fun unclass(x) {
   (reg x:V) --> V { ... }
 }
 
-fun `is.vector`(
-  x,
-  mode = () --> S { | return "any"; },
-) {
+fun `is.vector`(x, mode) {
   (reg x:*, reg mode:*) -+> L { ... }
   (reg x:V) --> L { ... }
 }
@@ -488,21 +455,12 @@ fun `is.list`(x) {
   (reg x:V) --> L { ... }
 }
 
-fun inherits(
-  x,
-  what,
-  which = () --> L { | return FALSE; },
-) {
+fun inherits(x, what, which) {
   (reg x:*, reg what:*, reg which:*) -+> L { ... }
   (reg x:V, reg what:V) --> L { ... }
 }
 
-fun attr(
-  x,
-  which,
-  exact = () --> L { | return FALSE; },
-  value,
-) {
+fun attr(x, which, exact, value) {
   (reg x:*, reg which:*, reg exact:*, reg value:*) -+> V { ... }
   (reg x:V, reg which:S) --> V { ... }
 }
@@ -522,6 +480,6 @@ fun `is.symbol`(x) {
   (reg x:V) --> L { ... }
 }
 
-fun c(...) {
+fun c(`...`) {
   (reg ddd:dots) --> V { ... }
 }

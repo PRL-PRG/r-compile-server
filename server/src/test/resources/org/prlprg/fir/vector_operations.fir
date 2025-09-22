@@ -10,6 +10,6 @@ fun main() {
   }
 }
 
-fun inc(...) {
+fun inc(`...`) {
   (reg r:I) --> I { ... }
 }

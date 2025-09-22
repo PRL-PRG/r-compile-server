@@ -44,24 +44,6 @@ j   ::= …
 
 A checkpoint and deopt branch is created by the BC->FIŘ compiler after every instruction.
 
-**Background:** every R function has a static list of parameter names and defaults (`FORMALS`). When a function is called from GNU-R, arguments are assigned to parameters via the "argument matching" algorithm [[R manual](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Argument-matching)]. Unassigned parameters are assigned their default or "missing"; if there are unassigned arguments, the function is not called and an error is raised.
-
-**Idea:** If we've statically resolved a function, we can statically run the argument matching algorithm, because it only depends on argument names and count, *unless* one of the arguments is `...`.
-
-- Add a new type, `dots`, and a new expression, `dots[…]`
-
-- Add "parameter definitions" (language-agnostic `FORMALS`) to function definitions in FIŘ
-
-  - Parameter definitions may be: `x` (no default), `x = { code }` (has default), or `...` (the dots parameter).
-  - Every function's baseline version must have exactly one parameter for each parameter definition, and the parameter's type must be `dots` if it's corresponding definition is `...`, otherwise `*`
-- When resolving a dynamic call:
-  - If none of the arguments are `...`, run the argument matching algorithm to determine which argument indices are assigned to which parameters, which parameters have missing/default values, which argument indices are part of the dots parameter (if the callee has one), and whether there are extra arguments (if the callee has no dots parameter)
-    - If there are extra arguments and no parameters, replace the entire call with a call to `fail` that gives the same message as GNU-R (`"Error in …, unused argument(s) (…)"`)
-    - Otherwise, if there are missing/default parameters, lazily create a version in the callee that computes them and calls the baseline version
-    - If the callee has a dots parameter, insert a statement `r = dots[…]` before the call and pass `r` to the call in the dots parameter's index
-    - Replace the call with a static call to the version in the callee that has the exact parameters corresponding to the provided arguments, with the arguments in the correct indices according to the argument matching algorithm
-  - If any of the arguments are `...`, don't convert into a static call. This prevents the baseline from being optimized, but we'll eventually create a specialized version of the caller that doesn't have a dots parameter, in which the argument isn't `...` so the call can be converted.
-
 ## More info
 
 Inspired by and similar to PIR's speculation and deoptimization, described in the thesis [*Just in Time: Assumptions and Speculations*](https://thesis.r-vm.net/main.html#x1-1170007) (Flükiger, 2022).

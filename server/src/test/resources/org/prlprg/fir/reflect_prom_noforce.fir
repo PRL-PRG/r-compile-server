@@ -21,7 +21,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   (reg r:p(I +)) -+> I { |
     mkenv;
     popenv;

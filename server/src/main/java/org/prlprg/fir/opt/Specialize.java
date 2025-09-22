@@ -1,6 +1,7 @@
 package org.prlprg.fir.opt;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
@@ -172,6 +173,7 @@ public class Specialize implements AbstractionOptimization {
                 // This always reaches a fixpoint because phi types only get more specific.
                 var oldPhiType = scope.typeOf(phi);
                 arguments.stream()
+                    .flatMap(Collection::stream)
                     .map(scope::typeOf)
                     .reduce(Type::union)
                     .ifPresent(newPhiType -> specializeType(phi, oldPhiType, newPhiType, changes));

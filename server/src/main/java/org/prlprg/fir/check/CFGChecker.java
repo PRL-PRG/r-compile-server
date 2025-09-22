@@ -184,7 +184,7 @@ public class CFGChecker extends Checker {
               if (!(predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
                   && ifTrue.bb() == bb
                   && ifFalse.bb() == bb
-                  && ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {
+                  && !ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {
                 report(
                     bb,
                     -1,

@@ -3,8 +3,10 @@ package org.prlprg.fir.ir.instruction;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -16,6 +18,11 @@ public record Deopt(int pc, ImmutableList<Argument> stack) implements Jump {
   @Override
   public @UnmodifiableView Collection<Target> targets() {
     return List.of();
+  }
+
+  @Override
+  public @UnmodifiableView Set<BB> targetBBs() {
+    return Set.of();
   }
 
   @Override
