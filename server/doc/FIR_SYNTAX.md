@@ -15,7 +15,7 @@ FIŘ is a functional intermediate representation designed for analyzing and opti
 A FIŘ module consists of one or more functions:
 
 ```fir
-fun functionName(...) {
+fun functionName(x*) {
   signature { body }
   signature { body }  # Multiple versions allowed
 }

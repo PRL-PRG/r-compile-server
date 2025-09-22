@@ -13,7 +13,6 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
@@ -33,7 +32,7 @@ class SimpleInterpretTest {
   @Test
   void testSimpleConstantReturn() {
     // Create a function that returns constant 42
-    // fun test(...) { () --> I { | return 42; } }
+    // fun test() { () --> I { | return 42; } }
     var function = module.addFunction("test", List.of(), false);
     var version = function.baseline();
 
@@ -54,10 +53,9 @@ class SimpleInterpretTest {
   @Test
   void testParameterAccess() {
     // Create a function that returns its parameter
-    // fun test(...) { (reg r:I) --> I { | return r; } }
-    var paramDef = new ParameterDefinition(Variable.named("r"));
-    var param = new Parameter(Variable.register(paramDef.name().name()), Type.INTEGER);
-    var function = module.addFunction("test", List.of(paramDef), List.of(param), false);
+    // fun test(r) { (reg r:I) --> I { | return r; } }
+    var param = new Parameter(Variable.register("r"), Type.INTEGER);
+    var function = module.addFunction("test", List.of(Variable.named("r")), List.of(param), false);
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());
@@ -79,7 +77,7 @@ class SimpleInterpretTest {
   void testArgumentCountMismatch() {
     // Create a function that expects one parameter
     var function =
-        module.addFunction("test", List.of(new ParameterDefinition(Variable.named("r"))), false);
+        module.addFunction("test", List.of(Variable.named("r")), false);
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());

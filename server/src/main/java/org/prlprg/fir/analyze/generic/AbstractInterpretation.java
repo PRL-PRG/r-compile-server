@@ -141,10 +141,10 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
         }
 
         // Add successors to worklist (may need to update their entry states and recurse)
-        for (var target : bb.jump().targets()) {
+        for (var targetBb : bb.jump().targetBBs()) {
           // Can add `state` in-place, because it won't be mutated again by this point,
           // and we don't assign `worklist` entries to `state` or put into `states` without copying.
-          worklist.add(Pair.of(target.bb(), state));
+          worklist.add(Pair.of(targetBb, state));
         }
       }
 

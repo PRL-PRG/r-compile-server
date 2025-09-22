@@ -1,8 +1,10 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
+import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -11,6 +13,9 @@ public sealed interface Jump extends Instruction
     permits Checkpoint, Deopt, Goto, If, Return, Unreachable {
   @UnmodifiableView
   Collection<Target> targets();
+
+  @UnmodifiableView
+  Set<BB> targetBBs();
 
   @ParseMethod
   private static Jump parse(Parser p1, Instruction.ParseContext ctx) {

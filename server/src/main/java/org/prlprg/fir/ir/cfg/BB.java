@@ -1,12 +1,14 @@
 package org.prlprg.fir.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
@@ -26,7 +28,6 @@ import org.prlprg.util.Collections2;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Lists;
 import org.prlprg.util.SmallBinarySet;
-import org.prlprg.util.Streams;
 import org.prlprg.util.Strings;
 
 public final class BB implements Comparable<BB> {
@@ -94,7 +95,7 @@ public final class BB implements Comparable<BB> {
   }
 
   public @UnmodifiableView Collection<BB> successors() {
-    return Collections2.mapLazy(jump.targets(), Target::bb);
+    return jump.targetBBs();
   }
 
   public @UnmodifiableView Collection<BB> predecessors() {
@@ -102,34 +103,29 @@ public final class BB implements Comparable<BB> {
   }
 
   /// [Target]s in predecessors to this [BB].
-  public @UnmodifiableView Collection<Target> incomingTargets() {
-    return Collections2.mapLazy(
-        predecessors,
-        pred ->
-            pred.jump().targets().stream()
-                .filter(t -> t.bb() == this)
-                .collect(
-                    Streams.oneOrThrow(
-                        () -> {
-                          throw new AssertionError(
-                              "BB isn't a successor of its predecessor: predecessor = "
-                                  + pred.label
-                                  + ", successor = "
-                                  + label
-                                  + "\n"
-                                  + owner);
-                        })));
+  ///
+  /// Each element in the outermost collection contains all targets in a [BB] that point to this
+  /// one. There is guaranteed at least one, but may be multiple, e.g. if the predecessor's jump
+  /// is an [`If`][org.prlprg.fir.ir.instruction.If] and each target has different phi arguments.
+  public Collection<Collection<Target>> incomingTargets() {
+    return Collections2.mapLazy(predecessors, pred ->
+        Collections2.filter(pred.jump().targets(), t -> t.bb() == this));
   }
 
   /// Arguments from predecessor jumps to the parameter at the index.
   ///
+  /// Each element in the outermost collection contains the argument in all targets in a [BB]
+  /// that point to this one. There is guaranteed at least one, but may be multiple, e.g. if the
+  /// predecessor's jump is an [`If`][org.prlprg.fir.ir.instruction.If] and each target has
+  /// different phi arguments.
+  ///
   /// @throws IndexOutOfBoundsException If the index is out of bounds.
-  public @UnmodifiableView Collection<Argument> phiArguments(int parameterIndex) {
+  public Collection<Collection<Argument>> phiArguments(int parameterIndex) {
     if (parameterIndex < 0 || parameterIndex >= parameters.size()) {
       throw new IndexOutOfBoundsException(
           "Index " + parameterIndex + " is out of bounds for parameters of BB '" + label + "'.");
     }
-    return Collections2.mapLazy(incomingTargets(), target -> target.phiArgs().get(parameterIndex));
+    return Collections2.mapLazy(incomingTargets(), targets -> Collections2.mapLazy(targets, target -> target.phiArgs().get(parameterIndex)));
   }
 
   public void appendParameter(Register parameter) {
@@ -291,22 +287,22 @@ public final class BB implements Comparable<BB> {
             "BB#setJump",
             List.of(this, jump),
             () -> {
-              for (var target : this.jump.targets()) {
-                var removed = target.bb().predecessors.remove(this);
+              for (var targetBb : this.jump.targetBBs()) {
+                var removed = targetBb.predecessors.remove(this);
                 assert removed
-                    : "BB " + label + " was not a predecessor of target '" + target.bb() + "'.";
+                    : "BB " + label + " was not a predecessor of target '" + targetBb.label + "'.";
               }
-              if (this.jump.targets().isEmpty()) {
+              if (this.jump.targetBBs().isEmpty()) {
                 var removed = owner.exits.remove(this);
                 assert removed : "BB " + label + " was not an exit of the CFG.";
               }
               this.jump = jump;
-              for (var target : this.jump.targets()) {
-                var added = target.bb().predecessors.add(this);
+              for (var targetBb : this.jump.targetBBs()) {
+                var added = targetBb.predecessors.add(this);
                 assert added
-                    : "BB " + label + " was already a predecessor of target '" + target.bb() + "'.";
+                    : "BB " + label + " was already a predecessor of target '" + targetBb.label + "'.";
               }
-              if (this.jump.targets().isEmpty()) {
+              if (this.jump.targetBBs().isEmpty()) {
                 var added = owner.exits.add(this);
                 assert added : "BB " + label + " was already an exit of the CFG.";
               }
@@ -397,12 +393,12 @@ public final class BB implements Comparable<BB> {
     // Need target's `postCfg` to run before `target.bb()` is called.
     postOwner.add(
         _ -> {
-          for (var target : jump.targets()) {
-            var added = target.bb().predecessors.add(this);
+          for (var targetBb : jump.targetBBs()) {
+            var added = targetBb.predecessors.add(this);
             assert added
-                : "BB " + label + " was already a predecessor of target '" + target.bb() + "'.";
+                : "BB " + label + " was already a predecessor of target '" + targetBb + "'.";
           }
-          if (jump.targets().isEmpty()) {
+          if (jump.targetBBs().isEmpty()) {
             var added = owner.exits.add(this);
             assert added : "BB " + label + " was already an exit of the CFG.";
           }

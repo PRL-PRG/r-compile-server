@@ -7,7 +7,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   # after: (reg r0:I) --> I { |
   (reg r0:I) --> I { reg r1:p(I -), reg r2:I |
     # after:

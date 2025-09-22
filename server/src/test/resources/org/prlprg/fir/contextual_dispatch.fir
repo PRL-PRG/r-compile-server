@@ -13,7 +13,7 @@ fun main() {
   }
 }
 
-fun contextual(...) {
+fun contextual(`...`) {
   (reg r:*, reg r1:*) --> I { |
     return 1;
   }
@@ -28,6 +28,6 @@ fun contextual(...) {
   }
 }
 
-fun print(...) {
+fun print(`...`) {
   (reg r:*) --> V { ... }
 }

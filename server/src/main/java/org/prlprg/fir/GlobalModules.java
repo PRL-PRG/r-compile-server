@@ -3,7 +3,7 @@ package org.prlprg.fir;
 import java.nio.file.Path;
 import java.util.List;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.parameter.ParameterDefinition;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.session.GNURSession;
 
@@ -23,8 +23,8 @@ public final class GlobalModules {
         continue;
       }
       // Builtin that we haven't manually defined.
-      // Its builtin formals are unknown, hence `List.of(ParameterDefinition.DOTS)`.
-      BUILTINS.addFunction(bltName, List.of(ParameterDefinition.DOTS), true);
+      // Its builtin formals are unknown, hence `List.of(NamedVariable.DOTS)`.
+      BUILTINS.addFunction(bltName, List.of(NamedVariable.DOTS), true);
     }
 
     // Ensure intrinsic names don't conflict with builtins.

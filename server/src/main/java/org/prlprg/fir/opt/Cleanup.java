@@ -179,26 +179,25 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       if (bb.predecessors().size() != 1) {
         return;
       }
-
-      // Skip if the predecessor is an `If`, where both branches point to this block.
-      // If the arguments are the same, it will be handled by `simplifyBranches`.
-      // If the arguments are different, we can't remove the phi parameters.
       var predecessor = Iterables.getOnlyElement(bb.predecessors());
-      if (predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
-          && ifTrue.bb() == bb
-          && ifFalse.bb() == bb
-          && ifTrue.phiArgs().equals(ifFalse.phiArgs())) {
-        return;
-      }
 
-      var jumpTarget = findTargetInJump(predecessor.jump(), bb);
-      if (jumpTarget == null) {
+      // Skip if the predecessor has multiple targets pointing to this BB.
+      // For example, if the predecessor is an `If` and both branches point to this block:
+      // - if the arguments are the same, it will be handled by `simplifyBranches`.
+      // - if the arguments are different, we can't remove the jump or phi parameters.
+      var jumpTargets = predecessor.jump().targets().stream()
+          .filter(target -> target.bb() == bb)
+          .toList();
+      if (jumpTargets.isEmpty()) {
         throw new IllegalStateException(
             "CFG is malformed: block is not it's predecessor's successor: "
                 + bb.label()
                 + ", "
                 + predecessor.label());
+      } else if (jumpTargets.size() > 1) {
+        return;
       }
+      var jumpTarget = Iterables.getOnlyElement(jumpTargets);
 
       // If the number of arguments doesn't match the number of parameters,
       // this is a malformed CFG, so skip.
@@ -380,16 +379,6 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case SuperLoad _ -> false;
         case SuperStore _ -> false;
       };
-    }
-
-    /// Find the target in a jump that points to the given basic block
-    @Nullable Target findTargetInJump(Jump jump, BB targetBb) {
-      for (var target : jump.targets()) {
-        if (target.bb() == targetBb) {
-          return target;
-        }
-      }
-      return null;
     }
 
     /// Returns the jump removing the phi argument in the target pointing to `targetBb`.

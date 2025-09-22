@@ -23,7 +23,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   (reg r:p(I -)) --> I { reg r0:I |
     r0 = force r;
     return r0;

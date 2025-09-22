@@ -9,7 +9,6 @@ import java.util.function.DoubleUnaryOperator;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
-import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;

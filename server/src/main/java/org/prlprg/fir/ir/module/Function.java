@@ -19,7 +19,6 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
-import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -39,7 +38,7 @@ public final class Function {
 
   // Data
   private final String name;
-  private final List<ParameterDefinition> parameterDefinitions;
+  private final List<NamedVariable> parameterNames;
   /// Versions are stored so that removing a version doesn't decrement other versions' indices,
   /// which would cause tricky bugs when said versions or later ones are referenced by serialized
   /// calls.
@@ -54,7 +53,7 @@ public final class Function {
   Function(
       Module owner,
       String name,
-      List<ParameterDefinition> parameterDefinitions,
+      List<NamedVariable> parameterNames,
       List<Parameter> baselineParameters,
       boolean baselineIsStub) {
     if (name.isEmpty()) {
@@ -64,22 +63,21 @@ public final class Function {
 
     this.owner = owner;
     this.name = name;
-    this.parameterDefinitions = List.copyOf(parameterDefinitions);
+    this.parameterNames = List.copyOf(parameterNames);
 
     // Add baseline version
     addVersion(baselineParameters, baselineIsStub);
   }
 
-  static List<Parameter> computeBaselineParameters(List<ParameterDefinition> parameterDefinitions) {
-    var paramNames = new HashSet<Register>(parameterDefinitions.size());
-    return parameterDefinitions.stream()
+  static List<Parameter> computeBaselineParameters(List<NamedVariable> parameterNames) {
+    var baselineParamNames = new HashSet<Register>(parameterNames.size());
+    return parameterNames.stream()
         .map(
-            paramDef -> {
-              var paramName = resemblance(paramDef.name(), paramNames);
-              // Not `defaultBody().returnType()`, because that's the default value.
-              var paramType = paramDef == ParameterDefinition.DOTS ? Type.DOTS : Type.ANY;
-              paramNames.add(paramName);
-              return new Parameter(paramName, paramType);
+            paramName -> {
+              var baselineParamName = resemblance(paramName, baselineParamNames);
+              var paramType = paramName.equals(NamedVariable.DOTS) ? Type.DOTS : Type.ANY;
+              baselineParamNames.add(baselineParamName);
+              return new Parameter(baselineParamName, paramType);
             })
         .toList();
   }
@@ -109,8 +107,8 @@ public final class Function {
     return name;
   }
 
-  public @Unmodifiable List<ParameterDefinition> parameterDefinitions() {
-    return parameterDefinitions;
+  public @Unmodifiable List<NamedVariable> parameterNames() {
+    return parameterNames;
   }
 
   /// Use [#version(int)] to get the version at an index.
@@ -238,23 +236,7 @@ public final class Function {
       w.write(name);
     }
 
-    if (parameterDefinitions.stream().noneMatch(ParameterDefinition::hasDefault)) {
-      // Print single-line because they're single-line and probably small
-      p.printAsList("(", ")", parameterDefinitions);
-    } else {
-      // Print multiline because at least one is multiline.
-      // Also print trailing comma for style
-      w.write('(');
-      w.runIndented(
-          () -> {
-            for (var paramDef : parameterDefinitions) {
-              w.write('\n');
-              p.print(paramDef);
-              w.write(',');
-            }
-          });
-      w.write(')');
-    }
+    p.printAsList("(", ")", parameterNames);
 
     w.write(" {");
     w.runIndented(
@@ -287,15 +269,7 @@ public final class Function {
     s.assertAndSkip("fun ");
     name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
 
-    // Permit trailing comma in parameter definitions since they're usually multiline.
-    parameterDefinitions = new ArrayList<>();
-    s.assertAndSkip('(');
-    while (!s.trySkip(')')) {
-      parameterDefinitions.add(p2.parse(ParameterDefinition.class));
-      if (!s.nextCharIs(')')) {
-        s.assertAndSkip(',');
-      }
-    }
+    parameterNames = p.parseList("(", ")", NamedVariable.class);
 
     s.assertAndSkip('{');
     for (; !s.nextCharIs('}'); nextVersionIndex++) {

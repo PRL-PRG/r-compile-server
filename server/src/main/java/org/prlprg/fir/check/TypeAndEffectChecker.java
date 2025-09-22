@@ -49,7 +49,6 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
-import org.prlprg.fir.ir.parameter.ParameterDefinition;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;

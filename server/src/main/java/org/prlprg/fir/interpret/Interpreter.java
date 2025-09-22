@@ -1113,11 +1113,11 @@ public final class Interpreter {
   /// called by the interpreter.
   public CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
     var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name()));
-    // Some parameters may have explicit defaults, but they're not R ASTs.
-    // Fortunately, R accepts optional parameters without explicit defaults.
+    // All FIŘ functions explicitly compute parameter defaults, so their formal parameters
+    // never have default values.
     var rParams =
-        function.parameterDefinitions().stream()
-            .map(paramDef -> new TaggedElem(paramDef.name().name(), SEXPs.MISSING_ARG))
+        function.parameterNames().stream()
+            .map(paramName -> new TaggedElem(paramName.name(), SEXPs.MISSING_ARG))
             .collect(SEXPs.toList());
     var sexp = SEXPs.closure(rParams, codeStub, enclosingEnv);
     closures.put(sexp, function);

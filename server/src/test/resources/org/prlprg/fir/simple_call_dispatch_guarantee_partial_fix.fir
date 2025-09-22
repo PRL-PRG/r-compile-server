@@ -6,7 +6,7 @@ fun main() {
   }
 }
 
-fun g(...) {
+fun g(`...`) {
   (reg x:*) -+> v(I) { reg r:v(I) |
     r = v(I)[1, 2];
     return r;

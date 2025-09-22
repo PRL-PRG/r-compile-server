@@ -11,7 +11,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   (reg a:*, reg b:*) --> V { |
     return 42;
   }

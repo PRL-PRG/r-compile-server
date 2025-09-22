@@ -16,7 +16,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.observer.Observer;
-import org.prlprg.fir.ir.parameter.ParameterDefinition;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -52,17 +52,17 @@ public final class Module {
   }
 
   public Function addFunction(
-      String name, List<ParameterDefinition> parameterDefinitions, boolean baselineIsStub) {
+      String name, List<NamedVariable> parameterNames, boolean baselineIsStub) {
     return addFunction(
         name,
-        parameterDefinitions,
-        Function.computeBaselineParameters(parameterDefinitions),
+        parameterNames,
+        Function.computeBaselineParameters(parameterNames),
         baselineIsStub);
   }
 
   public Function addFunction(
       String name,
-      List<ParameterDefinition> parameterDefinitions,
+      List<NamedVariable> parameterNames,
       List<Parameter> baselineParameters,
       boolean baselineIsStub) {
     return this.record(
@@ -73,7 +73,7 @@ public final class Module {
             throw new IllegalArgumentException("Function with name '" + name + "' already exists.");
           }
           var function =
-              new Function(this, name, parameterDefinitions, baselineParameters, baselineIsStub);
+              new Function(this, name, parameterNames, baselineParameters, baselineIsStub);
           functions.put(name, function);
           return function;
         });

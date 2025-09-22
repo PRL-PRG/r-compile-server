@@ -10,7 +10,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   (reg r:p(I -)) -+> v(I) { reg r0:p(I -), reg r1:v(I) |
     mkenv;
     r0 = prom<I ->{ return 2; };
@@ -20,7 +20,7 @@ fun f(...) {
   }
 }
 
-fun g(...) {
+fun g(`...`) {
   (reg r:p(I -)) -+> v(I) { reg r0:v(I)o, reg r1:v(I) |
     mkenv;
     r0 = v(I)[3, 4, 5];

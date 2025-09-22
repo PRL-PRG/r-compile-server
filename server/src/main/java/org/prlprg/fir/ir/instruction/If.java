@@ -2,14 +2,33 @@ package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Lists;
 
 public record If(Argument cond, Target ifTrue, Target ifFalse) implements Jump {
+  @Override
+  public @UnmodifiableView Collection<Target> targets() {
+    return List.of(ifTrue, ifFalse);
+  }
+
+  @Override
+  public @UnmodifiableView Set<BB> targetBBs() {
+    return ifTrue.bb() == ifFalse.bb()
+        ? Set.of(ifTrue.bb())
+        : Set.of(ifTrue.bb(), ifFalse.bb());
+  }
+
+  @Override
+  public @UnmodifiableView Collection<Argument> arguments() {
+    return Lists.concatLazy(List.of(cond), ifTrue.phiArgs(), ifFalse.phiArgs());
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -25,15 +44,5 @@ public record If(Argument cond, Target ifTrue, Target ifFalse) implements Jump {
     p.print(ifTrue);
     w.write(" else ");
     p.print(ifFalse);
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Target> targets() {
-    return List.of(ifTrue, ifFalse);
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
-    return Lists.concatLazy(List.of(cond), ifTrue.phiArgs(), ifFalse.phiArgs());
   }
 }

@@ -16,7 +16,7 @@ fun main() {
   }
 }
 
-fun f(...) {
+fun f(`...`) {
   (reg r:p(V -)) -+> v(I) { reg r1:v(I) |
     mkenv;
     r1 = g< p(V -) -+> v(I) >(r);
@@ -25,7 +25,7 @@ fun f(...) {
   }
 }
 
-fun g(...) {
+fun g(`...`) {
   (reg r:p(V -)) -+> v(I) { reg r0:v(I)o, reg r1:v(I) |
     mkenv;
     r0 = v(I)[3, 4, 5];

@@ -6,7 +6,7 @@ fun main() {
   }
 }
 
-fun cast(...) {
+fun cast(`...`) {
   (reg r:v(I)b) --> I { reg rv:v(I)o, reg r1:I |
     # type-error: Can't assign it to rv: can't assign v(I)o to v(I)o
     rv = r as v(I)o;
