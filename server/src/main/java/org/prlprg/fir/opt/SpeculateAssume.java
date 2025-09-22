@@ -5,6 +5,7 @@ import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -134,7 +135,10 @@ public record SpeculateAssume(
         var assumes = Lists.ofNonNull(assumeCallee, assumeConstant, assumeType);
         assert !assumes.isEmpty();
 
-        Objects.requireNonNull(assumptionsToInsert.putIfAbsent(successBb, new java.util.ArrayList<>())).addAll(assumes);
+        if (!assumptionsToInsert.containsKey(successBb)) {
+          assumptionsToInsert.put(successBb, new ArrayList<>());
+        }
+        assumptionsToInsert.get(successBb).add(assumeCallee);
       }
     }
 
