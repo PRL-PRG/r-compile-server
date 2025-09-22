@@ -8,6 +8,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
@@ -90,7 +91,7 @@ public class Substituter extends AbstractSubstituter {
   }
 
   @Override
-  protected @Nullable Register substituteAssignee(@Nullable Register assignee) {
+  protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
     return assignee != null && locals.containsKey(assignee) ? null : assignee;
   }
 

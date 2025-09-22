@@ -135,91 +135,91 @@ abstract class AbstractSubstituter {
 
     for (var i = 0; i < bb.statements().size(); i++) {
       var statement = bb.statements().get(i);
-      bb.replaceStatementAt(i, substitute(statement));
+      bb.replaceStatementAt(i, substitute(bb, statement));
     }
-    bb.setJump(substitute(bb.jump()));
+    bb.setJump(substitute(bb, bb.jump()));
   }
 
-  private Statement substitute(Statement statement) {
+  private Statement substitute(BB bb, Statement statement) {
     var oldAssignee = statement.assignee();
     var oldExpr = statement.expression();
 
-    var newAssignee = substituteAssignee(oldAssignee);
-    var newExpr = substitute(oldExpr);
+    var newAssignee = substituteAssignee(bb, oldAssignee);
+    var newExpr = substitute(bb, oldExpr);
 
     return new Statement(newAssignee, newExpr);
   }
 
-  protected abstract @Nullable Register substituteAssignee(@Nullable Register assignee);
+  protected abstract @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee);
 
-  private Expression substitute(Expression expression) {
+  private Expression substitute(BB bb, Expression expression) {
     return switch (expression) {
-      case Aea(var value) -> new Aea(substitute(value));
+      case Aea(var value) -> new Aea(substitute(bb, value));
       case AssumeConstant(var target, var constant) ->
-          new AssumeConstant(substitute(target), constant);
+          new AssumeConstant(substitute(bb, target), constant);
       case AssumeFunction assume ->
-          new AssumeFunction(substitute(assume.target()), assume.function());
-      case AssumeType(var target, var type) -> new AssumeType(substitute(target), type);
+          new AssumeFunction(substitute(bb, assume.target()), assume.function());
+      case AssumeType(var target, var type) -> new AssumeType(substitute(bb, target), type);
       case Call call ->
           new Call(
               call.callee(),
               call.callArguments().stream()
-                  .map(this::substitute)
+                  .map(a -> substitute(bb, a))
                   .collect(ImmutableList.toImmutableList()));
-      case Cast(var target, var type) -> new Cast(substitute(target), type);
+      case Cast(var target, var type) -> new Cast(substitute(bb, target), type);
       case Closure closure -> closure;
-      case Dup(var value) -> new Dup(substitute(value));
-      case Force(var value) -> new Force(substitute(value));
+      case Dup(var value) -> new Dup(substitute(bb, value));
+      case Force(var value) -> new Force(substitute(bb, value));
       case Load(var variable) -> new Load(variable);
       case LoadFun(var variable, var env) -> new LoadFun(variable, env);
-      case MaybeForce(var value) -> new MaybeForce(substitute(value));
+      case MaybeForce(var value) -> new MaybeForce(substitute(bb, value));
       case MkEnv() -> new MkEnv();
       case PopEnv() -> new PopEnv();
       case MkVector(var kind, var elements) ->
           new MkVector(
               kind,
               elements.stream()
-                  .map(ne -> new NamedArgument(ne.name(), substitute(ne.argument())))
+                  .map(ne -> new NamedArgument(ne.name(), substitute(bb, ne.argument())))
                   .collect(ImmutableList.toImmutableList()));
       case Placeholder() -> new Placeholder();
       case Promise(var valueType, var effects, var code) -> new Promise(valueType, effects, code);
       case ReflectiveLoad(var promise, var variable) ->
-          new ReflectiveLoad(substitute(promise), variable);
+          new ReflectiveLoad(substitute(bb, promise), variable);
       case ReflectiveStore(var promise, var variable, var value) ->
-          new ReflectiveStore(substitute(promise), variable, substitute(value));
-      case Store(var variable, var value) -> new Store(variable, substitute(value));
+          new ReflectiveStore(substitute(bb, promise), variable, substitute(bb, value));
+      case Store(var variable, var value) -> new Store(variable, substitute(bb, value));
       case SubscriptRead(var target, var index) ->
-          new SubscriptRead(substitute(target), substitute(index));
+          new SubscriptRead(substitute(bb, target), substitute(bb, index));
       case SubscriptWrite(var target, var index, var value) ->
-          new SubscriptWrite(substitute(target), substitute(index), substitute(value));
+          new SubscriptWrite(substitute(bb, target), substitute(bb, index), substitute(bb, value));
       case SuperLoad(var variable) -> new SuperLoad(variable);
-      case SuperStore(var variable, var value) -> new SuperStore(variable, substitute(value));
+      case SuperStore(var variable, var value) -> new SuperStore(variable, substitute(bb, value));
     };
   }
 
-  private Jump substitute(Jump jump) {
+  private Jump substitute(BB bb, Jump jump) {
     return switch (jump) {
-      case Goto(var target) -> new Goto(substitute(target));
+      case Goto(var target) -> new Goto(substitute(bb, target));
       case If(var condition, var ifTrue, var ifFalse) ->
-          new If(substitute(condition), substitute(ifTrue), substitute(ifFalse));
-      case Return(var value) -> new Return(substitute(value));
+          new If(substitute(bb, condition), substitute(bb, ifTrue), substitute(bb, ifFalse));
+      case Return(var value) -> new Return(substitute(bb, value));
       case Checkpoint(var success, var deopt) ->
-          new Checkpoint(substitute(success), substitute(deopt));
+          new Checkpoint(substitute(bb, success), substitute(bb, deopt));
       case Deopt(var pc, var arguments) ->
           new Deopt(
               pc,
-              arguments.stream().map(this::substitute).collect(ImmutableList.toImmutableList()));
+              arguments.stream().map(a -> substitute(bb, a)).collect(ImmutableList.toImmutableList()));
       case Unreachable() -> new Unreachable();
     };
   }
 
-  private Target substitute(Target target) {
+  private Target substitute(BB bb, Target target) {
     return new Target(
         target.bb(),
-        target.phiArgs().stream().map(this::substitute).collect(ImmutableList.toImmutableList()));
+        target.phiArgs().stream().map(a -> substitute(bb, a)).collect(ImmutableList.toImmutableList()));
   }
 
-  private Argument substitute(Argument argument) {
+  protected Argument substitute(BB bb, Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
         // Preserve `use`-ness of substituted
