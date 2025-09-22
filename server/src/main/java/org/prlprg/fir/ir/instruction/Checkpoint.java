@@ -19,9 +19,7 @@ public record Checkpoint(Target success, Target deopt) implements Jump {
 
   @Override
   public @UnmodifiableView Set<BB> targetBBs() {
-    return success.bb() == deopt.bb()
-        ? Set.of(success.bb())
-        : Set.of(success.bb(), deopt.bb());
+    return success.bb() == deopt.bb() ? Set.of(success.bb()) : Set.of(success.bb(), deopt.bb());
   }
 
   @Override

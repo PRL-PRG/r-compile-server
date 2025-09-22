@@ -232,7 +232,7 @@
               <exclude>target/**/*</exclude>
             </excludes>
             <googleJavaFormat>
-              <version>1.22.0</version>
+              <version>1.28.0</version>
               <style>GOOGLE</style>
               <formatJavadoc>true</formatJavadoc>
             </googleJavaFormat>

@@ -83,8 +83,7 @@ public final class Builtins {
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1) {
-                throw interpreter.fail(
-                    "`" + name + "`.0 takes 1 scalar integer or real");
+                throw interpreter.fail("`" + name + "`.0 takes 1 scalar integer or real");
               }
               if (args.getFirst().asScalarInteger().isPresent()) {
                 int value = args.getFirst().asScalarInteger().get();
@@ -93,8 +92,7 @@ public final class Builtins {
                 double value = args.getFirst().asScalarReal().get();
                 return SEXPs.real(javaFunction.applyAsDouble(value));
               } else {
-                throw interpreter.fail(
-                    "`" + name + "`.0 takes 1 scalar integer or real");
+                throw interpreter.fail("`" + name + "`.0 takes 1 scalar integer or real");
               }
             }));
     interpreter.registerExternal(
@@ -471,7 +469,8 @@ public final class Builtins {
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new UnsupportedOperationException("Mock `[` and `[[` not implemented for non-vector objects");
+      throw new UnsupportedOperationException(
+          "Mock `[` and `[[` not implemented for non-vector objects");
     }
 
     // Get index as integer, truncating from real if necessary
@@ -496,7 +495,8 @@ public final class Builtins {
       throw interpreter.fail("`[<-` takes 3 arguments");
     }
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new UnsupportedOperationException("Mock `[<-` and `[[<-` not implemented for non-vector objects");
+      throw new UnsupportedOperationException(
+          "Mock `[<-` and `[[<-` not implemented for non-vector objects");
     }
 
     // Unlike FIŘ, the value is the second argument. The index (or indices for multidim) are after.
@@ -509,7 +509,8 @@ public final class Builtins {
     } else if (args.get(2).asScalarReal().isPresent()) {
       index1 = args.get(2).asScalarReal().get().intValue();
     } else {
-      throw new UnsupportedOperationException("Mock `[<-` and `[[<-` require numeric index argument");
+      throw new UnsupportedOperationException(
+          "Mock `[<-` and `[[<-` require numeric index argument");
     }
 
     // R uses 1-based indexing, but FIŘ uses 0
@@ -607,8 +608,12 @@ public final class Builtins {
       inferredKind = new Kind.PrimitiveVector(primitiveKind);
     }
 
-    return interpreter.mkVector(inferredKind, Lists.mapLazy(realArgs.names(), name -> name.isEmpty() ? Optional.empty() : Optional.of(
-        Variable.named(name))), realArgs.values());
+    return interpreter.mkVector(
+        inferredKind,
+        Lists.mapLazy(
+            realArgs.names(),
+            name -> name.isEmpty() ? Optional.empty() : Optional.of(Variable.named(name))),
+        realArgs.values());
   }
 
   private static SEXP length(

@@ -87,12 +87,13 @@ public class Streams {
         (_, element, downstream) -> downstream.push(mapper.apply(element, index[0]++)));
   }
 
-  public static <T> Gatherer<T, ?, T> filterWithIndex(
-      BiFunction<Integer, T, Boolean> predicate) {
+  public static <T> Gatherer<T, ?, T> filterWithIndex(BiFunction<Integer, T, Boolean> predicate) {
     final int[] index = {0};
     return Gatherer.ofSequential(
         (_, element, downstream) ->
-          predicate.apply(index[0]++, element) ? downstream.push(element) : !downstream.isRejecting());
+            predicate.apply(index[0]++, element)
+                ? downstream.push(element)
+                : !downstream.isRejecting());
   }
 
   public interface Worklist<T> {

@@ -80,16 +80,16 @@ public final class Names {
   public static boolean isReserved(String name) {
     return switch (name) {
       case "NULL",
-              "TRUE",
-              "FALSE",
-              "NA_LGL",
-              "NA_INT",
-              "NA_REAL",
-              "NA_CPLX",
-              "NA_STR",
-              "NA",
-              "NaN",
-              "Infinity" ->
+          "TRUE",
+          "FALSE",
+          "NA_LGL",
+          "NA_INT",
+          "NA_REAL",
+          "NA_CPLX",
+          "NA_STR",
+          "NA",
+          "NaN",
+          "Infinity" ->
           true;
       default -> false;
     };

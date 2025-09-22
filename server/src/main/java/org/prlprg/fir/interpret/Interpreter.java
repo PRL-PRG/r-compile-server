@@ -490,11 +490,12 @@ public final class Interpreter {
 
             List<SEXP> matchedArguments;
             try {
-              var namedArguments = Streams.zip(
-                  Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
-                  arguments.stream(),
-                  (name, value) -> new TaggedElem(name.isEmpty() ? null : name, value)
-              ).collect(SEXPs.toList());
+              var namedArguments =
+                  Streams.zip(
+                          Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
+                          arguments.stream(),
+                          (name, value) -> new TaggedElem(name.isEmpty() ? null : name, value))
+                      .collect(SEXPs.toList());
               matchedArguments = matchArguments(cloSXP.parameters(), namedArguments);
             } catch (MatchException e) {
               throw fail(e.getMessage());
@@ -660,7 +661,7 @@ public final class Interpreter {
     return switch (argument) {
       case Constant(var constant) -> constant;
       case Read(var register) -> read(register);
-        // `Read` and `Use` are evaluated the same, the only difference is in the type system.
+      // `Read` and `Use` are evaluated the same, the only difference is in the type system.
       case Use(var register) -> read(register);
     };
   }
@@ -838,14 +839,23 @@ public final class Interpreter {
 
   /// Force if promise, load if variable, and evaluate children.
   ///
-  /// @throws UnsupportedOperationException if given `LangSXP`; evaluation of those isn't implemented.
+  /// @throws UnsupportedOperationException if given `LangSXP`; evaluation of those isn't
+  // implemented.
   public SEXP eval(SEXP sexp) {
     return switch (sexp) {
       case PromSXP promSxp -> eval(force(promSxp));
       case RegSymSXP symSxp -> eval(load(Variable.named(symSxp.name())));
-      case ListSXP listSxp -> listSxp.stream().map(te -> new TaggedElem(te.tag(), eval(te.value()))).collect(SEXPs.toList());
-      case DotsListSXP dotsSxp -> dotsSxp.stream().map(te -> new TaggedElem(te.tag(), eval(te.value()))).collect(SEXPs.toDots());
-      case LangSXP langSxp -> throw new UnsupportedOperationException("Evaluation of LangSXP not implemented: " + langSxp);
+      case ListSXP listSxp ->
+          listSxp.stream()
+              .map(te -> new TaggedElem(te.tag(), eval(te.value())))
+              .collect(SEXPs.toList());
+      case DotsListSXP dotsSxp ->
+          dotsSxp.stream()
+              .map(te -> new TaggedElem(te.tag(), eval(te.value())))
+              .collect(SEXPs.toDots());
+      case LangSXP langSxp ->
+          throw new UnsupportedOperationException(
+              "Evaluation of LangSXP not implemented: " + langSxp);
       default -> sexp;
     };
   }

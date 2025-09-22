@@ -1,14 +1,12 @@
 package org.prlprg.fir.ir.cfg;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.CommentParser;
@@ -108,8 +106,8 @@ public final class BB implements Comparable<BB> {
   /// one. There is guaranteed at least one, but may be multiple, e.g. if the predecessor's jump
   /// is an [`If`][org.prlprg.fir.ir.instruction.If] and each target has different phi arguments.
   public Collection<Collection<Target>> incomingTargets() {
-    return Collections2.mapLazy(predecessors, pred ->
-        Collections2.filter(pred.jump().targets(), t -> t.bb() == this));
+    return Collections2.mapLazy(
+        predecessors, pred -> Collections2.filter(pred.jump().targets(), t -> t.bb() == this));
   }
 
   /// Arguments from predecessor jumps to the parameter at the index.
@@ -125,7 +123,9 @@ public final class BB implements Comparable<BB> {
       throw new IndexOutOfBoundsException(
           "Index " + parameterIndex + " is out of bounds for parameters of BB '" + label + "'.");
     }
-    return Collections2.mapLazy(incomingTargets(), targets -> Collections2.mapLazy(targets, target -> target.phiArgs().get(parameterIndex)));
+    return Collections2.mapLazy(
+        incomingTargets(),
+        targets -> Collections2.mapLazy(targets, target -> target.phiArgs().get(parameterIndex)));
   }
 
   public void appendParameter(Register parameter) {
@@ -300,7 +300,11 @@ public final class BB implements Comparable<BB> {
               for (var targetBb : this.jump.targetBBs()) {
                 var added = targetBb.predecessors.add(this);
                 assert added
-                    : "BB " + label + " was already a predecessor of target '" + targetBb.label + "'.";
+                    : "BB "
+                        + label
+                        + " was already a predecessor of target '"
+                        + targetBb.label
+                        + "'.";
               }
               if (this.jump.targetBBs().isEmpty()) {
                 var added = owner.exits.add(this);

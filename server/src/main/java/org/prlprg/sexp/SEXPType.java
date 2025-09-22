@@ -112,9 +112,9 @@ public enum SEXPType implements SEXPOrEnvType {
       case 23 -> WEAKREF;
       case 24 -> RAW;
       case 25 -> S4;
-        // case 30 -> NEW;
-        // case 31 -> FREE;
-        // case 99 -> FUN;
+      // case 30 -> NEW;
+      // case 31 -> FREE;
+      // case 99 -> FUN;
       default -> throw new IllegalArgumentException("Unknown SEXP type: " + i);
     };
   }
@@ -123,22 +123,22 @@ public enum SEXPType implements SEXPOrEnvType {
   public boolean isPrimitiveVector() {
     return switch (this) {
       case NIL,
-              LIST,
-              SYM,
-              LANG,
-              CLO,
-              PROM,
-              EXTPTR,
-              WEAKREF,
-              ENV,
-              SPECIAL,
-              BUILTIN,
-              S4,
-              BCODE,
-              DOT,
-              ANY,
-              VEC,
-              EXPR ->
+          LIST,
+          SYM,
+          LANG,
+          CLO,
+          PROM,
+          EXTPTR,
+          WEAKREF,
+          ENV,
+          SPECIAL,
+          BUILTIN,
+          S4,
+          BCODE,
+          DOT,
+          ANY,
+          VEC,
+          EXPR ->
           false;
       case CHAR, LGL, INT, REAL, CPLX, STR, RAW -> true;
     };

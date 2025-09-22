@@ -82,7 +82,7 @@ public final class InferEffects implements Analysis {
             : innerEffects;
       }
       case Load(var _) -> Effects.NONE;
-        // Function lookup can force.
+      // Function lookup can force.
       case LoadFun(var _, var _) -> Effects.ANY;
       case MaybeForce(var value) -> {
         var type = inferType.of(value);
@@ -94,10 +94,10 @@ public final class InferEffects implements Analysis {
           Effects.NONE;
       case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.ANY;
       case Store(var _, var _),
-              SubscriptRead(var _, var _),
-              SubscriptWrite(var _, var _, var _),
-              SuperLoad(var _),
-              SuperStore(var _, var _) ->
+          SubscriptRead(var _, var _),
+          SubscriptWrite(var _, var _, var _),
+          SuperLoad(var _),
+          SuperStore(var _, var _) ->
           Effects.NONE;
     };
   }

@@ -48,22 +48,22 @@ public class NamedVariablesOf {
                   case SuperLoad(var v) -> Stream.of(v);
                   case SuperStore(var v, var _) -> Stream.of(v);
                   case Aea _,
-                          Assume _,
-                          Call _,
-                          Cast _,
-                          Closure _,
-                          Dup _,
-                          Force _,
-                          MaybeForce _,
-                          MkVector _,
-                          MkEnv _,
-                          Placeholder _,
-                          PopEnv _,
-                          Promise _,
-                          ReflectiveLoad _,
-                          ReflectiveStore _,
-                          SubscriptRead _,
-                          SubscriptWrite _ ->
+                      Assume _,
+                      Call _,
+                      Cast _,
+                      Closure _,
+                      Dup _,
+                      Force _,
+                      MaybeForce _,
+                      MkVector _,
+                      MkEnv _,
+                      Placeholder _,
+                      PopEnv _,
+                      Promise _,
+                      ReflectiveLoad _,
+                      ReflectiveStore _,
+                      SubscriptRead _,
+                      SubscriptWrite _ ->
                       Stream.empty();
                 })
         .collect(Collectors.toSet());

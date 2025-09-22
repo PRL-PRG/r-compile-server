@@ -2,16 +2,11 @@ package org.prlprg.sexp;
 
 import static org.prlprg.util.ExceptionRaiser.raise;
 
-import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Stream;
-import org.prlprg.util.Lists;
-import org.prlprg.util.Pair;
 import org.prlprg.util.Streams;
 
 /// The argument matching algorithm as described in [The R manual](
@@ -26,30 +21,38 @@ public class ArgumentMatcher {
   /// parameter with the same priority, or too many arguments.
   public static List<SEXP> matchArguments(ListSXP formalParameters, ListSXP unmatchedArguments) {
     // Expand `...`s if present (yes, there can be multiple).
-    var unmatchedArguments1 = unmatchedArguments.names().contains("...")
-        ? unmatchedArguments.stream()
-          .flatMap(argument -> argument.tagOrEmpty().equals("...")
-              ? (argument.value() instanceof DotsListSXP ddd
-                ? ddd.stream()
-                : raise(new MatchException("`...` argument value isn't dots")))
-              : Stream.of(argument))
-          .collect(SEXPs.toList())
-        : unmatchedArguments;
+    var unmatchedArguments1 =
+        unmatchedArguments.names().contains("...")
+            ? unmatchedArguments.stream()
+                .flatMap(
+                    argument ->
+                        argument.tagOrEmpty().equals("...")
+                            ? (argument.value() instanceof DotsListSXP ddd
+                                ? ddd.stream()
+                                : raise(new MatchException("`...` argument value isn't dots")))
+                            : Stream.of(argument))
+                .collect(SEXPs.toList())
+            : unmatchedArguments;
 
     // Match parameter names to argument indices
     var nameMatches = matchArgumentNames(formalParameters.names(), unmatchedArguments1.names());
 
     // Build list by iterating parameter names and extracting argument values from indices in
     // `nameMatches`.
-    return formalParameters.stream().map(param -> {
-      var paramName = param.tagOrEmpty();
-      var paramValue = param.value();
-      var paramMatch = nameMatches.arguments.get(paramName);
+    return formalParameters.stream()
+        .map(
+            param -> {
+              var paramName = param.tagOrEmpty();
+              var paramValue = param.value();
+              var paramMatch = nameMatches.arguments.get(paramName);
 
-      return paramName.equals("...")
-          ? nameMatches.dddIndices.stream().map(unmatchedArguments1::get).collect(SEXPs.toDots())
-          : paramMatch != null ? unmatchedArguments1.value(paramMatch) : paramValue;
-    }).collect(ImmutableList.toImmutableList());
+              return paramName.equals("...")
+                  ? nameMatches.dddIndices.stream()
+                      .map(unmatchedArguments1::get)
+                      .collect(SEXPs.toDots())
+                  : paramMatch != null ? unmatchedArguments1.value(paramMatch) : paramValue;
+            })
+        .collect(ImmutableList.toImmutableList());
   }
 
   /// Returns a map of parameter name to index and a list of dots parameter names and indices
@@ -58,7 +61,8 @@ public class ArgumentMatcher {
   /// @throws IllegalArgumentException If one of the argument names is `...`.
   /// @throws MatchException if matching fails: if there are arguments that match the same
   /// parameter with the same priority, or too many arguments.
-  public static MatchResults matchArgumentNames(List<String> formalParameters, List<String> unmatchedArgumentNames) {
+  public static MatchResults matchArgumentNames(
+      List<String> formalParameters, List<String> unmatchedArgumentNames) {
     if (unmatchedArgumentNames.contains("...")) {
       throw new IllegalArgumentException("Argument '...' must be expanded before matching");
     }
@@ -104,20 +108,25 @@ public class ArgumentMatcher {
       }
 
       int i1 = i;
-      formalParameters.stream().limit(partialMatchEnd)
+      formalParameters.stream()
+          .limit(partialMatchEnd)
           .filter(name -> name.startsWith(argName) && !exactArguments.containsKey(name))
-          .collect(Streams.zeroOneOrThrow(() -> new MatchException(
-              "Argument '" + argName + "' matched multiple times partially")))
+          .collect(
+              Streams.zeroOneOrThrow(
+                  () ->
+                      new MatchException(
+                          "Argument '" + argName + "' matched multiple times partially")))
           .ifPresent(paramName -> arguments.put(paramName, i1));
     }
 
     // > **Positional matching.** Any unmatched formal arguments are bound to unnamed supplied
     //   arguments, in order. If there is a ... argument, it will take up the remaining arguments,
     //   tagged or not.
-    var unmatchedFormals = formalParameters.stream()
-        .limit(partialMatchEnd)
-        .filter(name -> !arguments.containsKey(name))
-        .iterator();
+    var unmatchedFormals =
+        formalParameters.stream()
+            .limit(partialMatchEnd)
+            .filter(name -> !arguments.containsKey(name))
+            .iterator();
     for (int i = 0; i < unmatchedArgumentNames.size(); i++) {
       var argName = unmatchedArgumentNames.get(i);
       if (arguments.containsValue(i)) {
@@ -141,8 +150,7 @@ public class ArgumentMatcher {
   public record MatchResults(
       ImmutableList<String> dddNames,
       ImmutableList<Integer> dddIndices,
-      ImmutableMap<String, Integer> arguments
-  ) {}
+      ImmutableMap<String, Integer> arguments) {}
 
   public static class MatchException extends IllegalArgumentException {
     public MatchException(String message) {
