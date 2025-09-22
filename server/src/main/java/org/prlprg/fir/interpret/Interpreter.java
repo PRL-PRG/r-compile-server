@@ -70,6 +70,7 @@ import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.ArgumentMatcher.MatchException;
 import org.prlprg.sexp.BaseEnvSXP;
@@ -81,12 +82,14 @@ import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.ExprSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StaticEnvSXP;
@@ -831,6 +834,20 @@ public final class Interpreter {
 
     checkType(value, promExpr.valueType(), "promise");
     return value;
+  }
+
+  /// Force if promise, load if variable, and evaluate children.
+  ///
+  /// @throws UnsupportedOperationException if given `LangSXP`; evaluation of those isn't implemented.
+  public SEXP eval(SEXP sexp) {
+    return switch (sexp) {
+      case PromSXP promSxp -> eval(force(promSxp));
+      case RegSymSXP symSxp -> eval(load(Variable.named(symSxp.name())));
+      case ListSXP listSxp -> listSxp.stream().map(te -> new TaggedElem(te.tag(), eval(te.value()))).collect(SEXPs.toList());
+      case DotsListSXP dotsSxp -> dotsSxp.stream().map(te -> new TaggedElem(te.tag(), eval(te.value()))).collect(SEXPs.toDots());
+      case LangSXP langSxp -> throw new UnsupportedOperationException("Evaluation of LangSXP not implemented: " + langSxp);
+      default -> sexp;
+    };
   }
 
   /// Run assumptions in `target` and return true if they all hold.

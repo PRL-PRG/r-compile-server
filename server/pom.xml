@@ -307,7 +307,6 @@
           <useIncrementalCompilation>false</useIncrementalCompilation>
           <source>24</source>
           <target>24</target>
-          <compilerArgs>--enable-preview</compilerArgs>
         </configuration>
       </plugin>
       <!-- JUnit5, unit test runner -->

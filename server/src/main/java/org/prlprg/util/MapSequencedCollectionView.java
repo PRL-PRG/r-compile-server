@@ -123,7 +123,7 @@ final class MapSequencedCollectionView<I, O> implements SequencedCollection<O> {
         return MapSequencedCollectionView.this.contains(o);
       }
 
-      @NotNull @Override
+      @Override
       public Iterator<O> iterator() {
         return new Iterator<>() {
           private final Iterator<I> backingIt = backing.reversed().iterator();
@@ -163,22 +163,22 @@ final class MapSequencedCollectionView<I, O> implements SequencedCollection<O> {
       }
 
       @Override
-      public boolean containsAll(@NotNull Collection<?> c) {
+      public boolean containsAll(Collection<?> c) {
         return MapSequencedCollectionView.this.containsAll(c);
       }
 
       @Override
-      public boolean addAll(@NotNull Collection<? extends O> c) {
+      public boolean addAll(Collection<? extends O> c) {
         return MapSequencedCollectionView.this.addAll(c);
       }
 
       @Override
-      public boolean removeAll(@NotNull Collection<?> c) {
+      public boolean removeAll(Collection<?> c) {
         return MapSequencedCollectionView.this.removeAll(c);
       }
 
       @Override
-      public boolean retainAll(@NotNull Collection<?> c) {
+      public boolean retainAll(Collection<?> c) {
         return MapSequencedCollectionView.this.retainAll(c);
       }
 
