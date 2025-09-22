@@ -138,7 +138,7 @@ public record SpeculateAssume(
         if (!assumptionsToInsert.containsKey(successBb)) {
           assumptionsToInsert.put(successBb, new ArrayList<>());
         }
-        assumptionsToInsert.get(successBb).add(assumeCallee);
+        assumptionsToInsert.get(successBb).addAll(assumes);
       }
     }
 
