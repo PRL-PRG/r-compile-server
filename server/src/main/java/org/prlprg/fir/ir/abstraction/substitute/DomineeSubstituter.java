@@ -38,8 +38,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
     // `stage(Register, Argument)` checks that `local` wasn't previously staged,
 
     if (backwards.contains(local)) {
-      throw new IllegalArgumentException(
-          "Transitive substitutions aren't allowed: " + local);
+      throw new IllegalArgumentException("Transitive substitutions aren't allowed: " + local);
     }
     if (locals.containsKey(substitution)) {
       throw new IllegalArgumentException(
@@ -69,7 +68,9 @@ public class DomineeSubstituter extends AbstractSubstituter {
   protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
     var dominator = assignee == null ? null : substitutionDominators.get(assignee);
     // TODO: Once we have the upgraded dominator tree, comparing owners is no longer necessary
-    if (dominator == null || dominator.owner() != bb.owner() || !domTrees.get(bb.owner()).dominates(dominator, bb)) {
+    if (dominator == null
+        || dominator.owner() != bb.owner()
+        || !domTrees.get(bb.owner()).dominates(dominator, bb)) {
       return assignee;
     }
 
@@ -78,9 +79,12 @@ public class DomineeSubstituter extends AbstractSubstituter {
 
   @Override
   protected Argument substitute(BB bb, Argument argument) {
-    var dominator = argument.variable() == null ? null : substitutionDominators.get(argument.variable());
+    var dominator =
+        argument.variable() == null ? null : substitutionDominators.get(argument.variable());
     // TODO: Once we have the upgraded dominator tree, comparing owners is no longer necessary
-    if (dominator == null || dominator.owner() != bb.owner() || !domTrees.get(bb.owner()).dominates(dominator, bb)) {
+    if (dominator == null
+        || dominator.owner() != bb.owner()
+        || !domTrees.get(bb.owner()).dominates(dominator, bb)) {
       return argument;
     }
 

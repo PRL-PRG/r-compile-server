@@ -214,7 +214,9 @@ public class CFGCompiler {
   /// @throws IllegalArgumentException If the control-flow graph isn't empty
   /// ([#compile(RSession, CFGCursor, Bc)] doesn't have this restriction).
   public static void compile(@Nullable RSession r, CFG cfg, Bc bc) {
-    if (cfg.bbs().size() != 1 || !cfg.entry().statements().isEmpty() || !(cfg.entry().jump() instanceof Unreachable)) {
+    if (cfg.bbs().size() != 1
+        || !cfg.entry().statements().isEmpty()
+        || !(cfg.entry().jump() instanceof Unreachable)) {
       throw new IllegalArgumentException("CFG must be empty");
     }
 
@@ -255,6 +257,7 @@ public class CFGCompiler {
     this.bc = bc;
     this.cursor = cursor;
   }
+
   // endregion constructor
 
   // region compile closure entry
@@ -272,8 +275,8 @@ public class CFGCompiler {
     }
   }
 
-  private void compileParameter(Parameter parameter, NamedVariable parameterName,
-      SEXP parameterDefault) {
+  private void compileParameter(
+      Parameter parameter, NamedVariable parameterName, SEXP parameterDefault) {
     // Note: We don't use all `CFGCompiler` machinery,
     // e.g. we don't track phis because they're trivial.
 
@@ -292,7 +295,8 @@ public class CFGCompiler {
       // and branch to store the promise.
       // It's also particularly useful for testing to generate branches to the same BB,
       // since they're an SSA edge case.
-      var defaultIsConstant = parameterDefault instanceof NilSXP || parameterDefault instanceof PrimVectorSXP<?>;
+      var defaultIsConstant =
+          parameterDefault instanceof NilSXP || parameterDefault instanceof PrimVectorSXP<?>;
 
       var parameterIsMissing = scope().addLocal(Type.LOGICAL);
       var parameterPhi = scope().addLocal(Type.ANY);
@@ -300,18 +304,21 @@ public class CFGCompiler {
       var computeDefaultBb = defaultIsConstant ? null : cfg.addBB();
       var afterBb = cfg.addBB();
 
-      insert(new Statement(parameterIsMissing, builtin("missing", 0, new Read(parameter.variable()))));
+      insert(
+          new Statement(parameterIsMissing, builtin("missing", 0, new Read(parameter.variable()))));
       cursor.advance();
       if (defaultIsConstant) {
-        cursor.replace(new If(
-            new Read(parameterIsMissing),
-            new Target(afterBb, new Constant(parameterDefault)),
-            new Target(afterBb, new Read(parameter.variable()))));
+        cursor.replace(
+            new If(
+                new Read(parameterIsMissing),
+                new Target(afterBb, new Constant(parameterDefault)),
+                new Target(afterBb, new Read(parameter.variable()))));
       } else {
-        cursor.replace(new If(
-            new Read(parameterIsMissing),
-            new Target(computeDefaultBb),
-            new Target(afterBb, new Read(parameter.variable()))));
+        cursor.replace(
+            new If(
+                new Read(parameterIsMissing),
+                new Target(computeDefaultBb),
+                new Target(afterBb, new Read(parameter.variable()))));
 
         cursor.moveToStart(computeDefaultBb);
         var defaultParameter = compilePromise(parameterDefault);
@@ -324,6 +331,7 @@ public class CFGCompiler {
       insert(new Store(parameterName, new Read(parameterPhi)));
     }
   }
+
   // endregion compile closure entry
 
   // region compile bc loop
@@ -554,7 +562,14 @@ public class CFGCompiler {
         // For loop body
         moveTo(forBodyBb);
         // Extract element at index
-        var elem = insertAndReturn(builtin("[[", seq, index1, new Constant(SEXPs.dots()), new Constant(SEXPs.logical(true))));
+        var elem =
+            insertAndReturn(
+                builtin(
+                    "[[",
+                    seq,
+                    index1,
+                    new Constant(SEXPs.dots()),
+                    new Constant(SEXPs.logical(true))));
         // Store in the element variable
         insert(new Store(getVar(elemName), elem));
         // Now we compile the rest of the body...
@@ -651,8 +666,8 @@ public class CFGCompiler {
         lastLoadedFunName = getVar(name).name();
         tryAddCheckpoint();
       }
-        // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
-        //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
+      // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
+      //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
       case GetSymFun(var name) -> pushCall(new Builtin(get(name).name()));
       case GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
@@ -697,7 +712,9 @@ public class CFGCompiler {
         // like `eval`. We also assume builtins never use names.
         // GNU-R just passes `CDR(call)` to the builtin.
         var args =
-            ast.args().stream().map(arg -> new Constant(arg.value())).collect(ImmutableList.<Argument>toImmutableList());
+            ast.args().stream()
+                .map(arg -> new Constant(arg.value()))
+                .collect(ImmutableList.<Argument>toImmutableList());
         // REACH: Like `compileCall`, we must insert a dynamic call, because we don't have the
         // formal parameters of all specials, and some arguments may be `...`.
         var loadFun = insertAndReturn(new LoadFun(Variable.named(builtinName), Env.BASE));
@@ -917,7 +934,12 @@ public class CFGCompiler {
 
         moveTo(isVectorBb);
         var isFactor =
-            insertAndReturn(builtin("inherits", value, new Constant(SEXPs.string("factor")), new Constant(SEXPs.logical(false))));
+            insertAndReturn(
+                builtin(
+                    "inherits",
+                    value,
+                    new Constant(SEXPs.string("factor")),
+                    new Constant(SEXPs.logical(false))));
         var isFactorBb = cfg.addBB();
         var isNotFactorBb = cfg.addBB();
         setJump(branch(isFactor, isFactorBb, isNotFactorBb));
@@ -1012,9 +1034,10 @@ public class CFGCompiler {
         }
         var funAndArgs = stack.subList(stack.size() - numArgs - 1, stack.size());
         var fun = funAndArgs.getFirst();
-        var args = funAndArgs.subList(1, funAndArgs.size()).stream()
-            .map(NamedArgument::new)
-            .collect(ImmutableList.toImmutableList());
+        var args =
+            funAndArgs.subList(1, funAndArgs.size()).stream()
+                .map(NamedArgument::new)
+                .collect(ImmutableList.toImmutableList());
         funAndArgs.clear();
 
         // Insert dots list for arguments
@@ -1194,8 +1217,8 @@ public class CFGCompiler {
     finishCompilingDefaultDispatch(type, dispatch, args);
   }
 
-  private void finishCompilingDefaultDispatch(Dispatch.Type type, Dispatch dispatch,
-      ImmutableList<Argument> argValues) {
+  private void finishCompilingDefaultDispatch(
+      Dispatch.Type type, Dispatch dispatch, ImmutableList<Argument> argValues) {
     // See `compileCall` for why we can't compile builtins directly.
     var loadFun = insertAndReturn(new LoadFun(Variable.named(type.builtin.name()), Env.BASE));
     pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), argValues));
@@ -1220,14 +1243,14 @@ public class CFGCompiler {
           case Call.Fun.Dynamic(var fun) ->
               new org.prlprg.fir.ir.expression.Call(new DynamicCallee(fun, names), args);
           case Call.Fun.Builtin(var builtin) -> {
-              // REACH: We can't compile builtins directly, only because we don't know how to
-              // match arguments.
-              // The created `LdFun` will be optimized into a builtin call if we know the
-              // builtin's formals and none of the arguments are `...`. Eventually we can add
-              // the formals of all builtins programatically and do this in the compiler, or at
-              // least pre-optimize here when the above conditions are met if it's too expensive.
-              var loadFun = insertAndReturn(new LoadFun(Variable.named(builtin.name()), Env.BASE));
-              yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args);
+            // REACH: We can't compile builtins directly, only because we don't know how to
+            // match arguments.
+            // The created `LdFun` will be optimized into a builtin call if we know the
+            // builtin's formals and none of the arguments are `...`. Eventually we can add
+            // the formals of all builtins programatically and do this in the compiler, or at
+            // least pre-optimize here when the above conditions are met if it's too expensive.
+            var loadFun = insertAndReturn(new LoadFun(Variable.named(builtin.name()), Env.BASE));
+            yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args);
           }
         };
     pushInsert(callInstr);
@@ -1707,12 +1730,22 @@ public class CFGCompiler {
 
   /// An expression that raises an error with the given message.
   private Expression stop(String message) {
-    return builtin("stop", new Constant(SEXPs.dots(SEXPs.string(message))), new Constant(SEXPs.logical(true)), new Constant(SEXPs.NULL));
+    return builtin(
+        "stop",
+        new Constant(SEXPs.dots(SEXPs.string(message))),
+        new Constant(SEXPs.logical(true)),
+        new Constant(SEXPs.NULL));
   }
 
   /// An expression that raises a warning with the given message.
   private Expression warning(String message) {
-    return builtin("warning", new Constant(SEXPs.dots(SEXPs.string(message))), new Constant(SEXPs.logical(true)), new Constant(SEXPs.logical(false)), new Constant(SEXPs.logical(false)), new Constant(SEXPs.NULL));
+    return builtin(
+        "warning",
+        new Constant(SEXPs.dots(SEXPs.string(message))),
+        new Constant(SEXPs.logical(true)),
+        new Constant(SEXPs.logical(false)),
+        new Constant(SEXPs.logical(false)),
+        new Constant(SEXPs.NULL));
   }
 
   /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to

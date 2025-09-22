@@ -119,8 +119,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     return switch (arg) {
       case Constant c -> c;
       case Read(var register) -> get(register);
-        // Note that `a = <const>; ...; use a` and `b = use a; ...; use b` are invalid IR, since
-        // they use a register multiple times, so after `:` can be anything.
+      // Note that `a = <const>; ...; use a` and `b = use a; ...; use b` are invalid IR, since
+      // they use a register multiple times, so after `:` can be anything.
       case Use(var register) -> resolve(get(register)) instanceof Read(var r) ? new Use(r) : arg;
     };
   }
@@ -234,12 +234,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         }
         case Force(var value) -> runForce(value, false);
         case MaybeForce(var value) -> runForce(value, true);
-          // We must run promises because `AbstractInterpretation` doesn't.
+        // We must run promises because `AbstractInterpretation` doesn't.
         case Promise(var _, var _, var code) -> {
           onCfg(code).run(state());
           yield null;
         }
-          // TODO: Constant-fold some calls.
+        // TODO: Constant-fold some calls.
         case AssumeConstant _,
             AssumeFunction _,
             Call _,

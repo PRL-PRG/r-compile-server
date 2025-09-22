@@ -1,17 +1,10 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
-import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
-
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
-import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.Feedback;
@@ -19,24 +12,16 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.type.Effects;
-import org.prlprg.fir.ir.type.Signature;
-import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Lists;
 import org.prlprg.util.OptionalFunction;
-import org.prlprg.util.Streams;
 
 /// Insert assumptions that feedback suggests will always pass.
 ///
@@ -53,9 +38,7 @@ import org.prlprg.util.Streams;
 /// \[1\] Specifically, every checkpoint that dominates the register's definition which isn't
 /// dominated by another such checkpoint. There's usually only one, although we handle the case
 /// where there's multiple.
-public record SpeculateAssume(
-    OptionalFunction<Abstraction, Feedback> getFeedback,
-    int threshold)
+public record SpeculateAssume(OptionalFunction<Abstraction, Feedback> getFeedback, int threshold)
     implements AbstractionOptimization {
   @Override
   public boolean run(Abstraction scope) {
@@ -65,10 +48,12 @@ public record SpeculateAssume(
     }
 
     // Compute checkpoint BBs and analyses we'll need
-    var checkpointBbs = scope.streamCfgs()
-        .flatMap(cfg -> cfg.bbs().stream())
-        .filter(bb -> bb.jump() instanceof Checkpoint)
-        .toList();
+    var checkpointBbs =
+        scope
+            .streamCfgs()
+            .flatMap(cfg -> cfg.bbs().stream())
+            .filter(bb -> bb.jump() instanceof Checkpoint)
+            .toList();
     var defUses = new DefUses(scope);
     // TODO: Use upgraded dominator tree which can check BBs in different CFGs
     var domTrees = scope.streamCfgs().collect(Collectors.toMap(c -> c, DominatorTree::new));
@@ -86,7 +71,11 @@ public record SpeculateAssume(
       // Skip if we've assumed anything for this register, anywhere:
       // that means we already ran this optimization,
       // and our assumptions never become more precise, only less
-      if (defUses.uses(register).stream().anyMatch(use -> use.inInnermostCfg().instruction() instanceof Statement s && s.expression() instanceof Assume)) {
+      if (defUses.uses(register).stream()
+          .anyMatch(
+              use ->
+                  use.inInnermostCfg().instruction() instanceof Statement s
+                      && s.expression() instanceof Assume)) {
         continue;
       }
 
@@ -107,31 +96,49 @@ public record SpeculateAssume(
       var def = Iterables.getOnlyElement(defs);
 
       // Get possible checkpoints where after we can insert assumptions for the register
-      var availableCheckpointBbs = checkpointBbs.stream()
-          .filter(bb -> {
-            var defInCfg = def.inCfg(bb.owner());
-            return defInCfg != null && domTrees.get(bb.owner()).dominates(bb, defInCfg.bb());
-          })
-          .toList();
+      var availableCheckpointBbs =
+          checkpointBbs.stream()
+              .filter(
+                  bb -> {
+                    var defInCfg = def.inCfg(bb.owner());
+                    return defInCfg != null
+                        && domTrees.get(bb.owner()).dominates(bb, defInCfg.bb());
+                  })
+              .toList();
       if (availableCheckpointBbs.isEmpty()) {
         continue;
       }
 
       // Filter out checkpoints where the assumptions would be strictly redundant,
       // because they're dominated by another checkpoint we'll insert assumptions at.
-      var immediateCheckpointBbs = availableCheckpointBbs.stream()
-          .filter(bb -> availableCheckpointBbs.stream()
-              // TODO: Once we have the upgraded dominator tree, comparing owners is no longer necessary
-              .noneMatch(other -> other != bb && other.owner() == bb.owner() && domTrees.get(bb.owner()).dominates(other, bb)))
-          .toList();
+      var immediateCheckpointBbs =
+          availableCheckpointBbs.stream()
+              .filter(
+                  bb ->
+                      availableCheckpointBbs.stream()
+                          // TODO: Once we have the upgraded dominator tree, comparing owners is no
+                          // longer necessary
+                          .noneMatch(
+                              other ->
+                                  other != bb
+                                      && other.owner() == bb.owner()
+                                      && domTrees.get(bb.owner()).dominates(other, bb)))
+              .toList();
       assert !immediateCheckpointBbs.isEmpty();
 
       for (var cpBb : immediateCheckpointBbs) {
         var successBb = ((Checkpoint) cpBb.jump()).success().bb();
 
-        var assumeCallee = calleeFeedback == null ? null : new AssumeFunction(new Read(register), calleeFeedback);
-        var assumeConstant = constantFeedback == null ? null : new AssumeConstant(new Read(register), new Constant(constantFeedback));
-        var assumeType = typeFeedback.equals(local.type()) ? null : new AssumeType(new Read(register), typeFeedback);
+        var assumeCallee =
+            calleeFeedback == null ? null : new AssumeFunction(new Read(register), calleeFeedback);
+        var assumeConstant =
+            constantFeedback == null
+                ? null
+                : new AssumeConstant(new Read(register), new Constant(constantFeedback));
+        var assumeType =
+            typeFeedback.equals(local.type())
+                ? null
+                : new AssumeType(new Read(register), typeFeedback);
         var assumes = Lists.ofNonNull(assumeCallee, assumeConstant, assumeType);
         assert !assumes.isEmpty();
 
@@ -168,10 +175,13 @@ public record SpeculateAssume(
     for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
       var assumes = entry.getValue();
-      var assumeStmts = Lists.mapLazy(assumes, assume -> {
-        var dst = assumeDsts.get(assume);
-        return new Statement(dst, assume);
-      });
+      var assumeStmts =
+          Lists.mapLazy(
+              assumes,
+              assume -> {
+                var dst = assumeDsts.get(assume);
+                return new Statement(dst, assume);
+              });
 
       successBb.insertStatements(0, assumeStmts);
     }

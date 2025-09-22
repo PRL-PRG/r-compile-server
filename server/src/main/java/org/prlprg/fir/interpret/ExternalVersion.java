@@ -2,10 +2,8 @@ package org.prlprg.fir.interpret;
 
 import java.util.List;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.PromSXP;
-import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 
 /// Function version that executes Java code which can be called from the interpreter.
@@ -21,10 +19,7 @@ public interface ExternalVersion {
   /// @throws UnsupportedOperationException If given complex AST arguments (language objects).
   static ExternalVersion special(ExternalVersion inner) {
     return (runtime, hijacked, arguments, environment) -> {
-      var forcedAndEvaldArgs =
-          arguments.stream()
-              .map(runtime::eval)
-              .toList();
+      var forcedAndEvaldArgs = arguments.stream().map(runtime::eval).toList();
       return inner.call(runtime, hijacked, forcedAndEvaldArgs, environment);
     };
   }

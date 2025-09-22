@@ -208,7 +208,9 @@ abstract class AbstractSubstituter {
       case Deopt(var pc, var arguments) ->
           new Deopt(
               pc,
-              arguments.stream().map(a -> substitute(bb, a)).collect(ImmutableList.toImmutableList()));
+              arguments.stream()
+                  .map(a -> substitute(bb, a))
+                  .collect(ImmutableList.toImmutableList()));
       case Unreachable() -> new Unreachable();
     };
   }
@@ -216,13 +218,15 @@ abstract class AbstractSubstituter {
   private Target substitute(BB bb, Target target) {
     return new Target(
         target.bb(),
-        target.phiArgs().stream().map(a -> substitute(bb, a)).collect(ImmutableList.toImmutableList()));
+        target.phiArgs().stream()
+            .map(a -> substitute(bb, a))
+            .collect(ImmutableList.toImmutableList()));
   }
 
   protected Argument substitute(BB bb, Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
-        // Preserve `use`-ness of substituted
+      // Preserve `use`-ness of substituted
       case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
       default -> argument;
     };

@@ -186,7 +186,7 @@ public class GNURByteCodeEncoderFactory {
       case BcInstr.BaseGuard i -> new int[] {i.expr().idx(), labelMapping.extract(i.ifFail())};
       case BcInstr.DeclnkN i -> new int[] {i.n()};
 
-        // Otherwise, there are no arguments we need to serialize
+      // Otherwise, there are no arguments we need to serialize
       default -> new int[0];
     };
   }

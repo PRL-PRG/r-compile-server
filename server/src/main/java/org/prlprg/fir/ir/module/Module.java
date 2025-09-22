@@ -54,10 +54,7 @@ public final class Module {
   public Function addFunction(
       String name, List<NamedVariable> parameterNames, boolean baselineIsStub) {
     return addFunction(
-        name,
-        parameterNames,
-        Function.computeBaselineParameters(parameterNames),
-        baselineIsStub);
+        name, parameterNames, Function.computeBaselineParameters(parameterNames), baselineIsStub);
   }
 
   public Function addFunction(

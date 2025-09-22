@@ -9,8 +9,9 @@
 - Add a new type, `dots`, and a new expression, `dots[…]`
 
 - Add "parameter names" (language-agnostic `FORMALS`) to function definitions in FIŘ
-    - Every function's baseline version must have exactly one parameter for each parameter name, and the parameter's type must be `dots` if it's name is `...`, otherwise `*`
-    - Default parameters don't exist in FIŘ. Instead, R functions with default parameters explicitly (in the function body) check if their default parameters' values are `R_MissingVal` and compute the default values if so.
+
+  - Every function's baseline version must have exactly one parameter for each parameter name, and the parameter's type must be `dots` if it's name is `...`, otherwise `*`
+  - Default parameters don't exist in FIŘ. Instead, R functions with default parameters explicitly (in the function body) check if their default parameters' values are `R_MissingVal` and compute the default values if so.
 - When resolving a dynamic call:
   - If none of the arguments are `...`, run the argument matching algorithm to determine which argument indices are assigned to which parameters, which parameters have missing/default values, which argument indices are part of the dots parameter (if the callee has one), and whether there are extra arguments (if the callee has no dots parameter)
     - If there are extra arguments and no parameters, replace the entire call with a call to `fail` that gives the same message as GNU-R (`"Error in …, unused argument(s) (…)"`)
@@ -57,7 +58,7 @@ Definition of `cat` in FIŘ
 
 ```fir
 # ``(`...`, file, sep, fill, labels, append)`` are cat's parameter names
-fun cat(..., file, sep, fill, labels, append) { 
+fun cat(..., file, sep, fill, labels, append) {
   (reg ddd:dots, reg file:*, reg sep:*, reg fill:*, reg labels:*, reg append:*) -+> V {
       var `...`:dots?, var file:*, var sep:*, var fill:*, var labels:*, var append:* |
     # stores `""` in `file` iff missing, `" "` in `sep`, etc.

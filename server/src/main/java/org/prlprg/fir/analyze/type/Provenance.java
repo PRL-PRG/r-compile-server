@@ -112,7 +112,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     void run(Argument argument) {
       switch (argument) {
         case Constant(var _) -> {}
-          // Ensure register is written before read
+        // Ensure register is written before read
         case Read(var variable) -> {
           if (!state().write.contains(variable)) {
             report("Read before write: ", variable);
@@ -122,7 +122,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
           }
           state().read.add(variable);
         }
-          // Ensure register is written before use, and not used or captured.
+        // Ensure register is written before use, and not used or captured.
         case Use(var register) -> {
           if (!state().write.contains(register)) {
             report("Use before write: ", register);

@@ -90,16 +90,16 @@ class PrintStackTrace {
 
     // Position
     switch (appearanceIndex) {
-        // Print all positions
+      // Print all positions
       case -2 -> p.printSeparated("---\n", frame.positions());
-        // Bad context
+      // Bad context
       case -1 ->
           throw new IllegalStateException(
               "Stack frame's indices are "
                   + frameAppearances
                   + ", but we're printing at index "
                   + currentStackIndex);
-        // Only print the position at this appearance.
+      // Only print the position at this appearance.
       default -> p.print(frame.position(appearanceIndex));
     }
 

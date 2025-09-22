@@ -6,7 +6,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
-import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
@@ -185,9 +184,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       // For example, if the predecessor is an `If` and both branches point to this block:
       // - if the arguments are the same, it will be handled by `simplifyBranches`.
       // - if the arguments are different, we can't remove the jump or phi parameters.
-      var jumpTargets = predecessor.jump().targets().stream()
-          .filter(target -> target.bb() == bb)
-          .toList();
+      var jumpTargets =
+          predecessor.jump().targets().stream().filter(target -> target.bb() == bb).toList();
       if (jumpTargets.isEmpty()) {
         throw new IllegalStateException(
             "CFG is malformed: block is not it's predecessor's successor: "
@@ -359,23 +357,23 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       return switch (expression) {
         case Aea _ -> true;
         case Assume _, Call _ -> false;
-          // Other instructions may implicitly depend on it succeeding
+        // Other instructions may implicitly depend on it succeeding
         case Cast _ -> false;
         case Closure _, Dup _ -> true;
         case Force _ -> false;
-          // May error
+        // May error
         case Load _ -> false;
-          // May force
+        // May force
         case LoadFun _ -> false;
         case MaybeForce _ -> false;
         case MkVector _ -> true;
         case MkEnv _, Placeholder _, PopEnv _ -> false;
         case Promise _ -> true;
         case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
-          // May error
+        // May error
         case SubscriptRead _ -> false;
         case SubscriptWrite _ -> false;
-          // May error
+        // May error
         case SuperLoad _ -> false;
         case SuperStore _ -> false;
       };

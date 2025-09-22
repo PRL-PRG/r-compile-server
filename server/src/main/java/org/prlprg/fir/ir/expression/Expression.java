@@ -196,10 +196,10 @@ public sealed interface Expression
           var elements = p.parseList("[", "]", NamedArgument.class);
           return new MkVector(new Kind.Dots(), elements);
         }
-          // Constant
+        // Constant
         case String headAsName1 when Names.isReserved(headAsName1) ->
             headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
-          // Variable
+        // Variable
         default -> {
           var headAsReg = Variable.register(headAsName);
           if (scope.contains(headAsReg)) {

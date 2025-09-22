@@ -76,8 +76,7 @@ class SimpleInterpretTest {
   @Test
   void testArgumentCountMismatch() {
     // Create a function that expects one parameter
-    var function =
-        module.addFunction("test", List.of(Variable.named("r")), false);
+    var function = module.addFunction("test", List.of(Variable.named("r")), false);
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());

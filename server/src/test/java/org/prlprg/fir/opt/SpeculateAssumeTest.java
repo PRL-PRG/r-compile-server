@@ -1,7 +1,6 @@
 package org.prlprg.fir.opt;
 
 import org.prlprg.fir.interpret.InterpretUtil.TestInterpretCtx;
-import org.prlprg.fir.opt.Optimization;
 
 class SpeculateAssumeTest extends OptimizationTest {
   @Override
