@@ -13,7 +13,7 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 
 /// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
-public class Feedback {
+public class AbstractionFeedback {
   /// Inferred types.
   ///
   /// `null` = nothing recorded, [Type#ANY] = different types recorded. Both are equivalent to

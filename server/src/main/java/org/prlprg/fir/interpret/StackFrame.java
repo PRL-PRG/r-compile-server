@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.feedback.Feedback;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -27,9 +27,9 @@ final class StackFrame {
   private final Map<Register, SEXP> registers = new LinkedHashMap<>();
   private EnvSXP environment;
   private int numEnvsPushed = 0;
-  private final Feedback scopeFeedback;
+  private final AbstractionFeedback scopeFeedback;
 
-  StackFrame(Abstraction scope, EnvSXP parentEnv, Feedback scopeFeedback) {
+  StackFrame(Abstraction scope, EnvSXP parentEnv, AbstractionFeedback scopeFeedback) {
     this.scope = scope;
     this.environment = parentEnv;
     this.scopeFeedback = scopeFeedback;
@@ -71,7 +71,7 @@ final class StackFrame {
     return environment;
   }
 
-  public Feedback scopeFeedback() {
+  public AbstractionFeedback scopeFeedback() {
     return scopeFeedback;
   }
 

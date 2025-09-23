@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
-import org.prlprg.fir.feedback.Feedback;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
 import org.prlprg.fir.ir.argument.Constant;
@@ -19,9 +19,9 @@ import org.prlprg.fir.ir.expression.AssumeFunction;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Lists;
-import org.prlprg.util.OptionalFunction;
 
 /// Insert assumptions that feedback suggests will always pass.
 ///
@@ -38,11 +38,30 @@ import org.prlprg.util.OptionalFunction;
 /// \[1\] Specifically, every checkpoint that dominates the register's definition which isn't
 /// dominated by another such checkpoint. There's usually only one, although we handle the case
 /// where there's multiple.
-public record SpeculateAssume(OptionalFunction<Abstraction, Feedback> getFeedback, int threshold)
+///
+/// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
+/// baseline we don't have anywhere to go that isn't FIŘ.
+public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean onBaseline)
     implements AbstractionOptimization {
+  public SpeculateAssume(ModuleFeedback feedback, int threshold) {
+    this(feedback, threshold, false);
+  }
+
+  @Override
+  public void run(Function function) {
+    for (var version : function.versions()) {
+      // Don't run on baseline unless overridden via field
+      if (!onBaseline && version == function.baseline()) {
+        continue;
+      }
+
+      run(version);
+    }
+  }
+
   @Override
   public boolean run(Abstraction scope) {
-    var feedback = getFeedback.apply(scope);
+    var feedback = this.feedback.get(scope);
     if (feedback == null) {
       return false;
     }

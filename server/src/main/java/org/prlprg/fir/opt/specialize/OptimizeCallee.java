@@ -6,7 +6,7 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
-import org.prlprg.fir.feedback.Feedback;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -23,7 +23,6 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.util.Lists;
-import org.prlprg.util.OptionalFunction;
 import org.prlprg.util.Streams;
 
 /// Optimization pass that replaces every dispatch and static callee with a better one.
@@ -35,7 +34,7 @@ import org.prlprg.util.Streams;
 ///   an argument has a more specific runtime type, *and* that type was recorded enough times.
 ///   - If so, convert into a dispatch call with the guessed (not better) version's signature.
 ///   - If not, convert into a static call to the guessed version.
-public record OptimizeCallee(OptionalFunction<Abstraction, Feedback> getFeedback, int threshold)
+public record OptimizeCallee(ModuleFeedback feedback, int threshold)
     implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
@@ -91,7 +90,7 @@ public record OptimizeCallee(OptionalFunction<Abstraction, Feedback> getFeedback
     }
 
     // Check if there are better versions that can be called with recorded runtime types.
-    var feedback = getFeedback.apply(scope);
+    var feedback = this.feedback.get(scope);
     var isBestAtRuntime =
         callFunction.versionsSorted().headSet(bestVersion).stream()
             .noneMatch(

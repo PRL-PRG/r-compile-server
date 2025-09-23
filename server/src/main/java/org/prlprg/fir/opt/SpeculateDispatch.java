@@ -5,7 +5,7 @@ import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
-import org.prlprg.fir.feedback.Feedback;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.expression.Assume;
@@ -14,7 +14,6 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.util.Lists;
-import org.prlprg.util.OptionalFunction;
 import org.prlprg.util.Streams;
 
 /// Compile a new version with feedback from parameters on an existing version.
@@ -24,10 +23,7 @@ import org.prlprg.util.Streams;
 /// other verisons, and try to merge ones that are equal by compiling with the intersected
 /// assumptions. In both cases, we need to keep track of those removed so they aren't recompiled.
 public record SpeculateDispatch(
-    OptionalFunction<Abstraction, Feedback> getFeedback,
-    int threshold,
-    int parameterLimit,
-    int versionLimit)
+    ModuleFeedback feedback, int threshold, int parameterLimit, int versionLimit)
     implements Optimization {
   @Override
   public void run(Function function) {
@@ -50,7 +46,7 @@ public record SpeculateDispatch(
     }
 
     // Get version feedback, and abort if we don't have any.
-    var feedback = getFeedback.apply(version);
+    var feedback = this.feedback.get(version);
     if (feedback == null) {
       return;
     }
@@ -127,6 +123,7 @@ public record SpeculateDispatch(
           copy.setEffects(version.effects());
           copy.addLocals(version.locals());
           copyFrom(copy.cfg(), version.cfg());
+          this.feedback.copy(version, copy);
         });
   }
 }

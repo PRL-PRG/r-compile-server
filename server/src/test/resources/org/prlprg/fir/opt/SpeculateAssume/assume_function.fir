@@ -1,12 +1,12 @@
 fun main() {
-  () --> I { reg out:I |
+  () -+> I { reg out:I |
     out = call_closure();
     return out;
   }
 }
 
 fun call_closure() {
-  () --> I { reg callee:cls, reg result:I |
+  () -+> I { reg callee:cls, reg result:I |
     callee = clos target;
     check BBopt() else BBdeopt();
   BBopt():

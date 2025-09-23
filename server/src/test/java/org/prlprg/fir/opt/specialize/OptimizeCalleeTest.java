@@ -8,6 +8,6 @@ import org.prlprg.fir.opt.Specialize;
 class OptimizeCalleeTest extends OptimizationTest {
   @Override
   protected Optimization optimization(TestInterpretCtx c) {
-    return new Specialize(new OptimizeCallee(c.interpreter()::feedback, 1));
+    return new Specialize(new OptimizeCallee(c.interpreter().feedback(), 1));
   }
 }

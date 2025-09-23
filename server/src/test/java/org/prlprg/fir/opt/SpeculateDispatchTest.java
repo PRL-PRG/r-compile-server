@@ -19,7 +19,7 @@ class SpeculateDispatchTest {
         firPath,
         false,
         c -> {
-          new SpeculateDispatch(c.interpreter()::feedback, 1, 9, 99).run(c.module());
+          new SpeculateDispatch(c.interpreter().feedback(), 1, 9, 99).run(c.module());
           c.retest();
         });
   }
@@ -44,7 +44,7 @@ class SpeculateDispatchTest {
         """,
         true,
         c -> {
-          var pass = new SpeculateDispatch(c.interpreter()::feedback, 2, 9, 99);
+          var pass = new SpeculateDispatch(c.interpreter().feedback(), 2, 9, 99);
 
           var f = c.module().lookupFunction("f");
           assertNotNull(f);
