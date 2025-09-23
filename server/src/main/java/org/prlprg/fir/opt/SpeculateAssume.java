@@ -1,10 +1,10 @@
 package org.prlprg.fir.opt;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.ModuleFeedback;
@@ -77,8 +77,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
             .filter(bb -> bb.jump() instanceof Checkpoint)
             .toList();
     var defUses = new DefUses(scope);
-    // TODO: Use upgraded dominator tree which can check BBs in different CFGs
-    var domTrees = scope.streamCfgs().collect(Collectors.toMap(c -> c, DominatorTree::new));
+    var domTree = new DominatorTree(scope);
 
     // Find assumptions
     var assumptionsToInsert = new HashMap<BB, List<Assume>>();
@@ -123,8 +122,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
               .filter(
                   bb -> {
                     var defInCfg = def.inCfg(bb.owner());
-                    return defInCfg != null
-                        && domTrees.get(bb.owner()).dominates(defInCfg.bb(), bb);
+                    return defInCfg != null && domTree.dominates(defInCfg.bb(), bb);
                   })
               .toList();
       if (availableCheckpointBbs.isEmpty()) {
@@ -138,13 +136,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
               .filter(
                   bb ->
                       availableCheckpointBbs.stream()
-                          // TODO: Once we have the upgraded dominator tree, comparing owners is no
-                          // longer necessary
-                          .noneMatch(
-                              other ->
-                                  other != bb
-                                      && other.owner() == bb.owner()
-                                      && domTrees.get(bb.owner()).dominates(other, bb)))
+                          .noneMatch(other -> other != bb && domTree.dominates(other, bb)))
               .toList();
       assert !immediateCheckpointBbs.isEmpty();
 
@@ -177,13 +169,12 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
     }
 
     // Substitute assumed registers
-    var assumeSubsts = new DomineeSubstituter(domTrees, scope);
+    var assumeSubsts = new DomineeSubstituter(domTree, scope);
     var assumeDsts = new HashMap<Assume, Register>();
-    var afterAssumeStmts = new HashMap<BB, List<Statement>>();
+    var afterAssumeStmts = ArrayListMultimap.<BB, Statement>create();
     for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
       var assumes = entry.getValue();
-      afterAssumeStmts.put(successBb, new ArrayList<>());
 
       for (var assume : assumes) {
         var target = ((Read) assume.target()).variable();
@@ -197,9 +188,8 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
             var fun = af.function();
 
             var globalLookup = scope.addLocal(Type.CLOSURE);
-            afterAssumeStmts
-                .get(successBb)
-                .add(new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
+            afterAssumeStmts.put(
+                successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
             assumeSubsts.stage(target, new Read(globalLookup), successBb);
           }
           case AssumeConstant(var _, var constant) ->

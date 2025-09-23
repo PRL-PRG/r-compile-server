@@ -105,6 +105,12 @@ public class Streams {
   /// The worklist starts with `initial`. While the worklist is non-empty, removes an element,
   /// calls the function with it to maybe add more elements, then yields it.
   public static <T> Stream<T> worklist(T initial, BiConsumer<T, Worklist<T>> iterate) {
+    return worklist2(List.of(initial), iterate);
+  }
+
+  /// The worklist starts with `initial`. While the worklist is non-empty, removes an element,
+  /// calls the function with it to maybe add more elements, then yields it.
+  public static <T> Stream<T> worklist2(Collection<T> initial, BiConsumer<T, Worklist<T>> iterate) {
     var worklist = new ArrayList<T>();
     var worklistFacade =
         new Worklist<T>() {
@@ -119,7 +125,7 @@ public class Streams {
           }
         };
 
-    worklist.add(initial);
+    worklist.addAll(initial);
     return untilNull(
         () -> {
           if (worklist.isEmpty()) {

@@ -4,8 +4,8 @@ import com.google.common.collect.Iterables;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
-import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.If;
@@ -39,12 +39,12 @@ public class CFGChecker extends Checker {
   private class OnAbstraction {
     final Abstraction scope;
     final DefUses defUses;
-    final Map<CFG, DominatorTree> dominatorTrees;
+    final Map<CFG, CfgDominatorTree> dominatorTrees;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
       defUses = new DefUses(scope);
-      dominatorTrees = scope.streamCfgs().collect(Collectors.toMap(c -> c, DominatorTree::new));
+      dominatorTrees = scope.streamCfgs().collect(Collectors.toMap(c -> c, CfgDominatorTree::new));
     }
 
     void run() {
@@ -156,7 +156,7 @@ public class CFGChecker extends Checker {
 
     class OnCfg {
       final CFG cfg;
-      final DominatorTree dominatorTree;
+      final CfgDominatorTree dominatorTree;
 
       OnCfg(CFG cfg) {
         this.cfg = cfg;

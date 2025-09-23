@@ -22,24 +22,18 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 /// Computes a map of [NamedVariable] to [ScopePosition]s of `Load` and `LoadFun` instructions
 /// that load said variable.
 public final class Loads implements Analysis {
-  private final Abstraction scope;
   private final Multimap<NamedVariable, ScopePosition> loads = ArrayListMultimap.create();
 
   @AnalysisConstructor
   public Loads(Abstraction scope) {
-    this.scope = scope;
-    run();
+    if (scope.cfg() != null) {
+      run(new ArrayList<>(), scope.cfg());
+    }
   }
 
   /// Get all positions where the given variable is loaded.
   public @UnmodifiableView Collection<ScopePosition> get(NamedVariable variable) {
     return loads.get(variable);
-  }
-
-  private void run() {
-    if (scope.cfg() != null) {
-      run(new ArrayList<>(), scope.cfg());
-    }
   }
 
   private void run(ArrayList<CfgPosition> parents, CFG cfg) {

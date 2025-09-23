@@ -12,14 +12,16 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 
 /// Tracks loops in the control-flow graph.
+///
+/// TODO: Check this analysis actually works
 public final class Loops implements CfgAnalysis {
   private final CFG cfg;
-  private final DominatorTree dominatorTree;
+  private final CfgDominatorTree dominatorTree;
   private final Set<Loop> loops;
   private final Map<BB, Set<Loop>> blockToLoops;
 
   @AnalysisConstructor
-  public Loops(CFG cfg, DominatorTree dominatorTree) {
+  public Loops(CFG cfg, CfgDominatorTree dominatorTree) {
     this.cfg = cfg;
     this.dominatorTree = dominatorTree;
     this.loops = new LinkedHashSet<>();

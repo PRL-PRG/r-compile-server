@@ -213,7 +213,9 @@ public class Analyses {
           throw new IllegalArgumentException(
               "`@AnalysisConstructor` in `"
                   + superclass.getSimpleName()
-                  + "`'s subsequent parameters must be subclasses of `Analysis`: of "
+                  + "`'s subsequent parameters must be subclasses of `"
+                  + superclass
+                  + "`: of "
                   + analysis.getSimpleName()
                   + " index "
                   + i);

@@ -9,7 +9,6 @@ import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
@@ -21,14 +20,13 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Like [Substituter], `use`-ness is preserved at substitution sites.
 public class DomineeSubstituter extends AbstractSubstituter {
-  // TODO: Use upgraded dominator tree which can check BBs in different CFGs
-  private final Map<CFG, DominatorTree> domTrees;
+  private final DominatorTree domTree;
   private final Map<Register, BB> substitutionDominators = new HashMap<>();
   private final Set<Register> backwards = new HashSet<>();
 
-  public DomineeSubstituter(Map<CFG, DominatorTree> domTrees, Abstraction scope) {
+  public DomineeSubstituter(DominatorTree domTree, Abstraction scope) {
     super(scope);
-    this.domTrees = domTrees;
+    this.domTree = domTree;
   }
 
   public void stage(Register local, Argument substitution, BB dominator) {
@@ -65,10 +63,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
   @Override
   protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
     var dominator = assignee == null ? null : substitutionDominators.get(assignee);
-    // TODO: Once we have the upgraded dominator tree, comparing owners is no longer necessary
-    if (dominator == null
-        || dominator.owner() != bb.owner()
-        || !domTrees.get(bb.owner()).dominates(dominator, bb)) {
+    if (dominator == null || !domTree.dominates(dominator, bb)) {
       return assignee;
     }
 
@@ -79,10 +74,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
   protected Argument substitute(BB bb, Argument argument) {
     var dominator =
         argument.variable() == null ? null : substitutionDominators.get(argument.variable());
-    // TODO: Once we have the upgraded dominator tree, comparing owners is no longer necessary
-    if (dominator == null
-        || dominator.owner() != bb.owner()
-        || !domTrees.get(bb.owner()).dominates(dominator, bb)) {
+    if (dominator == null || !domTree.dominates(dominator, bb)) {
       return argument;
     }
 
