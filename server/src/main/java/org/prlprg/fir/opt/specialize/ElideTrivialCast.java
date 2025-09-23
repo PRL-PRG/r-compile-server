@@ -26,6 +26,7 @@ public record ElideTrivialCast() implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof Cast(var value, var type))) {
       return expression;

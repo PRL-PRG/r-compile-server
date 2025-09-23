@@ -30,6 +30,7 @@ public record ResolveLoadFun() implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof LoadFun(var variable, var env)) || env != Env.LOCAL) {
       return expression;

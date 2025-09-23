@@ -26,6 +26,7 @@ public record ElideUseSubscriptWrite() implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof SubscriptWrite(var target, var _, var _))
         || !(target instanceof Use)) {

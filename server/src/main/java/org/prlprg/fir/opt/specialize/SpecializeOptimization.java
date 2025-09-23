@@ -6,6 +6,7 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// An optimization that replaces individual expressions with those that are faster and/or have
@@ -24,10 +25,8 @@ public interface SpecializeOptimization {
   ///
   /// This is not allowed to insert or remove instructions directly. Instead, insert
   /// instructions in `defer` (which runs after all other specializations), and remove
-  /// instructions by replacing them with [Expression#NOOP]. This is allowed to replace other
-  /// instructions outside `defer` as long as they're specialized (i.e. have subtypes and less
-  /// effects). TODO: pass an argument so we can further specialized other instructions that are
-  /// replaced.
+  /// instructions by replacing them with [Expression#NOOP] (either returning if it's this
+  /// instruction, or using `nonLocal` if it's another).
   Expression run(
       BB bb,
       int index,
@@ -35,9 +34,15 @@ public interface SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer);
 
   default void finish(Abstraction scope, Analyses analyses) {}
+
+  interface NonLocalSpecializations {
+    /// Replace the expression at `pos`.
+    void replace(CfgPosition pos, Expression newExpression);
+  }
 
   interface DeferredInsertions {
     /// `insertion` must be local or it may conflict with other modifications.

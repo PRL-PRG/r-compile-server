@@ -48,6 +48,13 @@ public class Analyses {
     abstractionAnalyses = new Analysis[abstractionAnalysisTypes.size()];
   }
 
+  /// Run all abstraction analyses.
+  public void forceAbstractionAnalyses() {
+    for (var analysisClass : abstractionAnalysisTypes.inherent) {
+      get(analysisClass);
+    }
+  }
+
   /// Clear all analyses so they must be recomputed.
   public void evict() {
     Arrays.fill(abstractionAnalyses, null);
