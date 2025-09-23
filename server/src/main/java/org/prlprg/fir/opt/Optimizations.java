@@ -1,7 +1,6 @@
 package org.prlprg.fir.opt;
 
-import org.prlprg.fir.feedback.Feedback;
-import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
@@ -11,20 +10,19 @@ import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
 import org.prlprg.fir.opt.specialize.ResolveLoadFun;
 import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
-import org.prlprg.util.OptionalFunction;
 
 public class Optimizations {
-  public static Optimization defaultOptimizations(
-      OptionalFunction<Abstraction, Feedback> getFeedback) {
+  public static Optimization defaultOptimizations(ModuleFeedback feedback) {
     return new Sequence(
-        new SpeculateDispatch(getFeedback, 10, 3, 9),
+        new SpeculateDispatch(feedback, 10, 3, 9),
+        new SpeculateAssume(feedback, 10),
         new FixpointSequence(
             new Specialize(
                 new DefiniteForce(),
                 new ElideDeadStore(),
                 new ElideTrivialCast(),
                 new ElideUseSubscriptWrite(),
-                new OptimizeCallee(getFeedback, 10),
+                new OptimizeCallee(feedback, 10),
                 new ResolveDynamicCallee(),
                 new ResolveLoad(),
                 new ResolveLoadFun(),

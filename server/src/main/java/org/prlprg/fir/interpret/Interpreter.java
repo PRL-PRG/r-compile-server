@@ -12,7 +12,8 @@ import java.util.Stack;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.prlprg.fir.GlobalModules;
-import org.prlprg.fir.feedback.Feedback;
+import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -122,7 +123,7 @@ public final class Interpreter {
   private int nextPromiseId = 0;
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
-  private final Map<Abstraction, Feedback> feedbacks = new HashMap<>();
+  private final MockModuleFeedback feedback = new MockModuleFeedback();
 
   /// Interpret the module in a global environment containing only its functions.
   ///
@@ -240,8 +241,8 @@ public final class Interpreter {
     return (BaseEnvSXP) globalEnv.parent();
   }
 
-  public Feedback feedback(Abstraction scope) {
-    return feedbacks.computeIfAbsent(scope, _ -> new Feedback());
+  public ModuleFeedback feedback() {
+    return feedback;
   }
 
   /// Looks up the function, gets the best applicable version, and calls it with the arguments
@@ -353,7 +354,7 @@ public final class Interpreter {
   }
 
   private StackFrame mkFrame(Abstraction scope, EnvSXP parentEnv) {
-    return new StackFrame(scope, parentEnv, feedbacks.computeIfAbsent(scope, _ -> new Feedback()));
+    return new StackFrame(scope, parentEnv, feedback.get(scope));
   }
 
   /// Interprets the control flow graph starting from the entry block.
@@ -1005,7 +1006,7 @@ public final class Interpreter {
     };
   }
 
-  private void recordTypeFeedback(Feedback feedback, Register variable, SEXP value) {
+  private void recordTypeFeedback(AbstractionFeedback feedback, Register variable, SEXP value) {
     feedback.recordType(variable, inferType(value, Ownership.SHARED));
   }
 
