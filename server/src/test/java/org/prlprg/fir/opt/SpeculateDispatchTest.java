@@ -6,6 +6,7 @@ import static org.prlprg.fir.interpret.InterpretUtil.testInterpretFirFile;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.util.DirectorySource;
 import org.prlprg.util.TestPath;
 
@@ -46,7 +47,7 @@ class SpeculateDispatchTest {
         c -> {
           var pass = new SpeculateDispatch(c.interpreter().feedback(), 2, 9, 99);
 
-          var f = c.module().lookupFunction("f");
+          var f = c.module().lookupFunction(Variable.named("f"));
           assertNotNull(f);
 
           pass.run(c.module());

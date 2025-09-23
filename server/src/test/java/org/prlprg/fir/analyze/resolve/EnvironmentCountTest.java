@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.analyze.resolve.EnvironmentCount.Range;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.variable.Variable;
 
 class EnvironmentCountTest {
   @Test
@@ -24,7 +25,7 @@ class EnvironmentCountTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var cfg = Objects.requireNonNull(main.cfg());
     BB entry = cfg.entry();
 
@@ -60,7 +61,7 @@ class EnvironmentCountTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var cfg = Objects.requireNonNull(main.cfg());
 
     var analysis = new EnvironmentCount(main);

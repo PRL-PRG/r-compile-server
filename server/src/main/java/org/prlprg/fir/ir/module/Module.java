@@ -27,14 +27,14 @@ public final class Module {
   private final Set<Observer> observers = new LinkedHashSet<>();
 
   // Data
-  private final Map<String, Function> functions = new LinkedHashMap<>();
+  private final Map<NamedVariable, Function> functions = new LinkedHashMap<>();
 
   public @UnmodifiableView Collection<Function> localFunctions() {
     return Collections.unmodifiableCollection(functions.values());
   }
 
   /// Lookup a function in this module or enclosing modules (the intrinsic and builtin modules).
-  public @Nullable Function lookupFunction(String name) {
+  public @Nullable Function lookupFunction(NamedVariable name) {
     var f = functions.get(name);
     if (f != null) {
       return f;
@@ -46,19 +46,19 @@ public final class Module {
     return INTRINSICS.localFunction(name);
   }
 
-  /// Lookup a function in this module.
-  public @Nullable Function localFunction(String name) {
+  /// Lookup a function in this module (but not enclosing ones).
+  public @Nullable Function localFunction(NamedVariable name) {
     return functions.get(name);
   }
 
   public Function addFunction(
-      String name, List<NamedVariable> parameterNames, boolean baselineIsStub) {
+      NamedVariable name, List<NamedVariable> parameterNames, boolean baselineIsStub) {
     return addFunction(
         name, parameterNames, Function.computeBaselineParameters(parameterNames), baselineIsStub);
   }
 
   public Function addFunction(
-      String name,
+      NamedVariable name,
       List<NamedVariable> parameterNames,
       List<Parameter> baselineParameters,
       boolean baselineIsStub) {

@@ -11,6 +11,10 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.callee.Callee;
+import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -162,7 +166,7 @@ abstract class AbstractSubstituter {
       case AssumeType(var target, var type) -> new AssumeType(substitute(bb, target), type);
       case Call call ->
           new Call(
-              call.callee(),
+              substitute(bb, call.callee()),
               call.callArguments().stream()
                   .map(a -> substitute(bb, a))
                   .collect(ImmutableList.toImmutableList()));
@@ -194,6 +198,15 @@ abstract class AbstractSubstituter {
           new SubscriptWrite(substitute(bb, target), substitute(bb, index), substitute(bb, value));
       case SuperLoad(var variable) -> new SuperLoad(variable);
       case SuperStore(var variable, var value) -> new SuperStore(variable, substitute(bb, value));
+    };
+  }
+
+  private Callee substitute(BB bb, Callee callee) {
+    return switch (callee) {
+      case DispatchCallee(var function, var signature) -> new DispatchCallee(function, signature);
+      case DynamicCallee(var calleeArg, var argumentNames) ->
+          new DynamicCallee(substitute(bb, calleeArg), argumentNames);
+      case StaticCallee(var function, var version) -> new StaticCallee(function, version);
     };
   }
 

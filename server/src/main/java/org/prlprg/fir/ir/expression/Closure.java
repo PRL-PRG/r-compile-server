@@ -62,6 +62,6 @@ public final class Closure implements Expression {
     var w = p.writer();
 
     w.write("clos ");
-    w.write(code().name());
+    p.print(code().name());
   }
 }

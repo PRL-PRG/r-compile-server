@@ -27,16 +27,14 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
 import org.prlprg.util.DeferredCallbacks;
-import org.prlprg.util.Strings;
 
 public final class Function {
   // Backlink
   private final Module owner;
 
   // Data
-  private final String name;
+  private final NamedVariable name;
   private final List<NamedVariable> parameterNames;
   /// Versions are stored so that removing a version doesn't decrement other versions' indices,
   /// which would cause tricky bugs when said versions or later ones are referenced by serialized
@@ -51,15 +49,10 @@ public final class Function {
 
   Function(
       Module owner,
-      String name,
+      NamedVariable name,
       List<NamedVariable> parameterNames,
       List<Parameter> baselineParameters,
       boolean baselineIsStub) {
-    if (name.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Illegal function name (function names must not be empty): " + name);
-    }
-
     this.owner = owner;
     this.name = name;
     this.parameterNames = List.copyOf(parameterNames);
@@ -102,7 +95,7 @@ public final class Function {
     return owner;
   }
 
-  public String name() {
+  public NamedVariable name() {
     return name;
   }
 
@@ -229,11 +222,7 @@ public final class Function {
     var w = p.writer();
 
     w.write("fun ");
-    if (!Strings.isIdentifierOrKeyword(name)) {
-      w.writeQuoted('`', name);
-    } else {
-      w.write(name);
-    }
+    p.print(name);
 
     p.printAsList("(", ")", parameterNames);
 
@@ -266,7 +255,7 @@ public final class Function {
     var s = p.scanner();
 
     s.assertAndSkip("fun ");
-    name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+    name = p.parse(NamedVariable.class);
 
     parameterNames = p.parseList("(", ")", NamedVariable.class);
 

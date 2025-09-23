@@ -45,7 +45,7 @@ public class ClosureCompiler {
                           "Failed to compile AST body", closure));
     }
 
-    var output = module.addFunction(name, parameterNames, false);
+    var output = module.addFunction(Variable.named(name), parameterNames, false);
     var outputBaseline = output.baseline();
     var outputCfg = Objects.requireNonNull(outputBaseline.cfg(), "baseline is never a stub");
     var outputCursor = new CFGCursor(outputCfg);

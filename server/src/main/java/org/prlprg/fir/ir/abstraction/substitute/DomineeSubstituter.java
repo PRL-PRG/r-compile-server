@@ -8,7 +8,6 @@ import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.variable.Register;
@@ -16,8 +15,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
 ///
 /// Each substitution only applies in blocks that are dominated by another block. Additionally:
-/// - Transitive substitutions aren't allowed,
-/// - Only register substitutions are allowed
+/// - Transitive substitutions aren't allowed
 /// - Trying to substitute an assignee will raise an exception
 /// - No registers are removed from or added to the scope
 ///
@@ -33,25 +31,25 @@ public class DomineeSubstituter extends AbstractSubstituter {
     this.domTrees = domTrees;
   }
 
-  public void stage(Register local, Register substitution, BB dominator) {
-    stage(local, new Read(substitution));
-    // `stage(Register, Argument)` checks that `local` wasn't previously staged,
-
-    if (backwards.contains(local)) {
-      throw new IllegalArgumentException("Transitive substitutions aren't allowed: " + local);
-    }
-    if (locals.containsKey(substitution)) {
-      throw new IllegalArgumentException(
-          "Transitive substitutions aren't allowed: " + substitution);
-    }
-
+  public void stage(Register local, Argument substitution, BB dominator) {
     substitutionDominators.put(local, dominator);
-    backwards.add(substitution);
+    super.stage(local, substitution);
   }
 
   @Override
   protected void doStage(Register local, Argument substitution) {
-    assert substitution instanceof Read;
+    if (backwards.contains(local)) {
+      throw new IllegalArgumentException("Transitive substitutions aren't allowed: " + local);
+    }
+    if (substitution.variable() != null && locals.containsKey(substitution.variable())) {
+      throw new IllegalArgumentException(
+          "Transitive substitutions aren't allowed: " + substitution);
+    }
+
+    if (substitution.variable() != null) {
+      backwards.add(substitution.variable());
+    }
+
     locals.put(local, substitution);
   }
 

@@ -33,7 +33,7 @@ class SimpleInterpretTest {
   void testSimpleConstantReturn() {
     // Create a function that returns constant 42
     // fun test() { () --> I { | return 42; } }
-    var function = module.addFunction("test", List.of(), false);
+    var function = module.addFunction(Variable.named("test"), List.of(), false);
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());
@@ -55,7 +55,9 @@ class SimpleInterpretTest {
     // Create a function that returns its parameter
     // fun test(r) { (reg r:I) --> I { | return r; } }
     var param = new Parameter(Variable.register("r"), Type.INTEGER);
-    var function = module.addFunction("test", List.of(Variable.named("r")), List.of(param), false);
+    var function =
+        module.addFunction(
+            Variable.named("test"), List.of(Variable.named("r")), List.of(param), false);
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());
@@ -76,7 +78,7 @@ class SimpleInterpretTest {
   @Test
   void testArgumentCountMismatch() {
     // Create a function that expects one parameter
-    var function = module.addFunction("test", List.of(Variable.named("r")), false);
+    var function = module.addFunction(Variable.named("test"), List.of(Variable.named("r")), false);
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());
@@ -94,7 +96,7 @@ class SimpleInterpretTest {
   @Test
   void testUninitializedRegister() {
     // Create a function that tries to read uninitialized register
-    var function = module.addFunction("test", List.of(), false);
+    var function = module.addFunction(Variable.named("test"), List.of(), false);
     var version = function.baseline();
 
     var cfg = Objects.requireNonNull(version.cfg());

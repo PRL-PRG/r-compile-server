@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
@@ -62,7 +63,7 @@ public class InterpretUtil {
                     () -> fail("Multiple runtime-error annotations not allowed")))
             .orElse(null);
 
-    var mainFun = firModule.localFunction("main");
+    var mainFun = firModule.localFunction(Variable.named("main"));
     if (mainFun == null
         || mainFun.versions().isEmpty()
         || !mainFun.version(0).parameters().isEmpty()) {
@@ -82,138 +83,127 @@ public class InterpretUtil {
 
   /// Hijack unimplemented functions in the examples, e.g. `inc`.
   private static void registerStubs(Interpreter interpreter) {
-    if (interpreter.module().lookupFunction("inc") != null) {
-      interpreter.registerExternal(
-          "inc",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
-              throw interpreter1.fail("`inc`'s arguments must consist of one scalar integer");
-            }
-            var arg = args.getFirst().asScalarInteger().get();
+    registerIfDefined(
+        interpreter,
+        "inc",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
+            throw interpreter1.fail("`inc`'s arguments must consist of one scalar integer");
+          }
+          var arg = args.getFirst().asScalarInteger().get();
 
-            return SEXPs.integer(arg + 1);
-          });
-    }
-    if (interpreter.module().lookupFunction("dec") != null) {
-      interpreter.registerExternal(
-          "dec",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
-              throw interpreter1.fail("`dec`'s arguments must consist of one scalar integer");
-            }
-            var arg = args.getFirst().asScalarInteger().get();
+          return SEXPs.integer(arg + 1);
+        });
+    registerIfDefined(
+        interpreter,
+        "dec",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
+            throw interpreter1.fail("`dec`'s arguments must consist of one scalar integer");
+          }
+          var arg = args.getFirst().asScalarInteger().get();
 
-            return SEXPs.integer(arg - 1);
-          });
-    }
-    if (interpreter.module().lookupFunction("add") != null) {
-      interpreter.registerExternal(
-          "add",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 2
-                || args.getFirst().asScalarInteger().isEmpty()
-                || args.get(1).asScalarInteger().isEmpty()) {
-              throw interpreter1.fail("`add`'s arguments must consist of two scalar integers");
-            }
-            var arg0 = args.getFirst().asScalarInteger().get();
-            var arg1 = args.get(1).asScalarInteger().get();
+          return SEXPs.integer(arg - 1);
+        });
+    registerIfDefined(
+        interpreter,
+        "add",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 2
+              || args.getFirst().asScalarInteger().isEmpty()
+              || args.get(1).asScalarInteger().isEmpty()) {
+            throw interpreter1.fail("`add`'s arguments must consist of two scalar integers");
+          }
+          var arg0 = args.getFirst().asScalarInteger().get();
+          var arg1 = args.get(1).asScalarInteger().get();
 
-            return SEXPs.integer(arg0 + arg1);
-          });
-    }
-    if (interpreter.module().lookupFunction("if0") != null) {
-      interpreter.registerExternal(
-          "if0",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 3
-                || args.getFirst().asScalarInteger().isEmpty()
-                || !(args.get(1) instanceof PromSXP ifTrue)
-                || !(args.get(2) instanceof PromSXP ifFalse)) {
-              throw interpreter1.fail(
-                  "`if0`'s arguments must consist of one scalar integer and two promises");
-            }
-            var condition = args.getFirst().asScalarInteger().get();
+          return SEXPs.integer(arg0 + arg1);
+        });
+    registerIfDefined(
+        interpreter,
+        "if0",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 3
+              || args.getFirst().asScalarInteger().isEmpty()
+              || !(args.get(1) instanceof PromSXP ifTrue)
+              || !(args.get(2) instanceof PromSXP ifFalse)) {
+            throw interpreter1.fail(
+                "`if0`'s arguments must consist of one scalar integer and two promises");
+          }
+          var condition = args.getFirst().asScalarInteger().get();
 
-            return condition == 0 ? interpreter.force(ifTrue) : interpreter.force(ifFalse);
-          });
-    }
-    if (interpreter.module().lookupFunction("provide") != null) {
-      interpreter.registerExternal(
-          "provide",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 1) {
-              throw interpreter1.fail("`provide`'s arguments must consist of one value");
-            }
-            var nextProvided = provided(interpreter).appended(null, args.getFirst());
-            setProvided(interpreter, nextProvided);
-            return SEXPs.NULL;
-          });
-    }
-    if (interpreter.module().lookupFunction("require") != null) {
-      interpreter.registerExternal(
-          "require",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 1) {
-              throw interpreter1.fail("`require`'s arguments must consist of one value");
-            }
-            var provided = provided(interpreter);
-            if (provided.isEmpty()) {
-              throw interpreter1.fail("No value was `require`d");
-            }
-            var nextProvided = provided.fromIndex(1);
-            if (!args.getFirst().equals(provided.value(0))) {
-              throw interpreter1.fail(
-                  "`require`d value doesn't match the first `provide`d value: expected "
-                      + args.getFirst()
-                      + " but got "
-                      + provided.value(0)
-                      + "\nrest = "
-                      + nextProvided);
-            }
-            setProvided(interpreter, nextProvided);
-            return SEXPs.NULL;
-          });
-    }
-    if (interpreter.module().lookupFunction("print") != null) {
-      interpreter.registerExternal(
-          "print",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 1) {
-              throw interpreter1.fail("`print`'s arguments must consist of one value");
-            }
-            System.out.println("PRINT " + args.getFirst());
-            return SEXPs.NULL;
-          });
-    }
-    if (interpreter.module().lookupFunction("keepLive") != null) {
-      interpreter.registerExternal(
-          "keepLive",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 1) {
-              throw interpreter1.fail("`keepLive`'s arguments must consist of one value");
-            }
-            // Keeps the argument alive
-            return SEXPs.NULL;
-          });
-    }
-    if (interpreter.module().lookupFunction("blackBox") != null) {
-      interpreter.registerExternal(
-          "blackBox",
-          0,
-          (interpreter1, _, args, _) -> {
-            if (args.size() != 1) {
-              throw interpreter1.fail("`blackBox`'s arguments must consist of one value");
-            }
-            return args.getFirst();
-          });
+          return condition == 0 ? interpreter.force(ifTrue) : interpreter.force(ifFalse);
+        });
+    registerIfDefined(
+        interpreter,
+        "provide",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 1) {
+            throw interpreter1.fail("`provide`'s arguments must consist of one value");
+          }
+          var nextProvided = provided(interpreter).appended(null, args.getFirst());
+          setProvided(interpreter, nextProvided);
+          return SEXPs.NULL;
+        });
+    registerIfDefined(
+        interpreter,
+        "require",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 1) {
+            throw interpreter1.fail("`require`'s arguments must consist of one value");
+          }
+          var provided = provided(interpreter);
+          if (provided.isEmpty()) {
+            throw interpreter1.fail("No value was `require`d");
+          }
+          var nextProvided = provided.fromIndex(1);
+          if (!args.getFirst().equals(provided.value(0))) {
+            throw interpreter1.fail(
+                "`require`d value doesn't match the first `provide`d value: expected "
+                    + args.getFirst()
+                    + " but got "
+                    + provided.value(0)
+                    + "\nrest = "
+                    + nextProvided);
+          }
+          setProvided(interpreter, nextProvided);
+          return SEXPs.NULL;
+        });
+    registerIfDefined(
+        interpreter,
+        "print",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 1) {
+            throw interpreter1.fail("`print`'s arguments must consist of one value");
+          }
+          System.out.println("PRINT " + args.getFirst());
+          return SEXPs.NULL;
+        });
+    registerIfDefined(
+        interpreter,
+        "keepLive",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 1) {
+            throw interpreter1.fail("`keepLive`'s arguments must consist of one value");
+          }
+          // Keeps the argument alive
+          return SEXPs.NULL;
+        });
+    registerIfDefined(
+        interpreter,
+        "blackBox",
+        (interpreter1, _, args, _) -> {
+          if (args.size() != 1) {
+            throw interpreter1.fail("`blackBox`'s arguments must consist of one value");
+          }
+          return args.getFirst();
+        });
+  }
+
+  private static void registerIfDefined(
+      Interpreter interpreter, String functionName, ExternalVersion javaClosure) {
+    if (interpreter.module().localFunction(Variable.named(functionName)) != null) {
+      interpreter.registerExternal(functionName, javaClosure);
     }
   }
 

@@ -184,7 +184,7 @@ public final class Interpreter {
   /// function lookup won't see the function even if it has the looked-up name.
   private void addFunctionToEnv(Function function, EnvSXP env) {
     var stub = closureStub(function, env);
-    env.set(function.name(), stub);
+    env.set(function.name().name(), stub);
   }
 
   /// "Hijack" the function version, so when it's called, the Java closure runs. Every version
@@ -192,7 +192,7 @@ public final class Interpreter {
   ///
   /// [#registerExternal(String, int, ExternalVersion)] for every function version.
   public void registerExternal(String functionName, ExternalVersion javaClosure) {
-    var function = module.lookupFunction(functionName);
+    var function = module.lookupFunction(Variable.named(functionName));
     if (function == null) {
       throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
     }
@@ -204,7 +204,7 @@ public final class Interpreter {
   /// "Hijack" the function version, so when it's called, the Java closure runs. The version
   /// must be a [stub](Abstraction#isStub).
   public void registerExternal(String functionName, int versionIndex, ExternalVersion javaClosure) {
-    var function = module.lookupFunction(functionName);
+    var function = module.lookupFunction(Variable.named(functionName));
     if (function == null) {
       throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
     }
@@ -248,7 +248,7 @@ public final class Interpreter {
   /// Looks up the function, gets the best applicable version, and calls it with the arguments
   /// in the global environment.
   public SEXP call(String functionName, SEXP... arguments) {
-    var function = module.lookupFunction(functionName);
+    var function = module.lookupFunction(Variable.named(functionName));
     if (function == null) {
       throw fail("Unknown function: " + functionName);
     }
@@ -1123,7 +1123,7 @@ public final class Interpreter {
   /// Returns a [CloSXP] wrapping the [Function], which can be function looked-up and dynamically
   /// called by the interpreter.
   public CloSXP closureStub(Function function, EnvSXP enclosingEnv) {
-    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name()));
+    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.symbol(function.name().name()));
     // All FIŘ functions explicitly compute parameter defaults, so their formal parameters
     // never have default values.
     var rParams =
