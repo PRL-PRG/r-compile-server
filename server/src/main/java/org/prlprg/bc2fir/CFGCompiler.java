@@ -737,7 +737,7 @@ public class CFGCompiler {
         // Since we generate the name from a hash of the closure's body, we may have a name
         // conflict, but it's only with an identical closure we've already compiled.
         // Therefore, we can reuse it.
-        var alreadyGenerated = module().lookupFunction(generatedName);
+        var alreadyGenerated = module().lookupFunction(Variable.named(generatedName));
         var code =
             alreadyGenerated != null
                 ? alreadyGenerated
@@ -1705,7 +1705,7 @@ public class CFGCompiler {
   }
 
   private Expression builtin(String name, int versionIndex, Argument... args) {
-    var function = BUILTINS.localFunction(name);
+    var function = BUILTINS.localFunction(Variable.named(name));
     assert function != null : "missing builtin " + name;
     var callee =
         versionIndex == -1
@@ -1719,7 +1719,7 @@ public class CFGCompiler {
   }
 
   private Expression intrinsic(String name, int versionIndex, Argument... args) {
-    var function = INTRINSICS.localFunction(name);
+    var function = INTRINSICS.localFunction(Variable.named(name));
     assert function != null : "missing intrinsic " + name;
     var callee =
         versionIndex == -1

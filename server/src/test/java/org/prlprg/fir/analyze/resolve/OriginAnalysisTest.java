@@ -26,7 +26,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
 
     var analysis = new OriginAnalysis(main);
 
@@ -53,7 +53,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
 
     var analysis = new OriginAnalysis(main);
 
@@ -91,7 +91,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.lookupFunction("main")).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
 
     var analysis = new OriginAnalysis(main);
 

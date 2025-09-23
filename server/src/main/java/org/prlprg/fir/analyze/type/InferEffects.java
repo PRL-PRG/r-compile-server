@@ -82,8 +82,13 @@ public final class InferEffects implements Analysis {
             : innerEffects;
       }
       case Load(var _) -> Effects.NONE;
-      // Function lookup can force.
-      case LoadFun(var _, var _) -> Effects.ANY;
+      case LoadFun(var _, var env) ->
+          switch (env) {
+            // Function lookup can force...
+            case LOCAL -> Effects.ANY;
+            // ...except in global or base env, those are special lookups for known functions
+            case GLOBAL, BASE -> Effects.NONE;
+          };
       case MaybeForce(var value) -> {
         var type = inferType.of(value);
         yield type == null || !(type.kind() instanceof Kind.Promise(var _, var innerEffects))

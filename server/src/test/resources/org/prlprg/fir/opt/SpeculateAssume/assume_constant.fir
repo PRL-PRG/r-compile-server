@@ -13,6 +13,7 @@ fun constant() {
   BBopt():
     # after: cond ?= TRUE;
 
+    # after: if TRUE then BBtrue() else BBfalse();
     if cond then BBtrue() else BBfalse();
   BBtrue():
     return zero;

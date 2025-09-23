@@ -4,7 +4,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.Strings;
 
 public record StaticCallee(Function function, Abstraction version) implements Callee {
   public StaticCallee {
@@ -23,11 +22,7 @@ public record StaticCallee(Function function, Abstraction version) implements Ca
   private void print(Printer p) {
     var w = p.writer();
 
-    if (Strings.isIdentifierOrKeyword(function.name())) {
-      w.write(function.name());
-    } else {
-      w.writeQuoted('`', function.name());
-    }
+    p.print(function.name());
     w.write('.');
     p.print(function.indexOf(version));
   }

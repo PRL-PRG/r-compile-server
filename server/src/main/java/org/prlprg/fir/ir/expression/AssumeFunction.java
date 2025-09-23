@@ -50,7 +50,7 @@ public final class AssumeFunction implements Assume {
   private void print(Printer p) {
     p.print(target);
     p.writer().write(" ?- ");
-    p.writer().write(function().name());
+    p.print(function().name());
   }
 
   @Override

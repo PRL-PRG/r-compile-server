@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.List;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.session.GNURSession;
 
@@ -17,7 +18,8 @@ public final class GlobalModules {
 
   static {
     // Add GNU-R builtins that we don't have explicit versions for.
-    for (var bltName : GNURSession.getAllBuiltins()) {
+    for (var bltNameStr : GNURSession.getAllBuiltins()) {
+      var bltName = Variable.named(bltNameStr);
       if (BUILTINS.localFunction(bltName) != null) {
         // Already defined.
         continue;

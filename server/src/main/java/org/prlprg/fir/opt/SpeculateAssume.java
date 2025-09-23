@@ -17,9 +17,12 @@ import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
 import org.prlprg.fir.ir.expression.AssumeType;
+import org.prlprg.fir.ir.expression.LoadFun;
+import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Lists;
 
@@ -121,7 +124,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
                   bb -> {
                     var defInCfg = def.inCfg(bb.owner());
                     return defInCfg != null
-                        && domTrees.get(bb.owner()).dominates(bb, defInCfg.bb());
+                        && domTrees.get(bb.owner()).dominates(defInCfg.bb(), bb);
                   })
               .toList();
       if (availableCheckpointBbs.isEmpty()) {
@@ -173,34 +176,51 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
       return false;
     }
 
-    // Substitute registers that we assume the type of
-    var assumeTypeSubsts = new DomineeSubstituter(domTrees, scope);
+    // Substitute assumed registers
+    var assumeSubsts = new DomineeSubstituter(domTrees, scope);
     var assumeDsts = new HashMap<Assume, Register>();
+    var afterAssumeStmts = new HashMap<BB, List<Statement>>();
     for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
       var assumes = entry.getValue();
+      afterAssumeStmts.put(successBb, new ArrayList<>());
 
       for (var assume : assumes) {
-        if (assume instanceof AssumeType(var target, var type)) {
-          var reg = ((Read) target).variable();
-          var substReg = scope.addLocal(type);
-          assumeTypeSubsts.stage(reg, substReg, successBb);
-          assumeDsts.put(assume, substReg);
+        var target = ((Read) assume.target()).variable();
+        switch (assume) {
+          case AssumeType(var _, var type) -> {
+            var improvedType = scope.addLocal(type);
+            assumeSubsts.stage(target, new Read(improvedType), successBb);
+            assumeDsts.put(assume, improvedType);
+          }
+          case AssumeFunction af -> {
+            var fun = af.function();
+
+            var globalLookup = scope.addLocal(Type.CLOSURE);
+            afterAssumeStmts
+                .get(successBb)
+                .add(new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
+            assumeSubsts.stage(target, new Read(globalLookup), successBb);
+          }
+          case AssumeConstant(var _, var constant) ->
+              assumeSubsts.stage(target, constant, successBb);
         }
       }
     }
-    assumeTypeSubsts.commit();
+    assumeSubsts.commit();
 
     for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
       var assumes = entry.getValue();
       var assumeStmts =
-          Lists.mapLazy(
-              assumes,
-              assume -> {
-                var dst = assumeDsts.get(assume);
-                return new Statement(dst, assume);
-              });
+          Lists.concatLazy(
+              Lists.mapLazy(
+                  assumes,
+                  assume -> {
+                    var dst = assumeDsts.get(assume);
+                    return new Statement(dst, assume);
+                  }),
+              afterAssumeStmts.get(successBb));
 
       successBb.insertStatements(0, assumeStmts);
     }

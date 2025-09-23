@@ -98,7 +98,7 @@ public sealed interface Expression
     if (headAsName != null) {
       switch (headAsName) {
         case "clos" -> {
-          var functionName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+          var functionName = p.parse(NamedVariable.class);
 
           // We must defer setting the function in case it's a forward reference.
           @SuppressWarnings("DataFlowIssue")
@@ -201,9 +201,8 @@ public sealed interface Expression
             headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
         // Variable
         default -> {
-          var headAsReg = Variable.register(headAsName);
-          if (scope.contains(headAsReg)) {
-            headAsArg = new Read(headAsReg);
+          if (!headAsName.startsWith("`") && scope.contains(Variable.register(headAsName))) {
+            headAsArg = new Read(Variable.register(headAsName));
           }
         }
       }
@@ -224,11 +223,11 @@ public sealed interface Expression
 
       if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
         if (headAsName == null) {
-          throw s.fail("in 'f...(...)', 'f' must be a valid identifier");
+          throw s.fail("in 'f...(...)', 'f' must be a valid variable name");
         }
 
         // Static or dispatch call
-        var functionName = headAsName;
+        var functionName = Variable.named(headAsName);
         Either<Optional<Signature>, Integer> version;
         if (s.trySkip('.')) {
           version = Either.right(s.readUInt());
@@ -306,7 +305,7 @@ public sealed interface Expression
           throw s.fail("In 'a ?- t', 'a' must be a register or constant");
         }
 
-        var functionName = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+        var functionName = p.parse(NamedVariable.class);
 
         // We must defer setting the function in case it's a forward reference.
         @SuppressWarnings("DataFlowIssue")
