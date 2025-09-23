@@ -389,6 +389,7 @@ typedef union {
   SEXP sxpval;
 } BCellVal;
 
+// FIXME: remove
 #define DEFINE_BCELL(name)                                                     \
   R_BCNodeStackTop->tag = 0;                                                   \
   R_BCNodeStackTop->flags = 0;                                                 \
@@ -513,20 +514,19 @@ static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
   return cell == NULL ? R_NilValue : cell;
 }
 
-// Ensures that the symbol from rho is bound in the given cache
-// as long as the symbol in rho is bindable. If not, it sets the cache to
-// R_NilValue
-static ALWAYS_INLINE void bcell_ensure_cache(SEXP symbol, BCell *const cache,
-                                             SEXP rho) {
-  if (TAG(*cache) == symbol && !BCELL_IS_UNBOUND(*cache)) {
+// Ensures that the symbol from rho is bound in the given cell as long
+// as the symbol in rho is bindable. If not, it sets the cell to R_NilValue
+static ALWAYS_INLINE void bcell_ensure_cached(SEXP symbol, SEXP rho,
+                                              BCell *const cell) {
+  if (TAG(*cell) == symbol && !BCELL_IS_UNBOUND(*cell)) {
     return;
   }
 
   SEXP ncell = bcell_get(symbol, rho);
   if (ncell != R_NilValue) {
-    *cache = ncell;
-  } else if (*cache != R_NilValue && BCELL_IS_UNBOUND(*cache)) {
-    *cache = R_NilValue;
+    *cell = ncell;
+  } else if (*cell != R_NilValue && BCELL_IS_UNBOUND(*cell)) {
+    *cell = R_NilValue;
   }
 }
 
@@ -878,7 +878,7 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *r0, SEXP symbol, BCell *cell,
     PROTECT(value_sxp);
     Rf_defineVar(symbol, value_sxp, rho);
     UNPROTECT(1);
-    bcell_ensure_cache(symbol, cell, rho);
+    bcell_ensure_cached(symbol, rho, cell);
     BCELL_INLINE(*cell, value_sxp);
   }
 }
@@ -1633,7 +1633,7 @@ static INLINE void Rsh_StartAssign(Value *rhs, Value *lhs_cell, Value *lhs_val,
   }
 
   assert(cell != NULL);
-  bcell_ensure_cache(symbol, cell, rho);
+  bcell_ensure_cached(symbol, rho, cell);
   SEXP value = bcell_value(*cell);
   R_varloc_t loc;
   if (value == R_UnboundValue || TYPEOF(value) == PROMSXP) {
@@ -1688,20 +1688,20 @@ static INLINE void Rsh_StartAssign2(Value *rhs, Value *lhs_cell, Value *lhs_val,
 }
 
 static INLINE void Rsh_EndAssign(Value *r2, Value r1, Value r0, SEXP symbol,
-                                 BCell *cache, SEXP rho) {
+                                 BCell *cell, SEXP rho) {
   Value *rhs = r2;
   SEXP lhs_cell_sxp = VAL_SXP(r1);
   Value value = r0;
 
   SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
 
-  bcell_ensure_cache(symbol, cache, rho);
+  bcell_ensure_cached(symbol, rho, cell);
   SEXP value_sxp = val_as_sexp(value);
 
   // FIXME: try_unwrap ALTREP
 
   INCREMENT_NAMED(value_sxp);
-  if (!bcell_set_value(*cache, value_sxp)) {
+  if (!bcell_set_value(*cell, value_sxp)) {
     Rf_defineVar(symbol, value_sxp, rho);
   }
 
