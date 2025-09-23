@@ -1,145 +1,81 @@
 package org.prlprg.fir.analyze.cfg;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import javax.annotation.Nullable;
-import org.jetbrains.annotations.Unmodifiable;
+import java.util.stream.Collectors;
+import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
-import org.prlprg.fir.analyze.CfgAnalysis;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.position.CfgPosition;
 
-/// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
-/// dominator of its children.
-public final class DominatorTree implements CfgAnalysis {
-  private final CFG cfg;
-  private final Map<BB, BB> immediateDominators = new HashMap<>();
-  private final Map<BB, Set<BB>> immediateDominees = new HashMap<>();
-  private final Map<BB, Set<BB>> dominators = new HashMap<>();
+/// Dominator tree that can check if instructions and blocks in promise [CFG]s dominate or are
+/// dominated by those outside or in other promises.
+///
+/// Specifically, an instruction or block in a promise never dominates any outside (we don't
+/// analyze guaranteed forces, because in practice they'll be inlined). However, an instruction
+/// or block in a promise is dominated by instructions outside that dominate the promise's
+/// definition instruction (those in the same [CFG] and, if the promise is nested, those in
+/// outer promises' [CFG]s that dominate their respective definition instructions).
+public final class DominatorTree implements Analysis {
+  private final Map<CFG, CfgDominatorTree> cfgs;
+  private final CfgHierarchy hierarchy;
+
+  public DominatorTree(Abstraction scope) {
+    this(scope, new CfgHierarchy(scope));
+  }
 
   @AnalysisConstructor
-  public DominatorTree(CFG cfg) {
-    this.cfg = cfg;
-    run();
+  public DominatorTree(Abstraction scope, CfgHierarchy hierarchy) {
+    cfgs = scope.streamCfgs().collect(Collectors.toMap(c -> c, CfgDominatorTree::new));
+    this.hierarchy = hierarchy;
   }
 
-  /// Get the immediate dominator of a basic block.
-  ///
-  /// Returns `null` for the entry block.
-  public @Nullable BB immediateDominator(BB bb) {
-    if (bb.owner() != cfg) {
-      throw new IllegalArgumentException("BB not in CFG");
-    }
-    return immediateDominators.get(bb);
-  }
-
-  /// Get all blocks immediately dominated by this block.
-  public @Unmodifiable Set<BB> immediateDominees(BB bb) {
-    if (bb.owner() != cfg) {
-      throw new IllegalArgumentException("BB not in CFG");
-    }
-    return Collections.unmodifiableSet(Objects.requireNonNull(immediateDominees.get(bb)));
-  }
-
-  /// Get all dominators of a basic block (including itself).
-  public @Unmodifiable Set<BB> dominators(BB bb) {
-    if (bb.owner() != cfg) {
-      throw new IllegalArgumentException("BB not in CFG");
-    }
-    return Collections.unmodifiableSet(Objects.requireNonNull(dominators.get(bb)));
-  }
-
-  /// Check if `dominator` dominates `dominee`.
-  public boolean dominates(CfgPosition dominator, CfgPosition dominee) {
-    return dominates(
-        dominator.bb(), dominator.instructionIndex(), dominee.bb(), dominee.instructionIndex());
-  }
-
+  /// Check if `dominatorBb`/`dominatorIndex` dominates `domineeBb`/`domineeIndex`.
   public boolean dominates(BB dominatorBb, int dominatorIndex, BB domineeBb, int domineeIndex) {
-    return dominatorBb == domineeBb
-        ? dominatorIndex <= domineeIndex
-        : dominates(dominatorBb, domineeBb);
+    if (!cfgs.containsKey(dominatorBb.owner())) {
+      throw new IllegalArgumentException("Dominator BB not in scope");
+    }
+    if (!cfgs.containsKey(domineeBb.owner())) {
+      throw new IllegalArgumentException("Dominee BB not in scope");
+    }
+
+    while (true) {
+      if (dominatorBb.owner() == domineeBb.owner()) {
+        return cfgs.get(dominatorBb.owner())
+            .dominates(dominatorBb, dominatorIndex, domineeBb, domineeIndex);
+      }
+
+      var domineeParentPos = hierarchy.parent(domineeBb.owner());
+      if (domineeParentPos == null) {
+        return false;
+      }
+
+      domineeBb = domineeParentPos.bb();
+      domineeIndex = domineeParentPos.instructionIndex();
+    }
   }
 
   /// Check if `dominator` dominates `dominee`.
   public boolean dominates(BB dominator, BB dominee) {
-    return dominators(dominee).contains(dominator);
-  }
-
-  private void run() {
-    var bbs = cfg.bbs();
-    var entry = cfg.entry();
-
-    // Initialize dominator sets
-    for (var bb : bbs) {
-      dominators.put(bb, bb == entry ? Set.of(bb) : new LinkedHashSet<>(bbs));
-      immediateDominees.put(bb, new HashSet<>());
+    if (!cfgs.containsKey(dominator.owner())) {
+      throw new IllegalArgumentException("Dominator BB not in scope");
+    }
+    if (!cfgs.containsKey(dominee.owner())) {
+      throw new IllegalArgumentException("Dominee BB not in scope");
     }
 
-    // Iterative dataflow algorithm
-    var changed = true;
-    while (changed) {
-      changed = false;
-      for (var bb : bbs) {
-        if (bb == entry) continue;
-
-        var newDominators = new LinkedHashSet<BB>();
-
-        // Intersection of dominators of all predecessors
-        var first = true;
-        for (var pred : bb.predecessors()) {
-          if (first) {
-            newDominators.addAll(dominators.get(pred));
-            first = false;
-          } else {
-            newDominators.retainAll(dominators.get(pred));
-          }
-        }
-
-        // A block always dominates itself
-        newDominators.add(bb);
-
-        if (!newDominators.equals(dominators.get(bb))) {
-          dominators.put(bb, newDominators);
-          changed = true;
-        }
-      }
-    }
-
-    // Compute immediate dominators
-    for (var bb : bbs) {
-      if (bb == entry) continue;
-
-      var dominators = new ArrayList<>(dominators(bb));
-      dominators.remove(bb); // Remove self
-
-      // Find immediate dominator (dominator closest to bb in the dominator tree)
-      BB immediateDominator = null;
-      for (var candidate : dominators) {
-        var isImmediate = true;
-        for (var other : dominators) {
-          if (other != candidate && dominates(candidate, other)) {
-            isImmediate = false;
-            break;
-          }
-        }
-        if (isImmediate) {
-          immediateDominator = candidate;
-          break;
-        }
+    while (true) {
+      if (dominator.owner() == dominee.owner()) {
+        return cfgs.get(dominator.owner()).dominates(dominator, dominee);
       }
 
-      if (immediateDominator != null) {
-        immediateDominators.put(bb, immediateDominator);
-        immediateDominees.get(immediateDominator).add(bb);
+      var domineeParentPos = hierarchy.parent(dominee.owner());
+      if (domineeParentPos == null) {
+        return false;
       }
+
+      // This works even though we forget `domineeParentPos.instructionIndex`.
+      dominee = domineeParentPos.bb();
     }
   }
 }

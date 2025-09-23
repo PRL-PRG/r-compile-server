@@ -11,8 +11,8 @@ import java.util.List;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
-import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.cfg.Reachability;
 import org.prlprg.fir.analyze.resolve.NamedVariablesOf;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
@@ -42,7 +42,7 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
     return new AnalysisTypes(
-        DominatorTree.class,
+        CfgDominatorTree.class,
         Reachability.class,
         DefUses.class,
         OriginAnalysis.class,
@@ -124,13 +124,13 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
 
       if (cfg == use2.cfg()
           && analyses
-              .get(cfg, DominatorTree.class)
+              .get(cfg, CfgDominatorTree.class)
               .dominates(use1.bb(), use1.instructionIndex(), bb, statementIndex)) {
         // `use` will definitely occur before this force.
         hasMaybeBeenForced = true;
         dominator = useAssignee;
       } else if (!analyses
-              .get(cfg, DominatorTree.class)
+              .get(cfg, CfgDominatorTree.class)
               .dominates(bb, statementIndex, use1.bb(), use1.instructionIndex())
           && analyses
               .get(cfg, Reachability.class)
