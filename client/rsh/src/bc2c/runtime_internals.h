@@ -85,6 +85,7 @@ SEXP do_log_builtin(SEXP call, SEXP op, SEXP args, SEXP env);
 NORET void nodeStackOverflow(void);
 SEXP R_findVar(SEXP symbol, SEXP rho);
 SEXP getPrimitive(SEXP symbol, SEXPTYPE type);
+Rboolean Rf_pmatch(SEXP, SEXP, Rboolean);
 
 SEXP make_applyClosure_env(SEXP call, SEXP op, SEXP arglist, SEXP rho,
                            SEXP suppliedvars);

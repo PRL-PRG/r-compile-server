@@ -2643,4 +2643,74 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
+static INLINE int Rsh_do_switch(Value *v, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
+  Rboolean is_names_null, Rboolean names_is_strsxp, int names_length,
+  Rboolean ioffsets_is_intsxp, int ioffsets_length,
+  Rboolean coffsets_is_intsxp, Rboolean names_and_coffsets_same_length)
+{
+  SEXP value = val_as_sexp(*v);
+  if (!Rf_isVector(value) || Rf_length(value) != 1)
+    Rf_errorcall(call, "EXPR must be a length 1 vector");
+  if (Rf_isFactor(value))
+    Rf_warningcall(call,
+                "EXPR is a \"factor\", treated as integer.\n"
+                " Consider using '%s' instead.",
+                "switch(as.character( * ), ...)");
+  if (TYPEOF(value) == STRSXP)
+  {
+    int i, n, which;
+    if (is_names_null)
+    {
+      if (!ioffsets_is_intsxp)
+        Rf_errorcall(call, "bad numeric 'switch' offsets");
+      if (ioffsets_length == 1)
+      {
+        Rf_warningcall(call, "'switch' with no alternatives");
+        return INTEGER(ioffsets)[0]; /* returns NULL */
+      }
+      else
+        Rf_errorcall(call, "numeric EXPR required for 'switch' "
+                          "without named alternatives");
+    }
+    else
+    {
+      if (!coffsets_is_intsxp)
+        Rf_errorcall(call, "bad character 'switch' offsets");
+      if (!names_is_strsxp || !names_and_coffsets_same_length)
+        Rf_errorcall(call, "bad 'switch' names");
+      n = names_length;
+      which = n - 1;
+      for (i = 0; i < n - 1; i++)
+        if (Rf_pmatch(STRING_ELT(value, 0),
+                      STRING_ELT(names, i), 1 /* exact */))
+        {
+          which = i;
+          break;
+        }
+      return INTEGER(coffsets)[which];
+    }
+  }
+  else
+  {
+    if (!ioffsets_is_intsxp)
+      Rf_errorcall(call, "bad numeric 'switch' offsets");
+    int which = Rf_asInteger(value);
+    if (which != NA_INTEGER)
+      which--;
+    if (which < 0 || which >= ioffsets_length)
+      which = ioffsets_length - 1;
+    if (ioffsets_length == 1)
+      Rf_warningcall(call, "'switch' with no alternatives");
+    return INTEGER(ioffsets)[which];
+  }
+}
+
+static INLINE int Rsh_Switch(Value *v, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets)
+{
+  return Rsh_do_switch(v, call, names, coffsets, ioffsets,
+    names == R_NilValue, TYPEOF(names) == STRSXP, LENGTH(names),
+    TYPEOF(ioffsets) == INTSXP, LENGTH(ioffsets),
+    TYPEOF(coffsets) == INTSXP, LENGTH(coffsets) == LENGTH(names));
+}
+
 #endif // RUNTIME_H
