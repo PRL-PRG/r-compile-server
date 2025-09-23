@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt.specialize;
 
+import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -9,6 +10,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that infers the explicit return type and effects of [Promise]s and [Abstraction]s.
 public record ReturnTypeAndEffects() implements SpecializeOptimization {
@@ -19,7 +21,13 @@ public record ReturnTypeAndEffects() implements SpecializeOptimization {
 
   @Override
   public Expression run(
-      BB bb, int index, Expression expression, Abstraction scope, Analyses analyses) {
+      BB bb,
+      int index,
+      @Nullable Register assignee,
+      Expression expression,
+      Abstraction scope,
+      Analyses analyses,
+      DeferredInsertions defer) {
     if (!(expression instanceof Promise(var oldType, var _, var code))) {
       return expression;
     }

@@ -189,6 +189,7 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.Attributes;
@@ -690,7 +691,16 @@ public class CFGCompiler {
                   .orElseThrow(() -> fail("SetTag: tag must be a regular symbol or string")));
         }
       }
-      case DoDots() -> pushCallArg(insertAndReturn(new Load(NamedVariable.DOTS)));
+      case DoDots() -> {
+        pushCallArg(insertAndReturn(new Load(NamedVariable.DOTS)));
+        // This is specially interpreted by FIŘ:
+        // it determines that the call's arguments can't be statically matched.
+        // That only happens when `...` is a literal argument,
+        // and technically we could express this in our type system by separating the types
+        // "any - dots" and "any", where every value except literal `...` is the former,
+        // but that's much more work than this hack.
+        setNameOfLastCallArg("...");
+      }
       case PushArg() -> pushCallArg(pop());
       case PushConstArg(var constant) -> {
         if (get(constant) instanceof SymSXP || get(constant) instanceof LangSXP) {
@@ -1067,7 +1077,7 @@ public class CFGCompiler {
         // expecting them to be `eval`ed, like in `CallSpecial`.
         var argNames =
             expr.args().names().stream()
-                .map(n -> n.isEmpty() ? "" : n)
+                .map(OptionalNamedVariable::ofString)
                 .collect(ImmutableList.toImmutableList());
         var args =
             expr.args().values().stream()
@@ -1236,6 +1246,7 @@ public class CFGCompiler {
     var names =
         call.args.stream()
             .map(arg -> arg.name == null ? "" : arg.name)
+            .map(OptionalNamedVariable::ofString)
             .collect(ImmutableList.toImmutableList());
     var args = call.args.stream().map(arg -> arg.node).collect(ImmutableList.toImmutableList());
     var callInstr =

@@ -1,12 +1,13 @@
 package org.prlprg.fir.ir.callee;
 
 import com.google.common.collect.ImmutableList;
-import java.util.function.Predicate;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record DynamicCallee(Argument actualCallee, ImmutableList<String> callArgumentNames)
+public record DynamicCallee(
+    Argument actualCallee, ImmutableList<OptionalNamedVariable> callArgumentNames)
     implements Callee {
   public DynamicCallee(Argument actualCallee) {
     this(actualCallee, ImmutableList.of());
@@ -21,7 +22,7 @@ public record DynamicCallee(Argument actualCallee, ImmutableList<String> callArg
   private void print(Printer p) {
     p.writer().write("dyn ");
     p.print(actualCallee);
-    if (callArgumentNames.stream().anyMatch(Predicate.not(String::isEmpty))) {
+    if (callArgumentNames.stream().anyMatch(OptionalNamedVariable::isPresent)) {
       p.printAsList("[", "]", callArgumentNames);
     }
   }

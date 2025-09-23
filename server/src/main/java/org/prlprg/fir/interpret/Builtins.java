@@ -4,11 +4,11 @@ import static org.prlprg.primitive.Constants.NA_INT;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.DoubleUnaryOperator;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
@@ -612,7 +612,10 @@ public final class Builtins {
         inferredKind,
         Lists.mapLazy(
             realArgs.names(),
-            name -> name.isEmpty() ? Optional.empty() : Optional.of(Variable.named(name))),
+            name ->
+                name.isEmpty()
+                    ? OptionalNamedVariable.empty()
+                    : OptionalNamedVariable.of(Variable.named(name))),
         realArgs.values());
   }
 

@@ -1,8 +1,11 @@
-package org.prlprg.fir.ir.cfg.cursor;
+package org.prlprg.fir.analyze.resolve;
 
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.jetbrains.annotations.Unmodifiable;
+import org.prlprg.fir.analyze.Analysis;
+import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
@@ -29,11 +32,14 @@ import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.variable.NamedVariable;
 
-public class NamedVariablesOf {
+/// Simple analysis that gets all named variables that are loaded or stored in a scope.
+public class NamedVariablesOf implements Analysis {
   /// All named variables that are loaded or stored.
   ///
   /// This includes variables in promises, but not locally declared ones if they're neither
   /// loaded nor stored.
+  ///
+  /// This is the function that [NamedVariablesOf] uses.
   public static Set<NamedVariable> namedVariablesOf(Abstraction scope) {
     return scope
         .streamCfgs()
@@ -69,5 +75,14 @@ public class NamedVariablesOf {
         .collect(Collectors.toSet());
   }
 
-  private NamedVariablesOf() {}
+  private final Set<NamedVariable> namedVariables;
+
+  @AnalysisConstructor
+  public NamedVariablesOf(Abstraction scope) {
+    namedVariables = namedVariablesOf(scope);
+  }
+
+  public @Unmodifiable Set<NamedVariable> namedVariables() {
+    return namedVariables;
+  }
 }

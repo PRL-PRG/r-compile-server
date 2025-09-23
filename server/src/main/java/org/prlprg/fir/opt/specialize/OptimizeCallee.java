@@ -22,6 +22,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 
@@ -43,7 +44,13 @@ public record OptimizeCallee(ModuleFeedback feedback, int threshold)
 
   @Override
   public Expression run(
-      BB bb, int index, Expression expression, Abstraction scope, Analyses analyses) {
+      BB bb,
+      int index,
+      @Nullable Register assignee,
+      Expression expression,
+      Abstraction scope,
+      Analyses analyses,
+      DeferredInsertions defer) {
     if (!(expression instanceof Call call)) {
       return expression;
     }
