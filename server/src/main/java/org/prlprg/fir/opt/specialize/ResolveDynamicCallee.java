@@ -49,6 +49,7 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof Call call)) {
       return expression;

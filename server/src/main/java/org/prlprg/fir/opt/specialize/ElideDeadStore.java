@@ -31,6 +31,7 @@ public record ElideDeadStore() implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof Store(var variable, var _))) {
       return expression;

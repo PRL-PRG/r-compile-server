@@ -29,6 +29,7 @@ public record DefiniteForce() implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof MaybeForce(var value))) {
       return expression;

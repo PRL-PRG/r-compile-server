@@ -14,6 +14,14 @@ import org.prlprg.parseprint.Printer;
 /// Location of an [Instruction] or phi group within a [CFG][org.prlprg.fir.ir.cfg.CFG].
 public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction instruction)
     implements Comparable<CfgPosition> {
+  /// Gets `instruction` from `bb` (not `null` unless it's a phi).
+  public CfgPosition(BB bb, int instructionIndex) {
+    this(
+        bb,
+        instructionIndex,
+        instructionIndex == -1 ? null : bb.instructions().get(instructionIndex));
+  }
+
   public CFG cfg() {
     return bb.owner();
   }

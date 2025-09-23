@@ -37,7 +37,9 @@ public final class Loads implements Analysis {
   }
 
   private void run() {
-    run(new ArrayList<>(), scope.cfg());
+    if (scope.cfg() != null) {
+      run(new ArrayList<>(), scope.cfg());
+    }
   }
 
   private void run(ArrayList<CfgPosition> parents, CFG cfg) {

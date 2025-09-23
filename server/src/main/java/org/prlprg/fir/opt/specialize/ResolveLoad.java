@@ -27,6 +27,7 @@ public record ResolveLoad() implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof Load(var variable))) {
       return expression;

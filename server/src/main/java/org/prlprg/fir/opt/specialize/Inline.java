@@ -4,10 +4,10 @@ import static org.prlprg.fir.analyze.resolve.NamedVariablesOf.namedVariablesOf;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
@@ -24,6 +24,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
@@ -56,13 +57,14 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
       Expression expression,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     var replacement =
         switch (expression) {
           case Force(var value) ->
-              tryInlineForce(bb, index, assignee, value, scope, analyses, defer);
+              tryInlineForce(bb, index, assignee, value, scope, analyses, nonLocal, defer);
           case MaybeForce(var value) ->
-              tryInlineForce(bb, index, assignee, value, scope, analyses, defer);
+              tryInlineForce(bb, index, assignee, value, scope, analyses, nonLocal, defer);
           case Call call when call.callee() instanceof StaticCallee(var _, var version) -> {
             tryInlineCall(
                 bb, index, assignee, version, call.callArguments(), scope, analyses, defer);
@@ -81,16 +83,24 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
       Argument forced,
       Abstraction scope,
       Analyses analyses,
+      NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     var cfg = bb.owner();
 
     // Check if the origin is a non-reflective `Promise`
-    var forcedExpr = analyses.get(OriginAnalysis.class).resolveExpression(forced);
-    if (!(forcedExpr instanceof Promise(var valueType, var effects, var code))
+    if (!(analyses.get(OriginAnalysis.class).resolve(forced) instanceof Read(var forcedReg))) {
+      return null;
+    }
+    var forceDefs = analyses.get(DefUses.class).definitions(forcedReg);
+    if (forceDefs.size() != 1) {
+      return null;
+    }
+    var forceDef = Iterables.getOnlyElement(forceDefs).inInnermostCfg();
+    if (!(forceDef.instruction() instanceof Statement forceStmt)
+        || !(forceStmt.expression() instanceof Promise(var valueType, var effects, var code))
         || effects.reflect()) {
       return null;
     }
-    var forcedReg = ((Read) analyses.get(OriginAnalysis.class).resolve(forced)).variable();
 
     // Check whether the promise has definitely, maybe, or definitely not been forced.
     // If it has definitely not been forced, also store the location of all other forces.
@@ -135,19 +145,28 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
       // This will never evaluate, so replace with the dominator.
       return new Aea(new Read(dominator));
     } else if (!hasMaybeBeenForced) {
-      // This will always evaluate, so replace statement with inline,
-      // and convert all other forces into reads.
+      // This will always evaluate, so:
+      // - Remove promise (it has duplicate register definitions if we keep it)
+      // - Convert all other forces into reads
+      // - Replace statement with inline
 
-      // First, if there are other forces, we need to assign this force's result to a register,
+      // If there are other forces,
+      // we need to ensure this force's result is assigned to a register,
       // so they can read it.
       var assignee1 =
           otherForcePositions.isEmpty() || assignee != null ? assignee : scope.addLocal(valueType);
 
-      // Now, convert all other forces into reads before we inline (and not deferred),
-      // because that corrupts the CFG positions.
+      // Remove promise and convert forces into reads before we inline (and not deferred),
+      // because the CFG positions are non-local, so they'll be corrupted after insertions.
+
+      // Technically instead of removing the promise, we must replace it with a stub,
+      // because we can't remove the instruction (analyses use the assignee) and we must ensure
+      // the types are correct.
+      nonLocal.replace(forceDef, new Promise(valueType, effects, new CFG(scope)));
+
+      // Now convert forces into reads.
       for (var forcePos : otherForcePositions) {
-        var forceStmt = (Statement) Objects.requireNonNull(forcePos.instruction());
-        forcePos.replaceWith(new Statement(forceStmt.assignee(), new Aea(new Read(assignee1))));
+        nonLocal.replace(forcePos, new Aea(new Read(assignee1)));
       }
 
       // Finally, replace the statement with inline
@@ -219,38 +238,6 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
       return;
     }
 
-    // Copy `callee` (since these are in-place mutations), then prepare it for inlining:
-    // substitute parameters with arguments, and substitute locals with new locals.
-    var body = new Abstraction(scope.module(), List.of());
-    assert body.cfg() != null;
-    for (var parameter : callee.parameters()) {
-      body.addLocal(new Local(parameter.variable(), parameter.type()));
-    }
-    for (var local : callee.locals()) {
-      if (!(local.variable() instanceof Register _)) {
-        continue;
-      }
-      body.addLocal(local);
-    }
-    copyFrom(body.cfg(), callee.cfg());
-    var localSubstituter = new InlineSubstituter(body);
-    for (var local : callee.locals()) {
-      if (!(local.variable() instanceof Register oldVariable)) {
-        continue;
-      }
-      var type = local.type();
-      var disambiguatedVariable = scope.addLocal(type);
-      localSubstituter.stage(oldVariable, disambiguatedVariable);
-    }
-    localSubstituter.commit();
-    var parameterSubstituter = new Substituter(body);
-    for (int i = 0; i < callee.parameters().size(); i++) {
-      var parameter = callee.parameters().get(i).variable();
-      var argument = arguments.get(i);
-      parameterSubstituter.stage(parameter, argument);
-    }
-    parameterSubstituter.commit();
-
     // Defer changes because they break other analyses.
     defer.stage(
         () -> {
@@ -261,6 +248,39 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
             }
             scope.setLocalType(nv, local.type());
           }
+
+          // Copy `callee` (since these are in-place mutations), then prepare it for inlining:
+          // substitute parameters with arguments, and substitute locals with new locals.
+          var body = new Abstraction(scope.module(), List.of());
+          assert body.cfg() != null;
+          for (var parameter : callee.parameters()) {
+            body.addLocal(new Local(parameter.variable(), parameter.type()));
+          }
+          for (var local : callee.locals()) {
+            if (!(local.variable() instanceof Register _)) {
+              continue;
+            }
+            body.addLocal(local);
+          }
+          copyFrom(body.cfg(), callee.cfg());
+          var localSubstituter = new InlineSubstituter(body);
+          for (var local : callee.locals()) {
+            if (!(local.variable() instanceof Register oldVariable)) {
+              continue;
+            }
+            var type = local.type();
+            var disambiguatedVariable = scope.addLocal(type);
+            localSubstituter.stage(oldVariable, disambiguatedVariable);
+          }
+          localSubstituter.commit();
+          var parameterSubstituter = new Substituter(body);
+          for (int i = 0; i < callee.parameters().size(); i++) {
+            var parameter = callee.parameters().get(i).variable();
+            var argument = arguments.get(i);
+            parameterSubstituter.stage(parameter, argument);
+          }
+          parameterSubstituter.commit();
+
           // Replace statement with inline
           bb.removeStatementAt(statementIndex);
           inline(body.cfg(), bb, statementIndex - 1, assignee);
