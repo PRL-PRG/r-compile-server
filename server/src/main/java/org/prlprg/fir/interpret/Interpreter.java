@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Stack;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -70,6 +69,7 @@ import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Logical;
@@ -493,9 +493,11 @@ public final class Interpreter {
             try {
               var namedArguments =
                   Streams.zip(
-                          Stream.concat(argumentNames.stream(), Stream.generate(() -> "")),
+                          Stream.concat(
+                              argumentNames.stream(),
+                              Stream.generate(OptionalNamedVariable::empty)),
                           arguments.stream(),
-                          (name, value) -> new TaggedElem(name.isEmpty() ? null : name, value))
+                          OptionalNamedVariable::taggedElem)
                       .collect(SEXPs.toList());
               matchedArguments = matchArguments(cloSXP.parameters(), namedArguments);
             } catch (MatchException e) {
@@ -553,7 +555,7 @@ public final class Interpreter {
       case MkVector(var kind, var elements) ->
           mkVector(
               kind,
-              Lists.mapLazy(elements, e -> Optional.ofNullable(e.name())),
+              Lists.mapLazy(elements, e -> OptionalNamedVariable.ofNullable(e.name())),
               Lists.mapLazy(elements, e -> run(e.argument())));
       case MkEnv() -> {
         topFrame().mkEnv();
@@ -715,7 +717,7 @@ public final class Interpreter {
   ///
   /// @throws IllegalArgumentException If `names` and `values` are different sizes.
   /// @throws InterpretException If `values` aren't elements of `kind`
-  public SEXP mkVector(Kind kind, List<Optional<NamedVariable>> elementNames, List<SEXP> elements) {
+  public SEXP mkVector(Kind kind, List<OptionalNamedVariable> elementNames, List<SEXP> elements) {
     if (elementNames.size() != elements.size()) {
       throw new IllegalArgumentException(
           "Element names and values count mismatch: "
@@ -727,7 +729,7 @@ public final class Interpreter {
 
     return switch (kind) {
       case PrimitiveVector(var primitiveKind) -> {
-        if (elementNames.stream().anyMatch(Optional::isPresent)) {
+        if (elementNames.stream().anyMatch(OptionalNamedVariable::isPresent)) {
           throw fail("Primitive vector elements can't have names");
         }
 
@@ -757,11 +759,7 @@ public final class Interpreter {
         };
       }
       case Dots() ->
-          Streams.zip(
-                  elementNames.stream(),
-                  elements.stream(),
-                  (name, element) ->
-                      new TaggedElem(name.map(NamedVariable::name).orElse(null), element))
+          Streams.zip(elementNames.stream(), elements.stream(), OptionalNamedVariable::taggedElem)
               .collect(SEXPs.toDots());
       default -> throw fail("Unsupported vector kind: " + kind);
     };

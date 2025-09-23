@@ -5,6 +5,7 @@ import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
+import org.prlprg.fir.opt.specialize.Inline;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
@@ -26,8 +27,8 @@ public class Optimizations {
                 new ResolveDynamicCallee(),
                 new ResolveLoad(),
                 new ResolveLoadFun(),
+                new Inline(1000),
                 new ReturnTypeAndEffects()),
-            new Inline(1000),
             new Cleanup()));
   }
 

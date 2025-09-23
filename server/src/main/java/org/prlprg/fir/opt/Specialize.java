@@ -1,9 +1,12 @@
 package org.prlprg.fir.opt;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
@@ -12,12 +15,14 @@ import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization;
+import org.prlprg.fir.opt.specialize.SpecializeOptimization.DeferredInsertions;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
 public class Specialize implements AbstractionOptimization {
@@ -61,6 +66,7 @@ public class Specialize implements AbstractionOptimization {
 
     void run() {
       var changes = new TreeSet<CfgPosition>();
+      var deferredInsertions = new HashMap<BB, TreeMap<Integer, List<Runnable>>>();
 
       // Initially, run on every expression.
       scope
@@ -75,7 +81,7 @@ public class Specialize implements AbstractionOptimization {
                     // since we change it here.
                     changes.remove(next);
 
-                    run(next, changes);
+                    run(next, changes, deferredInsertions);
                   }
                 }
               });
@@ -84,15 +90,31 @@ public class Specialize implements AbstractionOptimization {
       // This always reaches a fixpoint because types only get more specific.
       while (!changes.isEmpty()) {
         var next = changes.removeFirst();
-        run(next, changes);
+        run(next, changes, deferredInsertions);
       }
 
       for (var subOptimization : subOptimizations) {
         subOptimization.finish(scope, analyses);
       }
+
+      // Commit deferred insertions.
+      // Must be after everything else, because it invalidates `analyses`.
+      changed |= !deferredInsertions.isEmpty();
+      for (var insertions : deferredInsertions.values()) {
+        // Insert in reverse order so positions remain valid
+        // (all changes must be local according to `DeferredInsertions#stage` javadoc).
+        for (var insertionsIndex : insertions.descendingKeySet()) {
+          for (var insertion : insertions.get(insertionsIndex)) {
+            insertion.run();
+          }
+        }
+      }
     }
 
-    void run(CfgPosition position, TreeSet<CfgPosition> changes) {
+    void run(
+        CfgPosition position,
+        TreeSet<CfgPosition> changes,
+        HashMap<BB, TreeMap<Integer, List<Runnable>>> deferredInsertions) {
       var bb = position.bb();
       var statementIndex = position.instructionIndex();
       var oldStmt =
@@ -101,9 +123,25 @@ public class Specialize implements AbstractionOptimization {
       var assignee = oldStmt.assignee();
       var expr = oldStmt.expression();
 
+      var deferredInsertionsAdapter =
+          new DeferredInsertions() {
+            @Override
+            public void stage(Runnable insertion) {
+              if (!deferredInsertions.containsKey(bb)) {
+                deferredInsertions.put(bb, new TreeMap<>());
+              }
+              if (!deferredInsertions.get(bb).containsKey(statementIndex)) {
+                deferredInsertions.get(bb).put(statementIndex, new ArrayList<>());
+              }
+              deferredInsertions.get(bb).get(statementIndex).add(insertion);
+            }
+          };
+
       // Specialize `expr`.
       for (var subOptimization : subOptimizations) {
-        expr = subOptimization.run(bb, statementIndex, expr, scope, analyses);
+        expr =
+            subOptimization.run(
+                bb, statementIndex, assignee, expr, scope, analyses, deferredInsertionsAdapter);
       }
 
       // If actually specialized, replace statement

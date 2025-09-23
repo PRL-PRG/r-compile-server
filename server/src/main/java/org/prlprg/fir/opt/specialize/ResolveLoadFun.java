@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt.specialize;
 
+import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
@@ -12,6 +13,7 @@ import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.variable.Register;
 
 /// Replaces [LoadFun]s that statically resolve (via [OriginAnalysis]) to registers of closure type.
 public record ResolveLoadFun() implements SpecializeOptimization {
@@ -22,7 +24,13 @@ public record ResolveLoadFun() implements SpecializeOptimization {
 
   @Override
   public Expression run(
-      BB bb, int index, Expression expression, Abstraction scope, Analyses analyses) {
+      BB bb,
+      int index,
+      @Nullable Register assignee,
+      Expression expression,
+      Abstraction scope,
+      Analyses analyses,
+      DeferredInsertions defer) {
     if (!(expression instanceof LoadFun(var variable, var env)) || env != Env.LOCAL) {
       return expression;
     }

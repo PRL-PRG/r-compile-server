@@ -22,6 +22,7 @@ import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
@@ -125,7 +126,9 @@ public sealed interface Expression
         case "dyn" -> {
           var actualCallee = p.parse(Argument.class);
           var argumentNames =
-              s.nextCharIs('[') ? p.parseList("[", "]", String.class) : ImmutableList.<String>of();
+              s.nextCharIs('[')
+                  ? p.parseList("[", "]", OptionalNamedVariable.class)
+                  : ImmutableList.<OptionalNamedVariable>of();
           var arguments = p.parseList("(", ")", Argument.class);
           return new Call(new DynamicCallee(actualCallee, argumentNames), arguments);
         }
