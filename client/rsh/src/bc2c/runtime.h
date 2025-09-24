@@ -889,9 +889,9 @@ static INLINE void Rsh_SetVar2(Value *r0, SEXP symbol, SEXP rho) {
   Rf_setVar(symbol, val_as_sexp(*r0), rho);
 }
 
-#define Rsh_Return(r0, saved_stack_top)                                        \
+#define Rsh_Return(/* Value* */ r0, saved_stack_top)                           \
   do {                                                                         \
-    Value __ret__ = (r0);                                                      \
+    Value __ret__ = (*r0);                                                     \
     R_BCNodeStackTop -= (saved_stack_top);                                     \
     return val_as_sexp(__ret__);                                               \
   } while (0);

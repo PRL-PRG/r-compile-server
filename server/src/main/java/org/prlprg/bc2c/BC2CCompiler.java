@@ -175,8 +175,11 @@ class ClosureCompiler {
       compile(code.get(i), i);
     }
 
-    if (!stack.isEmpty()) {
-      throw new IllegalStateException("Stack not empty: %d".formatted(stack.top()));
+    // the stack should be left with one element
+    // which will be the return value
+    if (stack.top() != 1) {
+      throw new IllegalStateException(
+          "Expected stack to have 1 element, got %d".formatted(stack.top()));
     }
 
     afterCompile();
@@ -242,7 +245,7 @@ class ClosureCompiler {
     checkSupported(instr);
 
     if (labels.contains(pc)) {
-      body.line("%s:".formatted(label(pc)));
+      body.line("%s: /* stack: %d */".formatted(label(pc), stack.top()));
       Integer state = branchStackState.remove(pc);
       if (state != null) {
         stack.reset(state);

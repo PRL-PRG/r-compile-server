@@ -85,7 +85,13 @@ public sealed interface BcInstr {
     return args;
   }
 
-  @StackEffect(pop = 1)
+  /**
+   * The return instruction.
+   *
+   * <p>It gets whatever is on the stack and returns it to the caller. We model it with no stack
+   * effect, because the callee is responsible to clean up the stack before returning.
+   */
+  @StackEffect(pop = 1, push = 1)
   record Return() implements BcInstr {
     @Override
     public BcOp op() {
