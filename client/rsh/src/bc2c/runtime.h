@@ -685,6 +685,7 @@ static INLINE SEXP Rsh_append_values_to_args(Value const *vals, int n,
   // We are building the argument list from the back so we need to procted the
   // individual cell. Instead of PROTECT/UNPROTECT calls, we can use the BC
   // stack.
+  // FIXME: the same is used in the Rsh_Call, would be good to unify
   PUSH_VAL(1);
   Value *protect = GET_VAL(1);
   SET_SXP_VAL(protect, args);
@@ -694,7 +695,7 @@ static INLINE SEXP Rsh_append_values_to_args(Value const *vals, int n,
     SET_SXP_VAL(protect, args);
   }
 
-  POP_VAL(1);
+  POP_VAL(1); // unprotect
 
   return args;
 }
@@ -1010,7 +1011,7 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
     SEXP body = BODY(fun_sxp);
 
     // inline our call
-    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+    if (0 && TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
         !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
         R_GlobalContext->callflag != CTXT_GENERIC) {
 
@@ -1541,8 +1542,6 @@ static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
     RSH_PC_INC(dispatched_subset);
     RSH_CHECK_SIGINT();
     SET_VAL(value, value_sxp);
-    // FIXME: temporary stack
-    POP_VAL(3);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
@@ -1786,8 +1785,6 @@ static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
       RSH_PC_INC(dispatched_subassign);
       RSH_CHECK_SIGINT();
       SET_SXP_VAL(lhs, value);
-      // FIXME: temporary
-      POP_VAL(1);
       return TRUE;
     }
   }
@@ -2045,7 +2042,6 @@ static INLINE Rboolean Rsh_start_subassign_dispatch(
     RSH_PC_INC(dispatched_subassign);
     RSH_CHECK_SIGINT();
     SET_SXP_VAL(lhs, value);
-    POP_VAL(4);
     return TRUE;
   } else {
     SEXP tag = TAG(CDR(call));
