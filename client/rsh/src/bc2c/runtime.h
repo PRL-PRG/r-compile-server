@@ -4,6 +4,7 @@
 // THIS HEADER NEEDS TO BE A C-compatible HEADER
 // IT IS USED BY THE SERVER COMPILER
 
+#include <setjmp.h>
 #define RSH
 
 // MAKE SURE Rinternals.h is not listed!
@@ -976,6 +977,8 @@ static INLINE void Rsh_GetFun(Value *fun, Value *args_head, Value *args_tail,
     SET_SXP_VAL(d, s);                                                         \
   } while (0);
 
+extern RCNTXT *R_GlobalContext; /* The global context */
+extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
                             SEXP rho) {
   SEXP fun_sxp = VAL_SXP(*r2);
@@ -1007,8 +1010,9 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
     SEXP body = BODY(fun_sxp);
 
     // inline our call
-    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body)) {
-      // TODO: R_GlobalContext->callflag != CTXT_GENERIC
+    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+        !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
+        R_GlobalContext->callflag != CTXT_GENERIC) {
 
       SEXP newrho =
           make_applyClosure_env(call, fun_sxp, args_sxp, rho, R_NilValue);
@@ -1017,17 +1021,36 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
       Rf_begincontext(&ctx, CTXT_RETURN, call, newrho, rho, args_sxp, fun_sxp);
       R_Visible = TRUE;
 
-      // FIXME: the same code is in the eval.c - make it work with RCP
-      SEXP c_cp = R_ExternalPtrProtected(body);
-      assert(TYPEOF(c_cp) == VECSXP);
+      if (sigsetjmp(ctx.cjmpbuf, 0)) {
+        if (!ctx.jumptarget) {
+          /* ignores intermediate jumps for on.exits */
+          value = R_ReturnedValue;
+          SET_SXP_VAL(r2, value); // to protect
+        } else {
+          // FIXME: not sure what to do here, R does the following:
+          //
+          // ctx.returnValue = SEXP_TO_STACKVAL(NULL); /* undefined */
+          //
+          // with the following comment:
+          // > might be better so use something less
+          // > segfault-prone than NULL here and elsewhere
+          assert(0);
+        }
+      } else {
+        // FIXME: the same code is in the eval.c - make it work with RCP
+        SEXP c_cp = R_ExternalPtrProtected(body);
+        assert(TYPEOF(c_cp) == VECSXP);
 
-      // seems like unnecesary complicated casting, but otherwise C complains
-      // cf. https://stackoverflow.com/a/19487645
-      Rsh_closure fun;
-      *(void **)(&fun) = R_ExternalPtrAddr(body);
-      value = fun(newrho, c_cp);
-      UNPROTECT(1);
+        // seems like unnecesary complicated casting, but otherwise C complains
+        // cf. https://stackoverflow.com/a/19487645
+        Rsh_closure fun;
+        *(void **)(&fun) = R_ExternalPtrAddr(body);
+        value = fun(newrho, c_cp);
+      }
+
+      UNPROTECT(1); // newrho
       Rf_endcontext(&ctx);
+
       break;
     }
 
