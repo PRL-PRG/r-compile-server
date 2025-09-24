@@ -30,7 +30,6 @@ public class BC2CCompilerTest {
 
   @Test
   public void testSetAndGetVar(BC2CSnapshot snapshot) {
-    snapshot.setClean(false);
     snapshot.verify("x <- 42; x");
     snapshot.verify("y <- 42; x <- y; x");
   }
