@@ -14,16 +14,20 @@ import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 public class Optimizations {
   public static Optimization defaultOptimizations(ModuleFeedback feedback) {
+    return defaultOptimizations(feedback, 10);
+  }
+
+  public static Optimization defaultOptimizations(ModuleFeedback feedback, int threshold) {
     return new Sequence(
-        new SpeculateDispatch(feedback, 10, 3, 9),
-        new SpeculateAssume(feedback, 10),
+        new SpeculateDispatch(feedback, threshold, 3, 9),
+        new SpeculateAssume(feedback, threshold),
         new FixpointSequence(
             new Specialize(
                 new DefiniteForce(),
                 new ElideDeadStore(),
                 new ElideTrivialCast(),
                 new ElideUseSubscriptWrite(),
-                new OptimizeCallee(feedback, 10),
+                new OptimizeCallee(feedback, threshold),
                 new ResolveDynamicCallee(),
                 new ResolveLoad(),
                 new ResolveLoadFun(),

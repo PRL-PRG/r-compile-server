@@ -4,13 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
 import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
+import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
 
+import java.util.function.BiConsumer;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.bc.CompilerException;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.util.DirectorySource;
 import org.prlprg.util.TestPath;
 import org.prlprg.util.gnur.GNUR;
@@ -30,6 +33,32 @@ public class BC2FirAndInterpreterIntegrationTest {
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
   void testCompilerAndInterpreter(TestPath rFilePath) {
+    testCompilerAndInterpreterAbstract(rFilePath, (interpreter, check) ->
+        check.accept("FIŘ output", interpreter.call("main")));
+  }
+
+  /// Tests that all R files in the test resources directory produce the same output:
+  /// - When interpreted by GNU-R.
+  /// - When bytecode-compiled, converted into FIŘ, and interpreted by [Interpreter].
+  /// - When optimized with [default optimizations][
+  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [Interpreter].
+  @ParameterizedTest
+  @DirectorySource(glob = "*.R", depth = 2)
+  void testCompilerInterpreterOptimizer(TestPath rFilePath) {
+    testCompilerAndInterpreterAbstract(rFilePath, (interpreter, check) -> {
+      for (int i = 0; i < 5; i++) {
+        check.accept("FIŘ pre-opt #" + i, interpreter.call("main"));
+      }
+
+      defaultOptimizations(interpreter.feedback(), 4).run(interpreter.module());
+
+      for (int i = 0; i < 3; i++) {
+        check.accept("FIŘ post-opt #" + i, interpreter.call("main"));
+      }
+    });
+  }
+
+  private void testCompilerAndInterpreterAbstract(TestPath rFilePath, BiConsumer<Interpreter, BiConsumer<String, SEXP>> test) {
     Module firModule = null;
 
     try {
@@ -44,14 +73,15 @@ public class BC2FirAndInterpreterIntegrationTest {
       var rOutput = R.eval(rText + "\n\nmain()");
 
       firModule = compile(rModuleEnv, R.getSession());
+
       var interpreter = new Interpreter(firModule);
       registerBuiltins(interpreter);
-      var firOutput = interpreter.call("main");
 
-      // Use `toString()` because we only care about structural equivalence (environments won't be
-      // equal but that's OK, we want to check if they're structurally equivalent though).
-      assertEquals(
-          rOutput.toString(), firOutput.toString(), "FIŘ produced different output than GNU-R");
+      // Use `toString()` because we only care about structural equivalence (environments won't
+      // be equal but that's OK, we want to check if they're structurally equivalent though).
+      var rOutputStr = rOutput.toString();
+      test.accept(interpreter, (desc, firOutput) ->
+          assertEquals(rOutputStr, firOutput.toString(), desc + " produced different output than GNU-R"));
     } catch (CompilerException | BcCompilerUnsupportedException e) {
       fail("GNU-R bytecode compiler crashed", e);
     } catch (CFGCompilerException | ClosureCompilerUnsupportedException e) {

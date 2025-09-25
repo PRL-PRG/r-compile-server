@@ -1,7 +1,8 @@
 package org.prlprg.fir.ir.abstraction.substitute;
 
+import static org.prlprg.fir.opt.Cleanup.removingJumpArgument;
+
 import com.google.common.collect.ImmutableList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -57,7 +58,6 @@ import org.prlprg.parseprint.Printer;
 
 abstract class AbstractSubstituter {
   protected final Abstraction scope;
-  protected final Map<Register, Argument> locals = new LinkedHashMap<>();
 
   protected AbstractSubstituter(Abstraction scope) {
     this.scope = scope;
@@ -85,20 +85,12 @@ abstract class AbstractSubstituter {
                         + local
                         + " is a parameter, substitution is currently only implemented for locals because we remove the register from the scope after substituting.");
               }
-              if (locals.containsKey(local)) {
-                throw new IllegalArgumentException(
-                    "Local " + local + " has already been marked for substitution.");
-              }
 
               doStage(local, substitution);
             });
   }
 
   protected abstract void doStage(Register local, Argument substitution);
-
-  public boolean isEmpty() {
-    return locals.isEmpty();
-  }
 
   public void commit() {
     scope
@@ -114,14 +106,13 @@ abstract class AbstractSubstituter {
               scope.streamCfgs().forEach(this::run);
 
               // Clear substitutions so we can reuse this instance.
-              locals.clear();
-              clearOtherSubstitutionData();
+              clearSubstitutionData();
             });
   }
 
   protected abstract void commitAffectLocals();
 
-  protected abstract void clearOtherSubstitutionData();
+  protected abstract void clearSubstitutionData();
 
   private void run(CFG cfg) {
     for (var bb : cfg.bbs()) {
@@ -130,10 +121,17 @@ abstract class AbstractSubstituter {
   }
 
   private void run(BB bb) {
-    for (var phi : bb.phiParameters()) {
-      if (locals.containsKey(phi)) {
-        throw new IllegalArgumentException(
-            "Phi parameter with to-be-substituted register should've been removed: " + phi);
+    for (var i = 0; i < bb.phiParameters().size(); i++) {
+      var oldPhi = bb.phiParameters().get(i);
+      var newPhi = substitutePhi(bb, oldPhi);
+      if (newPhi == null) {
+        for (var pred : bb.predecessors()) {
+          pred.setJump(removingJumpArgument(pred.jump(), bb, i));
+        }
+        bb.removeParameterAt(i);
+        i--;
+      } else if (!oldPhi.equals(newPhi)) {
+        bb.replaceParameterAt(i, newPhi);
       }
     }
 
@@ -153,8 +151,6 @@ abstract class AbstractSubstituter {
 
     return new Statement(newAssignee, newExpr);
   }
-
-  protected abstract @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee);
 
   private Expression substitute(BB bb, Expression expression) {
     return switch (expression) {
@@ -236,14 +232,11 @@ abstract class AbstractSubstituter {
             .collect(ImmutableList.toImmutableList()));
   }
 
-  protected Argument substitute(BB bb, Argument argument) {
-    return switch (argument) {
-      case Read(var r) when locals.containsKey(r) -> locals.get(r);
-      // Preserve `use`-ness of substituted
-      case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
-      default -> argument;
-    };
-  }
+  protected abstract @Nullable Register substitutePhi(BB bb, Register phi);
+
+  protected abstract @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee);
+
+  protected abstract Argument substitute(BB bb, Argument argument);
 
   protected final Argument convertIntoUse(Argument argument) {
     return switch (argument) {
@@ -268,7 +261,7 @@ abstract class AbstractSubstituter {
     w.write("{");
     w.runIndented(
         () -> {
-          for (var substitution : locals.entrySet()) {
+          for (var substitution : substEntries()) {
             w.write('\n');
             p.print(substitution.getKey());
             w.write(" -> ");
@@ -277,4 +270,6 @@ abstract class AbstractSubstituter {
         });
     w.write("\n}");
   }
+
+  protected abstract Iterable<? extends Map.Entry<Register, ?>> substEntries();
 }
