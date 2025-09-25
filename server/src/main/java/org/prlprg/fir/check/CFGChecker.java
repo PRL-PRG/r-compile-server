@@ -8,11 +8,13 @@ import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Verifies the following invariants:
+/// - Promise CFGs have the same scope as their parents.
 /// - All basic blocks are reachable from entry
 /// - Entry blocks and blocks with 1 predecessor (except if the predecessor branches with
 ///   different arguments) don't have phi parameters
@@ -164,6 +166,27 @@ public class CFGChecker extends Checker {
       }
 
       void run() {
+        // Promise CFGs have the same scope as their parents
+        for (var bb : cfg.bbs()) {
+          for (var i = 0; i < bb.statements().size(); i++) {
+            var stmt = bb.statements().get(i);
+            if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
+              continue;
+            }
+
+            if (code.scope() != scope) {
+              report(
+                  bb,
+                  i,
+                  "Promise body CFG's scope doesn't match parent CFG's scope:"
+                      + "\n=== Promise ===\n"
+                      + code.scope()
+                      + "\n=== Parent ===\n"
+                      + scope);
+            }
+          }
+        }
+
         // All blocks must be reachable from entry
         var entry = cfg.entry();
         for (var bb : cfg.bbs()) {

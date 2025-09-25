@@ -40,7 +40,7 @@ final class BC2FirCompilerUtils {
 
       // Don't check flow, because it's trivial (no `use` annotations) but expensive.
       if (!checkAll(firModule, false)) {
-        fail("FIŘ failed verification\n" + firModule);
+        fail("Compiled FIŘ failed verification\n" + firModule);
       }
     }
     return firModule;

@@ -14,12 +14,4 @@ public class MockModuleFeedback implements ModuleFeedback {
   public AbstractionFeedback get(Abstraction scope) {
     return feedbacks.computeIfAbsent(scope, _ -> new AbstractionFeedback());
   }
-
-  @Override
-  public void copy(Abstraction from, Abstraction to) {
-    var f = feedbacks.get(from);
-    if (f != null) {
-      feedbacks.put(to, f);
-    }
-  }
 }

@@ -17,6 +17,7 @@ import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 
 public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
@@ -72,7 +73,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
           promise(
               p.isLazy() ? ANY_VALUE : of(Objects.requireNonNull(p.boundVal())),
               p.isLazy() ? Effects.ANY : Effects.NONE);
-      default -> ANY_VALUE;
+      default -> sexp.equals(SEXPs.MISSING_ARG) ? MISSING : ANY_VALUE;
     };
   }
 
@@ -199,8 +200,13 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
       onOwnershipMismatch = () -> {};
     }
 
+    var newKind = kind.union(other.kind, onOwnershipMismatch);
+    if (newKind instanceof Kind.Any) {
+      return ANY;
+    }
+
     return new Type(
-        kind.union(other.kind, onOwnershipMismatch),
+        newKind,
         // Technically these must be equal, but for graceful recovery and easier type feedback.
         other.ownership == Ownership.SHARED ? Ownership.SHARED : ownership,
         concreteness.union(other.concreteness));

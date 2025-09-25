@@ -123,7 +123,6 @@ public record SpeculateDispatch(
           copy.setEffects(version.effects());
           copy.addLocals(version.locals());
           copyFrom(copy.cfg(), version.cfg());
-          this.feedback.copy(version, copy);
         });
   }
 }

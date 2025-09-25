@@ -118,11 +118,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
       // Get possible checkpoints where after we can insert assumptions for the register
       var availableCheckpointBbs =
           checkpointBbs.stream()
-              .filter(
-                  bb -> {
-                    var defInCfg = def.inCfg(bb.owner());
-                    return defInCfg != null && domTree.dominates(defInCfg.bb(), bb);
-                  })
+              .filter(bb -> domTree.dominates(def.inInnermostCfg().bb(), bb))
               .toList();
       if (availableCheckpointBbs.isEmpty()) {
         continue;
@@ -148,7 +144,8 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
           var assumeCallee = new AssumeFunction(new Read(register), calleeFeedback);
           assumptionsToInsert.put(successBb, assumeCallee);
         } else if (constantFeedback != null) {
-          var assumeConstant = new AssumeConstant(new Read(register), new Constant(constantFeedback));
+          var assumeConstant =
+              new AssumeConstant(new Read(register), new Constant(constantFeedback));
           assumptionsToInsert.put(successBb, assumeConstant);
         } else if (!typeFeedback.equals(local.type())) {
           var assumeType = new AssumeType(new Read(register), typeFeedback);
@@ -186,8 +183,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
               successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
           assumeSubsts.stage(target, new Read(globalLookup), successBb);
         }
-        case AssumeConstant(var _, var constant) ->
-            assumeSubsts.stage(target, constant, successBb);
+        case AssumeConstant(var _, var constant) -> assumeSubsts.stage(target, constant, successBb);
       }
     }
     assumeSubsts.commit();
