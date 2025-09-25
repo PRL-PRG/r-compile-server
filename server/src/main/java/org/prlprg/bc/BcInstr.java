@@ -1007,7 +1007,7 @@ public sealed interface BcInstr {
   }
 
   @NeedsRho
-  @StackEffect(pop = 4, push = 2)
+  @StackEffect(pop = 5, push = 3)
   record GetterCall(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {

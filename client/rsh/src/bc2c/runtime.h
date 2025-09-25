@@ -2196,8 +2196,9 @@ static INLINE void Rsh_do_subassign_n(Value *stack, int rank, SEXP call,
   SET_SXP_VAL(sv, vec);
 }
 
-static INLINE void Rsh_GetterCall(Value *lhs, Value *fun, Value args_head,
-                                  UNUSED Value args_tail, SEXP call, SEXP rho) {
+static INLINE void Rsh_GetterCall(Value *lhs, UNUSED Value *rhs, Value *fun,
+                                  Value args_head, UNUSED Value args_tail,
+                                  SEXP call, SEXP rho) {
 
   SEXP lhs_sxp = val_as_sexp(*lhs);
   SEXP fun_sxp = val_as_sexp(*fun);

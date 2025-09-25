@@ -3,7 +3,6 @@ package org.prlprg.bc2c;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.function.Function;
-import org.junit.Ignore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.prlprg.bc2c.BC2CSnapshotTestExtension.BC2CSnapshot;
@@ -691,44 +690,60 @@ public class BC2CCompilerTest {
   public void testDollarGets(BC2CSnapshot snapshot) {
     snapshot.verify(
         """
-  # Basic list assignment
-  x1 <- x2 <- list(a = 1)
-  x1$b <- 2
-  eval(quote(x2$b <- 2))
+                # Basic list assignment
+                x1 <- x2 <- list(a = 1)
+                x1$b <- 2
+                eval(quote(x2$b <- 2))
 
-  # Method dispatch
-  obj <- structure(list(val = 1), class = "myobj")
-  `$<-.myobj` <- function(x, name, value) {
-    x[[paste0("modified_", name)]] <- value
-    x
-  }
-  obj1 <- obj2 <- obj
-  obj1$test <- 10
-  eval(quote(obj2$test <- 10))
+                # Method dispatch
+                obj <- structure(list(val = 1), class = "myobj")
+                `$<-.myobj` <- function(x, name, value) {
+                  x[[paste0("modified_", name)]] <- value
+                  x
+                }
+                obj1 <- obj2 <- obj
+                obj1$test <- 10
+                eval(quote(obj2$test <- 10))
 
-  # Copy-on-write
-  original <- list(a = 1)
-  x3 <- x4 <- original
-  x3$b <- 2
-  eval(quote(x4$b <- 2))
+                # Copy-on-write
+                original <- list(a = 1)
+                x3 <- x4 <- original
+                x3$b <- 2
+                eval(quote(x4$b <- 2))
 
-  identical(x1, x2) && identical(obj1, obj2) && !identical(x3, original) && !identical(x4, original) && identical(x3, x4)
-  """,
+                identical(x1, x2) && identical(obj1, obj2) && !identical(x3, original) && !identical(x4, original) && identical(x3, x4)
+                """,
         returns(SEXPs.TRUE));
   }
 
-  // TODO: test for errors - and stack pointers
-  //  - try with R BC interpreter
-  //  - a tryCatch / just an error in a call called from REPL
-
-  @Ignore
   @Test
-  public void testAdhoc(BC2CSnapshot snapshot) {
-    snapshot.setClean(false);
+  public void testDispatchOperations(BC2CSnapshot snapshot) {
     snapshot.verify(
         """
-        """);
+                        M <- matrix(c(1.2,1.3,1.4),3,3,byrow=TRUE)
+                        d <- as.data.frame(M)
+                        h <- function (n,d){
+                            for (i in 1:n) {
+                                d[3,2] <- 5.5
+                            }
+                            d
+                        }
+                        h(100, d)
+                        """);
   }
+
+  @Test
+  public void testComplexAssign(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        b=matrix(4,2,2)
+                        diag(b)[2] <- 5
+                        1
+                        """);
+  }
+
+  @Test
+  public void testAdhoc(BC2CSnapshot snapshot) {}
 
   // API
 
