@@ -33,6 +33,7 @@ import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 
@@ -77,9 +78,11 @@ public final class InferEffects implements Analysis {
       case Cast(var _, var _), Closure _, Dup(var _) -> Effects.NONE;
       case Force(var value) -> {
         var type = inferType.of(value);
-        yield type == null || !(type.kind() instanceof Kind.Promise(var _, var innerEffects))
-            ? Effects.NONE
-            : innerEffects;
+        yield type == null || type.concreteness() == Concreteness.MAYBE
+            ? Effects.ANY
+            : type.kind() instanceof Kind.Promise(var _, var innerEffects)
+                ? innerEffects
+                : Effects.NONE;
       }
       case Load(var _) -> Effects.NONE;
       case LoadFun(var _, var env) ->
@@ -91,9 +94,11 @@ public final class InferEffects implements Analysis {
           };
       case MaybeForce(var value) -> {
         var type = inferType.of(value);
-        yield type == null || !(type.kind() instanceof Kind.Promise(var _, var innerEffects))
-            ? Effects.NONE
-            : innerEffects;
+        yield type == null || type.concreteness() == Concreteness.MAYBE
+            ? Effects.ANY
+            : type.kind() instanceof Kind.Promise(var _, var innerEffects)
+                ? innerEffects
+                : Effects.NONE;
       }
       case MkVector(var _, var _), MkEnv(), PopEnv(), Placeholder(), Promise(var _, var _, var _) ->
           Effects.NONE;
