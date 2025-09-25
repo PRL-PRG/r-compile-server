@@ -3,6 +3,7 @@ package org.prlprg.bc2fir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
+import static org.prlprg.fir.check.Checker.checkAll;
 import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
 
@@ -33,8 +34,8 @@ public class BC2FirAndInterpreterIntegrationTest {
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
   void testCompilerAndInterpreter(TestPath rFilePath) {
-    testCompilerAndInterpreterAbstract(rFilePath, (interpreter, check) ->
-        check.accept("FIŘ output", interpreter.call("main")));
+    testCompilerAndInterpreterAbstract(
+        rFilePath, (interpreter, check) -> check.accept("FIŘ output", interpreter.call("main")));
   }
 
   /// Tests that all R files in the test resources directory produce the same output:
@@ -45,20 +46,37 @@ public class BC2FirAndInterpreterIntegrationTest {
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
   void testCompilerInterpreterOptimizer(TestPath rFilePath) {
-    testCompilerAndInterpreterAbstract(rFilePath, (interpreter, check) -> {
-      for (int i = 0; i < 5; i++) {
-        check.accept("FIŘ pre-opt #" + i, interpreter.call("main"));
-      }
+    testCompilerAndInterpreterAbstract(
+        rFilePath,
+        (interpreter, check) -> {
+          for (int i = 0; i < 5; i++) {
+            check.accept("FIŘ pre-opt #" + i, interpreter.call("main"));
+          }
 
-      defaultOptimizations(interpreter.feedback(), 4).run(interpreter.module());
+          // Phase 1: Create new versions with contextual dispatch
+          defaultOptimizations(interpreter.feedback(), 4).run(interpreter.module());
+          if (!checkAll(interpreter.module())) {
+            fail("Optimized (phase 1) FIŘ failed verification:\n" + interpreter.module());
+          }
 
-      for (int i = 0; i < 3; i++) {
-        check.accept("FIŘ post-opt #" + i, interpreter.call("main"));
-      }
-    });
+          for (int i = 0; i < 5; i++) {
+            check.accept("FIŘ post-opt1 #" + i, interpreter.call("main"));
+          }
+
+          // Phase 2: insert assumptions in the new versions using collected feedback
+          defaultOptimizations(interpreter.feedback(), 4).run(interpreter.module());
+          if (!checkAll(interpreter.module())) {
+            fail("Optimized (phase 2) FIŘ failed verification:\n" + interpreter.module());
+          }
+
+          for (int i = 0; i < 3; i++) {
+            check.accept("FIŘ post-opt2 #" + i, interpreter.call("main"));
+          }
+        });
   }
 
-  private void testCompilerAndInterpreterAbstract(TestPath rFilePath, BiConsumer<Interpreter, BiConsumer<String, SEXP>> test) {
+  private void testCompilerAndInterpreterAbstract(
+      TestPath rFilePath, BiConsumer<Interpreter, BiConsumer<String, SEXP>> test) {
     Module firModule = null;
 
     try {
@@ -80,8 +98,13 @@ public class BC2FirAndInterpreterIntegrationTest {
       // Use `toString()` because we only care about structural equivalence (environments won't
       // be equal but that's OK, we want to check if they're structurally equivalent though).
       var rOutputStr = rOutput.toString();
-      test.accept(interpreter, (desc, firOutput) ->
-          assertEquals(rOutputStr, firOutput.toString(), desc + " produced different output than GNU-R"));
+      test.accept(
+          interpreter,
+          (desc, firOutput) ->
+              assertEquals(
+                  rOutputStr,
+                  firOutput.toString(),
+                  desc + " produced different output than GNU-R"));
     } catch (CompilerException | BcCompilerUnsupportedException e) {
       fail("GNU-R bytecode compiler crashed", e);
     } catch (CFGCompilerException | ClosureCompilerUnsupportedException e) {

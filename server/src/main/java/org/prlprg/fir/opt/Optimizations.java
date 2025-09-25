@@ -19,8 +19,8 @@ public class Optimizations {
 
   public static Optimization defaultOptimizations(ModuleFeedback feedback, int threshold) {
     return new Sequence(
-        new SpeculateDispatch(feedback, threshold, 3, 9),
         new SpeculateAssume(feedback, threshold),
+        new SpeculateDispatch(feedback, threshold, 3, 9),
         new FixpointSequence(
             new Specialize(
                 new DefiniteForce(),

@@ -2,9 +2,7 @@ package org.prlprg.fir.ir.abstraction.substitute;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -108,10 +106,17 @@ public class DomineeSubstituter extends AbstractSubstituter {
   }
 
   private @Nullable Argument domSubst(BB bb, @Nullable Register local) {
-    return local == null ? null : domSubsts.get(local).stream().filter(ds -> {
-      assert ds != null;
-      return domTree.dominates(ds.dominator, bb);
-    }).findAny().map(DomSubst::substitution).orElse(null);
+    return local == null
+        ? null
+        : domSubsts.get(local).stream()
+            .filter(
+                ds -> {
+                  assert ds != null;
+                  return domTree.dominates(ds.dominator, bb);
+                })
+            .findAny()
+            .map(DomSubst::substitution)
+            .orElse(null);
   }
 
   @Override
