@@ -2,9 +2,12 @@ package org.prlprg.fir.interpret;
 
 import java.util.List;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.TaggedElem;
 
 /// Function version that executes Java code which can be called from the interpreter.
 ///
@@ -31,7 +34,20 @@ public interface ExternalVersion {
           arguments.stream()
               .map(
                   argument ->
-                      argument instanceof PromSXP promSxp ? runtime.force(promSxp) : argument)
+                      switch (argument) {
+                        case PromSXP promSxp -> runtime.force(promSxp);
+                        case DotsListSXP dotsSxp ->
+                            dotsSxp.stream()
+                                .map(
+                                    te ->
+                                        new TaggedElem(
+                                            te.tag(),
+                                            te.value() instanceof PromSXP promSXP
+                                                ? runtime.force(promSXP)
+                                                : te.value()))
+                                .collect(SEXPs.toDots());
+                        default -> argument;
+                      })
               .toList();
       return inner.call(runtime, hijacked, forcedArgs, environment);
     };
