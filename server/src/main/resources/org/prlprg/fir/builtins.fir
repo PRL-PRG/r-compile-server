@@ -400,6 +400,18 @@ fun warning(`...`, `call.`, `immediate.`, `noBreaks.`, domain) {
   (reg ddd:dots, reg call:*, reg immediate:*, reg noBreaks:*, reg domain:*) -+> V { ... }
 }
 
+fun stopifnot(`...`, exprs, exprObject, local) {
+  (reg ddd:dots, reg exprs:*, reg exprObject:*, reg local:*) -+> V { ... }
+}
+
+fun print(x, `...`) {
+  (reg x:*, reg ddd:dots) -+> V { ... }
+  (reg x:v(L)) --> v(L) { ... }
+  (reg x:v(I)) --> v(I) { ... }
+  (reg x:v(R)) --> v(R) { ... }
+  (reg x:v(S)) --> v(S) { ... }
+}
+
 fun unclass(x) {
   (reg x:*) -+> V { ... }
   (reg x:V) --> V { ... }
