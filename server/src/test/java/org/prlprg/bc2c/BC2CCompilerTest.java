@@ -717,6 +717,24 @@ public class BC2CCompilerTest {
   }
 
   @Test
+  public void testReturnJmp(BC2CSnapshot snapshot) {
+      snapshot.setClean(false);
+      snapshot.setCompilePromises(true);
+      snapshot.verify(
+              """
+              f <- function() {
+                  g <- function(x) {
+                      y <- x
+                      return(1L)
+                  }
+                  g(return(42L))
+                  return(2L)
+              }
+              f()
+              """, returns(42));
+  }
+
+  @Test
   public void testDispatchOperations(BC2CSnapshot snapshot) {
     snapshot.verify(
         """
