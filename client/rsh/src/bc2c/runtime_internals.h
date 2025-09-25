@@ -95,6 +95,7 @@ SEXP make_applyClosure_env(SEXP call, SEXP op, SEXP arglist, SEXP rho,
 void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
                      SEXP promargs, SEXP callfun);
 void Rf_endcontext(RCNTXT *cptr);
+void NORET Rf_findcontext(int mask, SEXP env, SEXP val);
 
 SEXP rcpEval(SEXP body, SEXP rho);
 

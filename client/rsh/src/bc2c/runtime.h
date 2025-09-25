@@ -897,6 +897,13 @@ static INLINE void Rsh_SetVar2(Value *r0, SEXP symbol, SEXP rho) {
     return val_as_sexp(__ret__);                                               \
   } while (0);
 
+#define Rsh_ReturnJmp(/* Value* */ r0, saved_stack_top, rho)                   \
+  do {                                                                         \
+    SEXP __ret__ = val_as_sexp(*r0);                                           \
+    R_BCNodeStackTop -= (saved_stack_top);                                     \
+    Rf_findcontext(CTXT_BROWSER | CTXT_FUNCTION, rho, __ret__);                \
+  } while (0);
+
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
     DECREMENT_LINKS(CAR(a));
