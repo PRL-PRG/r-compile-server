@@ -1052,6 +1052,8 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
+  @StackEffect(pop=1, push = 1)
   record ReturnJmp() implements BcInstr {
     @Override
     public BcOp op() {

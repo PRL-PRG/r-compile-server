@@ -257,6 +257,7 @@ class ClosureCompiler {
     var code =
         switch (instr) {
           case BcInstr.Return() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
+          case BcInstr.ReturnJmp() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
@@ -674,7 +675,8 @@ class ClosureCompiler {
           BcOp.DOTCALL,
           BcOp.DDVAL_MISSOK,
           BcOp.DOLLARGETS,
-          BcOp.DDVAL);
+          BcOp.DDVAL,
+          BcOp.RETURNJMP);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
