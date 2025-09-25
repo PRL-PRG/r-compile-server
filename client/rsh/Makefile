@@ -78,28 +78,38 @@ BENCH_DIR = $(RSH_HOME)/inst/benchmarks
 BENCH_NAME ?= $(shell echo "$$(date +'%Y%m%d-%H%M%S')-$$(git rev-parse --short HEAD)")
 BENCH_OUT_DIR := $(shell echo "$$(pwd)/benchmark-results")/$(BENCH_NAME)
 BENCH_R = R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site $(LLVM_R) -f
-OPTS ?= --rsh
+BENCH_OPTS ?= --rsh
 FILTER ?=
 
 .PHONY: benchmark
 benchmark:
-	@for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
+	@total=0; failed=0; failed_tests=""; \
+	for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
+		total=$$((total + 1)); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --runs $(BENCH_ITER) --output-dir $(BENCH_OUT_DIR) $(OPTS) $${file%.*}"; \
+		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --runs $(BENCH_ITER) --output-dir $(BENCH_OUT_DIR) $(BENCH_OPTS) $${file%.*}"; \
 		echo $$cmd; \
 		eval "$$cmd"; \
 		exit=$$?; \
 		echo -n "$(TXT_BOLD)└──── $$test: "; \
-	  if [ $$exit -eq 0 ]; then \
+		if [ $$exit -eq 0 ]; then \
 			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BENCH_OUT_DIR)/$${test%.*}.csv)"; \
 		else \
-		echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+			echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
+			failed=$$((failed + 1)); \
+			failed_tests="$$failed_tests $$test"; \
 		fi; \
-	done
-	$(R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
+		done; \
+		echo "$(TXT_BOLD)========================================$(TXT_NORM)"; \
+		echo "$(TXT_BOLD)Total tests: $$total$(TXT_NORM)"; \
+		echo "$(TXT_BOLD)Failed: $$failed$(TXT_NORM)"; \
+		if [ $$failed -gt 0 ]; then \
+			echo "$(TXT_BOLD)Failed tests:$(TXT_RED)$$failed_tests$(TXT_NORM)"; \
+		fi
+		$(R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
 
 .PHONY: benchmark-baseline
 benchmark-baseline:
-	$(MAKE) benchmark OPTS=--bc BENCH_NAME=baseline
+	$(MAKE) benchmark BENCH_OPTS=--bc BENCH_NAME=baseline
 

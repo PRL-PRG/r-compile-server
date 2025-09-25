@@ -7,6 +7,12 @@ import org.prlprg.sexp.*;
 
 record Constant(int id, SEXP value) {}
 
+record BCell(int id, String name, int uses) {
+  public BCell uses(int newUses) {
+    return new BCell(id, name, newUses);
+  }
+}
+
 class ByteCodeStack {
   private int max = 0;
   private int top = 0;
@@ -21,18 +27,13 @@ class ByteCodeStack {
     if (top < 0) {
       throw new IllegalArgumentException("Stack underflow: %d".formatted(top));
     }
-    --top;
     var s = get(top);
+    --top;
     return "*" + s;
   }
 
   public String get(int i) {
-    var p = top - i;
-    if (p < 0 || p + 1 > max) {
-      throw new IllegalStateException("Invalid stack state (i: %d, max: %d)".formatted(p, max));
-    }
-
-    return "GET_VAL(" + p + ")";
+    return "R" + i;
   }
 
   public int max() {
@@ -40,20 +41,7 @@ class ByteCodeStack {
   }
 
   public boolean isEmpty() {
-    return top == -1;
-  }
-
-  protected Optional<String> registerInitialization() {
-    //    if (max == 0) {
-    return Optional.empty();
-    //    }
-    //
-    //    var builder = new StringBuilder();
-    //    for (int i = 0; i < max; i++) {
-    //      builder.append("INIT_VAL(_").append(i).append(");\n");
-    //    }
-    //
-    //    return Optional.of(builder.toString());
+    return top == 0;
   }
 
   public int top() {
@@ -73,6 +61,11 @@ record CompiledClosure(String name, VectorSXP<SEXP> constantPool) {}
 class CModule {
   private final List<CFunction> funs = new ArrayList<>();
   private int funId = 0;
+  private boolean compilePromises;
+
+  public CModule(boolean compilePromises) {
+    this.compilePromises = compilePromises;
+  }
 
   CFunction createFun(String returnType, String name, String args) {
     var fun = new CFunction(returnType, name, args);
@@ -83,22 +76,34 @@ class CModule {
   CompiledClosure compileClosure(Bc bc, String baseName) {
     var name = baseName + "_" + funId++;
     var compiler = new ClosureCompiler(this, name, bc);
+    compiler.setCompilePromises(this.compilePromises);
     var constants = compiler.compile();
 
     return new CompiledClosure(name, constants);
   }
 
-  public Iterable<CFunction> funs() {
+  CompiledClosure compilePromise(Bc bc, String baseName) {
+    var name = baseName + "_P_" + funId++;
+    var compiler = new ClosureCompiler(this, name, bc);
+    compiler.setCompilePromises(this.compilePromises);
+    //        compiler.setUseCells(false);
+    var constants = compiler.compile();
+
+    return new CompiledClosure(name, constants);
+  }
+
+  public List<CFunction> funs() {
     return funs;
   }
 }
 
 public class BC2CCompiler {
-  private final CModule module = new CModule();
+  private final CModule module;
   private final Bc bc;
   private final String name; // The name is chosen by the client
 
-  public BC2CCompiler(Bc bc, String name) {
+  public BC2CCompiler(Bc bc, String name, boolean compilePromises) {
+    this.module = new CModule(compilePromises);
     this.bc = bc;
     // We can have other closures to compile in the same Bc
     // We will need to generate a unique name for each
@@ -111,13 +116,12 @@ public class BC2CCompiler {
 
     var file = new CFile();
     file.addInclude("runtime.h");
-    module.funs().forEach(fun -> file.addFun(fun, true));
+    module.funs().forEach(fun -> file.addFun(fun, module.funs().size() > 1));
 
     return new CompiledModule(file, compiledClosure.name(), compiledClosure.constantPool());
   }
 }
 
-// TODO: extract labels and cells into its own classes
 class ClosureCompiler {
   /** The name of the variable representing the current environment */
   private static final String VAR_RHO = "RHO";
@@ -125,16 +129,24 @@ class ClosureCompiler {
   /** The name of the variable representing the C constant pool */
   private static final String VAR_CCP = "CCP";
 
+  private static final String VAR_STACK_SAVE = "STACK_SAVE";
+
+  private static final String BCELL_PREFIX = "C";
+
   private final Bc bc;
   private final ByteCodeStack stack = new ByteCodeStack();
   private final Map<Integer, Constant> constants = new LinkedHashMap<>();
   private final Set<Integer> labels = new HashSet<>();
-  private final Set<Integer> cells = new HashSet<>();
+  private final Map<Integer, BCell> cells = new HashMap<>();
+  private final Map<Integer, Integer> branchStackState = new HashMap<>();
   private int extraConstPoolIdx;
   private final String name;
+  private boolean debug = true;
+  private boolean compilePromises = true;
 
   protected CModule module;
   protected CFunction fun;
+  protected CCode prologue;
   protected CCode body;
 
   public ClosureCompiler(CModule module, String name, Bc bc) {
@@ -142,8 +154,17 @@ class ClosureCompiler {
     this.name = name;
     this.module = module;
     this.fun = module.createFun("SEXP", name, "SEXP %s, SEXP %s".formatted(VAR_RHO, VAR_CCP));
+    this.prologue = fun.add();
     this.body = fun.add();
     this.extraConstPoolIdx = bc.consts().size() + 1;
+  }
+
+  public void setCompilePromises(boolean compilePromises) {
+    this.compilePromises = compilePromises;
+  }
+
+  public void setDebug(boolean debug) {
+    this.debug = debug;
   }
 
   public VectorSXP<SEXP> compile() {
@@ -154,31 +175,66 @@ class ClosureCompiler {
       compile(code.get(i), i);
     }
 
-    //    if (!stack.isEmpty()) {
-    //      throw new IllegalStateException("Stack not empty: %d".formatted(stack.top()));
-    //    }
+    // the stack should be left with one element
+    // which will be the return value
+    if (stack.top() != 1) {
+      throw new IllegalStateException(
+          "Expected stack to have 1 element, got %d".formatted(stack.top()));
+    }
 
     afterCompile();
 
     return SEXPs.vec(constants());
   }
 
+  private int stackSpace() {
+    return stack.max();
+  }
+
   private void beforeCompile() {
-    fillLabels();
+    analyseCode();
   }
 
   private void afterCompile() {
+    prologue.line("int %s = %d;".formatted(VAR_STACK_SAVE, stackSpace()));
+    if (!cells.isEmpty() || !stack.isEmpty()) {
+      prologue.line("CHECK_OVERFLOW(%d);".formatted(stackSpace()));
+    }
+
     compileCells();
     compileRegisters();
-    compileStackGuard();
   }
 
-  private void compileStackGuard() {
-    fun.insertAbove(body).line("Value *__top__ = R_BCNodeStackTop;");
-  }
+  private void analyseCode() {
+    var code = bc.code();
+    var hasLoop = false;
 
-  private void fillLabels() {
-    bc.code().forEach(x -> x.label().ifPresent(l -> labels.add(l.target())));
+    for (int i = 0; i < code.size(); i++) {
+      var instr = code.get(i);
+
+      switch (instr) {
+        case BcInstr.Goto(var label) -> {
+          hasLoop |= label.target() < i;
+        }
+        case BcInstr.StartFor(var _, var symbol, var label) -> {
+          hasLoop = true;
+        }
+        default -> {}
+      }
+
+      instr.label().ifPresent(l -> labels.add(l.target()));
+      instr
+          .bindingCell()
+          .ifPresent(
+              s -> {
+                cells.merge(
+                    s.idx(), new BCell(s.idx(), symbolName(s), 1), (o, _) -> o.uses(o.uses() + 1));
+              });
+    }
+
+    if (hasLoop) {
+      cells.replaceAll((_, o) -> o.uses(o.uses() + 1));
+    }
   }
 
   public List<SEXP> constants() {
@@ -186,28 +242,21 @@ class ClosureCompiler {
   }
 
   private void compile(BcInstr instr, int pc) {
+    checkSupported(instr);
+
     if (labels.contains(pc)) {
-      body.line("%s:".formatted(label(pc)));
+      body.line("%s: /* stack: %d */".formatted(label(pc), stack.top()));
+      Integer state = branchStackState.remove(pc);
+      if (state != null) {
+        stack.reset(state);
+      }
     }
 
-    var builder = new InstrBuilder(instr);
-    checkSupported(instr);
+    var builder = new InstrCallBuilder(instr);
+
     var code =
         switch (instr) {
-            // FIXME: do not POP after return
-            // FIXME: extract constants
-            // FIXME: better stack handling - we do not need __ncells__, just store __top__
-            // FIXME: what shall happen if an error occurs?
-          case BcInstr.Return() ->
-              """
-              do {
-                Value __ret__ = *GET_VAL(1);
-                POP_VAL(1);
-                R_BCNodeStackTop = __top__;
-                POP_VAL(__ncells__);
-                return Rsh_Return(__ret__);
-              } while(0);
-            """;
+          case BcInstr.Return() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
@@ -219,54 +268,25 @@ class ClosureCompiler {
                       case LglSXP v when v.size() == 1 -> "Rsh_LdConstLgl";
                       case SEXP _ -> "Rsh_LdConst";
                     })
-                .args("Rsh_const(%s, %d)".formatted(VAR_CCP, c.id()))
                 .compileStmt();
           }
-          case BcInstr.SetVar(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.GetVar(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.GetVarMissOk(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.DdVal(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.DdValMissOk(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.StartAssign(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
-          case BcInstr.EndAssign(var symbol) ->
-              builder.args(constantSXP(symbol), cell(symbol)).compileStmt();
           case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
-
-            // FIXME: this can be all done using the default branch - except for the rank
-            //  the builder should be smarter and include also other types such as int
-          case BcInstr.SubsetN(var call, var rank) ->
-              builder
-                  .args(String.valueOf(rank), constantSXP(call))
-                  .pop(rank + 1)
-                  .useStackAsArray()
-                  .compileStmt();
-          case BcInstr.Subset2N(var call, var rank) ->
-              builder
-                  .args(String.valueOf(rank), constantSXP(call))
-                  .pop(rank + 1)
-                  .useStackAsArray()
-                  .compileStmt();
-          case BcInstr.SubassignN(var call, var rank) ->
-              builder
-                  .args(String.valueOf(rank), constantSXP(call))
-                  .pop(rank + 2)
-                  .useStackAsArray()
-                  .compileStmt();
-          case BcInstr.Subassign2N(var call, var rank) ->
-              builder
-                  .args(String.valueOf(rank), constantSXP(call))
-                  .pop(rank + 2)
-                  .useStackAsArray()
-                  .compileStmt();
-
-          case BcInstr.StartFor(var ast, var symbol, var label) -> {
-            var c = builder.args(constantSXP(ast), constantSXP(symbol), cell(symbol)).compileStmt();
+          case BcInstr.MakeProm(var idx) -> {
+            var prom = bc.consts().get(idx);
+            if (prom instanceof BCodeSXP c && compilePromises) {
+              yield compileMakePromise(builder, c);
+            } else {
+              yield builder.compileStmt();
+            }
+          }
+          case BcInstr.SubsetN(var call, var rank) -> compileSubsetN(builder, call, rank);
+          case BcInstr.Subset2N(var call, var rank) -> compileSubsetN(builder, call, rank);
+          case BcInstr.SubassignN(var call, var rank) -> compileSubassignN(builder, call, rank);
+          case BcInstr.Subassign2N(var call, var rank) -> compileSubassignN(builder, call, rank);
+          case BcInstr.StartFor(var _, var symbol, var label) -> {
+            var cell = cells.get(symbol.idx());
+            assert cell != null;
+            var c = builder.cell(cell).compileStmt();
             yield c + "\ngoto " + label(label) + ";";
           }
           case BcInstr.StepFor(var label) -> {
@@ -274,32 +294,273 @@ class ClosureCompiler {
                 instanceof BcInstr.StartFor(_, var symbol, _))) {
               throw new IllegalStateException("Expected StartFor instruction");
             }
-            yield "if (%s) {\n goto %s;\n}"
-                .formatted(builder.args(cell(symbol)).compile(), label(label));
+            var cell = cells.get(symbol.idx());
+            assert cell != null;
+            yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.cell(cell).compile(), label(label));
           }
-          case BcInstr.Math1(var call, var op) ->
-              builder.args(constantSXP(call), String.valueOf(op)).compileStmt();
-          case BcInstr.DotCall(var call, var numArgs) ->
-              builder
-                  .args(String.valueOf(numArgs), constantSXP(call))
-                  .pop(numArgs + 1)
-                  .push(numArgs + 1)
-                  .useStackAsArray()
-                  .compileStmt();
+          case BcInstr.Math1(var _, var op) -> builder.addArgs(String.valueOf(op)).compileStmt();
+          case BcInstr.DotCall(var call, var numArgs) -> compileDotCall(builder, call, numArgs);
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
-              yield "if (%s) {\ngoto %s;\n}".formatted(builder.compile(), label(l));
+              yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(l));
             } else {
               yield builder.compileStmt();
             }
           }
         };
 
-    builder.beforeCompile().forEach(body::line);
     body.line(code);
-    if (!(instr instanceof BcInstr.BrIfNot)) {
-      // FIXME: temporary
-      builder.afterCompile().forEach(body::line);
+    updateBranchStackState(instr);
+  }
+
+  private void updateBranchStackState(BcInstr instr) {
+    if (instr.op() == BcOp.GOTO) {
+      // GOTO do not change the stack state
+      return;
+    }
+    var diff =
+        switch (instr.op()) {
+          case BcOp.STARTSUBSET, BcOp.STARTSUBSET2 -> -3;
+          case BcOp.STARTSUBASSIGN, BcOp.STARTSUBASSIGN2 -> -4;
+          case BcOp.STARTSUBASSIGN_N, BcOp.STARTSUBASSIGN2_N -> -1;
+          default -> 0;
+        };
+    instr.label().ifPresent(label -> branchStackState.put(label.target(), stack.top() + diff));
+  }
+
+  private String compileMakePromise(InstrCallBuilder builder, BCodeSXP bc) {
+    var compiledClosure = module.compilePromise(bc.bc(), name);
+    var cpConst = createExtraConstant(compiledClosure.constantPool());
+    return builder
+        .fun("Rsh_MakeProm2")
+        .args("&" + compiledClosure.name(), constantSXP(cpConst))
+        .compileStmt();
+  }
+
+  private String compileSubsetN(
+      InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
+    var line =
+        builder
+            .push(0)
+            .pop(0)
+            .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
+            .compileStmt();
+    // manually apply the instruction stack effect
+    for (int i = 0; i < rank + 1; i++) stack.pop();
+    stack.push();
+    return line;
+  }
+
+  private String compileSubassignN(
+      InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
+    var line =
+        builder
+            .push(0)
+            .pop(0)
+            .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
+            .compileStmt();
+    // manually apply the instruction stack effect
+    for (int i = 0; i < rank + 2; i++) stack.pop();
+    stack.push();
+    return line;
+  }
+
+  private String compileDotCall(
+      InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int numArgs) {
+    var line =
+        builder
+            .push(0)
+            .pop(0)
+            .args(stack.get(stack.top()), String.valueOf(numArgs), constantSXP(call))
+            .compileStmt();
+    // manually apply the instruction stack effect
+    for (int i = 0; i < numArgs + 1; i++) stack.pop();
+    stack.push();
+    return line;
+  }
+
+  private String compileMakeClosure(InstrCallBuilder builder, ConstPool.Idx<VecSXP> idx) {
+    var cls = bc.consts().get(idx);
+
+    if (cls.get(1) instanceof BCodeSXP closureBody) {
+      var compiledClosure = module.compileClosure(closureBody.bc(), name);
+      var ccp = createExtraConstant(compiledClosure.constantPool());
+      return builder.addArgs("&" + compiledClosure.name(), constantSXP(ccp)).compileStmt();
+    } else {
+      throw new UnsupportedOperationException("Unsupported body: " + body);
+    }
+  }
+
+  private void compileRegisters() {
+    prologue.comment("REGISTERS");
+    for (int i = 1; i <= stack.max(); i++) {
+      prologue.line("DEFINE_VAL(%s);".formatted(stack.get(i)));
+    }
+  }
+
+  private void compileCells() {
+    if (cells.isEmpty()) {
+      return;
+    }
+
+    prologue.comment("CELLS");
+    for (var cell : cells.values()) {
+      var line = "DEFINE_BCELL2(%s%d);".formatted(BCELL_PREFIX, cell.id());
+      if (debug) {
+        line += " // symbol: '%s' (used: %d)".formatted(cell.name(), cell.uses());
+      }
+      prologue.line(line);
+    }
+  }
+
+  // API
+  class InstrCallBuilder {
+    private String fun = "";
+    private int push = 0;
+    private int pop = 0;
+    private boolean needsRho = false;
+    @Nullable private BCell cell = null;
+    private List<String> args = new ArrayList<>();
+    private final List<String> debugMessages = new ArrayList<>();
+
+    public InstrCallBuilder(BcInstr instr) {
+      fun = "Rsh_" + instr.getClass().getSimpleName();
+      push = instr.push();
+      pop = instr.pop();
+      needsRho = instr.needsRho();
+
+      for (var x : instr.args()) {
+        args.add(constantSXP(x));
+      }
+
+      instr
+          .bindingCell()
+          .ifPresent(
+              s -> {
+                cell = cells.get(s.idx());
+              });
+    }
+
+    public InstrCallBuilder fun(String fun) {
+      this.fun = fun;
+      return this;
+    }
+
+    public InstrCallBuilder push(int push) {
+      this.push = push;
+      return this;
+    }
+
+    public InstrCallBuilder pop(int pop) {
+      this.pop = pop;
+      return this;
+    }
+
+    public InstrCallBuilder cell(BCell cell) {
+      this.cell = cell;
+      return this;
+    }
+
+    public InstrCallBuilder args(String... args) {
+      this.args = new ArrayList<>(args.length);
+      this.args.addAll(Arrays.asList(args));
+      return this;
+    }
+
+    public InstrCallBuilder addArgs(String... args) {
+      this.args.addAll(Arrays.asList(args));
+      return this;
+    }
+
+    public String compile() {
+      var n = Math.max(pop, push);
+      var xs = new String[n + args.size() + (needsRho ? 1 : 0) + (cell != null ? 1 : 0)];
+
+      for (int i = pop; i > 0; i--) {
+        xs[i - 1] = stack.pop();
+      }
+
+      for (int i = 0; i < push; i++) {
+        xs[i] = stack.push();
+      }
+
+      for (String arg : args) {
+        xs[n++] = arg;
+      }
+
+      if (cell != null) {
+        xs[n++] = "&C" + cell.id();
+        debugMessages.add("symbol: '%s'".formatted(cell.name()));
+      }
+
+      if (needsRho) {
+        xs[n++] = VAR_RHO;
+      }
+
+      var line = fun + "(" + String.join(", ", xs) + ")";
+
+      if (debug) {
+        debugMessages.add("stack: " + stack.top());
+        line += " /* " + String.join(", ", debugMessages) + " */";
+      }
+
+      return line;
+    }
+
+    public String compileStmt() {
+      return this.compile() + ";";
+    }
+
+    public InstrCallBuilder debug(String message) {
+      this.debugMessages.add(message);
+      return this;
+    }
+  }
+
+  private String constantSXP(@Nullable ConstPool.Idx<? extends SEXP> idx) {
+    if (idx == null) {
+      return "R_NilValue";
+    }
+
+    var c = getConstant(idx);
+    return constantSXP(c);
+  }
+
+  private String constantSXP(Constant c) {
+    return "Rsh_const(%s, %d)".formatted(VAR_CCP, c.id());
+  }
+
+  private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
+    return constants.computeIfAbsent(
+        idx.idx(),
+        ignored -> {
+          var next = constants.size();
+          return new Constant(next, bc.consts().get(idx));
+        });
+  }
+
+  private Constant createExtraConstant(SEXP v) {
+    var next = constants.size();
+    var c = new Constant(next, v);
+    constants.put(extraConstPoolIdx++, c);
+    return c;
+  }
+
+  private String label(BcLabel l) {
+    return "L%d".formatted(l.target());
+  }
+
+  private String label(int target) {
+    labels.add(target);
+    return "L%d".formatted(target);
+  }
+
+  private String symbolName(ConstPool.Idx<? extends SEXP> idx) {
+    var sym = bc.consts().get(idx);
+    if (sym instanceof RegSymSXP s) {
+      return s.name();
+    } else {
+      throw new IllegalArgumentException("Expected a symbol or code, got: " + sym);
     }
   }
 
@@ -313,14 +574,12 @@ class ClosureCompiler {
           BcOp.CHECKFUN,
           BcOp.DIV,
           BcOp.DOLLAR,
-          BcOp.DOLLARGETS,
           BcOp.EQ,
           BcOp.EXPT,
           BcOp.EXP,
           BcOp.GETBUILTIN,
           BcOp.GETFUN,
           BcOp.GETVAR,
-          BcOp.DDVAL,
           BcOp.GE,
           BcOp.GOTO,
           BcOp.GT,
@@ -355,7 +614,6 @@ class ClosureCompiler {
           BcOp.ADD,
           BcOp.GETINTLBUILTIN,
           BcOp.GETVAR_MISSOK,
-          BcOp.DDVAL_MISSOK,
           BcOp.STARTSUBSET,
           BcOp.STARTSUBSET2,
           BcOp.STARTSUBSET2_N,
@@ -412,202 +670,15 @@ class ClosureCompiler {
           BcOp.LOG,
           BcOp.LOGBASE,
           BcOp.MATH1,
+          BcOp.DODOTS,
           BcOp.DOTCALL,
-          BcOp.DODOTS);
+          BcOp.DDVAL_MISSOK,
+          BcOp.DOLLARGETS,
+          BcOp.DDVAL);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
       throw new UnsupportedOperationException("Unsupported instruction: " + instr);
     }
-  }
-
-  private String compileMakeClosure(InstrBuilder builder, ConstPool.Idx<VecSXP> idx) {
-    var cls = bc.consts().get(idx);
-
-    if (cls.get(1) instanceof BCodeSXP closureBody) {
-      var compiledClosure = module.compileClosure(closureBody.bc(), name);
-      var cpConst = createExtraConstant(compiledClosure.constantPool());
-      return builder
-          .args(constantSXP(idx), "&" + compiledClosure.name(), constantSXP(cpConst))
-          .compileStmt();
-    } else {
-      throw new UnsupportedOperationException("Unsupported body: " + body);
-    }
-  }
-
-  private void compileRegisters() {
-    var code = stack.registerInitialization();
-    if (code.isPresent()) {
-      var sec = fun.insertAbove(body);
-      sec.line(code.get());
-    }
-  }
-
-  private void compileCells() {
-    var sec = fun.insertAbove(body);
-
-    if (cells.isEmpty()) {
-      sec.line("int __ncells__ = 0;");
-      return;
-    }
-
-    sec.line("int __ncells__ = %d;".formatted(cells.size()));
-    sec.line("PUSH_VAL(__ncells__);");
-    int i = 0;
-    for (var c : cells) {
-      var idx = cells.size() - i;
-      sec.line("BCell* C%d = &(R_BCNodeStackTop - %d)->u.sxpval;".formatted(c, idx));
-      sec.line("(R_BCNodeStackTop - %d)->tag = 0;".formatted(idx));
-      sec.line("(R_BCNodeStackTop - %d)->flags = 0;".formatted(idx));
-      sec.line("*C%d = R_NilValue;".formatted(c));
-      i++;
-    }
-  }
-
-  // API
-
-  class InstrBuilder {
-    private String fun;
-    private List<String> args = new ArrayList<>();
-    private boolean needsRho;
-    private int push;
-    private int pop;
-    private boolean stackAsArray;
-
-    public InstrBuilder(BcInstr instr) {
-      for (var x : instr.args()) {
-        this.args.add(constantSXP(x));
-      }
-      if (instr.needsRho()) {
-        this.needsRho = true;
-      }
-      this.fun = "Rsh_" + instr.getClass().getSimpleName();
-      this.pop = instr.pop();
-      this.push = instr.push();
-    }
-
-    public InstrBuilder fun(String fun) {
-      this.fun = fun;
-      return this;
-    }
-
-    public InstrBuilder args(String... args) {
-      this.args = List.of(args);
-      return this;
-    }
-
-    public InstrBuilder push(int push) {
-      this.push = push;
-      return this;
-    }
-
-    public InstrBuilder pop(int pop) {
-      this.pop = pop;
-      return this;
-    }
-
-    public String compile() {
-      var args = new ArrayList<String>(Math.max(pop, push) + this.args.size());
-
-      if (stackAsArray) {
-        args.add("GET_VAL(0)");
-      } else {
-        args.addAll(replayStackEffect());
-      }
-
-      args.addAll(this.args);
-
-      if (needsRho) {
-        args.add(VAR_RHO);
-      }
-
-      return fun + "(" + String.join(", ", args) + ")";
-    }
-
-    public List<String> replayStackEffect() {
-      var args = new ArrayList<String>(Math.max(pop, push) + this.args.size());
-      var max = Math.max(pop, push);
-
-      for (int i = 0; i < max; i++) {
-        var a = "GET_VAL(%d)".formatted(max - i);
-        if (i >= push) {
-          a = "*" + a;
-        }
-        args.add(a);
-      }
-
-      return args;
-    }
-
-    public String compileStmt() {
-      return this.compile() + ";";
-    }
-
-    public InstrBuilder useStackAsArray() {
-      this.stackAsArray = true;
-      return this;
-    }
-
-    public List<String> beforeCompile() {
-      int n = push - pop;
-      if (n > 0) {
-        return List.of("PUSH_VAL(%d);".formatted(n));
-      } else {
-        return List.of();
-      }
-    }
-
-    public List<String> afterCompile() {
-      int n = pop - push;
-      if (n > 0) {
-        return List.of("POP_VAL(%d);".formatted(n));
-      } else {
-        return List.of();
-      }
-    }
-  }
-
-  private String constantSXP(@Nullable ConstPool.Idx<? extends SEXP> idx) {
-    if (idx == null) {
-      return "R_NilValue";
-    }
-
-    var c = getConstant(idx);
-    return constantSXP(c);
-  }
-
-  private String constantSXP(Constant c) {
-    return "Rsh_const(%s, %d)".formatted(VAR_CCP, c.id());
-  }
-
-  private Constant getConstant(ConstPool.Idx<? extends SEXP> idx) {
-    return constants.computeIfAbsent(
-        idx.idx(),
-        ignored -> {
-          var next = constants.size();
-          return new Constant(next, bc.consts().get(idx));
-        });
-  }
-
-  private Constant createExtraConstant(SEXP v) {
-    var next = constants.size();
-    var c = new Constant(next, v);
-    constants.put(extraConstPoolIdx++, c);
-    return c;
-  }
-
-  private String label(BcLabel l) {
-    return "L%d".formatted(l.target());
-  }
-
-  private String label(int target) {
-    labels.add(target);
-    return "L%d".formatted(target);
-  }
-
-  private String cell(ConstPool.Idx<? extends SEXP> idx) {
-    var id = getConstant(idx).id();
-    cells.add(id);
-    return "C%d".formatted(id);
   }
 }

@@ -2,6 +2,8 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.lang.reflect.Method;
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,6 +29,7 @@ public sealed interface BcInstr {
   BcOp op();
 
   /** The instruction's labels. */
+  // FIXME: do a default reflection-based implementation
   default Optional<BcLabel> label() {
     return Optional.empty();
   }
@@ -39,6 +42,27 @@ public sealed interface BcInstr {
   default int push() {
     var stackEffect = getClass().getAnnotation(StackEffect.class);
     return stackEffect == null ? 0 : stackEffect.push();
+  }
+
+  default Optional<ConstPool.Idx<RegSymSXP>> bindingCell() {
+    var cls = getClass();
+
+    if (cls.isRecord()) {
+      for (RecordComponent rc : cls.getRecordComponents()) {
+        if (rc.isAnnotationPresent(BindingCell.class)) {
+          Method accessor = null;
+          try {
+            accessor = this.getClass().getDeclaredMethod(rc.getName());
+            accessor.setAccessible(true);
+            return Optional.ofNullable((ConstPool.Idx<RegSymSXP>) accessor.invoke(this));
+          } catch (Exception e) {
+            throw new RuntimeException("Unable to access @BindingCell field", e);
+          }
+        }
+      }
+    }
+
+    return Optional.empty();
   }
 
   default boolean needsRho() {
@@ -61,7 +85,13 @@ public sealed interface BcInstr {
     return args;
   }
 
-  @StackEffect(pop = 1)
+  /**
+   * The return instruction.
+   *
+   * <p>It gets whatever is on the stack and returns it to the caller. We model it with no stack
+   * effect, because the callee is responsible to clean up the stack before returning.
+   */
+  @StackEffect(pop = 1, push = 1)
   record Return() implements BcInstr {
     @Override
     public BcOp op() {
@@ -156,7 +186,7 @@ public sealed interface BcInstr {
   @NeedsRho
   record StartFor(
       ConstPool.Idx<LangSXP> ast,
-      ConstPool.Idx<RegSymSXP> elemName,
+      @BindingCell ConstPool.Idx<RegSymSXP> elemName,
       @LabelName("forStep") BcLabel step)
       implements BcInstr {
     @Override
@@ -241,7 +271,7 @@ public sealed interface BcInstr {
 
   @StackEffect(push = 1)
   @NeedsRho
-  record GetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record GetVar(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.GETVAR;
@@ -250,7 +280,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(push = 1)
-  record DdVal(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record DdVal(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.DDVAL;
@@ -259,7 +289,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 1)
-  record SetVar(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record SetVar(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SETVAR;
@@ -609,7 +639,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 4)
-  record StartAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record StartAssign(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTASSIGN;
@@ -618,7 +648,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 3, push = 1)
-  record EndAssign(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record EndAssign(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.ENDASSIGN;
@@ -917,7 +947,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(push = 1)
-  record GetVarMissOk(ConstPool.Idx<RegSymSXP> name) implements BcInstr {
+  record GetVarMissOk(@BindingCell ConstPool.Idx<RegSymSXP> name) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.GETVAR_MISSOK;
@@ -977,7 +1007,7 @@ public sealed interface BcInstr {
   }
 
   @NeedsRho
-  @StackEffect(pop = 4, push = 2)
+  @StackEffect(pop = 5, push = 3)
   record GetterCall(ConstPool.Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
