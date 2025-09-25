@@ -24,6 +24,8 @@ SEXP Rsh_pc_get(void) {
   SET_STRING_ELT(names, i++, mkChar("isq"));
   SET_STRING_ELT(names, i++, mkChar("isq_for"));
   SET_STRING_ELT(names, i++, mkChar("r_primitive"));
+  SET_STRING_ELT(names, i++, mkChar("getvar"));
+  SET_STRING_ELT(names, i++, mkChar("slow_getvar"));
   setAttrib(pc, R_NamesSymbol, names);
 
   UNPROTECT(2);
@@ -105,46 +107,5 @@ JIT_DEF SEXP Rsh_initialize_runtime(void) {
   LOAD_R_BUILTIN(NOT_OP, "!");
   LOAD_R_BUILTIN(LOG_OP, "log");
 
-#ifdef RSH_TESTS
-  BC2C_CALL_TRAMPOLINE_SXP = Rf_mkString("Rsh_call_trampoline");
-  R_PreserveObject(BC2C_CALL_TRAMPOLINE_SXP);
-#else
-// it is initialized in the rsh::initialize method in the package
-#endif
-
   return R_NilValue;
-}
-
-JIT_DEF SEXP Rsh_call_trampoline(SEXP call, SEXP op, SEXP args, SEXP rho) {
-  SEXP fun_ptr = CADR(args);
-  if (TYPEOF(fun_ptr) != EXTPTRSXP) {
-    Rf_error("Expected an external pointer, got: %d", TYPEOF(fun_ptr));
-  }
-
-  SEXP c_cp = CADDR(args);
-  if (TYPEOF(c_cp) != VECSXP) {
-    Rf_error("Expected a vector, got: %d", TYPEOF(c_cp));
-  }
-
-  // seems like unnecesary complicated casting, but otherwise C complains
-  // cf. https://stackoverflow.com/a/19487645
-  Rsh_closure fun;
-  *(void **)(&fun) = R_ExternalPtrAddr(fun_ptr);
-  SEXP res = fun(rho, c_cp);
-
-  return res;
-}
-
-#define PUSHCONSTARG_OP 34
-#define BASEGUARD_OP 123
-#define GETBUILTIN_OP 26
-#define CALLBUILTIN_OP 39
-#define RETURN_OP 1
-
-JIT_DEF SEXP create_wrapper_body(SEXP original_body, Rsh_closure fun_ptr,
-                                 SEXP c_cp) {
-  PROTECT(c_cp);
-  SEXP body = R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp);
-  UNPROTECT(1);
-  return body;
 }

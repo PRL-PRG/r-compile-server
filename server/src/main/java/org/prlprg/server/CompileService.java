@@ -201,7 +201,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var bc2cCompiler = new BC2CCompiler(bc, name);
+          var bc2cCompiler = new BC2CCompiler(bc, name, false);
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
           var f = Files.newWriter(input, Charset.defaultCharset());

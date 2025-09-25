@@ -27,6 +27,7 @@ extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
 extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCProtTop;
 extern SEXP R_TrueValue;
+extern SEXP R_LogicalNAValue;
 extern SEXP R_FalseValue;
 
 #define ALWAYS_INLINE inline __attribute__((always_inline))
@@ -94,6 +95,8 @@ SEXP make_applyClosure_env(SEXP call, SEXP op, SEXP arglist, SEXP rho,
 void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
                      SEXP promargs, SEXP callfun);
 void Rf_endcontext(RCNTXT *cptr);
+
+SEXP rcpEval(SEXP body, SEXP rho);
 
 // from arithmetic.h
 static INLINE double R_log(double x) {
