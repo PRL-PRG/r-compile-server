@@ -178,6 +178,29 @@ public final class BB implements Comparable<BB> {
             });
   }
 
+  public void replaceParameterAt(int index, Register parameter) {
+    module()
+        .record(
+            "BB#replaceParameterAt",
+            List.of(this, index, parameter),
+            () -> {
+              if (index < 0 || index >= parameters.size()) {
+                throw new IndexOutOfBoundsException(
+                    "Index " + index + " is out of bounds for parameters of BB '" + label + "'.");
+              }
+              if (parameters.contains(parameter) && parameters.get(index) != parameter) {
+                throw new IllegalArgumentException(
+                    "Parameter '"
+                        + parameter
+                        + "' is already present in BB '"
+                        + label
+                        + "': "
+                        + parameter);
+              }
+              parameters.set(index, parameter);
+            });
+  }
+
   public void clearParameters() {
     module().record("BB#clearParameters", List.of(this), parameters::clear);
   }

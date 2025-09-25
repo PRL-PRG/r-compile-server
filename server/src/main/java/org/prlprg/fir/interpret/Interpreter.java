@@ -248,12 +248,18 @@ public final class Interpreter {
   /// Looks up the function, gets the best applicable version, and calls it with the arguments
   /// in the global environment.
   public SEXP call(String functionName, SEXP... arguments) {
-    var function = module.lookupFunction(Variable.named(functionName));
-    if (function == null) {
-      throw fail("Unknown function: " + functionName);
-    }
+    try {
+      var function = module.lookupFunction(Variable.named(functionName));
+      if (function == null) {
+        throw fail("Unknown function: " + functionName);
+      }
 
-    return call(function, null, List.of(arguments), globalEnv);
+      return call(function, null, List.of(arguments), globalEnv);
+    } catch (InterpretException e) {
+      throw e;
+    } catch (Throwable e) {
+      throw fail("Unhandled interpreter crash", e);
+    }
   }
 
   /// Gets the function's best applicable version, and calls it with the arguments in the

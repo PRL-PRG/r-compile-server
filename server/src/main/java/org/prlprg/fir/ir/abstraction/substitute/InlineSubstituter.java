@@ -1,10 +1,14 @@
 package org.prlprg.fir.ir.abstraction.substitute;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.variable.Register;
@@ -24,6 +28,8 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// Like [Substituter], `use`-ness is preserved at substitution sites.
 public class InlineSubstituter extends AbstractSubstituter {
+  private final Map<Register, Argument> locals = new LinkedHashMap<>();
+
   public InlineSubstituter(Abstraction scope) {
     super(scope);
   }
@@ -34,6 +40,10 @@ public class InlineSubstituter extends AbstractSubstituter {
 
   @Override
   protected void doStage(Register local, Argument substitution) {
+    if (locals.containsKey(local)) {
+      throw new IllegalArgumentException(
+          "Local " + local + " has already been marked for substitution.");
+    }
     assert substitution instanceof Read;
     locals.put(local, substitution);
   }
@@ -55,7 +65,20 @@ public class InlineSubstituter extends AbstractSubstituter {
   }
 
   @Override
-  protected void clearOtherSubstitutionData() {}
+  protected void clearSubstitutionData() {
+    locals.clear();
+  }
+
+  @Override
+  protected Register substitutePhi(BB bb, Register phi) {
+    if (!locals.containsKey(phi)) {
+      return phi;
+    }
+    if (!(locals.get(phi) instanceof Read(var substReg))) {
+      throw new IllegalStateException("Can only substitute phis with `Read`s");
+    }
+    return substReg;
+  }
 
   @Override
   protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
@@ -68,5 +91,20 @@ public class InlineSubstituter extends AbstractSubstituter {
     }
 
     return ((Read) substitution).variable();
+  }
+
+  @Override
+  protected Argument substitute(BB bb, Argument argument) {
+    return switch (argument) {
+      case Read(var r) when locals.containsKey(r) -> locals.get(r);
+      // Preserve `use`-ness of substituted
+      case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
+      default -> argument;
+    };
+  }
+
+  @Override
+  protected Iterable<? extends Entry<Register, ?>> substEntries() {
+    return locals.entrySet();
   }
 }

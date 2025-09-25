@@ -26,6 +26,7 @@ import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.LoadFun;
+import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
@@ -363,8 +364,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case Force _ -> false;
         // May error
         case Load _ -> false;
-        // May force
-        case LoadFun _ -> false;
+        // May force iff `env == Env.LOCAL`
+        case LoadFun(var _, var env) -> env != Env.LOCAL;
         case MaybeForce _ -> false;
         case MkVector _ -> true;
         case MkEnv _, Placeholder _, PopEnv _ -> false;
@@ -378,64 +379,64 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case SuperStore _ -> false;
       };
     }
+  }
 
-    /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
-    Jump removingJumpArgument(Jump jump, BB targetBb, int index) {
-      return switch (jump) {
-        case Goto(var next) -> new Goto(removingJumpArgument(next, targetBb, index));
-        case If(var condition, var ifTrue, var ifFalse) ->
-            new If(
-                condition,
-                removingJumpArgument(ifTrue, targetBb, index),
-                removingJumpArgument(ifFalse, targetBb, index));
-        case Return(var value) -> new Return(value);
-        case Checkpoint(var success, var deopt) ->
-            new Checkpoint(
-                removingJumpArgument(success, targetBb, index),
-                removingJumpArgument(deopt, targetBb, index));
-        case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-        case Unreachable() -> new Unreachable();
-      };
+  /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
+  public static Jump removingJumpArgument(Jump jump, BB targetBb, int index) {
+    return switch (jump) {
+      case Goto(var next) -> new Goto(removingJumpArgument(next, targetBb, index));
+      case If(var condition, var ifTrue, var ifFalse) ->
+          new If(
+              condition,
+              removingJumpArgument(ifTrue, targetBb, index),
+              removingJumpArgument(ifFalse, targetBb, index));
+      case Return(var value) -> new Return(value);
+      case Checkpoint(var success, var deopt) ->
+          new Checkpoint(
+              removingJumpArgument(success, targetBb, index),
+              removingJumpArgument(deopt, targetBb, index));
+      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
+      case Unreachable() -> new Unreachable();
+    };
+  }
+
+  /// Returns the jump removing all phi arguments for the given target BB
+  private static Jump removingAllJumpArguments(Jump jump, BB targetBb) {
+    return switch (jump) {
+      case Goto(var next) -> new Goto(removingAllJumpArguments(next, targetBb));
+      case If(var condition, var ifTrue, var ifFalse) ->
+          new If(
+              condition,
+              removingAllJumpArguments(ifTrue, targetBb),
+              removingAllJumpArguments(ifFalse, targetBb));
+      case Return(var value) -> new Return(value);
+      case Checkpoint(var success, var deopt) ->
+          new Checkpoint(
+              removingAllJumpArguments(success, targetBb),
+              removingAllJumpArguments(deopt, targetBb));
+      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
+      case Unreachable() -> new Unreachable();
+    };
+  }
+
+  /// If this points to `targetBb`, returns removing the phi argument at the given index.
+  private static Target removingJumpArgument(Target target, BB targetBb, int index) {
+    if (target.bb() != targetBb) {
+      return target;
     }
 
-    /// Returns the jump removing all phi arguments for the given target BB
-    Jump removingAllJumpArguments(Jump jump, BB targetBb) {
-      return switch (jump) {
-        case Goto(var next) -> new Goto(removingAllJumpArguments(next, targetBb));
-        case If(var condition, var ifTrue, var ifFalse) ->
-            new If(
-                condition,
-                removingAllJumpArguments(ifTrue, targetBb),
-                removingAllJumpArguments(ifFalse, targetBb));
-        case Return(var value) -> new Return(value);
-        case Checkpoint(var success, var deopt) ->
-            new Checkpoint(
-                removingAllJumpArguments(success, targetBb),
-                removingAllJumpArguments(deopt, targetBb));
-        case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-        case Unreachable() -> new Unreachable();
-      };
+    var phiArgs = ImmutableList.<Argument>builderWithExpectedSize(target.phiArgs().size() - 1);
+    phiArgs.addAll(target.phiArgs().subList(0, index));
+    phiArgs.addAll(target.phiArgs().subList(index + 1, target.phiArgs().size()));
+
+    return new Target(target.bb(), phiArgs.build());
+  }
+
+  /// If this points to targetBb, returns it with all phi arguments removed
+  private static Target removingAllJumpArguments(Target target, BB targetBb) {
+    if (target.bb() != targetBb) {
+      return target;
     }
-
-    /// If this points to `targetBb`, returns removing the phi argument at the given index.
-    Target removingJumpArgument(Target target, BB targetBb, int index) {
-      if (target.bb() != targetBb) {
-        return target;
-      }
-
-      var phiArgs = ImmutableList.<Argument>builderWithExpectedSize(target.phiArgs().size() - 1);
-      phiArgs.addAll(target.phiArgs().subList(0, index));
-      phiArgs.addAll(target.phiArgs().subList(index + 1, target.phiArgs().size()));
-
-      return new Target(target.bb(), phiArgs.build());
-    }
-
-    /// If this points to targetBb, returns it with all phi arguments removed
-    Target removingAllJumpArguments(Target target, BB targetBb) {
-      if (target.bb() != targetBb) {
-        return target;
-      }
-      return new Target(target.bb(), ImmutableList.of());
-    }
+    return new Target(target.bb(), ImmutableList.of());
   }
 }

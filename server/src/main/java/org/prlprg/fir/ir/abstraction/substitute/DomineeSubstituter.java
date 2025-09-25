@@ -1,15 +1,24 @@
 package org.prlprg.fir.ir.abstraction.substitute;
 
-import java.util.HashMap;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
+import java.util.Map.Entry;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.util.UnreachableError;
 
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
 ///
@@ -21,7 +30,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// Like [Substituter], `use`-ness is preserved at substitution sites.
 public class DomineeSubstituter extends AbstractSubstituter {
   private final DominatorTree domTree;
-  private final Map<Register, BB> substitutionDominators = new HashMap<>();
+  private final Multimap<Register, DomSubst> domSubsts = ArrayListMultimap.create();
   private final Set<Register> backwards = new HashSet<>();
 
   public DomineeSubstituter(DominatorTree domTree, Abstraction scope) {
@@ -30,7 +39,10 @@ public class DomineeSubstituter extends AbstractSubstituter {
   }
 
   public void stage(Register local, Argument substitution, BB dominator) {
-    substitutionDominators.put(local, dominator);
+    if (!domSubsts.put(local, new DomSubst(dominator, substitution))) {
+      throw new IllegalArgumentException(
+          "Local " + local + " has already been marked for substitution in dominator " + dominator);
+    }
     super.stage(local, substitution);
   }
 
@@ -39,7 +51,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
     if (backwards.contains(local)) {
       throw new IllegalArgumentException("Transitive substitutions aren't allowed: " + local);
     }
-    if (substitution.variable() != null && locals.containsKey(substitution.variable())) {
+    if (substitution.variable() != null && domSubsts.containsKey(substitution.variable())) {
       throw new IllegalArgumentException(
           "Transitive substitutions aren't allowed: " + substitution);
     }
@@ -47,23 +59,34 @@ public class DomineeSubstituter extends AbstractSubstituter {
     if (substitution.variable() != null) {
       backwards.add(substitution.variable());
     }
-
-    locals.put(local, substitution);
   }
 
   @Override
   protected void commitAffectLocals() {}
 
   @Override
-  protected void clearOtherSubstitutionData() {
-    substitutionDominators.clear();
+  protected void clearSubstitutionData() {
+    domSubsts.clear();
     backwards.clear();
   }
 
   @Override
+  protected Register substitutePhi(BB bb, Register phi) {
+    var subst = domSubst(bb, phi);
+    if (subst == null) {
+      return phi;
+    }
+
+    if (!(subst instanceof Read(var substReg))) {
+      throw new IllegalStateException("Can only substitute phis with `Read`s");
+    }
+    return substReg;
+  }
+
+  @Override
   protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
-    var dominator = assignee == null ? null : substitutionDominators.get(assignee);
-    if (dominator == null || !domTree.dominates(dominator, bb)) {
+    var subst = domSubst(bb, assignee);
+    if (subst == null) {
       return assignee;
     }
 
@@ -72,12 +95,41 @@ public class DomineeSubstituter extends AbstractSubstituter {
 
   @Override
   protected Argument substitute(BB bb, Argument argument) {
-    var dominator =
-        argument.variable() == null ? null : substitutionDominators.get(argument.variable());
-    if (dominator == null || !domTree.dominates(dominator, bb)) {
+    var subst = domSubst(bb, argument.variable());
+    if (subst == null) {
       return argument;
     }
 
-    return super.substitute(bb, argument);
+    return switch (argument) {
+      case Constant _ -> throw new UnreachableError();
+      case Read _ -> subst;
+      case Use _ -> convertIntoUse(subst);
+    };
+  }
+
+  private @Nullable Argument domSubst(BB bb, @Nullable Register local) {
+    return local == null ? null : domSubsts.get(local).stream().filter(ds -> {
+      assert ds != null;
+      return domTree.dominates(ds.dominator, bb);
+    }).findAny().map(DomSubst::substitution).orElse(null);
+  }
+
+  @Override
+  protected Iterable<? extends Entry<Register, ?>> substEntries() {
+    return domSubsts.entries();
+  }
+
+  private record DomSubst(BB dominator, Argument substitution) {
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+
+    @PrintMethod
+    private void print(Printer p) {
+      p.print(substitution);
+      p.writer().write(" in ");
+      p.print(dominator);
+    }
   }
 }
