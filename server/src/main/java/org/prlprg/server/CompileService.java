@@ -200,6 +200,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         try {
           assert bc != null;
           // Name should be fully decided by the client?
+          var time = System.currentTimeMillis();
           var name = genSymbol(function);
           var bc2cCompiler = new BC2CCompiler(bc, name, false);
           var module = bc2cCompiler.finish();
@@ -212,6 +213,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
               .createBuilder(input.getPath(), output.getPath())
               .flag("-c")
               .compile();
+          time = System.currentTimeMillis() - time;
+          logger.info("Finished native compilation in " + time + " ms");
 
           var res = Files.asByteSource(output).read();
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
@@ -276,7 +279,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       rHomeEnv = "external/R";
     }
     var rHomePath = Path.of(rHomeEnv);
-    var rLibraryPath = rHomePath.resolve("external/R/library");
+    var rLibraryPath = rHomePath.resolve("library");
     if (logger.isLoggable(Level.FINE)) {
       logger.fine("Creating an R session using R from `" + rHomePath.toAbsolutePath() + "'");
     }
@@ -324,9 +327,14 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
       throw new RuntimeException(e);
     }
     if (closure instanceof CloSXP c) {
+      var time = System.nanoTime();
       BCCompiler compiler = new BCCompiler(c, session);
       compiler.setOptimizationLevel(optimizationLevel);
-      return compiler.compile();
+      var res = compiler.compile();
+      time = System.nanoTime() - time;
+      double time_ms = time / 1_000_000.0;
+      logger.info("Finished bytecode compilation in " + time_ms + " ms");
+      return res;
     } else {
       throw new RuntimeException("Not a closure");
     }
