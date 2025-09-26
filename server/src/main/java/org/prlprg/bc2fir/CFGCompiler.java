@@ -190,6 +190,7 @@ import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.Attributes;
@@ -299,8 +300,8 @@ public class CFGCompiler {
       var defaultIsConstant =
           parameterDefault instanceof NilSXP || parameterDefault instanceof PrimVectorSXP<?>;
 
-      var parameterIsMissing = scope().addLocal(Type.LOGICAL);
-      var parameterPhi = scope().addLocal(Type.ANY);
+      var parameterIsMissing = scope().addLocal(parameterName.name() + "_isMissing", Type.LOGICAL);
+      var parameterPhi = scope().addLocal(parameterName.name() + "_orDefault", Type.ANY);
 
       var computeDefaultBb = defaultIsConstant ? null : cfg.addBB();
       var afterBb = cfg.addBB();
@@ -469,7 +470,7 @@ public class CFGCompiler {
       case BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
         var cond = pop();
-        var condCasted = insertAndReturn(builtin("as.logical", cond));
+        var condCasted = insertAndReturn("c", builtin("as.logical", cond));
         insert(next -> branch(condCasted, next, bb));
       }
       case Pop() -> pop();
@@ -543,20 +544,20 @@ public class CFGCompiler {
         }
 
         // For loop init
-        var seq = insertAndReturn(intrinsic("toForSeq", pop()));
-        var length = insertAndReturn(builtin("length", seq));
+        var seq = insertAndReturn("s", intrinsic("toForSeq", pop()));
+        var length = insertAndReturn("l", builtin("length", seq));
         var init = new Constant(SEXPs.integer(0));
-        var index = insertAndReturn(new Aea(init));
+        var index = insertAndReturn("i", new Aea(init));
         push(index);
         setJump(goto_(stepBb));
 
         // For loop step
         moveTo(stepBb);
         // Increment the index
-        var index1 = insertAndReturn(builtin("+", 1, pop(), new Constant(SEXPs.integer(1))));
+        var index1 = insertAndReturn("i", builtin("+", 1, pop(), new Constant(SEXPs.integer(1))));
         push(index1);
         // Compare the index to the length
-        var cond = insertAndReturn(builtin("<", 1, length, index1));
+        var cond = insertAndReturn("c", builtin("<", 1, length, index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         setJump(branch(cond, endBb, forBodyBb));
 
@@ -565,6 +566,7 @@ public class CFGCompiler {
         // Extract element at index
         var elem =
             insertAndReturn(
+                "x",
                 builtin(
                     "[[",
                     seq,
@@ -656,15 +658,15 @@ public class CFGCompiler {
       }
       case SetVar(var name) -> insert(new Store(getVar(name), top()));
       case GetFun(var name) -> {
-        var fun = insertAndReturn(new LoadFun(getVar(name), Env.LOCAL));
+        var fun = insertAndReturn(getStr(name), new LoadFun(getVar(name), Env.LOCAL));
         pushCall(fun);
-        lastLoadedFunName = getVar(name).name();
+        lastLoadedFunName = getStr(name);
         tryAddCheckpoint();
       }
       case GetGlobFun(var name) -> {
-        var fun = insertAndReturn(new LoadFun(getVar(name), Env.GLOBAL));
+        var fun = insertAndReturn(getStr(name), new LoadFun(getVar(name), Env.GLOBAL));
         pushCall(fun);
-        lastLoadedFunName = getVar(name).name();
+        lastLoadedFunName = getStr(name);
         tryAddCheckpoint();
       }
       // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
@@ -675,7 +677,8 @@ public class CFGCompiler {
       case CheckFun() -> {
         var fun = pop();
         insert(checkFun(fun));
-        var castedFun = insertAndReturn(new Cast(fun, Type.CLOSURE));
+        var funName = fun.variable() == null ? Register.DEFAULT_PREFIX : fun.variable().name();
+        var castedFun = insertAndReturn(funName, new Cast(fun, Type.CLOSURE));
         pushCall(castedFun);
       }
       case MakeProm(var code) -> {
@@ -692,7 +695,7 @@ public class CFGCompiler {
         }
       }
       case DoDots() -> {
-        pushCallArg(insertAndReturn(new Load(NamedVariable.DOTS)));
+        pushCallArg(insertAndReturn("ddd", new Load(NamedVariable.DOTS)));
         // This is specially interpreted by FIŘ:
         // it determines that the call's arguments can't be statically matched.
         // That only happens when `...` is a literal argument,
@@ -727,7 +730,8 @@ public class CFGCompiler {
                 .collect(ImmutableList.<Argument>toImmutableList());
         // REACH: Like `compileCall`, we must insert a dynamic call, because we don't have the
         // formal parameters of all specials, and some arguments may be `...`.
-        var loadFun = insertAndReturn(new LoadFun(Variable.named(builtinName), Env.BASE));
+        var loadFun =
+            insertAndReturn(builtinName, new LoadFun(Variable.named(builtinName), Env.BASE));
         pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args));
       }
       case MakeClosure(var arg) -> {
@@ -775,7 +779,7 @@ public class CFGCompiler {
       case Not(var _) -> pushInsert(mkUnop("!"));
       case DotsErr() -> insert(stop("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
-        var lhs = insertAndReturn(new Load(getVar(name)));
+        var lhs = insertAndReturn("l", new Load(getVar(name)));
         var rhs = top();
         pushComplexAssign(false, get(name), lhs, rhs);
       }
@@ -879,7 +883,7 @@ public class CFGCompiler {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
-        var lhs = insertAndReturn(new SuperLoad(getVar(name)));
+        var lhs = insertAndReturn("l", new SuperLoad(getVar(name)));
         var rhs = top();
         pushComplexAssign(true, get(name), lhs, rhs);
       }
@@ -933,7 +937,7 @@ public class CFGCompiler {
         var value = pop();
 
         var isVector =
-            insertAndReturn(builtin("is.vector", value, new Constant(SEXPs.string("any"))));
+            insertAndReturn("c", builtin("is.vector", value, new Constant(SEXPs.string("any"))));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB();
         setJump(branch(isVector, isVectorBb, isNotVectorBb));
@@ -945,6 +949,7 @@ public class CFGCompiler {
         moveTo(isVectorBb);
         var isFactor =
             insertAndReturn(
+                "c",
                 builtin(
                     "inherits",
                     value,
@@ -961,7 +966,7 @@ public class CFGCompiler {
         setJump(goto_(isFactorBb));
 
         moveTo(isFactorBb);
-        var isString = insertAndReturn(builtin("is.character", value));
+        var isString = insertAndReturn("c", builtin("is.character", value));
         var stringBb = cfg.addBB();
         var asIntegerBb = cfg.addBB();
         setJump(branch(isString, stringBb, asIntegerBb));
@@ -989,7 +994,8 @@ public class CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var cond = insertAndReturn(builtin("==", 6, value, new Constant(SEXPs.string(name))));
+              var cond =
+                  insertAndReturn("c", builtin("==", 6, value, new Constant(SEXPs.string(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -1006,10 +1012,11 @@ public class CFGCompiler {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var asInteger = insertAndReturn(intrinsic("asSwitchIdx", value));
+          var asInteger = insertAndReturn("i", intrinsic("asSwitchIdx", value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
-            var cond = insertAndReturn(builtin("==", 5, asInteger, new Constant(SEXPs.integer(i))));
+            var cond =
+                insertAndReturn("c", builtin("==", 5, asInteger, new Constant(SEXPs.integer(i))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.
@@ -1051,7 +1058,7 @@ public class CFGCompiler {
         funAndArgs.clear();
 
         // Insert dots list for arguments
-        var argsDots = insertAndReturn(new MkVector(new Kind.Dots(), args));
+        var argsDots = insertAndReturn("vargs", new MkVector(new Kind.Dots(), args));
 
         pushInsert(builtin(".Call", fun, argsDots, new Constant(SEXPs.MISSING_ARG)));
       }
@@ -1062,9 +1069,9 @@ public class CFGCompiler {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
         var fun = Variable.named(((RegSymSXP) expr.fun()).name());
-        var sym = insertAndReturn(new LoadFun(fun, Env.LOCAL));
-        var base = insertAndReturn(new LoadFun(fun, Env.BASE));
-        var guard = insertAndReturn(builtin("==", 4, sym, base));
+        var sym = insertAndReturn("sym", new LoadFun(fun, Env.LOCAL));
+        var base = insertAndReturn("base", new LoadFun(fun, Env.BASE));
+        var guard = insertAndReturn("guard", builtin("==", 4, sym, base));
 
         var safeBb = cfg.addBB();
         var fallbackBb = cfg.addBB();
@@ -1121,7 +1128,7 @@ public class CFGCompiler {
     var cfg = new CFG(scope());
     compile(r, cfg, bc);
 
-    return insertAndReturn(new Promise(Type.ANY_VALUE, Effects.ANY, cfg));
+    return insertAndReturn("p", new Promise(Type.ANY_VALUE, Effects.ANY, cfg));
   }
 
   /// End the previously-compiled for loop instruction (the latest [#pushWhileOrRepeatLoop(BB,
@@ -1166,7 +1173,7 @@ public class CFGCompiler {
   private void compileGeneralDispatchCommon(
       Builtin fun, boolean isNForm, Argument target, @Nullable Argument rhs, BB after) {
     // ???: Maybe avoid compiling optimized dispatch code, since we can optimize it ourselves.
-    var isObject = insertAndReturn(builtin("is.object", target));
+    var isObject = insertAndReturn("c", builtin("is.object", target));
     var objectBb = cfg.addBB();
     var nonObjectBb = cfg.addBB();
     setJump(branch(isObject, objectBb, nonObjectBb));
@@ -1179,12 +1186,13 @@ public class CFGCompiler {
         rhs == null
             ? intrinsic("tryDispatchBuiltin", 1, funNameSexp, target1)
             : intrinsic("tryDispatchBuiltin", 0, funNameSexp, target1, rhs);
-    var dispatchResult = insertAndReturn(dispatchExpr);
-    var dispatched = insertAndReturn(intrinsic("getTryDispatchBuiltinDispatched", dispatchResult));
+    var dispatchResult = insertAndReturn("dr", dispatchExpr);
+    var dispatched =
+        insertAndReturn("dc", intrinsic("getTryDispatchBuiltinDispatched", dispatchResult));
 
     push(dispatchResult);
     insert(next -> branch(dispatched, next, nonObjectBb));
-    var dispatchValue = insertAndReturn(intrinsic("getTryDispatchBuiltinValue", pop()));
+    var dispatchValue = insertAndReturn("dx", intrinsic("getTryDispatchBuiltinValue", pop()));
     push(dispatchValue);
     setJump(goto_(after));
 
@@ -1230,7 +1238,9 @@ public class CFGCompiler {
   private void finishCompilingDefaultDispatch(
       Dispatch.Type type, Dispatch dispatch, ImmutableList<Argument> argValues) {
     // See `compileCall` for why we can't compile builtins directly.
-    var loadFun = insertAndReturn(new LoadFun(Variable.named(type.builtin.name()), Env.BASE));
+    var loadFun =
+        insertAndReturn(
+            type.builtin.name, new LoadFun(Variable.named(type.builtin.name), Env.BASE));
     pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), argValues));
 
     if (bbAfterCurrent() != dispatch.after) {
@@ -1260,7 +1270,8 @@ public class CFGCompiler {
             // builtin's formals and none of the arguments are `...`. Eventually we can add
             // the formals of all builtins programatically and do this in the compiler, or at
             // least pre-optimize here when the above conditions are met if it's too expensive.
-            var loadFun = insertAndReturn(new LoadFun(Variable.named(builtin.name()), Env.BASE));
+            var loadFun =
+                insertAndReturn(builtin.name, new LoadFun(Variable.named(builtin.name), Env.BASE));
             yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args);
           }
         };
@@ -1368,7 +1379,8 @@ public class CFGCompiler {
         var type = inferType.of(arg);
         assert type != null : "argument on stack is an undeclared register";
 
-        var phi = scope().addLocal(type);
+        var phiName = arg.variable() == null ? Register.DEFAULT_PREFIX : arg.variable().name();
+        var phi = scope().addLocal(phiName, type);
         bb.appendParameter(phi);
       }
     } else {
@@ -1418,9 +1430,9 @@ public class CFGCompiler {
 
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and return that register.
-  private Argument insertAndReturn(Expression expression) {
+  private Argument insertAndReturn(String name, Expression expression) {
     var exprType = inferType.of(expression);
-    var tempVar = cfg.scope().addLocal(exprType == null ? Type.ANY : exprType);
+    var tempVar = cfg.scope().addLocal(name, exprType == null ? Type.ANY : exprType);
     insert(new Statement(tempVar, expression));
     return new Read(tempVar);
   }
@@ -1513,7 +1525,7 @@ public class CFGCompiler {
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and push the register onto the stack.
   private void pushInsert(Expression expression) {
-    push(insertAndReturn(expression));
+    push(insertAndReturn(Register.DEFAULT_PREFIX, expression));
   }
 
   /// Push a value onto the "virtual stack" so that the next call to [#pop(Class)] or
@@ -1796,8 +1808,12 @@ public class CFGCompiler {
     return bc.consts().get(idx);
   }
 
-  /// Get the [SEXP] in the constant pool corresponding to the given index,
-  /// then cast it into a variable.
+  /// Get the symbol in the constant pool as a string.
+  private String getStr(Idx<RegSymSXP> idx) {
+    return get(idx).name();
+  }
+
+  /// Get the symbol in the constant pool as a named variable.
   private NamedVariable getVar(Idx<RegSymSXP> idx) {
     return Variable.named(get(idx).name());
   }

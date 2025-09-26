@@ -34,11 +34,10 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
+import org.prlprg.util.DisambiguatorMap;
 import org.prlprg.util.Streams;
 
 public final class Abstraction implements Comparable<Abstraction> {
-  static final String DEFAULT_LOCAL_PREFIX = "r";
-
   // Backlink
   // Don't store `Function owner` because we don't use it and it complicates inlining.
   private final Module module;
@@ -52,7 +51,7 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   // Cached
   private final ImmutableMap<String, Parameter> nameToParam;
-  private int nextLocalDisambiguator = 0;
+  private final DisambiguatorMap nextLocalDisambiguator = new DisambiguatorMap();
 
   public Abstraction(Module module, List<Parameter> parameters) {
     this(module, parameters, false);
@@ -67,9 +66,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     effects = Effects.ANY;
     cfg = isStub ? null : new CFG(this);
 
-    while (contains(nextLocalRegister())) {
-      nextLocalDisambiguator++;
-    }
+    parameters.stream().map(p -> p.variable().name()).forEach(nextLocalDisambiguator::add);
   }
 
   private static ImmutableMap<String, Parameter> computeNameToParam(List<Parameter> params) {
@@ -142,7 +139,11 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public Register addLocal(Type type) {
-    var variable = nextLocalRegister();
+    return addLocal(Register.DEFAULT_PREFIX, type);
+  }
+
+  public Register addLocal(String name, Type type) {
+    var variable = resemblance(name);
     addLocal(new Local(variable, type));
     return variable;
   }
@@ -159,9 +160,7 @@ public final class Abstraction implements Comparable<Abstraction> {
             throw new IllegalArgumentException(
                 "Local " + local + " already exists in the abstraction.");
           }
-          while (contains(nextLocalRegister())) {
-            nextLocalDisambiguator++;
-          }
+          nextLocalDisambiguator.add(local.variable().name());
         });
   }
 
@@ -179,9 +178,7 @@ public final class Abstraction implements Comparable<Abstraction> {
                   "Local " + local + " already exists in the abstraction.");
             }
           }
-          while (contains(nextLocalRegister())) {
-            nextLocalDisambiguator++;
-          }
+          locals.stream().map(l -> l.variable().name()).forEach(nextLocalDisambiguator::add);
         });
   }
 
@@ -289,8 +286,10 @@ public final class Abstraction implements Comparable<Abstraction> {
     return param != null ? param : locals.get(variable);
   }
 
-  public Register nextLocalRegister() {
-    return Variable.register(DEFAULT_LOCAL_PREFIX + nextLocalDisambiguator);
+  /// Converts the string into a register name that is valid and doesn't already exist.
+  public Register resemblance(String prefix) {
+    return Variable.register(
+        nextLocalDisambiguator.disambiguate(Register.resemblance(prefix).name()));
   }
 
   public Signature signature() {
@@ -424,9 +423,11 @@ public final class Abstraction implements Comparable<Abstraction> {
     }
     s.assertAndSkip('|');
 
-    while (contains(nextLocalRegister())) {
-      nextLocalDisambiguator++;
-    }
+    parameters.stream().map(p2 -> p2.variable().name()).forEach(nextLocalDisambiguator::add);
+    locals.values().stream()
+        .filter(l -> l.variable() instanceof Register)
+        .map(l -> l.variable().name())
+        .forEach(nextLocalDisambiguator::add);
 
     var p2 = p.withContext(new CFG.ParseContext(this, ctx.postModule, p.context()));
     cfg = p2.parse(CFG.class);

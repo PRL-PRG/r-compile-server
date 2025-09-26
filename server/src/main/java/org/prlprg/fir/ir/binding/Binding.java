@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.binding;
 
 import java.util.function.BiFunction;
+import javax.annotation.concurrent.Immutable;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -9,6 +10,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
+@Immutable
 public sealed interface Binding permits Local, Parameter {
   Variable variable();
 

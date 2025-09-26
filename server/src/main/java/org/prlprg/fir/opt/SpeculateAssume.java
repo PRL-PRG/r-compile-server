@@ -171,14 +171,14 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
       var target = ((Read) assume.target()).variable();
       switch (assume) {
         case AssumeType(var _, var type) -> {
-          var improvedType = scope.addLocal(type);
+          var improvedType = scope.addLocal(target.name(), type);
           assumeSubsts.stage(target, new Read(improvedType), successBb);
           assumeDsts.put(assume, improvedType);
         }
         case AssumeFunction af -> {
           var fun = af.function();
 
-          var globalLookup = scope.addLocal(Type.CLOSURE);
+          var globalLookup = scope.addLocal(target.name(), Type.CLOSURE);
           afterAssumeStmts.put(
               successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
           assumeSubsts.stage(target, new Read(globalLookup), successBb);

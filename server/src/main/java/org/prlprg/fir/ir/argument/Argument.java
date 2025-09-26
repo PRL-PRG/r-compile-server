@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.argument;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -9,6 +10,7 @@ import org.prlprg.util.Characters;
 
 /// A statement or jump argument. Essentially a "zero cost" instruction,
 /// because we want to reuse instructions that aren't zero-cost (CSE, GVN).
+@Immutable
 public sealed interface Argument permits Constant, Read, Use {
   @Nullable Register variable();
 
