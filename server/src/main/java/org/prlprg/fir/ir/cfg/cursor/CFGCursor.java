@@ -196,7 +196,7 @@ public final class CFGCursor {
    * Starting at the next instruction (`instructionIndex + 1`), advances up to the given index
    * (stops at `lastIndex + 1`), calling the functions on each (subsequent) instruction.
    *
-   * @throws IndexOutOfBoundsException() If the index is out of bounds or before `instructionIndex`.
+   * @throws IndexOutOfBoundsException If the index is out of bounds or before `instructionIndex`.
    */
   public void iterateCurrentBbUpTo(
       int lastIndex, Consumer<Statement> runStmt, Consumer<Jump> runJump) {
@@ -225,7 +225,7 @@ public final class CFGCursor {
   /**
    * Insert a statement after the current instruction, and advance to it.
    *
-   * @throws IndexOutOfBoundsException() If the current instruction is the jump.
+   * @throws IndexOutOfBoundsException If the current instruction is the jump.
    */
   public void insert(Statement statement) {
     if (instructionIndex == bb.statements().size()) {

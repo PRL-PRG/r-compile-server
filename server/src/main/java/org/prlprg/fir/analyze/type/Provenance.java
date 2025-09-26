@@ -182,7 +182,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
     /// Unifies requirements and intersects guarantees.
     ///
-    /// [#read], [#use], and [#defer] are requirements, [#write] is a guarantee.
+    /// `read`, `use`, and `defer` are requirements, `write` is a guarantee.
     @Override
     public void merge(ActionSet other) {
       read.addAll(other.read);
@@ -195,7 +195,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     ///
     /// This is the stateful analogue to the formalism's compose operator.
     ///
-    /// [#read], [#use], and [#defer] are requirements, [#write] is a guarantee.
+    /// `read`, `use`, and `defer` are requirements, `write` is a guarantee.
     public void mergePromise(ActionSet promise) {
       read.addAll(promise.read);
       use.addAll(promise.use);

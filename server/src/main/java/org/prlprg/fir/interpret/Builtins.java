@@ -32,8 +32,6 @@ import org.prlprg.util.Lists;
 /// IR code.
 public final class Builtins {
   /// Register all builtins and intrinsics that are implemented.
-  ///
-  /// Use [#addAndRegisterHelpers(Interpreter)] to register non-builtin utility functions.
   public static void registerBuiltins(Interpreter interpreter) {
     // TODO: refactor
     //  - Abstract builtins like `+`, similar to how `abs` is abstracted via `registerMathBuiltin`
