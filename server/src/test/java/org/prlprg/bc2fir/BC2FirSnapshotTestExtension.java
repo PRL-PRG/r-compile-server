@@ -60,7 +60,7 @@ public class BC2FirSnapshotTestExtension
             var firOutput = firModule.toString();
             var res = new TestResult(rModuleCode, firOutput);
 
-            BC2FirSnapshotTestExtension.this.verify(testMethod, snapshotName, res, null);
+            BC2FirSnapshotTestExtension.this.verify(testMethod, snapshotName, res, null, true);
           } catch (BcCompilerUnsupportedException
               | ClosureCompilerUnsupportedException
               | CFGCompilerUnsupportedException e) {
