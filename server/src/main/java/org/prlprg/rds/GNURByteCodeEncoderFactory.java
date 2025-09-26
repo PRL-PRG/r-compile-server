@@ -1,7 +1,7 @@
 package org.prlprg.rds;
 
 import com.google.common.primitives.ImmutableIntArray;
-import org.jetbrains.annotations.NotNull;
+import java.util.Arrays;
 import org.prlprg.bc.Bc;
 import org.prlprg.bc.BcCode;
 import org.prlprg.bc.BcInstr;
@@ -45,6 +45,7 @@ public class GNURByteCodeEncoderFactory {
     builder.add(Bc.R_BC_VERSION);
     // Write the serialized instruction, containing the opcode and the arguments
     for (var instr : bc) {
+      assert instr != null;
       // Add the opcode
       builder.add(instr.op().value());
       // Add the arguments
@@ -61,7 +62,7 @@ public class GNURByteCodeEncoderFactory {
   }
 
   /** Converts the arguments of the provided BcInstr to a "raw" format; i.e. an array of integers */
-  public int[] args(@NotNull BcInstr instr, ConstPool.Builder cpb) {
+  public int[] args(BcInstr instr, ConstPool.Builder cpb) {
     return switch (instr) {
       case BcInstr.Goto i -> new int[] {labelMapping.extract(i.dest())};
       case BcInstr.BrIfNot i -> new int[] {i.ast().idx(), labelMapping.extract(i.dest())};
@@ -185,13 +186,13 @@ public class GNURByteCodeEncoderFactory {
       case BcInstr.BaseGuard i -> new int[] {i.expr().idx(), labelMapping.extract(i.ifFail())};
       case BcInstr.DeclnkN i -> new int[] {i.n()};
 
-        // Otherwise, there are no arguments we need to serialize
+      // Otherwise, there are no arguments we need to serialize
       default -> new int[0];
     };
   }
 
   private IntSXP remapLabels(IntSXP oldLabels) {
-    var remapped = oldLabels.data().stream().map(labelMapping::getTarget).toArray();
+    var remapped = Arrays.stream(oldLabels.data()).map(labelMapping::getTarget).toArray();
     return SEXPs.integer(remapped);
   }
 }

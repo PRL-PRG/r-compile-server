@@ -1,7 +1,8 @@
 package org.prlprg.sexp;
 
-import com.google.common.primitives.ImmutableIntArray;
-import java.util.PrimitiveIterator;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
@@ -12,9 +13,9 @@ public sealed interface IntSXP extends NumericSXP<Integer>
     permits EmptyIntSXPImpl, IntSXPImpl, ScalarIntSXP {
   /**
    * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
-   * backed by an {@link ImmutableIntArray}, so this gets created and returns every access.
+   * backed by an array, so this gets created and returns every access.
    */
-  ImmutableIntArray data();
+  int[] data();
 
   @Override
   default SEXPType type() {
@@ -35,27 +36,39 @@ public sealed interface IntSXP extends NumericSXP<Integer>
   IntSXP withAttributes(Attributes attributes);
 
   @Override
+  IntSXP copy();
+
+  @Override
   default Class<? extends SEXP> getCanonicalType() {
     return IntSXP.class;
   }
 }
 
 /** Int vector which doesn't fit any of the more specific subclasses. */
-record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attributes)
-    implements IntSXP {
+record IntSXPImpl(int[] data, Attributes attributes) implements IntSXP {
+  IntSXPImpl(int[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
+    this.attributes = attributes;
+  }
+
   @Override
-  public PrimitiveIterator.OfInt iterator() {
-    return data.stream().iterator();
+  public Iterator<Integer> iterator() {
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public Integer get(int i) {
-    return data.get(i);
+    return data[i];
+  }
+
+  @Override
+  public void set(int i, Integer value) {
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.length();
+    return data.length;
   }
 
   @Override
@@ -64,13 +77,31 @@ record IntSXPImpl(@Override ImmutableIntArray data, @Override Attributes attribu
   }
 
   @Override
+  public IntSXP copy() {
+    return new IntSXPImpl(data, attributes);
+  }
+
+  @Override
   public int asInt(int index) {
-    return data.get(index);
+    return data[index];
   }
 
   @Override
   public double asReal(int index) {
-    return get(index);
+    return data[index];
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof IntSXPImpl(var data1, var attributes1))) {
+      return false;
+    }
+    return Arrays.equals(data, data1) && Objects.equals(attributes, attributes1);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override
@@ -91,8 +122,8 @@ final class ScalarIntSXP extends ScalarSXPImpl<Integer> implements IntSXP {
   }
 
   @Override
-  public ImmutableIntArray data() {
-    return ImmutableIntArray.of(data);
+  public int[] data() {
+    return new int[] {data};
   }
 
   @Override
@@ -122,6 +153,11 @@ final class ScalarIntSXP extends ScalarSXPImpl<Integer> implements IntSXP {
       throw new ArrayIndexOutOfBoundsException("Index out of bounds: " + index);
     }
   }
+
+  @Override
+  public IntSXP copy() {
+    return new ScalarIntSXP(data);
+  }
 }
 
 /** Empty int vector with no ALTREP, ATTRIB, or OBJECT. */
@@ -133,13 +169,13 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   }
 
   @Override
-  public ImmutableIntArray data() {
-    return ImmutableIntArray.of();
+  public int[] data() {
+    return new int[0];
   }
 
   @Override
   public IntSXP withAttributes(Attributes attributes) {
-    return SEXPs.integer(ImmutableIntArray.of(), attributes);
+    return SEXPs.integer(new int[0], attributes);
   }
 
   @Override
@@ -150,5 +186,10 @@ final class EmptyIntSXPImpl extends EmptyVectorSXPImpl<Integer> implements IntSX
   @Override
   public double asReal(int index) {
     throw new ArrayIndexOutOfBoundsException("Empty int vector");
+  }
+
+  @Override
+  public IntSXP copy() {
+    return this;
   }
 }

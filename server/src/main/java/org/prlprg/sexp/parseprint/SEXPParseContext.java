@@ -6,8 +6,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.prlprg.bc.Bc;
-import org.prlprg.ir.cfg.CFG;
-import org.prlprg.ir.closure.Closure;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -22,9 +20,10 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.EnvType;
 import org.prlprg.sexp.GlobalEnvSXP;
+import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
-import org.prlprg.sexp.PromSXP;
+import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPOrEnvType;
 import org.prlprg.sexp.SEXPType;
@@ -40,16 +39,17 @@ import org.prlprg.util.UnreachableError;
  * Maps potentially-recursive {@link SEXP}s to integers so they can be deserialized.
  *
  * <p>If you parse multiple {@link SEXP}s with the same context, the references will be shared
- * across the parses. This is useful e.g. when parsing {@link CFG} or {@link Closure}, since they
- * may contain many references to the same large {@link StaticEnvSXP}.
+ * across the parses. This is useful e.g. when parsing IR, since it may contain many references to
+ * the same large {@link StaticEnvSXP}.
  *
  * <p><b>Implementation note:</b> all of the logic for parsing {@link SEXP}s, {@link Attributes},
  * and {@link TaggedElem}s (all data-types in {@link org.prlprg.sexp}) is implemented in this class.
  */
-public class SEXPParseContext implements HasSEXPParseContext {
+public class SEXPParseContext {
   /** {@code true} if the character indicates the end of an {@link SEXP} or {@link TaggedElem}. */
   public static boolean delimitsSEXP(Integer c) {
-    return c == -1 || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>';
+    return c == -1 || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>'
+        || c == '|';
   }
 
   private final ForBindings forBindings = new ForBindings();
@@ -73,11 +73,6 @@ public class SEXPParseContext implements HasSEXPParseContext {
     return forBindings;
   }
 
-  @Override
-  public SEXPParseContext sexpParseContext() {
-    return this;
-  }
-
   @ParseMethod
   private SEXP parseSEXP(Parser p) {
     var s = p.scanner();
@@ -85,7 +80,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
     if (s.trySkip("<...")) {
       throw failParsingTruncated(p);
     } else if (s.nextCharSatisfies(Names::isValidStartChar)) {
-      var name = Names.read(s, true);
+      var name = Names.read(s, false);
       return switch (name) {
         case "NULL" -> SEXPs.NULL;
         case "TRUE" -> SEXPs.TRUE;
@@ -97,38 +92,22 @@ public class SEXPParseContext implements HasSEXPParseContext {
         case "NA_STR" -> SEXPs.NA_STRING;
         case "NA" ->
             throw s.fail("NA type (uppercase): NA_LGL, NA_INT, NA_REAL, NA_CPLX, NA_STR", name);
-        default -> parseSymOrNotBlockLangSXP(name, p);
+        default -> finishParsingSymOrNotBlockLangSXP(Names.unquoteIfNecessary(name), p);
       };
-    } else if (s.trySkip('{')) {
-      // Block SymOrLangSXP
-      var elems = ImmutableList.<TaggedElem>builder();
-      if (!s.trySkip('}')) {
-        do {
-          // while (s.trySkip(';')) but IntelliJ doesn't complain
-          while (true) {
-            if (!s.trySkip(';')) {
-              break;
-            }
-          }
-
-          elems.add(p.parse(TaggedElem.class));
-        } while (s.trySkip(';'));
-        s.assertAndSkip('}');
-      }
-      return SEXPs.blockLang(elems.build());
+    } else if (s.nextCharIs('{')) {
+      return parseBlockLangSXP(p);
     } else if (s.nextCharIs('(')) {
-      // ListSXP
       return SEXPs.list(parseList(p));
     } else if (s.trySkip("<missing>")) {
       return SEXPs.MISSING_ARG;
     } else if (s.trySkip("<unbound>")) {
       return SEXPs.UNBOUND_VALUE;
-    } else if (s.nextCharSatisfies(Character::isDigit)
-        || s.nextCharIs('+')
-        || s.nextCharIs('-')
-        || s.nextCharsAre("NaN")) {
+    } else if (s.nextCharSatisfies(Character::isDigit) || s.nextCharIs('+') || s.nextCharIs('-')) {
       var decimal = s.readDecimalString();
-      if (s.trySkip('L')) {
+      if (!decimal.contains(".")
+          && !decimal.contains("Infinity")
+          && !decimal.contains("NaN")
+          && !s.nextCharSatisfies(c -> c == '+' || c == '-' || c == 'i' || c == 'e' || c == 'E')) {
         try {
           return SEXPs.integer(Integer.parseInt(decimal));
         } catch (NumberFormatException e) {
@@ -161,38 +140,70 @@ public class SEXPParseContext implements HasSEXPParseContext {
       var foundRefIndex = -1;
       var base =
           switch (type) {
-            case SEXPType.LIST -> SEXPs.list(parseList(p));
-            case SEXPType.LGL,
-                SEXPType.INT,
-                SEXPType.REAL,
-                SEXPType.RAW,
-                SEXPType.CPLX,
-                SEXPType.STRING,
-                SEXPType.VEC,
-                SEXPType.EXPR -> {
-              var elems = new ArrayList<>();
+            case SEXPType.SYM, SEXPType.LANG -> parseSymOrLangSXP(p);
+            case SEXPType.LIST, SEXPType.DOT -> {
+              var elems = ImmutableList.<TaggedElem>builder();
+
               if (!s.trySkip('>') && !s.trySkip('|')) {
                 if (s.nextCharsAre("...")) {
                   throw failParsingTruncated(p);
                 }
 
                 do {
-                  var untypedElem = p.parse(SEXP.class);
-                  var optTypedElem =
-                      switch ((SEXPType) type) {
-                        case LGL -> untypedElem.asScalarLogical();
-                        case INT -> untypedElem.asScalarInteger();
-                        case REAL -> untypedElem.asScalarReal();
-                        case RAW -> untypedElem.asScalarRaw();
-                        case CPLX -> untypedElem.asScalarComplex();
-                        case STRING -> untypedElem.asScalarString();
-                        case VEC, EXPR -> Optional.of(untypedElem);
-                        default -> throw new UnreachableError();
-                      };
-                  if (optTypedElem.isEmpty()) {
-                    throw s.fail("scalar of type " + type, untypedElem.toString());
+                  elems.add(p.parse(TaggedElem.class));
+
+                  if (s.nextCharsAre("...")) {
+                    throw failParsingTruncated(p);
                   }
-                  elems.add(optTypedElem.get());
+                } while (s.trySkip(','));
+              }
+
+              yield type == SEXPType.LIST ? SEXPs.list(elems.build()) : SEXPs.dots(elems.build());
+            }
+            case SEXPType.LGL,
+                SEXPType.INT,
+                SEXPType.REAL,
+                SEXPType.RAW,
+                SEXPType.CPLX,
+                SEXPType.STR,
+                SEXPType.VEC,
+                SEXPType.EXPR -> {
+              var elems = new ArrayList<>();
+              if (!s.nextCharIs('>') && !s.nextCharIs('|')) {
+                if (s.nextCharsAre("...")) {
+                  throw failParsingTruncated(p);
+                }
+
+                do {
+                  if (type == SEXPType.RAW) {
+                    var byteStr = s.readFixedLength(2);
+                    try {
+                      // Java bytes are signed, so we must parse a larger type then convert it.
+                      int byteAsInt = Integer.valueOf(byteStr, 16);
+                      if (byteAsInt < 0 || byteAsInt > 255) {
+                        throw new NumberFormatException();
+                      }
+                      elems.add((byte) (byteAsInt > 127 ? byteAsInt - 256 : byteAsInt));
+                    } catch (NumberFormatException e) {
+                      throw s.fail("valid byte in hex (e.g. 01, ff)", byteStr);
+                    }
+                  } else {
+                    var untypedElem = p.parse(SEXP.class);
+                    var optTypedElem =
+                        switch ((SEXPType) type) {
+                          case LGL -> untypedElem.asScalarLogical();
+                          case INT -> untypedElem.asScalarInteger();
+                          case REAL -> untypedElem.asScalarReal();
+                          case CPLX -> untypedElem.asScalarComplex();
+                          case STR -> untypedElem.asScalarString();
+                          case VEC, EXPR -> Optional.of(untypedElem);
+                          default -> throw new UnreachableError();
+                        };
+                    if (optTypedElem.isEmpty()) {
+                      throw s.fail("scalar of type " + type, untypedElem.toString());
+                    }
+                    elems.add(optTypedElem.get());
+                  }
 
                   if (s.nextCharsAre("...")) {
                     throw failParsingTruncated(p);
@@ -215,7 +226,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
                         elems.stream()
                             .map(e -> (Complex) e)
                             .collect(ImmutableList.toImmutableList()));
-                case STRING ->
+                case STR ->
                     SEXPs.string(
                         elems.stream()
                             .map(e -> (String) e)
@@ -250,7 +261,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
               if (type == EnvType.NAMESPACE) {
                 name = Names.read(s, true);
                 s.assertAndSkip(':');
-                version = s.readUntilWhitespace();
+                version = s.readWhile(NamespaceEnvSXP::isValidVersionChar);
               } else {
                 name = null;
                 version = null;
@@ -330,7 +341,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
                 var bindings = parseList(p.withContext(forBindings));
                 for (var i = 0; i < bindings.size(); i++) {
                   var binding = bindings.get(i);
-                  if (binding.tag() == null) {
+                  if (!binding.hasTag()) {
                     throw s.fail("Binding " + i + "has no tag");
                   }
                   if (env.getLocal(binding.tag()).isPresent()) {
@@ -372,7 +383,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
               var val = s.trySkip("val=") ? p.parse(SEXP.class) : SEXPs.UNBOUND_VALUE;
               s.assertAndSkip('⇒');
               var expr = p.parse(SEXP.class);
-              yield new PromSXP(expr, val, env);
+              yield SEXPs.promise(expr, val, env);
             }
             case SEXPType.BUILTIN, SEXPType.SPECIAL -> {
               var id = p.parse(BuiltinId.class);
@@ -386,23 +397,19 @@ public class SEXPParseContext implements HasSEXPParseContext {
             default ->
                 throw s.fail(
                     "SEXP of type has a special syntax, so it can't be parsed this way: "
-                        + s.readJavaIdentifierOrKeyword());
+                        + s.readIdentifierOrKeyword());
           };
 
       if (foundRefIndex != -1) {
         if ((base instanceof EnvSXP e ? e.envType() : base.type()) != type) {
           throw s.fail("Ref " + base + " at index " + foundRefIndex + " has wrong type: " + type);
         }
-      } else {
-        if (type != SEXPType.CLO && s.trySkip("|")) {
-          try {
-            base = base.withAttributes(p.parse(Attributes.class));
-          } catch (UnsupportedOperationException e) {
-            throw s.fail("SEXP of type " + type + " can't have attributes", e);
-          }
-        } else if (type == SEXPType.LIST) {
-          throw s.fail(
-              "List SEXP in this syntax must have attributes, otherwise remove the surrounding `<list` and `>`");
+      } else if (type != SEXPType.CLO && s.trySkip("|")) {
+        var attributes = p.parse(Attributes.class);
+        try {
+          base = base.withAttributes(attributes);
+        } catch (UnsupportedOperationException e) {
+          throw s.fail("SEXP of type " + type + " can't have attributes", e);
         }
       }
 
@@ -415,7 +422,9 @@ public class SEXPParseContext implements HasSEXPParseContext {
 
   @ParseMethod
   private SymOrLangSXP parseSymOrLangSXP(Parser p) {
-    return parseSymOrNotBlockLangSXP(Names.read(p.scanner(), true), p);
+    return p.scanner().nextCharIs('{')
+        ? parseBlockLangSXP(p)
+        : finishParsingSymOrNotBlockLangSXP(Names.read(p.scanner(), true), p);
   }
 
   @ParseMethod
@@ -423,7 +432,28 @@ public class SEXPParseContext implements HasSEXPParseContext {
     return SEXPs.symbol(Names.read(p.scanner(), true));
   }
 
-  private SymOrLangSXP parseSymOrNotBlockLangSXP(String name, Parser p) {
+  private LangSXP parseBlockLangSXP(Parser p) {
+    var s = p.scanner();
+    s.assertAndSkip('{');
+
+    var elems = ImmutableList.<TaggedElem>builder();
+    if (!s.trySkip('}')) {
+      do {
+        // while (s.trySkip(';')) but IntelliJ doesn't complain
+        while (true) {
+          if (!s.trySkip(';')) {
+            break;
+          }
+        }
+
+        elems.add(p.parse(TaggedElem.class));
+      } while (s.trySkip(';'));
+      s.assertAndSkip('}');
+    }
+    return SEXPs.blockLang(elems.build());
+  }
+
+  private SymOrLangSXP finishParsingSymOrNotBlockLangSXP(String name, Parser p) {
     var s = p.scanner();
 
     SymOrLangSXP result = SEXPs.symbol(name);
@@ -514,20 +544,18 @@ public class SEXPParseContext implements HasSEXPParseContext {
     var s = p.scanner();
 
     if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
-      return new TaggedElem(null, SEXPs.MISSING_ARG);
+      return new TaggedElem(SEXPs.MISSING_ARG);
     }
 
     var tagOrValue = p.parse(SEXP.class);
     if (!s.trySkip('=')) {
-      return new TaggedElem(null, tagOrValue);
+      return new TaggedElem(tagOrValue);
     }
 
-    // `tag` may be `NULL`, `NA_INT`, etc., but it should be a symbol.
-    var tagQuoted = tagOrValue.toString();
-    if (!Names.isValid(tagQuoted)) {
-      throw s.fail("valid R symbol (before '=')", tagQuoted);
+    if (!(tagOrValue instanceof RegSymSXP tagSexp)) {
+      throw s.fail("valid R symbol (before '=')", tagOrValue.toString());
     }
-    var tag = Names.unquoteIfNecessary(tagQuoted);
+    var tag = tagSexp.name();
     var value =
         s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)
             ? SEXPs.MISSING_ARG
@@ -548,11 +576,11 @@ public class SEXPParseContext implements HasSEXPParseContext {
     private TaggedElem parseTaggedElem(Parser p) {
       var s = p.scanner();
 
-      if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
-        return new TaggedElem(null, SEXPs.MISSING_ARG);
+      if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP) || s.trySkip("<missing>")) {
+        return new TaggedElem(SEXPs.MISSING_ARG);
       }
 
-      var tag = s.nextCharIs('=') ? null : Names.read(s, true);
+      var tag = s.nextCharIs('=') ? "" : Names.read(s, true);
       var value =
           s.trySkip('=')
               ? p.withContext(SEXPParseContext.this).parse(SEXP.class)
@@ -563,7 +591,7 @@ public class SEXPParseContext implements HasSEXPParseContext {
     @ParseMethod
     private Object parse(Parser ignored, Class<?> clazz) {
       throw new UnsupportedOperationException(
-          "SEXPParseContext#Bindings can only parse lists and tagged elements: given "
+          "SEXPParseContext#forBindings can only parse lists and tagged elements: given "
               + clazz.getName());
     }
   }

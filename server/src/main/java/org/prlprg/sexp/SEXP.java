@@ -2,7 +2,6 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.Streams;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -13,10 +12,9 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Logical;
-import org.prlprg.sexp.parseprint.HasSEXPParseContext;
-import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 /**
  * R runtime object: every value, expression, AST node, etc. in R's runtime is an SEXP.
@@ -106,7 +104,7 @@ public sealed interface SEXP
     return withNames(SEXPs.string(name));
   }
 
-  default SEXP withNames(Collection<String> names) {
+  default SEXP withNames(List<String> names) {
     return withNames(SEXPs.string(names));
   }
 
@@ -169,16 +167,6 @@ public sealed interface SEXP
 
   // region serialization and deserialization
   @ParseMethod
-  private static SEXP parse(Parser p, HasSEXPParseContext h) {
-    return p.withContext(h.sexpParseContext()).parse(SEXP.class);
-  }
-
-  @PrintMethod
-  private void print(Printer p, HasSEXPPrintContext h) {
-    p.withContext(h.sexpPrintContext()).print(this);
-  }
-
-  @ParseMethod
   private static SEXP parse(Parser p) {
     return p.withContext(new SEXPParseContext()).parse(SEXP.class);
   }
@@ -188,6 +176,10 @@ public sealed interface SEXP
     p.withContext(new SEXPPrintContext()).print(this);
   }
 
+  @PrintMethod
+  private void print(Printer p, SEXPPrintOptions options) {
+    p.withContext(new SEXPPrintContext(options)).print(this);
+  }
   // `toString` is overridden in every subclass to call `Printer.toString(this)`.
 
   // endregion serialization and deserialization

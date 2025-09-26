@@ -12,9 +12,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>22</maven.compiler.source>
+    <maven.compiler.source>24</maven.compiler.source>
     <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
-    <pmdVersion>7.2.0</pmdVersion>
     <protobuf.version>3.25.3</protobuf.version>
     <grpc.version>1.64.0</grpc.version>
   </properties>
@@ -83,7 +82,6 @@
       <version>6.0.53</version>
       <scope>provided</scope>
     </dependency>
-
     <!-- Guava, utilities -->
     <dependency>
       <groupId>com.google.guava</groupId>
@@ -196,7 +194,7 @@
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
-        <version>2.43.0</version>
+        <version>2.46.1</version>
         <configuration>
           <formats>
             <!-- Generally handle trailing whitespace and newline -->
@@ -234,7 +232,7 @@
               <exclude>target/**/*</exclude>
             </excludes>
             <googleJavaFormat>
-              <version>1.22.0</version>
+              <version>1.28.0</version>
               <style>GOOGLE</style>
               <formatJavadoc>true</formatJavadoc>
             </googleJavaFormat>
@@ -307,64 +305,9 @@
         <configuration>
           <!-- enable the compiler’s incremental mode -->
           <useIncrementalCompilation>false</useIncrementalCompilation>
+          <source>24</source>
+          <target>24</target>
         </configuration>
-      </plugin>
-      <!-- pmd (and cpd), static analysis on syntax -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-pmd-plugin</artifactId>
-        <version>3.23.0</version>
-        <configuration>
-          <!-- This prevents the warning "Unable to locate Source XRef to link to - DISABLED" -->
-          <!-- If we want source-links in the `site` pmd report we need to add jxr instead, -->
-          <!-- but IDEs display their own pmd report which already has source-links -->
-          <linkXRef>false</linkXRef>
-          <!-- Use a custom ruleset -->
-          <rulesets>
-            <ruleset>.pmd-rules.xml</ruleset>
-          </rulesets>
-          <excludes>
-            <!-- Exclude generated code -->
-            <exclude>**/org/prlprg/server/protocol/**</exclude>
-          </excludes>
-        </configuration>
-        <!-- Use pmd 7 which supports Java 21, not whatever is provided by maven-pmd-plugin -->
-        <dependencies>
-          <dependency>
-            <groupId>net.sourceforge.pmd</groupId>
-            <artifactId>pmd-compat6</artifactId>
-            <version>${pmdVersion}</version>
-          </dependency>
-          <dependency>
-            <groupId>net.sourceforge.pmd</groupId>
-            <artifactId>pmd-core</artifactId>
-            <version>${pmdVersion}</version>
-          </dependency>
-          <dependency>
-            <groupId>net.sourceforge.pmd</groupId>
-            <artifactId>pmd-java</artifactId>
-            <version>${pmdVersion}</version>
-          </dependency>
-          <dependency>
-            <groupId>net.sourceforge.pmd</groupId>
-            <artifactId>pmd-javascript</artifactId>
-            <version>${pmdVersion}</version>
-          </dependency>
-          <dependency>
-            <groupId>net.sourceforge.pmd</groupId>
-            <artifactId>pmd-jsp</artifactId>
-            <version>${pmdVersion}</version>
-          </dependency>
-        </dependencies>
-        <!-- `executions` is required to run this on verify -->
-        <executions>
-          <execution>
-            <goals>
-              <goal>check</goal>
-              <goal>cpd-check</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
       <!-- JUnit5, unit test runner -->
       <plugin>

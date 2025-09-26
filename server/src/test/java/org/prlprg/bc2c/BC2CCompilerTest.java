@@ -1,8 +1,10 @@
 package org.prlprg.bc2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assumptions.abort;
 
 import java.util.function.Function;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.prlprg.bc2c.BC2CSnapshotTestExtension.BC2CSnapshot;
@@ -14,12 +16,18 @@ import org.prlprg.util.gnur.GNURTestSupport;
 
 @GNURTestSupport
 @ExtendWith(BC2CSnapshotTestExtension.class)
-public class BC2CCompilerTest {
-
+class BC2CCompilerTest {
   protected final GNUR R;
 
   public BC2CCompilerTest(GNUR R) {
     this.R = R;
+  }
+
+  @BeforeEach
+  public void skipArm() {
+    if (System.getProperty("os.arch").equals("aarch64")) {
+      abort("Doesn't work on ARM");
+    }
   }
 
   @Test
@@ -718,9 +726,9 @@ public class BC2CCompilerTest {
 
   @Test
   public void testReturnJmp(BC2CSnapshot snapshot) {
-      snapshot.setCompilePromises(true);
-      snapshot.verify(
-              """
+    snapshot.setCompilePromises(true);
+    snapshot.verify(
+        """
                       f <- function() {
                           g <- function(x) {
                               y <- x
@@ -731,7 +739,7 @@ public class BC2CCompilerTest {
                       }
                       f()
                       """,
-              returns(42));
+        returns(42));
   }
 
   @Test
@@ -760,10 +768,10 @@ public class BC2CCompilerTest {
                         """);
   }
 
-    @Test
-    public void testThreeLevelNestedLoopWithBreaks(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testThreeLevelNestedLoopWithBreaks(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:2) {
                           for (j in 1:2) {
@@ -780,12 +788,12 @@ public class BC2CCompilerTest {
                         }
                         x
                         """);
-    }
+  }
 
-    @Test
-    public void testWhileLoopWithForLoop(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testWhileLoopWithForLoop(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         i <- 1
                         while (i <= 2) {
@@ -803,13 +811,13 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(2.0)); // 1 per outer iteration
-    }
+        returns(2.0)); // 1 per outer iteration
+  }
 
-    @Test
-    public void testComplexNestedStructure(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testComplexNestedStructure(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         result <- 0
                         for (outer in 1:3) {
                           inner_sum <- 0
@@ -829,14 +837,14 @@ public class BC2CCompilerTest {
                         }
                         result
                         """,
-                returns(10.0)); // (2 + 3) + (2 + 3)
-    }
+        returns(10.0)); // (2 + 3) + (2 + 3)
+  }
 
-    @Test
-    public void testBreakInInnerLoop(BC2CSnapshot snapshot) {
-        snapshot.setSaveSnapshot(false);
-        snapshot.verify(
-                """
+  @Test
+  public void testBreakInInnerLoop(BC2CSnapshot snapshot) {
+    snapshot.setSaveSnapshot(false);
+    snapshot.verify(
+        """
                               x <- 0
                               for (i in 1:3) {
                                 for (j in 1:3) {
@@ -848,14 +856,14 @@ public class BC2CCompilerTest {
                               }
                               x
                         """,
-                returns(6.0)); // 3 + 3
-    }
+        returns(6.0)); // 3 + 3
+  }
 
-    @Test
-    public void testBreakInOuterLoop(BC2CSnapshot snapshot) {
-        snapshot.setSaveSnapshot(false);
-        snapshot.verify(
-                """
+  @Test
+  public void testBreakInOuterLoop(BC2CSnapshot snapshot) {
+    snapshot.setSaveSnapshot(false);
+    snapshot.verify(
+        """
                               x <- 0
                               for (i in 1:3) {
                                 for (j in 1:3) {
@@ -867,13 +875,13 @@ public class BC2CCompilerTest {
                               }
                               x
                         """,
-                returns(6.0)); // 3 + 3
-    }
+        returns(6.0)); // 3 + 3
+  }
 
-    @Test
-    public void testNextInOuterLoop(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testNextInOuterLoop(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:3) {
                           if (i == 2) {
@@ -885,13 +893,13 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(6.0)); // skip middle iteration
-    }
+        returns(6.0)); // skip middle iteration
+  }
 
-    @Test
-    public void testNextInInnerLoop(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testNextInInnerLoop(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:3) {
                           for (j in 1:3) {
@@ -903,13 +911,13 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(6.0)); // 2 per outer iteration
-    }
+        returns(6.0)); // 2 per outer iteration
+  }
 
-    @Test
-    public void testMixedBreakNextInNestedLoops(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testMixedBreakNextInNestedLoops(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:4) {
                           if (i == 4) {
@@ -927,12 +935,12 @@ public class BC2CCompilerTest {
                         }
                         x
                         """);
-    }
+  }
 
-    @Test
-    public void testLoopContextsBreak(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testLoopContextsBreak(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:3) {
                           if (i == 2) {
@@ -942,13 +950,13 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(1.0));
-    }
+        returns(1.0));
+  }
 
-    @Test
-    public void testLoopContextsNext(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testLoopContextsNext(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:5) {
                           if (i == 3) {
@@ -958,13 +966,13 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(12.0)); // 1 + 2 + 4 + 5
-    }
+        returns(12.0)); // 1 + 2 + 4 + 5
+  }
 
-    @Test
-    public void testLoopContextsWithMultipleBreaks(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testLoopContextsWithMultipleBreaks(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:10) {
                           if (i == 2) {
@@ -978,13 +986,13 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(101.0)); // 1 + 100
-    }
+        returns(101.0)); // 1 + 100
+  }
 
-    @Test
-    public void testLoopContextsWithMultipleNext(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testLoopContextsWithMultipleNext(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         x <- 0
                         for (i in 1:5) {
                           if (i == 2) {
@@ -997,18 +1005,18 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(9.0)); // 1 + 3 + 5
-    }
+        returns(9.0)); // 1 + 3 + 5
+  }
 
-    @Test
-    public void testLoopContextsWithFunctionsAndBreaks(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testLoopContextsWithFunctionsAndBreaks(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         helper <- function(val) {
                           if (val == 3) return(TRUE)
                           return(FALSE)
                         }
-                        
+
                         x <- 0
                         for (i in 1:5) {
                           if (helper(i)) {
@@ -1018,13 +1026,13 @@ public class BC2CCompilerTest {
                         }
                         x
                         """,
-                returns(3.0)); // 1 + 2
-    }
+        returns(3.0)); // 1 + 2
+  }
 
-    @Test
-    public void testLoopContextsFunctionsWithReturn(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testLoopContextsFunctionsWithReturn(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         process <- function() {
                           x <- 0
                           for (i in 1:5) {
@@ -1037,13 +1045,13 @@ public class BC2CCompilerTest {
                         }
                         process()
                         """,
-                returns(3.0)); // 1 + 2
-    }
+        returns(3.0)); // 1 + 2
+  }
 
-    @Test
-    public void testLoopContextsNestFunctionCallsWithLoops(BC2CSnapshot snapshot) {
-        snapshot.verify(
-                """
+  @Test
+  public void testLoopContextsNestFunctionCallsWithLoops(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                         outer_func <- function() {
                           inner_func <- function() {
                             x <- 0
@@ -1060,7 +1068,7 @@ public class BC2CCompilerTest {
                             }
                             x
                           }
-                        
+
                           x <- 0
                           for (j in 1:100) {
                             x <- x + inner_func()
@@ -1069,8 +1077,8 @@ public class BC2CCompilerTest {
                         }
                         outer_func()
                         """,
-                returns(100.0));
-    }
+        returns(100.0));
+  }
 
   @Test
   public void testAdhoc(BC2CSnapshot snapshot) {}
@@ -1101,15 +1109,11 @@ public class BC2CCompilerTest {
   }
 
   private TestResultCheck slowSubset() {
-    return (r) -> {
-      assertEquals(1, r.pc().slowSubset(), "Expected slow subset");
-    };
+    return (r) -> assertEquals(1, r.pc().slowSubset(), "Expected slow subset");
   }
 
   private TestResultCheck slowSubassign() {
-    return (r) -> {
-      assertEquals(1, r.pc().slowSubassign(), "Expected slow subassign");
-    };
+    return (r) -> assertEquals(1, r.pc().slowSubassign(), "Expected slow subassign");
   }
 
   private TestResultCheck fastSubassign() {

@@ -1,10 +1,10 @@
 package org.prlprg.sexp;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Objects;
-import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.Printer;
 
@@ -22,27 +22,66 @@ public sealed interface VecSXP extends VectorSXP<SEXP> {
 
   @Override
   VecSXP withAttributes(Attributes attributes);
+
+  @Override
+  VecSXP copy();
 }
 
-record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) implements VecSXP {
+final class VecSXPImpl implements VecSXP {
+  private final SEXP[] data;
+  private final Attributes attributes;
+
+  VecSXPImpl(SEXP[] data, Attributes attributes) {
+    this.data = Arrays.copyOf(data, data.length);
+    this.attributes = attributes;
+  }
+
   @Override
-  public UnmodifiableIterator<SEXP> iterator() {
-    return data.iterator();
+  public Attributes attributes() {
+    return attributes;
+  }
+
+  @Override
+  public Iterator<SEXP> iterator() {
+    return Arrays.stream(data).iterator();
   }
 
   @Override
   public SEXP get(int i) {
-    return data.get(i);
+    return data[i];
+  }
+
+  @Override
+  public void set(int i, SEXP value) {
+    data[i] = value;
   }
 
   @Override
   public int size() {
-    return data.size();
+    return data.length;
   }
 
   @Override
   public VecSXP withAttributes(Attributes attributes) {
     return SEXPs.vec(data, attributes);
+  }
+
+  @Override
+  public VecSXP copy() {
+    return new VecSXPImpl(data, attributes);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof VecSXPImpl that)) {
+      return false;
+    }
+    return Arrays.equals(data, that.data) && Objects.equals(attributes, that.attributes);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(Arrays.hashCode(data), attributes);
   }
 
   @Override
@@ -54,7 +93,7 @@ record VecSXPImpl(ImmutableList<SEXP> data, @Override Attributes attributes) imp
 /** Class for representing a scalar SEXP of a primitive type with no attributes. */
 @Immutable
 abstract class ScalarSXPImpl<T> {
-  final T data;
+  T data;
 
   protected ScalarSXPImpl(T data) {
     this.data = data;
@@ -71,11 +110,18 @@ abstract class ScalarSXPImpl<T> {
     return data;
   }
 
+  public void set(int i, T value) {
+    if (i != 0) {
+      throw new IndexOutOfBoundsException();
+    }
+    this.data = value;
+  }
+
   public int size() {
     return 1;
   }
 
-  public @Nonnull Attributes attributes() {
+  public Attributes attributes() {
     return Attributes.NONE;
   }
 
@@ -108,8 +154,13 @@ abstract class EmptyVectorSXPImpl<T> {
   }
 
   // @Override
-  public T get(int i) {
+  public T get(int ignore) {
     throw new IndexOutOfBoundsException();
+  }
+
+  // @Override
+  public void set(int ignore, T ignore1) {
+    throw new IndexOutOfBoundsException("Cannot set element in empty vector");
   }
 
   // @Override
@@ -118,7 +169,7 @@ abstract class EmptyVectorSXPImpl<T> {
   }
 
   // @Override
-  public @Nonnull Attributes attributes() {
+  public Attributes attributes() {
     return Attributes.NONE;
   }
 

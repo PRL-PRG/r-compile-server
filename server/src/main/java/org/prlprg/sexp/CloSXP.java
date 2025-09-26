@@ -2,7 +2,6 @@ package org.prlprg.sexp;
 
 import java.util.Optional;
 import java.util.function.Predicate;
-import javax.annotation.Nonnull;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Streams;
 
@@ -26,7 +25,6 @@ public sealed interface CloSXP extends SEXP {
   }
 
   @Override
-  @Nonnull
   Attributes attributes();
 
   @Override
@@ -53,7 +51,9 @@ public sealed interface CloSXP extends SEXP {
 record CloSXPImpl(ListSXP parameters, SEXP body, EnvSXP env, @Override Attributes attributes)
     implements CloSXP {
   CloSXPImpl {
-    if (Streams.hasDuplicates(parameters.names().stream().filter(Predicate.not(String::isEmpty)))) {
+    if (parameters.names().stream()
+        .filter(Predicate.not(String::isEmpty))
+        .collect(Streams.hasDuplicate())) {
       throw new IllegalArgumentException("Parameters must have unique names");
     }
   }

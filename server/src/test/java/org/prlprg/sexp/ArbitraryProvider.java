@@ -95,8 +95,12 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   private static Arbitrary<NamespaceEnvSXP> namespaceEnvs1(
       Arbitrary<? extends StaticEnvSXP> envs, Arbitrary<SEXP> sexps) {
-    return Combinators.combine(symbolStrings(), symbolStrings(), envs, envBindings(sexps))
+    return Combinators.combine(symbolStrings(), namespaceVersions(), envs, envBindings(sexps))
         .as(NamespaceEnvSXP::new);
+  }
+
+  private static Arbitrary<String> namespaceVersions() {
+    return Arbitraries.of("4.3.2");
   }
 
   private static Arbitrary<BaseEnvSXP> baseEnvs(Arbitrary<SEXP> sexps) {
@@ -104,7 +108,7 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<Map<String, SEXP>> envBindings(Arbitrary<SEXP> sexps) {
-    return Arbitraries.maps(shortStrings(), sexps).ofMaxSize(MAX_SIZE);
+    return Arbitraries.maps(symbolStrings(), sexps).ofMaxSize(MAX_SIZE);
   }
 
   private static Arbitrary<ExprSXP> exprs() {
@@ -128,8 +132,9 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
             lists(sexps)
                 .filter(
                     l ->
-                        Streams.hasNoDuplicates(
-                            l.names().stream().filter(Predicate.not(String::isEmpty)))),
+                        !l.names().stream()
+                            .filter(Predicate.not(String::isEmpty))
+                            .collect(Streams.hasDuplicate())),
             sexps,
             envs(sexps))
         .as(SEXPs::closure);
@@ -141,15 +146,17 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
 
   private static Arbitrary<PromSXP> promises(Arbitrary<SEXP> sexps) {
     var sexpsNoPromises = sexps.filter(s -> !(s instanceof PromSXP));
-    return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(PromSXP::new);
+    return Combinators.combine(sexpsNoPromises, sexpsNoPromises, envs(sexps)).as(SEXPs::promise);
   }
 
   private static Arbitrary<TaggedElem> taggedElems(Arbitrary<SEXP> sexps) {
-    return Combinators.combine(symbolStrings().injectNull(0.33), sexps).as(TaggedElem::new);
+    return Combinators.combine(symbolStrings().optional(0.33).map(o -> o.orElse("")), sexps)
+        .as(TaggedElem::new);
   }
 
   private static Arbitrary<TaggedElem> astTaggedElems(Arbitrary<SEXP> astSexps) {
-    return Combinators.combine(symbolStrings().injectNull(0.33), astSexps).as(TaggedElem::new);
+    return Combinators.combine(symbolStrings().optional(0.33).map(o -> o.orElse("")), astSexps)
+        .as(TaggedElem::new);
   }
 
   private static Arbitrary<SEXP> astSexps() {
