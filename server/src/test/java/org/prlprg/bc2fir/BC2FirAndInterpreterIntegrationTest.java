@@ -13,7 +13,6 @@ import org.prlprg.bc.CompilerException;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.primitive.Complex;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -90,7 +89,7 @@ public class BC2FirAndInterpreterIntegrationTest {
         rFilePath,
         (interpreter, check) -> {
           for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ pre-opt #" + i, interpreter.call("main2", SEXPs.integer(42)));
+            check.accept("FIŘ pre-opt #" + i, interpreter.call("main2", SEXPs.integer(1)));
           }
 
           // Phase 1: Create new versions with contextual dispatch
@@ -100,7 +99,7 @@ public class BC2FirAndInterpreterIntegrationTest {
           }
 
           for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ post-opt1 #" + i, interpreter.call("main2", SEXPs.integer(42)));
+            check.accept("FIŘ post-opt1 #" + i, interpreter.call("main2", SEXPs.integer(1)));
           }
 
           // Phase 2: insert assumptions in the new versions using collected feedback
@@ -110,7 +109,7 @@ public class BC2FirAndInterpreterIntegrationTest {
           }
 
           for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ post-opt2 #" + i, interpreter.call("main2", SEXPs.real(42)));
+            check.accept("FIŘ post-opt2 #" + i, interpreter.call("main2", SEXPs.real(1)));
           }
 
           // Phase 3: insert new assumptions after deoptimization and more feedback
@@ -119,10 +118,11 @@ public class BC2FirAndInterpreterIntegrationTest {
             fail("Optimized (phase 3) FIŘ failed verification:\n" + interpreter.module());
           }
 
-          check.accept("FIŘ post-opt3 #1", interpreter.call("main2", SEXPs.integer(42)));
-          check.accept("FIŘ post-opt3 #2", interpreter.call("main2", SEXPs.real(42)));
-          check.accept(
-              "FIŘ post-opt3 #3", interpreter.call("main2", SEXPs.complex(new Complex(42, 0))));
+          check.accept("FIŘ post-opt3 #1", interpreter.call("main2", SEXPs.integer(1)));
+          check.accept("FIŘ post-opt3 #2", interpreter.call("main2", SEXPs.real(1)));
+          check.accept("FIŘ post-opt3 #3", interpreter.call("main2", SEXPs.logical(true)));
+          interpreter.call("main2", SEXPs.integer(2));
+          interpreter.call("main2", SEXPs.real(3.5));
         });
   }
 

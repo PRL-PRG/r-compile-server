@@ -4,6 +4,7 @@ import static org.prlprg.primitive.Constants.NA_INT;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.DoubleUnaryOperator;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.type.Kind;
@@ -129,30 +130,26 @@ public final class Builtins {
       throw interpreter.fail("`+` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      int arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       return SEXPs.integer(arg0 + arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 + arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 + arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
-      return SEXPs.real(arg0 + arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `+` not implemented for arguments except integers or reals");
     }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.real(arg0 + arg1);
+    }
+
+    throw new UnsupportedOperationException(
+        "Mock `+` not implemented for arguments except integers, reals, or logicals");
   }
 
   private static SEXP addInts(
@@ -235,30 +232,26 @@ public final class Builtins {
       throw interpreter.fail("`-` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      var arg0 = args.getFirst().asScalarInteger().get();
-      var arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       return SEXPs.integer(arg0 - arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 - arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 - arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
-      return SEXPs.real(arg0 - arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `-` not implemented for arguments except integers or reals");
     }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.real(arg0 - arg1);
+    }
+
+    throw new UnsupportedOperationException(
+        "Mock `-` not implemented for arguments except integers, reals, or logicals");
   }
 
   private static SEXP multiply(
@@ -267,30 +260,26 @@ public final class Builtins {
       throw interpreter.fail("`*` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      var arg0 = args.getFirst().asScalarInteger().get();
-      var arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       return SEXPs.integer(arg0 * arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 * arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 * arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
-      return SEXPs.real(arg0 * arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `*` not implemented for arguments except integers or reals");
     }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.real(arg0 * arg1);
+    }
+
+    throw new UnsupportedOperationException(
+        "Mock `*` not implemented for arguments except integers, reals, or logicals");
   }
 
   private static SEXP divide(
@@ -299,10 +288,12 @@ public final class Builtins {
       throw interpreter.fail("`/` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      int arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       if (arg1 == 0) {
         return SEXPs.real(
             arg0 == 0
@@ -310,20 +301,14 @@ public final class Builtins {
                 : (arg0 > 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY));
       }
       return SEXPs.real((double) arg0 / arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 / arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.real(arg0 / arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
+    }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
       if (arg1 == 0) {
         return SEXPs.real(
             arg0 == 0
@@ -331,10 +316,10 @@ public final class Builtins {
                 : (arg0 > 0 ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY));
       }
       return SEXPs.real(arg0 / arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `/` not implemented for arguments except integers or reals");
     }
+
+    throw new UnsupportedOperationException(
+        "Mock `/` not implemented for arguments except integers, reals, or logicals");
   }
 
   private static SEXP less(
@@ -343,30 +328,26 @@ public final class Builtins {
       throw interpreter.fail("`<` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      int arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       return SEXPs.logical(arg0 < arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 < arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 < arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
-      return SEXPs.logical(arg0 < arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `<` not implemented for arguments except integers or reals");
     }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.logical(arg0 < arg1);
+    }
+
+    throw new UnsupportedOperationException(
+        "Mock `<` not implemented for arguments except integers, reals, or logicals");
   }
 
   private static SEXP lessEqual(
@@ -375,30 +356,26 @@ public final class Builtins {
       throw interpreter.fail("`<=` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      int arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       return SEXPs.logical(arg0 <= arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 <= arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 <= arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
-      return SEXPs.logical(arg0 <= arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `<=` not implemented for arguments except integers or reals");
     }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.logical(arg0 <= arg1);
+    }
+
+    throw new UnsupportedOperationException(
+        "Mock `<=` not implemented for arguments except integers, reals, or logicals");
   }
 
   private static SEXP greater(
@@ -407,30 +384,26 @@ public final class Builtins {
       throw interpreter.fail("`>` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      int arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       return SEXPs.logical(arg0 > arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 > arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 > arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
-      return SEXPs.logical(arg0 > arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `>` not implemented for arguments except integers or reals");
     }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.logical(arg0 > arg1);
+    }
+
+    throw new UnsupportedOperationException(
+        "Mock `>` not implemented for arguments except integers, reals, or logicals");
   }
 
   private static SEXP greaterEqual(
@@ -439,30 +412,36 @@ public final class Builtins {
       throw interpreter.fail("`>=` takes 2 arguments");
     }
 
-    if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      int arg1 = args.get(1).asScalarInteger().get();
+    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
+    var arg1Int = asScalarIntegerOrLogical(args.get(1));
+
+    if (arg0Int.isPresent() && arg1Int.isPresent()) {
+      int arg0 = arg0Int.get();
+      int arg1 = arg1Int.get();
       return SEXPs.logical(arg0 >= arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 >= arg1);
-    } else if (args.getFirst().asScalarInteger().isPresent()
-        && args.get(1).asScalarReal().isPresent()) {
-      int arg0 = args.getFirst().asScalarInteger().get();
-      double arg1 = args.get(1).asScalarReal().get();
-      return SEXPs.logical(arg0 >= arg1);
-    } else if (args.getFirst().asScalarReal().isPresent()
-        && args.get(1).asScalarInteger().isPresent()) {
-      double arg0 = args.getFirst().asScalarReal().get();
-      int arg1 = args.get(1).asScalarInteger().get();
-      return SEXPs.logical(arg0 >= arg1);
-    } else {
-      throw new UnsupportedOperationException(
-          "Mock `>=` not implemented for arguments except integers or reals");
     }
+
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.logical(arg0 >= arg1);
+    }
+
+    throw new UnsupportedOperationException(
+        "Mock `>=` not implemented for arguments except integers, reals, or logicals");
+  }
+
+  private static Optional<Integer> asScalarIntegerOrLogical(SEXP sexp) {
+    return sexp.asScalarInteger().or(() -> sexp.asScalarLogical().map(Logical::toInt));
+  }
+
+  private static Optional<Double> asScalarDouble(SEXP sexp) {
+    return sexp.asScalarReal()
+        .or(() -> sexp.asScalarInteger().map(Number::doubleValue))
+        .or(() -> sexp.asScalarLogical().map(logical -> (double) logical.toInt()));
   }
 
   private static SEXP rep(
