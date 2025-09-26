@@ -76,10 +76,7 @@ public final class Function {
 
   /// Returns a [Register] which resembles `nv` but syntactically valid and not in `existing`.
   private static Register resemblance(NamedVariable nv, Set<Register> existing) {
-    var base = nv.equals(NamedVariable.DOTS) ? "ddd" : nv.name().replaceAll("[^a-zA-Z0-9_]", "_");
-    if ((base.charAt(0) >= '0' && base.charAt(0) <= '9') || base.equals("_")) {
-      base = "_" + base;
-    }
+    var base = Register.resemblance(nv.name()).name();
 
     var result = base;
     var disambiguator = 1;

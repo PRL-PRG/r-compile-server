@@ -93,7 +93,7 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
             .map(
                 param -> {
                   if (param.equals("...")) {
-                    var dddReg = scope.addLocal(Type.DOTS);
+                    var dddReg = scope.addLocal("vargs", Type.DOTS);
                     var dddStatement =
                         new Statement(
                             dddReg,

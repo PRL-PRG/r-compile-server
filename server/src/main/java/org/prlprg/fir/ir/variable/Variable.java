@@ -1,10 +1,12 @@
 package org.prlprg.fir.ir.variable;
 
 import java.util.HashMap;
+import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Strings;
 
+@Immutable
 public sealed interface Variable permits NamedVariable, Register {
   String name();
 

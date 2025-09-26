@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.Optional;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -35,6 +36,7 @@ import org.prlprg.util.Characters;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
 
+@Immutable
 public sealed interface Expression
     permits Aea,
         Assume,

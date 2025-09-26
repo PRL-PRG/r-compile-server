@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -10,6 +11,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.util.DeferredCallbacks;
 
+@Immutable
 public sealed interface Instruction permits Statement, Jump {
   @UnmodifiableView
   Collection<Argument> arguments();

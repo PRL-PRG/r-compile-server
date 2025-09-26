@@ -269,7 +269,7 @@ public record Inline(int maxInlineeSize) implements SpecializeOptimization {
               continue;
             }
             var type = local.type();
-            var disambiguatedVariable = scope.addLocal(type);
+            var disambiguatedVariable = scope.addLocal(oldVariable.name(), type);
             localSubstituter.stage(oldVariable, disambiguatedVariable);
           }
           localSubstituter.commit();

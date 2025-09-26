@@ -6,6 +6,17 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 
 public final class Register implements Variable {
+  public static final String DEFAULT_PREFIX = "r";
+
+  /// Returns a [Register] which resembles `name` but syntactically valid.
+  public static Register resemblance(String name) {
+    var base = name.equals("...") ? "ddd" : name.replaceAll("[^a-zA-Z0-9_]", "_");
+    if ((base.charAt(0) >= '0' && base.charAt(0) <= '9') || base.equals("_")) {
+      base = "_" + base;
+    }
+    return Variable.register(base);
+  }
+
   private final String name;
 
   Register(String name) {

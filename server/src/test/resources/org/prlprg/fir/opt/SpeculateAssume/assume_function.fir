@@ -6,16 +6,16 @@ fun main() {
 }
 
 fun call_closure() {
-  # after: () -+> V { reg callee:cls, reg result:V, reg r0:cls |
+  # after: () -+> V { reg callee:cls, reg result:V, reg callee1:cls |
   () -+> V { reg callee:cls, reg result:V |
     callee = clos target;
     check BBopt() else BBdeopt();
   BBopt():
     # after: callee ?- target;
 
-    # after: r0 = ldf target in global;
+    # after: callee1 = ldf target in global;
 
-    # after: result = dyn r0();
+    # after: result = dyn callee1();
     result = dyn callee();
     return result;
   BBdeopt():
