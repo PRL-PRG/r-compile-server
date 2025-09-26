@@ -41,9 +41,8 @@ package org.prlprg.sexp.parseprint;
 ///
 /// @param maxDepth Maximum depth of language objects to print, where each [SEXP] adds 1 to the
 ///     depth, whether it's a symbol, list, vector, or environment (e.g. `foo(bar(<vec baz(<str"qux"
-// "abc" "def">)>))` has a depth of 5: `foo(...)`, `bar(...)`, `<vec...>`, `baz(...)`, and `<str
-// ...>`). Once this is reached, inner SEXPs will be
-///     replaced with `<...>`.
+/// "abc" "def">)>))` has a depth of 5: `foo(...)`, `bar(...)`, `<vec...>`, `baz(...)`, and `<str
+/// ...>`). Once this is reached, inner SEXPs will be replaced with `<...>`.
 ///
 /// Set to `Long#MAX_VALUE` to print all levels.
 ///
@@ -56,8 +55,8 @@ public record SEXPPrintOptions(
     long maxAttributes,
     long maxStringLength,
     long maxDepth) {
-  /// The default print options that you get when calling [Printer#print(SEXP)][#print(Object)] and
-  // [SEXP#toString()][#toString].
+  /// The default print options that you get when calling [Printer#print(SEXP)][#print(Object)]
+  /// and [SEXP#toString()][#toString].
   public static final SEXPPrintOptions DEFAULT =
       new SEXPPrintOptions(false, false, false, 10, 3, 100, 5);
 

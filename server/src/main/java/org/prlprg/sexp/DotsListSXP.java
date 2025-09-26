@@ -15,7 +15,7 @@ final class DotsListSXPImpl extends AbstractListSXPImpl implements DotsListSXP {
 
   @Override
   public SEXPType type() {
-    return data.length == 0 ? SEXPType.NIL : SEXPType.DOT;
+    return SEXPType.DOT;
   }
 
   @Override

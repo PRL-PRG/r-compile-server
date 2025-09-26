@@ -61,7 +61,7 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
 
   @Override
   public SEXPType type() {
-    return data.length == 0 ? SEXPType.NIL : SEXPType.LIST;
+    return SEXPType.LIST;
   }
 
   @Override
@@ -79,7 +79,7 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
     System.arraycopy(this.data, 0, data, 0, this.data.length);
     data[this.data.length] = new TaggedElem(tag, value);
 
-    return new ListSXPImpl(data, attributes);
+    return SEXPs.list(data, attributes);
   }
 
   @Override
@@ -87,14 +87,14 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
     var data = new TaggedElem[this.data.length + other.size()];
     System.arraycopy(this.data, 0, data, 0, this.data.length);
     System.arraycopy(((AbstractListSXPImpl) other).data, 0, data, this.data.length, other.size());
-    return new ListSXPImpl(data, attributes);
+    return SEXPs.list(data, attributes);
   }
 
   @Override
   public ListSXP fromIndex(int fromIndex) {
     var data = new TaggedElem[size() - fromIndex];
     System.arraycopy(this.data, fromIndex, data, 0, data.length);
-    return new ListSXPImpl(data, attributes);
+    return SEXPs.list(data, attributes);
   }
 
   @Override
@@ -103,7 +103,7 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
       throw new IllegalArgumentException(
           "The empty tag doesn't exist, pass `null` to remove untagged elements.");
     }
-    return new ListSXPImpl(
+    return SEXPs.list(
         stream().filter(e -> !Objects.equals(tag, e.tag())).toArray(TaggedElem[]::new), attributes);
   }
 
@@ -112,17 +112,17 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
     var data = new TaggedElem[this.data.length + 1];
     data[0] = elem;
     System.arraycopy(this.data, 0, data, 1, this.data.length);
-    return new ListSXPImpl(data, attributes);
+    return SEXPs.list(data, attributes);
   }
 
   @Override
   public ListSXP withAttributes(Attributes attributes) {
-    return new ListSXPImpl(data, attributes);
+    return SEXPs.list(data, attributes);
   }
 
   @Override
   public ListSXP copy() {
-    return new ListSXPImpl(data, attributes);
+    return SEXPs.list(data, attributes);
   }
 
   @Override

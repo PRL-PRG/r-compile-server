@@ -1,10 +1,11 @@
 package org.prlprg.sexp;
 
+import java.util.Collection;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.util.Collections2;
 import org.prlprg.util.Pair;
 
 public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
@@ -87,12 +88,8 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   @UnmodifiableView
   Set<Entry<String, SEXP>> bindings();
 
-  default Stream<TaggedElem> streamBindingsAsTaggedElems() {
-    return bindings().stream().map(e -> new TaggedElem(e.getKey(), e.getValue()));
-  }
-
-  default Iterable<TaggedElem> bindingsAsTaggedElems() {
-    return streamBindingsAsTaggedElems()::iterator;
+  default Collection<TaggedElem> bindingsAsTaggedElems() {
+    return Collections2.mapLazy(bindings(), e -> new TaggedElem(e.getKey(), e.getValue()));
   }
 
   /** Whether this is a user, global, namespace, base, or empty environment. */

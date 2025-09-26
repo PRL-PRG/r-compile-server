@@ -119,7 +119,7 @@ public class SEXPParsePrintTest {
 
   /// Property test that generates random [SEXP]s, prints them, then verifies that when the SEXP
   /// is re-parsed and printed again, both prints are the same.
-  @Property(tries = 100)
+  @Property(tries = 1000)
   public void testRandomSEXPs(@ForAll("sexps") SEXP sexp) {
     assertRoundTrip(Printer.toString(sexp, SEXPPrintOptions.FULL));
     assertRoundTrip(Printer.toString(sexp, SEXPPrintOptions.FULL_DELIMITED), true);
