@@ -341,7 +341,7 @@ public class SEXPParseContext {
                 var bindings = parseList(p.withContext(forBindings));
                 for (var i = 0; i < bindings.size(); i++) {
                   var binding = bindings.get(i);
-                  if (binding.tag() == null) {
+                  if (!binding.hasTag()) {
                     throw s.fail("Binding " + i + "has no tag");
                   }
                   if (env.getLocal(binding.tag()).isPresent()) {
@@ -544,12 +544,12 @@ public class SEXPParseContext {
     var s = p.scanner();
 
     if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
-      return new TaggedElem(null, SEXPs.MISSING_ARG);
+      return new TaggedElem(SEXPs.MISSING_ARG);
     }
 
     var tagOrValue = p.parse(SEXP.class);
     if (!s.trySkip('=')) {
-      return new TaggedElem(null, tagOrValue);
+      return new TaggedElem(tagOrValue);
     }
 
     if (!(tagOrValue instanceof RegSymSXP tagSexp)) {
@@ -577,10 +577,10 @@ public class SEXPParseContext {
       var s = p.scanner();
 
       if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP) || s.trySkip("<missing>")) {
-        return new TaggedElem(null, SEXPs.MISSING_ARG);
+        return new TaggedElem(SEXPs.MISSING_ARG);
       }
 
-      var tag = s.nextCharIs('=') ? null : Names.read(s, true);
+      var tag = s.nextCharIs('=') ? "" : Names.read(s, true);
       var value =
           s.trySkip('=')
               ? p.withContext(SEXPParseContext.this).parse(SEXP.class)

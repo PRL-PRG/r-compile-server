@@ -535,7 +535,7 @@ public class RDSWriter implements Closeable {
           // there will always be a first element because we take a different path when the list
           // is empty
           var first = list.stream().findFirst().orElseThrow();
-          SEXP tag = first.tag() == null ? SEXPs.NULL : SEXPs.symbol(first.tag());
+          SEXP tag = first.hasTag() ? SEXPs.symbol(first.tag()) : SEXPs.NULL;
 
           // write tag
           writeItem(tag);

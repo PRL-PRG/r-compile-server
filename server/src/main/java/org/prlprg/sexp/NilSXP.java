@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.util.EmptyIterator;
@@ -85,12 +84,12 @@ public final class NilSXP implements ListSXP, DotsListSXP {
   }
 
   @Override
-  public ListSXP with(int index, @Nullable String tag, SEXP value) {
+  public ListSXP with(int index, String tag, SEXP value) {
     throw new UnsupportedOperationException("NULL is empty");
   }
 
   @Override
-  public ListSXP appended(@Nullable String tag, SEXP value) {
+  public ListSXP appended(String tag, SEXP value) {
     return new ListSXPImpl(new TaggedElem[] {new TaggedElem(tag, value)}, Attributes.NONE);
   }
 
@@ -109,11 +108,7 @@ public final class NilSXP implements ListSXP, DotsListSXP {
   }
 
   @Override
-  public ListSXP remove(@Nullable String tag) {
-    if (tag != null && tag.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The empty tag doesn't exist, pass `null` to remove untagged elements.");
-    }
+  public ListSXP remove(String tag) {
     return this;
   }
 

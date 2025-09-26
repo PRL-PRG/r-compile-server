@@ -23,8 +23,7 @@ public class ClosureCompiler {
   public static Function compile(@Nullable RSession r, Module module, String name, CloSXP closure) {
     var parameterNames =
         closure.parameters().stream()
-            .gather(
-                Streams.mapWithIndex((p, i) -> Variable.named(p.tag() == null ? "p" + i : p.tag())))
+            .gather(Streams.mapWithIndex((p, i) -> Variable.named(p.hasTag() ? p.tag() : "p" + i)))
             .toList();
 
     Bc bc;

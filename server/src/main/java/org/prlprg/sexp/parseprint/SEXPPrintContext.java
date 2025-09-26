@@ -349,7 +349,7 @@ public class SEXPPrintContext {
   private void printTaggedElem(TaggedElem taggedElem, Printer p) {
     var w = p.writer();
 
-    if (taggedElem.tag() != null) {
+    if (taggedElem.hasTag()) {
       Names.write(w, taggedElem.tag());
       w.write('=');
     }
@@ -373,7 +373,7 @@ public class SEXPPrintContext {
     private void print(TaggedElem elem, Printer p) {
       var w = p.writer();
 
-      if (elem.tag() != null) {
+      if (elem.hasTag()) {
         Names.write(w, elem.tag());
       }
       if (elem.value() != SEXPs.MISSING_ARG) {

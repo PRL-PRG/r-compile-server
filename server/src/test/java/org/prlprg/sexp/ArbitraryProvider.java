@@ -150,11 +150,13 @@ public class ArbitraryProvider implements net.jqwik.api.providers.ArbitraryProvi
   }
 
   private static Arbitrary<TaggedElem> taggedElems(Arbitrary<SEXP> sexps) {
-    return Combinators.combine(symbolStrings().injectNull(0.33), sexps).as(TaggedElem::new);
+    return Combinators.combine(symbolStrings().optional(0.33).map(o -> o.orElse("")), sexps)
+        .as(TaggedElem::new);
   }
 
   private static Arbitrary<TaggedElem> astTaggedElems(Arbitrary<SEXP> astSexps) {
-    return Combinators.combine(symbolStrings().injectNull(0.33), astSexps).as(TaggedElem::new);
+    return Combinators.combine(symbolStrings().optional(0.33).map(o -> o.orElse("")), astSexps)
+        .as(TaggedElem::new);
   }
 
   private static Arbitrary<SEXP> astSexps() {
