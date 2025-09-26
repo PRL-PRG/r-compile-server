@@ -26,7 +26,7 @@ public class ArgumentMatcher {
             ? unmatchedArguments.stream()
                 .flatMap(
                     argument ->
-                        argument.tagOrEmpty().equals("...")
+                        argument.tag().equals("...")
                             ? (argument.value() instanceof DotsListSXP ddd
                                 ? ddd.stream()
                                 : raise(new MatchException("`...` argument value isn't dots")))
@@ -42,7 +42,7 @@ public class ArgumentMatcher {
     return formalParameters.stream()
         .map(
             param -> {
-              var paramName = param.tagOrEmpty();
+              var paramName = param.tag();
               var paramValue = param.value();
               var paramMatch = nameMatches.arguments.get(paramName);
 

@@ -141,7 +141,7 @@ public class InterpretUtil {
           if (args.size() != 1) {
             throw interpreter1.fail("`provide`'s arguments must consist of one value");
           }
-          var nextProvided = provided(interpreter).appended(null, args.getFirst());
+          var nextProvided = provided(interpreter).appended("", args.getFirst());
           setProvided(interpreter, nextProvided);
           return SEXPs.NULL;
         });

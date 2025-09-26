@@ -2,7 +2,6 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
-import javax.annotation.Nullable;
 
 /**
  * R "list". Confusingly, this is actually like <a href="https://www.lua.org/pil/2.5.html">Lua's
@@ -39,13 +38,19 @@ public sealed interface ListSXP extends AbstractListSXP, LangOrListSXP permits N
   /**
    * Remove all elements with the given tag (R lists may have multiple with the same tag).
    *
-   * <p>Given {@code null}, it will remove all untagged elements.
+   * <p>Given the empty string, it will remove all untagged elements.
    */
-  ListSXP remove(@Nullable String tag);
+  ListSXP remove(String tag);
 
-  ListSXP with(int index, @Nullable String tag, SEXP value);
+  /// Returns a new list with the element at the given index replaced by the given one.
+  ///
+  /// Pass `tag = ""` if the element has no tag.
+  ListSXP with(int index, String tag, SEXP value);
 
-  ListSXP appended(@Nullable String tag, SEXP value);
+  /// Returns a new list with the given element appended.
+  ///
+  /// Pass `tag = ""` if the element has no tag.
+  ListSXP appended(String tag, SEXP value);
 
   ListSXP appended(ListSXP other);
 
@@ -65,7 +70,7 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
   }
 
   @Override
-  public ListSXP with(int index, @Nullable String tag, SEXP value) {
+  public ListSXP with(int index, String tag, SEXP value) {
     var old = data[index];
     data[index] = new TaggedElem(tag, value);
     var result = copy();
@@ -74,7 +79,7 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
   }
 
   @Override
-  public ListSXP appended(@Nullable String tag, SEXP value) {
+  public ListSXP appended(String tag, SEXP value) {
     var data = new TaggedElem[this.data.length + 1];
     System.arraycopy(this.data, 0, data, 0, this.data.length);
     data[this.data.length] = new TaggedElem(tag, value);
@@ -98,11 +103,7 @@ final class ListSXPImpl extends AbstractListSXPImpl implements ListSXP {
   }
 
   @Override
-  public ListSXP remove(@Nullable String tag) {
-    if (tag != null && tag.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The empty tag doesn't exist, pass `null` to remove untagged elements.");
-    }
+  public ListSXP remove(String tag) {
     return SEXPs.list(
         stream().filter(e -> !Objects.equals(tag, e.tag())).toArray(TaggedElem[]::new), attributes);
   }

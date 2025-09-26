@@ -418,7 +418,7 @@ public class RDSReader implements Closeable {
     if (tagSexp instanceof RegSymSXP sym) {
       tag = sym.name();
     } else if (tagSexp instanceof NilSXP) {
-      tag = null;
+      tag = "";
     } else {
       throw new RDSException("Expected regular symbol or nil");
     }
@@ -437,7 +437,7 @@ public class RDSReader implements Closeable {
     if (tail instanceof ListSXP) {
       tailList = (ListSXP) tail;
     } else if (tail instanceof LangSXP lang) {
-      tailList = lang.args().prepend(new TaggedElem(null, lang.fun()));
+      tailList = lang.args().prepend(new TaggedElem(lang.fun()));
     } else {
       throw new RDSException("Expected list or language, got: " + tail.type());
     }
@@ -555,7 +555,7 @@ public class RDSReader implements Closeable {
       case NilSXP _ -> {}
       case ListSXP frame -> {
         for (var elem : frame) {
-          item.set(requireNonNull(elem.tag()), elem.value());
+          item.set(elem.tag(), elem.value());
         }
       }
       default -> throw new RDSException("Expected list (FRAME)");
@@ -570,7 +570,7 @@ public class RDSReader implements Closeable {
             case NilSXP _ -> {}
             case ListSXP list -> {
               for (var e : list) {
-                item.set(requireNonNull(e.tag()), e.value());
+                item.set(e.tag(), e.value());
               }
             }
             default -> throw new RDSException("Expected list for the hashtab entries");
@@ -662,7 +662,8 @@ public class RDSReader implements Closeable {
     return SEXPs.closure(formals, body, env, attributes);
   }
 
-  private @Nullable String readTag(Flags flags) throws IOException {
+  /// Returns the empty string for no tag.
+  private String readTag(Flags flags) throws IOException {
     if (flags.hasTag()) {
       if (readItem() instanceof RegSymSXP s) {
         return s.name();
@@ -670,7 +671,7 @@ public class RDSReader implements Closeable {
         throw new RDSException("Expected tag to be a symbol");
       }
     } else {
-      return null;
+      return "";
     }
   }
 
@@ -687,11 +688,10 @@ public class RDSReader implements Closeable {
       var attrs = new Attributes.Builder();
 
       for (var x : xs) {
-        var attr = x.tag();
-        if (attr == null) {
+        if (!x.hasTag()) {
           throw new RDSException("Expected tag");
         }
-        attrs.put(attr, x.value());
+        attrs.put(x.tag(), x.value());
       }
 
       return attrs.build();
