@@ -1,5 +1,6 @@
 package org.prlprg.sexp.parseprint;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -134,7 +135,13 @@ public class SEXPPrintContext {
             printGeneralStart(sexp.type(), p);
             runNotDelimited(
                 () -> {
-                  printElems(sexp, p);
+                  // Special-case, because otherwise this looks like the empty list.
+                  if (sexp.size() == 1 && sexp.get(0).equals(new TaggedElem(SEXPs.MISSING_ARG))) {
+                    p.writer().write("<missing>");
+                  } else {
+                    printElems(sexp, p);
+                  }
+
                   printAttributes(sexp, p);
                 });
             printGeneralEnd(p);
@@ -542,8 +549,28 @@ public class SEXPPrintContext {
     }
   }
 
-  private void printList(Iterable<TaggedElem> list, Printer p) {
+  private void printList(AbstractListSXP list, Printer p) {
     var w = p.writer();
+
+    // Special-case, because otherwise this looks like the empty list.
+    if (list.size() == 1 && list.get(0).equals(new TaggedElem(SEXPs.MISSING_ARG))) {
+      w.write("(<missing>)");
+      return;
+    }
+
+    w.write("(");
+    printElems(list, p);
+    w.write(")");
+  }
+
+  private void printList(Collection<TaggedElem> list, Printer p) {
+    var w = p.writer();
+
+    // Special-case, because otherwise this looks like the empty list.
+    if (list.size() == 1 && list.iterator().next().equals(new TaggedElem(SEXPs.MISSING_ARG))) {
+      w.write("(<missing>)");
+      return;
+    }
 
     w.write("(");
     printElems(list, p);

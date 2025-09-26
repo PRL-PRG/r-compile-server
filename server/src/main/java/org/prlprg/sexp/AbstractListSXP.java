@@ -57,6 +57,7 @@ abstract sealed class AbstractListSXPImpl permits ListSXPImpl, DotsListSXPImpl {
   protected final Attributes attributes;
 
   AbstractListSXPImpl(TaggedElem[] data, Attributes attributes) {
+    assert data.length > 0;
     this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
   }

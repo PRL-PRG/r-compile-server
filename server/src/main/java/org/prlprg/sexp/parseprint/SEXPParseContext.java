@@ -48,7 +48,8 @@ import org.prlprg.util.UnreachableError;
 public class SEXPParseContext {
   /** {@code true} if the character indicates the end of an {@link SEXP} or {@link TaggedElem}. */
   public static boolean delimitsSEXP(Integer c) {
-    return c == -1 || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>';
+    return c == -1 || c == ',' || c == ';' || c == ')' || c == ']' || c == '}' || c == '>'
+        || c == '|';
   }
 
   private final ForBindings forBindings = new ForBindings();
@@ -575,7 +576,7 @@ public class SEXPParseContext {
     private TaggedElem parseTaggedElem(Parser p) {
       var s = p.scanner();
 
-      if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP)) {
+      if (s.nextCharSatisfies(SEXPParseContext::delimitsSEXP) || s.trySkip("<missing>")) {
         return new TaggedElem(null, SEXPs.MISSING_ARG);
       }
 
