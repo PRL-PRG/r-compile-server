@@ -133,12 +133,15 @@ class ClosureCompiler {
 
   private static final String BCELL_PREFIX = "C";
 
+  private static final String VAR_LOOP_CTX = "LOOP_CTX";
+
   private final Bc bc;
   private final ByteCodeStack stack = new ByteCodeStack();
   private final Map<Integer, Constant> constants = new LinkedHashMap<>();
   private final Set<Integer> labels = new HashSet<>();
   private final Map<Integer, BCell> cells = new HashMap<>();
   private final Map<Integer, Integer> branchStackState = new HashMap<>();
+  private final Map<Integer, Integer> loopContexts = new HashMap<>();
   private int extraConstPoolIdx;
   private final String name;
   private boolean debug = true;
@@ -203,6 +206,7 @@ class ClosureCompiler {
 
     compileCells();
     compileRegisters();
+    compileLoopContexts();
   }
 
   private void analyseCode() {
@@ -291,16 +295,34 @@ class ClosureCompiler {
             yield c + "\ngoto " + label(label) + ";";
           }
           case BcInstr.StepFor(var label) -> {
-            if (!(this.bc.instr(label.target() - 1)
-                instanceof BcInstr.StartFor(_, var symbol, _))) {
-              throw new IllegalStateException("Expected StartFor instruction");
+            BCell cell = null;
+            var startLoopIdx = label.target();
+            while (startLoopIdx >= 0) {
+              var startLoop = this.bc.instr(startLoopIdx);
+              if (startLoop instanceof BcInstr.StartFor(_, var symbol, _)) {
+                cell = cells.get(symbol.idx());
+                break;
+              }
+              startLoopIdx--;
             }
-            var cell = cells.get(symbol.idx());
-            assert cell != null;
+            if (cell == null) {
+              throw new IllegalStateException(
+                  "Expected StartFor instruction around pc: %d".formatted(label.target()));
+            }
             yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.cell(cell).compile(), label(label));
           }
           case BcInstr.Math1(var _, var op) -> builder.addArgs(String.valueOf(op)).compileStmt();
           case BcInstr.DotCall(var call, var numArgs) -> compileDotCall(builder, call, numArgs);
+          case BcInstr.StartLoopCntxt(var _, var label) -> {
+            int idx = loopContexts.size();
+            loopContexts.put(label.target(), idx);
+            builder.args("&" + VAR_LOOP_CTX + "[" + idx + "]");
+            yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(label));
+          }
+          case BcInstr.EndLoopCntxt(var _) -> {
+            int idx = loopContexts.get(pc);
+            yield builder.args("&" + VAR_LOOP_CTX + "[" + idx + "]").compileStmt();
+          }
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(l));
@@ -412,6 +434,14 @@ class ClosureCompiler {
       }
       prologue.line(line);
     }
+  }
+
+  private void compileLoopContexts() {
+    if (loopContexts.isEmpty()) {
+      return;
+    }
+    prologue.comment("LOOP CONTEXTS");
+    prologue.line("RCNTXT %s[%d];".formatted(VAR_LOOP_CTX, loopContexts.size()));
   }
 
   // API
@@ -676,7 +706,9 @@ class ClosureCompiler {
           BcOp.DDVAL_MISSOK,
           BcOp.DOLLARGETS,
           BcOp.DDVAL,
-          BcOp.RETURNJMP);
+          BcOp.RETURNJMP,
+          BcOp.STARTLOOPCNTXT,
+          BcOp.ENDLOOPCNTXT);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
