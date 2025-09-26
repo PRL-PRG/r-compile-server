@@ -21,7 +21,7 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Tracks where each register is assigned (i.e. [Statement#variable()])
+/// Tracks where each register is assigned (i.e. [Statement#assignee()()])
 /// and every other occurrence.
 public final class DefUses implements Analysis {
   private final Map<Register, Set<ScopePosition>> definitions = new HashMap<>();

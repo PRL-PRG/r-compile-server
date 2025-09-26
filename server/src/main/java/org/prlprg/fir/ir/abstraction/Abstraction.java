@@ -231,14 +231,14 @@ public final class Abstraction implements Comparable<Abstraction> {
         });
   }
 
-  /// True iff this was constructed via [#stub(Module, Type , Type, Effects)] as opposed to
-  /// [Abstraction(Module, List)].
+  /// True iff [#cfg()] is `null`, and this instance's constructor was called with
+  /// `isStub = false`.
   public boolean isStub() {
     return cfg == null;
   }
 
-  /// This is null iff [#isStub] is `true`, which is iff this was constructed via
-  /// [#stub(Module, List, Type, Effects)] as opposed to [Abstraction(Module, List)].
+  /// This is null iff [#isStub] is `true`, which is iff this instance's constructor was called
+  /// with `isStub = false`.
   public @Nullable CFG cfg() {
     return cfg;
   }
