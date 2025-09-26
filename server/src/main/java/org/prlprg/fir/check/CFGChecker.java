@@ -1,6 +1,7 @@
 package org.prlprg.fir.check;
 
 import com.google.common.collect.Iterables;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -10,11 +11,13 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.If;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Verifies the following invariants:
 /// - Promise CFGs have the same scope as their parents.
+/// - Promises don't reuse CFG pointers.
 /// - All basic blocks are reachable from entry
 /// - Entry blocks and blocks with 1 predecessor (except if the predecessor branches with
 ///   different arguments) don't have phi parameters
@@ -183,6 +186,26 @@ public class CFGChecker extends Checker {
                       + code.scope()
                       + "\n=== Parent ===\n"
                       + scope);
+            }
+          }
+        }
+
+        // Promises don't reuse CFG pointers
+        var seenCfgs = new HashMap<CFG, CfgPosition>();
+        for (var bb : cfg.bbs()) {
+          for (var i = 0; i < bb.statements().size(); i++) {
+            var stmt = bb.statements().get(i);
+            if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
+              continue;
+            }
+            var pos = new CfgPosition(bb, i, stmt);
+            var otherPos = seenCfgs.put(code, pos);
+            if (otherPos != null) {
+              report(otherPos, "Promise CFG @" + code.hashCode() + " is reused in multiple places");
+              report(
+                  bb,
+                  i,
+                  "Promise CFG @" + code.hashCode() + " is reused in multiple places: " + code);
             }
           }
         }
