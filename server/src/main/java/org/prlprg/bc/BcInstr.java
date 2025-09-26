@@ -1300,6 +1300,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
   record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardAfter") BcLabel ifFail)
       implements BcInstr {
     @Override
