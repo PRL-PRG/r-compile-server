@@ -598,6 +598,7 @@ class ClosureCompiler {
   private static final Set<BcOp> SUPPORTED_OPS =
       Set.of(
           BcOp.AND,
+          BcOP.BASEGUARD,
           BcOp.BRIFNOT,
           BcOp.CALLBUILTIN,
           BcOp.CALLSPECIAL,
