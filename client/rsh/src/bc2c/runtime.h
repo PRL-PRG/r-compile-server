@@ -28,6 +28,17 @@ typedef uint32_t u32;
 #define EXTERN_ATTRIBUTES
 #endif
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+// C23 or later: use standard [[nodiscard]]
+#define NODISCARD [[nodiscard]]
+#elif defined(__GNUC__) || defined(__clang__)
+// GCC or Clang: use compiler attribute
+#define NODISCARD __attribute__((warn_unused_result))
+#else
+// Fallback: nothing
+#define NODISCARD
+#endif
+
 // LINKING MODEL
 // -------------
 
@@ -1067,7 +1078,7 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
 }
 
 // FIXME: check if it works with RCP
-static INLINE Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
+static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
   if (VAL_IS_LGL_NOT_NA(value)) {
     return (Rboolean)!VAL_INT(value);
   } else if (VAL_IS_INT_NOT_NA(value)) {
@@ -1509,9 +1520,8 @@ static INLINE void Rsh_DollarGets(Value *x_res, Value rhs, SEXP call,
 #define Rsh_StartSubset2N(value, call, rho)                                    \
   Rsh_start_subset_dispatch_n("[[", value, call, rho)
 
-static INLINE Rboolean Rsh_start_subset_dispatch_n(const char *generic,
-                                                   Value *value, SEXP call,
-                                                   SEXP rho) {
+static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch_n(
+    const char *generic, Value *value, SEXP call, SEXP rho) {
   SEXP value_sxp = val_as_sexp(*value);
   if (isObject(value_sxp) &&
       tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
@@ -1531,11 +1541,9 @@ static INLINE Rboolean Rsh_start_subset_dispatch_n(const char *generic,
   Rsh_start_subset_dispatch("[[", value, call_val, args_head, args_tail, call, \
                             rho)
 
-static INLINE Rboolean Rsh_start_subset_dispatch(const char *generic,
-                                                 Value *value, Value *call_val,
-                                                 Value *args_head,
-                                                 Value *args_tail, SEXP call,
-                                                 SEXP rho) {
+static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch(
+    const char *generic, Value *value, Value *call_val, Value *args_head,
+    Value *args_tail, SEXP call, SEXP rho) {
   SEXP value_sxp = val_as_sexp(*value);
   if (isObject(value_sxp) &&
       tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
@@ -1766,9 +1774,8 @@ static INLINE void Rsh_EndAssign2(Value *r2, Value r1, Value r0, SEXP symbol,
 #define Rsh_StartSubassign2N(lhs, rhs, call, rho)                              \
   Rsh_start_subassign_dispatch_n("[[<-", lhs, rhs, call, rho)
 
-static INLINE Rboolean Rsh_start_subassign_dispatch_n(const char *generic,
-                                                      Value *lhs, Value *rhs,
-                                                      SEXP call, SEXP rho) {
+static INLINE NODISCARD Rboolean Rsh_start_subassign_dispatch_n(
+    const char *generic, Value *lhs, Value *rhs, SEXP call, SEXP rho) {
   SEXP lhs_sxp = val_as_sexp(*lhs);
 
   if (isObject(lhs_sxp)) {
@@ -2024,7 +2031,7 @@ static INLINE void Rsh_SetterCall(Value *r4, Value r3, Value r2, Value r1,
   Rsh_start_subassign_dispatch("[[<-", lhs, rhs, call_val, args_head, args_tail, call, rho)
 // clang-format on
 
-static INLINE Rboolean Rsh_start_subassign_dispatch(
+static INLINE NODISCARD Rboolean Rsh_start_subassign_dispatch(
     const char *generic, Value *lhs, Value *rhs, Value *call_val,
     Value *args_head, Value *args_tail, SEXP call, SEXP rho) {
   SEXP lhs_sxp = val_as_sexp(*lhs);
@@ -2427,8 +2434,8 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
     return TRUE;                                                               \
   } while (0)
 
-static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
-                                   SEXP rho) {
+static INLINE NODISCARD Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0,
+                                             BCell *cell, SEXP rho) {
   // it is important to use info->type and not TYPEOF(seq)
   // as it could be the ISQSXP
   Rsh_StepFor_Specialized(s2, s1, s0, cell, rho, info->type);
@@ -2448,7 +2455,7 @@ static INLINE Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0, BCell *cell,
   X(10, LISTSXP)
 
 #define X(a, b)                                                                \
-  static INLINE Rboolean Rsh_StepFor_Specialized_##a(                          \
+  static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(                \
       Value *s2, Value *s1, Value *s0, BCell *cell, SEXP rho) {                \
     Rsh_StepFor_Specialized(s2, s1, s0, cell, rho, b);                         \
   }
@@ -2587,7 +2594,7 @@ static INLINE void fixup_scalar_logical(Value *v, SEXP call, const char *arg,
   }
 }
 
-static INLINE Rboolean Rsh_And1st(Value *r0, SEXP call) {
+static INLINE NODISCARD Rboolean Rsh_And1st(Value *r0, SEXP call) {
   fixup_scalar_logical(r0, call, "'x'", "&&");
   R_Visible = TRUE;
   return VAL_INT(*r0) == FALSE ? TRUE : FALSE;
@@ -2614,7 +2621,7 @@ static INLINE void Rsh_And2nd(Value *r1, Value r0, SEXP call) {
   R_Visible = TRUE;
 }
 
-static INLINE Rboolean Rsh_Or1st(Value *v, SEXP call) {
+static INLINE NODISCARD Rboolean Rsh_Or1st(Value *v, SEXP call) {
   fixup_scalar_logical(v, call, "'x'", "||");
   R_Visible = TRUE;
   int r = VAL_INT(*v) != FALSE && VAL_INT(*v) != NA_LOGICAL;
