@@ -2,9 +2,11 @@ package org.prlprg.fir.analyze.cfg;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -72,6 +74,26 @@ public final class CfgDominatorTree implements CfgAnalysis {
   /// Check if `dominator` dominates `dominee`.
   public boolean dominates(BB dominator, BB dominee) {
     return dominators(dominee).contains(dominator);
+  }
+
+  /// Sorts dominators before dominees. Specifically, sorts each node by its depth in a
+  /// dominator tree.
+  public Comparator<BB> comparator() {
+    // Get the depth of each node in a dominator tree
+    var depth = new HashMap<BB, Integer>();
+    depth.put(cfg.entry(), 0);
+    var queue = new LinkedList<BB>();
+    queue.add(cfg.entry());
+    while (!queue.isEmpty()) {
+      var bb = queue.removeFirst();
+      var bbDepth = depth.get(bb);
+      for (var dominee : immediateDominees(bb)) {
+        depth.put(dominee, bbDepth + 1);
+        queue.add(dominee);
+      }
+    }
+
+    return Comparator.comparingInt(depth::get);
   }
 
   private void run() {

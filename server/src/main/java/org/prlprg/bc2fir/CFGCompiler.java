@@ -646,28 +646,30 @@ public class CFGCompiler {
       case LdTrue() -> push(new Constant(SEXPs.TRUE));
       case LdFalse() -> push(new Constant(SEXPs.FALSE));
       case GetVar(var name) -> {
-        pushInsert(new Load(getVar(name)));
-        pushInsert(new MaybeForce(pop()));
-        tryAddCheckpoint();
+        pushInsert(getStr(name), new Load(getVar(name)));
+        tryAddCheckpoint(false);
+        pushInsert(getStr(name), new MaybeForce(pop()));
+        insert(intrinsic("checkMissing", top()));
       }
       case DdVal(var name) -> {
         var ddIndex = NamedVariable.ddNum(get(name).ddNum());
-        pushInsert(new Load(ddIndex));
-        pushInsert(new MaybeForce(pop()));
-        tryAddCheckpoint();
+        pushInsert(getStr(name), new Load(ddIndex));
+        tryAddCheckpoint(false);
+        pushInsert(getStr(name), new MaybeForce(pop()));
+        insert(intrinsic("checkMissing", top()));
       }
       case SetVar(var name) -> insert(new Store(getVar(name), top()));
       case GetFun(var name) -> {
         var fun = insertAndReturn(getStr(name), new LoadFun(getVar(name), Env.LOCAL));
         pushCall(fun);
         lastLoadedFunName = getStr(name);
-        tryAddCheckpoint();
+        tryAddCheckpoint(true);
       }
       case GetGlobFun(var name) -> {
         var fun = insertAndReturn(getStr(name), new LoadFun(getVar(name), Env.GLOBAL));
         pushCall(fun);
         lastLoadedFunName = getStr(name);
-        tryAddCheckpoint();
+        tryAddCheckpoint(true);
       }
       // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
       //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
@@ -677,7 +679,7 @@ public class CFGCompiler {
       case CheckFun() -> {
         var fun = pop();
         insert(checkFun(fun));
-        var funName = fun.variable() == null ? Register.DEFAULT_PREFIX : fun.variable().name();
+        var funName = fun.variable() == null ? Register.DEFAULT_NAME : fun.variable().name();
         var castedFun = insertAndReturn(funName, new Cast(fun, Type.CLOSURE));
         pushCall(castedFun);
       }
@@ -833,49 +835,51 @@ public class CFGCompiler {
 
         moveTo(after);
       }
-      case IsNull() -> pushInsert(builtin("==", pop(), new Constant(SEXPs.NULL)));
-      case IsLogical() -> pushInsert(builtin("is.logical", pop()));
-      case IsInteger() -> pushInsert(builtin("is.integer", pop()));
-      case IsDouble() -> pushInsert(builtin("is.double", pop()));
-      case IsComplex() -> pushInsert(builtin("is.complex", pop()));
-      case IsCharacter() -> pushInsert(builtin("is.character", pop()));
-      case IsSymbol() -> pushInsert(builtin("is.symbol", pop()));
-      case IsObject() -> pushInsert(builtin("is.object", pop()));
-      case IsNumeric() -> pushInsert(builtin("is.numeric", pop()));
+      case IsNull() -> pushInsert("c", builtin("==", pop(), new Constant(SEXPs.NULL)));
+      case IsLogical() -> pushInsert("c", builtin("is.logical", pop()));
+      case IsInteger() -> pushInsert("c", builtin("is.integer", pop()));
+      case IsDouble() -> pushInsert("c", builtin("is.double", pop()));
+      case IsComplex() -> pushInsert("c", builtin("is.complex", pop()));
+      case IsCharacter() -> pushInsert("c", builtin("is.character", pop()));
+      case IsSymbol() -> pushInsert("c", builtin("is.symbol", pop()));
+      case IsObject() -> pushInsert("c", builtin("is.object", pop()));
+      case IsNumeric() -> pushInsert("c", builtin("is.numeric", pop()));
       case VecSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 2);
       case MatSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 3);
       case VecSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 3);
       case MatSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 4);
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert(builtin("as.logical", pop()));
+        pushInsert("c", builtin("as.logical", pop()));
         var cond = top();
         insert(next -> branch(cond, next, shortCircuitBb));
       }
       case And2nd(var _) -> {
-        pushInsert(builtin("as.logical", pop()));
-        pushInsert(mkBinop("&&"));
+        pushInsert("c", builtin("as.logical", pop()));
+        pushInsert("c", mkBinop("&&"));
         insert(this::goto_);
       }
       case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert(builtin("as.logical", pop()));
+        pushInsert("c", builtin("as.logical", pop()));
         var cond = top();
         insert(next -> branch(cond, shortCircuitBb, next));
       }
       case Or2nd(var _) -> {
-        pushInsert(builtin("as.logical", pop()));
-        pushInsert(mkBinop("||"));
+        pushInsert("c", builtin("as.logical", pop()));
+        pushInsert("c", mkBinop("||"));
         insert(this::goto_);
       }
       case GetVarMissOk(var name) -> {
-        pushInsert(new Load(getVar(name)));
-        pushInsert(new MaybeForce(pop()));
+        pushInsert(getStr(name), new Load(getVar(name)));
+        tryAddCheckpoint(false);
+        pushInsert(getStr(name), new MaybeForce(pop()));
       }
       case DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
-        pushInsert(new Load(NamedVariable.ddNum(ddIndex)));
-        pushInsert(new MaybeForce(pop()));
+        pushInsert(getStr(name), new Load(NamedVariable.ddNum(ddIndex)));
+        tryAddCheckpoint(false);
+        pushInsert(getStr(name), new MaybeForce(pop()));
       }
       case Visible() -> insert(intrinsic("visible", 0));
       case SetVar2(var name) -> insert(new SuperStore(getVar(name), top()));
@@ -1297,21 +1301,22 @@ public class CFGCompiler {
         && !(bc.code().get(bcPos + 1) instanceof BcInstr.Return)) {
       pop();
     } else {
-      tryAddCheckpoint();
+      tryAddCheckpoint(true);
     }
   }
 
   // endregion compile instructions
 
   // region checkpoints
-  void tryAddCheckpoint() {
+  void tryAddCheckpoint(boolean afterInstruction) {
     // Don't add checkpoints/deopts in promises for now
     if (cfg.isPromise()) {
       return;
     }
 
+    var deoptBcPos = afterInstruction ? bcPos + 1 : bcPos;
     var deopt = cfg.addBB("D" + numDeopts++);
-    deopt.setJump(new Deopt(bcPos, ImmutableList.copyOf(stack)));
+    deopt.setJump(new Deopt(deoptBcPos, ImmutableList.copyOf(stack)));
 
     // Don't add phis because they're never necessary.
     // Don't use `insert` because it adds phis.
@@ -1379,7 +1384,7 @@ public class CFGCompiler {
         var type = inferType.of(arg);
         assert type != null : "argument on stack is an undeclared register";
 
-        var phiName = arg.variable() == null ? Register.DEFAULT_PREFIX : arg.variable().name();
+        var phiName = arg.variable() == null ? Register.DEFAULT_NAME : arg.variable().name();
         var phi = scope().addLocal(phiName, type);
         bb.appendParameter(phi);
       }
@@ -1525,7 +1530,11 @@ public class CFGCompiler {
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and push the register onto the stack.
   private void pushInsert(Expression expression) {
-    push(insertAndReturn(Register.DEFAULT_PREFIX, expression));
+    pushInsert(Register.DEFAULT_NAME, expression);
+  }
+
+  private void pushInsert(String name, Expression expression) {
+    push(insertAndReturn(name, expression));
   }
 
   /// Push a value onto the "virtual stack" so that the next call to [#pop(Class)] or
