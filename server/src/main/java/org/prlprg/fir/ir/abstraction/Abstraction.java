@@ -139,7 +139,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public Register addLocal(Type type) {
-    return addLocal(Register.DEFAULT_PREFIX, type);
+    return addLocal(Register.DEFAULT_NAME, type);
   }
 
   public Register addLocal(String name, Type type) {

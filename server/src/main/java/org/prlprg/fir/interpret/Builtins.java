@@ -75,6 +75,7 @@ public final class Builtins {
     interpreter.registerExternal("print", ExternalVersion.strict(Builtins::print));
 
     // Intrinsics
+    interpreter.registerExternal("checkMissing", 0, Builtins::checkMissing);
     interpreter.registerExternal("toForSeq", 0, Builtins::toForSeq);
   }
 
@@ -757,20 +758,6 @@ public final class Builtins {
     };
   }
 
-  private static SEXP toForSeq(
-      Interpreter interpreter, Abstraction version, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 1) {
-      throw interpreter.fail("`toForSeq` takes 1 argument");
-    }
-
-    if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw interpreter.fail("`toForSeq` requires a vector argument");
-    }
-
-    // Simply return the vector as-is after validation
-    return vector;
-  }
-
   private static SEXP asLogical(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
@@ -920,6 +907,31 @@ public final class Builtins {
     var toPrint = args.getFirst();
     System.out.println(toPrint.toString());
     return SEXPs.NULL;
+  }
+
+  private static SEXP checkMissing(
+      Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`checkMissing` takes 1 argument");
+    }
+    if (args.getFirst().equals(SEXPs.MISSING_ARG)) {
+      throw interpreter.fail("Argument is missing, with no default");
+    }
+    return SEXPs.NULL;
+  }
+
+  private static SEXP toForSeq(
+      Interpreter interpreter, Abstraction version, List<SEXP> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`toForSeq` takes 1 argument");
+    }
+
+    if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
+      throw interpreter.fail("`toForSeq` requires a vector argument");
+    }
+
+    // Simply return the vector as-is after validation
+    return vector;
   }
 
   private Builtins() {}

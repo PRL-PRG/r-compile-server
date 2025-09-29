@@ -2,6 +2,7 @@ package org.prlprg.util;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collector;
@@ -121,6 +122,56 @@ public class Strings {
       }
     }
     return sb.toString();
+  }
+
+  /// Sort strings lexicographically, except regarding digits, sort by numeric value.
+  /// e.g. "a2" < "a10" < "b1"
+  public static Comparator<String> naturalComparator() {
+    return (a, b) -> {
+      int i = 0, j = 0;
+      while (i < a.length() && j < b.length()) {
+        char ca = a.charAt(i);
+        char cb = b.charAt(j);
+        if (Character.isDigit(ca) && Character.isDigit(cb)) {
+          // Compare numbers
+          int startI = i, startJ = j;
+          while (i < a.length() && Character.isDigit(a.charAt(i))) {
+            i++;
+          }
+          while (j < b.length() && Character.isDigit(b.charAt(j))) {
+            j++;
+          }
+          String numA = a.substring(startI, i);
+          String numB = b.substring(startJ, j);
+          // Remove leading zeros for comparison
+          String trimmedA = numA.replaceFirst("^0+", "");
+          String trimmedB = numB.replaceFirst("^0+", "");
+          if (trimmedA.isEmpty()) {
+            trimmedA = "0";
+          }
+          if (trimmedB.isEmpty()) {
+            trimmedB = "0";
+          }
+          int cmp = Integer.compare(trimmedA.length(), trimmedB.length());
+          if (cmp != 0) {
+            return cmp;
+          }
+          cmp = trimmedA.compareTo(trimmedB);
+          if (cmp != 0) {
+            return cmp;
+          }
+        } else {
+          // Compare characters
+          int cmp = Character.compare(ca, cb);
+          if (cmp != 0) {
+            return cmp;
+          }
+          i++;
+          j++;
+        }
+      }
+      return Integer.compare(a.length(), b.length());
+    };
   }
 
   private Strings() {}

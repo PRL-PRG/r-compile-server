@@ -6,7 +6,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 
 public final class Register implements Variable {
-  public static final String DEFAULT_PREFIX = "r";
+  public static final String DEFAULT_NAME = "r";
 
   /// Returns a [Register] which resembles `name` but syntactically valid.
   public static Register resemblance(String name) {

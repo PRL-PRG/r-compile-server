@@ -1,15 +1,17 @@
 package org.prlprg.fir.ir.cfg;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
@@ -18,6 +20,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
+import org.prlprg.util.Strings;
 
 /// FIŘ [control-flow-graph](https://en.wikipedia.org/wiki/Control-flow_graph).
 public final class CFG {
@@ -25,7 +28,7 @@ public final class CFG {
   private final Abstraction scope;
 
   // Data
-  private final Map<String, BB> bbs = new TreeMap<>();
+  private final Map<String, BB> bbs = new LinkedHashMap<>();
 
   // Cache
   private final BB entry;
@@ -123,7 +126,15 @@ public final class CFG {
 
   @PrintMethod
   private void print(Printer p) {
-    p.printSeparated("\n", bbs.values());
+    // Sort BBs dominators before dominees, then [naturally](Strings#naturalComparator())
+    // (lexicographically with explicit support for numbers) by label.
+    var sortedBbs = new ArrayList<>(bbs.values());
+    sortedBbs.sort(
+        new CfgDominatorTree(this)
+            .comparator()
+            .thenComparing(BB::label, Strings.naturalComparator()));
+
+    p.printSeparated("\n", sortedBbs);
   }
 
   public record ParseContext(
