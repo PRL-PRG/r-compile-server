@@ -84,7 +84,7 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
         var body = bcCompileBody(code, optimizationLevel);
         var res = new TestResult(code, optimizationLevel, body);
         BCSnapshotTestExtension.this.verify(
-            testMethod, name, res, oracle(name, code, optimizationLevel));
+            testMethod, name, res, oracle(name, code, optimizationLevel), true);
       }
     };
   }
