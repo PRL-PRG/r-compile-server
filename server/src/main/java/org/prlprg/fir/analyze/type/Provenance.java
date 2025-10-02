@@ -93,15 +93,8 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     }
 
     void run(Expression expression) {
-      if (expression instanceof Promise(var _, var _, var promiseCode)) {
-        var promiseAnalysis = onCfg(promiseCode);
-
-        promiseAnalysis.run(state());
-
-        var returnState = promiseAnalysis.returnState();
-        if (returnState != null) {
-          state().mergePromise(returnState);
-        }
+      if (expression instanceof Promise(var _, var _, var code)) {
+        runSubAnalysis(code, state()::mergePromise);
       } else {
         for (var argument : expression.arguments()) {
           run(argument);

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
@@ -107,7 +108,7 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
     public final void run(S entryState) {
       var worklist = new ArrayList<Pair<BB, S>>();
 
-      // Can add `entryState` in-place, because it won't be mutated until after the call,
+      // Can add `entryState` in-place, because it won't be mutated (at least during the call),
       // and we don't assign `worklist` entries to `state` or put into `states` without copying.
       worklist.add(Pair.of(cursor.cfg().entry(), entryState));
 
@@ -192,6 +193,18 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
       runEntry(bb);
       cursor.iterateCurrentBbUpTo(instructionIndex, this::run, this::run);
       return state;
+    }
+
+    /// Runs the analysis for [CFG], then merges the output using the given function.
+    protected final void runSubAnalysis(CFG cfg, Consumer<S> merge) {
+      var subAnalysis = onCfg(cfg);
+
+      subAnalysis.run(state());
+
+      var returnState = subAnalysis.returnState();
+      if (returnState != null) {
+        merge.accept(returnState);
+      }
     }
 
     /// Queries the analysis state at the [CFG]'s return.

@@ -236,7 +236,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         case MaybeForce(var value) -> runForce(value, true);
         // We must run promises because `AbstractInterpretation` doesn't.
         case Promise(var _, var _, var code) -> {
-          onCfg(code).run(state());
+          runSubAnalysis(code, state()::merge);
           yield null;
         }
         // TODO: Constant-fold some calls.
