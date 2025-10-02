@@ -124,9 +124,7 @@ SEXP _RCP_INIT () {
 }*/
 
 RCP_OP(RETURN) {
-  SEXP res = Rsh_Return(*GET_VAL(1));
-  POP_VAL(1);
-  return res;
+  Rsh_Return(GET_VAL(1), 1);
 }
 
 RCP_OP(GOTO) {
@@ -134,7 +132,9 @@ RCP_OP(GOTO) {
 }
 
 RCP_OP(BRIFNOT) {
-  if(Rsh_BrIfNot(*GET_VAL(1), GETCONST_IMM(0), GET_RHO()))
+  Rboolean condition = Rsh_BrIfNot(*GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  POP_VAL(1);
+  if(condition)
     GOTO_IMM(1);
   else
     NEXT;
@@ -302,7 +302,11 @@ RCP_OP(GETVAR) {
   NEXT;
 }
 
-//RCP_OP(DDVAL)
+RCP_OP(DDVAL) {
+  PUSH_VAL(1);
+  Rsh_DdVal(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  NEXT;
+}
 
 RCP_OP(SETVAR) {
   Rsh_SetVar(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
@@ -554,10 +558,12 @@ RCP_OP(ENDASSIGN) {
 
 RCP_OP(STARTSUBSET) {
   PUSH_VAL(3);
-
   Rboolean condition = Rsh_StartSubset(GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
+  {
+    POP_VAL(3);
     GOTO_IMM(1);
+  }
   else
     NEXT;
 }
@@ -570,8 +576,14 @@ RCP_OP(DFLTSUBSET) {
 
 RCP_OP(STARTSUBASSIGN) {
   PUSH_VAL(3);
-  Rsh_StartSubassign(GET_VAL(5), GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
-  NEXT;
+  Rboolean condition = Rsh_StartSubassign(GET_VAL(5), GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  if(__builtin_expect(condition, FALSE))
+  {
+    POP_VAL(4);
+    GOTO_IMM(1);
+  }
+  else
+    NEXT;
 }
 
 RCP_OP(DFLTSUBASSIGN) {
@@ -586,10 +598,12 @@ RCP_OP(DFLTSUBASSIGN) {
 
 RCP_OP(STARTSUBSET2) {
   PUSH_VAL(3);
-
   Rboolean condition = Rsh_StartSubset2(GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
+  {
+    POP_VAL(3);
     GOTO_IMM(1);
+  }
   else
     NEXT;
 }
@@ -602,8 +616,14 @@ RCP_OP(DFLTSUBSET2) {
 
 RCP_OP(STARTSUBASSIGN2) {
   PUSH_VAL(3);
-  Rsh_StartSubassign2(GET_VAL(5), GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
-  NEXT;
+  Rboolean condition = Rsh_StartSubassign2(GET_VAL(5), GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  if(__builtin_expect(condition, FALSE))
+  {
+    POP_VAL(4);
+    GOTO_IMM(1);
+  }
+  else
+    NEXT;
 }
 
 RCP_OP(DFLTSUBASSIGN2) {
@@ -617,7 +637,11 @@ RCP_OP(DOLLAR) {
   NEXT;
 }
 
-//RCP_OP(DOLLARGETS)
+RCP_OP(DOLLARGETS) {
+  Rsh_DollarGets(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GETCONST_IMM(1), GET_RHO());
+  POP_VAL(1);
+  NEXT;
+}
 
 RCP_OP(ISNULL) {
   Rsh_IsNull(GET_VAL(1));
@@ -720,12 +744,16 @@ RCP_OP(GETVAR_MISSOK) {
   NEXT;
 }
 
-//RCP_OP(DDVAL_MISSOK)
-
-/*RCP_OP(VISIBLE) {
-  R_Visible = TRUE;
+RCP_OP(DDVAL_MISSOK) {
+  PUSH_VAL(1);
+  Rsh_DdValMissOk(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   NEXT;
-}*/
+}
+
+RCP_OP(VISIBLE) {
+  Rsh_Visible();
+  NEXT;
+}
 
 RCP_OP(SETVAR2) {
   Rsh_SetVar2(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
@@ -751,7 +779,7 @@ RCP_OP(SETTER_CALL) {
 }
 
 RCP_OP(GETTER_CALL) {
-  Rsh_GetterCall(GET_VAL(4), GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_GetterCall(GET_VAL(5), GET_VAL(4), GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
@@ -782,9 +810,11 @@ RCP_OP(STARTSUBSET_N) {
 
 RCP_OP(STARTSUBASSIGN_N) {
   Rboolean condition = Rsh_StartSubassignN(GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
-
   if(__builtin_expect(condition, FALSE))
+  {
+    POP_VAL(1);
     GOTO_IMM(1);
+  }
   else
     NEXT;
 }
@@ -824,34 +854,36 @@ RCP_OP(STARTSUBSET2_N) {
 
 RCP_OP(STARTSUBASSIGN2_N) {
   Rboolean condition = Rsh_StartSubassign2N(GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
-
   if(__builtin_expect(condition, FALSE))
+  {
+    POP_VAL(1);
     GOTO_IMM(1);
+  }
   else
     NEXT;
 }
 
 RCP_OP(SUBSET_N) {
-  Rsh_SubsetN(R_BCNodeStackTop, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_SubsetN(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
   POP_VAL(GET_IMM(1));
   NEXT;
 }
 
 RCP_OP(SUBSET2_N) {
-  Rsh_Subset2N(R_BCNodeStackTop, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Subset2N(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
   POP_VAL(GET_IMM(1));
   NEXT;
 }
 
 RCP_OP(SUBASSIGN_N) {
-  Rsh_SubassignN(R_BCNodeStackTop, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
-  POP_VAL(GET_IMM(1));
+  Rsh_SubassignN(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  POP_VAL(GET_IMM(1) + 1);
   NEXT;
 }
 
 RCP_OP(SUBASSIGN2_N) {
-  Rsh_Subassign2N(R_BCNodeStackTop, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
-  POP_VAL(GET_IMM(1));
+  Rsh_Subassign2N(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  POP_VAL(GET_IMM(1) + 1);
   NEXT;
 }
 
@@ -886,7 +918,10 @@ X_MATH1_EXT_OPS
 #undef X
 #endif
 
-//RCP_OP(DOTCALL)
+RCP_OP(DOTCALL) {
+  Rsh_DotCall(GET_VAL(1), GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  NEXT;
+}
 
 RCP_OP(COLON) {
   Rsh_Colon(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
