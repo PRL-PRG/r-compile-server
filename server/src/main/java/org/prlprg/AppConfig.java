@@ -39,9 +39,9 @@ public final class AppConfig extends Config {
   /**
    * Adds extra verification checks.
    *
-   * <p><b>Default:</b>: {@link CfgDebugLevel#VERIFY}.
+   * <p><b>Default:</b>: {@link CfgDebugLevel#AFTER_STEP}.
    */
-  public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.VERIFY);
+  public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.NONE);
 
   /**
    * Maximum number of characters vectors will print in `toString` before being truncated.
@@ -58,17 +58,11 @@ public final class AppConfig extends Config {
   public static final OptimizationLogLevel OPTIMIZATION_LOG_LEVEL =
       get("OPTIMIZATION_LOG_LEVEL", OptimizationLogLevel.NONE);
 
-  public enum CfgDebugLevel {
+  public enum CfgDebugLevel implements Comparable<CfgDebugLevel> {
     /** No extra checks. */
     NONE,
-    /** Run verification. */
-    VERIFY,
-    /** Run verification and track stack traces of removed nodes and blocks. */
-    VERIFY_AND_TRACK;
-
-    public boolean trackStack() {
-      return this == VERIFY_AND_TRACK;
-    }
+    /** Run verification after every pass. */
+    AFTER_STEP,
   }
 
   public enum OptimizationLogLevel implements Comparable<OptimizationLogLevel> {
