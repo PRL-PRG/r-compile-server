@@ -56,7 +56,7 @@ endif
 $(STENCILS_OBJ): stencils/stencils.c
 	@echo "Building stencils..."
 	mkdir -p build
-	$(CC) stencils/stencils.c -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -fno-pic -mcmodel=$(MCMODEL) -fno-math-errno -fno-trapping-math -fno-merge-constants -fno-jump-tables -fno-align-functions -fno-align-jumps -fno-align-labels -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c $(DEFINE_FLAGS) $(C_FLAGS_ADDITIONAL)
+	$(CC) stencils/stencils.c -Wall -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -fno-pic -mcmodel=$(MCMODEL) -fno-math-errno -fno-trapping-math -fno-merge-constants -fno-jump-tables -fno-align-functions -fno-align-jumps -fno-align-labels -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c $(DEFINE_FLAGS) $(C_FLAGS_ADDITIONAL)
 # -fno-align-loops
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.c

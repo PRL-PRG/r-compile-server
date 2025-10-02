@@ -74,7 +74,7 @@ extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM3(void);
 //[[gnu::musttail]] 
 
 
-EXTERN_ATTRIBUTES extern const SEXP const _RCP_RHO;
+EXTERN_ATTRIBUTES extern SEXP const _RCP_RHO;
 #define GET_RHO() _RCP_RHO
 
 extern const void* const _RCP_RAW_IMM0[];

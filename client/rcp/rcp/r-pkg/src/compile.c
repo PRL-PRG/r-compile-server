@@ -566,6 +566,8 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
     case RELOC_RCP_RAW_IMM:
     {
         ptr = imms[hole->val.imm_pos];
+        if(ptr == 0)
+            error("Zero integer passed as an argument to BC instruction.");
     }
     break;
     case RELOC_RCP_CONST_AT_IMM:
