@@ -1,6 +1,10 @@
 package org.prlprg.fir.opt;
 
+import static org.prlprg.fir.check.Checker.checkAll;
+
 import java.util.List;
+import org.prlprg.AppConfig;
+import org.prlprg.AppConfig.CfgDebugLevel;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 
 /// An optimization that runs sub-optimizations in a sequence repeatedly until a fixpoint.
@@ -26,12 +30,27 @@ public class FixpointSequence implements AbstractionOptimization {
 
   @Override
   public boolean run(Abstraction abstraction) {
+    var check = AppConfig.CFG_DEBUG_LEVEL.compareTo(CfgDebugLevel.AFTER_STEP) >= 0;
+
     var iteration = 0;
     while (iteration < maxIterations) {
       // Run iterations.
       var iterationChanged = false;
       for (var opt : subOptimizations) {
+        var codePreOpt = check ? abstraction.toString() : null;
         iterationChanged |= opt.run(abstraction);
+        if (check) {
+          new Cleanup(false).run(abstraction);
+          if (!checkAll(abstraction)) {
+            throw new AssertionError(
+                "Verification failed after "
+                    + opt
+                    + "\nBefore:\n"
+                    + codePreOpt
+                    + "\nAfter:\n"
+                    + abstraction);
+          }
+        }
       }
 
       // Stop if no changes.

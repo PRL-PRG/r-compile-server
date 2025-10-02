@@ -64,48 +64,49 @@ public final class TypeAndEffectChecker extends Checker {
   @Override
   public void doRun(Abstraction version) {
     var function = function();
-
-    // Check guaranteed effects and return type
-    var baselineEffects = function.baseline().effects();
-    var baselineReturnType = function.baseline().returnType();
-    if (!version.effects().isSubsetOf(baselineEffects)) {
-      report(
-          version,
-          "Version's effects must be a subset of its function's baseline's effects: "
-              + version.effects()
-              + " doesn't subtype "
-              + baselineEffects
-              + "\nIn fun "
-              + function.name()
-              + " { ... }");
-    }
-    if (!version.returnType().canBeAssignedTo(baselineReturnType)) {
-      report(
-          version,
-          "Version's return type must be assignable to its function's baseline's return type: "
-              + version.returnType()
-              + " isn't assignable to "
-              + baselineReturnType
-              + "\nIn fun "
-              + function.name()
-              + " { ... }");
-    }
-
-    // Check that versions with strictly worse parameters have strictly worse effects/return.
-    var signature = version.signature();
-    for (var worse : function.versionsSorted().tailSet(version)) {
-      var worseSignature = worse.signature();
-      if (signature.hasNarrowerParameters(worseSignature)
-          && !signature.hasNarrowerEffectsAndReturn(worseSignature)) {
+    if (function != null) {
+      // Check guaranteed effects and return type
+      var baselineEffects = function.baseline().effects();
+      var baselineReturnType = function.baseline().returnType();
+      if (!version.effects().isSubsetOf(baselineEffects)) {
         report(
             version,
-            "Version has strictly narrower parameters than another, but not strictly narrower effects and return type:"
-                + "\nThis version's signature: "
-                + signature
-                + "\nOther version's signature: "
-                + worseSignature
-                + "\nOther version:\n"
-                + worse);
+            "Version's effects must be a subset of its function's baseline's effects: "
+                + version.effects()
+                + " doesn't subtype "
+                + baselineEffects
+                + "\nIn fun "
+                + function.name()
+                + " { ... }");
+      }
+      if (!version.returnType().canBeAssignedTo(baselineReturnType)) {
+        report(
+            version,
+            "Version's return type must be assignable to its function's baseline's return type: "
+                + version.returnType()
+                + " isn't assignable to "
+                + baselineReturnType
+                + "\nIn fun "
+                + function.name()
+                + " { ... }");
+      }
+
+      // Check that versions with strictly worse parameters have strictly worse effects/return.
+      var signature = version.signature();
+      for (var worse : function.versionsSorted().tailSet(version)) {
+        var worseSignature = worse.signature();
+        if (signature.hasNarrowerParameters(worseSignature)
+            && !signature.hasNarrowerEffectsAndReturn(worseSignature)) {
+          report(
+              version,
+              "Version has strictly narrower parameters than another, but not strictly narrower effects and return type:"
+                  + "\nThis version's signature: "
+                  + signature
+                  + "\nOther version's signature: "
+                  + worseSignature
+                  + "\nOther version:\n"
+                  + worse);
+        }
       }
     }
 

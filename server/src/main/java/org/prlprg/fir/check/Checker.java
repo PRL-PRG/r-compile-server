@@ -3,6 +3,7 @@ package org.prlprg.fir.check;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -30,11 +31,33 @@ public abstract class Checker {
     return checkAll(module, true);
   }
 
+  /// Check types, effects, provenance, and CFG invariants in the function. If there are any
+  /// errors, [prints them to `stderr`][Checker#print] and returns `false`.
+  @CheckReturnValue
+  public static boolean checkAll(Function function) {
+    return checkAll(c -> c.run(function), true);
+  }
+
+  /// Check types, effects, provenance, and CFG invariants in the version. If there are any
+  /// errors, [prints them to `stderr`][Checker#print] and returns `false`.
+  @CheckReturnValue
+  public static boolean checkAll(Abstraction version) {
+    return checkAll(c -> c.run(null, version), true);
+  }
+
   /// Check invariants (CFG, types, effects, optionally provenance, and environments) in the
   /// module. If there are any errors, [prints them to `stderr`][Checker#print] and returns
   /// `false`.
   @CheckReturnValue
   public static boolean checkAll(Module module, boolean includeProvenance) {
+    return checkAll(c -> c.run(module), includeProvenance);
+  }
+
+  /// Check invariants (CFG, types, effects, optionally provenance, and environments) in the
+  /// module. If there are any errors, [prints them to `stderr`][Checker#print] and returns
+  /// `false`.
+  @CheckReturnValue
+  private static boolean checkAll(Consumer<Checker> doCheck, boolean includeProvenance) {
     var checkers =
         List.of(
             new CFGChecker(),
@@ -44,7 +67,7 @@ public abstract class Checker {
 
     // Don't short-circuit.
     for (var checker : checkers) {
-      checker.run(module);
+      doCheck.accept(checker);
     }
     for (var checker : checkers) {
       checker.print();
@@ -84,8 +107,8 @@ public abstract class Checker {
   /// Reports errors in [#errors()]. Doesn't print or throw.
   ///
   /// @throws IllegalArgumentException If `version` isn't in `function`.
-  public final void run(Function function, Abstraction version) {
-    if (!function.contains(version)) {
+  public final void run(@Nullable Function function, Abstraction version) {
+    if (function != null && !function.contains(version)) {
       throw new IllegalArgumentException(
           "Function " + function.name() + " doesn't contain version " + version);
     }
@@ -114,32 +137,22 @@ public abstract class Checker {
   protected abstract void doRun(Abstraction version);
 
   /// The function currently being checked.
-  ///
-  /// @throws IllegalStateException If [#doRun(Abstraction)] isn't being called.
-  protected final Function function() {
-    if (function == null) {
-      throw new IllegalStateException("Checker isn't running");
-    }
-
+  protected final @Nullable Function function() {
     return function;
   }
 
-  /// @throws IllegalStateException If [#doRun(Abstraction)] isn't being called.
   protected final void report(Abstraction abstraction, String message) {
     report(Objects.requireNonNull(abstraction.cfg()).entry(), 0, message);
   }
 
-  /// @throws IllegalStateException If [#doRun(Abstraction)] isn't being called.
   protected final void report(ScopePosition position, String message) {
     report(position.inInnermostCfg(), message);
   }
 
-  /// @throws IllegalStateException If [#doRun(Abstraction)] isn't being called.
   protected final void report(CfgPosition position, String message) {
     report(position.bb(), position.instructionIndex(), message);
   }
 
-  /// @throws IllegalStateException If [#doRun(Abstraction)] isn't being called.
   protected final void report(BB bb, int instructionIndex, String message) {
     errors.add(new CheckException(function(), new CFGCursor(bb, instructionIndex), message));
   }

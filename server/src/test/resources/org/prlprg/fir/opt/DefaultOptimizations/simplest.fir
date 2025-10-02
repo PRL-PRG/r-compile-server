@@ -1,6 +1,6 @@
 fun main() {
   # after: () --> I { |
-  () --> I { reg r:V |
+  () --> V { reg r:V |
     # after:
     r = 42;
     # after: return 42;
