@@ -908,6 +908,13 @@ static INLINE void Rsh_SetVar2(Value *r0, SEXP symbol, SEXP rho) {
     return val_as_sexp(__ret__);                                               \
   } while (0);
 
+#define Rsh_ReturnJmp(/* Value* */ r0, saved_stack_top, rho)                   \
+  do {                                                                         \
+    SEXP __ret__ = val_as_sexp(*r0);                                           \
+    R_BCNodeStackTop -= (saved_stack_top);                                     \
+    Rf_findcontext(CTXT_BROWSER | CTXT_FUNCTION, rho, __ret__);                \
+  } while (0);
+
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
     DECREMENT_LINKS(CAR(a));
@@ -1022,7 +1029,7 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
     SEXP body = BODY(fun_sxp);
 
     // inline our call
-    if (0 && TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
         !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
         R_GlobalContext->callflag != CTXT_GENERIC) {
 
@@ -2838,5 +2845,13 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
   vmaxset(vmax);
   SET_VAL(value, v);
 }
+
+static INLINE Rboolean Rsh_StartLoopCntxt(RCNTXT *cntxt, SEXP rho) {
+  Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
+                  R_NilValue);
+  return sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;
+}
+
+static INLINE void Rsh_EndLoopCntxt(RCNTXT *ctntxt) { Rf_endcontext(ctntxt); }
 
 #endif // RUNTIME_H

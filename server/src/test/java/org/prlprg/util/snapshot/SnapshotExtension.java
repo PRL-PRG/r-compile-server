@@ -57,9 +57,14 @@ public abstract class SnapshotExtension<T> implements ParameterResolver, AfterAl
    * @param actual the actual value
    * @param oracle optionally, an oracle can generate the expected value in the case of a missing
    *     snapshot
+   * @param saveSnapshot if true, saves the snapshot if it is missing
    */
   protected void verify(
-      Method testMethod, String snapshotName, T actual, @Nullable ThrowingSupplier<T> oracle) {
+      Method testMethod,
+      String snapshotName,
+      T actual,
+      @Nullable ThrowingSupplier<T> oracle,
+      boolean saveSnapshot) {
     var store = stores.computeIfAbsent(testMethod, storeFactory::create);
 
     var expectedOpt = Optional.<T>empty();
@@ -80,10 +85,12 @@ public abstract class SnapshotExtension<T> implements ParameterResolver, AfterAl
         expected = actual;
       }
 
-      try {
-        store.save(snapshotName, expected);
-      } catch (Exception e) {
-        throw new RuntimeException("Unable to save snapshot: " + snapshotName, e);
+      if (saveSnapshot) {
+        try {
+          store.save(snapshotName, expected);
+        } catch (Exception e) {
+          throw new RuntimeException("Unable to save snapshot: " + snapshotName, e);
+        }
       }
     }
 

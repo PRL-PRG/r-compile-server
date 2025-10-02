@@ -1319,7 +1319,7 @@ public class BCCompiler {
         return inlineSpecial(call);
       }
     } else {
-      // TODO: notifyWrongBreakNext or notifyWrongBreakNext
+      // TODO: notifyWrongBreakNext
       return inlineSpecial(call);
     }
   }

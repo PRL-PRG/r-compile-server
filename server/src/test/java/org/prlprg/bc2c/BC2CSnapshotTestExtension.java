@@ -94,10 +94,16 @@ public class BC2CSnapshotTestExtension
       int seq = 0;
       boolean clean = true;
       boolean compilePromises = false;
+      boolean saveSnapshot = true;
 
       @Override
       public void setCompilePromises(boolean compilePromises) {
         this.compilePromises = compilePromises;
+      }
+
+      @Override
+      public void setSaveSnapshot(boolean saveSnapshot) {
+        this.saveSnapshot = saveSnapshot;
       }
 
       @Override
@@ -109,7 +115,7 @@ public class BC2CSnapshotTestExtension
           } else {
             var res = artifact.result.getRight();
             BC2CSnapshotTestExtension.this.verify(
-                testMethod, String.valueOf(++seq), res, oracle(code));
+                testMethod, String.valueOf(++seq), res, oracle(code), saveSnapshot);
 
             for (var check : extraChecks) {
               check.accept(res);
@@ -245,5 +251,7 @@ public class BC2CSnapshotTestExtension
     void setClean(boolean clean);
 
     void setCompilePromises(boolean compilePromises);
+
+    void setSaveSnapshot(boolean save);
   }
 }
