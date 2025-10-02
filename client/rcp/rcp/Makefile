@@ -129,7 +129,8 @@ benchmark:
 		exit 1; \
 	fi
 
-test: install
+testb:
+	@BENCH_ITER=1 $(MAKE) benchmark
 
 
 .PHONY: clean
