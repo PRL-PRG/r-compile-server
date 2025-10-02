@@ -45,16 +45,11 @@ public final class EnvironmentCount extends AbstractInterpretation<EnvironmentCo
 
     @Override
     protected void run(Statement statement) {
-      var expression = statement.expression();
-
-      if (expression instanceof Promise(var _, var _, var code)) {
-        onCfg(code).run(state());
-      }
-
-      if (expression instanceof MkEnv) {
-        state().increment();
-      } else if (expression instanceof PopEnv) {
-        state().decrement();
+      switch (statement.expression()) {
+        case Promise(var _, var _, var code) -> runSubAnalysis(code, state()::merge);
+        case MkEnv _ -> state().increment();
+        case PopEnv _ -> state().decrement();
+        default -> {}
       }
     }
   }
