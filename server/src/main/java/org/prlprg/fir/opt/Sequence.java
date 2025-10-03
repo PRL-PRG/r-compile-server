@@ -20,9 +20,12 @@ public class Sequence implements Optimization {
     var check = AppConfig.CFG_DEBUG_LEVEL.compareTo(CfgDebugLevel.AFTER_STEP) >= 0;
 
     for (var opt : subOptimizations) {
-      var codePreOpt = check ? function.toString() : null;
+      var checkOpt = check && !(opt instanceof Cleanup);
+      var codePreOpt = checkOpt ? function.toString() : null;
+
       opt.run(function);
-      if (check) {
+
+      if (checkOpt) {
         new Cleanup(false).run(function);
         if (!checkAll(function)) {
           throw new AssertionError(
