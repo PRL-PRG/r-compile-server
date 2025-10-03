@@ -37,9 +37,12 @@ public class FixpointSequence implements AbstractionOptimization {
       // Run iterations.
       var iterationChanged = false;
       for (var opt : subOptimizations) {
-        var codePreOpt = check ? abstraction.toString() : null;
+        var checkOpt = check && !(opt instanceof Cleanup);
+        var codePreOpt = checkOpt ? abstraction.toString() : null;
+
         iterationChanged |= opt.run(abstraction);
-        if (check) {
+
+        if (checkOpt) {
           new Cleanup(false).run(abstraction);
           if (!checkAll(abstraction)) {
             throw new AssertionError(
