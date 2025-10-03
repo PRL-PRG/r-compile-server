@@ -16,7 +16,6 @@ public interface SpecializeOptimization {
   AnalysisTypes analyses();
 
   /// If `false`, skips running the optimization on the abstraction.
-  @SuppressWarnings("unused")
   default boolean shouldRun(Abstraction scope, Analyses analyses) {
     return true;
   }
