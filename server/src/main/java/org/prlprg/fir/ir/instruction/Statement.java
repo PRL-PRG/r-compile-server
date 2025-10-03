@@ -15,6 +15,8 @@ import org.prlprg.primitive.Names;
 import org.prlprg.util.Characters;
 
 public record Statement(@Nullable Register assignee, Expression expression) implements Instruction {
+  public static final Statement NOOP = new Statement(Expression.NOOP);
+
   public Statement(Expression expression) {
     this(null, expression);
   }

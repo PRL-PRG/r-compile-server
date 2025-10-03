@@ -3,8 +3,8 @@ package org.prlprg.fir.opt.specialize;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.CfgReachability;
 import org.prlprg.fir.analyze.cfg.Loads;
-import org.prlprg.fir.analyze.cfg.Reachability;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
@@ -15,7 +15,7 @@ import org.prlprg.fir.ir.variable.Register;
 public record ElideDeadStore() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes(Loads.class, Reachability.class);
+    return new AnalysisTypes(Loads.class, CfgReachability.class);
   }
 
   @Override
@@ -39,7 +39,7 @@ public record ElideDeadStore() implements SpecializeOptimization {
 
     var cfg = bb.owner();
     var loads = analyses.get(Loads.class);
-    var reachability = analyses.get(cfg, Reachability.class);
+    var reachability = analyses.get(cfg, CfgReachability.class);
     if (loads.get(variable).stream()
         .anyMatch(
             scopePos -> {

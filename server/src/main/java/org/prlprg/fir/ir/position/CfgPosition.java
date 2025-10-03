@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -26,11 +27,20 @@ public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction ins
     return bb.owner();
   }
 
-  /// @throws IllegalArgumentException If `replacement` is a [Statement] and this is a [Jump],
-  /// or vice versa.
+  /// @throws IllegalArgumentException If this is a phi group or [Jump].
+  public void replaceWith(Expression replacement) {
+    if (!(instruction instanceof Statement(var assignee, var _))) {
+      throw new IllegalArgumentException("Can't replace a phi group or jump:\n" + this);
+    }
+
+    bb.replaceStatementAt(instructionIndex, new Statement(assignee, replacement));
+  }
+
+  /// @throws IllegalArgumentException If this is a phi group, `replacement` is a [Statement]
+  /// and this is a [Jump], or `replacement` is a [Jump] and this is a [Statement].
   public void replaceWith(Instruction replacement) {
     if (instruction == null) {
-      throw new IllegalArgumentException("Can't replace a phi group");
+      throw new IllegalArgumentException("Can't replace a phi group:\n" + this);
     }
 
     switch (replacement) {

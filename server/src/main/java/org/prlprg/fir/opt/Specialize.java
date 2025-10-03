@@ -17,7 +17,6 @@ import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -70,21 +69,13 @@ public class Specialize implements AbstractionOptimization {
 
     void run() {
       var changes = new TreeSet<CfgPosition>();
-      var deferredInsertions =
-          new LinkedHashMap<CFG, HashMap<BB, TreeMap<Integer, List<Runnable>>>>();
-
-      // This is necessary specifically for `Inline`,
-      // because it removes promise bodies only to add them in `deferredInsertions`.
-      // Perhaps we should make `Inline` its own optimization again...
-      analyses.forceAbstractionAnalyses();
+      var deferredInsertions = new LinkedHashMap<BB, TreeMap<Integer, List<Runnable>>>();
 
       // Initially, run on every expression.
       scope
           .streamCfgs()
           .forEach(
               cfg -> {
-                deferredInsertions.put(cfg, new HashMap<>());
-
                 for (var bb : cfg.bbs()) {
                   for (var i = 0; i < bb.statements().size(); i++) {
                     var next = new CfgPosition(bb, i, bb.statements().get(i));
@@ -93,7 +84,7 @@ public class Specialize implements AbstractionOptimization {
                     // since we change it here.
                     changes.remove(next);
 
-                    run(next, changes, deferredInsertions.get(cfg));
+                    run(next, changes, deferredInsertions);
                   }
                 }
               });
@@ -102,7 +93,7 @@ public class Specialize implements AbstractionOptimization {
       // This always reaches a fixpoint because types only get more specific.
       while (!changes.isEmpty()) {
         var next = changes.removeFirst();
-        run(next, changes, deferredInsertions.get(next.cfg()));
+        run(next, changes, deferredInsertions);
       }
 
       for (var subOptimization : subOptimizations) {
@@ -111,19 +102,16 @@ public class Specialize implements AbstractionOptimization {
 
       // Commit deferred insertions.
       // Must be after everything else, because it invalidates `analyses`.
-      // We must run inner CFGs before outer ones, (again) specifically for `Inline`.
-      for (var insertions : deferredInsertions.sequencedValues().reversed()) {
-        changed |= !insertions.isEmpty();
-        // BB order doesn't matter
-        for (var insertions1 : insertions.values()) {
-          // Insert in reverse order so positions remain valid
-          // (all changes must be local according to `DeferredInsertions#stage` javadoc).
-          for (var insertionsIndex : insertions1.descendingKeySet()) {
-            // It may not matter, but
-            // run insertions at the same position in the order they're staged.
-            for (var insertion : insertions1.get(insertionsIndex)) {
-              insertion.run();
-            }
+      changed |= !deferredInsertions.isEmpty();
+      // BB order doesn't matter
+      for (var insertions : deferredInsertions.values()) {
+        // Insert in reverse order so positions remain valid
+        // (all changes must be local according to `DeferredInsertions#stage` javadoc).
+        for (var indexOfSomeInsertions : insertions.descendingKeySet()) {
+          // It may not matter, but
+          // run insertions at the same position in the order they're staged.
+          for (var insertion : insertions.get(indexOfSomeInsertions)) {
+            insertion.run();
           }
         }
       }

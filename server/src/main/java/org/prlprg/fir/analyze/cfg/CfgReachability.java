@@ -17,13 +17,13 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.position.CfgPosition;
 
 /// Computes reachable blocks in a control-flow graph.
-/// Similar to `DominatorTree`, except it computes reachable blocks instead of dominator blocks.
-public final class Reachability implements CfgAnalysis {
+/// Similar to [CfgDominatorTree], except it computes reachable blocks instead of dominator blocks.
+public final class CfgReachability implements CfgAnalysis {
   private final CFG cfg;
   private final Map<BB, Set<BB>> reachableFrom = new HashMap<>();
 
   @AnalysisConstructor
-  public Reachability(CFG cfg) {
+  public CfgReachability(CFG cfg) {
     this.cfg = cfg;
     run();
   }
