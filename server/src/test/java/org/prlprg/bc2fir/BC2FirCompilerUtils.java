@@ -5,6 +5,7 @@ import static org.prlprg.fir.check.Checker.checkAll;
 import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import org.prlprg.bc.BCCompiler;
+import org.prlprg.fir.check.Checker.Exclude;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
@@ -39,7 +40,7 @@ final class BC2FirCompilerUtils {
       cleanup(firModule, false);
 
       // Don't check flow, because it's trivial (no `use` annotations) but expensive.
-      if (!checkAll(firModule, false)) {
+      if (!checkAll(firModule, Exclude.PROVENANCE)) {
         fail("Compiled FIŘ failed verification\n" + firModule);
       }
     }

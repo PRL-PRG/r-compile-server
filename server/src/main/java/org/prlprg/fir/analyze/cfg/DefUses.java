@@ -1,5 +1,6 @@
 package org.prlprg.fir.analyze.cfg;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +39,13 @@ public final class DefUses implements Analysis {
   /// Get all assignments (defs) of a register.
   public @UnmodifiableView Set<ScopePosition> definitions(Register register) {
     return Collections.unmodifiableSet(definitions.getOrDefault(register, Set.of()));
+  }
+
+  /// Get the only assignment of a register, or `null` if there is not exactly one (which
+  /// implies the CFG is invalid).
+  public @Nullable ScopePosition definition(Register register) {
+    var defs = definitions.get(register);
+    return defs == null || defs.size() > 1 ? null : Iterables.getOnlyElement(defs);
   }
 
   /// Get all reads (uses) of a register.

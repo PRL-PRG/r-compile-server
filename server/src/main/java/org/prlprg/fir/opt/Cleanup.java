@@ -7,6 +7,7 @@ import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
 import org.prlprg.fir.analyze.Analyses;
+import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -276,7 +277,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     }
 
     void substituteWithOrigins() {
-      var analyses = new Analyses(scope, OriginAnalysis.class, DefUses.class);
+      var analyses =
+          new Analyses(scope, OriginAnalysis.class, DefUses.class, CfgDominatorTree.class);
       var defUseAnalysis = analyses.get(DefUses.class);
       var originAnalysis = analyses.get(OriginAnalysis.class);
 
@@ -286,6 +288,26 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
         // Can't substitute with `use`, unless there's exactly one occurrence besides this one.
         if (origin instanceof Use(var used) && defUseAnalysis.uses(used).size() > 2) {
+          continue;
+        }
+
+        // Can't substitute if origin analysis is too smart, e.g. looks through promises,
+        // such that `origin`'s definition doesn't dominate `register`'s uses.
+        // Eventually said promises will be inlined, and other analyses use origin analysis,
+        // so it doesn't really hurt optimizations.
+        // But if it did, technically we're allowed to substitute and the code is "valid" in
+        // that it won't cause UB (assuming no other bugs), it just isn't "valid" according to
+        // our underapproximate but simpler criteria (promises can never be guaranteed forced).
+        var originDef =
+            origin.variable() == null ? null : defUseAnalysis.definition(origin.variable());
+        if (originDef != null
+            && defUseAnalysis.uses(register).stream()
+                .anyMatch(
+                    registerUse ->
+                        !CfgDominatorTree.dominates(
+                            cfg -> analyses.get(cfg, CfgDominatorTree.class),
+                            originDef,
+                            registerUse))) {
           continue;
         }
 

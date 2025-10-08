@@ -10,6 +10,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
@@ -17,6 +18,7 @@ import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 
 /// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
 /// dominator of its children.
@@ -25,6 +27,23 @@ public final class CfgDominatorTree implements CfgAnalysis {
   private final Map<BB, BB> immediateDominators = new HashMap<>();
   private final Map<BB, Set<BB>> immediateDominees = new HashMap<>();
   private final Map<BB, Set<BB>> dominators = new HashMap<>();
+
+  /// Determine whether a [ScopePosition] dominates another using [CfgDominatorTree] instead of
+  /// [DominatorTree].
+  public static boolean dominates(
+      Function<CFG, CfgDominatorTree> getDomTree, ScopePosition dominator, ScopePosition dominee) {
+    var localDominator = dominator.inInnermostCfg();
+    var localDominee = dominee.inCfg(localDominator.cfg());
+
+    if (localDominee == null) {
+      // Use is in a sibling or outer promise
+      return false;
+    }
+
+    var dominatorTree = getDomTree.apply(localDominator.cfg());
+
+    return dominatorTree.dominates(localDominator, localDominee);
+  }
 
   @AnalysisConstructor
   public CfgDominatorTree(CFG cfg) {
