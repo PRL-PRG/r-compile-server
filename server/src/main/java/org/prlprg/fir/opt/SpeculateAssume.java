@@ -23,6 +23,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Lists;
+import org.prlprg.util.Pair;
 
 /// Insert assumptions that feedback suggests will always pass.
 ///
@@ -78,7 +79,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
     var domTree = new DominatorTree(scope);
 
     // Find assumptions
-    var assumptionsToInsert = ArrayListMultimap.<BB, Assume>create();
+    var assumesToInsert = ArrayListMultimap.<BB, Assume>create();
     for (var local : scope.locals()) {
       if (!(local.variable() instanceof Register register)) {
         continue;
@@ -140,28 +141,28 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
         // and we can't substitute multiple times.
         if (calleeFeedback != null) {
           var assumeCallee = new AssumeFunction(new Read(register), calleeFeedback);
-          assumptionsToInsert.put(successBb, assumeCallee);
+          assumesToInsert.put(successBb, assumeCallee);
         } else if (constantFeedback != null) {
           var assumeConstant =
               new AssumeConstant(new Read(register), new Constant(constantFeedback));
-          assumptionsToInsert.put(successBb, assumeConstant);
+          assumesToInsert.put(successBb, assumeConstant);
         } else if (!typeFeedback.equals(local.type())) {
           var assumeType = new AssumeType(new Read(register), typeFeedback);
-          assumptionsToInsert.put(successBb, assumeType);
+          assumesToInsert.put(successBb, assumeType);
         }
       }
     }
 
     // Stop unless we have changes
-    if (assumptionsToInsert.isEmpty()) {
+    if (assumesToInsert.isEmpty()) {
       return false;
     }
 
     // Substitute assumed registers
     var assumeSubsts = new DomineeSubstituter(domTree, scope);
-    var assumeDsts = new HashMap<Assume, Register>();
+    var assumeDsts = new HashMap<Pair<Assume, BB>, Register>();
     var afterAssumeStmts = ArrayListMultimap.<BB, Statement>create();
-    for (var entry : assumptionsToInsert.entries()) {
+    for (var entry : assumesToInsert.entries()) {
       var successBb = entry.getKey();
       var assume = entry.getValue();
       assert successBb != null && assume != null;
@@ -171,7 +172,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
         case AssumeType(var _, var type) -> {
           var improvedType = scope.addLocal(target.name(), type);
           assumeSubsts.stage(target, new Read(improvedType), successBb);
-          assumeDsts.put(assume, improvedType);
+          assumeDsts.put(Pair.of(assume, successBb), improvedType);
         }
         case AssumeFunction af -> {
           var fun = af.function();
@@ -186,7 +187,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
     }
     assumeSubsts.commit();
 
-    for (var entry : assumptionsToInsert.asMap().entrySet()) {
+    for (var entry : assumesToInsert.asMap().entrySet()) {
       var successBb = entry.getKey();
       var assumes = (List<Assume>) entry.getValue();
       assert successBb != null;
@@ -196,7 +197,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
               Lists.mapLazy(
                   assumes,
                   assume -> {
-                    var dst = assumeDsts.get(assume);
+                    var dst = assumeDsts.get(Pair.of(assume, successBb));
                     return new Statement(dst, assume);
                   }),
               afterAssumeStmts.get(successBb));

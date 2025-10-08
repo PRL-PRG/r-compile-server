@@ -104,7 +104,6 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       // Registers
       if (substituteWithOrigins) {
         substituteWithOrigins();
-        substituter.commit();
       }
       removeUnusedLocals();
 
@@ -312,9 +311,10 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         }
 
         substituter.stage(register, origin);
+        changed = true;
       }
 
-      changed |= !originAnalysis.registerOrigins().isEmpty();
+      substituter.commit();
     }
 
     void removeUnusedLocals() {
