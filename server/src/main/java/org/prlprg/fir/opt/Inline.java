@@ -4,7 +4,6 @@ import static org.prlprg.fir.analyze.resolve.NamedVariablesOf.namedVariablesOf;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.List;
@@ -104,12 +103,9 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       if (!(analyses.get(OriginAnalysis.class).resolve(forced) instanceof Read(var forcedReg))) {
         return;
       }
-      var forceDefs = analyses.get(DefUses.class).definitions(forcedReg);
-      if (forceDefs.size() != 1) {
-        return;
-      }
-      var forceDef = Iterables.getOnlyElement(forceDefs).inInnermostCfg();
-      if (!(forceDef.instruction() instanceof Statement forceStmt)
+      var forceDef = analyses.get(DefUses.class).definition(forcedReg);
+      if (forceDef == null
+          || !(forceDef.inInnermostCfg().instruction() instanceof Statement forceStmt)
           || !(forceStmt.expression() instanceof Promise(var valueType, var effects, var code))
           || effects.reflect()) {
         return;
@@ -176,7 +172,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
 
         // Technically instead of removing the promise, we must replace it, because non-force
         // instructions may use it. We replace with a promise stub so types are correct.
-        forceDef.replaceWith(new Promise(valueType, effects, new CFG(scope)));
+        forceDef.inInnermostCfg().replaceWith(new Promise(valueType, effects, new CFG(scope)));
 
         // Now convert forces into reads.
         for (var forcePos : otherForcePositions) {

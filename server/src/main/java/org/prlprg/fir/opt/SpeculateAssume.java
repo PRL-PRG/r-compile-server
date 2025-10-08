@@ -1,7 +1,6 @@
 package org.prlprg.fir.opt;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Iterables;
 import java.util.HashMap;
 import java.util.List;
 import org.prlprg.fir.analyze.cfg.DefUses;
@@ -109,11 +108,10 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
       }
 
       // Skip malformed where register isn't defined or is defined multiple times.
-      var defs = defUses.definitions(register);
-      if (defs.size() != 1) {
+      var def = defUses.definition(register);
+      if (def == null) {
         continue;
       }
-      var def = Iterables.getOnlyElement(defs);
 
       // Get possible checkpoints where after we can insert assumptions for the register
       var availableCheckpointBbs =

@@ -15,16 +15,18 @@ import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Verifies the following invariants:
+/// Verifies the following invariants (*(strict)* only if `isStrict` is `true`):
 /// - Promise CFGs have the same scope as their parents.
 /// - Promises don't reuse CFG pointers.
-/// - All basic blocks are reachable from entry
-/// - Entry blocks and blocks with 1 predecessor (except if the predecessor branches with
-///   different arguments) don't have phi parameters
+/// - *(strict)* All basic blocks are reachable from entry
+/// - *(strict)* Entry blocks and blocks with 1 predecessor (except if the predecessor branches
+///   with different arguments) don't have phi parameters
 /// - Jump targets have the correct number of phi arguments
 /// - There are no duplicate variable declarations in the scope
 /// - All registers are declared in the innermost scope
-/// - Parameters are never assigned, local registers are assigned exactly once
+/// - Parameters are never assigned
+/// - *(non-strict)* Local registers have at most one assignment
+/// - *(strict)* Local registers have exactly one assignment
 /// - Register reads (and uses) must be dominated by their assignments. In other words, during
 ///   execution, the assignment must be guaranteed to occur before the read.
 ///   - Registers can't be read across scopes.
@@ -36,6 +38,12 @@ import org.prlprg.fir.ir.variable.Register;
 ///     definition must be guaranteed to occur before all promises containing the read (which
 ///     ensures it occurs before the read itself).
 public class CFGChecker extends Checker {
+  private final boolean isStrict;
+
+  public CFGChecker(boolean isStrict) {
+    this.isStrict = isStrict;
+  }
+
   @Override
   protected void doRun(Abstraction version) {
     new OnAbstraction(version).run();
@@ -97,7 +105,8 @@ public class CFGChecker extends Checker {
         }
       }
 
-      // Locals should be assigned exactly once
+      // *(non-strict)* Local registers have at most one assignment
+      // *(strict)* Local registers have exactly one assignment
       for (var local : scope.locals()) {
         if (!(local.variable() instanceof Register localReg)) {
           continue;
@@ -105,7 +114,7 @@ public class CFGChecker extends Checker {
 
         var definitions = defUses.definitions(localReg);
 
-        if (definitions.isEmpty()) {
+        if (isStrict && definitions.isEmpty()) {
           report(scope, "Local register " + localReg + " is never assigned");
         } else if (definitions.size() > 1) {
           for (var def : definitions) {
@@ -120,13 +129,12 @@ public class CFGChecker extends Checker {
           continue;
         }
 
-        var definitions = defUses.definitions(localReg);
+        var def = defUses.definition(localReg);
         var uses = defUses.uses(localReg);
 
-        if (definitions.size() != 1) {
+        if (def == null) {
           continue;
         }
-        var def = Iterables.getOnlyElement(definitions);
 
         var reportedDef = false;
         for (var use : uses) {
@@ -146,17 +154,7 @@ public class CFGChecker extends Checker {
     }
 
     private boolean isDefBeforeUse(ScopePosition definition, ScopePosition use) {
-      var localDef = definition.inInnermostCfg();
-      var localUse = use.inCfg(localDef.cfg());
-
-      if (localUse == null) {
-        // Use is in a sibling or outer promise
-        return false;
-      }
-
-      var dominatorTree = dominatorTrees.get(localDef.cfg());
-
-      return dominatorTree.dominates(localDef, localUse);
+      return CfgDominatorTree.dominates(dominatorTrees::get, definition, use);
     }
 
     class OnCfg {
@@ -210,31 +208,35 @@ public class CFGChecker extends Checker {
           }
         }
 
-        // All blocks must be reachable from entry
-        var entry = cfg.entry();
-        for (var bb : cfg.bbs()) {
-          if (bb != entry && dominatorTree.dominators(bb).size() == 1) {
-            report(bb, -1, "Block " + bb.label() + " is unreachable from entry");
+        // *(strict)* All blocks must be reachable from entry
+        if (isStrict) {
+          var entry = cfg.entry();
+          for (var bb : cfg.bbs()) {
+            if (bb != entry && dominatorTree.dominators(bb).size() == 1) {
+              report(bb, -1, "Block " + bb.label() + " is unreachable from entry");
+            }
           }
         }
 
-        // The entry block and blocks with < 2 predecessors can't have phi parameters
-        for (var bb : cfg.bbs()) {
-          if (!bb.phiParameters().isEmpty()) {
-            if (bb == cfg.entry()) {
-              report(bb, -1, "Entry block can't have phis");
-            }
+        // *(strict)* The entry block and blocks with < 2 predecessors can't have phi parameters
+        if (isStrict) {
+          for (var bb : cfg.bbs()) {
+            if (!bb.phiParameters().isEmpty()) {
+              if (bb == cfg.entry()) {
+                report(bb, -1, "Entry block can't have phis");
+              }
 
-            if (bb.predecessors().size() == 1) {
-              var predecessor = Iterables.getOnlyElement(bb.predecessors());
-              if (!(predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
-                  && ifTrue.bb() == bb
-                  && ifFalse.bb() == bb
-                  && !ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {
-                report(
-                    bb,
-                    -1,
-                    "Block with 1 predecessor (which isn't an 'if' whose arguments are different in both branches) can't have phis");
+              if (bb.predecessors().size() == 1) {
+                var predecessor = Iterables.getOnlyElement(bb.predecessors());
+                if (!(predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
+                    && ifTrue.bb() == bb
+                    && ifFalse.bb() == bb
+                    && !ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {
+                  report(
+                      bb,
+                      -1,
+                      "Block with 1 predecessor (which isn't an 'if' whose arguments are different in both branches) can't have phis");
+                }
               }
             }
           }

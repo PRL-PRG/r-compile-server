@@ -1,6 +1,5 @@
 package org.prlprg.fir.analyze.resolve;
 
-import com.google.common.collect.Iterables;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -136,10 +135,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return null;
     }
 
-    var defs = defUses.definitions(originReg);
-    if (defs.size() != 1
-        || !(Iterables.getOnlyElement(defs).inInnermostCfg().instruction()
-            instanceof Statement(var _, var expr))) {
+    var def = defUses.definition(originReg);
+    if (def == null
+        || !(def.inInnermostCfg().instruction() instanceof Statement(var _, var expr))) {
       return null;
     }
 
