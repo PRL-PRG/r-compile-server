@@ -85,7 +85,7 @@ public class RDSWriter implements Closeable {
     out.writeInt(flags.encode());
 
     switch (flags.getType()) {
-        // Special types not handled by Save Special hooks
+      // Special types not handled by Save Special hooks
       case RDSItemType.Special special -> {
         switch (special) {
           case RDSItemType.Special.NAMESPACESXP -> {
@@ -149,16 +149,16 @@ public class RDSWriter implements Closeable {
    */
   private boolean hasTag(SEXP s) {
     return switch (s) {
-        // CloSXP should always be marked as having a tag
+      // CloSXP should always be marked as having a tag
       case CloSXP _ -> true;
-        // The tag for a LangSXP is manually assigned to the function (this is very rare). We
-        // don't support them.
+      // The tag for a LangSXP is manually assigned to the function (this is very rare). We
+      // don't support them.
       case LangSXP _ -> false;
-        // In GNUR, the tag of a promise is its environment. The environment is set to null once
-        // the promise is evaluated. So, hasTag should return true if and only if the promise is
-        // unevaluated (lazy)
+      // In GNUR, the tag of a promise is its environment. The environment is set to null once
+      // the promise is evaluated. So, hasTag should return true if and only if the promise is
+      // unevaluated (lazy)
       case PromSXP prom -> prom.isLazy();
-        // hasTag is based on the first element
+      // hasTag is based on the first element
       case ListSXP list -> !list.isEmpty() && list.get(0).hasTag();
       default -> false;
     };
@@ -167,7 +167,7 @@ public class RDSWriter implements Closeable {
   /** Determines the RDS item type associated with the provided SEXP. */
   private RDSItemType rdsType(SEXP s) {
     return switch (s) {
-        // "Save Special hooks" from serialize.c
+      // "Save Special hooks" from serialize.c
       case NilSXP _ -> RDSItemType.Special.NILVALUE_SXP;
       case ListSXP l when l.isEmpty() -> RDSItemType.Special.NILVALUE_SXP;
       case EmptyEnvSXP _ -> RDSItemType.Special.EMPTYENV_SXP;
@@ -176,7 +176,7 @@ public class RDSWriter implements Closeable {
       case SpecialSymSXP sexp when sexp == SEXPs.UNBOUND_VALUE ->
           RDSItemType.Special.UNBOUNDVALUE_SXP;
       case SpecialSymSXP sexp when sexp == SEXPs.MISSING_ARG -> RDSItemType.Special.MISSINGARG_SXP;
-        // Non-"Save Special" cases
+      // Non-"Save Special" cases
       case NamespaceEnvSXP ns -> RDSItemType.Special.NAMESPACESXP;
       default -> new RDSItemType.Sexp(s.type());
     };
@@ -345,7 +345,7 @@ public class RDSWriter implements Closeable {
     writeItem(first.value());
 
     // Write the rest of the list
-    for (var el : lsxp.subList(1)) {
+    for (var el : lsxp.fromIndex(1)) {
       // Write flags
       var itemFlags = listFlags.withTag(el.hasTag()).withAttributes(false);
       out.writeInt(itemFlags.encode());
@@ -376,7 +376,8 @@ public class RDSWriter implements Closeable {
       writeItem(prom.env());
     }
 
-    writeItem(prom.val());
+    var boundVal = prom.boundVal();
+    writeItem(boundVal == null ? SEXPs.UNBOUND_VALUE : boundVal);
     writeItem(prom.expr());
   }
 
@@ -520,7 +521,7 @@ public class RDSWriter implements Closeable {
       writeAttributesIfPresent(lol);
 
       switch (lol) {
-          // For a LangSXP, recursively write the function and args
+        // For a LangSXP, recursively write the function and args
         case LangSXP lang -> {
           // The tag of a LangSXP is an argument name, but it does not seem that we support them.
           writeItem(SEXPs.NULL);
@@ -529,19 +530,19 @@ public class RDSWriter implements Closeable {
           // write tail
           writeByteCodeLang(lang.args(), reps, nextRepIndex);
         }
-          // For a ListSXP, recursively write the elements
+        // For a ListSXP, recursively write the elements
         case ListSXP list -> {
           // there will always be a first element because we take a different path when the list
           // is empty
           var first = list.stream().findFirst().orElseThrow();
-          SEXP tag = first.tag() == null ? SEXPs.NULL : SEXPs.symbol(first.tag());
+          SEXP tag = first.hasTag() ? SEXPs.symbol(first.tag()) : SEXPs.NULL;
 
           // write tag
           writeItem(tag);
           // write head
           writeByteCodeLang(list.value(0), reps, nextRepIndex);
           // write tail
-          writeByteCodeLang(list.subList(1), reps, nextRepIndex);
+          writeByteCodeLang(list.fromIndex(1), reps, nextRepIndex);
         }
       }
     } else { // Print a zero as padding and write the item normally

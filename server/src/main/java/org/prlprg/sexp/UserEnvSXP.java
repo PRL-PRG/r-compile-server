@@ -4,7 +4,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import java.util.Iterator;
 import java.util.Map;
-import javax.annotation.Nonnull;
 
 /** An environment inside a closure or explicitly defined by the user. */
 public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable<TaggedElem> {
@@ -20,7 +19,7 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
 
   public UserEnvSXP(EnvSXP parent, Map<String, SEXP> bindings) {
     this(parent);
-    this.bindings.putAll(bindings);
+    this.setBindings(bindings);
   }
 
   @Override
@@ -47,7 +46,7 @@ public final class UserEnvSXP extends AbstractEnvSXP implements EnvSXP, Iterable
   }
 
   @Override
-  public @Nonnull Attributes attributes() {
+  public Attributes attributes() {
     return attributes;
   }
 

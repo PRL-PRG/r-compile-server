@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -26,6 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.prlprg.util.Classes;
+import org.prlprg.util.Files;
 import org.prlprg.util.InvalidAnnotationError;
 import org.prlprg.util.UnreachableError;
 
@@ -76,12 +78,50 @@ public class Parser {
    */
   public static <T> T fromString(String s, Class<T> clazz, @Nullable Object context) {
     var p = new Parser(s).withContext(context);
-    var obj = p.parse(clazz);
-    p.scanner.skipWhitespace(true);
-    if (!p.scanner.isAtEof()) {
-      throw new ParseException(p.scanner.position(), "input not entirely parsed");
+    return p.parseEntire(clazz);
+  }
+
+  /**
+   * Creates a {@link Parser} to only parse an object of the given class from the resource at the
+   * given path.
+   *
+   * <p>The path is relative to the class's package, and the resource must be a text file. The
+   * entire file is parsed into the object.
+   *
+   * @throws ParseException if the object failed to parse.
+   * @throws ParseException if the input wasn't entirely parsed, excluding trailing whitespace.
+   */
+  public static <T> T fromResource(Path resourcePath, Class<T> clazz) {
+    return fromResource(resourcePath, clazz, null);
+  }
+
+  /**
+   * Creates a {@link Parser} to only parse an object of the given class from the resource at the
+   * given path.
+   *
+   * <p>The path is relative to the class's package, and the resource must be a text file. The
+   * entire file is parsed into the object.
+   *
+   * @throws ParseException if the object failed to parse.
+   * @throws ParseException if the input wasn't entirely parsed, excluding trailing whitespace.
+   */
+  public static <T> T fromResource(Path resourcePath, Class<T> clazz, @Nullable Object context) {
+    var resourceUrl = clazz.getResource(resourcePath.toString());
+    if (resourceUrl == null) {
+      throw new IllegalArgumentException(
+          "Resource not found in " + clazz.getPackageName() + ": " + resourcePath);
     }
-    return obj;
+    var resourceFile = Files.pathFromFileUrl(resourceUrl).toFile();
+
+    Parser p;
+    try {
+      p = new Parser(resourceFile).withContext(context);
+    } catch (FileNotFoundException e) {
+      throw new IllegalArgumentException(
+          "Resource not found in " + clazz.getPackageName() + ": " + resourcePath, e);
+    }
+
+    return p.parseEntire(clazz);
   }
 
   private Parser(Scanner scanner, @Nullable Object context) {
@@ -172,7 +212,7 @@ public class Parser {
    * <ul>
    *   <li>If the type has no generic parameters, will invoke {@link #parse(Class)}.
    *   <li>If the type is a known collection type, will attempt to parse a list using {@link
-   *       #parseList(Type, SkipWhitespace)}, then wrap in the correct type.
+   *       #parseList(String, String, Type, SkipWhitespace)}, then wrap in the correct type.
    *   <li>Otherwise, throws {@link UnsupportedOperationException} (must add to this method to
    *       support more types).
    * </ul>
@@ -187,7 +227,7 @@ public class Parser {
             && KNOWN_COLLECTION_TYPES.containsKey(collClass)) {
           var constructor = Objects.requireNonNull(KNOWN_COLLECTION_TYPES.get(collClass));
           assert t.getActualTypeArguments().length == 1;
-          var asList = parseList(t.getActualTypeArguments()[0], skipWhitespaceIfList);
+          var asList = parseList("[", "]", t.getActualTypeArguments()[0], skipWhitespaceIfList);
           yield constructor.apply(asList);
         } else if (t.getRawType() instanceof Class<?> clazz) {
           yield parse(clazz);
@@ -210,7 +250,7 @@ public class Parser {
                       "can't parse generic array of non-class, non-parameterized-class type "
                           + elemType);
             };
-        var asList = parseList(elemType, skipWhitespaceIfList);
+        var asList = parseList("[", "]", elemType, skipWhitespaceIfList);
         var array = Array.newInstance(elemClass, asList.size());
         for (int i = 0; i < asList.size(); i++) {
           Array.set(array, i, asList.get(i));
@@ -255,7 +295,7 @@ public class Parser {
     throw new UnsupportedOperationException(
         "no parse method for "
             + clazz
-            + " or any superclasses, and "
+            + " (or any superclasses) with "
             + (context == null ? "no context" : "context " + context.getClass()));
   }
 
@@ -300,26 +340,28 @@ public class Parser {
    * @throws UnsupportedOperationException if there's not {@link ParseMethod} registered for {@code
    *     elementClass}.
    * @see #parse(Class)
-   * @see #parseList(Supplier, SkipWhitespace)
+   * @see #parseList(String, String, Supplier, SkipWhitespace)
    */
-  public <T> ImmutableList<T> parseList(Class<T> elementClass, SkipWhitespace skipWhitespace) {
-    return parseList(() -> parse(elementClass), skipWhitespace);
+  public <T> ImmutableList<T> parseList(String opener, String closer, Class<T> elementClass) {
+    return parseList(opener, closer, () -> parse(elementClass), SkipWhitespace.ALL);
   }
 
   /**
    * Parse a collection of the form {@code [a,b,...]}.
    *
-   * <p>This is a version of {@link #parseList(Class, SkipWhitespace)} which takes {@link Type}
+   * <p>This is a version of {@link #parseList(String, String, Class)} which takes {@link Type}
    * instead, so it can parse nested lists. The current {@linkplain Scanner#skipsWhitespace()
    * whitespace policy} will be used to scan delimiters both in the outer list and in {@code
    * elementType} if it's itself generic.
    *
    * @throws UnsupportedOperationException if the element type can't be parsed.
    * @see #parse(Type, SkipWhitespace)
-   * @see #parseList(Supplier, SkipWhitespace)
+   * @see #parseList(String, String, Supplier, SkipWhitespace)
    */
-  public ImmutableList<?> parseList(Type elementType, SkipWhitespace skipWhitespace) {
-    return parseList(() -> parse(elementType, skipWhitespace), skipWhitespace);
+  public ImmutableList<?> parseList(
+      String opener, String closer, Type elementType, SkipWhitespace skipWhitespace) {
+    return parseList(
+        opener, closer, () -> parse(elementType, SkipWhitespace.ALL), SkipWhitespace.ALL);
   }
 
   /**
@@ -328,17 +370,18 @@ public class Parser {
    * <p>The current {@linkplain Scanner#skipsWhitespace() whitespace policy} will be set throughout
    * the parse, including when elements are parsed.
    *
-   * @see #parseList(Class, SkipWhitespace)
-   * @see #parseList(Type, SkipWhitespace)
+   * @see #parseList(String, String, Class)
+   * @see #parseList(String, String, Type, SkipWhitespace)
    */
-  public <T> ImmutableList<T> parseList(Supplier<T> parseElement, SkipWhitespace skipWhitespace) {
+  public <T> ImmutableList<T> parseList(
+      String opener, String closer, Supplier<T> parseElement, SkipWhitespace skipWhitespace) {
     var list = ImmutableList.<T>builder();
     scanner.runWithWhitespacePolicy(
         skipWhitespace,
         () -> {
-          scanner.assertAndSkip('[');
+          scanner.assertAndSkip(opener);
           boolean first = true;
-          while (!scanner.trySkip(']')) {
+          while (!scanner.trySkip(closer)) {
             if (first) {
               first = false;
             } else {
@@ -348,6 +391,16 @@ public class Parser {
           }
         });
     return list.build();
+  }
+
+  /** Parse an object, then throw {@link ParseException} if there's any non-whitespace input. */
+  public <T> T parseEntire(Class<T> clazz) {
+    var obj = parse(clazz);
+    scanner.skipWhitespace(true);
+    if (!scanner.isAtEof()) {
+      throw new ParseException(scanner.position(), "input not entirely parsed");
+    }
+    return obj;
   }
 
   // endregion parse non-terminals
