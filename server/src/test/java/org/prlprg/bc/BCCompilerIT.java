@@ -1,5 +1,7 @@
 package org.prlprg.bc;
 
+import static org.junit.jupiter.api.Assumptions.abort;
+
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -25,8 +27,13 @@ public class BCCompilerIT implements StdlibClosuresSource {
   }
 
   @ParameterizedTest
-  @MethodSource("stdlibFunctionsList")
+  @MethodSource("stdlibFunctionNames")
   public void testStdlibFunctions(String name, BCSnapshotTestExtension.BCSnapshot snapshot) {
+    if (name.equals("utils:::`.install.macbinary`")
+        && System.getProperty("os.name").contains("Mac")) {
+      abort("utils:::`.install.macbinary` seems to be different on macOS");
+    }
+
     snapshot.verify(name, name, 3);
   }
 }

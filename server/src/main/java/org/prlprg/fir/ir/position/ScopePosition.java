@@ -1,0 +1,65 @@
+package org.prlprg.fir.ir.position;
+
+import java.util.LinkedHashMap;
+import java.util.Objects;
+import java.util.SequencedMap;
+import javax.annotation.Nullable;
+import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
+
+/// Location of an [Instruction][org.prlprg.fir.ir.instruction.Instruction] within an
+/// [Abstraction][org.prlprg.fir.ir.abstraction.Abstraction].
+public class ScopePosition implements Comparable<ScopePosition> {
+  private final SequencedMap<CFG, CfgPosition> inCfgs = new LinkedHashMap<>();
+  private final CfgPosition inInnermostCfg;
+
+  public ScopePosition(Iterable<CfgPosition> parents, CfgPosition innermost) {
+    for (var parent : parents) {
+      inCfgs.put(parent.bb().owner(), parent);
+    }
+    inCfgs.put(innermost.bb().owner(), innermost);
+
+    inInnermostCfg = innermost;
+  }
+
+  public @Nullable CfgPosition inCfg(CFG cfg) {
+    return inCfgs.get(cfg);
+  }
+
+  public CfgPosition inInnermostCfg() {
+    return inInnermostCfg;
+  }
+
+  @Override
+  public int compareTo(ScopePosition o) {
+    // `inCfgs` entirely depends on `inInnermostCfg`.
+    return inInnermostCfg.compareTo(o.inInnermostCfg);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof ScopePosition that)) {
+      return false;
+    }
+    // `inCfgs` entirely depends on `inInnermostCfg`.
+    return Objects.equals(inInnermostCfg, that.inInnermostCfg);
+  }
+
+  @Override
+  public int hashCode() {
+    // `inCfgs` entirely depends on `inInnermostCfg`.
+    return Objects.hash(inInnermostCfg);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.printSeparated(
+        "----------------------------------------\n", inCfgs.sequencedValues().reversed());
+  }
+}

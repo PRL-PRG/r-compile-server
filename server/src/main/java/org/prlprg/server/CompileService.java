@@ -160,7 +160,6 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                     + ". Not caching and returning the original body.");
             // We will keep the code field empty
           } else {
-            assert bc != null;
             bc = bcRes.get();
             if (!request.getNoCache()) { // We do not cache if the client does not want to
               serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));

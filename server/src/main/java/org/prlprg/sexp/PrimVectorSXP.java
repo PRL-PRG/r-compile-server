@@ -8,4 +8,7 @@ public sealed interface PrimVectorSXP<T> extends VectorSXP<T>
 
   @Override
   PrimVectorSXP<T> withAttributes(Attributes attributes);
+
+  @Override
+  PrimVectorSXP<T> copy();
 }

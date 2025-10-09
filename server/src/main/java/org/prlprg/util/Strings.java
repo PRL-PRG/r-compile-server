@@ -2,12 +2,19 @@ package org.prlprg.util;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collector;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 public class Strings {
+  @SafeVarargs
+  public static <T> String join(T... items) {
+    return Arrays.stream(items).map(Object::toString).collect(Collectors.joining());
+  }
+
   @SafeVarargs
   public static <T> String join(String sep, T... items) {
     return Arrays.stream(items).collect(joining(sep));
@@ -80,16 +87,21 @@ public class Strings {
     return escape((int) c);
   }
 
-  /** Whether the string can be a valid Java identifier (or reserved keyword, but no underscore). */
-  public static boolean isValidJavaIdentifierOrKeyword(String s) {
+  /**
+   * Whether the string can be a valid identifier in most languages.
+   *
+   * <p>Specifically, whether the string can be a valid Java identifier or reserved keyword, and
+   * doesn't contain any dollar signs.
+   */
+  public static boolean isIdentifierOrKeyword(String s) {
     if (s.isEmpty() || s.equals("_")) {
       return false;
     }
-    if (!Character.isJavaIdentifierStart(s.charAt(0))) {
+    if (!Characters.isIdentifierStart(s.charAt(0))) {
       return false;
     }
     for (var i = 1; i < s.length(); i++) {
-      if (!Character.isJavaIdentifierPart(s.charAt(i))) {
+      if (!Characters.isIdentifierPart(s.charAt(i))) {
         return false;
       }
     }
@@ -110,6 +122,56 @@ public class Strings {
       }
     }
     return sb.toString();
+  }
+
+  /// Sort strings lexicographically, except regarding digits, sort by numeric value.
+  /// e.g. "a2" < "a10" < "b1"
+  public static Comparator<String> naturalComparator() {
+    return (a, b) -> {
+      int i = 0, j = 0;
+      while (i < a.length() && j < b.length()) {
+        char ca = a.charAt(i);
+        char cb = b.charAt(j);
+        if (Character.isDigit(ca) && Character.isDigit(cb)) {
+          // Compare numbers
+          int startI = i, startJ = j;
+          while (i < a.length() && Character.isDigit(a.charAt(i))) {
+            i++;
+          }
+          while (j < b.length() && Character.isDigit(b.charAt(j))) {
+            j++;
+          }
+          String numA = a.substring(startI, i);
+          String numB = b.substring(startJ, j);
+          // Remove leading zeros for comparison
+          String trimmedA = numA.replaceFirst("^0+", "");
+          String trimmedB = numB.replaceFirst("^0+", "");
+          if (trimmedA.isEmpty()) {
+            trimmedA = "0";
+          }
+          if (trimmedB.isEmpty()) {
+            trimmedB = "0";
+          }
+          int cmp = Integer.compare(trimmedA.length(), trimmedB.length());
+          if (cmp != 0) {
+            return cmp;
+          }
+          cmp = trimmedA.compareTo(trimmedB);
+          if (cmp != 0) {
+            return cmp;
+          }
+        } else {
+          // Compare characters
+          int cmp = Character.compare(ca, cb);
+          if (cmp != 0) {
+            return cmp;
+          }
+          i++;
+          j++;
+        }
+      }
+      return Integer.compare(a.length(), b.length());
+    };
   }
 
   private Strings() {}

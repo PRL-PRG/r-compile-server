@@ -1,6 +1,6 @@
 /**
  * GNU-R {@linkplain org.prlprg.bc.Bc typed bytecode representation} and {@linkplain
- * org.prlprg.bc.Compiler AST-to-BB compiler}.
+ * org.prlprg.bc.BCCompiler AST-to-BC compiler}.
  */
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
