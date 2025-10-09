@@ -36,9 +36,9 @@ To run the IntelliJ inside the dev container:
 
 If the dev container is too slow, you can also setup on the host machine. To do so, must install the following dependencies:
 
-- **Java 22 and Maven 3**
-  - IntelliJ will automatically install these. If not, you can download a Java 22 binary from https://adoptium.net/temurin/releases/?version=22, and Maven from https://maven.apache.org/download.cgi.
-  - If you are using IntelliJ, navigate to "Project Structure > Project" and make sure the **SDK* is set to **a JDK of version 22** (e.g. "openjdk-22"). If not, click the dropdown and "Download JDK", then select any JDK of version 22.
+- **Java 24 and Maven 3**
+  - IntelliJ will automatically install these. If not, you can download a Java 24 binary from https://adoptium.net/temurin/releases/?version=24, and Maven from https://maven.apache.org/download.cgi.
+  - If you are using IntelliJ, navigate to "Project Structure > Project" and make sure the **SDK* is set to **a JDK of version 24** (e.g. "openjdk-24"). If not, click the dropdown and "Download JDK", then select any JDK of version 24.
 
 ## Commands
 
@@ -54,9 +54,9 @@ If the dev container is too slow, you can also setup on the host machine. To do 
 
 - **Problem:** In Maven, `Could not find or initialize a local git repository. A repository is required`
   - This happens if you downloaded a ZIP instead of `git clone`-ing. The solution is to run `git init`. Note that you won't be able to push changes or create a PR since it's not a proper git repo.
-- **Problem:** In Maven, `Fatal error compiling: invalid target release: 22`
-  - **Solution:** ensure you have a Java 22 JDK installed, then run `JAVA_HOME=<path to JDK 22> mvn …`
-    - e.g. if using IntelliJ on macOS, openJDK 22, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-22/Contents/Home`
+- **Problem:** In Maven, `Fatal error compiling: invalid target release: 24`
+  - **Solution:** ensure you have a Java 24 JDK installed, then run `JAVA_HOME=<path to JDK 24> mvn …`
+    - e.g. if using IntelliJ on macOS, openJDK 24, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-24/Contents/Home`
     - In the devcontainer, `JAVA_HOME=/usr/lib/jvm/jdk`
 - **Problem:** some R symbols are not visible when JIT-compiling.
   - **Solution:** make sure that `external/R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-3-2`. 
