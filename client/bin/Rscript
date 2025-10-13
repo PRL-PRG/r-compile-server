@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
+if [ ! -d "$SCRIPT_PATH" ]; then
+  echo "Could not determine absolute dir of $0"
+  echo "Maybe accessed with symlink"
+  exit 1
+fi
+
+RSCRIPT_PATH=$(realpath "$SCRIPT_PATH/../../external/R/bin/Rscript")
+if [ ! -f "$RSCRIPT_PATH" ]; then
+  echo "Rscript not found at $RSCRIPT_PATH"
+  exit 1
+fi
+
+LLVM_LIB=$(llvm-config-17 --libfiles)
+
+# pass all arguments of the script 
+env LD_PRELOAD="$LLVM_LIB" "$RSCRIPT_PATH" "$@"
