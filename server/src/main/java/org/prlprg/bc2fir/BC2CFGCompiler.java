@@ -210,7 +210,7 @@ import org.prlprg.util.Strings;
 ///
 /// This could be a set of functions but they would be *very* large and/or pass around lots of
 /// variables. Instead, it's a class and those commonly-passed variables are fields.
-public class CFGCompiler {
+public class BC2CFGCompiler {
   /// Compile the given bytecode into the given control-flow-graph
   ///
   /// @throws IllegalArgumentException If the control-flow graph isn't empty
@@ -227,7 +227,7 @@ public class CFGCompiler {
 
   /// Compile the given bytecode into the given control-flow-graph, starting at the cursor
   public static void compile(@Nullable RSession r, CFGCursor cursor, Bc bc) {
-    new CFGCompiler(r, cursor, bc).compileBc();
+    new BC2CFGCompiler(r, cursor, bc).compileBc();
   }
 
   // region compiler data
@@ -252,7 +252,7 @@ public class CFGCompiler {
 
   // region constructor
   /// Create the compiler, but don't compile `bc` into `cfg` yet.
-  CFGCompiler(@Nullable RSession r, CFGCursor cursor, Bc bc) {
+  BC2CFGCompiler(@Nullable RSession r, CFGCursor cursor, Bc bc) {
     this.r = r;
     cfg = cursor.cfg();
     inferType = new InferType(cfg.scope());
@@ -363,10 +363,10 @@ public class CFGCompiler {
     } catch (Throwable e) {
       // If we get a real error, we still want position information when this gets printed.
       throw switch (e) {
-        case CFGCompilerException e1 -> e1;
-        case ClosureCompilerUnsupportedException e1 ->
-            new CFGCompilerUnsupportedException("can't compile nested", bc, bcPos, cursor, e1);
-        default -> new CFGCompilerException("uncaught exception", bc, bcPos, cursor, e);
+        case BC2CFGCompilerException e1 -> e1;
+        case BC2ClosureCompilerUnsupportedException e1 ->
+            new BC2CFGCompilerUnsupportedException("can't compile nested", bc, bcPos, cursor, e1);
+        default -> new BC2CFGCompilerException("uncaught exception", bc, bcPos, cursor, e);
       };
     }
   }
@@ -757,7 +757,7 @@ public class CFGCompiler {
         var code =
             alreadyGenerated != null
                 ? alreadyGenerated
-                : ClosureCompiler.compile(r, module(), generatedName, cloSxp);
+                : BC2ClosureCompiler.compile(r, module(), generatedName, cloSxp);
 
         pushInsert(new Closure(code));
       }
@@ -1836,12 +1836,12 @@ public class CFGCompiler {
     }
   }
 
-  private CFGCompilerUnsupportedException failUnsupported(String message) {
-    return new CFGCompilerUnsupportedException(message, bc, bcPos, cursor, null);
+  private BC2CFGCompilerUnsupportedException failUnsupported(String message) {
+    return new BC2CFGCompilerUnsupportedException(message, bc, bcPos, cursor, null);
   }
 
-  private CFGCompilerException fail(String message) {
-    return new CFGCompilerException(message, bc, bcPos, cursor);
+  private BC2CFGCompilerException fail(String message) {
+    return new BC2CFGCompilerException(message, bc, bcPos, cursor);
   }
 
   // endregion exceptions
@@ -1874,7 +1874,7 @@ public class CFGCompiler {
     sealed interface Fun {
       record Dynamic(Argument function) implements Fun {}
 
-      record Builtin(CFGCompiler.Builtin builtin) implements Fun {}
+      record Builtin(BC2CFGCompiler.Builtin builtin) implements Fun {}
     }
 
     /// Stores information about a call argument: the [Argument] node and optional name.

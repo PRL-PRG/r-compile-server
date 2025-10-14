@@ -1,0 +1,9 @@
+package org.prlprg.fir2c;
+
+/// Configuration flags for the FIŘ to C compiler.
+public enum Option {
+  /// Emit run-time arity checks before evaluating the function body.
+  CHECK_ARITY,
+  /// Emit a comment trail describing the original FIR constructs in the generated C.
+  EMIT_DEBUG_COMMENTS;
+}

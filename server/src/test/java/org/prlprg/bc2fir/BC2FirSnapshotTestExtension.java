@@ -62,8 +62,8 @@ public class BC2FirSnapshotTestExtension
 
             BC2FirSnapshotTestExtension.this.verify(testMethod, snapshotName, res, null, true);
           } catch (BcCompilerUnsupportedException
-              | ClosureCompilerUnsupportedException
-              | CFGCompilerUnsupportedException e) {
+              | BC2ClosureCompilerUnsupportedException
+              | BC2CFGCompilerUnsupportedException e) {
             throw new TestAbortedException("Closure isn't compilable", e);
           }
         };

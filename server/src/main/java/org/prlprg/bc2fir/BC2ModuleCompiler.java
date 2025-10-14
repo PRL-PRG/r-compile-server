@@ -6,17 +6,17 @@ import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 
 /// Compile GNU-R bytecode functions into a FIŘ module.
-public final class ModuleCompiler {
+public final class BC2ModuleCompiler {
   private final @Nullable RSession r;
   private final Module module = new Module();
 
-  public ModuleCompiler(@Nullable RSession r) {
+  public BC2ModuleCompiler(@Nullable RSession r) {
     this.r = r;
   }
 
   /// Compile the closure with the given name and bytecode and add it to the module being compiled.
   public void compile(String name, CloSXP closure) {
-    ClosureCompiler.compile(r, module, name, closure);
+    BC2ClosureCompiler.compile(r, module, name, closure);
   }
 
   /// Returns the module containing all compiled functions so far.

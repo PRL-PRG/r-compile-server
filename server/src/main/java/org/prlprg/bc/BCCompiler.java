@@ -131,6 +131,7 @@ import org.prlprg.bc.BcInstr.VecSubassign2;
 import org.prlprg.bc.BcInstr.VecSubset;
 import org.prlprg.bc.BcInstr.VecSubset2;
 import org.prlprg.bc.BcInstr.Visible;
+import org.prlprg.bc2fir.BC2CFGCompiler;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -238,7 +239,7 @@ public class BCCompiler {
    * index into an array of math functions.
    *
    * <p>TODO: May want to move this somewhere else, because it's also used by {@link
-   * org.prlprg.bc2fir.CFGCompiler}.
+   * BC2CFGCompiler}.
    */
   public static final List<String> MATH1_FUNS =
       List.of(

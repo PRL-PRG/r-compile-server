@@ -15,7 +15,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Streams;
 
 /// Compiles {@linkplain CloSXP R closures} into {@linkplain Function FIŘ functions}.
-public class ClosureCompiler {
+public class BC2ClosureCompiler {
   /// Compile the closure, add it to the module, and return it.
   ///
   /// @throws IllegalArgumentException If `r` is `null` and `closure` has AST default arguments
@@ -31,7 +31,7 @@ public class ClosureCompiler {
       bc = bcSxp.bc();
     } else {
       if (r == null) {
-        throw new ClosureCompilerUnsupportedException(
+        throw new BC2ClosureCompilerUnsupportedException(
             "RSession is required to compile AST body", closure);
       }
       var bodyThunk = SEXPs.closure(SEXPs.list(), closure.body(), r.globalEnv());
@@ -40,7 +40,7 @@ public class ClosureCompiler {
               .compile()
               .orElseThrow(
                   () ->
-                      new ClosureCompilerUnsupportedException(
+                      new BC2ClosureCompilerUnsupportedException(
                           "Failed to compile AST body", closure));
     }
 
@@ -49,7 +49,7 @@ public class ClosureCompiler {
     var outputCfg = Objects.requireNonNull(outputBaseline.cfg(), "baseline is never a stub");
     var outputCursor = new CFGCursor(outputCfg);
 
-    var cfgCompiler = new CFGCompiler(r, outputCursor, bc);
+    var cfgCompiler = new BC2CFGCompiler(r, outputCursor, bc);
 
     cfgCompiler.compileClosureEntry(parameterNames, closure.parameters().values());
     cfgCompiler.compileBc();

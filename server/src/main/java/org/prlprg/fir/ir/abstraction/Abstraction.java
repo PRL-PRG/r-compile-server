@@ -231,6 +231,15 @@ public final class Abstraction implements Comparable<Abstraction> {
         });
   }
 
+  /// Stream parameters and local registers.
+  ///
+  /// Every [Binding#variable()] is guaranteed to be a [Register].
+  public Stream<Binding> streamRegisterBindings() {
+    return Stream.concat(
+        parameters.stream(),
+        locals.values().stream().filter(local -> local.variable() instanceof Register));
+  }
+
   /// True iff [#cfg()] is `null`, and this instance's constructor was called with
   /// `isStub = false`.
   public boolean isStub() {

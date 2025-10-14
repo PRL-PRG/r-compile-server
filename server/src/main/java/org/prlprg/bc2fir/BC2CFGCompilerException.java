@@ -7,22 +7,22 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 
 /**
- * Exception thrown when {@link CFGCompiler} fails to compile a {@link Bc} into a {@link CFG}.
+ * Exception thrown when {@link BC2CFGCompiler} fails to compile a {@link Bc} into a {@link CFG}.
  *
  * <p>Compilation either failed because the {@link Bc} contained invalid data (nonsensical
- * instructions), there's a bug in the {@link CFGCompiler}, or the {@link Bc} contains an
- * unsupported instruction (in which case this is a {@link CFGCompilerUnsupportedException}).
+ * instructions), there's a bug in the {@link BC2CFGCompiler}, or the {@link Bc} contains an
+ * unsupported instruction (in which case this is a {@link BC2CFGCompilerUnsupportedException}).
  */
-public class CFGCompilerException extends RuntimeException {
+public class BC2CFGCompilerException extends RuntimeException {
   private final Bc bc;
   private final int bcPos;
   private final CFGCursor irPos;
 
-  CFGCompilerException(String message, Bc bc, int bcPos, CFGCursor irPos) {
+  BC2CFGCompilerException(String message, Bc bc, int bcPos, CFGCursor irPos) {
     this(message, bc, bcPos, irPos, null);
   }
 
-  CFGCompilerException(
+  BC2CFGCompilerException(
       String message, Bc bc, int bcPos, CFGCursor irPos, @Nullable Throwable cause) {
     super(message, cause);
     this.bc = bc;
