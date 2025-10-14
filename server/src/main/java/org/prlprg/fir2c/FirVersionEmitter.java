@@ -1,12 +1,11 @@
 package org.prlprg.fir2c;
 
-import java.util.Collection;
+import com.google.common.collect.ImmutableSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
@@ -22,57 +21,97 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir2c.CModule.CFunction;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.NotImplementedError;
 
-/**
- * Emits C for a single FIŘ abstraction (function version).
- *
- * <p>The implementation keeps the translation extremely simple for now:
- *
- * <ul>
- *   <li>Registers are represented as local {@code SEXP} variables initialised to {@code
- *       R_NilValue}.
- *   <li>Arguments arrive as {@code SEXP const *ARGS} with accompanying {@code int NARGS}.
- *   <li>Only a small subset of statements/jumps are lowered; the architecture is arranged so that
- *       support can grow instruction-by-instruction.
- * </ul>
- */
+/// Emits C for a single [Abstraction].
+///
+/// The implementation keeps the translation extremely simple for now:
+/// - Registers are represented as local `SEXP` variables initialised to `R_NilValue`.
+/// - Arguments arrive as `SEXP const *ARGS` with accompanying `int NARGS`.
+/// - Only a small subset of statements/jumps are lowered; the architecture is arranged so that
+///   support can grow instruction-by-instruction.
 final class FirVersionEmitter {
-  private final FirCompilationOptions options;
-  private final FirConstantPool constantPool;
+  // Input
+  private final ImmutableSet<Option> options;
   private final Function function;
   private final int versionIndex;
   private final Abstraction abstraction;
-  private final CModuleUnit.CFunctionUnit cFunction;
-  private final IdentifierMangler mangler;
+  private final CFG cfg;
 
+  // Output
+  private final CFunction cFunction;
+  private final ConstantPool constantPool;
+
+  // State
+  private final IdentifierMangler mangler;
   private final Map<Register, String> registerNames = new LinkedHashMap<>();
-  private final Map<BB, String> labels = new LinkedHashMap<>();
+  private final Map<BB, String> labelNames = new LinkedHashMap<>();
 
   FirVersionEmitter(
-      FirCompilationOptions options,
-      FirConstantPool constantPool,
+      ImmutableSet<Option> options,
       Function function,
       int versionIndex,
       Abstraction abstraction,
-      CModuleUnit.CFunctionUnit cFunction,
+      CFunction cFunction,
+      ConstantPool constantPool,
       IdentifierMangler mangler) {
+    if (abstraction.cfg() == null) {
+      throw new IllegalArgumentException("FirVersionEmitter doesn't handle stubs:\n" + abstraction);
+    }
+
     this.options = options;
-    this.constantPool = constantPool;
     this.function = function;
     this.versionIndex = versionIndex;
     this.abstraction = abstraction;
+    this.cfg = abstraction.cfg();
     this.cFunction = cFunction;
+    this.constantPool = constantPool;
     this.mangler = mangler;
+
+    prepare();
+    emit();
   }
 
-  public void emit() {
+  // region prepare
+  private void prepare() {
     prepareRegisters();
+    prepareLabels();
+  }
 
-    if (options.emitDebugComments()) {
+  private void prepareRegisters() {
+    abstraction
+        .streamRegisterBindings()
+        .forEach(
+            binding -> {
+              var register = (Register) binding.variable();
+              registerNames.put(register, mangler.unique(register.name()));
+            });
+  }
+
+  private void prepareLabels() {
+    abstraction
+        .streamCfgs()
+        .flatMap(cfg -> cfg.bbs().stream())
+        .forEach(
+            bb -> {
+              if (labelNames.containsKey(bb)) {
+                throw new IllegalStateException("BB appears multiple times? " + bb);
+              }
+              labelNames.put(bb, mangler.unique("BB_%s".formatted(bb.label())));
+            });
+  }
+
+  // endregion prepare
+
+  // region emit
+  private void emit() {
+    if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
       cFunction.comment(
-          1,
           "FIR "
               + function.name().name()
               + " version "
@@ -89,21 +128,24 @@ final class FirVersionEmitter {
   }
 
   private void emitArityCheck() {
-    var expected = abstraction.parameters().size();
-    if (!options.checkArity() || expected == 0) {
+    if (!options.contains(Option.CHECK_ARITY)) {
       return;
     }
-    cFunction.line(1, "if (%s != %d) {".formatted(FirModuleCompiler.PARAM_ARG_COUNT, expected));
-    cFunction.line(
+
+    var expected = abstraction.parameters().size();
+    cFunction.stmt(
+        "if (Rf_length(%s) != %d) {".formatted(Module2CCompiler.VAR_SEXP_PARAMS, expected));
+    cFunction.stmt(
         2,
-        "Rf_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", %s);"
+        "Rf_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", Rf_length(%s));"
             .formatted(
-                sanitizeLiteral(function.name().name()),
+                sanitizeString(function.name().name()),
                 versionIndex,
                 expected,
-                FirModuleCompiler.PARAM_ARG_COUNT));
-    cFunction.line(1, "}");
-    cFunction.blankLine();
+                Module2CCompiler.VAR_SEXP_PARAMS));
+    cFunction.stmt("}");
+
+    cFunction.blank();
   }
 
   private void emitParameterBinding() {
@@ -112,16 +154,17 @@ final class FirVersionEmitter {
       return;
     }
 
-    if (options.emitDebugComments()) {
-      cFunction.comment(1, "Bind parameters");
+    if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+      cFunction.comment("Bind parameters");
     }
 
     for (var i = 0; i < parameters.size(); i++) {
       var param = parameters.get(i);
       var name = registerName(param.variable());
-      cFunction.line(1, "%s = %s[%d];".formatted(name, FirModuleCompiler.PARAM_ARGUMENTS, i));
+      cFunction.stmt("%s = %s[%d];".formatted(name, Module2CCompiler.VAR_SEXP_PARAMS, i));
     }
-    cFunction.blankLine();
+
+    cFunction.blank();
   }
 
   private void emitRegisterDeclarations() {
@@ -129,36 +172,49 @@ final class FirVersionEmitter {
       return;
     }
 
-    if (options.emitDebugComments()) {
-      cFunction.comment(1, "Registers");
+    if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+      cFunction.comment("Registers");
     }
 
     for (var entry : registerNames.entrySet()) {
-      cFunction.line(1, "SEXP %s = R_NilValue;".formatted(entry.getValue()));
+      cFunction.stmt("SEXP %s = R_NilValue;".formatted(entry.getValue()));
     }
-    cFunction.blankLine();
+
+    cFunction.blank();
   }
 
   private void emitCfg() {
-    var cfg = abstraction.cfg();
-    if (cfg == null) {
-      cFunction.line(
-          1,
-          "Rf_error(\"FIR version stub reached: %s/%d\");"
-              .formatted(function.name(), versionIndex));
-      cFunction.line(1, "return R_NilValue;");
-      return;
-    }
-
     for (var bb : cfg.bbs()) {
-      cFunction.line(0, "%s:".formatted(labelName(bb)));
-
+      cFunction.label("%s:".formatted(labelName(bb)));
       for (var statement : bb.statements()) {
         emitStatement(statement);
       }
-
       emitJump(bb.jump());
-      cFunction.blankLine();
+
+      cFunction.blank();
+    }
+  }
+
+  private void emitPhiTransfers(Target target) {
+    var parameters = target.bb().phiParameters();
+    if (parameters.isEmpty()) {
+      return;
+    }
+
+    var phiArgs = target.phiArgs();
+    if (parameters.size() != phiArgs.size()) {
+      throw new IllegalStateException(
+          "Phi parameter/argument count mismatch for " + target.bb().label());
+    }
+
+    for (var i = 0; i < parameters.size(); i++) {
+      var phi = parameters.get(i);
+      var arg = phiArgs.get(i);
+
+      var dest = registerName(phi);
+      var value = emitArgument(arg);
+
+      cFunction.stmt("%s = %s;".formatted(dest, value));
     }
   }
 
@@ -168,155 +224,82 @@ final class FirVersionEmitter {
       return;
     }
 
-    if (expression instanceof Aea aea) {
-      emitAea(statement.assignee(), aea);
-    } else if (expression instanceof Load load) {
-      emitLoad(statement.assignee(), load);
-    } else if (expression instanceof Store store) {
-      emitStore(statement.assignee(), store);
-    } else {
-      throw new UnsupportedOperationException(
-          "Unsupported FIR expression: " + expression.getClass().getSimpleName());
-    }
-  }
+    var expr =
+        switch (expression) {
+          case Aea(var arg) -> emitArgument(arg);
+          case Load(var variable) -> {
+            var cSymbol = nvSymbolRef(variable);
+            yield "Rf_findVar(%s, %s);".formatted(cSymbol, Module2CCompiler.VAR_ENV);
+          }
+          case Store(var variable, var value) -> {
+            var value1 = emitArgument(value);
+            var cSymbol = nvSymbolRef(variable);
+            yield "Rf_setVar(%s, %s, %s);".formatted(cSymbol, value1, Module2CCompiler.VAR_ENV);
+          }
+          default -> throw new NotImplementedError(expression.getClass().getSimpleName());
+        };
 
-  private void emitAea(Register assignee, Aea expression) {
-    var value = emitArgument(expression.value());
-    if (assignee == null) {
-      if (options.emitDebugComments()) {
-        cFunction.comment(1, "Value ignored: " + value);
-      }
-      return;
-    }
-    cFunction.line(1, "%s = %s;".formatted(registerName(assignee), value));
-  }
-
-  private void emitLoad(Register assignee, Load load) {
-    if (assignee == null) {
-      throw new UnsupportedOperationException("Load expression without assignee");
-    }
-    var symbol = SEXPs.symbol(load.variable().name());
-    var cSymbol = constantRef(symbol);
-    cFunction.line(
-        1,
-        "%s = Rf_findVar(%s, %s);"
-            .formatted(registerName(assignee), cSymbol, FirModuleCompiler.PARAM_ENVIRONMENT));
-  }
-
-  private void emitStore(Register assignee, Store store) {
-    var value = emitArgument(store.value());
-    var symbol = SEXPs.symbol(store.variable().name());
-    var cSymbol = constantRef(symbol);
-    cFunction.line(
-        1, "Rf_setVar(%s, %s, %s);".formatted(cSymbol, value, FirModuleCompiler.PARAM_ENVIRONMENT));
-    if (assignee != null) {
-      cFunction.line(1, "%s = %s;".formatted(registerName(assignee), value));
+    if (statement.assignee() != null) {
+      cFunction.stmt("%s = %s;".formatted(registerName(statement.assignee()), expr));
     }
   }
 
   private void emitJump(Jump jump) {
-    if (jump instanceof Return ret) {
-      cFunction.line(1, "return %s;".formatted(emitArgument(ret.value())));
-      return;
-    }
-    if (jump instanceof Goto go) {
-      emitPhiTransfers(go.target());
-      cFunction.line(1, "goto %s;".formatted(labelName(go.target().bb())));
-      return;
-    }
-    if (jump instanceof Unreachable) {
-      cFunction.line(1, "Rf_error(\"FIŘ unreachable reached\");");
-      cFunction.line(1, "return R_NilValue;");
-      return;
-    }
-
-    throw new UnsupportedOperationException(
-        "Unsupported FIR jump: " + jump.getClass().getSimpleName());
-  }
-
-  private void emitPhiTransfers(Target target) {
-    var parameters = target.bb().phiParameters();
-    if (parameters.isEmpty()) {
-      return;
-    }
-    var phiArgs = target.phiArgs();
-    if (parameters.size() != phiArgs.size()) {
-      throw new IllegalStateException(
-          "Phi parameter/argument count mismatch for " + target.bb().label());
-    }
-    for (var i = 0; i < parameters.size(); i++) {
-      var dest = registerName(parameters.get(i));
-      var value = emitArgument(phiArgs.get(i));
-      cFunction.line(1, "%s = %s;".formatted(dest, value));
+    switch (jump) {
+      case Return(var value) -> cFunction.stmt("return %s;".formatted(emitArgument(value)));
+      case Goto(var target) -> {
+        emitPhiTransfers(target);
+        cFunction.stmt("goto %s;".formatted(labelName(target.bb())));
+      }
+      case Unreachable() -> {
+        cFunction.stmt("Rf_error(\"FIŘ unreachable reached\");");
+        cFunction.stmt("return R_NilValue;");
+      }
+      default -> throw new NotImplementedError(jump.getClass().getSimpleName());
     }
   }
 
   private String emitArgument(Argument argument) {
     return switch (argument) {
-      case org.prlprg.fir.ir.argument.Constant constant -> constantRef(constant.sexp());
-      case Read read -> registerName(read.variable());
-      case Use use -> registerName(use.variable());
+      case Constant(var constant) -> constantRef(constant);
+      case Read(var variable) -> registerName(variable);
+      case Use(var variable) -> registerName(variable);
     };
   }
 
-  private String constantRef(org.prlprg.sexp.SEXP sexp) {
+  // endregion emit
+
+  // region interned
+  private String nvSymbolRef(NamedVariable nv) {
+    return constantRef(SEXPs.symbol(nv.name()));
+  }
+
+  private String constantRef(SEXP sexp) {
     var idx = constantPool.intern(sexp);
-    return "Rsh_const(%s, %d)".formatted(FirModuleCompiler.PARAM_CONSTANT_POOL, idx);
-  }
-
-  private void prepareRegisters() {
-    var ordered = new LinkedHashSet<Register>();
-    for (var param : abstraction.parameters()) {
-      ordered.add(param.variable());
-    }
-    for (var local : abstraction.locals()) {
-      ordered.add(local.variable());
-    }
-    var cfg = abstraction.cfg();
-    if (cfg != null) {
-      collectFromCfg(ordered, cfg);
-    }
-    for (var register : ordered) {
-      registerNames.put(register, mangler.unique(register.name()));
-    }
-  }
-
-  private void collectFromCfg(Set<Register> dest, CFG cfg) {
-    for (var bb : cfg.bbs()) {
-      dest.addAll(bb.phiParameters());
-      for (var statement : bb.statements()) {
-        if (statement.assignee() != null) {
-          dest.add(statement.assignee());
-        }
-        addArguments(dest, statement.arguments());
-      }
-      addArguments(dest, bb.jump().arguments());
-    }
-  }
-
-  private void addArguments(Set<Register> dest, Collection<Argument> arguments) {
-    for (var argument : arguments) {
-      var register = argument.variable();
-      if (register != null) {
-        dest.add(register);
-      }
-    }
+    return "Rsh_const(%s, %d)".formatted(Module2CCompiler.VAR_POOL, idx);
   }
 
   private String registerName(Register register) {
     var name = registerNames.get(register);
     if (name == null) {
-      throw new IllegalStateException("No C name for register: " + register);
+      throw new IllegalArgumentException("Unknown (not declared) register: " + register);
     }
     return name;
   }
 
   private String labelName(BB bb) {
-    return labels.computeIfAbsent(
-        bb, ignored -> mangler.unique("BB_" + bb.label().replace('$', '_')));
+    var name = labelNames.get(bb);
+    if (name == null) {
+      throw new IllegalArgumentException("Unknown (not in CFG) BB: " + bb);
+    }
+    return name;
   }
 
-  private static String sanitizeLiteral(String value) {
+  // endregion interned
+
+  // region misc utils
+  private static String sanitizeString(String value) {
     return value.replace("\"", "\\\"");
   }
+  // endregion misc utils
 }

@@ -3,22 +3,27 @@ package org.prlprg.fir2c;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Maintains stable unique C identifiers derived from FIŘ names. */
+/// Maintains stable unique C identifiers derived from FIŘ names.
 final class IdentifierMangler {
   private final Map<String, Integer> counters = new HashMap<>();
 
   public String unique(String candidate) {
     var sanitized = sanitize(candidate);
-    var count = counters.merge(sanitized, 1, Integer::sum);
+    int count = counters.merge(sanitized, 1, Integer::sum);
     if (count == 1) {
       return sanitized;
     }
     return sanitized + "_" + (count - 1);
   }
 
-  public String sanitize(String candidate) {
+  private String sanitize(String candidate) {
+    // Special handling to prevent collisions with R or Rsh symbols.
+    if (candidate.startsWith("R_") || candidate.startsWith("Rf_") || candidate.startsWith("Rsh_")) {
+      candidate = "_" + candidate;
+    }
+
     if (candidate.isEmpty()) {
-      return "fir";
+      return "_";
     }
     var builder = new StringBuilder(candidate.length());
     var chars = candidate.toCharArray();
@@ -37,15 +42,9 @@ final class IdentifierMangler {
   }
 
   private boolean isIdentifierChar(char c, boolean first) {
-    if (c >= 'a' && c <= 'z') {
-      return true;
-    }
-    if (c >= 'A' && c <= 'Z') {
-      return true;
-    }
-    if (c == '_' || (!first && c >= '0' && c <= '9')) {
-      return true;
-    }
-    return false;
+    return (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z')
+        || c == '_'
+        || (!first && c >= '0' && c <= '9');
   }
 }

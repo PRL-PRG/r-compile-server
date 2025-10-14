@@ -158,7 +158,7 @@ public class BC2FirAndInterpreterIntegrationTest {
                   desc + " produced different output than GNU-R"));
     } catch (CompilerException | BcCompilerUnsupportedException e) {
       fail("GNU-R bytecode compiler crashed", e);
-    } catch (CFGCompilerException | ClosureCompilerUnsupportedException e) {
+    } catch (BC2CFGCompilerException | BC2ClosureCompilerUnsupportedException e) {
       fail("Bytecode->FIŘ compiler crashed", e);
     } catch (InterpretException e) {
       System.out.println(firModule);

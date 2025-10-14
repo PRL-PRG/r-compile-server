@@ -1,24 +1,28 @@
 package org.prlprg.fir2c;
 
-import java.util.Map;
+import com.google.common.collect.ImmutableMap;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.VectorSXP;
+import org.prlprg.sexp.VecSXP;
 
-/**
- * Result of translating a FIŘ module.
- *
- * @param moduleUnit The rendered C translation unit.
- * @param compiledFunctions Map of FIŘ abstractions to the generated C function metadata.
- * @param constantPool Constant pool mirrored in the generated code, compatible with {@code
- *     Rsh_const}.
- */
+/// Result of translating a FIŘ module.
+///
+/// @param cModule The rendered C translation unit.
+/// @param compiledFunctionDispatches Map of FIŘ [Function]s to the generated C function metadata
+// for
+/// their dynamic-dispatch functions.
+/// @param compiledVersions Map of FIŘ [Abstraction]s to the generated C function metadata.
+/// @param constantPool Constant pool mirrored in the generated code, compatible with
+/// `Rsh_const`.
 public record FirCompiledModule(
-    CModuleUnit moduleUnit,
-    Map<Abstraction, FirCompiledVersion> compiledFunctions,
-    VectorSXP<SEXP> constantPool) {
+    CModule cModule,
+    ImmutableMap<Function, FirCompiledDispatchIndex> compiledFunctionDispatches,
+    ImmutableMap<Abstraction, FirCompiledVersionIndex> compiledVersions,
+    VecSXP constantPool) {
 
-  /** Metadata describing the C entry point for a particular FIŘ function version. */
-  public record FirCompiledVersion(Function function, int versionIndex, String cFunctionName) {}
+  /// Metadata describing the C entry point for a particular FIŘ [Function]'s dispatch.
+  public record FirCompiledDispatchIndex(String cFunctionName) {}
+
+  /// Metadata describing the C entry point for a particular FIŘ [Abstraction].
+  public record FirCompiledVersionIndex(String cFunctionName) {}
 }
