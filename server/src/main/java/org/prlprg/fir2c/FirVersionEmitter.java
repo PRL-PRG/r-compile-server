@@ -1,5 +1,9 @@
 package org.prlprg.fir2c;
 
+import static org.prlprg.fir2c.Module2CCompiler.VAR_ENV;
+import static org.prlprg.fir2c.Module2CCompiler.VAR_POOL;
+import static org.prlprg.fir2c.Module2CCompiler.VAR_SEXP_PARAMS;
+
 import com.google.common.collect.ImmutableSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -112,13 +116,7 @@ final class FirVersionEmitter {
   private void emit() {
     if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
       cFunction.comment(
-          "FIR "
-              + function.name().name()
-              + " version "
-              + versionIndex
-              + " ("
-              + abstraction.signature()
-              + ")");
+          "FIR %s version %d (%s)", function.name().name(), versionIndex, abstraction.signature());
     }
 
     emitArityCheck();
@@ -133,16 +131,14 @@ final class FirVersionEmitter {
     }
 
     var expected = abstraction.parameters().size();
-    cFunction.stmt(
-        "if (Rf_length(%s) != %d) {".formatted(Module2CCompiler.VAR_SEXP_PARAMS, expected));
+    cFunction.stmt("if (Rf_length(%s) != %d) {", VAR_SEXP_PARAMS, expected);
     cFunction.stmt(
         2,
-        "Rf_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", Rf_length(%s));"
-            .formatted(
-                sanitizeString(function.name().name()),
-                versionIndex,
-                expected,
-                Module2CCompiler.VAR_SEXP_PARAMS));
+        "Rf_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", Rf_length(%s));",
+        sanitizeString(function.name().name()),
+        versionIndex,
+        expected,
+        VAR_SEXP_PARAMS);
     cFunction.stmt("}");
 
     cFunction.blank();
@@ -161,7 +157,7 @@ final class FirVersionEmitter {
     for (var i = 0; i < parameters.size(); i++) {
       var param = parameters.get(i);
       var name = registerName(param.variable());
-      cFunction.stmt("%s = %s[%d];".formatted(name, Module2CCompiler.VAR_SEXP_PARAMS, i));
+      cFunction.stmt("%s = %s[%d];", name, VAR_SEXP_PARAMS, i);
     }
 
     cFunction.blank();
@@ -177,7 +173,7 @@ final class FirVersionEmitter {
     }
 
     for (var entry : registerNames.entrySet()) {
-      cFunction.stmt("SEXP %s = R_NilValue;".formatted(entry.getValue()));
+      cFunction.stmt("SEXP %s = R_NilValue;", entry.getValue());
     }
 
     cFunction.blank();
@@ -185,7 +181,7 @@ final class FirVersionEmitter {
 
   private void emitCfg() {
     for (var bb : cfg.bbs()) {
-      cFunction.label("%s:".formatted(labelName(bb)));
+      cFunction.label("%s:", labelName(bb));
       for (var statement : bb.statements()) {
         emitStatement(statement);
       }
@@ -214,7 +210,7 @@ final class FirVersionEmitter {
       var dest = registerName(phi);
       var value = emitArgument(arg);
 
-      cFunction.stmt("%s = %s;".formatted(dest, value));
+      cFunction.stmt("%s = %s;", dest, value);
     }
   }
 
@@ -229,27 +225,27 @@ final class FirVersionEmitter {
           case Aea(var arg) -> emitArgument(arg);
           case Load(var variable) -> {
             var cSymbol = nvSymbolRef(variable);
-            yield "Rf_findVar(%s, %s);".formatted(cSymbol, Module2CCompiler.VAR_ENV);
+            yield "Rf_findVar(%s, %s);".formatted(cSymbol, VAR_ENV);
           }
           case Store(var variable, var value) -> {
             var value1 = emitArgument(value);
             var cSymbol = nvSymbolRef(variable);
-            yield "Rf_setVar(%s, %s, %s);".formatted(cSymbol, value1, Module2CCompiler.VAR_ENV);
+            yield "Rf_setVar(%s, %s, %s);".formatted(cSymbol, value1, VAR_ENV);
           }
           default -> throw new NotImplementedError(expression.getClass().getSimpleName());
         };
 
     if (statement.assignee() != null) {
-      cFunction.stmt("%s = %s;".formatted(registerName(statement.assignee()), expr));
+      cFunction.stmt("%s = %s;", registerName(statement.assignee()), expr);
     }
   }
 
   private void emitJump(Jump jump) {
     switch (jump) {
-      case Return(var value) -> cFunction.stmt("return %s;".formatted(emitArgument(value)));
+      case Return(var value) -> cFunction.stmt("return %s;", emitArgument(value));
       case Goto(var target) -> {
         emitPhiTransfers(target);
-        cFunction.stmt("goto %s;".formatted(labelName(target.bb())));
+        cFunction.stmt("goto %s;", labelName(target.bb()));
       }
       case Unreachable() -> {
         cFunction.stmt("Rf_error(\"FIŘ unreachable reached\");");
@@ -276,7 +272,7 @@ final class FirVersionEmitter {
 
   private String constantRef(SEXP sexp) {
     var idx = constantPool.intern(sexp);
-    return "Rsh_const(%s, %d)".formatted(Module2CCompiler.VAR_POOL, idx);
+    return "Rsh_const(%s, %d)".formatted(VAR_POOL, idx);
   }
 
   private String registerName(Register register) {

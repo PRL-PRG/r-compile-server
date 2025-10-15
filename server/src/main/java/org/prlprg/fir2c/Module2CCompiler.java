@@ -44,12 +44,17 @@ public final class Module2CCompiler {
     cModule.addInclude("runtime.h");
 
     for (var function : module.localFunctions()) {
+      var compiledVersionsForFunction =
+          ImmutableMap.<Abstraction, FirCompiledVersionIndex>builder();
       for (var versionIndex : function.versionIndices()) {
         var version = function.version(versionIndex);
-        addVersionFunction(function, versionIndex, version);
+        var index = compileVersionFunction(function, versionIndex, version);
+        compiledVersionsForFunction.put(version, index);
+        compiledVersions.put(version, index);
       }
 
-      addDispatchFunction(function);
+      var index = compileDispatchFunction(function, compiledVersionsForFunction.buildOrThrow());
+      compiledFunctionDispatches.put(function, index);
     }
 
     return new FirCompiledModule(
@@ -59,7 +64,8 @@ public final class Module2CCompiler {
         constantPool.asVecSxp());
   }
 
-  private void addVersionFunction(Function function, int versionIndex, Abstraction version) {
+  private FirCompiledVersionIndex compileVersionFunction(
+      Function function, int versionIndex, Abstraction version) {
     var cName = versionCFunctionName(function, versionIndex);
 
     if (version.isStub()) {
@@ -70,16 +76,17 @@ public final class Module2CCompiler {
           options, function, versionIndex, version, cFunction, constantPool, mangler);
     }
 
-    compiledVersions.put(version, new FirCompiledVersionIndex(cName));
+    return new FirCompiledVersionIndex(cName);
   }
 
-  private void addDispatchFunction(Function function) {
+  private FirCompiledDispatchIndex compileDispatchFunction(
+      Function function, ImmutableMap<Abstraction, FirCompiledVersionIndex> compiledVersions) {
     var cName = dispatchCFunctionName(function);
 
     var cFunction = cModule.addFunction("SEXP", cName, dispatchCFunctionParameters);
-    new FirDispatchEmitter(options, function, cFunction, constantPool, mangler);
+    new FirDispatchEmitter(options, function, cFunction, compiledVersions, constantPool, mangler);
 
-    compiledFunctionDispatches.put(function, new FirCompiledDispatchIndex(cName));
+    return new FirCompiledDispatchIndex(cName);
   }
 
   private String dispatchCFunctionName(Function function) {
