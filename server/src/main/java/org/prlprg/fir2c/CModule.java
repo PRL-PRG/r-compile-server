@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.intellij.lang.annotations.PrintFormat;
 
 /// Shallow-structured representation of a C source file generated from FIŘ.
 ///
@@ -118,16 +119,16 @@ final class CModule {
       super(returnType, name, parameters);
     }
 
-    public void label(String line) {
-      body.add(line);
+    public void label(@PrintFormat String format, Object... args) {
+      body.add(format.formatted(args));
     }
 
-    public void stmt(String line) {
-      stmt(1, line);
+    public void stmt(@PrintFormat String format, Object... args) {
+      stmt(1, format.formatted(args));
     }
 
-    public void stmt(int indentLevel, String line) {
-      body.add("  ".repeat(indentLevel) + line);
+    public void stmt(int indentLevel, @PrintFormat String format, Object... args) {
+      body.add("  ".repeat(indentLevel) + format.formatted(args));
     }
 
     public void blank() {
@@ -136,8 +137,8 @@ final class CModule {
       }
     }
 
-    public void comment(String comment) {
-      body.add("  // " + comment);
+    public void comment(@PrintFormat String format, Object... args) {
+      body.add("  // " + format.formatted(args));
     }
 
     @Override
