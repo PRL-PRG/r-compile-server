@@ -75,10 +75,16 @@ if [[ $USING_OSX -eq 1 ]]; then
     HOMEBREW_DIR="/usr/local"
   fi
 
+  CLANG=$(realpath $HOMEBREW_DIR/Cellar/llvm/*/bin/clang)
+  if [[ ! -f "$CLANG" ]]; then
+    echo 'You must `brew install llvm` (macOS clang is too old for c23)'
+    exit 1
+  fi
+
   # From https://groups.google.com/g/r-sig-mac/c/4smMULZWKPc?pli=1
-  export CC="clang -arch arm64"
-  export CXX="clang++ -arch arm64"
-  export OBJC="clang -arch arm64"
+  export CC="$CLANG -arch arm64"
+  export CXX="$CLANG -arch arm64"
+  export OBJC="$CLANG -arch arm64"
   export FC="gfortran -arch arm64"
   export CFLAGS="-falign-functions=64 -Wall $OPT"
   export CXXFLAGS="falign-functions=64 -Wall $OPT"
