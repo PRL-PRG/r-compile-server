@@ -128,7 +128,7 @@ static void Rsh_Fir_closure_finalizer(SEXP ext) {
   if (info->pool) {
     R_ReleaseObject(info->pool);
   }
-  Free(info);
+  free(info);
   R_ClearExternalPtr(ext);
 }
 
@@ -150,7 +150,7 @@ static void Rsh_Fir_promise_finalizer(SEXP ext) {
   if (info->value != R_NilValue) {
     R_ReleaseObject(info->value);
   }
-  Free(info);
+  free(info);
   R_ClearExternalPtr(ext);
 }
 
@@ -177,7 +177,7 @@ Rsh_Fir_Kind const *Rsh_Fir_kind_promise(Rsh_Fir_Type const *value_type,
     }
     node = node->next;
   }
-  node = (PromiseKindNode *)Calloc(1, sizeof(PromiseKindNode));
+  node = (PromiseKindNode *)calloc(1, sizeof(PromiseKindNode));
   node->kind.tag = RSH_FIR_KIND_PROMISE;
   node->kind.as.promise.value_type = value_type;
   node->kind.as.promise.reflect = reflect ? 1 : 0;
@@ -198,7 +198,7 @@ Rsh_Fir_Type const *Rsh_Fir_type(Rsh_Fir_Kind const *kind, int ownership,
     }
     node = node->next;
   }
-  node = (TypeNode *)Calloc(1, sizeof(TypeNode));
+  node = (TypeNode *)calloc(1, sizeof(TypeNode));
   node->type.kind = kind;
   node->type.ownership = ownership;
   node->type.definite = definite ? 1 : 0;
@@ -255,11 +255,11 @@ Rsh_Fir_param_types_from_string(SEXP signature) {
   }
   int count = Rsh_Fir_count_parameter_types(sig);
   ParamTypesNode *new_node =
-      (ParamTypesNode *)Calloc(1, sizeof(ParamTypesNode));
+      (ParamTypesNode *)calloc(1, sizeof(ParamTypesNode));
   new_node->signature = signature;
   if (count > 0) {
     new_node->param_types.count = count;
-    new_node->param_types.types = (Rsh_Fir_Type const **)Calloc(
+    new_node->param_types.types = (Rsh_Fir_Type const **)calloc(
         (size_t)count, sizeof(Rsh_Fir_Type const *));
     Rsh_Fir_Type const *any_value =
         Rsh_Fir_type(Rsh_Fir_kind_anyValue, /*ownership=*/3, /*definite=*/0);
@@ -385,7 +385,7 @@ SEXP Rsh_Fir_make_closure(Rsh_Fir_DispatchFn dispatch, SEXP env, SEXP pool) {
   }
   Rsh_Fir_init_tags();
   Rsh_Fir_ClosureInfo *info =
-      (Rsh_Fir_ClosureInfo *)Calloc(1, sizeof(Rsh_Fir_ClosureInfo));
+      (Rsh_Fir_ClosureInfo *)calloc(1, sizeof(Rsh_Fir_ClosureInfo));
   info->dispatch = dispatch;
   info->env = env;
   info->pool = pool;
@@ -441,24 +441,18 @@ void Rsh_Fir_store(SEXP symbol, SEXP value, SEXP env) {
   Rf_defineVar(symbol, value, env);
 }
 
-void Rsh_Fir_push_env(SEXP *env) {
-  if (!env || TYPEOF(*env) != ENVSXP) {
+void Rsh_Fir_push_env(SEXP env, SEXP enclos) {
+  if (!env || TYPEOF(env) != ENVSXP) {
     Rf_error("push_env requires an environment pointer");
   }
-  SEXP new_env = PROTECT(Rf_NewEnvironment(R_NilValue, R_NilValue, *env));
-  *env = new_env;
-  UNPROTECT(1);
+  env = Rf_NewEnvironment(R_NilValue, R_NilValue, enclos);
 }
 
-void Rsh_Fir_pop_env(SEXP *env) {
-  if (!env || TYPEOF(*env) != ENVSXP) {
+void Rsh_Fir_pop_env(SEXP env) {
+  if (!env || TYPEOF(env) != ENVSXP) {
     Rf_error("pop_env requires an environment pointer");
   }
-  SEXP parent = ENCLOS(*env);
-  if (parent == R_NilValue) {
-    Rf_error("Cannot pop environment without parent");
-  }
-  *env = parent;
+  env = ENCLOS(env);
 }
 
 static SEXP Rsh_Fir_make_names(int count, SEXP const *names) {
@@ -575,7 +569,7 @@ SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, SEXP pool, SEXP env) {
   }
   Rsh_Fir_init_tags();
   Rsh_Fir_PromiseInfo *info =
-      (Rsh_Fir_PromiseInfo *)Calloc(1, sizeof(Rsh_Fir_PromiseInfo));
+      (Rsh_Fir_PromiseInfo *)calloc(1, sizeof(Rsh_Fir_PromiseInfo));
   info->evaluate = fn;
   info->env = env;
   info->pool = pool;
