@@ -2842,7 +2842,7 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
 static INLINE Rboolean Rsh_StartLoopCntxt(RCNTXT *cntxt, SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
-  return sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;
+  return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
 }
 
 static INLINE void Rsh_EndLoopCntxt(RCNTXT *ctntxt) { Rf_endcontext(ctntxt); }

@@ -7,6 +7,7 @@
 
 extern "C" {
 #include "bc2c/runtime.h"
+#include "fir2c/runtime.h"
 }
 // clang-format off
 static i32 CALL_FUN_BC[] = {

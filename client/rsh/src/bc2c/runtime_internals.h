@@ -8,7 +8,13 @@
 #ifndef USE_RINTERNALS
 #define USE_RINTERNALS
 #endif
+#ifdef R_NO_REMAP
+#undef R_NO_REMAP
 #include <Rinternals.h>
+#define R_NO_REMAP
+#else
+#include <Rinternals.h>
+#endif
 
 // this file contains some internal functions that are not exported
 
@@ -95,7 +101,8 @@ SEXP make_applyClosure_env(SEXP call, SEXP op, SEXP arglist, SEXP rho,
 void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
                      SEXP promargs, SEXP callfun);
 void Rf_endcontext(RCNTXT *cptr);
-void NORET Rf_findcontext(int mask, SEXP env, SEXP val);
+NORET void Rf_findcontext(int mask, SEXP env, SEXP val);
+SEXP Rf_NewEnvironment(SEXP, SEXP, SEXP);
 
 SEXP rcpEval(SEXP body, SEXP rho);
 
