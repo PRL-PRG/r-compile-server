@@ -120,10 +120,10 @@ public final class Interpreter {
   private final Map<SEXP, PromiseCode> promises = new HashMap<>();
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
-  private int nextPromiseId = 0;
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
   private final MockModuleFeedback feedback = new MockModuleFeedback();
+  private final CheckpointTrace checkpointTrace = new CheckpointTrace();
 
   /// Interpret the module in a global environment containing only its functions.
   ///
@@ -243,6 +243,10 @@ public final class Interpreter {
 
   public ModuleFeedback feedback() {
     return feedback;
+  }
+
+  public CheckpointTrace checkpointTrace() {
+    return checkpointTrace;
   }
 
   /// Looks up the function, gets the best applicable version, and calls it with the arguments
@@ -428,7 +432,10 @@ public final class Interpreter {
         yield new ControlFlow.Goto(isTrue(condSexp) ? ifTrue : ifFalse);
       }
       case Return(var ret) -> new ControlFlow.Return(run(ret));
-      case Checkpoint(var ok, var deopt) -> new ControlFlow.Goto(check(ok) ? ok : deopt);
+      case Checkpoint(var ok, var deopt) -> {
+        checkpointTrace.record(this::snapshot);
+        yield new ControlFlow.Goto(check(ok) ? ok : deopt);
+      }
       case Deopt(var pc, var argStack) -> {
         var valueStack = argStack.stream().map(this::run).collect(ImmutableList.toImmutableList());
         yield new ControlFlow.Deopt(pc, valueStack);
@@ -1141,7 +1148,7 @@ public final class Interpreter {
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
   public PromSXP promiseStub(Promise promExpr) {
-    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.integer(nextPromiseId++));
+    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.integer(promExpr.hashCode()));
     var sexp = SEXPs.promise(codeStub, topFrame().environment());
     promises.put(sexp, new PromiseCode(promExpr, topFrame()));
     return sexp;
@@ -1154,7 +1161,11 @@ public final class Interpreter {
 
   /// Create an [InterpretException] at the current evaluation position.
   public InterpretException fail(String message, @Nullable Throwable cause) {
-    return new InterpretException(message, cause, stack, globalEnv);
+    return new InterpretException(message, cause, snapshot());
+  }
+
+  private Snapshot snapshot() {
+    return new Snapshot(ImmutableList.copyOf(stack), SEXP.deepCopy(globalEnv));
   }
 
   /// Result of executing a jump instruction.

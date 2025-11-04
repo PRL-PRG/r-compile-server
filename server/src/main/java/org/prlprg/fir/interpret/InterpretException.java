@@ -1,23 +1,14 @@
 package org.prlprg.fir.interpret;
 
-import com.google.common.collect.ImmutableList;
-import java.util.Collection;
 import javax.annotation.Nullable;
-import org.prlprg.sexp.GlobalEnvSXP;
 
 /// Exception thrown during FIŘ interpretation.
 public final class InterpretException extends RuntimeException {
-  private final ImmutableList<StackFrame> stack;
-  private final GlobalEnvSXP globalEnv;
+  private final Snapshot snapshot;
 
-  InterpretException(
-      String message,
-      @Nullable Throwable cause,
-      Collection<StackFrame> stack,
-      GlobalEnvSXP globalEnv) {
+  InterpretException(String message, @Nullable Throwable cause, Snapshot snapshot) {
     super(message, cause);
-    this.stack = ImmutableList.copyOf(stack);
-    this.globalEnv = globalEnv;
+    this.snapshot = snapshot;
   }
 
   public String mainMessage() {
@@ -26,6 +17,6 @@ public final class InterpretException extends RuntimeException {
 
   @Override
   public String getMessage() {
-    return mainMessage() + "\n" + new PrintStackTrace(stack, globalEnv);
+    return mainMessage() + "\n" + snapshot;
   }
 }
