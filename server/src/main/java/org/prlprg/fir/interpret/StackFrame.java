@@ -112,6 +112,6 @@ final class StackFrame {
 
   @Override
   public String toString() {
-    return Printer.use(p -> new PrintStackTrace().printFrame(this, p));
+    return Printer.use(p -> Snapshot.printFrame(this, p));
   }
 }

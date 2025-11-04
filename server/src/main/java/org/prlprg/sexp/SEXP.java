@@ -15,6 +15,7 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
+import org.prlprg.util.Classes;
 
 /**
  * R runtime object: every value, expression, AST node, etc. in R's runtime is an SEXP.
@@ -35,6 +36,15 @@ public sealed interface SEXP
         PromSXP,
         StrOrRegSymSXP,
         SymOrLangSXP {
+  /// Deep copy an [SEXP] by serializing and deserializing it.
+  ///
+  /// This is a static method so it returns the same class as `input`; doing that via instance
+  /// methods requires lots more boilerplate.
+  static <S extends SEXP> S deepCopy(S input) {
+    return Parser.fromString(
+        Printer.toString(input, SEXPPrintOptions.FULL), Classes.classOf(input));
+  }
+
   /**
    * SEXPTYPE. It's important to distinguish these from the SEXP's class, because there's a class
    * for every type but not vice versa due to subclasses (e.g. simple-scalar ints have the same
