@@ -17,6 +17,7 @@ import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.interpret.DeoptSnapshot;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.parseprint.PrettyPrintWriter;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
@@ -42,9 +43,7 @@ public class BC2FirAndInterpreterIntegrationTest {
   void testCompilerAndInterpreter(TestPath rFilePath) {
     testCompilerAndInterpreterAbstract(
         rFilePath,
-        (interpreter, check) -> {
-          check.checkOutput("FIŘ output", () -> interpreter.call("main"));
-        });
+        (interpreter, check) -> check.checkOutput("FIŘ output", () -> interpreter.call("main")));
   }
 
   /// Tests that all R files in the test resources directory produce the same output:
@@ -212,35 +211,35 @@ public class BC2FirAndInterpreterIntegrationTest {
                   () -> firOutput[0] = runInterpreter.get());
       var firOutputStr = firOutput[0].toString();
 
-      DeoptSnapshot lastOkSnapshot = null;
+      String lastOkSnapshotStr = null;
       for (int i = 0; i < Math.max(expectedTrace.size(), trace.size()); i++) {
         var expectedSnapshot =
             i < expectedTrace.size() ? expectedTrace.get(i) : null;
         var newSnapshot = i < trace.size() ? trace.get(i) : null;
-        var lastOkSnapshot1 = lastOkSnapshot;
+
+        // Add extra information to the failed assertion to help debugging.
+        if (expectedSnapshot != newSnapshot) {
+          var w = new PrettyPrintWriter(System.err);
+          if (lastOkSnapshotStr != null) {
+            w.write("\nLast OK:\n");
+            var lastOkSnapshotStr1 = lastOkSnapshotStr;
+            w.runIndented(() -> w.write(lastOkSnapshotStr1));
+          }
+
+          var moduleStr = interpreter.module().toString();
+          if (!oldModuleStr.equals(moduleStr)) {
+            w.write("\nLast module:\n");
+            w.runIndented(() -> w.write(oldModuleStr));
+            w.write("\nThis module:\n");
+            w.runIndented(() -> w.write(moduleStr));
+          }
+        }
+
         assertEquals(
             expectedSnapshot,
             newSnapshot,
-            () -> Printer.use(p -> {
-              var w = p.writer();
-
-              w.write(desc);
-              w.write(" deviated from expected trace at checkpoint.");
-
-              if (lastOkSnapshot1 != null) {
-                w.write("\nLast OK:\n");
-                p.print(lastOkSnapshot1);
-              }
-
-              var moduleStr = interpreter.module().toString();
-              if (!oldModuleStr.equals(moduleStr)) {
-                w.write("\nLast module:\n");
-                w.write(oldModuleStr);
-                w.write("\nThis module:\n");
-                w.write(moduleStr);
-              }
-            }));
-        lastOkSnapshot = expectedSnapshot;
+            desc + " deviated from expected trace at checkpoint.");
+        lastOkSnapshotStr = Objects.requireNonNull(expectedSnapshot).toString();
       }
 
       assertEquals(
