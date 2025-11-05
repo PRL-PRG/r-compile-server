@@ -86,6 +86,17 @@ public class SEXPPrintContext {
     return forBindings;
   }
 
+  /// Explicitly assign a forward reference: when `sexp` is printed, it will print the reference
+  /// instead.
+  ///
+  /// @throws IllegalArgumentException If the reference has already been assigned.
+  public void setRef(SEXP sexp, int ref) {
+    if (refs.containsKey(sexp)) {
+      throw new IllegalArgumentException("Reference already assigned for SEXP:\n" + sexp + " => " + refs.get(sexp));
+    }
+    refs.put(sexp, ref);
+  }
+
   @PrintMethod
   private void print(NilSXP sexp, Printer p) {
     // `NULL`

@@ -73,6 +73,17 @@ public class SEXPParseContext {
     return forBindings;
   }
 
+  /// Explicitly assign a forward reference: when the reference is parsed, it will parse `sexp`.
+  /// This corresponds to [SEXPPrintContext#setRef(SEXP, int)]
+  ///
+  /// @throws IllegalArgumentException If the reference has already been assigned.
+  public void setRef(int ref, SEXP sexp) {
+    if (refs.containsKey(ref)) {
+      throw new IllegalArgumentException("SEXP already assigned for reference:\n" + ref + " => " + refs.get(ref));
+    }
+    refs.put(ref, sexp);
+  }
+
   @ParseMethod
   private SEXP parseSEXP(Parser p) {
     var s = p.scanner();

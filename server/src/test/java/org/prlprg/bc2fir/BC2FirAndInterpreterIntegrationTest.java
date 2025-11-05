@@ -8,14 +8,16 @@ import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
 
 import com.google.common.collect.ImmutableList;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.bc.CompilerException;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
-import org.prlprg.fir.interpret.Snapshot;
+import org.prlprg.fir.interpret.DeoptSnapshot;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -41,9 +43,7 @@ public class BC2FirAndInterpreterIntegrationTest {
     testCompilerAndInterpreterAbstract(
         rFilePath,
         (interpreter, check) -> {
-          // Don't generate a trace, by calling this outside of `check.accept`
-          var result = interpreter.call("main");
-          check.accept("FIŘ output", () -> result);
+          check.checkOutput("FIŘ output", () -> interpreter.call("main"));
         });
   }
 
@@ -58,9 +58,12 @@ public class BC2FirAndInterpreterIntegrationTest {
     testCompilerAndInterpreterAbstract(
         rFilePath,
         (interpreter, check) -> {
-          for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ pre-opt #" + i, () -> interpreter.call("main"));
+          var trace = check.recordAndCheckOutput("FIŘ pre-opt #0", () -> interpreter.call("main"));
+          var oldModuleStr = interpreter.module().toString();
+          for (int i = 1; i < 3; i++) {
+            check.checkTraceAndOutput("FIŘ pre-opt #" + i, trace, oldModuleStr, () -> interpreter.call("main"));
           }
+
 
           // Phase 1: Create new versions with contextual dispatch
           defaultOptimizations(interpreter.feedback(), 2).run(interpreter.module());
@@ -69,17 +72,18 @@ public class BC2FirAndInterpreterIntegrationTest {
           }
 
           for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ post-opt1 #" + i, () -> interpreter.call("main"));
+            check.checkTraceAndOutput("FIŘ post-opt1 #" + i, trace, oldModuleStr, () -> interpreter.call("main"));
           }
 
           // Phase 2: insert assumptions in the new versions using collected feedback
+          oldModuleStr = interpreter.module().toString();
           defaultOptimizations(interpreter.feedback(), 2).run(interpreter.module());
           if (!checkAll(interpreter.module())) {
             fail("Optimized (phase 2) FIŘ failed verification:\n" + interpreter.module());
           }
 
           for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ post-opt2 #" + i, () -> interpreter.call("main"));
+            check.checkTraceAndOutput("FIŘ post-opt2 #" + i, trace, oldModuleStr, () -> interpreter.call("main"));
           }
         });
   }
@@ -96,8 +100,10 @@ public class BC2FirAndInterpreterIntegrationTest {
     testCompilerAndInterpreterAbstract(
         rFilePath,
         (interpreter, check) -> {
-          for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ pre-opt #" + i, () -> interpreter.call("main2", SEXPs.integer(1)));
+          var intTrace = check.recordAndCheckOutput("FIŘ pre-opt #0", () -> interpreter.call("main2", SEXPs.integer(1)));
+          var oldModuleStr = interpreter.module().toString();
+          for (int i = 1; i < 3; i++) {
+            check.checkTraceAndOutput("FIŘ pre-opt #" + i, intTrace, oldModuleStr, () -> interpreter.call("main2", SEXPs.integer(1)));
           }
 
           // Phase 1: Create new versions with contextual dispatch
@@ -107,7 +113,7 @@ public class BC2FirAndInterpreterIntegrationTest {
           }
 
           for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ post-opt1 #" + i, () -> interpreter.call("main2", SEXPs.integer(1)));
+            check.checkTraceAndOutput("FIŘ post-opt1 #" + i, intTrace, oldModuleStr, () -> interpreter.call("main2", SEXPs.integer(1)));
           }
 
           // Phase 2: insert assumptions in the new versions using collected feedback
@@ -116,8 +122,10 @@ public class BC2FirAndInterpreterIntegrationTest {
             fail("Optimized (phase 2) FIŘ failed verification:\n" + interpreter.module());
           }
 
-          for (int i = 0; i < 3; i++) {
-            check.accept("FIŘ post-opt2 #" + i, () -> interpreter.call("main2", SEXPs.real(1)));
+          var realTrace = check.recordAndCheckOutput("FIŘ post-opt2 #0", () -> interpreter.call("main2", SEXPs.real(1)));
+          oldModuleStr = interpreter.module().toString();
+          for (int i = 1; i < 3; i++) {
+            check.checkTraceAndOutput("FIŘ post-opt2 #" + i, realTrace, oldModuleStr, () -> interpreter.call("main2", SEXPs.real(1)));
           }
 
           // Phase 3: insert new assumptions after deoptimization and more feedback
@@ -126,16 +134,16 @@ public class BC2FirAndInterpreterIntegrationTest {
             fail("Optimized (phase 3) FIŘ failed verification:\n" + interpreter.module());
           }
 
-          check.accept("FIŘ post-opt3 #1", () -> interpreter.call("main2", SEXPs.integer(1)));
-          check.accept("FIŘ post-opt3 #2", () -> interpreter.call("main2", SEXPs.real(1)));
-          check.accept("FIŘ post-opt3 #3", () -> interpreter.call("main2", SEXPs.logical(true)));
+          check.checkTraceAndOutput("FIŘ post-opt3 #1", intTrace, oldModuleStr, () -> interpreter.call("main2", SEXPs.integer(1)));
+          check.checkTraceAndOutput("FIŘ post-opt3 #2", realTrace, oldModuleStr, () -> interpreter.call("main2", SEXPs.real(1)));
+          check.checkOutput("FIŘ post-opt3 #3", () -> interpreter.call("main2", SEXPs.logical(true)));
           interpreter.call("main2", SEXPs.integer(2));
           interpreter.call("main2", SEXPs.real(3.5));
         });
   }
 
   private void testCompilerAndInterpreterAbstract(
-      TestPath rFilePath, BiConsumer<Interpreter, BiConsumer<String, Supplier<SEXP>>> test) {
+      TestPath rFilePath, BiConsumer<Interpreter, Check> test) {
     Module firModule = null;
 
     try {
@@ -157,47 +165,7 @@ public class BC2FirAndInterpreterIntegrationTest {
       // Use `toString()` because we only care about structural equivalence (environments won't
       // be equal but that's OK, we want to check if they're structurally equivalent though).
       var rOutputStr = rOutput.toString();
-      @SuppressWarnings("unchecked")
-      final ImmutableList<Snapshot>[] originalTrace = new ImmutableList[1];
-      test.accept(
-          interpreter,
-          (desc, runInterpreter) -> {
-            final SEXP[] firOutput = new SEXP[1];
-            var trace =
-                interpreter
-                    .checkpointTrace()
-                    .track(
-                        () -> {
-                          // Run to capture trace
-                          firOutput[0] = runInterpreter.get();
-                        });
-
-            if (originalTrace[0] == null) {
-              originalTrace[0] = trace;
-            } else {
-              var lastSnapshot = "(null)";
-              for (var i = 0; i < Math.max(originalTrace[0].size(), trace.size()); i++) {
-                var originalSnapshot =
-                    i < originalTrace[0].size()
-                        ? originalTrace[0].get(i).structuralString()
-                        : "(null)";
-                var newSnapshot = i < trace.size() ? trace.get(i).structuralString() : "(null)";
-                assertEquals(
-                    originalSnapshot,
-                    newSnapshot,
-                    desc
-                        + " deviated from original trace at a checkpoint\n"
-                        + "Last matching snapshot:\n"
-                        + lastSnapshot);
-                lastSnapshot = originalSnapshot;
-              }
-            }
-
-            assertEquals(
-                rOutputStr,
-                firOutput[0].toString(),
-                desc + " produced different output than GNU-R");
-          });
+      test.accept(interpreter, new Check(interpreter, rOutputStr));
     } catch (CompilerException | BcCompilerUnsupportedException e) {
       fail("GNU-R bytecode compiler crashed", e);
     } catch (BC2CFGCompilerException | BC2ClosureCompilerUnsupportedException e) {
@@ -205,6 +173,80 @@ public class BC2FirAndInterpreterIntegrationTest {
     } catch (InterpretException e) {
       System.out.println(firModule);
       fail("FIŘ interpreter crashed", e);
+    }
+  }
+
+  private static class Check {
+    private final Interpreter interpreter;
+    private final String rOutputStr;
+
+    public Check(Interpreter interpreter, String rOutputStr) {
+      this.interpreter = interpreter;
+      this.rOutputStr = rOutputStr;
+    }
+
+    public void checkOutput(String desc, Supplier<SEXP> runInterpreter) {
+      var firOutput = runInterpreter.get();
+      var firOutputStr = firOutput.toString();
+
+      assertEquals(
+          rOutputStr,
+          firOutputStr,
+          desc + " produced different output than GNU-R");
+    }
+
+    public ImmutableList<DeoptSnapshot> recordAndCheckOutput(String desc, Supplier<SEXP> runInterpreter) {
+      return interpreter.checkpointTrace().track(() -> checkOutput(desc, runInterpreter));
+    }
+
+    public void checkTraceAndOutput(
+        String desc, ImmutableList<DeoptSnapshot> expectedTrace, String oldModuleStr, Supplier<SEXP> runInterpreter) {
+      final SEXP[] firOutput = new SEXP[1];
+      // Defer checking output because we want to report the first trace difference instead of
+      // the output difference if there is one (because it usually directly causes future trace
+      // differences and an output difference, but never vice versa).
+      var trace =
+          interpreter
+              .checkpointTrace()
+              .track(
+                  () -> firOutput[0] = runInterpreter.get());
+      var firOutputStr = firOutput[0].toString();
+
+      DeoptSnapshot lastOkSnapshot = null;
+      for (int i = 0; i < Math.max(expectedTrace.size(), trace.size()); i++) {
+        var expectedSnapshot =
+            i < expectedTrace.size() ? expectedTrace.get(i) : null;
+        var newSnapshot = i < trace.size() ? trace.get(i) : null;
+        var lastOkSnapshot1 = lastOkSnapshot;
+        assertEquals(
+            expectedSnapshot,
+            newSnapshot,
+            () -> Printer.use(p -> {
+              var w = p.writer();
+
+              w.write(desc);
+              w.write(" deviated from expected trace at checkpoint.");
+
+              if (lastOkSnapshot1 != null) {
+                w.write("\nLast OK:\n");
+                p.print(lastOkSnapshot1);
+              }
+
+              var moduleStr = interpreter.module().toString();
+              if (!oldModuleStr.equals(moduleStr)) {
+                w.write("\nLast module:\n");
+                w.write(oldModuleStr);
+                w.write("\nThis module:\n");
+                w.write(moduleStr);
+              }
+            }));
+        lastOkSnapshot = expectedSnapshot;
+      }
+
+      assertEquals(
+          rOutputStr,
+          firOutputStr,
+          desc + " produced different output than GNU-R");
     }
   }
 }

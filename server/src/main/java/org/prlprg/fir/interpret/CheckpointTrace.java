@@ -5,23 +5,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-/// Records an [Interpreter]'s state at each [`Checkpoint` instruction][
-/// org.prlprg.fir.ir.instruction.Checkpoint].
+/// Computed and records an [Interpreter]'s state at deoptimization point when reaching each
+/// [`Checkpoint` instruction][org.prlprg.fir.ir.instruction.Checkpoint].
 ///
 /// We can use this to ensure traces before and after optimizations are semantically equivalent.
-/// In-between checkpoints they may have different states, but each checkpoint must have the
-/// same state because it deoptimizes to the same baseline.
+/// The traces may have different registers, environments, etc. but should always converge at
+/// deoptimization, since their state must match the baseline.
 ///
 /// By default, this is disabled to avoid creating unused snapshots. Call [#track()] to
 /// temporarily enable.
 public class CheckpointTrace {
-  private final List<Snapshot> snapshots = new ArrayList<>();
+  private final List<DeoptSnapshot> snapshots = new ArrayList<>();
   private boolean isRecording = false;
 
   /// Temporarily enable, run `action`, then disable. Returns the recorded snapshots.
   ///
   /// @throws IllegalStateException If already recording.
-  public ImmutableList<Snapshot> track(Runnable action) {
+  public ImmutableList<DeoptSnapshot> track(Runnable action) {
     if (isRecording) {
       throw new IllegalStateException("Already recording checkpoints");
     }
@@ -37,7 +37,9 @@ public class CheckpointTrace {
     }
   }
 
-  void record(Supplier<Snapshot> getSnapshot) {
-    snapshots.add(getSnapshot.get());
+  void record(Supplier<DeoptSnapshot> getSnapshot) {
+    if (isRecording) {
+      snapshots.add(getSnapshot.get());
+    }
   }
 }

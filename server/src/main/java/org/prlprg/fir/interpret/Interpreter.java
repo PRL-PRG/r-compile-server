@@ -96,6 +96,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
@@ -433,7 +434,8 @@ public final class Interpreter {
       }
       case Return(var ret) -> new ControlFlow.Return(run(ret));
       case Checkpoint(var ok, var deopt) -> {
-        checkpointTrace.record(this::snapshot);
+        // TODO: refactor lambda into method for readability.
+        checkpointTrace.record(() -> snapshotAtCheckpoint(deopt));
         yield new ControlFlow.Goto(check(ok) ? ok : deopt);
       }
       case Deopt(var pc, var argStack) -> {
@@ -1007,6 +1009,36 @@ public final class Interpreter {
     return cursor;
   }
 
+  private DeoptSnapshot snapshotAtCheckpoint(Target deopt) {
+    if (!deopt.phiArgs().isEmpty()) {
+      throw fail("Deopt target has phi arguments: " + deopt);
+    }
+
+    var env = topFrame().environment().deepCopyUserEnvs();
+    for (var i = 0; i < deopt.bb().statements().size(); i++) {
+      var stmt = deopt.bb().statements().get(i);
+      switch (stmt.expression()) {
+        case MkEnv() -> env = new UserEnvSXP(env);
+        case Store(var variable, var value) -> {
+          var valueSexp = run(value);
+          env.set(variable.name(), valueSexp);
+        }
+        default -> throw fail("Unsupported expression in deopt branch at index " + i + ": "
+            + stmt.expression());
+      }
+      if (stmt.assignee() != null) {
+        throw fail("Deopt branch statement has assignee at index " + i + ": " + stmt);
+      }
+    }
+
+    var deoptJump = (Deopt) deopt.bb().jump();
+    var pc = deoptJump.pc();
+    var bcStack = deoptJump.stack().stream().map(this::run)
+        .collect(ImmutableList.toImmutableList());
+
+    return new DeoptSnapshot(pc, bcStack, env);
+  }
+
   /// Casts the value to a boolean and returns it, throws if not a boolean.
   private boolean isTrue(SEXP value) {
     return switch (value.asScalarLogical().orElse(null)) {
@@ -1161,11 +1193,7 @@ public final class Interpreter {
 
   /// Create an [InterpretException] at the current evaluation position.
   public InterpretException fail(String message, @Nullable Throwable cause) {
-    return new InterpretException(message, cause, snapshot());
-  }
-
-  private Snapshot snapshot() {
-    return new Snapshot(ImmutableList.copyOf(stack), SEXP.deepCopy(globalEnv));
+    return new InterpretException(message, cause, stack, globalEnv);
   }
 
   /// Result of executing a jump instruction.
