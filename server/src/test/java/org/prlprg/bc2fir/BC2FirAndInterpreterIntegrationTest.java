@@ -218,20 +218,18 @@ public class BC2FirAndInterpreterIntegrationTest {
         var newSnapshot = i < trace.size() ? trace.get(i) : null;
 
         // Add extra information to the failed assertion to help debugging.
-        if (!expectedSnapshot.equals(newSnapshot)) {
-          var w = new PrettyPrintWriter(System.err);
+        if (!Objects.equals(expectedSnapshot, newSnapshot)) {
           if (lastOkSnapshotStr != null) {
-            w.write("\nLast OK:\n");
-            var lastOkSnapshotStr1 = lastOkSnapshotStr;
-            w.runIndented(() -> w.write(lastOkSnapshotStr1));
+            System.out.println("\n=== Last OK ===\n");
+            System.out.println(lastOkSnapshotStr);
           }
 
           var moduleStr = interpreter.module().toString();
           if (!oldModuleStr.equals(moduleStr)) {
-            w.write("\nLast module:\n");
-            w.runIndented(() -> w.write(oldModuleStr));
-            w.write("\nThis module:\n");
-            w.runIndented(() -> w.write(moduleStr));
+            System.out.println("\n=== Last module ===\n");
+            System.out.println(oldModuleStr);
+            System.out.println("\n=== This module ===\n");
+            System.out.println(moduleStr);
           }
         }
 
