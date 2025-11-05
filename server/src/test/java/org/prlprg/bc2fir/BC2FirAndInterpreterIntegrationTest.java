@@ -218,7 +218,7 @@ public class BC2FirAndInterpreterIntegrationTest {
         var newSnapshot = i < trace.size() ? trace.get(i) : null;
 
         // Add extra information to the failed assertion to help debugging.
-        if (expectedSnapshot != newSnapshot) {
+        if (!expectedSnapshot.equals(newSnapshot)) {
           var w = new PrettyPrintWriter(System.err);
           if (lastOkSnapshotStr != null) {
             w.write("\nLast OK:\n");
