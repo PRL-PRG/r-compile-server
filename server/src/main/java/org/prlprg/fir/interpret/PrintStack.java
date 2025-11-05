@@ -3,6 +3,7 @@ package org.prlprg.fir.interpret;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -15,50 +16,8 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
-public final class Snapshot {
-  private final ImmutableList<StackFrame> stack;
-  private final GlobalEnvSXP globalEnv;
-  private @Nullable String structuralString = null;
-
-  Snapshot(ImmutableList<StackFrame> stack, GlobalEnvSXP globalEnv) {
-    this.stack = stack;
-    this.globalEnv = globalEnv;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (!(o instanceof Snapshot snapshot)) {
-      return false;
-    }
-    return Objects.equals(structuralString(), snapshot.structuralString());
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(structuralString());
-  }
-
-  /// EnvSXPs will have different identities, but we want to compare snapshots structurally.
-  /// Hence we use this for `equals` and `hashCode`.
-  public String structuralString() {
-    if (structuralString == null) {
-      structuralString = Printer.use(p -> print(p, false));
-    }
-    return structuralString;
-  }
-
-  // region printing
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    print(p, true);
-  }
-
-  private void print(Printer p, boolean includeFeedback) {
+final class PrintStack {
+  public static void printStack(Printer p, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
     var w = p.writer();
     var f = w.formatter();
 
@@ -87,7 +46,7 @@ public final class Snapshot {
       var frame = stack.get(i);
       var ctx =
           new FrameContext(
-              -1, frameAppearances, envToStackIndex, globalEnv, forSexp, includeFeedback);
+              -1, frameAppearances, envToStackIndex, globalEnv, forSexp);
 
       f.format("%" + maxDigits + "d. ", i);
       w.runIndented(padding, () -> printFrame(ctx, frame, p));
@@ -104,16 +63,14 @@ public final class Snapshot {
       HashMap<StackFrame, ArrayList<Integer>> frameAppearances,
       Map<EnvSXP, Integer> envToStackIndex,
       @Nullable GlobalEnvSXP globalEnv,
-      SEXPPrintContext forSexp,
-      boolean includeFeedback) {
+      SEXPPrintContext forSexp) {
     private static final FrameContext EMPTY =
         new FrameContext(
             -1,
             new HashMap<>(),
             Map.of(),
             null,
-            new SEXPPrintContext(SEXPPrintOptions.FULL),
-            false);
+            new SEXPPrintContext(SEXPPrintOptions.FULL));
   }
 
   static void printFrame(StackFrame frame, Printer p) {
@@ -163,9 +120,7 @@ public final class Snapshot {
               p.print(register);
               w.write(" = ");
               p.print(value);
-              if (ctx.includeFeedback) {
-                feedback.print(register, p);
-              }
+              feedback.print(register, p);
               w.write('\n');
             }
 

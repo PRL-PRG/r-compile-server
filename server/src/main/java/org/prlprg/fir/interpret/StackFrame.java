@@ -1,5 +1,7 @@
 package org.prlprg.fir.interpret;
 
+import static org.prlprg.fir.interpret.PrintStack.printFrame;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -112,6 +114,6 @@ final class StackFrame {
 
   @Override
   public String toString() {
-    return Printer.use(p -> Snapshot.printFrame(this, p));
+    return Printer.use(p -> printFrame(this, p));
   }
 }

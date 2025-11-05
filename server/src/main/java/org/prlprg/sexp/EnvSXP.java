@@ -1,10 +1,17 @@
 package org.prlprg.sexp;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.Collection;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.parseprint.SEXPParseContext;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.util.Collections2;
 import org.prlprg.util.Pair;
 
@@ -102,6 +109,39 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
   default boolean isBase() {
     return this instanceof BaseEnvSXP
         || this instanceof NamespaceEnvSXP ns && ns.name().equals("base");
+  }
+
+  /// `this` if it's static, its parent if it's static, it's grandparent if that's static, etc.
+  ///
+  /// Every environment at least has the empty environment as an ancestor, which is static, so
+  /// this is non-null.
+  default EnvSXP staticAncestor() {
+    EnvSXP current = this;
+    while (!(current instanceof StaticEnvSXP)) {
+      current = current.parent();
+    }
+    return current;
+  }
+
+  /// Create a deep copy of this environment and all its parents up to the static environment.
+  /// Return the static environment as-is (returns `this` if it's itself static, doesn't
+  /// copy the parent if it's static, doesn't copy the parent's parent if it's static, etc.).
+  ///
+  /// Notably, this also only copies environments referenced in bindings if they're local.
+  default EnvSXP deepCopyUserEnvs() {
+    var staticAncestor = staticAncestor();
+    if (this == staticAncestor) {
+      // Fastcase
+      return this;
+    }
+
+    var printCtx = new SEXPPrintContext(SEXPPrintOptions.FULL);
+    printCtx.setRef(staticAncestor, 0);
+    var serialized = Printer.use(p -> p.print(this), printCtx);
+
+    var parseCtx = new SEXPParseContext();
+    parseCtx.setRef(0, staticAncestor);
+    return new Parser(serialized).withContext(parseCtx).parse(EnvSXP.class);
   }
 
   @Override
