@@ -13,14 +13,17 @@
 #include <time.h>
 #include <omp.h>
 
+void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function);
+extern RCNTXT *R_GlobalContext; /* The global context */
+extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
+
 #include "rcp_common.h"
 #include "runtime_internals.h"
 #include "stencils/stencils.h"
 
 // Used as a hint where to map address space close to R internals to allow relative addressing
 #define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
-
-void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function);
+#define BC_DEFAULT_OPTIMIZE_LEVEL 3
 
 #define MAX3(a, b, c) MAX(MAX(a, b), c)
 #define MAX4(a, b, c, d) MAX(MAX3(a, b, c), d)
@@ -1027,33 +1030,17 @@ X_STEPFOR_TYPES
     return res;
 }
 
+static SEXP original_cmpfun = NULL;
+static SEXP original_tryCmpfun = NULL;
+
 static SEXP compile_to_bc(SEXP f, SEXP options)
 {
-    SEXP compiler_package, compile_fun, call, result;
-
-    // Load the compiler namespace
-    compiler_package = Rf_eval(PROTECT(Rf_lang2(PROTECT(Rf_install("getNamespace")), PROTECT(Rf_mkString("compiler")))), R_GlobalEnv);
-    UNPROTECT(3);
-    PROTECT(compiler_package);
-
-    // Find the "compile" function in the compiler namespace
-    compile_fun = Rf_findVarInFrame(compiler_package, PROTECT(Rf_install("cmpfun")));
-    UNPROTECT(2);
-
-    if (compile_fun == R_UnboundValue)
-    {
-        error("Could not find compiler::cmpfun function.");
-    }
-    PROTECT(compile_fun);
-
     // Create the function call: compile(f)
-    call = Rf_lang3(compile_fun, f, options);
-    UNPROTECT(1);
-    PROTECT(call);
+    SEXP call = PROTECT(Rf_lang3(original_cmpfun, f, options));
 
     // Evaluate the function call in R
-    result = Rf_eval(call, R_GlobalEnv);
-    UNPROTECT(1);
+    SEXP result = Rf_eval(call, R_GlobalEnv);
+    UNPROTECT(1); // call
 
     return result;
 }
@@ -1151,28 +1138,6 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
     return ptr;
 }
 
-void rcp_init(void)
-{
-    refresh_near_memory_ptr(0);
-
-    prepare_shared_memory();
-
-#ifdef STEPFOR_SPECIALIZE
-    prepare_stepfor();
-#endif
-
-    DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, UNLIKELY_LOOPS=%d\n", ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS, ALIGNMENT_LABELS_UNLIKELY, ALIGNMENT_LOOPS_UNLIKELY);
-
-    DEBUG_PRINT("RCP initialized\n");
-}
-
-void rcp_destr(void)
-{
-    if(mem_shared_sexp != NULL)
-        R_ReleaseObject(mem_shared_sexp);
-    mem_shared_sexp = R_NilValue;
-}
-
 enum { STATS_COUNT = 5 };
 static const char *stats_names[STATS_COUNT] = {
     "total_size",
@@ -1191,15 +1156,41 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     if (TYPEOF(f) != CLOSXP)
         error("The first argument must be a closure.");
 
-    CompilationStats stats = {0, 0};
+    #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
+    if (options == R_NilValue)
+    {
+        // Create the options list with optimize = 3
+        options = PROTECT(Rf_allocVector(VECSXP, 1));
+        SEXP optimize_value = PROTECT(Rf_ScalarInteger(BC_DEFAULT_OPTIMIZE_LEVEL));
+        SET_VECTOR_ELT(options, 0, optimize_value);
+        UNPROTECT(1); // optimize_value
 
+        // Set the names for the options list
+        SEXP options_names = PROTECT(Rf_allocVector(STRSXP, 1));
+        SET_STRING_ELT(options_names, 0, Rf_mkChar("optimize"));
+        Rf_setAttrib(options, R_NamesSymbol, options_names);
+        UNPROTECT(1); // options_names
+    }
+    #else
+    PROTECT(options); // To balance PROTECT/UNPROTECT
+    #endif
+
+    CompilationStats stats = {0, 0};
     clock_gettime(CLOCK_MONOTONIC, &start);
-    SEXP compiled = PROTECT(compile_to_bc(f, options));
+
+    SEXP compiled = compile_to_bc(f, options);
+    UNPROTECT(1); // options
+
+    if(TYPEOF(BODY(compiled)) != BCODESXP)
+        error("The BC compiler could not compile this function.");
+
+    PROTECT(compiled);
+
     clock_gettime(CLOCK_MONOTONIC, &mid);
     SEXP ptr = copy_patch_bc(BODY(compiled), &stats);
     SET_BODY(compiled, ptr);
     clock_gettime(CLOCK_MONOTONIC, &end);
-    UNPROTECT(1);
+    UNPROTECT(1); // compiled
 
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;
@@ -1243,4 +1234,233 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     }
 
     return compiled;
+}
+
+SEXP C_rcp_tryCmpfun(SEXP f)
+{
+    if (TYPEOF(f) != CLOSXP)
+        error("The first argument must be a closure.");
+
+    SEXP result = R_NilValue;
+
+    SEXP symbol = PROTECT(Rf_install("rcp_cmpfun"));
+    SEXP call = Rf_lang3(symbol, f, R_NilValue);
+    UNPROTECT(1); // symbol
+    PROTECT(call);
+    
+    int error_occurred = 0;
+    SEXP try_result = R_tryEval(call, R_GlobalEnv, &error_occurred);
+
+    UNPROTECT(1); // call
+    
+    if (error_occurred) {
+        // Get the compiler namespace
+        SEXP compiler_namespace = Rf_eval(
+            PROTECT(Rf_lang2(
+                PROTECT(Rf_install("getNamespace")),
+                PROTECT(Rf_mkString("compiler"))
+            )),
+            R_GlobalEnv
+        );
+        UNPROTECT(3);
+        PROTECT(compiler_namespace);
+        
+        // Get the last error condition using geterrmessage()
+        SEXP geterrmessage_call = PROTECT(Rf_lang1(Rf_install("geterrmessage")));
+        SEXP error_msg = R_tryEval(geterrmessage_call, R_GlobalEnv, NULL);
+        UNPROTECT(1); // geterrmessage_call
+        
+        const char *msg_str = (error_msg != R_NilValue && TYPEOF(error_msg) == STRSXP && LENGTH(error_msg) > 0)
+            ? CHAR(STRING_ELT(error_msg, 0))
+            : "Unknown compilation error";
+        
+        // Call notifyCompilerError from the compiler namespace
+        SEXP notify_call = PROTECT(Rf_lang2(
+            Rf_install("notifyCompilerError"),
+            PROTECT(Rf_mkString(msg_str))
+        ));
+        
+        R_tryEval(notify_call, compiler_namespace, NULL);
+        UNPROTECT(3); // notify_call, string, compiler_namespace
+
+        result = f; // Return original function on error
+    } else {
+        result = try_result;
+    }
+    
+    return result;
+}
+
+static void install_cmpfun_hook(void)
+{
+    // Get the compiler namespace
+    SEXP compiler_namespace = Rf_eval(
+        PROTECT(Rf_lang2(
+            PROTECT(Rf_install("getNamespace")),
+            PROTECT(Rf_mkString("compiler"))
+        )),
+        R_GlobalEnv
+    );
+    UNPROTECT(3);
+    PROTECT(compiler_namespace);
+
+    // Save the original cmpfun to a global variable
+    original_cmpfun = Rf_findVarInFrame(compiler_namespace, Rf_install("cmpfun"));
+    if (original_cmpfun == R_UnboundValue) {
+        error("Could not find compiler::cmpfun function");
+    }
+
+    PROTECT(original_cmpfun);
+    R_PreserveObject(original_cmpfun);
+    UNPROTECT(1);
+
+    // Unlock the binding before modifying it
+    SEXP cmpfun_sym = PROTECT(Rf_install("cmpfun"));
+    R_unLockBinding(cmpfun_sym, compiler_namespace);
+
+    // Build the body: .Call("C_rcp_cmpfun", f, options, PACKAGE = "rcp")
+    SEXP call_sym = PROTECT(Rf_install(".Call"));
+    SEXP fun_name = PROTECT(Rf_mkString("C_rcp_cmpfun"));
+    SEXP f_sym = PROTECT(Rf_install("f"));
+    SEXP options_sym = PROTECT(Rf_install("options"));
+    SEXP last_arg = PROTECT(Rf_mkString("rcp")); // Add PACKAGE argument
+    
+    // Create the call expression
+    SEXP call_expr = Rf_lang5(call_sym, fun_name, f_sym, options_sym, last_arg);
+    UNPROTECT(5); // call_sym, fun_name, f_sym, options_sym
+    PROTECT(call_expr);
+
+    // Add PACKAGE as a named argument to the last cons cell
+    SEXP package_sym = PROTECT(Rf_install("PACKAGE"));
+    //SET_TAG(last_arg, package_sym);
+    SET_TAG(CDR(CDDDR(call_expr)), package_sym);
+    UNPROTECT(1); // package_sym
+    
+    // Create formal arguments: pairlist(f = , options = NULL)
+    SEXP formals = PROTECT(Rf_cons(R_MissingArg, Rf_cons(R_NilValue, R_NilValue)));
+    SET_TAG(formals, Rf_install("f"));
+    SET_TAG(CDR(formals), Rf_install("options"));
+    
+    // Create the closure
+    SEXP wrapper = PROTECT(Rf_allocSExp(CLOSXP));
+    SET_FORMALS(wrapper, formals);
+    SET_BODY(wrapper, call_expr);
+    SET_CLOENV(wrapper, compiler_namespace);
+    
+    // Replace cmpfun in the compiler namespace
+    Rf_defineVar(cmpfun_sym, wrapper, compiler_namespace);
+
+    UNPROTECT(3); // wrapper, formals, call_expr
+    
+    // Re-lock the binding
+    R_LockBinding(cmpfun_sym, compiler_namespace);
+    
+    UNPROTECT(2); // cmpfun_sym, compiler_namespace
+
+    DEBUG_PRINT("Installed cmpfun hook\n");
+}
+
+static void install_tryCmpfun_hook(void)
+{
+    // Get the compiler namespace
+    SEXP compiler_namespace = Rf_eval(
+        PROTECT(Rf_lang2(
+            PROTECT(Rf_install("getNamespace")),
+            PROTECT(Rf_mkString("compiler"))
+        )),
+        R_GlobalEnv
+    );
+    UNPROTECT(3);
+    PROTECT(compiler_namespace);
+
+    // Save the original tryCmpfun
+    original_tryCmpfun = Rf_findVarInFrame(compiler_namespace, Rf_install("tryCmpfun"));
+    if (original_tryCmpfun == R_UnboundValue) {
+        warning("Could not find compiler::tryCmpfun function");
+        UNPROTECT(1);
+        return;
+    }
+
+    PROTECT(original_tryCmpfun);
+    R_PreserveObject(original_tryCmpfun);
+    UNPROTECT(1);
+
+    // Unlock the binding
+    SEXP tryCmpfun_sym = PROTECT(Rf_install("tryCmpfun"));
+    R_unLockBinding(tryCmpfun_sym, compiler_namespace);
+
+    // Build the call: .Call("C_rcp_tryCmpfun", f, PACKAGE = "rcp")
+    SEXP call_sym = PROTECT(Rf_install(".Call"));
+    SEXP fun_name = PROTECT(Rf_mkString("C_rcp_tryCmpfun"));
+    SEXP f_sym = PROTECT(Rf_install("f"));
+    SEXP last_arg = PROTECT(Rf_mkString("rcp")); // Add PACKAGE argument
+    
+    SEXP call_expr = Rf_lang4(call_sym, fun_name, f_sym, last_arg);
+    UNPROTECT(4); // call_sym, fun_name, f_sym
+    PROTECT(call_expr);
+    
+    SEXP package_sym = PROTECT(Rf_install("PACKAGE"));
+    SET_TAG(CDDDR(call_expr), package_sym);
+    UNPROTECT(1); // package_sym
+
+    // Create formals: pairlist(f = )
+    SEXP formals = PROTECT(Rf_cons(R_MissingArg, R_NilValue));
+    SET_TAG(formals, Rf_install("f"));
+    
+    // Create the closure
+    SEXP wrapper = PROTECT(Rf_allocSExp(CLOSXP));
+    SET_FORMALS(wrapper, formals);
+    SET_BODY(wrapper, call_expr);
+    SET_CLOENV(wrapper, compiler_namespace);
+    
+    // Replace tryCmpfun
+    Rf_defineVar(tryCmpfun_sym, wrapper, compiler_namespace);
+
+    UNPROTECT(3); // wrapper, formals, call_expr
+    
+    // Re-lock the binding
+    R_LockBinding(tryCmpfun_sym, compiler_namespace);
+    
+    UNPROTECT(2); // tryCmpfun_sym, compiler_namespace
+
+    DEBUG_PRINT("Installed tryCmpfun hook\n");
+}
+
+
+void rcp_init(void)
+{
+    refresh_near_memory_ptr(0);
+
+    prepare_shared_memory();
+
+#ifdef STEPFOR_SPECIALIZE
+    prepare_stepfor();
+#endif
+
+    install_cmpfun_hook();
+    //install_tryCmpfun_hook();
+
+    DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, UNLIKELY_LOOPS=%d\n", ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS, ALIGNMENT_LABELS_UNLIKELY, ALIGNMENT_LOOPS_UNLIKELY);
+
+    DEBUG_PRINT("RCP initialized\n");
+}
+
+void rcp_destr(void)
+{
+    if(mem_shared_sexp != NULL) {
+        R_ReleaseObject(mem_shared_sexp);
+        mem_shared_sexp = NULL;
+    }
+
+    // TODO restore binding?
+
+    if (original_cmpfun != NULL) {
+        R_ReleaseObject(original_cmpfun);
+        original_cmpfun = NULL;
+    }
+
+    if (original_tryCmpfun != NULL) {
+        R_ReleaseObject(original_tryCmpfun);
+        original_tryCmpfun = NULL;
+    }
 }
