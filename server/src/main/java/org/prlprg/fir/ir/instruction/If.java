@@ -18,8 +18,8 @@ public record If(Argument cond, Target ifTrue, Target ifFalse) implements Jump {
   }
 
   @Override
-  public @UnmodifiableView Set<BB> targetBBs() {
-    return ifTrue.bb() == ifFalse.bb() ? Set.of(ifTrue.bb()) : Set.of(ifTrue.bb(), ifFalse.bb());
+  public @UnmodifiableView Collection<BB> targetBBs() {
+    return ifTrue.bb() == ifFalse.bb() ? List.of(ifTrue.bb()) : List.of(ifTrue.bb(), ifFalse.bb());
   }
 
   @Override

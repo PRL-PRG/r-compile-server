@@ -1,17 +1,10 @@
 package org.prlprg.fir.interpret;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
-import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
 import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
@@ -20,14 +13,17 @@ public class DeoptSnapshot {
   private final int pc;
   private final ImmutableList<SEXP> bcStack;
   private final EnvSXP env;
+  private final String fullStackToString;
+  private @Nullable String moduleToString = null;
   private final String toString;
 
-  public DeoptSnapshot(int pc, ImmutableList<SEXP> bcStack, EnvSXP env) {
+  DeoptSnapshot(int pc, ImmutableList<SEXP> bcStack, EnvSXP env, String fullStackToString) {
     this.pc = pc;
     this.bcStack = bcStack;
     this.env = env;
+    this.fullStackToString = fullStackToString;
 
-    toString = Printer.use(p -> p.print(this));
+    toString = Printer.use(this::doPrint);
   }
 
   public int pc() {
@@ -40,6 +36,21 @@ public class DeoptSnapshot {
 
   public EnvSXP env() {
     return env;
+  }
+
+  public String fullStackToString() {
+    return fullStackToString;
+  }
+
+  void unsafeSetModuleToString(@Nullable String moduleToString) {
+    if (this.moduleToString != null) {
+      throw new IllegalStateException("`moduleToString` is already set: " + this.moduleToString);
+    }
+    this.moduleToString = moduleToString;
+  }
+
+  public String moduleToString() {
+    return Objects.requireNonNull(moduleToString, "`moduleToString` was deferred and not set");
   }
 
   @Override
@@ -62,17 +73,17 @@ public class DeoptSnapshot {
     return toString;
   }
 
-  @PrintMethod
-  private void print(Printer p) {
+  private void doPrint(Printer p) {
     var w = p.writer();
+    var p1 = p.withContext(new SEXPPrintContext(SEXPPrintOptions.SEMANTIC));
 
     w.write("deopt ");
     p.print(pc);
     w.write(' ');
-    p.printAsList("[", "]", bcStack);
+    p1.printAsList("[", "]", bcStack);
     w.runIndented(() -> {
       w.write('\n');
-      p.print(env);
+      p1.print(env);
     });
   }
 }

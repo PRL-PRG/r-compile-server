@@ -15,7 +15,7 @@ package org.prlprg.sexp.parseprint;
 ///
 /// Default: `false`.
 ///
-/// @param printBcContents Print the contents of bytecode objects.
+/// @param printBcDetails Print the contents of bytecode objects.
 ///
 /// Default: `false`.
 ///
@@ -51,7 +51,9 @@ package org.prlprg.sexp.parseprint;
 public record SEXPPrintOptions(
     boolean printDelimited,
     boolean printStaticEnvironmentDetails,
-    boolean printBcContents,
+    boolean printBcDetails,
+    boolean printPromiseLazyDetails,
+    boolean printMapsSorted,
     long maxElements,
     long maxAttributes,
     long maxStringLength,
@@ -59,14 +61,24 @@ public record SEXPPrintOptions(
   /// The default print options that you get when calling
   /// [org.prlprg.parseprint.Printer#print(Object)] and [#toString()].
   public static final SEXPPrintOptions DEFAULT =
-      new SEXPPrintOptions(false, false, false, 10, 3, 100, 5);
+      new SEXPPrintOptions(false, false, false, true, false, 10, 3, 100, 5);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP].
   ///
   /// This or [#FULL_DELIMITED] is required for the string to be parse-able.
   public static final SEXPPrintOptions FULL =
       new SEXPPrintOptions(
-          false, true, true, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
+          false, true, true, true, false, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
+
+  /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP] that indicate the SEXP is
+  /// definitely semantically different.
+  ///
+  /// e.g. different promise bodies or bytecode don't matter, because different promise bodies
+  /// may have the same semantics. But constants do.
+  public static final SEXPPrintOptions SEMANTIC = SEXPPrintOptions.FULL.withStaticEnvironmentDetails(false)
+      .withPromiseLazyDetails(false)
+      .withPromiseLazyDetails(false)
+      .withMapsSorted(true);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP], and guarantee it's surrounded by
   /// `<` and `>` if not `NULL` or scalar.
@@ -80,7 +92,69 @@ public record SEXPPrintOptions(
         : new SEXPPrintOptions(
             printDelimited,
             printStaticEnvironmentDetails,
-            printBcContents,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withStaticEnvironmentDetails(boolean printStaticEnvironmentDetails) {
+    return printStaticEnvironmentDetails == this.printStaticEnvironmentDetails
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printStaticEnvironmentDetails,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withBcDetails(boolean printBcDetails) {
+    return printBcDetails == this.printBcDetails
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printStaticEnvironmentDetails,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withPromiseLazyDetails(boolean printPromiseLazyDetails) {
+    return printPromiseLazyDetails == this.printPromiseLazyDetails
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printStaticEnvironmentDetails,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withMapsSorted(boolean printMapsSorted) {
+    return printMapsSorted == this.printMapsSorted
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printStaticEnvironmentDetails,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
             maxElements,
             maxAttributes,
             maxStringLength,

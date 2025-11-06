@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
+import java.util.SequencedSet;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
@@ -15,7 +16,7 @@ public sealed interface Jump extends Instruction
   Collection<Target> targets();
 
   @UnmodifiableView
-  Set<BB> targetBBs();
+  Collection<BB> targetBBs();
 
   @ParseMethod
   private static Jump parse(Parser p1, Instruction.ParseContext ctx) {

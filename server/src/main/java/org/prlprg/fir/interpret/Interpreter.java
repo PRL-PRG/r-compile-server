@@ -72,6 +72,7 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.ArgumentMatcher.MatchException;
 import org.prlprg.sexp.BaseEnvSXP;
@@ -124,7 +125,7 @@ public final class Interpreter {
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
   private final MockModuleFeedback feedback = new MockModuleFeedback();
-  private final CheckpointTrace checkpointTrace = new CheckpointTrace();
+  private final CheckpointTrace checkpointTrace = new CheckpointTrace(this);
 
   /// Interpret the module in a global environment containing only its functions.
   ///
@@ -1036,7 +1037,7 @@ public final class Interpreter {
     var bcStack = deoptJump.stack().stream().map(this::run)
         .collect(ImmutableList.toImmutableList());
 
-    return new DeoptSnapshot(pc, bcStack, env);
+    return new DeoptSnapshot(pc, bcStack, env, stackToString());
   }
 
   /// Casts the value to a boolean and returns it, throws if not a boolean.
@@ -1180,7 +1181,7 @@ public final class Interpreter {
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
   public PromSXP promiseStub(Promise promExpr) {
-    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.integer(promExpr.hashCode()));
+    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
     var sexp = SEXPs.promise(codeStub, topFrame().environment());
     promises.put(sexp, new PromiseCode(promExpr, topFrame()));
     return sexp;
@@ -1194,6 +1195,14 @@ public final class Interpreter {
   /// Create an [InterpretException] at the current evaluation position.
   public InterpretException fail(String message, @Nullable Throwable cause) {
     return new InterpretException(message, cause, stack, globalEnv);
+  }
+
+  public String stackToString() {
+    return Printer.use(this::printStack);
+  }
+
+  public void printStack(Printer p) {
+    PrintStack.printStack(p, stack, globalEnv);
   }
 
   /// Result of executing a jump instruction.

@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.SequencedSet;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
@@ -17,8 +18,8 @@ public record Goto(Target target) implements Jump {
   }
 
   @Override
-  public @UnmodifiableView Set<BB> targetBBs() {
-    return Set.of(target.bb());
+  public @UnmodifiableView Collection<BB> targetBBs() {
+    return List.of(target.bb());
   }
 
   @Override

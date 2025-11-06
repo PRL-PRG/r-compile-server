@@ -122,4 +122,5 @@ R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
 
 ### Important
 
+- *Never* iterate a `HashMap`; if you need to iterate a data-structure, it should be `LinkedHashMap`. Otherwise you may get non-determinism. Ditto for `HashSet`/`LinkedHashSet`. There should be a lint for this (iff a set or map is iterated make it sequenced).
 - If the user asks to write tests and the implementation is buggy, fix the implementation and test that the bug is fixed.

@@ -1,6 +1,7 @@
 package org.prlprg.sexp.parseprint;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -31,6 +32,7 @@ import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.VectorSXP;
 
 /**
@@ -247,13 +249,16 @@ public class SEXPPrintContext {
                   }
 
                   if (!(sexp instanceof EmptyEnvSXP)) {
-                    if (options.printStaticEnvironmentDetails()) {
+                    if (sexp instanceof UserEnvSXP || options.printStaticEnvironmentDetails()) {
                       if (!(sexp instanceof BaseEnvSXP)) {
                         w.write(" parent=");
                         w.runIndented(() -> p.print(sexp.parent()));
                       }
+
                       w.write(' ');
-                      printList(sexp.bindingsAsTaggedElems(), p.withContext(forBindings));
+                      var bindings = options.printMapsSorted() ? sexp.bindingsAsTaggedElems().stream().sorted(
+                          Comparator.comparing(TaggedElem::tag)).toList() : sexp.bindingsAsTaggedElems();
+                      printList(bindings, p.withContext(forBindings));
                     } else {
                       w.write(" ...");
                     }
@@ -282,7 +287,7 @@ public class SEXPPrintContext {
                     return;
                   }
 
-                  if (options.printBcContents()) {
+                  if (options.printBcDetails()) {
                     w.write(' ');
                     p.print(sexp.bc());
                   } else {
@@ -304,14 +309,23 @@ public class SEXPPrintContext {
 
                   printGeneralStart(sexp.type(), p);
 
-                  w.write("env=");
-                  w.runIndented(() -> p.print(sexp.env()));
-                  if (sexp.isEvaluated()) {
-                    w.write(" val=");
-                    w.runIndented(() -> p.print(sexp.boundVal()));
+                  if (options.printPromiseLazyDetails()) {
+                    w.write("env=");
+                    w.runIndented(() -> p.print(sexp.env()));
+                    if (sexp.isEvaluated()) {
+                      w.write(" val=");
+                      w.runIndented(() -> p.print(sexp.boundVal()));
+                    }
+                    w.write(" ⇒ ");
+                    w.runIndented(() -> p.print(sexp.expr()));
+                  } else {
+                    if (sexp.isEvaluated()) {
+                      w.write("val=");
+                      w.runIndented(() -> p.print(sexp.boundVal()));
+                      w.write(' ');
+                    }
+                    w.write("...");
                   }
-                  w.write(" ⇒ ");
-                  w.runIndented(() -> p.print(sexp.expr()));
 
                   printGeneralEnd(p);
                 }));

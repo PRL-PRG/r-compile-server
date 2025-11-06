@@ -39,7 +39,6 @@ final class PrintStack {
     }
 
     // Print stack
-    w.write("Stack:\n");
     var maxDigits = String.valueOf(stack.size() - 1).length();
     var padding = maxDigits + 2; // +2 for ". "
     for (var i = stack.size() - 1; i >= 0; i--) {

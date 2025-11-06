@@ -3,6 +3,7 @@ package org.prlprg.fir.analyze.resolve;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
@@ -53,6 +54,7 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.util.Streams;
 
 /// Computes each variable's **origin**: the earliest known register or constant that it was
@@ -321,8 +323,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     private void put(Register register, @Nullable Argument argument) {
       if (argument == null) {
         registerOrigins.remove(register);
+        state().registerOrigins.remove(register);
       } else {
         registerOrigins.put(register, argument);
+        state().registerOrigins.put(register, argument);
       }
     }
 
@@ -340,11 +344,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   }
 
   public static final class State implements AbstractInterpretation.State<State> {
-    final Map<NamedVariable, Argument> variableOrigins = new HashMap<>();
+    // Register origins are global, but `State` must store then, so that states with different
+    // register origins aren't equal, so that we re-run blocks whose register origin
+    // dependencies changed.
+    final Map<Register, Argument> registerOrigins = new LinkedHashMap<>();
+    final Map<NamedVariable, Argument> variableOrigins = new LinkedHashMap<>();
 
     @Override
     public State copy() {
       var copy = new State();
+      copy.registerOrigins.putAll(registerOrigins);
       copy.variableOrigins.putAll(variableOrigins);
       return copy;
     }
@@ -352,11 +361,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     @Override
     public void merge(State other) {
       // Merge origins = keep only those that are present in both and equal
-      for (var iterator = variableOrigins.entrySet().iterator(); iterator.hasNext(); ) {
+      mergeOrigins(registerOrigins, other.registerOrigins);
+      mergeOrigins(variableOrigins, other.variableOrigins);
+    }
+
+    private static <T> void mergeOrigins(Map<T, Argument> origins, Map<T, Argument> otherOrigins) {
+      for (var iterator = origins.entrySet().iterator(); iterator.hasNext(); ) {
         var entry = iterator.next();
         var variable = entry.getKey();
         var origin = entry.getValue();
-        var otherOrigin = other.variableOrigins.get(variable);
+        var otherOrigin = otherOrigins.get(variable);
         if (!origin.equals(otherOrigin)) {
           iterator.remove();
         }
@@ -368,12 +382,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
       State that = (State) o;
-      return Objects.equals(variableOrigins, that.variableOrigins);
+      return Objects.equals(registerOrigins, that.registerOrigins) && Objects.equals(variableOrigins, that.variableOrigins);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(variableOrigins);
+      return Objects.hash(registerOrigins, variableOrigins);
     }
   }
 

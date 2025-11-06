@@ -9,9 +9,13 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that removes [Store]s in non-reflective contexts which are never loaded after.
+///
+/// When eliding a store, puts it in deopt branches reachable from the store.
 public record ElideDeadStore() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
@@ -37,6 +41,11 @@ public record ElideDeadStore() implements SpecializeOptimization {
       return expression;
     }
 
+    // Don't elide in deopt branch
+    if (bb.jump() instanceof Deopt) {
+      return expression;
+    }
+
     var cfg = bb.owner();
     var loads = analyses.get(Loads.class);
     var reachability = analyses.get(cfg, CfgReachability.class);
@@ -48,6 +57,14 @@ public record ElideDeadStore() implements SpecializeOptimization {
                   && reachability.isReachable(bb, index, cfgPos.bb(), cfgPos.instructionIndex());
             })) {
       return expression;
+    }
+
+    // Put the store in reachable deopt branches
+    for (var reachableBb : reachability.maySucceed(bb)) {
+      if (!(reachableBb.jump() instanceof Deopt)) {
+        continue;
+      }
+      defer.stage(() -> reachableBb.appendStatement(new Statement(expression)));
     }
 
     return Expression.NOOP;

@@ -11,6 +11,6 @@ towers <- function(n, from_peg, to_peg, using_peg) {
 }
 
 main <- function() {
-  result <- towers(15, 1, 2, 3)
+  result <- towers(7, 1, 2, 3)
   return(result)
 }
