@@ -1029,7 +1029,7 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
     SEXP body = BODY(fun_sxp);
 
     // inline our call
-    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+    if (0 && TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
         !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
         R_GlobalContext->callflag != CTXT_GENERIC) {
 
