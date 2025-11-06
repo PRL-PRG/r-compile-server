@@ -1216,6 +1216,8 @@ static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
 #define X(a, b, c)                                                             \
   static ALWAYS_INLINE void Rsh_##c(Value *r1, Value r0, SEXP call,            \
                                     SEXP rho) {                                \
+    assert(R_ARITH_OPS[b] == R_Primitive(#a));                                 \
+    assert(R_ARITH_OP_SYMS[b] == Rf_install(#a));                              \
     Rsh_arith(r1, *r1, r0, call, b, rho);                                      \
   }
 X_ARITH_OPS
@@ -1255,6 +1257,8 @@ static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
 #define X(a, b, c)                                                             \
   static ALWAYS_INLINE void Rsh_##c(Value *r1, Value r0, SEXP call,            \
                                     SEXP rho) {                                \
+    assert(R_REL_OPS[b] == R_Primitive(#a));                                   \
+    assert(R_REL_OP_SYMS[b] == Rf_install(#a));                                \
     Rsh_relop(r1, *r1, r0, call, b, rho);                                      \
   }
 X_REL_OPS
@@ -1317,6 +1321,7 @@ static INLINE void Rsh_math1(Value *res, Value arg, SEXP call, RshMath1Op op,
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *v, SEXP call, SEXP rho) {                  \
+    assert(R_MATH1_OPS[b] == R_Primitive(#a));                                 \
     Rsh_math1(v, *v, call, b, rho);                                            \
   }
 X_MATH1_OPS
@@ -1349,6 +1354,8 @@ static INLINE void Rsh_unary(Value *res, Value arg, SEXP call, RshUnaryOp op,
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *v, SEXP call, SEXP rho) {                  \
+    assert(R_UNARY_OPS[b] == R_Primitive(#a));                                 \
+    assert(R_UNARY_OP_SYMS[b] == Rf_install(#a));                              \
     Rsh_unary(v, *v, call, b, rho);                                            \
   }
 X_UNARY_OPS
@@ -1375,6 +1382,7 @@ static INLINE void Rsh_logic(Value *res, Value lhs, Value rhs, SEXP call,
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *r1, Value r0, SEXP call, SEXP rho) {       \
+    assert(R_LOGIC2_OPS[b] == R_Primitive(#a));                                \
     Rsh_logic(r1, *r1, r0, call, b, rho);                                      \
   }
 X_LOGIC2_OPS
