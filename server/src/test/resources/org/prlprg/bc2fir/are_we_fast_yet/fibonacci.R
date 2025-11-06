@@ -6,6 +6,6 @@ fibonacci <- function(n) {
 }
 
 main <- function() {
-  result <- fibonacci(25)
+  result <- fibonacci(7)
   return(result)
 }

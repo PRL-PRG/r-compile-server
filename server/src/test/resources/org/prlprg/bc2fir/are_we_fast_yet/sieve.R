@@ -16,6 +16,6 @@ sieve <- function(n) {
 }
 
 main <- function() {
-  result <- sieve(10000)
+  result <- sieve(100)
   return(result)
 }

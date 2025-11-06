@@ -20,6 +20,6 @@ swap <- function(list, i, j) {
 
 main <- function() {
   list <- 1:7
-  result <- permute(7, list)
+  result <- permute(4, list)
   return(result)
 }

@@ -99,6 +99,11 @@ abstract class AbstractSubstituter {
             getClass().getSimpleName() + "#commit",
             List.of(this),
             () -> {
+              if (!substEntries().iterator().hasNext()) {
+                // Fastcase: no substitutions.
+                return;
+              }
+
               // Remove or replace locals from scope.
               commitAffectLocals();
 

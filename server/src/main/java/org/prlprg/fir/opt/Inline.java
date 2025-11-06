@@ -138,14 +138,16 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           // `use` will definitely occur before this force.
           hasMaybeBeenForced = true;
           dominator = useAssignee;
-        } else if (!analyses
+        } else if (analyses
+            .get(cfg, CfgReachability.class)
+            .isReachable(use1.bb(), use1.instructionIndex(), bb, statementIndex) &&
+            !analyses
                 .get(cfg, CfgDominatorTree.class)
-                .dominates(bb, statementIndex, use1.bb(), use1.instructionIndex())
-            && analyses
-                .get(cfg, CfgReachability.class)
-                .isReachable(use1.bb(), use1.instructionIndex(), bb, statementIndex)) {
-          // This force may occur after `use` and may not occur before,
-          // therefore `use` will maybe occur before this force.
+                .dominates(bb, statementIndex, use1.bb(), use1.instructionIndex())) {
+          // `use` may occur before this force
+          // (checks that this force may occur after `use`, and `use` does not always occur
+          //  after this force; if the former is `false` then any trace with `use` doesn't have
+          //  `force`, if the latter is `true` then `force` always occurs first).
           hasMaybeBeenForced = true;
         }
       }

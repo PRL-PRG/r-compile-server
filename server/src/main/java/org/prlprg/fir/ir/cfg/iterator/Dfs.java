@@ -15,8 +15,17 @@ public class Dfs extends Abstract<List<BB>> {
     return () -> new Dfs(cfg);
   }
 
+  /// An [Iterable] that yields [Dfs].
+  public static Iterable<BB> dfs(BB bb) {
+    return () -> new Dfs(bb);
+  }
+
   public Dfs(CFG cfg) {
     super(new ArrayList<>(), List.of(cfg.entry()));
+  }
+
+  public Dfs(BB bb) {
+    super(new ArrayList<>(), List.of(bb));
   }
 
   @Override

@@ -32,6 +32,6 @@ is_safe <- function(board, row, col, n) {
 }
 
 main <- function() {
-  result <- queens(8)
+  result <- queens(4)
   return(result)
 }

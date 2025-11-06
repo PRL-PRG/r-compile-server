@@ -17,8 +17,8 @@ public record Unreachable() implements Jump {
   }
 
   @Override
-  public @UnmodifiableView Set<BB> targetBBs() {
-    return Set.of();
+  public @UnmodifiableView Collection<BB> targetBBs() {
+    return List.of();
   }
 
   @Override

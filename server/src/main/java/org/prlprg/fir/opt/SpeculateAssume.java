@@ -1,7 +1,9 @@
 package org.prlprg.fir.opt;
 
 import com.google.common.collect.ArrayListMultimap;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
@@ -79,7 +81,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
     var domTree = new DominatorTree(scope);
 
     // Find assumptions
-    var assumesToInsert = ArrayListMultimap.<BB, Assume>create();
+    var assumesToInsert = new LinkedHashMap<BB, List<Assume>>();
     for (var local : scope.locals()) {
       if (!(local.variable() instanceof Register register)) {
         continue;
@@ -141,14 +143,14 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
         // and we can't substitute multiple times.
         if (calleeFeedback != null) {
           var assumeCallee = new AssumeFunction(new Read(register), calleeFeedback);
-          assumesToInsert.put(successBb, assumeCallee);
+          assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeCallee);
         } else if (constantFeedback != null) {
           var assumeConstant =
               new AssumeConstant(new Read(register), new Constant(constantFeedback));
-          assumesToInsert.put(successBb, assumeConstant);
+          assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeConstant);
         } else if (!typeFeedback.equals(local.type())) {
           var assumeType = new AssumeType(new Read(register), typeFeedback);
-          assumesToInsert.put(successBb, assumeType);
+          assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeType);
         }
       }
     }
@@ -162,35 +164,36 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
     var assumeSubsts = new DomineeSubstituter(domTree, scope);
     var assumeDsts = new HashMap<Pair<Assume, BB>, Register>();
     var afterAssumeStmts = ArrayListMultimap.<BB, Statement>create();
-    for (var entry : assumesToInsert.entries()) {
+    for (var entry : assumesToInsert.entrySet()) {
       var successBb = entry.getKey();
-      var assume = entry.getValue();
-      assert successBb != null && assume != null;
+      var assumes = entry.getValue();
 
-      var target = ((Read) assume.target()).variable();
-      switch (assume) {
-        case AssumeType(var _, var type) -> {
-          var improvedType = scope.addLocal(target.name(), type);
-          assumeSubsts.stage(target, new Read(improvedType), successBb);
-          assumeDsts.put(Pair.of(assume, successBb), improvedType);
-        }
-        case AssumeFunction af -> {
-          var fun = af.function();
+      for (var assume : assumes) {
+        var target = ((Read) assume.target()).variable();
+        switch (assume) {
+          case AssumeType(var _, var type) -> {
+            var improvedType = scope.addLocal(target.name(), type);
+            assumeSubsts.stage(target, new Read(improvedType), successBb);
+            assumeDsts.put(Pair.of(assume, successBb), improvedType);
+          }
+          case AssumeFunction af -> {
+            var fun = af.function();
 
-          var globalLookup = scope.addLocal(target.name(), Type.CLOSURE);
-          afterAssumeStmts.put(
-              successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
-          assumeSubsts.stage(target, new Read(globalLookup), successBb);
+            var globalLookup = scope.addLocal(target.name(), Type.CLOSURE);
+            afterAssumeStmts.put(
+                successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
+            assumeSubsts.stage(target, new Read(globalLookup), successBb);
+          }
+          case AssumeConstant(var _, var constant) ->
+              assumeSubsts.stage(target, constant, successBb);
         }
-        case AssumeConstant(var _, var constant) -> assumeSubsts.stage(target, constant, successBb);
       }
     }
     assumeSubsts.commit();
 
-    for (var entry : assumesToInsert.asMap().entrySet()) {
+    for (var entry : assumesToInsert.entrySet()) {
       var successBb = entry.getKey();
-      var assumes = (List<Assume>) entry.getValue();
-      assert successBb != null;
+      var assumes = entry.getValue();
 
       var assumeStmts =
           Lists.concatLazy(
