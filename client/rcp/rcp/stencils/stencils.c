@@ -174,6 +174,19 @@ typedef struct {
   uint16_t sizes[11];
   uint8_t data[];
 } StepFor_specialized;
+
+#define X_STEPFOR_TYPES                                                        \
+  X(0, 0)                                                                      \
+  X(1, INTSXP)                                                                 \
+  X(2, ISQSXP)                                                                 \
+  X(3, REALSXP)                                                                \
+  X(4, LGLSXP)                                                                 \
+  X(5, CPLXSXP)                                                                \
+  X(6, STRSXP)                                                                 \
+  X(7, RAWSXP)                                                                 \
+  X(8, EXPRSXP)                                                                \
+  X(9, VECSXP)                                                                 \
+  X(10, LISTSXP)
 #endif
 
 RCP_OP(STARTFOR) {
@@ -212,6 +225,13 @@ RCP_OP(STARTFOR) {
 }
 
 #ifdef STEPFOR_SPECIALIZE
+#define X(a, b)                                                                \
+  static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(                \
+      Value *s2, Value *s1, Value *s0, BCell *cell, SEXP rho) {                \
+    return Rsh_DoStepFor(s2, s1, s0, cell, rho, b);                            \
+  }
+X_STEPFOR_TYPES
+#undef X
 
 #define X(a, b) \
 RCP_OP(STEPFOR_##a) { \
