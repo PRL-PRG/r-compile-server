@@ -47,6 +47,28 @@ __attribute__((section(".data"), visibility("hidden"))) extern Rsh_Math1Fun R_MA
 
 
 /**************************************************/
+#define RSH
+#ifndef USE_RINTERNALS
+#define USE_RINTERNALS
+#endif
+#include <Rinternals.h>
+#undef USE_RINTERNALS
+#undef RSH
+
+
+#define CONST_RUNTIME_VAR(symbol) (const SEXP const)(&_RCP_CRUNTIME0_##symbol)
+
+extern const void* const _RCP_CRUNTIME0_R_NilValue[];
+#define R_NilValue CONST_RUNTIME_VAR(R_NilValue)
+
+extern const void* const _RCP_CRUNTIME0_R_TrueValue[];
+#define R_TrueValue CONST_RUNTIME_VAR(R_TrueValue)
+
+extern const void* const _RCP_CRUNTIME0_R_FalseValue[];
+#define R_FalseValue CONST_RUNTIME_VAR(R_FalseValue)
+
+extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
+#define R_LogicalNAValue CONST_RUNTIME_VAR(R_LogicalNAValue)
 
 //#define NO_STACK_OVERFLOW_CHECK
 #include <runtime.h>

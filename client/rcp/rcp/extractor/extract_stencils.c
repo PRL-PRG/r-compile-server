@@ -180,6 +180,7 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
     {
     case RELOC_RUNTIME_SYMBOL:
     case RELOC_RUNTIME_SYMBOL_GOT:
+    case RELOC_RUNTIME_SYMBOL_DEREF:
       fprintf(file, ", .val.symbol = &%s", hole->val.symbol_name);
       break;
     case RELOC_RCP_EXEC_IMM:
@@ -409,25 +410,35 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
     const char *descr = &((*rel->sym_ptr_ptr)->name)[5];
     const char *descr_imm = NULL;
 
-    if (descr_imm = remove_prefix(descr, "CONST_AT_IMM"))
+    if (descr_imm = remove_prefix(descr, "CRUNTIME0_"))
+    {
+      hole->kind = RELOC_RUNTIME_SYMBOL_DEREF;
+      hole->val.symbol_name = strdup(descr_imm);
+    }
+    else if (descr_imm = remove_prefix(descr, "CONST_AT_IMM"))
     {
       hole->kind = RELOC_RCP_CONST_AT_IMM;
+      hole->val.imm_pos = atoi(descr_imm);
     }
     else if (descr_imm = remove_prefix(descr, "RAW_IMM"))
     {
       hole->kind = RELOC_RCP_RAW_IMM;
+      hole->val.imm_pos = atoi(descr_imm);
     }
     else if (descr_imm = remove_prefix(descr, "CONST_STR_AT_IMM"))
     {
       hole->kind = RELOC_RCP_CONST_STR_AT_IMM;
+      hole->val.imm_pos = atoi(descr_imm);
     }
     else if (descr_imm = remove_prefix(descr, "CONSTCELL_AT_IMM"))
     {
       hole->kind = RELOC_RCP_CONSTCELL_AT_IMM;
+      hole->val.imm_pos = atoi(descr_imm);
     }
     else if (descr_imm = remove_prefix(descr, "CONSTCELL_AT_LABEL_IMM"))
     {
       hole->kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM;
+      hole->val.imm_pos = atoi(descr_imm);
     }
     else if (strcmp(descr, "EXEC_NEXT") == 0)
     {
@@ -477,6 +488,7 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
         stencil->body[rel->address - 1] = 0xE9; // JMP
       }
       hole->kind = RELOC_RCP_EXEC_IMM;
+      hole->val.imm_pos = atoi(descr_imm);
     }
     else if (strcmp(descr, "RHO") == 0)
     {
@@ -492,14 +504,6 @@ static void process_relocation(StencilMutable *stencil, Hole *hole, const arelen
 
       hole->kind = RELOC_RUNTIME_SYMBOL;
       hole->val.symbol_name = strdup((*rel->sym_ptr_ptr)->name);
-    }
-
-    if (descr_imm != NULL)
-    {
-      int pos = atoi(descr_imm);
-      if (pos < 0 || pos > 3)
-        fprintf(stderr, "Invalid immediate position: %d\n", pos);
-      hole->val.imm_pos = pos;
     }
   }
   else if (strcmp((*rel->sym_ptr_ptr)->name, ".rodata") == 0)

@@ -541,6 +541,11 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
         ptr = (ptrdiff_t)&shared->got_table[hole->got_pos];
     }
     break;
+    case RELOC_RUNTIME_SYMBOL_DEREF:
+    {
+        ptr = (ptrdiff_t)(*((SEXP *)(hole->val.symbol)));
+    }
+    break;
     case RELOC_RODATA:
     {
         ptr = (ptrdiff_t)shared->rodata;
