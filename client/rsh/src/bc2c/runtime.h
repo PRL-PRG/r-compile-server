@@ -2380,102 +2380,87 @@ static INLINE void Rsh_StartFor(Value *s2, Value *s1, Value *s0, SEXP call,
     }                                                                          \
   } while (0)
 
-#define Rsh_StepFor_Specialized(s2, s1, s0, cell, rho, type)                   \
-  do {                                                                         \
-    SEXP seq = VAL_SXP(*s2);                                                   \
-    RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*s1));                     \
-    R_xlen_t i = ++(info->idx);                                                \
-                                                                               \
-    if (i >= info->len) {                                                      \
-      return FALSE;                                                            \
-    }                                                                          \
-                                                                               \
-    RSH_CHECK_SIGINT();                                                        \
-                                                                               \
-    SEXP value;                                                                \
-    switch (type) {                                                            \
-    case INTSXP: {                                                             \
-      int v = INTEGER_ELT(seq, i);                                             \
-      FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);                   \
-      break;                                                                   \
-    }                                                                          \
-    case ISQSXP: {                                                             \
-      int *info = INTEGER(seq);                                                \
-      int n1 = info[0];                                                        \
-      int n2 = info[1];                                                        \
-      int ii = (int)i;                                                         \
-      int v = n1 <= n2 ? n1 + ii : n1 - ii;                                    \
-      RSH_PC_INC(isq_for);                                                     \
-      FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);                   \
-      break;                                                                   \
-    }                                                                          \
-    case REALSXP: {                                                            \
-      double v = REAL_ELT(seq, i);                                             \
-      FAST_STEP_NEXT(cell, value, v, s0, double, REALSXP, DVAL);               \
-      break;                                                                   \
-    }                                                                          \
-    case LGLSXP: {                                                             \
-      int v = LOGICAL_ELT(seq, i);                                             \
-      FAST_STEP_NEXT(cell, value, v, s0, int, LGLSXP, LVAL);                   \
-      break;                                                                   \
-    }                                                                          \
-    case CPLXSXP:                                                              \
-      value = VAL_SXP(*s0);                                                    \
-      SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));                             \
-      break;                                                                   \
-    case STRSXP:                                                               \
-      value = VAL_SXP(*s0);                                                    \
-      SET_STRING_ELT(value, 0, STRING_ELT(seq, i));                            \
-      break;                                                                   \
-    case RAWSXP:                                                               \
-      value = VAL_SXP(*s0);                                                    \
-      SET_SCALAR_BVAL(value, RAW(seq)[i]);                                     \
-      break;                                                                   \
-    case EXPRSXP:                                                              \
-    case VECSXP:                                                               \
-      value = VECTOR_ELT(seq, i);                                              \
-      ENSURE_NAMEDMAX(value);                                                  \
-      break;                                                                   \
-    case LISTSXP:                                                              \
-      value = CAR(seq);                                                        \
-      ENSURE_NAMEDMAX(value);                                                  \
-      SET_SXP_VAL(s2, CDR(seq));                                               \
-      break;                                                                   \
-    default:                                                                   \
-      Rf_error("invalid sequence argument in for loop");                       \
-    }                                                                          \
-                                                                               \
-    SET_FOR_LOOP_VAR(value, *cell, info->symbol, rho);                         \
-    return TRUE;                                                               \
-  } while (0)
+static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *s2, Value *s1, Value *s0,
+                                               BCell *cell, SEXP rho,
+                                               int type) {
+  SEXP seq = VAL_SXP(*s2);
+  RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*s1));
+  R_xlen_t i = ++(info->idx);
+
+  if (i >= info->len) {
+    return FALSE;
+  }
+
+  RSH_CHECK_SIGINT();
+
+  // Constant folding allows to specialize on type if provided
+  // Fall back on runtime type otherwise
+  if (type == -1)
+    type = info->type;
+
+  SEXP value;
+  switch (type) {
+  case INTSXP: {
+    int v = INTEGER_ELT(seq, i);
+    FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);
+    break;
+  }
+  case ISQSXP: {
+    int *info = INTEGER(seq);
+    int n1 = info[0];
+    int n2 = info[1];
+    int ii = (int)i;
+    int v = n1 <= n2 ? n1 + ii : n1 - ii;
+    RSH_PC_INC(isq_for);
+    FAST_STEP_NEXT(cell, value, v, s0, int, INTSXP, IVAL);
+    break;
+  }
+  case REALSXP: {
+    double v = REAL_ELT(seq, i);
+    FAST_STEP_NEXT(cell, value, v, s0, double, REALSXP, DVAL);
+    break;
+  }
+  case LGLSXP: {
+    int v = LOGICAL_ELT(seq, i);
+    FAST_STEP_NEXT(cell, value, v, s0, int, LGLSXP, LVAL);
+    break;
+  }
+  case CPLXSXP:
+    value = VAL_SXP(*s0);
+    SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));
+    break;
+  case STRSXP:
+    value = VAL_SXP(*s0);
+    SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
+    break;
+  case RAWSXP:
+    value = VAL_SXP(*s0);
+    SET_SCALAR_BVAL(value, RAW(seq)[i]);
+    break;
+  case EXPRSXP:
+  case VECSXP:
+    value = VECTOR_ELT(seq, i);
+    ENSURE_NAMEDMAX(value);
+    break;
+  case LISTSXP:
+    value = CAR(seq);
+    ENSURE_NAMEDMAX(value);
+    SET_SXP_VAL(s2, CDR(seq));
+    break;
+  default:
+    Rf_error("invalid sequence argument in for loop");
+  }
+
+  SET_FOR_LOOP_VAR(value, *cell, info->symbol, rho);
+  return TRUE;
+}
 
 static INLINE NODISCARD Rboolean Rsh_StepFor(Value *s2, Value *s1, Value *s0,
                                              BCell *cell, SEXP rho) {
   // it is important to use info->type and not TYPEOF(seq)
   // as it could be the ISQSXP
-  Rsh_StepFor_Specialized(s2, s1, s0, cell, rho, info->type);
+  return Rsh_DoStepFor(s2, s1, s0, cell, rho, -1);
 }
-
-#define X_STEPFOR_TYPES                                                        \
-  X(0, 0)                                                                      \
-  X(1, INTSXP)                                                                 \
-  X(2, ISQSXP)                                                                 \
-  X(3, REALSXP)                                                                \
-  X(4, LGLSXP)                                                                 \
-  X(5, CPLXSXP)                                                                \
-  X(6, STRSXP)                                                                 \
-  X(7, RAWSXP)                                                                 \
-  X(8, EXPRSXP)                                                                \
-  X(9, VECSXP)                                                                 \
-  X(10, LISTSXP)
-
-#define X(a, b)                                                                \
-  static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(                \
-      Value *s2, Value *s1, Value *s0, BCell *cell, SEXP rho) {                \
-    Rsh_StepFor_Specialized(s2, s1, s0, cell, rho, b);                         \
-  }
-X_STEPFOR_TYPES
-#undef X
 
 static INLINE void Rsh_EndFor(Value *s2, UNUSED Value s1, UNUSED Value s0,
                               SEXP rho) {
