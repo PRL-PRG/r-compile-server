@@ -26,9 +26,12 @@ extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
 extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCProtTop;
+
+#ifndef RCP
 extern SEXP R_TrueValue;
 extern SEXP R_LogicalNAValue;
 extern SEXP R_FalseValue;
+#endif
 
 #define ALWAYS_INLINE inline __attribute__((always_inline))
 #ifdef RSH_INLINE
