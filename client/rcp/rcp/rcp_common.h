@@ -47,6 +47,7 @@ typedef struct {
   size_t holes_size;
   Hole * holes;
   uint8_t alignment;
+  const char* name;
 } Stencil;
 
 typedef struct {
@@ -55,6 +56,7 @@ typedef struct {
   size_t holes_size;
   Hole * holes;
   uint8_t alignment;
+  const char* name;
 } StencilMutable;
 
 #define X_STEPFOR_TYPES                                                     \
@@ -203,7 +205,7 @@ INCLNKSTK_OP = 127,
 DECLNKSTK_OP = 128
 } R_OPCODE;
 
-const char* const OPCODES[] = {
+const char* const OPCODES_NAMES[] = {
 "BCMISMATCH_OP",// <- 0
 "RETURN_OP",// <- 1
 "GOTO_OP",// <- 2

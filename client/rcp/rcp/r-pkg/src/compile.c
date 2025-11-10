@@ -514,7 +514,7 @@ typedef struct {
     const int *bcell_lookup;
 } PatchContext;
 
-static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int nextop, void* smc_variants, const PatchContext *ctx)
+static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole *hole, int hole_id, int *imms, int nextop, void* smc_variants, const PatchContext *ctx)
 {
     ptrdiff_t ptr;
     const mem_shared_data *shared;
@@ -627,7 +627,7 @@ static void patch(uint8_t *dst, uint8_t *loc, const Hole *hole, int *imms, int n
 
     if (!fits_in(ptr, hole->size))
     {
-        error("Offset to a value does not fit into required patch hole (%p does not fit into %hu bytes). Relocation type: %d. Try to set memory model to large.\n", (void *)ptr, hole->size, hole->kind);
+        error("Offset to a value does not fit into required patch hole (%p does not fit into %hu bytes). Relocation type: %d. Stencil: %s. Hole: %d. Try to set memory model to large.\n", (void *)ptr, hole->size, hole->kind, stencil->name, hole_id);
         return;
     }
 
@@ -811,16 +811,16 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     }
 
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
-        DEBUG_PRINT("Instruction %d (%s) alignment: %d\n", i, OPCODES[bytecode[i]], bytecode_alignment[i]);
+        DEBUG_PRINT("Instruction %d (%s) alignment: %d\n", i, OPCODES_NAMES[bytecode[i]], bytecode_alignment[i]);
 
     // First pass to calculate the sizes
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
         const int *imms = &bytecode[i + 1];
         const Stencil *stencil = get_stencil(bytecode[i], imms, constpool);
-        // DEBUG_PRINT("Opcode: %s\n", OPCODES[bytecode[i]]);
+        // DEBUG_PRINT("Opcode: %s\n", OPCODES_NAMES[bytecode[i]]);
         if (stencil == NULL || stencil->body_size == 0)
-            error("Opcode not implemented: %s\n", OPCODES[bytecode[i]]);
+            error("Opcode not implemented: %s\n", OPCODES_NAMES[bytecode[i]]);
         
 #ifdef STEPFOR_SPECIALIZE
         if(bytecode[i] == STARTFOR_OP)
@@ -829,7 +829,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         size_t aligned_size = align_to_higher(insts_size, bytecode_alignment[i]);
         size_t aligned_diff = aligned_size - insts_size;
-        //DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff: %zu\n", OPCODES[bytecode[i]], insts_size, aligned_size, aligned_diff);
+        //DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff: %zu\n", OPCODES_NAMES[bytecode[i]], insts_size, aligned_size, aligned_diff);
 
         inst_start[i] = (uint8_t*)aligned_size;
         insts_size += stencil->body_size + aligned_diff;
@@ -936,7 +936,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     // Start to copy-patch
     memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-        patch(executable, executable, &_RCP_INIT.holes[j], NULL, 0, NULL, &ctx);
+        patch(executable, executable, &_RCP_INIT, &_RCP_INIT.holes[j], j, NULL, 0, NULL, &ctx);
 
 #ifdef STEPFOR_SPECIALIZE
     StepFor_specialized *stepfor_pool = stepfor_storage;
@@ -955,7 +955,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         int* opargs = &bytecode[bc_pos + 1];
         void *smc_variants = NULL;
 
-        DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES[opcode]);
+        DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES_NAMES[opcode]);
 
         switch (opcode)
         {
@@ -982,7 +982,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             DEBUG_PRINT("PATCHING CORRESPONDING STEPFOR_OP at %d, ptr pointing to %p\n", stepfor_bc, stepfor_code);
 #define X(a, b)                                                           \
             for (size_t j = 0; j < _RCP_STEPFOR_##a##_OP.holes_size; ++j) \
-                patch(stepfor_mem->src[a], stepfor_mem->dst, &_RCP_STEPFOR_##a##_OP.holes[j], &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
+                patch(stepfor_mem->src[a], stepfor_mem->dst, &_RCP_STEPFOR_##a##_OP, &_RCP_STEPFOR_##a##_OP.holes[j], j, &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
 X_STEPFOR_TYPES
 #undef X
             smc_variants = stepfor_mem;
@@ -1002,7 +1002,7 @@ X_STEPFOR_TYPES
 
         // Patch the holes
         for (size_t j = 0; j < stencil->holes_size; ++j)
-            patch(inst_start[bc_pos], inst_start[bc_pos], &stencil->holes[j], opargs, bc_pos + imms_cnt[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+            patch(inst_start[bc_pos], inst_start[bc_pos], stencil, &stencil->holes[j], j, opargs, bc_pos + imms_cnt[bytecode[bc_pos]] + 1, smc_variants, &ctx);
     }
 
 #ifdef DEBUG_MODE
@@ -1058,7 +1058,7 @@ static void bytecode_info(const int *bytecode, int bytecode_size, const SEXP *co
     int instructions = 0;
     for (int i = 0; i < bytecode_size; ++i)
     {
-        DEBUG_PRINT("%d:\tOpcode: %d = %s\n", i, bytecode[i], OPCODES[bytecode[i]]);
+        DEBUG_PRINT("%d:\tOpcode: %d = %s\n", i, bytecode[i], OPCODES_NAMES[bytecode[i]]);
         for (size_t j = 0; j < imms_cnt[bytecode[i]]; j++)
         {
             DEBUG_PRINT("\tIMM: %d\n", bytecode[i + 1 + j]);

@@ -45,7 +45,7 @@ typedef struct
 {
   uint8_t *rodata;
   size_t rodata_size;
-  StencilMutable stencils_opcodes[sizeof(OPCODES) / sizeof(*OPCODES)];
+  StencilMutable stencils_opcodes[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
   NamedStencil stencil_extra_first;
   NamedStencil *stencil_extra_last;
 } Stencils;
@@ -98,8 +98,8 @@ static int get_opcode(const char *str)
 
   str += 5;
 
-  for (int i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
-    if (strcmp(str, OPCODES[i]) == 0)
+  for (int i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
+    if (strcmp(str, OPCODES_NAMES[i]) == 0)
       return i;
   return -1;
 }
@@ -207,15 +207,15 @@ static void export_body(FILE *file, const StencilMutable *stencil, const char *o
 // Create all the header files for the stencils
 static void export_to_files(const Stencils *stencils)
 {
-  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  for (uint8_t i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
   {
     if (stencils->stencils_opcodes[i].body_size != 0)
     {
       char filename[32];
-      strcpy(filename, OPCODES[i]);
+      strcpy(filename, OPCODES_NAMES[i]);
       strcat(filename, ".h");
       FILE *file = fopen(filename, "wt");
-      export_body(file, &stencils->stencils_opcodes[i], OPCODES[i]);
+      export_body(file, &stencils->stencils_opcodes[i], OPCODES_NAMES[i]);
       fclose(file);
     }
   }
@@ -235,10 +235,10 @@ static void export_to_files(const Stencils *stencils)
   for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
     fprintf(file, "#include \"%s.h\"\n", current->name);
 
-  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  for (uint8_t i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
   {
     if (stencils->stencils_opcodes[i].body_size != 0)
-      fprintf(file, "#include \"%s.h\"\n", OPCODES[i]);
+      fprintf(file, "#include \"%s.h\"\n", OPCODES_NAMES[i]);
   }
 
   fprintf(file, "const uint8_t rodata[] = { ");
@@ -246,22 +246,22 @@ static void export_to_files(const Stencils *stencils)
   fprintf(file, "};\n");
 
   for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
-    fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES, %u};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name, current->stencil.alignment);
+    fprintf(file, "const Stencil %s = { %zu, _%s_BODY, %zu, _%s_HOLES, %u, \"%s\"};\n", current->name, current->stencil.body_size, current->name, current->stencil.holes_size, current->name, current->stencil.alignment, current->name);
 
-  fprintf(file, "\nconst Stencil stencils[%zu] = {\n", sizeof(OPCODES) / sizeof(*OPCODES));
+  fprintf(file, "\nconst Stencil stencils[%zu] = {\n", sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES));
 
-  for (int i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  for (int i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
   {
     if (stencils->stencils_opcodes[i].body_size != 0)
-      fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES, %u}, // %s\n", stencils->stencils_opcodes[i].body_size, OPCODES[i], stencils->stencils_opcodes[i].holes_size, OPCODES[i], stencils->stencils_opcodes[i].alignment, OPCODES[i]);
+      fprintf(file, "{%zu, _%s_BODY, %zu, _%s_HOLES, %u, \"%s\"},\n", stencils->stencils_opcodes[i].body_size, OPCODES_NAMES[i], stencils->stencils_opcodes[i].holes_size, OPCODES_NAMES[i], stencils->stencils_opcodes[i].alignment, OPCODES_NAMES[i]);
     else
-      fprintf(file, "{0, NULL, 0, NULL, 0}, // %s\n", OPCODES[i]);
+      fprintf(file, "{0, NULL, 0, NULL, 0, \"%s\"},\n", OPCODES_NAMES[i]);
   }
 
   fprintf(file, "};\n");
 
   fprintf(file, "\nconst Stencil* stencils_all[] = {\n");
-  for (int i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  for (int i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
     if (stencils->stencils_opcodes[i].body_size != 0)
       fprintf(file, "&stencils[%d],", i);
   for (const NamedStencil *current = &stencils->stencil_extra_first; current->next != NULL; current = current->next)
@@ -657,7 +657,7 @@ static void cleanup(Stencils *stencils)
   stencils->rodata = NULL;
 
   // Free the stencils array
-  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  for (uint8_t i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
   {
     free_stencil(&stencils->stencils_opcodes[i]);
   }
@@ -705,7 +705,7 @@ static void print_sizes(Stencils *stencils)
 {
   int64_t total_size = 0;
   size_t count = 0;
-  for (uint8_t i = 0; i < sizeof(OPCODES) / sizeof(*OPCODES); ++i)
+  for (uint8_t i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
   {
     if (stencils->stencils_opcodes[i].body_size != 0)
     {
