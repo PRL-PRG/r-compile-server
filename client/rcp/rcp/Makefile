@@ -59,7 +59,7 @@ $(STENCILS_OBJ): stencils/stencils.c
 $(EXTRACTOR_BIN): extractor/extract_stencils.cpp
 	@echo "Building extractor..."
 	mkdir -p $(BUILD_DIR)
-	$(CXX) extractor/extract_stencils.cpp -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -std=c++20 -flto=auto $(DEFINE_FLAGS)
+	$(CXX) extractor/extract_stencils.cpp -o $(EXTRACTOR_BIN) -lbfd -O1 -march=native -std=c++20 -flto=auto $(DEFINE_FLAGS)
 
 $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Extracting stencils..."
