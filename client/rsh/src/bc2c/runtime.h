@@ -167,6 +167,107 @@ typedef enum { X_UNARY_OPS } RshUnaryOp;
 typedef enum { X_LOGIC2_OPS } RshLogic2Op;
 #undef X
 
+#define RSH_R_SYMBOLS                                                          \
+  X([, Rsh_Subset)                                                        \
+  X([[, Rsh_Subset2)                                                      \
+  X(value, Rsh_Value)                                                     \
+  X([<-, Rsh_Subassign)                                                   \
+  X([[<-, Rsh_Subassign2)                                                 \
+  X(.External2, Rsh_DotExternal2)                                         \
+  X(*tmp*, Rsh_Tmpval)                                                    \
+  X(:, Rsh_Colon)                                                         \
+  X(seq_along, Rsh_SeqAlong)                                              \
+  X(seq_len, Rsh_SeqLen)                                                  \
+  X(log, Rsh_Log)
+
+#ifdef RCP
+
+// Create extern declarations for all ops and symbols
+#define X(a, b, ...)                                                           \
+  extern const void *const _RCP_CRUNTIME_OPS_R_Primitive__RCP__##b[];
+X_ARITH_OPS
+X_REL_OPS
+X_MATH1_OPS
+X_UNARY_OPS
+X_LOGIC2_OPS
+X_MATH1_EXT_OPS
+RSH_R_SYMBOLS
+#undef X
+extern const void *const _RCP_CRUNTIME_OPS_R_Primitive__RCP__Rsh_Not[];
+
+#define X(a, b, ...)                                                           \
+  extern const void *const _RCP_CRUNTIME_OPS_Rf_install__RCP__##b[];
+X_ARITH_OPS
+X_REL_OPS
+X_UNARY_OPS
+X_MATH1_EXT_OPS
+RSH_R_SYMBOLS
+#undef X
+
+// Map to correct extern symbols
+
+#define RCP_OPS(fun, arg)                                                      \
+  (const SEXP const)(&_RCP_CRUNTIME_OPS_##fun##__RCP__##arg)
+
+#define RSH_ARITH_OPS(op) (RCP_OPS(R_Primitive, op))
+#define RSH_ARITH_OP_SYMS(op) (RCP_OPS(Rf_install, op))
+#define RSH_REL_OPS(op) (RCP_OPS(R_Primitive, op))
+#define RSH_REL_OP_SYMS(op) (RCP_OPS(Rf_install, op))
+#define RSH_MATH1_OPS(op) (RCP_OPS(R_Primitive, op))
+#define RSH_UNARY_OPS(op) (RCP_OPS(R_Primitive, op))
+#define RSH_UNARY_OP_SYMS(op) (RCP_OPS(Rf_install, op))
+#define RSH_LOGIC2_OPS(op) (RCP_OPS(R_Primitive, op))
+#define RSH_MATH1_EXT_OPS(op) (RCP_OPS(R_Primitive, op))
+#define RSH_MATH1_EXT_SYMS(op) (RCP_OPS(Rf_install, op))
+
+#define Rsh_SubsetSym RCP_OPS(Rf_install, Rsh_Subset)
+#define Rsh_SubsetOp RCP_OPS(R_Primitive, Rsh_Subset)
+#define Rsh_Subset2Sym RCP_OPS(Rf_install, Rsh_Subset2)
+#define Rsh_Subset2Op RCP_OPS(R_Primitive, Rsh_Subset2)
+#define Rsh_ValueSym RCP_OPS(Rf_install, Rsh_Value)
+#define Rsh_ValueOp RCP_OPS(R_Primitive, Rsh_Value)
+#define Rsh_SubassignSym RCP_OPS(Rf_install, Rsh_Subassign)
+#define Rsh_SubassignOp RCP_OPS(R_Primitive, Rsh_Subassign)
+#define Rsh_Subassign2Sym RCP_OPS(Rf_install, Rsh_Subassign2)
+#define Rsh_Subassign2Op RCP_OPS(R_Primitive, Rsh_Subassign2)
+#define Rsh_DotExternal2Sym RCP_OPS(Rf_install, Rsh_DotExternal2)
+#define Rsh_DotExternal2Op RCP_OPS(R_Primitive, Rsh_DotExternal2)
+#define Rsh_TmpvalSym RCP_OPS(Rf_install, Rsh_Tmpval)
+#define Rsh_TmpvalOp RCP_OPS(R_Primitive, Rsh_Tmpval)
+#define Rsh_ColonSym RCP_OPS(Rf_install, Rsh_Colon)
+#define Rsh_ColonOp RCP_OPS(R_Primitive, Rsh_Colon)
+#define Rsh_SeqAlongSym RCP_OPS(Rf_install, Rsh_SeqAlong)
+#define Rsh_SeqAlongOp RCP_OPS(R_Primitive, Rsh_SeqAlong)
+#define Rsh_SeqLenSym RCP_OPS(Rf_install, Rsh_SeqLen)
+#define Rsh_SeqLenOp RCP_OPS(R_Primitive, Rsh_SeqLen)
+#define Rsh_LogSym RCP_OPS(Rf_install, Rsh_Log)
+#define Rsh_LogOp RCP_OPS(R_Primitive, Rsh_Log)
+
+#define NOT_OP RCP_OPS(R_Primitive, Rsh_Not)
+#define LOG_OP RCP_OPS(R_Primitive, Rsh_Log)
+
+/*************MATH1 specialization*****************/
+#ifdef MATH1_SPECIALIZE
+#include <Rmath.h>
+#define X(a, b, c) &c,
+static Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
+#undef X
+#else
+EXTERN_ATTRIBUTES extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
+#endif
+/**************************************************/
+
+#else
+
+#ifndef RSH_TESTS
+#define X(a, b)                                                                \
+  extern SEXP b##Sym;                                                          \
+  extern SEXP b##Op;
+
+RSH_R_SYMBOLS
+#undef X
+#endif
+
 // while a little cumbersome, it allows us to keep everything just
 // in the header file, simplifying the standalone (test) mode.
 #ifdef RSH_TESTS
@@ -186,43 +287,37 @@ SEXP R_MATH1_EXT_SYMS[] = {X_MATH1_EXT_OPS};
 Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
 #undef X
 #else
-EXTERN_ATTRIBUTES extern SEXP R_ARITH_OPS[];
-EXTERN_ATTRIBUTES extern SEXP R_ARITH_OP_SYMS[];
-EXTERN_ATTRIBUTES extern SEXP R_REL_OPS[];
-EXTERN_ATTRIBUTES extern SEXP R_REL_OP_SYMS[];
+extern SEXP R_ARITH_OPS[];
+extern SEXP R_ARITH_OP_SYMS[];
+extern SEXP R_REL_OPS[];
+extern SEXP R_REL_OP_SYMS[];
 
-EXTERN_ATTRIBUTES extern SEXP R_MATH1_OPS[];
-EXTERN_ATTRIBUTES extern SEXP R_UNARY_OPS[];
-EXTERN_ATTRIBUTES extern SEXP R_UNARY_OP_SYMS[];
-EXTERN_ATTRIBUTES extern SEXP R_LOGIC2_OPS[];
+extern SEXP R_MATH1_OPS[];
+extern SEXP R_UNARY_OPS[];
+extern SEXP R_UNARY_OP_SYMS[];
+extern SEXP R_LOGIC2_OPS[];
 
-EXTERN_ATTRIBUTES extern SEXP R_MATH1_EXT_OPS[];
-EXTERN_ATTRIBUTES extern SEXP R_MATH1_EXT_SYMS[];
-#ifndef RCP
+extern SEXP R_MATH1_EXT_OPS[];
+extern SEXP R_MATH1_EXT_SYMS[];
 extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
 #endif
-#endif
 
-#define RSH_R_SYMBOLS                                                          \
-  X([, Rsh_Subset)                                                        \
-  X([[, Rsh_Subset2)                                                      \
-  X(value, Rsh_Value)                                                     \
-  X([<-, Rsh_Subassign)                                                   \
-  X([[<-, Rsh_Subassign2)                                                 \
-  X(.External2, Rsh_DotExternal2)                                         \
-  X(*tmp*, Rsh_Tmpval)                                                    \
-  X(:, Rsh_Colon)                                                         \
-  X(seq_along, Rsh_SeqAlong)                                              \
-  X(seq_len, Rsh_SeqLen)                                                  \
-  X(log, Rsh_Log)
+#define RSH_ARITH_OPS(op) (R_ARITH_OPS[op])
+#define RSH_ARITH_OP_SYMS(op) (R_ARITH_OP_SYMS[op])
+#define RSH_REL_OPS(op) (R_REL_OPS[op])
+#define RSH_REL_OP_SYMS(op) (R_REL_OP_SYMS[op])
+#define RSH_MATH1_OPS(op) (R_MATH1_OPS[op])
+#define RSH_UNARY_OPS(op) (R_UNARY_OPS[op])
+#define RSH_UNARY_OP_SYMS(op) (R_UNARY_OP_SYMS[op])
+#define RSH_LOGIC2_OPS(op) (R_LOGIC2_OPS[op])
+#define RSH_MATH1_EXT_OPS(op) (R_MATH1_EXT_OPS[op])
+#define RSH_MATH1_EXT_SYMS(op) (R_MATH1_EXT_SYMS[op])
 
-#ifndef RSH_TESTS
-#define X(a, b)                                                                \
-  EXTERN_ATTRIBUTES extern SEXP b##Sym EXTERN_ATTRIBUTES;                      \
-  EXTERN_ATTRIBUTES extern SEXP b##Op EXTERN_ATTRIBUTES;
-
-RSH_R_SYMBOLS
-#undef X
+JIT_DECL Value *Rsh_NilValue;
+JIT_DECL Value *Rsh_UnboundValue;
+JIT_DECL SEXP NOT_OP;
+JIT_DECL SEXP LOG_OP; // FIXME: Is this needed? Log primitive is already defined
+                      // in RSH_R_SYMBOLS
 #endif
 
 // VALUE REPRESENTATION
@@ -609,11 +704,6 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 
 // RUNTIME CONSTANTS
 // -----------------
-
-JIT_DECL Value *Rsh_NilValue;
-JIT_DECL Value *Rsh_UnboundValue;
-JIT_DECL SEXP NOT_OP;
-JIT_DECL SEXP LOG_OP;
 
 #ifdef RSH_TESTS
 #include "runtime_impl.h"
@@ -1170,7 +1260,8 @@ static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value value, SEXP call, SEXP rho) {
   } while (0)
 
 static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
-                                    RshArithOp op, SEXP rho) {
+                                    RshArithOp op, SEXP rho, SEXP r_op,
+                                    SEXP r_op_sym) {
   double res_dbl = 0;
 
   if (VAL_IS_DBL(lhs)) {
@@ -1209,22 +1300,23 @@ static ALWAYS_INLINE void Rsh_arith(Value *res, Value lhs, Value rhs, SEXP call,
 
   // Slow path!
   RSH_PC_INC(slow_arith);
-  DO_BINARY_BUILTIN(arith2, call, R_ARITH_OPS[op], R_ARITH_OP_SYMS[op], lhs,
-                    rhs, rho, res);
+  DO_BINARY_BUILTIN(arith2, call, r_op, r_op_sym, lhs, rhs, rho, res);
 }
 
 #define X(a, b, c)                                                             \
   static ALWAYS_INLINE void Rsh_##c(Value *r1, Value r0, SEXP call,            \
                                     SEXP rho) {                                \
-    assert(R_ARITH_OPS[b] == R_Primitive(#a));                                 \
-    assert(R_ARITH_OP_SYMS[b] == Rf_install(#a));                              \
-    Rsh_arith(r1, *r1, r0, call, b, rho);                                      \
+    assert(RSH_ARITH_OPS(b) == R_Primitive(#a));                               \
+    assert(RSH_ARITH_OP_SYMS(b) == Rf_install(#a));                            \
+    Rsh_arith(r1, *r1, r0, call, b, rho, RSH_ARITH_OPS(b),                     \
+              RSH_ARITH_OP_SYMS(b));                                           \
   }
 X_ARITH_OPS
 #undef X
 
 static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
-                                    RshRelOp op, SEXP rho) {
+                                    RshRelOp op, SEXP rho, SEXP r_op,
+                                    SEXP r_op_sym) {
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
@@ -1250,16 +1342,15 @@ static ALWAYS_INLINE void Rsh_relop(Value *res, Value lhs, Value rhs, SEXP call,
 
   // Slow path!
   RSH_PC_INC(slow_relop);
-  DO_BINARY_BUILTIN(relop, call, R_REL_OPS[op], R_REL_OP_SYMS[op], lhs, rhs,
-                    rho, res);
+  DO_BINARY_BUILTIN(relop, call, r_op, r_op_sym, lhs, rhs, rho, res);
 }
 
 #define X(a, b, c)                                                             \
   static ALWAYS_INLINE void Rsh_##c(Value *r1, Value r0, SEXP call,            \
                                     SEXP rho) {                                \
-    assert(R_REL_OPS[b] == R_Primitive(#a));                                   \
-    assert(R_REL_OP_SYMS[b] == Rf_install(#a));                                \
-    Rsh_relop(r1, *r1, r0, call, b, rho);                                      \
+    assert(RSH_REL_OPS(b) == R_Primitive(#a));                                 \
+    assert(RSH_REL_OP_SYMS(b) == Rf_install(#a));                              \
+    Rsh_relop(r1, *r1, r0, call, b, rho, RSH_REL_OPS(b), RSH_REL_OP_SYMS(b));  \
   }
 X_REL_OPS
 #undef X
@@ -1287,7 +1378,7 @@ X_REL_OPS
   } while (0)
 
 static INLINE void Rsh_math1(Value *res, Value arg, SEXP call, RshMath1Op op,
-                             SEXP rho) {
+                             SEXP rho, SEXP r_op) {
   if (VAL_IS_DBL(arg)) {
     double d = VAL_DBL(arg);
     d = op == SQRT_OP ? sqrt(d) : exp(d);
@@ -1315,20 +1406,20 @@ static INLINE void Rsh_math1(Value *res, Value arg, SEXP call, RshMath1Op op,
   } else {
     // Slow path!
     RSH_PC_INC(slow_math1);
-    DO_BUILTIN1(do_math1, call, R_MATH1_OPS[op], arg, rho, res);
+    DO_BUILTIN1(do_math1, call, r_op, arg, rho, res);
   }
 }
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *v, SEXP call, SEXP rho) {                  \
-    assert(R_MATH1_OPS[b] == R_Primitive(#a));                                 \
-    Rsh_math1(v, *v, call, b, rho);                                            \
+    assert(RSH_MATH1_OPS(b) == R_Primitive(#a));                               \
+    Rsh_math1(v, *v, call, b, rho, RSH_MATH1_OPS(b));                          \
   }
 X_MATH1_OPS
 #undef X
 
 static INLINE void Rsh_unary(Value *res, Value arg, SEXP call, RshUnaryOp op,
-                             SEXP rho) {
+                             SEXP rho, SEXP r_op, SEXP r_op_sym) {
   if (VAL_IS_DBL(arg)) {
     if (op == UMINUS_OP) {
       double d = VAL_DBL(arg);
@@ -1344,8 +1435,7 @@ static INLINE void Rsh_unary(Value *res, Value arg, SEXP call, RshUnaryOp op,
   } else {
     // Slow path!
     RSH_PC_INC(slow_unary);
-    SEXP s = arith1(call, R_UNARY_OPS[op], R_UNARY_OP_SYMS[op],
-                    val_as_sexp(arg), rho);
+    SEXP s = arith1(call, r_op, r_op_sym, val_as_sexp(arg), rho);
     SET_VAL(res, s);
   }
 
@@ -1354,9 +1444,9 @@ static INLINE void Rsh_unary(Value *res, Value arg, SEXP call, RshUnaryOp op,
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *v, SEXP call, SEXP rho) {                  \
-    assert(R_UNARY_OPS[b] == R_Primitive(#a));                                 \
-    assert(R_UNARY_OP_SYMS[b] == Rf_install(#a));                              \
-    Rsh_unary(v, *v, call, b, rho);                                            \
+    assert(RSH_UNARY_OPS(b) == R_Primitive(#a));                               \
+    assert(RSH_UNARY_OP_SYMS(b) == Rf_install(#a));                            \
+    Rsh_unary(v, *v, call, b, rho, RSH_UNARY_OPS(b), RSH_UNARY_OP_SYMS(b));    \
   }
 X_UNARY_OPS
 #undef X
@@ -1374,16 +1464,16 @@ static INLINE void Rsh_Not(Value *r0, SEXP call, SEXP rho) {
 }
 
 static INLINE void Rsh_logic(Value *res, Value lhs, Value rhs, SEXP call,
-                             RshLogic2Op op, SEXP rho) {
+                             RshLogic2Op op, SEXP rho, SEXP r_op) {
   // TODO: not optimized
   // Slow path!
-  DO_BUILTIN2(do_logic, call, R_LOGIC2_OPS[op], lhs, rhs, rho, res);
+  DO_BUILTIN2(do_logic, call, r_op, lhs, rhs, rho, res);
 }
 
 #define X(a, b, c)                                                             \
   static INLINE void Rsh_##c(Value *r1, Value r0, SEXP call, SEXP rho) {       \
-    assert(R_LOGIC2_OPS[b] == R_Primitive(#a));                                \
-    Rsh_logic(r1, *r1, r0, call, b, rho);                                      \
+    assert(RSH_LOGIC2_OPS(b) == R_Primitive(#a));                              \
+    Rsh_logic(r1, *r1, r0, call, b, rho, RSH_LOGIC2_OPS(b));                   \
   }
 X_LOGIC2_OPS
 #undef X
@@ -2699,17 +2789,18 @@ static INLINE void Rsh_LogBase(Value *r1, Value r0, SEXP call, SEXP rho) {
   RSH_PC_INC(slow_math1);
 }
 
-static INLINE Rsh_Math1Fun Rsh_get_math1_fun(int i, SEXP call) {
-  if (CAR(call) != R_MATH1_EXT_SYMS[i]) {
+static INLINE Rsh_Math1Fun Rsh_get_math1_fun(int i, SEXP call, SEXP r_op_sym) {
+  if (CAR(call) != r_op_sym) {
     Rf_error("math1 compiler/interpreter mismatch");
   } else {
     return R_MATH1_EXT_FUNS[i];
   }
 }
 
-static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXP rho) {
+static INLINE void Rsh_do_math1(Value *v, SEXP call, int op, SEXP rho,
+                                SEXP r_op, SEXP r_op_sym) {
   if (VAL_IS_DBL(*v)) {
-    Rsh_Math1Fun fun = Rsh_get_math1_fun(op, call);
+    Rsh_Math1Fun fun = Rsh_get_math1_fun(op, call, r_op_sym);
     double d = VAL_DBL(*v);
     double r = fun(d);
     if (ISNAN(r)) {
@@ -2728,9 +2819,12 @@ static INLINE void Rsh_Math1(Value *v, SEXP call, int op, SEXP rho) {
   SEXP args = CONS_NR(val_as_sexp(*v), R_NilValue);
   SET_SXP_VAL(v, args); // to protect
   R_Visible = TRUE;
-  SET_VAL(v, do_math1(call, R_MATH1_EXT_OPS[op], args, rho));
+  SET_VAL(v, do_math1(call, r_op, args, rho));
   RSH_PC_INC(slow_math1);
 }
+
+#define Rsh_Math1(v, call, op, rho)                                            \
+  Rsh_do_math1(v, call, op, rho, RSH_MATH1_EXT_OPS(op), RSH_MATH1_EXT_SYMS(op));
 
 #define DOTCALL_MAX 16
 static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
