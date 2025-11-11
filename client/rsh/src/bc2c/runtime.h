@@ -205,7 +205,7 @@ RSH_R_SYMBOLS
 #undef X
 
 // Map to correct extern symbols
-
+// Rsh TODO: do we need to preserve calls to R_Primitive?
 #define RCP_OPS(fun, arg)                                                      \
   (const SEXP const)(&_RCP_CRUNTIME_OPS_##fun##__RCP__##arg)
 
@@ -247,14 +247,10 @@ RSH_R_SYMBOLS
 #define LOG_OP RCP_OPS(R_Primitive, Rsh_Log)
 
 /*************MATH1 specialization*****************/
-#ifdef MATH1_SPECIALIZE
 #include <Rmath.h>
 #define X(a, b, c) &c,
 static Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
 #undef X
-#else
-EXTERN_ATTRIBUTES extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
-#endif
 /**************************************************/
 
 #else
