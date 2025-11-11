@@ -1,4 +1,5 @@
 CC = gcc-14
+CXX = g++
 
 # Default target
 default: install
@@ -59,10 +60,10 @@ $(STENCILS_OBJ): stencils/stencils.c
 	$(CC) stencils/stencils.c -Wall -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -fno-pic -mcmodel=$(MCMODEL) -fno-math-errno -fno-trapping-math -fno-merge-constants -fno-jump-tables -fno-align-functions -fno-align-jumps -fno-align-labels -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c $(DEFINE_FLAGS) $(C_FLAGS_ADDITIONAL)
 # -fno-align-loops
 
-$(EXTRACTOR_BIN): extractor/extract_stencils.c
+$(EXTRACTOR_BIN): extractor/extract_stencils.cpp
 	@echo "Building extractor..."
 	mkdir -p $(BUILD_DIR)
-	$(CC) extractor/extract_stencils.c -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -flto $(DEFINE_FLAGS)
+	$(CXX) extractor/extract_stencils.cpp -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -std=c++20 -flto=auto $(DEFINE_FLAGS)
 
 $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	@echo "Extracting stencils..."
