@@ -143,74 +143,6 @@ static void* get_near_memory(size_t size)
 #endif
 }
 
-
-#define X_MATH1_OPS                                                            \
-  X(sqrt, SQRT_OP, Sqrt)                                                       \
-  X(exp, EXP_OP, Exp)
-
-#define X_ARITH_OPS                                                            \
-  X(+, ADD_OP, Add)                                                            \
-  X(-, SUB_OP, Sub)                                                            \
-  X(*, MUL_OP, Mul)                                                            \
-  X(/, DIV_OP, Div)                                                            \
-  X(^, EXPT_OP, Expt)
-
-#define X_REL_OPS                                                              \
-  X(==, EQ_OP, Eq)                                                             \
-  X(!=, NE_OP, Ne)                                                             \
-  X(<, LT_OP, Lt)                                                              \
-  X(<=, LE_OP, Le)                                                             \
-  X(>, GT_OP, Gt)                                                              \
-  X(>=, GE_OP, Ge)
-
-#define X_UNARY_OPS                                                            \
-  X(+, UPLUS_OP, UPlus)                                                        \
-  X(-, UMINUS_OP, UMinus)
-
-#define X_LOGIC2_OPS                                                           \
-  X(&, AND_OP, And)                                                            \
-  X(|, OR_OP, Or)
-
-// X(name, idx as in math1, C function name)
-#define X_MATH1_EXT_OPS                                                        \
-  X(floor, 0, floor)                                                           \
-  X(ceiling, 1, ceil)                                                          \
-  X(sign, 2, sign)                                                             \
-  X(expm1, 3, expm1)                                                           \
-  X(log1p, 4, log1p)                                                           \
-  X(cos, 5, cos)                                                               \
-  X(sin, 6, sin)                                                               \
-  X(tan, 7, tan)                                                               \
-  X(acos, 8, acos)                                                             \
-  X(asin, 9, asin)                                                             \
-  X(atan, 10, atan)                                                            \
-  X(cosh, 11, cosh)                                                            \
-  X(sinh, 12, sinh)                                                            \
-  X(tanh, 13, tanh)                                                            \
-  X(acosh, 14, acosh)                                                          \
-  X(asinh, 15, asinh)                                                          \
-  X(atanh, 16, atanh)                                                          \
-  X(lgamma, 17, lgammafn)                                                      \
-  X(gamma, 18, gammafn)                                                        \
-  X(digamma, 19, digamma)                                                      \
-  X(trigamma, 20, trigamma)                                                    \
-  X(cospi, 21, cospi)                                                          \
-  X(sinpi, 22, sinpi)                                                          \
-  X(tanpi, 23, Rtanpi)
-
-#define RSH_R_SYMBOLS                                                          \
-  X([, Rsh_Subset)                                                        \
-  X([[, Rsh_Subset2)                                                      \
-  X(value, Rsh_Value)                                                     \
-  X([<-, Rsh_Subassign)                                                   \
-  X([[<-, Rsh_Subassign2)                                                 \
-  X(.External2, Rsh_DotExternal2)                                         \
-  X(*tmp*, Rsh_Tmpval)                                                    \
-  X(:, Rsh_Colon)                                                         \
-  X(seq_along, Rsh_SeqAlong)                                              \
-  X(seq_len, Rsh_SeqLen)                                                  \
-  X(log, Rsh_Log)
-
 // Rsh TODO: is the preserving needed?
 static SEXP LOAD_R_BUILTIN(const char *name)
 {
@@ -544,6 +476,12 @@ static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole
     case RELOC_RUNTIME_SYMBOL_DEREF:
     {
         ptr = (ptrdiff_t)(*((SEXP *)(hole->val.symbol)));
+    }
+    break;
+    case RELOC_RUNTIME_CALL:
+    {
+        void* (*fun)(const void*) = hole->val.call.sym;
+        ptr = (ptrdiff_t)fun(hole->val.call.arg);
     }
     break;
     case RELOC_RODATA:

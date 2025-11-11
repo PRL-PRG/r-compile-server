@@ -10,6 +10,8 @@
 #include <format>
 #include <cassert>
 #include <cstring>
+#include <unordered_map>
+#include <string_view>
 
 enum X86_64_RELOC_KIND
 {
@@ -185,6 +187,10 @@ static void export_body(std::ostream& file, const StencilExport& stencil, const 
     case RELOC_RUNTIME_SYMBOL_DEREF:
       file << std::format(", .val.symbol = &{}", hole.val.symbol_name);
       break;
+    case RELOC_RUNTIME_CALL:
+      file << std::format(", .val.call = {{ .sym = &{}, .arg = \"{}\" }}",
+              (const char*)hole.val.call.sym, (const char*)hole.val.call.arg);
+      break;
     case RELOC_RCP_EXEC_IMM:
     case RELOC_RCP_RAW_IMM:
     case RELOC_RCP_CONST_AT_IMM:
@@ -271,18 +277,25 @@ static void export_to_files(const Stencils& stencils)
   file << "};\n";
 }
 
-#define RSH_R_SYMBOLS                                                          \
-  X([, Rsh_Subset)                                                        \
-  X([[, Rsh_Subset2)                                                      \
-  X(value, Rsh_Value)                                                     \
-  X([<-, Rsh_Subassign)                                                   \
-  X([[<-, Rsh_Subassign2)                                                 \
-  X(.External2, Rsh_DotExternal2)                                         \
-  X(*tmp*, Rsh_Tmpval)                                                    \
-  X(:, Rsh_Colon)                                                         \
-  X(seq_along, Rsh_SeqAlong)                                              \
-  X(seq_len, Rsh_SeqLen)                                                  \
-  X(log, Rsh_Log)
+std::unordered_map<std::string, std::string> rsh_symbol_map;
+
+static auto init_rsh_symbol_map() {
+  std::unordered_map<std::string, std::string> rsh_symbol_map;
+
+  #define X(a, b, ...) if(rsh_symbol_map.emplace(#b, #a).second == false) throw std::runtime_error("Duplicate Rsh symbol mapping");
+X_MATH1_OPS
+X_ARITH_OPS
+X_REL_OPS
+X_UNARY_OPS
+X_LOGIC2_OPS
+X_MATH1_EXT_OPS
+RSH_R_SYMBOLS
+  #undef X
+
+  rsh_symbol_map.emplace("Rsh_Not", "!");
+
+  return rsh_symbol_map;
+}
 
 // Identify the Rsh internal symbols to relocate them in a special way
 static int rsh_symbol_id(const char *name)
@@ -353,7 +366,7 @@ static int rsh_symbol_id(const char *name)
 }
 
 
-static void process_relocation(StencilExport& stencil, const arelent& rel)
+static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body, const arelent& rel)
 {
   Hole hole;
 
@@ -401,8 +414,7 @@ static void process_relocation(StencilExport& stencil, const arelent& rel)
   } break;
   default:
   {
-    std::cerr << std::format("Unsupported relocation type: {}: {} (relocating: {}). Check compilation switches for memory model options.\n", rel.howto->type, rel.howto->name, (*rel.sym_ptr_ptr)->name);
-    return;
+    throw std::runtime_error(std::format("Unsupported relocation type: {}: {} (relocating: {}). Check compilation switches for memory model options.\n", rel.howto->type, rel.howto->name, (*rel.sym_ptr_ptr)->name));
   }
   break;
   }
@@ -416,6 +428,25 @@ static void process_relocation(StencilExport& stencil, const arelent& rel)
     {
       hole.kind = RELOC_RUNTIME_SYMBOL_DEREF;
       hole.val.symbol_name = strdup(descr_imm);
+    }
+    else if (descr_imm = remove_prefix(descr, "CRUNTIME_OPS_"))
+    {
+      hole.kind = RELOC_RUNTIME_CALL;
+      
+      std::string_view symbol_name(descr_imm);
+      size_t split = symbol_name.find("__RCP__");
+      if (split == std::string_view::npos)
+        throw std::runtime_error(std::format("Invalid CRUNTIME_OPS_ symbol: {}\n", (*rel.sym_ptr_ptr)->name));
+
+      std::string_view fun = symbol_name.substr(0, split);
+      std::string_view arg_name = symbol_name.substr(split + 7);
+
+      hole.val.call.sym = malloc(fun.size() + 1);
+      strncpy((char*)hole.val.call.sym, fun.data(), fun.size());
+      ((char*)hole.val.call.sym)[fun.size()] = '\0';
+
+      const std::string& arg = rsh_symbol_map.at(std::string(arg_name));
+      hole.val.call.arg = arg.c_str();
     }
     else if (descr_imm = remove_prefix(descr, "CONST_AT_IMM"))
     {
@@ -444,24 +475,24 @@ static void process_relocation(StencilExport& stencil, const arelent& rel)
     }
     else if (strcmp(descr, "EXEC_NEXT") == 0)
     {
-      int is_last_instruction = rel.address - rel.addend == stencil.body.size();
-      int is_relative_jmp = stencil.body[rel.address - 1] == 0xE9; /*JMP*/
-      int is_got_jmp = stencil.body[rel.address - 2] == 0xFF && stencil.body[rel.address - 1] == 0x25; /*GOT JMP*/
-      int is_got_call = stencil.body[rel.address - 2] == 0xFF && stencil.body[rel.address - 1] == 0x15; /*GOT CALL*/
+      bool is_last_instruction = (rel.address - rel.addend) == stencil_body.size();
+      bool is_relative_jmp = stencil_body[rel.address - 1] == 0xE9; /*JMP*/
+      bool is_got_jmp = stencil_body[rel.address - 2] == 0xFF && stencil_body[rel.address - 1] == 0x25; /*GOT JMP*/
+      bool is_got_call = stencil_body[rel.address - 2] == 0xFF && stencil_body[rel.address - 1] == 0x15; /*GOT CALL*/
 
       if (is_last_instruction)
       {
         if(is_relative_jmp)
         {
           // This is the last instruction; safe to just delete
-          stencil.body.resize(rel.address - 1);
-          return; // No relocation from this
+          stencil_body.resize(rel.address - 1);
+          return {}; // No relocation from this
         }
         else if (is_got_jmp)
         {
           // This is the last instruction; safe to just delete
-          stencil.body.resize(rel.address - 2);
-          return; // No relocation from this
+          stencil_body.resize(rel.address - 2);
+          return {}; // No relocation from this
         }
         else
         {
@@ -470,24 +501,24 @@ static void process_relocation(StencilExport& stencil, const arelent& rel)
       }
       if(is_got_jmp) // Transform into relative JMP
       {
-        stencil.body[rel.address - 2] = 0x90; // NOP
-        stencil.body[rel.address - 1] = 0xE9; // JMP
+        stencil_body[rel.address - 2] = 0x90; // NOP
+        stencil_body[rel.address - 1] = 0xE9; // JMP
       }
       else if(is_got_call) // Transform into relative JMP
       {
-        stencil.body[rel.address - 2] = 0x90; // NOP
-        stencil.body[rel.address - 1] = 0xE8; // CALL
+        stencil_body[rel.address - 2] = 0x90; // NOP
+        stencil_body[rel.address - 1] = 0xE8; // CALL
       }
       hole.kind = RELOC_RCP_EXEC_NEXT;
     }
     else if (descr_imm = remove_prefix(descr, "EXEC_IMM"))
     {
-      int is_relative_jmp = stencil.body[rel.address - 1] == 0xE9; /*JMP*/
-      int is_got_jmp = stencil.body[rel.address - 2] == 0xFF && stencil.body[rel.address - 1] == 0x25; /*GOT JMP*/
+      int is_relative_jmp = stencil_body[rel.address - 1] == 0xE9; /*JMP*/
+      int is_got_jmp = stencil_body[rel.address - 2] == 0xFF && stencil_body[rel.address - 1] == 0x25; /*GOT JMP*/
       if(is_got_jmp) // Transform into relative JMP
       {
-        stencil.body[rel.address - 2] = 0x90; // NOP
-        stencil.body[rel.address - 1] = 0xE9; // JMP
+        stencil_body[rel.address - 2] = 0x90; // NOP
+        stencil_body[rel.address - 1] = 0xE9; // JMP
       }
       hole.kind = RELOC_RCP_EXEC_IMM;
       hole.val.imm_pos = atoi(descr_imm);
@@ -517,6 +548,7 @@ static void process_relocation(StencilExport& stencil, const arelent& rel)
     int id = rsh_symbol_id((*rel.sym_ptr_ptr)->name);
     if (id != -1)
     {
+      printf("Rsh internal symbol relocation: %s -> id %d\n", (*rel.sym_ptr_ptr)->name, id);
       hole.kind = RELOC_RCP_PRECOMPILED;
       hole.addend += id * sizeof(void *);
     }
@@ -536,37 +568,42 @@ static void process_relocation(StencilExport& stencil, const arelent& rel)
     }
   }
 
-  stencil.holes.push_back(std::move(hole));
-
   //std::cerr << std::format("  offset {:#X}, addend {}, symbol {}, type {}\n", rel.address, rel.addend, (*rel.sym_ptr_ptr)->name, rel.howto->type);
+  
+  return hole;
 }
 
-static void process_relocations(StencilExport& stencil, long reloc_count, arelent **relocs)
+static std::vector<Hole> process_relocations(std::vector<uint8_t>& stencil_body, long reloc_count, arelent **relocs)
 {
-  stencil.holes.reserve(reloc_count);
+  std::vector<Hole> holes;
+  holes.reserve(reloc_count);
 
   for (long i = 0; i < reloc_count; i++)
   {
     const arelent *rel = relocs[i];
     if (rel->sym_ptr_ptr && *rel->sym_ptr_ptr && rel->howto->name)
-      process_relocation(stencil, *rel);
+    {
+      auto res = process_relocation(stencil_body, *rel);
+      if (res.has_value())
+        holes.push_back(std::move(res.value()));
+    }
     else
       std::cerr << "Missing relocation symbol!\n";
   }
+
+  return holes;
 }
 
-static void process_sections(bfd *abfd, asection *section, void *data)
+static void process_section(bfd& abfd, asection& section, Stencils& stencils)
 {
-  Stencils *stencils = (Stencils *)data;
-
-  bfd_size_type size = bfd_section_size(section);
+  bfd_size_type size = bfd_section_size(&section);
   if (size == 0)
     return;
 
-  const char *symbol = section->symbol->name;
+  const char *symbol = section.symbol->name;
   std::vector<bfd_byte> body(size);
 
-  if (!bfd_get_section_contents(abfd, section, body.data(), 0, size))
+  if (!bfd_get_section_contents(&abfd, &section, body.data(), 0, size))
   {
     std::cerr << "Failed to read section contents\n";
     return;
@@ -575,46 +612,47 @@ static void process_sections(bfd *abfd, asection *section, void *data)
   //std::cerr << std::format("Processing section: {} (size: {}, flags: {:#x})\n", symbol, size, section->flags);
 
   /* Get relocations */
-  long reloc_size = bfd_get_reloc_upper_bound(abfd, section);
+  long reloc_size = bfd_get_reloc_upper_bound(&abfd, &section);
   if (reloc_size <= 0)
     return;
 
   /* Read symbol table */
-  long symtab_size = bfd_get_symtab_upper_bound(abfd);
+  long symtab_size = bfd_get_symtab_upper_bound(&abfd);
   if (symtab_size <= 0)
     return;
 
   asymbol **symbol_table = (asymbol **)malloc(symtab_size);
 
-  bfd_canonicalize_symtab(abfd, symbol_table);
+  bfd_canonicalize_symtab(&abfd, symbol_table);
 
   arelent **relocs = (arelent **)malloc(reloc_size);
-  long reloc_count = bfd_canonicalize_reloc(abfd, section, relocs, symbol_table);
+  long reloc_count = bfd_canonicalize_reloc(&abfd, &section, relocs, symbol_table);
 
-  if (section->flags & SEC_CODE)
+  if (section.flags & SEC_CODE)
   {
+    std::vector<Hole> holes = process_relocations(body, reloc_count, relocs);
+
     StencilExport *stencil;
     int opcode = get_opcode(&symbol[6]);
     if (opcode != -1)
     {
-      stencil = &stencils->stencils_opcodes[opcode];
+      stencil = &stencils.stencils_opcodes.at(opcode);
     }
     else
     {
-      stencils->stencils_extra.push_back(StencilExportNamed{std::string(&symbol[6])});
-      stencil = &stencils->stencils_extra.back();
+      stencils.stencils_extra.push_back(StencilExportNamed{std::string(&symbol[6])});
+      stencil = &stencils.stencils_extra.back();
     }
 
     stencil->body = std::move(body);
-    stencil->alignment = 1 << section->alignment_power;
-
-    process_relocations(*stencil, reloc_count, relocs);
+    stencil->holes = std::move(holes);
+    stencil->alignment = 1 << section.alignment_power;
   }
-  else if ((section->flags & SEC_READONLY) && (section->flags & BSF_KEEP))
+  else if ((section.flags & SEC_READONLY) && (section.flags & BSF_KEEP))
   {
     if (strcmp(symbol, ".rodata") == 0)
     {
-      stencils->rodata = std::move(body);
+      stencils.rodata = std::move(body);
 
       if (reloc_count > 0)
         std::cerr << std::format("There are some relocations in the section of {}, this is not supported!\n", symbol);
@@ -627,11 +665,24 @@ static void process_sections(bfd *abfd, asection *section, void *data)
   free(symbol_table);
 }
 
+static void process_sections(bfd *abfd, asection *section, void *data)
+{
+  Stencils *stencils = (Stencils *)data;
+  try
+  {
+    process_section(*abfd, *section, *stencils);
+  }
+  catch(const std::exception& e)
+  {
+    std::cerr << "Error processing section " << section->symbol->name << ": " << e.what() << '\n';
+  }
+}
+
 static void free_stencil(const StencilExport& stencil)
 {
   for (const auto& hole : stencil.holes)
   {
-    if (hole.kind == RELOC_RUNTIME_SYMBOL)
+    if (hole.kind == RELOC_RUNTIME_SYMBOL || hole.kind == RELOC_RUNTIME_SYMBOL_GOT || hole.kind == RELOC_RUNTIME_SYMBOL_DEREF || hole.kind == RELOC_RUNTIME_CALL)
       free(hole.val.symbol_name);
   }
 }
@@ -695,6 +746,8 @@ int main(int argc, char **argv)
     return 1;
   }
   bfd_init();
+
+  rsh_symbol_map = init_rsh_symbol_map();
 
   Stencils stencils;
 

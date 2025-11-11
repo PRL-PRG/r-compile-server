@@ -2,51 +2,6 @@
 #define RCP
 //#define ASSERTS
 
-/*************MATH1 specialization*****************/
-typedef double (*Rsh_Math1Fun)(double);
-
-#ifdef MATH1_SPECIALIZE
-#include <Rmath.h>
-#define X_MATH1_EXT_OPS                                                        \
-  X(floor, 0, floor)                                                           \
-  X(ceiling, 1, ceil)                                                          \
-  X(sign, 2, sign)                                                             \
-  X(expm1, 3, expm1)                                                           \
-  X(log1p, 4, log1p)                                                           \
-  X(cos, 5, cos)                                                               \
-  X(sin, 6, sin)                                                               \
-  X(tan, 7, tan)                                                               \
-  X(acos, 8, acos)                                                             \
-  X(asin, 9, asin)                                                             \
-  X(atan, 10, atan)                                                            \
-  X(cosh, 11, cosh)                                                            \
-  X(sinh, 12, sinh)                                                            \
-  X(tanh, 13, tanh)                                                            \
-  X(acosh, 14, acosh)                                                          \
-  X(asinh, 15, asinh)                                                          \
-  X(atanh, 16, atanh)                                                          \
-  X(lgamma, 17, lgammafn)                                                      \
-  X(gamma, 18, gammafn)                                                        \
-  X(digamma, 19, digamma)                                                      \
-  X(trigamma, 20, trigamma)                                                    \
-  X(cospi, 21, cospi)                                                          \
-  X(sinpi, 22, sinpi)                                                          \
-  X(tanpi, 23, Rtanpi)
-
-#define X(a, b, c) &c,
-static Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {
-  X_MATH1_EXT_OPS
-};
-#undef X
-#undef X_MATH1_EXT_OPS
-
-#else
-__attribute__((section(".data"), visibility("hidden"))) extern Rsh_Math1Fun R_MATH1_EXT_FUNS[];
-
-#endif
-
-
-/**************************************************/
 #define RSH
 #ifndef USE_RINTERNALS
 #define USE_RINTERNALS
