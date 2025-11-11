@@ -143,99 +143,6 @@ static void* get_near_memory(size_t size)
 #endif
 }
 
-// Rsh TODO: is the preserving needed?
-static SEXP LOAD_R_BUILTIN(const char *name)
-{
-    SEXP result = PROTECT(R_Primitive(name));
-    R_PreserveObject(result);
-    UNPROTECT(1);
-    return result;
-}
-
-#ifdef MATH1_SPECIALIZE
-    #define PRECOMPILED_COUNT 102
-#else
-    #define PRECOMPILED_COUNT 126
-#endif
-
-static void prepare_precompiled(void* precompiled_functions[])
-{
-    int i = 0;
-
-    //R_ARITH_OPS
-    #define X(a, b, c) precompiled_functions[i++] = LOAD_R_BUILTIN(#a);
-    X_ARITH_OPS
-    #undef X
-
-    //R_ARITH_OP_SYMS
-    #define X(a, b, c) precompiled_functions[i++] = Rf_install(#a);
-    X_ARITH_OPS
-    #undef X
-
-    //R_REL_OPS
-    #define X(a, b, c) precompiled_functions[i++] = LOAD_R_BUILTIN(#a);
-    X_REL_OPS
-    #undef X
-
-    //R_REL_OP_SYMS
-    #define X(a, b, c) precompiled_functions[i++] = Rf_install(#a);
-    X_REL_OPS
-    #undef X
-
-    //R_MATH1_OPS
-    #define X(a, b, c) precompiled_functions[i++] = LOAD_R_BUILTIN(#a);
-    X_MATH1_OPS
-    #undef X
-
-    //R_UNARY_OPS
-    #define X(a, b, c) precompiled_functions[i++] = LOAD_R_BUILTIN(#a);
-    X_UNARY_OPS
-    #undef X
-
-    //R_UNARY_OP_SYMS
-    #define X(a, b, c) precompiled_functions[i++] = Rf_install(#a);
-    X_UNARY_OPS
-    #undef X
-
-    //R_LOGIC2_OPS
-    #define X(a, b, c) precompiled_functions[i++] = LOAD_R_BUILTIN(#a);
-    X_LOGIC2_OPS
-    #undef X
-
-    //R_MATH1_EXT_OPS
-    #define X(a, b, c) precompiled_functions[i++] = LOAD_R_BUILTIN(#a);
-    X_MATH1_EXT_OPS
-    #undef X
-
-    //R_MATH1_EXT_SYMS
-    #define X(a, b, c) precompiled_functions[i++] = Rf_install(#a);
-    X_MATH1_EXT_OPS
-    #undef X
-
-#ifndef MATH1_SPECIALIZE
-    //R_MATH1_EXT_FUNS
-    #define X(a, b, c) precompiled_functions[i++] = &c;
-    X_MATH1_EXT_OPS
-    #undef X
-#endif
-
-    //R_MATH1_EXT_SYMS
-    #define X(a, b) precompiled_functions[i++] = Rf_install(#a);
-    RSH_R_SYMBOLS
-    #undef X
-
-    //R_MATH1_EXT_OPS
-    #define X(a, b) precompiled_functions[i++] = LOAD_R_BUILTIN(#a);
-    RSH_R_SYMBOLS
-    #undef X
-
-    precompiled_functions[i++] = LOAD_R_BUILTIN("!");
-    precompiled_functions[i++] = LOAD_R_BUILTIN("log");
-
-    //printf("precompiled_functions size: %d\n", i);
-    assert(i <= PRECOMPILED_COUNT);
-}
-
 static const void** prepare_got_table(size_t* got_size)
 {
     // Pass 1: count the number of GOT relocations and patch those that can be transformed into relative addressing
@@ -316,7 +223,6 @@ static const void** prepare_got_table(size_t* got_size)
 
 typedef struct {
     uint8_t rodata[sizeof(rodata)];
-    void* precompiled[PRECOMPILED_COUNT];
     size_t got_table_size;
     void* got_table[];
 } mem_shared_data;
@@ -326,9 +232,6 @@ static SEXP mem_shared_sexp;
 
 static void prepare_shared_memory()
 {
-    void *precompiled[PRECOMPILED_COUNT];
-    prepare_precompiled(precompiled);
-
     void *vmax = vmaxget();
     size_t got_table_size = 0;
     const void **got_table = prepare_got_table(&got_table_size);
@@ -343,7 +246,6 @@ static void prepare_shared_memory()
         exit(1);
 
     memcpy(mem_shared_near->rodata, rodata, sizeof(rodata));
-    memcpy(mem_shared_near->precompiled, precompiled, sizeof(precompiled));
     mem_shared_near->got_table_size = got_table_size;
     memcpy(mem_shared_near->got_table, got_table, got_table_size * sizeof(void*));
 
@@ -489,11 +391,6 @@ static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole
         ptr = (ptrdiff_t)shared->rodata;
     }
     break;
-    case RELOC_RCP_PRECOMPILED:
-    {
-        ptr = (ptrdiff_t)shared->precompiled;
-    }
-    break;
     case RELOC_RHO:
     {
         ptr = (ptrdiff_t)ctx->rho;
@@ -577,10 +474,8 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
     // For speciailized stencils
     switch(opcode)
     {
-#ifdef MATH1_SPECIALIZE
         case MATH1_OP:
         {
-            DEBUG_PRINT("Using specialized version of MATH1_OP\n");
             switch(imms[1])
             {
             #define X(a, b, c) case b: return &_RCP_MATH1_##b##_OP;
@@ -594,7 +489,6 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
             }
         }
         break;
-#endif
         case LDCONST_OP:
         {
             SEXP constant = r_constpool[imms[0]];

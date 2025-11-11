@@ -297,75 +297,6 @@ RSH_R_SYMBOLS
   return rsh_symbol_map;
 }
 
-// Identify the Rsh internal symbols to relocate them in a special way
-static int rsh_symbol_id(const char *name)
-{
-  int counter = 0;
-  if (strcmp(name, "R_ARITH_OPS") == 0)
-    return counter;
-  counter += 5;
-
-  if (strcmp(name, "R_ARITH_OP_SYMS") == 0)
-    return counter;
-  counter += 5;
-
-  if (strcmp(name, "R_REL_OPS") == 0)
-    return counter;
-  counter += 6;
-
-  if (strcmp(name, "R_REL_OP_SYMS") == 0)
-    return counter;
-  counter += 6;
-
-  if (strcmp(name, "R_MATH1_OPS") == 0)
-    return counter;
-  counter += 2;
-
-  if (strcmp(name, "R_UNARY_OPS") == 0)
-    return counter;
-  counter += 2;
-
-  if (strcmp(name, "R_UNARY_OP_SYMS") == 0)
-    return counter;
-  counter += 2;
-
-  if (strcmp(name, "R_LOGIC2_OPS") == 0)
-    return counter;
-  counter += 2;
-
-  if (strcmp(name, "R_MATH1_EXT_OPS") == 0)
-    return counter;
-  counter += 24;
-
-  if (strcmp(name, "R_MATH1_EXT_SYMS") == 0)
-    return counter;
-  counter += 24;
-
-#ifndef MATH1_SPECIALIZE
-  if (strcmp(name, "R_MATH1_EXT_FUNS") == 0)
-    return counter;
-  counter += 24;
-#endif
-
-  #define X(a, b) if (strcmp(name, #b"Sym") == 0) return counter; counter += 1;
-  RSH_R_SYMBOLS
-  #undef X
-  #define X(a, b) if (strcmp(name, #b"Op") == 0) return counter; counter += 1;
-  RSH_R_SYMBOLS
-  #undef X
-
-  if (strcmp(name, "NOT_OP") == 0)
-    return counter;
-  counter += 1;
-
-  if (strcmp(name, "LOG_OP") == 0)
-    return counter;
-  counter += 1;
-
-  return -1;
-}
-
-
 static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body, const arelent& rel)
 {
   Hole hole;
@@ -545,27 +476,17 @@ static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body
   }
   else
   {
-    int id = rsh_symbol_id((*rel.sym_ptr_ptr)->name);
-    if (id != -1)
+    switch (rel.howto->type)
     {
-      printf("Rsh internal symbol relocation: %s -> id %d\n", (*rel.sym_ptr_ptr)->name, id);
-      hole.kind = RELOC_RCP_PRECOMPILED;
-      hole.addend += id * sizeof(void *);
+    case X86_64_RELOC_KIND::R_X86_64_GOTPCRELX:
+      hole.kind = RELOC_RUNTIME_SYMBOL_GOT;
+    break;
+    default:
+      hole.kind = RELOC_RUNTIME_SYMBOL;
+    break;
     }
-    else
-    {
-      switch (rel.howto->type)
-      {
-      case X86_64_RELOC_KIND::R_X86_64_GOTPCRELX:
-        hole.kind = RELOC_RUNTIME_SYMBOL_GOT;
-      break;
-      default:
-        hole.kind = RELOC_RUNTIME_SYMBOL;
-      break;
-      }
 
-      hole.val.symbol_name = strdup((*rel.sym_ptr_ptr)->name);
-    }
+    hole.val.symbol_name = strdup((*rel.sym_ptr_ptr)->name);
   }
 
   //std::cerr << std::format("  offset {:#X}, addend {}, symbol {}, type {}\n", rel.address, rel.addend, (*rel.sym_ptr_ptr)->name, rel.howto->type);
