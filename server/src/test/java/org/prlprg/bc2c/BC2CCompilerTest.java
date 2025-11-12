@@ -1072,6 +1072,20 @@ public class BC2CCompilerTest {
         returns(100.0));
   }
 
+    @Test
+    public void testBaseGuard(BC2CSnapshot snapshot) {
+        snapshot.setBCOptimizationLevel(2);
+        snapshot.verify("""
+                f <- function() sin(0)
+                f()
+                """, returns(0.0));
+        snapshot.verify("""
+                sin <- function(x) 42
+                f <- function() sin(0)
+                f()
+                """, returns(42.0));
+    }
+
   @Test
   public void testDotsErr(BC2CSnapshot snapshot) {
       snapshot.verify("""

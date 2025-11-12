@@ -95,6 +95,7 @@ public class BC2CSnapshotTestExtension
       boolean clean = true;
       boolean compilePromises = false;
       boolean saveSnapshot = true;
+        int bcOptimizationLevel = 3;
 
       @Override
       public void setCompilePromises(boolean compilePromises) {
@@ -107,8 +108,13 @@ public class BC2CSnapshotTestExtension
       }
 
       @Override
+      public void setBCOptimizationLevel(int level) {
+          this.bcOptimizationLevel = level;
+      }
+
+        @Override
       public void verify(String code, TestResultCheck... extraChecks) {
-        var artifact = compileAndCall(code, compilePromises);
+            var artifact = compileAndCall(code, bcOptimizationLevel, compilePromises);
         try {
           if (artifact.result.isLeft()) {
             throw artifact.result.getLeft();
@@ -161,7 +167,7 @@ public class BC2CSnapshotTestExtension
     };
   }
 
-  TestArtifact compileAndCall(String code, boolean compilePromises) {
+    TestArtifact compileAndCall(String code, int bcOptimizationLevel, boolean compilePromises) {
     // this has to be the same as in the test/resources/.../Makefile
     var prefix = "test";
 
@@ -181,8 +187,7 @@ public class BC2CSnapshotTestExtension
     var closure = (CloSXP) R.eval(funCode);
     var ast2bc = new BCCompiler(closure, R.getSession());
 
-    // FIXME: just for now as we do not support guards
-    ast2bc.setOptimizationLevel(3);
+        ast2bc.setOptimizationLevel(bcOptimizationLevel);
     var bc =
         ast2bc
             .compile()
@@ -253,5 +258,8 @@ public class BC2CSnapshotTestExtension
     void setCompilePromises(boolean compilePromises);
 
     void setSaveSnapshot(boolean save);
+
+      void setBCOptimizationLevel(int level);
+
   }
 }
