@@ -132,6 +132,8 @@ class ClosureCompiler {
 
   private static final String VAR_LOOP_CTX = "LOOP_CTX";
 
+  private static final String VAR_SWITCH_LABELS = "SL_";
+
   private final Bc bc;
   private final ByteCodeStack stack = new ByteCodeStack();
   private final Map<Integer, Constant> constants = new LinkedHashMap<>();
@@ -139,6 +141,7 @@ class ClosureCompiler {
   private final Map<Integer, BCell> cells = new HashMap<>();
   private final Map<Integer, Integer> branchStackState = new HashMap<>();
   private final Map<Integer, Integer> loopContexts = new HashMap<>();
+  private int switchesCount = 0;
   private int extraConstPoolIdx;
   private final String name;
   private boolean debug = true;
@@ -177,10 +180,10 @@ class ClosureCompiler {
 
     // the stack should be left with one element
     // which will be the return value
-      if (stack.top() != 1 && stack.top() != 0) {
-          // TODO: better check, the 0 element case happens with DOTSERR
+    if (stack.top() != 1 && stack.top() != 0) {
+      // TODO: better check, the 0 element case happens with DOTSERR
       throw new IllegalStateException(
-              "Expected stack to have 1 or 0 element, got %d".formatted(stack.top()));
+          "Expected stack to have 1 or 0 element, got %d".formatted(stack.top()));
     }
 
     afterCompile();
@@ -220,6 +223,10 @@ class ClosureCompiler {
       }
 
       instr.label().ifPresent(l -> labels.add(l.target()));
+      if (instr instanceof BcInstr.Switch sw) {
+        sw.labels(bc.consts()).forEach(labels::add);
+      }
+
       instr
           .bindingCell()
           .ifPresent(
@@ -314,6 +321,7 @@ class ClosureCompiler {
             int idx = loopContexts.get(pc);
             yield builder.args("&" + VAR_LOOP_CTX + "[" + idx + "]").compileStmt();
           }
+          case BcInstr.Switch sw -> compileSwitch(builder, sw);
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(l));
@@ -328,20 +336,51 @@ class ClosureCompiler {
   }
 
   private void updateBranchStackState(BcInstr instr) {
-      var op = instr.op();
-      if (op == BcOp.GOTO || op == BcOp.BASEGUARD) {
-          // these do not change the stack state
+    var op = instr.op();
+    if (op == BcOp.GOTO || op == BcOp.BASEGUARD) {
+      // these do not change the stack state
+      return;
+    }
+
+    if (instr instanceof BcInstr.Switch sw) {
+      var targets = sw.labels(bc.consts());
+      for (int i = 0; i < targets.length(); i++) {
+        branchStackState.put(targets.get(i), stack.top());
+      }
       return;
     }
 
     var diff =
-            switch (op) {
+        switch (op) {
           case BcOp.STARTSUBSET, BcOp.STARTSUBSET2 -> -3;
           case BcOp.STARTSUBASSIGN, BcOp.STARTSUBASSIGN2 -> -4;
           case BcOp.STARTSUBASSIGN_N, BcOp.STARTSUBASSIGN2_N -> -1;
           default -> 0;
         };
     instr.label().ifPresent(label -> branchStackState.put(label.target(), stack.top() + diff));
+  }
+
+  private String compileSwitch(InstrCallBuilder builder, BcInstr.Switch instr) {
+    StringBuilder sb = new StringBuilder();
+    var labels = instr.labels(bc.consts());
+    if (labels.isEmpty()) {
+      throw new IllegalArgumentException("Switch instruction must have non-empty offsets");
+    }
+
+    var switchLabelName = "%s%d".formatted(VAR_SWITCH_LABELS, switchesCount++);
+    sb.append("static const void *%s[] = {".formatted(switchLabelName));
+    for (int i = 0; i < labels.length(); i++) {
+      if (i > 0) {
+        sb.append(", ");
+      }
+      sb.append("__extension__ &&").append(label(labels.get(i)));
+    }
+    sb.append("};");
+    sb.append("\n");
+    var switchCall = builder.compile();
+    sb.append("goto *%s[%s];\n".formatted(switchLabelName, switchCall));
+
+    return sb.toString();
   }
 
   private String compileMakePromise(InstrCallBuilder builder, BCodeSXP bc) {
@@ -678,10 +717,11 @@ class ClosureCompiler {
           BcOp.DDVAL,
           BcOp.RETURNJMP,
           BcOp.STARTLOOPCNTXT,
-              BcOp.ENDLOOPCNTXT,
-              BcOp.DOTSERR,
-              BcOp.INCLNKSTK,
-              BcOp.DECLNKSTK);
+          BcOp.ENDLOOPCNTXT,
+          BcOp.DOTSERR,
+          BcOp.INCLNKSTK,
+          BcOp.DECLNKSTK,
+          BcOp.SWITCH);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {

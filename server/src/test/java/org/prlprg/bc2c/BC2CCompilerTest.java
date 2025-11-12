@@ -1072,40 +1072,110 @@ public class BC2CCompilerTest {
         returns(100.0));
   }
 
-    @Test
-    public void testBaseGuard(BC2CSnapshot snapshot) {
-        snapshot.setBCOptimizationLevel(2);
-        snapshot.verify("""
+  @Test
+  public void testBaseGuard(BC2CSnapshot snapshot) {
+    snapshot.setBCOptimizationLevel(2);
+    snapshot.verify(
+        """
                 f <- function() sin(0)
                 f()
-                """, returns(0.0));
-        snapshot.verify("""
+                """,
+        returns(0.0));
+    snapshot.verify(
+        """
                 sin <- function(x) 42
                 f <- function() sin(0)
                 f()
-                """, returns(42.0));
-    }
+                """,
+        returns(42.0));
+  }
 
-    @Test
-    public void testIncLinkStk(BC2CSnapshot snapshot) {
-        snapshot.verify("""
+  @Test
+  public void testIncLinkStk(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
                 g <- function(f, x) f(x$a <- 1)
                 f <- function(expr) force(expr)
                 a <- list(a=2)
                 g(f, a)
                 a
                 """);
-    }
+  }
 
   @Test
   public void testDotsErr(BC2CSnapshot snapshot) {
-      snapshot.verify("""
+    snapshot.verify(
+        """
               f <- function() ...
               tryCatch(f(), error=function(e) stopifnot(e$message == "'...' used in an incorrect context"))
               """);
   }
 
-    @Test
+  @Test
+  public void testSwitchWithIndices(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 1; switch(x, 1L, 2L, 3L)", returns(1));
+    snapshot.verify("x <- 2; switch(x, 1L, 2L, 3L)", returns(2));
+    snapshot.verify("x <- 3; switch(x, 1L, 2L, 3L)", returns(3));
+    snapshot.verify("x <- 4; switch(x, 1L, 2L, 3L)");
+    snapshot.verify("x <- 0; switch(x, 1L, 2L, 3L)");
+    snapshot.verify("x <- -1; switch(x, 1L, 2L, 3L)");
+  }
+
+  @Test
+  public void testSwitchWithNames(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 'a'; switch(x, a=1L, b=2L, c=3L)", returns(1));
+    snapshot.verify("x <- 'b'; switch(x, a=1L, b=2L, c=3L)", returns(2));
+    snapshot.verify("x <- 'c'; switch(x, a=1L, b=2L, c=3L)", returns(3));
+    snapshot.verify("x <- 'd'; switch(x, a=1L, b=2L, c=3L)");
+    snapshot.verify("x <- ''; switch(x, a=1L, b=2L, c=3L)");
+  }
+
+  @Test
+  public void testSwitchWithDefaultCase(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 1; switch(x, 10L, 20L, 99L)", returns(10));
+    snapshot.verify("x <- 4; switch(x, 10L, 20L, 99L)");
+    snapshot.verify("x <- 'a'; switch(x, a=10L, b=20L, 99L)", returns(10));
+    snapshot.verify("x <- 'c'; switch(x, a=10L, b=20L, 99L)", returns(99));
+  }
+
+  @Test
+  public void testSwitchWithExpressions(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 1; switch(x, 1L+1L, 2L+2L, 3L+3L)", returns(2));
+    snapshot.verify("x <- 2; switch(x, 1L+1L, 2L+2L, 3L+3L)", returns(4));
+    snapshot.verify("x <- 'a'; switch(x, a=10L*2L, b=20L*2L, c=30L*2L)", returns(20));
+  }
+
+  @Test
+  public void testSwitchWithNullAndNA(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- NA; switch(x, 1L, 2L, 3L)");
+    snapshot.verify("x <- 1; switch(x, NULL, 2L, 3L)");
+    snapshot.verify("x <- 2; switch(x, 1L, NULL, 3L)");
+  }
+
+  @Test
+  public void testSwitchInFunction(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        f <- function(x) {
+                          switch(x,
+                            'a' = 1L,
+                            'b' = 2L,
+                            'c' = 3L,
+                            0L)
+                        }
+                        f('b')
+                        """,
+        returns(2));
+  }
+
+  @Test
+  public void testSwitchWithFallthrough(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 'a'; switch(x, a=, b=100L, c=200L)", returns(100));
+    snapshot.verify("x <- 'b'; switch(x, a=, b=100L, c=200L)", returns(100));
+    snapshot.verify("x <- 'c'; switch(x, a=, b=100L, c=200L)", returns(200));
+  }
+
+  @Test
   public void testAdhoc(BC2CSnapshot snapshot) {}
 
   // API

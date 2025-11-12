@@ -38,7 +38,6 @@ public class RshCompiler {
           "-fexceptions",
           "-fstack-clash-protection",
           //          "-fcf-protection",
-          "-pedantic",
           "-Wformat",
           "-Werror=format-security",
           "-Wall",
