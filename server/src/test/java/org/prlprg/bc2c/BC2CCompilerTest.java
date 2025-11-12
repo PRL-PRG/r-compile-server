@@ -1086,6 +1086,17 @@ public class BC2CCompilerTest {
                 """, returns(42.0));
     }
 
+    @Test
+    public void testIncLinkStk(BC2CSnapshot snapshot) {
+        snapshot.verify("""
+                g <- function(f, x) f(x$a <- 1)
+                f <- function(expr) force(expr)
+                a <- list(a=2)
+                g(f, a)
+                a
+                """);
+    }
+
   @Test
   public void testDotsErr(BC2CSnapshot snapshot) {
       snapshot.verify("""

@@ -679,7 +679,9 @@ class ClosureCompiler {
           BcOp.RETURNJMP,
           BcOp.STARTLOOPCNTXT,
               BcOp.ENDLOOPCNTXT,
-              BcOp.DOTSERR);
+              BcOp.DOTSERR,
+              BcOp.INCLNKSTK,
+              BcOp.DECLNKSTK);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
