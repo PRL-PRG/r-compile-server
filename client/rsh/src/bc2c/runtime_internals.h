@@ -97,6 +97,7 @@ void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
                      SEXP promargs, SEXP callfun);
 void Rf_endcontext(RCNTXT *cptr);
 void NORET Rf_findcontext(int mask, SEXP env, SEXP val);
+Rboolean Rf_pmatch(SEXP, SEXP, Rboolean);
 
 SEXP rcpEval(SEXP body, SEXP rho);
 
