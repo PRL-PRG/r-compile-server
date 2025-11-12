@@ -2999,4 +2999,8 @@ static INLINE Rboolean Rsh_Baseguard(Value *stack, SEXP expr, SEXP rho) {
   }
 }
 
+static INLINE NORET void Rsh_DotsErr(UNUSED Value *stack) {
+  Rf_error("'...' used in an incorrect context");
+}
+
 #endif // RUNTIME_H
