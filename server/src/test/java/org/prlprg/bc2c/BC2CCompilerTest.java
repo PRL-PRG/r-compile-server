@@ -1073,6 +1073,14 @@ public class BC2CCompilerTest {
   }
 
   @Test
+  public void testDotsErr(BC2CSnapshot snapshot) {
+      snapshot.verify("""
+              f <- function() ...
+              tryCatch(f(), error=function(e) stopifnot(e$message == "'...' used in an incorrect context"))
+              """);
+  }
+
+    @Test
   public void testAdhoc(BC2CSnapshot snapshot) {}
 
   // API

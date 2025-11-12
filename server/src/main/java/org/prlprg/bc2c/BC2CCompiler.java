@@ -177,9 +177,10 @@ class ClosureCompiler {
 
     // the stack should be left with one element
     // which will be the return value
-    if (stack.top() != 1) {
+      if (stack.top() != 1 && stack.top() != 0) {
+          // TODO: better check, the 0 element case happens with DOTSERR
       throw new IllegalStateException(
-          "Expected stack to have 1 element, got %d".formatted(stack.top()));
+              "Expected stack to have 1 or 0 element, got %d".formatted(stack.top()));
     }
 
     afterCompile();
@@ -675,7 +676,8 @@ class ClosureCompiler {
           BcOp.DDVAL,
           BcOp.RETURNJMP,
           BcOp.STARTLOOPCNTXT,
-          BcOp.ENDLOOPCNTXT);
+              BcOp.ENDLOOPCNTXT,
+              BcOp.DOTSERR);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
