@@ -25,7 +25,8 @@
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
-extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCProtTop;
+extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCNodeStackBase,
+    *R_BCProtTop;
 extern SEXP R_TrueValue;
 extern SEXP R_LogicalNAValue;
 extern SEXP R_FalseValue;
@@ -367,6 +368,26 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
       __a__ = CDR(__a__);                                                      \
     }                                                                          \
   } while (0)
+
+static INLINE void INCLNK_stack(R_bcstack_t *top) { R_BCProtTop = top; }
+
+static INLINE void DECLNK_stack(R_bcstack_t *base) {
+  // FIXME: protect using R_BCProtCommitted
+
+  // if (base < R_BCProtCommitted)
+  //{
+  //   R_bcstack_t *top = R_BCProtCommitted;
+  //   for (R_bcstack_t *p = base; p < top; p++)
+  //   {
+  //     if (p->tag == RAWMEM_TAG || p->tag == CACHESZ_TAG)
+  //       p += p->u.ival;
+  //     else if (p->tag == 0)
+  //       DECREMENT_LINKS(p->u.sxpval);
+  //   }
+  //   R_BCProtCommitted = base;
+  // }
+  R_BCProtTop = base;
+}
 
 #define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
 #define SET_SCALAR_DVAL(s, v) REAL((s))[0] = (v)

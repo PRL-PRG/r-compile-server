@@ -3003,4 +3003,20 @@ static INLINE NORET void Rsh_DotsErr(UNUSED Value *stack) {
   Rf_error("'...' used in an incorrect context");
 }
 
+static INLINE void Rsh_IncLnkStk(Value *stack) {
+  Value *v = GET_VAL(-1);
+  int offset = (int)(R_BCProtTop - R_BCNodeStackBase);
+  INCLNK_stack(v);
+  SET_INT_VAL(v, offset);
+}
+
+static INLINE void Rsh_DecLnkStk(Value *stack) {
+  Value *v2 = GET_VAL(-2);
+  Value v1 = *GET_VAL(-1);
+  int offset = VAL_INT(*v2);
+  R_bcstack_t *ptop = R_BCNodeStackBase + offset;
+  DECLNK_stack(ptop);
+  *v2 = v1;
+}
+
 #endif // RUNTIME_H
