@@ -18,17 +18,13 @@ class ByteCodeStack {
   private int top = 0;
 
   public String push() {
-    top++;
-    max = Math.max(max, top);
+    reset(top + 1);
     return get(top);
   }
 
   public String pop() {
-    if (top < 0) {
-      throw new IllegalArgumentException("Stack underflow: %d".formatted(top));
-    }
     var s = get(top);
-    --top;
+    reset(top - 1);
     return "*" + s;
   }
 
@@ -49,9 +45,10 @@ class ByteCodeStack {
   }
 
   public void reset(int newTop) {
-    if (newTop < -1) {
-      throw new IllegalArgumentException("Invalid top: %d".formatted(newTop));
+    if (newTop < 0) {
+      throw new IllegalArgumentException("Invalid stack top: %d".formatted(newTop));
     }
+    this.max = Math.max(max, newTop);
     this.top = newTop;
   }
 }
@@ -129,7 +126,7 @@ class ClosureCompiler {
   /** The name of the variable representing the C constant pool */
   private static final String VAR_CCP = "CCP";
 
-  private static final String VAR_STACK_SAVE = "STACK_SAVE";
+  private static final String VAR_STACK = "STACK";
 
   private static final String BCELL_PREFIX = "C";
 
@@ -190,22 +187,17 @@ class ClosureCompiler {
     return SEXPs.vec(constants());
   }
 
-  private int stackSpace() {
-    return stack.max();
-  }
-
   private void beforeCompile() {
     analyseCode();
   }
 
   private void afterCompile() {
-    prologue.line("int %s = %d;".formatted(VAR_STACK_SAVE, stackSpace()));
+    prologue.line("Value *%s = R_BCNodeStackTop;".formatted(VAR_STACK));
     if (!cells.isEmpty() || !stack.isEmpty()) {
-      prologue.line("CHECK_OVERFLOW(%d);".formatted(stackSpace()));
+      prologue.line("DEFINE_REGS(%d);".formatted(stack.max()));
     }
 
     compileCells();
-    compileRegisters();
     compileLoopContexts();
   }
 
@@ -260,8 +252,6 @@ class ClosureCompiler {
 
     var code =
         switch (instr) {
-          case BcInstr.Return() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
-          case BcInstr.ReturnJmp() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
@@ -362,12 +352,7 @@ class ClosureCompiler {
 
   private String compileSubsetN(
       InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
-    var line =
-        builder
-            .push(0)
-            .pop(0)
-            .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
-            .compileStmt();
+    var line = builder.push(0).pop(0).args(String.valueOf(rank), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < rank + 1; i++) stack.pop();
     stack.push();
@@ -376,12 +361,7 @@ class ClosureCompiler {
 
   private String compileSubassignN(
       InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
-    var line =
-        builder
-            .push(0)
-            .pop(0)
-            .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
-            .compileStmt();
+    var line = builder.push(0).pop(0).args(String.valueOf(rank), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < rank + 2; i++) stack.pop();
     stack.push();
@@ -391,11 +371,7 @@ class ClosureCompiler {
   private String compileDotCall(
       InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int numArgs) {
     var line =
-        builder
-            .push(0)
-            .pop(0)
-            .args(stack.get(stack.top()), String.valueOf(numArgs), constantSXP(call))
-            .compileStmt();
+        builder.push(0).pop(0).args(String.valueOf(numArgs), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < numArgs + 1; i++) stack.pop();
     stack.push();
@@ -414,13 +390,6 @@ class ClosureCompiler {
     }
   }
 
-  private void compileRegisters() {
-    prologue.comment("REGISTERS");
-    for (int i = 1; i <= stack.max(); i++) {
-      prologue.line("DEFINE_VAL(%s);".formatted(stack.get(i)));
-    }
-  }
-
   private void compileCells() {
     if (cells.isEmpty()) {
       return;
@@ -428,7 +397,7 @@ class ClosureCompiler {
 
     prologue.comment("CELLS");
     for (var cell : cells.values()) {
-      var line = "DEFINE_BCELL2(%s%d);".formatted(BCELL_PREFIX, cell.id());
+      var line = "DEFINE_BCELL(%s%d);".formatted(BCELL_PREFIX, cell.id());
       if (debug) {
         line += " // symbol: '%s' (used: %d)".formatted(cell.name(), cell.uses());
       }
@@ -504,16 +473,13 @@ class ClosureCompiler {
     }
 
     public String compile() {
-      var n = Math.max(pop, push);
-      var xs = new String[n + args.size() + (needsRho ? 1 : 0) + (cell != null ? 1 : 0)];
+      var xs = new String[1 + args.size() + (needsRho ? 1 : 0) + (cell != null ? 1 : 0)];
+      int n = 0;
+      int d = push - pop;
+      int t = Math.max(stack.top(), stack.top() + d);
 
-      for (int i = pop; i > 0; i--) {
-        xs[i - 1] = stack.pop();
-      }
-
-      for (int i = 0; i < push; i++) {
-        xs[i] = stack.push();
-      }
+      xs[n++] = VAR_STACK + (t > 0 ? " + " + t : "");
+      stack.reset(stack.top() + d);
 
       for (String arg : args) {
         xs[n++] = arg;
@@ -598,7 +564,7 @@ class ClosureCompiler {
   private static final Set<BcOp> SUPPORTED_OPS =
       Set.of(
           BcOp.AND,
-          BcOP.BASEGUARD,
+          BcOp.BASEGUARD,
           BcOp.BRIFNOT,
           BcOp.CALLBUILTIN,
           BcOp.CALLSPECIAL,
