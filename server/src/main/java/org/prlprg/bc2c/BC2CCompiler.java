@@ -328,12 +328,14 @@ class ClosureCompiler {
   }
 
   private void updateBranchStackState(BcInstr instr) {
-    if (instr.op() == BcOp.GOTO) {
-      // GOTO do not change the stack state
+      var op = instr.op();
+      if (op == BcOp.GOTO || op == BcOp.BASEGUARD) {
+          // these do not change the stack state
       return;
     }
+
     var diff =
-        switch (instr.op()) {
+            switch (op) {
           case BcOp.STARTSUBSET, BcOp.STARTSUBSET2 -> -3;
           case BcOp.STARTSUBASSIGN, BcOp.STARTSUBASSIGN2 -> -4;
           case BcOp.STARTSUBASSIGN_N, BcOp.STARTSUBASSIGN2_N -> -1;
