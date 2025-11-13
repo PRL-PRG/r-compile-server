@@ -126,9 +126,29 @@ benchmark:
 		exit 1; \
 	fi
 
-testb:
+.PHONY: testb-seq
+testb-seq:
 	@BENCH_ITER=1 $(MAKE) benchmark
 
+.PHONY: testb
+testb:
+	@failures=0; \
+	find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R" | \
+	parallel -j $(shell nproc) --line-buffer --bar --joblog /tmp/testb-$$$$.log \
+		"test=\$$(basename {} .R); \
+		output=\$$(nice -n 10 $(R) --slave --no-restore -f $(HARNESS_BIN) --args \
+			$(BENCH_OPTS) --runs 1 {.} 2>&1); \
+		if [ \$$? -ne 0 ]; then \
+			echo \"$(TXT_RED)FAILED: \$$test$(TXT_NORM)\" >&2; \
+			echo \"\$$output\" >&2; \
+			exit 1; \
+		fi"; \
+	failures=$$(awk '$$7 != "0" && NR > 1 { count++ } END { print count+0 }' /tmp/testb-$$$$.log); \
+	rm -f /tmp/testb-$$$$.log; \
+	echo "$(TXT_BOLD)Total failures: $$failures$(TXT_NORM)"; \
+	if [ $$failures -ne 0 ]; then \
+		exit 1; \
+	fi
 
 .PHONY: clean
 clean:
