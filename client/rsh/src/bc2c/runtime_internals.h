@@ -25,8 +25,8 @@
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
-extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCProtTop;
-
+extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCNodeStackBase,
+    *R_BCProtTop;
 #ifndef RCP
 extern SEXP R_TrueValue;
 extern SEXP R_LogicalNAValue;
@@ -99,6 +99,7 @@ void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
                      SEXP promargs, SEXP callfun);
 void Rf_endcontext(RCNTXT *cptr);
 void NORET Rf_findcontext(int mask, SEXP env, SEXP val);
+Rboolean Rf_pmatch(SEXP, SEXP, Rboolean);
 
 SEXP rcpEval(SEXP body, SEXP rho);
 
@@ -321,15 +322,19 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
 #define RSH_LIST_APPEND_EX(/* Value* */ head, /* Value* */ tail,               \
                            /* SEXP */ value, /* RBoolean */ RC)                \
   do {                                                                         \
+    Value *__h__ = (head);                                                     \
+    Value *__t__ = (tail);                                                     \
+    SEXP __v__ = (value);                                                      \
+    Rboolean __rc__ = (RC);                                                    \
     SEXP __elem__ =                                                            \
-        (RC) ? CONS((value), R_NilValue) : CONS_NR(value, R_NilValue);         \
+        __rc__ ? CONS(__v__, R_NilValue) : CONS_NR(__v__, R_NilValue);         \
                                                                                \
-    if (VAL_SXP(*head) == R_NilValue) {                                        \
-      SET_SXP_VAL(head, __elem__);                                             \
+    if (VAL_SXP(*__h__) == R_NilValue) {                                       \
+      SET_SXP_VAL(__h__, __elem__);                                            \
     } else {                                                                   \
-      SETCDR(VAL_SXP(*(tail)), __elem__);                                      \
+      SETCDR(VAL_SXP(*(__t__)), __elem__);                                     \
     }                                                                          \
-    SET_SXP_VAL(tail, __elem__);                                               \
+    SET_SXP_VAL(__t__, __elem__);                                              \
     if (RC) {                                                                  \
       INCREMENT_NAMED(CAR(__elem__));                                          \
     } else {                                                                   \
@@ -366,6 +371,26 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
       __a__ = CDR(__a__);                                                      \
     }                                                                          \
   } while (0)
+
+static INLINE void INCLNK_stack(R_bcstack_t *top) { R_BCProtTop = top; }
+
+static INLINE void DECLNK_stack(R_bcstack_t *base) {
+  // FIXME: protect using R_BCProtCommitted
+
+  // if (base < R_BCProtCommitted)
+  //{
+  //   R_bcstack_t *top = R_BCProtCommitted;
+  //   for (R_bcstack_t *p = base; p < top; p++)
+  //   {
+  //     if (p->tag == RAWMEM_TAG || p->tag == CACHESZ_TAG)
+  //       p += p->u.ival;
+  //     else if (p->tag == 0)
+  //       DECREMENT_LINKS(p->u.sxpval);
+  //   }
+  //   R_BCProtCommitted = base;
+  // }
+  R_BCProtTop = base;
+}
 
 #define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
 #define SET_SCALAR_DVAL(s, v) REAL((s))[0] = (v)

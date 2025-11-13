@@ -718,9 +718,9 @@ public class BC2CCompilerTest {
 
   @Test
   public void testReturnJmp(BC2CSnapshot snapshot) {
-      snapshot.setCompilePromises(true);
-      snapshot.verify(
-              """
+    snapshot.setCompilePromises(true);
+    snapshot.verify(
+        """
                       f <- function() {
                           g <- function(x) {
                               y <- x
@@ -731,7 +731,7 @@ public class BC2CCompilerTest {
                       }
                       f()
                       """,
-              returns(42));
+        returns(42));
   }
 
   @Test
@@ -1071,6 +1071,421 @@ public class BC2CCompilerTest {
                         """,
                 returns(100.0));
     }
+
+  @Test
+  public void testThreeLevelNestedLoopWithBreaks(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:2) {
+                          for (j in 1:2) {
+                            for (k in 1:3) {
+                              if (k == 2) {
+                                break()
+                              }
+                              x <- x + 1
+                            }
+                            if (j == 2) {
+                              break()
+                            }
+                          }
+                        }
+                        x
+                        """);
+  }
+
+  @Test
+  public void testWhileLoopWithForLoop(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        i <- 1
+                        while (i <= 2) {
+                          for (j in 1:3) {
+                            if (j == 2) {
+                              break()
+                            }
+                            x <- x + 1
+                          }
+                          if (i == 1) {
+                            i <- i + 1
+                            next()
+                          }
+                          i <- i + 1
+                        }
+                        x
+                        """,
+        returns(2.0)); // 1 per outer iteration
+  }
+
+  @Test
+  public void testComplexNestedStructure(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        result <- 0
+                        for (outer in 1:3) {
+                          inner_sum <- 0
+                          for (inner in 1:4) {
+                            if (inner == 1) {
+                              next()
+                            }
+                            if (inner == 4) {
+                              break()
+                            }
+                            inner_sum <- inner_sum + inner
+                          }
+                          if (outer == 3) {
+                            break()
+                          }
+                          result <- result + inner_sum
+                        }
+                        result
+                        """,
+        returns(10.0)); // (2 + 3) + (2 + 3)
+  }
+
+  @Test
+  public void testBreakInInnerLoop(BC2CSnapshot snapshot) {
+    snapshot.setSaveSnapshot(false);
+    snapshot.verify(
+        """
+                              x <- 0
+                              for (i in 1:3) {
+                                for (j in 1:3) {
+                                  x <- x + 1
+                                  if (j == 2) {
+                                    break()
+                                  }
+                                }
+                              }
+                              x
+                        """,
+        returns(6.0)); // 3 + 3
+  }
+
+  @Test
+  public void testBreakInOuterLoop(BC2CSnapshot snapshot) {
+    snapshot.setSaveSnapshot(false);
+    snapshot.verify(
+        """
+                              x <- 0
+                              for (i in 1:3) {
+                                for (j in 1:3) {
+                                  x <- x + 1
+                                }
+                                if (i == 2) {
+                                  break()
+                                }
+                              }
+                              x
+                        """,
+        returns(6.0)); // 3 + 3
+  }
+
+  @Test
+  public void testNextInOuterLoop(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:3) {
+                          if (i == 2) {
+                            next()
+                          }
+                          for (j in 1:3) {
+                            x <- x + 1
+                          }
+                        }
+                        x
+                        """,
+        returns(6.0)); // skip middle iteration
+  }
+
+  @Test
+  public void testNextInInnerLoop(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:3) {
+                          for (j in 1:3) {
+                            if (j == 2) {
+                              next()
+                            }
+                            x <- x + 1
+                          }
+                        }
+                        x
+                        """,
+        returns(6.0)); // 2 per outer iteration
+  }
+
+  @Test
+  public void testMixedBreakNextInNestedLoops(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:4) {
+                          if (i == 4) {
+                            break()
+                          }
+                          for (j in 1:4) {
+                            if (j == 2) {
+                              next()
+                            }
+                            if (j == 4) {
+                              break()
+                            }
+                            x <- x + (i * 10 + j)
+                          }
+                        }
+                        x
+                        """);
+  }
+
+  @Test
+  public void testLoopContextsBreak(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:3) {
+                          if (i == 2) {
+                            break();
+                          }
+                          x <- x + i
+                        }
+                        x
+                        """,
+        returns(1.0));
+  }
+
+  @Test
+  public void testLoopContextsNext(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:5) {
+                          if (i == 3) {
+                            next()
+                          }
+                          x <- x + i
+                        }
+                        x
+                        """,
+        returns(12.0)); // 1 + 2 + 4 + 5
+  }
+
+  @Test
+  public void testLoopContextsWithMultipleBreaks(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:10) {
+                          if (i == 2) {
+                            x <- x + 100
+                            break()
+                          }
+                          if (i == 5) {
+                            break()
+                          }
+                          x <- x + i
+                        }
+                        x
+                        """,
+        returns(101.0)); // 1 + 100
+  }
+
+  @Test
+  public void testLoopContextsWithMultipleNext(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        x <- 0
+                        for (i in 1:5) {
+                          if (i == 2) {
+                            next()
+                          }
+                          if (i == 4) {
+                            next()
+                          }
+                          x <- x + i
+                        }
+                        x
+                        """,
+        returns(9.0)); // 1 + 3 + 5
+  }
+
+  @Test
+  public void testLoopContextsWithFunctionsAndBreaks(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        helper <- function(val) {
+                          if (val == 3) return(TRUE)
+                          return(FALSE)
+                        }
+
+                        x <- 0
+                        for (i in 1:5) {
+                          if (helper(i)) {
+                            break()
+                          }
+                          x <- x + i
+                        }
+                        x
+                        """,
+        returns(3.0)); // 1 + 2
+  }
+
+  @Test
+  public void testLoopContextsFunctionsWithReturn(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        process <- function() {
+                          x <- 0
+                          for (i in 1:5) {
+                            if (i == 3) {
+                              break()
+                            }
+                            x <- x + i
+                          }
+                          return(x)
+                        }
+                        process()
+                        """,
+        returns(3.0)); // 1 + 2
+  }
+
+  @Test
+  public void testLoopContextsNestFunctionCallsWithLoops(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        outer_func <- function() {
+                          inner_func <- function() {
+                            x <- 0
+                            for (j in 1:3) {
+                              for (i in 1:3) {
+                                if (i == 2) {
+                                  break()
+                                }
+                                x <- i
+                              }
+                              if (j == 2) {
+                                return(x)
+                              }
+                            }
+                            x
+                          }
+
+                          x <- 0
+                          for (j in 1:100) {
+                            x <- x + inner_func()
+                          }
+                          return(x)
+                        }
+                        outer_func()
+                        """,
+        returns(100.0));
+  }
+
+  @Test
+  public void testBaseGuard(BC2CSnapshot snapshot) {
+    snapshot.setBCOptimizationLevel(2);
+    snapshot.verify(
+        """
+                f <- function() sin(0)
+                f()
+                """,
+        returns(0.0));
+    snapshot.verify(
+        """
+                sin <- function(x) 42
+                f <- function() sin(0)
+                f()
+                """,
+        returns(42.0));
+  }
+
+  @Test
+  public void testIncLinkStk(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                g <- function(f, x) f(x$a <- 1)
+                f <- function(expr) force(expr)
+                a <- list(a=2)
+                g(f, a)
+                a
+                """);
+  }
+
+  @Test
+  public void testDotsErr(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+              f <- function() ...
+              tryCatch(f(), error=function(e) stopifnot(e$message == "'...' used in an incorrect context"))
+              """);
+  }
+
+  @Test
+  public void testSwitchWithIndices(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 1; switch(x, 1L, 2L, 3L)", returns(1));
+    snapshot.verify("x <- 2; switch(x, 1L, 2L, 3L)", returns(2));
+    snapshot.verify("x <- 3; switch(x, 1L, 2L, 3L)", returns(3));
+    snapshot.verify("x <- 4; switch(x, 1L, 2L, 3L)");
+    snapshot.verify("x <- 0; switch(x, 1L, 2L, 3L)");
+    snapshot.verify("x <- -1; switch(x, 1L, 2L, 3L)");
+  }
+
+  @Test
+  public void testSwitchWithNames(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 'a'; switch(x, a=1L, b=2L, c=3L)", returns(1));
+    snapshot.verify("x <- 'b'; switch(x, a=1L, b=2L, c=3L)", returns(2));
+    snapshot.verify("x <- 'c'; switch(x, a=1L, b=2L, c=3L)", returns(3));
+    snapshot.verify("x <- 'd'; switch(x, a=1L, b=2L, c=3L)");
+    snapshot.verify("x <- ''; switch(x, a=1L, b=2L, c=3L)");
+  }
+
+  @Test
+  public void testSwitchWithDefaultCase(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 1; switch(x, 10L, 20L, 99L)", returns(10));
+    snapshot.verify("x <- 4; switch(x, 10L, 20L, 99L)");
+    snapshot.verify("x <- 'a'; switch(x, a=10L, b=20L, 99L)", returns(10));
+    snapshot.verify("x <- 'c'; switch(x, a=10L, b=20L, 99L)", returns(99));
+  }
+
+  @Test
+  public void testSwitchWithExpressions(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 1; switch(x, 1L+1L, 2L+2L, 3L+3L)", returns(2));
+    snapshot.verify("x <- 2; switch(x, 1L+1L, 2L+2L, 3L+3L)", returns(4));
+    snapshot.verify("x <- 'a'; switch(x, a=10L*2L, b=20L*2L, c=30L*2L)", returns(20));
+  }
+
+  @Test
+  public void testSwitchWithNullAndNA(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- NA; switch(x, 1L, 2L, 3L)");
+    snapshot.verify("x <- 1; switch(x, NULL, 2L, 3L)");
+    snapshot.verify("x <- 2; switch(x, 1L, NULL, 3L)");
+  }
+
+  @Test
+  public void testSwitchInFunction(BC2CSnapshot snapshot) {
+    snapshot.verify(
+        """
+                        f <- function(x) {
+                          switch(x,
+                            'a' = 1L,
+                            'b' = 2L,
+                            'c' = 3L,
+                            0L)
+                        }
+                        f('b')
+                        """,
+        returns(2));
+  }
+
+  @Test
+  public void testSwitchWithFallthrough(BC2CSnapshot snapshot) {
+    snapshot.verify("x <- 'a'; switch(x, a=, b=100L, c=200L)", returns(100));
+    snapshot.verify("x <- 'b'; switch(x, a=, b=100L, c=200L)", returns(100));
+    snapshot.verify("x <- 'c'; switch(x, a=, b=100L, c=200L)", returns(200));
+  }
 
   @Test
   public void testAdhoc(BC2CSnapshot snapshot) {}

@@ -1,6 +1,7 @@
 package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.primitives.ImmutableIntArray;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
@@ -1041,6 +1042,7 @@ public sealed interface BcInstr {
    * @param chrLabelsIdx {@code null} represents {@code NilSXP}
    * @param numLabelsIdx {@code null} represents {@code NilSXP}
    */
+  @StackEffect(pop = 1)
   record Switch(
       ConstPool.Idx<LangSXP> ast,
       @Nullable ConstPool.Idx<StrSXP> names,
@@ -1050,6 +1052,17 @@ public sealed interface BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SWITCH;
+    }
+
+    public ImmutableIntArray labels(ConstPool pool) {
+      var builder = ImmutableIntArray.builder();
+      if (chrLabelsIdx != null) {
+        builder.addAll(pool.get(chrLabelsIdx).data());
+      }
+      if (numLabelsIdx != null) {
+        builder.addAll(pool.get(numLabelsIdx).data());
+      }
+      return builder.build();
     }
   }
 
@@ -1300,6 +1313,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @NeedsRho
   record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardAfter") BcLabel ifFail)
       implements BcInstr {
     @Override
@@ -1334,6 +1348,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1)
   record IncLnkStk() implements BcInstr {
     @Override
     public BcOp op() {
@@ -1341,6 +1356,7 @@ public sealed interface BcInstr {
     }
   }
 
+  @StackEffect(push = 1, pop = 2)
   record DecLnkStk() implements BcInstr {
     @Override
     public BcOp op() {
