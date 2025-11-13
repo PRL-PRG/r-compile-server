@@ -221,6 +221,30 @@ static const void** prepare_got_table(size_t* got_size)
     return got_table_tmp;
 }
 
+static void prepare_active_holes(void)
+{
+    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    {
+        const Stencil *stencil = stencils_all[i];
+        for (size_t j = 0; j < stencil->holes_size; j++)
+        {
+            Hole *hole = &stencil->holes[j];
+            switch (hole->kind) {
+            case RELOC_RUNTIME_SYMBOL_DEREF: {
+                hole->val.symbol = (const void*)(*((SEXP *)(hole->val.symbol)));
+                hole->kind = RELOC_RUNTIME_SYMBOL;
+            } break;
+            case RELOC_RUNTIME_CALL: {
+                void *(*fun)(const void *) = hole->val.call.sym;
+                hole->val.symbol = fun(hole->val.call.arg);
+                // Note: we assume that the returned value does not need to be protected from GC
+                hole->kind = RELOC_RUNTIME_SYMBOL;
+            } break;
+            }
+        }
+    }
+}
+
 typedef struct {
     uint8_t rodata[sizeof(rodata)];
     size_t got_table_size;
@@ -1269,6 +1293,8 @@ void rcp_init(void)
     refresh_near_memory_ptr(0);
 
     prepare_shared_memory();
+
+    prepare_active_holes();
 
 #ifdef STEPFOR_SPECIALIZE
     prepare_stepfor();
