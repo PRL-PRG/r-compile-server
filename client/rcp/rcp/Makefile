@@ -85,7 +85,7 @@ install: $(R_LIB)
 BENCH_ITER ?= 15
 BENCH_NAME ?= $(shell echo "rcp-$$(date +'%Y%m%d-%H%M%S')-$$(git rev-parse --short HEAD)")
 BENCH_OUT_DIR ?= $(shell echo "$$(pwd)/benchmark-results")/$(BENCH_NAME)
-BENCH_OPTS ?= --rsh
+BENCH_OPTS ?= --rcp
 
 TXT_BOLD = \033[1m
 TXT_NORM = \033[0m
@@ -94,7 +94,7 @@ TXT_RED = \033[0;31m
 
 R ?= $(R_HOME)/bin/R
 BENCH_DIR = $(RSH_HOME)/inst/benchmarks
-HARNESS_BIN = harness.R
+HARNESS_BIN = $(RSH_HOME)/inst/benchmarks/harness.R
 FILTER ?=
 
 .PHONY: run
