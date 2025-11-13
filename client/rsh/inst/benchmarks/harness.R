@@ -1,5 +1,6 @@
 #!/usr/bin/env Rscript
 set.seed(1)
+options(rcp.cmpfun.stats = TRUE)
 
 BC_OPTS <- list(optimize = 3L)
 RSH_OPTS <- list(optimize = 3L, cache = FALSE)
@@ -23,6 +24,7 @@ wrap_with_verify <- function(f, expected, expected_output) {
 benchmark <- function(options) {
   output <- capture.output(result <- execute(options$param))
   b <- list()
+  rsh_stats <- NULL
 
   if ("bc" %in% options$type) {
     bc <- compiler::cmpfun(execute, options=BC_OPTS)
@@ -38,11 +40,24 @@ benchmark <- function(options) {
     b$rsh <- quote(rsh(options$param))
   }
 
+  if ("rcp" %in% options$type) {
+    library(rcp)
+
+    rsh <- rcp:::rcp_cmpfun(execute, options=c(RSH_OPTS, options$compiler_options))
+    rsh_stats <- attr(rsh, "stats")
+    attr(rsh, "stats") <- NULL
+
+    rsh <- wrap_with_verify(rsh, result, output)
+    b$rsh <- quote(rsh(options$param))
+  }
+
   b$times <- options$runs
   b$unit <- "seconds"
   b$control <- list(order="block")
 
-  do.call(microbenchmark::microbenchmark, b)
+  res <- do.call(microbenchmark::microbenchmark, b)
+  attr(res, "extras") <- rsh_stats
+  res
 }
 
 run <- function(o) {
@@ -56,6 +71,7 @@ run <- function(o) {
     }
 
     res <- benchmark(o);
+    extras <- attr(res, "extras")
 
     print(res)
     
@@ -68,6 +84,10 @@ run <- function(o) {
         timestamp=as.integer(Sys.time()),
         compiler_options=paste0(names(o$compiler_options), "=", o$compiler_options, collapse=" ")
     )
+
+    if (!is.null(extras)) {
+      res <- cbind(res, as.list(extras))
+    }
 
     if (!is.na(o$output_dir)) {
         if (!dir.exists(o$output_dir)) {
@@ -88,7 +108,8 @@ stop_and_help <- function(...) {
     cat("options:\n")
     cat("  --bc                - run BC\n")
     cat("  --rsh               - run RSH\n")
-    cat("  --rsh-cc-opt        - set RSH optimization level (default: ", DEFAULT_RSH_OPT, ")\n")
+    cat("  --rcp               - run RCP\n")
+    cat("  --rsh-cc-opt        - set RSH/RCP optimization level (default: ", DEFAULT_RSH_OPT, ")\n")
     cat("  --runs <n>          - number of runs (default: ", DEFAULT_RUNS, ")\n")
     cat("  --output-dir        - the output directory\n")
     cat("\n")
@@ -118,6 +139,8 @@ parse_args <- function(args) {
             o$type <- unique(c(o$type, "bc"))
         } else if (arg == "--rsh") {
             o$type <- unique(c(o$type, "rsh"))
+        } else if (arg == "--rcp") {
+            o$type <- unique(c(o$type, "rcp"))
         } else if (arg == "--rsh-cc-opt") {
             if (i == length(args)) stop_and_help("Missing value for --rsh-cc-opt")
             i <- i + 1
