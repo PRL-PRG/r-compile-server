@@ -99,7 +99,7 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        bench_type: ['bc', 'rsh']
+        bench_type: ['bc', 'rcp']
     permissions:
       contents: read
       packages: write
