@@ -1,5 +1,8 @@
 package org.prlprg.fir2c;
 
+import static org.prlprg.fir.GlobalModules.BUILTINS;
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
@@ -7,6 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import javax.annotation.Nullable;
+import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -72,6 +77,7 @@ import org.prlprg.fir2c.FirCompiledModule.FirCompiledVersionIndex;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Lists;
+import org.prlprg.util.NotImplementedError;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Module2CCompiler {
@@ -209,14 +215,42 @@ public final class Module2CCompiler {
   }
 
   private String dispatchName(Function function) {
-    var index = compiledFunctionDispatches.get(function);
-    if (index == null) {
-      throw new IllegalStateException("Missing dispatch for " + function.name());
-    }
-    return index.cFunctionName();
+    return compiledFunctionDispatch(function).cFunctionName();
   }
 
   // endregion interned
+
+  // region lookup
+  private FirCompiledDispatchIndex compiledFunctionDispatch(Function function) {
+    if (compiledFunctionDispatches.containsKey(function)) {
+      return compiledFunctionDispatches.get(function);
+    }
+    if (function.owner() == BUILTINS) {
+      throw new NotImplementedError();
+    }
+    if (function.owner() == INTRINSICS) {
+      throw new NotImplementedError();
+    }
+    throw new IllegalStateException("Missing compiled dispatch for " + function.name());
+  }
+
+  private FirCompiledVersionIndex compiledVersion(Function function, Abstraction version) {
+    if (compiledVersions.containsKey(version)) {
+      return compiledVersions.get(version);
+    }
+    if (version.module() == BUILTINS) {
+      throw new NotImplementedError();
+    }
+    if (version.module() == INTRINSICS) {
+      throw new NotImplementedError();
+    }
+    throw new IllegalStateException(
+        "Missing compiled version for "
+            + function.name()
+            + '/'
+            + function.indexOf(version));
+  }
+  // endregion lookup
 
   // region misc utils
   private static String sanitizeString(String value) {
@@ -252,8 +286,7 @@ public final class Module2CCompiler {
       }
 
       // TODO: Actually dispatch based on argument types.
-      var baselineIndex = compiledVersions.get(function.baseline());
-      assert baselineIndex != null;
+      var baselineIndex = compiledVersion(function, function.baseline());
       cFunction.stmt(
           "return %s(%s, %s, %s);",
           baselineIndex.cFunctionName(), VAR_POOL, VAR_ENV, VAR_SEXP_PARAMS);
@@ -544,10 +577,7 @@ public final class Module2CCompiler {
         var arguments = emitArgumentArray("args", call.callArguments());
         return switch (call.callee()) {
           case DispatchCallee(var calleeFun, var signature) -> {
-            var dispatch = compiledFunctionDispatches.get(calleeFun);
-            if (dispatch == null) {
-              throw new IllegalStateException("Missing compiled dispatch for " + calleeFun.name());
-            }
+            var dispatch = compiledFunctionDispatch(calleeFun);
             var paramTypes =
                 signature == null ? "Rsh_Fir_param_types_empty()" : emitSignature(signature);
             yield "Rsh_Fir_call_dispatch(&%s, %s, %s, %d, %s, %s)"
@@ -559,15 +589,8 @@ public final class Module2CCompiler {
                     arguments.pointer(),
                     paramTypes);
           }
-          case StaticCallee(var calleeFun, var calleeVersion) -> {
-            var compiled = compiledVersions.get(calleeVersion);
-            if (compiled == null) {
-              throw new IllegalStateException(
-                  "Missing compiled version for "
-                      + calleeFun.name()
-                      + '/'
-                      + calleeFun.indexOf(calleeVersion));
-            }
+          case StaticCallee(var calleeFunction, var calleeVersion) -> {
+            var compiled = compiledVersion(calleeFunction, calleeVersion);
             yield "Rsh_Fir_call_version(&%s, %s, %s, %d, %s)"
                 .formatted(
                     compiled.cFunctionName(),
