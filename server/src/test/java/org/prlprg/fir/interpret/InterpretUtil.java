@@ -240,7 +240,8 @@ public class InterpretUtil {
                 .lines()
                 .findFirst()
                 .orElseThrow()
-                .replaceAll("\\.Interpret\\(promise\\(-?[0-9]*\\)\\)", ".Interpret(promise(<...>))");
+                .replaceAll(
+                    "\\.Interpret\\(promise\\(-?[0-9]*\\)\\)", ".Interpret(promise(<...>))");
         if (!expectedErrorMsg.equals(actualErrorMsg)) {
           System.out.println(interpreter.module());
         }

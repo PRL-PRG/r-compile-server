@@ -1,13 +1,10 @@
 package org.prlprg.fir.interpret;
 
-import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import javax.annotation.Nullable;
-import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.EnvSXP;
@@ -43,9 +40,7 @@ final class PrintStack {
     var padding = maxDigits + 2; // +2 for ". "
     for (var i = stack.size() - 1; i >= 0; i--) {
       var frame = stack.get(i);
-      var ctx =
-          new FrameContext(
-              -1, frameAppearances, envToStackIndex, globalEnv, forSexp);
+      var ctx = new FrameContext(-1, frameAppearances, envToStackIndex, globalEnv, forSexp);
 
       f.format("%" + maxDigits + "d. ", i);
       w.runIndented(padding, () -> printFrame(ctx, frame, p));
@@ -65,11 +60,7 @@ final class PrintStack {
       SEXPPrintContext forSexp) {
     private static final FrameContext EMPTY =
         new FrameContext(
-            -1,
-            new HashMap<>(),
-            Map.of(),
-            null,
-            new SEXPPrintContext(SEXPPrintOptions.FULL));
+            -1, new HashMap<>(), Map.of(), null, new SEXPPrintContext(SEXPPrintOptions.FULL));
   }
 
   static void printFrame(StackFrame frame, Printer p) {

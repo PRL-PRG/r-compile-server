@@ -57,8 +57,8 @@ public final class CfgReachability implements CfgAnalysis {
     return sourceBb == targetBb ? sourceIndex <= targetIndex : isReachable(sourceBb, targetBb);
   }
 
-/// Check if a trace that reaches `source` may reach `target` after.
-public boolean isReachable(BB source, BB target) {
+  /// Check if a trace that reaches `source` may reach `target` after.
+  public boolean isReachable(BB source, BB target) {
     assert mayPrecede(source).contains(target) == maySucceed(target).contains(source);
     return maySucceed(source).contains(target);
   }

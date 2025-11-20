@@ -2,26 +2,22 @@ package org.prlprg.fir2c;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.intellij.lang.annotations.PrintFormat;
 
 /// Maintains stable unique C identifiers derived from FIŘ names.
 final class IdentifierMangler {
   private final Map<String, Integer> counters = new HashMap<>();
 
-  public String unique(String candidate) {
-    var sanitized = sanitize(candidate);
+  public String unique(@PrintFormat String format, Object... args) {
+    var sanitized = sanitize(format.formatted(args));
     int count = counters.merge(sanitized, 1, Integer::sum);
     if (count == 1) {
       return sanitized;
     }
-    return sanitized + "_" + (count - 1);
+    return sanitized + (count - 1);
   }
 
   private String sanitize(String candidate) {
-    // Special handling to prevent collisions with R or Rsh symbols.
-    if (candidate.startsWith("R_") || candidate.startsWith("Rf_") || candidate.startsWith("Rsh_")) {
-      candidate = "_" + candidate;
-    }
-
     if (candidate.isEmpty()) {
       return "_";
     }

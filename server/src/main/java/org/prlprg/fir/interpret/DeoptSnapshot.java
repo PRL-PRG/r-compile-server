@@ -81,9 +81,10 @@ public class DeoptSnapshot {
     p.print(pc);
     w.write(' ');
     p1.printAsList("[", "]", bcStack);
-    w.runIndented(() -> {
-      w.write('\n');
-      p1.print(env);
-    });
+    w.runIndented(
+        () -> {
+          w.write('\n');
+          p1.print(env);
+        });
   }
 }

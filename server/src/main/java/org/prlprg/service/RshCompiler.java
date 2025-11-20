@@ -70,7 +70,6 @@ public class RshCompiler {
         };
     flags.add("-I" + rshInclude);
 
-
     if (optimizationLevel == 0) {
       flags.add("-g3");
       flags.add("-ggdb");

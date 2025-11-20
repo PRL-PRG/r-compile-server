@@ -1024,8 +1024,9 @@ public final class Interpreter {
           var valueSexp = run(value);
           env.set(variable.name(), valueSexp);
         }
-        default -> throw fail("Unsupported expression in deopt branch at index " + i + ": "
-            + stmt.expression());
+        default ->
+            throw fail(
+                "Unsupported expression in deopt branch at index " + i + ": " + stmt.expression());
       }
       if (stmt.assignee() != null) {
         throw fail("Deopt branch statement has assignee at index " + i + ": " + stmt);
@@ -1034,8 +1035,8 @@ public final class Interpreter {
 
     var deoptJump = (Deopt) deopt.bb().jump();
     var pc = deoptJump.pc();
-    var bcStack = deoptJump.stack().stream().map(this::run)
-        .collect(ImmutableList.toImmutableList());
+    var bcStack =
+        deoptJump.stack().stream().map(this::run).collect(ImmutableList.toImmutableList());
 
     return new DeoptSnapshot(pc, bcStack, env, stackToString());
   }
@@ -1181,7 +1182,10 @@ public final class Interpreter {
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
   public PromSXP promiseStub(Promise promExpr) {
-    var codeStub = SEXPs.lang(SEXPs.symbol(".Interpret"), SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
+    var codeStub =
+        SEXPs.lang(
+            SEXPs.symbol(".Interpret"),
+            SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
     var sexp = SEXPs.promise(codeStub, topFrame().environment());
     promises.put(sexp, new PromiseCode(promExpr, topFrame()));
     return sexp;
