@@ -3096,10 +3096,6 @@ static INLINE void Rsh_DecLnkStk(Value *stack) {
   *v2 = v1;
 }
 
-/**
- * @return the index into coffests or ioffsets. If the returned index is greater
- * then the length of coffsets then it indicates the position in ioffsets.
- */
 static INLINE int
 Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
               Rboolean is_names_null, Rboolean names_is_strsxp,
@@ -3124,7 +3120,7 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
       }
       if (ioffsets_length == 1) {
         Rf_warningcall(call, "'switch' with no alternatives");
-        return 0; /* returns NULL */
+        return INTEGER(ioffsets)[0];
       } else {
         Rf_errorcall(call, "numeric EXPR required for 'switch' "
                            "without named alternatives");
@@ -3145,7 +3141,8 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
           break;
         }
       }
-      return which;
+      printf("which=%d\n", which);
+      return INTEGER(coffsets)[which];
     }
   } else {
     if (!ioffsets_is_intsxp) {
@@ -3161,13 +3158,13 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
     if (ioffsets_length == 1) {
       Rf_warningcall(call, "'switch' with no alternatives");
     }
-    return Rf_length(coffsets) + which;
+    return INTEGER(ioffsets)[which];
   }
 }
 
-static INLINE int Rsh_Switch(Value *v, SEXP call, SEXP names, SEXP coffsets,
+static INLINE int Rsh_Switch(Value *stack, SEXP call, SEXP names, SEXP coffsets,
                              SEXP ioffsets) {
-  return Rsh_do_switch(v, call, names, coffsets, ioffsets, names == R_NilValue,
+  return Rsh_do_switch(stack, call, names, coffsets, ioffsets, names == R_NilValue,
                        TYPEOF(names) == STRSXP, LENGTH(names),
                        TYPEOF(ioffsets) == INTSXP, LENGTH(ioffsets),
                        TYPEOF(coffsets) == INTSXP,
