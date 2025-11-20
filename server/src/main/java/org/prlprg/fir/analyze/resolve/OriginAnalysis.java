@@ -54,7 +54,6 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.util.Streams;
 
 /// Computes each variable's **origin**: the earliest known register or constant that it was
@@ -382,7 +381,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
       State that = (State) o;
-      return Objects.equals(registerOrigins, that.registerOrigins) && Objects.equals(variableOrigins, that.variableOrigins);
+      return Objects.equals(registerOrigins, that.registerOrigins)
+          && Objects.equals(variableOrigins, that.variableOrigins);
     }
 
     @Override

@@ -94,7 +94,8 @@ public class SEXPPrintContext {
   /// @throws IllegalArgumentException If the reference has already been assigned.
   public void setRef(SEXP sexp, int ref) {
     if (refs.containsKey(sexp)) {
-      throw new IllegalArgumentException("Reference already assigned for SEXP:\n" + sexp + " => " + refs.get(sexp));
+      throw new IllegalArgumentException(
+          "Reference already assigned for SEXP:\n" + sexp + " => " + refs.get(sexp));
     }
     refs.put(sexp, ref);
   }
@@ -256,8 +257,12 @@ public class SEXPPrintContext {
                       }
 
                       w.write(' ');
-                      var bindings = options.printMapsSorted() ? sexp.bindingsAsTaggedElems().stream().sorted(
-                          Comparator.comparing(TaggedElem::tag)).toList() : sexp.bindingsAsTaggedElems();
+                      var bindings =
+                          options.printMapsSorted()
+                              ? sexp.bindingsAsTaggedElems().stream()
+                                  .sorted(Comparator.comparing(TaggedElem::tag))
+                                  .toList()
+                              : sexp.bindingsAsTaggedElems();
                       printList(bindings, p.withContext(forBindings));
                     } else {
                       w.write(" ...");

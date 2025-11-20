@@ -5,40 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef enum {
-  RSH_FIR_KIND_ANY = 0,
-  RSH_FIR_KIND_ANY_VALUE = 1,
-  RSH_FIR_KIND_PRIMITIVE_SCALAR = 2,
-  RSH_FIR_KIND_PRIMITIVE_VECTOR = 3,
-  RSH_FIR_KIND_CLOSURE = 4,
-  RSH_FIR_KIND_DOTS = 5,
-  RSH_FIR_KIND_PROMISE = 6,
-} Rsh_Fir_KindTag;
-
-struct Rsh_Fir_Kind {
-  Rsh_Fir_KindTag tag;
-  union {
-    struct {
-      int primitive;
-    } primitive;
-    struct {
-      Rsh_Fir_Type const *value_type;
-      int reflect;
-    } promise;
-  } as;
-};
-
-struct Rsh_Fir_Type {
-  Rsh_Fir_Kind const *kind;
-  int ownership;
-  int definite;
-};
-
-struct Rsh_Fir_ParamTypes {
-  int count;
-  Rsh_Fir_Type const **types;
-};
-
 typedef struct Rsh_Fir_ClosureInfo {
   Rsh_Fir_DispatchFn dispatch;
   SEXP env;
@@ -92,14 +58,6 @@ typedef struct TypeNode {
 } TypeNode;
 
 static TypeNode *TYPE_CACHE = NULL;
-
-typedef struct ParamTypesNode {
-  SEXP signature;
-  Rsh_Fir_ParamTypes param_types;
-  struct ParamTypesNode *next;
-} ParamTypesNode;
-
-static ParamTypesNode *PARAM_TYPES_CACHE = NULL;
 
 static SEXP Rsh_Fir_ClosureTag = NULL;
 static SEXP Rsh_Fir_PromiseTag = NULL;
@@ -207,73 +165,8 @@ Rsh_Fir_Type const *Rsh_Fir_type(Rsh_Fir_Kind const *kind, int ownership,
   return &node->type;
 }
 
-static Rsh_Fir_ParamTypes const PARAM_TYPES_EMPTY = {.count = 0, .types = NULL};
-
-Rsh_Fir_ParamTypes const *Rsh_Fir_param_types_empty(void) {
-  return &PARAM_TYPES_EMPTY;
-}
-
-static int Rsh_Fir_find_char(const char *str, char needle) {
-  const char *p = strchr(str, needle);
-  return p ? (int)(p - str) : -1;
-}
-
-static int Rsh_Fir_count_parameter_types(const char *sig) {
-  const char *p = sig;
-  while (*p == ' ') {
-    ++p;
-  }
-  if (*p == '-' || *p == '\0') {
-    return 0;
-  }
-  int count = 1;
-  while (*p && *p != '-') {
-    if (*p == ',') {
-      count++;
-    }
-    ++p;
-  }
-  return count;
-}
-
-Rsh_Fir_ParamTypes const *
-Rsh_Fir_param_types_from_string(SEXP signature) {
-  if (signature == R_NilValue) {
-    return &PARAM_TYPES_EMPTY;
-  }
-  if (TYPEOF(signature) != STRSXP || XLENGTH(signature) == 0) {
-    Rf_error("Expected a non-empty string SEXP for FIR signature metadata");
-  }
-  SEXP str_sxp = STRING_ELT(signature, 0);
-  const char *sig = CHAR(str_sxp);
-  ParamTypesNode *node = PARAM_TYPES_CACHE;
-  while (node) {
-    if (node->signature == signature) {
-      return &node->param_types;
-    }
-    node = node->next;
-  }
-  int count = Rsh_Fir_count_parameter_types(sig);
-  ParamTypesNode *new_node =
-      (ParamTypesNode *)calloc(1, sizeof(ParamTypesNode));
-  new_node->signature = signature;
-  if (count > 0) {
-    new_node->param_types.count = count;
-    new_node->param_types.types = (Rsh_Fir_Type const **)calloc(
-        (size_t)count, sizeof(Rsh_Fir_Type const *));
-    Rsh_Fir_Type const *any_value =
-        Rsh_Fir_type(Rsh_Fir_kind_anyValue, /*ownership=*/3, /*definite=*/0);
-    for (int i = 0; i < count; ++i) {
-      new_node->param_types.types[i] = any_value;
-    }
-  } else {
-    new_node->param_types.count = 0;
-    new_node->param_types.types = NULL;
-  }
-  R_PreserveObject(signature);
-  new_node->next = PARAM_TYPES_CACHE;
-  PARAM_TYPES_CACHE = new_node;
-  return &new_node->param_types;
+Rsh_Fir_Type const *Rsh_Fir_param_types_empty(void) {
+  return NULL;
 }
 
 static void Rsh_Fir_assert_symbol(SEXP sym, const char *what) {
@@ -769,7 +662,7 @@ static SEXP Rsh_Fir_build_arglist(int argc, SEXP const *args,
 
 SEXP Rsh_Fir_call_dispatch(Rsh_Fir_DispatchFn dispatch, SEXP pool, SEXP env,
                            int argc, SEXP const *args,
-                           Rsh_Fir_ParamTypes const *param_types) {
+                           Rsh_Fir_Type const *param_types) {
   if (!dispatch) {
     Rf_error("call_dispatch requires a function pointer");
   }

@@ -5,14 +5,11 @@ import static org.prlprg.fir.GlobalModules.INTRINSICS;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.RangeSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import javax.annotation.Nullable;
-import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -78,8 +75,6 @@ import org.prlprg.fir2c.FirCompiledModule.FirCompiledVersionIndex;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.Lists;
-import org.prlprg.util.NotImplementedError;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Module2CCompiler {
@@ -89,6 +84,7 @@ public final class Module2CCompiler {
 
   static final String VAR_ENV = "RHO";
   static final String VAR_POOL = "CCP";
+  static final String VAR_NPARAMS = "NPARAMS";
   static final String VAR_SEXP_PARAMS = "PARAMS";
   static final String VAR_SEXP_PARAM_TYPES = "PARAM_TYPES";
 
@@ -120,7 +116,7 @@ public final class Module2CCompiler {
     // Add mangled names first, because some may be forward-referenced
     compileNames();
 
-    // Now compile C parameters, bodies, etc.
+    // Now compile C parameters and bodies. `CModule` handles forward declarations
     compileDefinitions();
 
     return new FirCompiledModule(
@@ -147,11 +143,11 @@ public final class Module2CCompiler {
   }
 
   private String dispatchCFunctionName(Function function) {
-    return mangler.unique(function.name().name());
+    return mangler.unique("Rsh_Fir_user_function_%s", function.name().name());
   }
 
   private String versionCFunctionName(Function function, int versionIndex) {
-    return mangler.unique("%s_v%d".formatted(function.name().name(), versionIndex));
+    return mangler.unique("Rsh_Fir_user_version_%s_v%d", function.name().name(), versionIndex);
   }
 
   // endregion compile names
@@ -191,8 +187,9 @@ public final class Module2CCompiler {
       List.of(
           "SEXP %s".formatted(VAR_POOL),
           "SEXP %s".formatted(VAR_ENV),
+          "int %s".formatted(VAR_NPARAMS),
           "SEXP const *%s".formatted(VAR_SEXP_PARAMS),
-          "Rsh_Fir_ParamTypes %s".formatted(VAR_SEXP_PARAM_TYPES));
+          "Rsh_Fir_Type const *%s".formatted(VAR_SEXP_PARAM_TYPES));
 
   // TODO: Elide env if possible, and store each parameter as a C parameter instead of putting
   //  them in `VAR_SEXP_PARAMS`
@@ -200,6 +197,7 @@ public final class Module2CCompiler {
       List.of(
           "SEXP %s".formatted(VAR_POOL),
           "SEXP %s".formatted(VAR_ENV),
+          "int %s".formatted(VAR_NPARAMS),
           "SEXP const *%s".formatted(VAR_SEXP_PARAMS));
 
   // TODO: Elide env if possible
@@ -249,11 +247,9 @@ public final class Module2CCompiler {
       return FirCompiledVersionIndex.intrinsic(function, version);
     }
     throw new IllegalStateException(
-        "Missing compiled version for "
-            + function.name()
-            + '/'
-            + function.indexOf(version));
+        "Missing compiled version for " + function.name() + '/' + function.indexOf(version));
   }
+
   // endregion lookup
 
   // region misc utils
@@ -292,8 +288,8 @@ public final class Module2CCompiler {
       // TODO: Actually dispatch based on argument types.
       var baselineIndex = compiledVersion(function, function.baseline());
       cFunction.stmt(
-          "return %s(%s, %s, %s);",
-          baselineIndex.cFunctionName(), VAR_POOL, VAR_ENV, VAR_SEXP_PARAMS);
+          "return %s(%s, %s, %s, %s);",
+          baselineIndex.cFunctionName(), VAR_POOL, VAR_ENV, VAR_NPARAMS, VAR_SEXP_PARAMS);
     }
 
     // endregion emit
@@ -342,7 +338,7 @@ public final class Module2CCompiler {
           .forEach(
               binding -> {
                 var register = (Register) binding.variable();
-                registerNames.put(register, mangler.unique(register.name()));
+                registerNames.put(register, mangler.unique("Rsh_Fir_reg_%s", register.name()));
               });
     }
 
@@ -358,7 +354,6 @@ public final class Module2CCompiler {
 
       emitArityCheck();
       emitParameterBinding();
-      emitRegisterDeclarations();
       new CfgEmitter(Objects.requireNonNull(abstraction.cfg()), cFunction);
     }
 
@@ -368,14 +363,14 @@ public final class Module2CCompiler {
       }
 
       var expected = abstraction.parameters().size();
-      cFunction.stmt("if (Rf_length(%s) != %d) {", VAR_SEXP_PARAMS, expected);
+      cFunction.stmt("if (%s != %d) {", VAR_NPARAMS, expected);
       cFunction.stmt(
           2,
-          "Rf_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", Rf_length(%s));",
+          "Rf_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", %s);",
           sanitizeString(function.name().name()),
           versionIndex,
           expected,
-          VAR_SEXP_PARAMS);
+          VAR_NPARAMS);
       cFunction.stmt("}");
 
       cFunction.blank();
@@ -394,23 +389,7 @@ public final class Module2CCompiler {
       for (var i = 0; i < parameters.size(); i++) {
         var param = parameters.get(i);
         var name = registerName(param.variable());
-        cFunction.stmt("%s = %s[%d];", name, VAR_SEXP_PARAMS, i);
-      }
-
-      cFunction.blank();
-    }
-
-    private void emitRegisterDeclarations() {
-      if (registerNames.isEmpty()) {
-        return;
-      }
-
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cFunction.comment("Registers");
-      }
-
-      for (var entry : registerNames.entrySet()) {
-        cFunction.stmt("SEXP %s = R_NilValue;", entry.getValue());
+        cFunction.stmt("SEXP %s = %s[%d];", name, VAR_SEXP_PARAMS, i);
       }
 
       cFunction.blank();
@@ -438,7 +417,7 @@ public final class Module2CCompiler {
       return compiledPromises.computeIfAbsent(
           promise,
           _ -> {
-            var cName = mangler.unique("%s_prom".formatted(function.name().name()));
+            var cName = mangler.unique("Rsh_Fir_user_promise_%s", function.name().name());
             var promiseFunction = cModule.addFunction("SEXP", cName, promiseCFunctionParameters);
             new CfgEmitter(promise.code(), promiseFunction);
             return new FirCompiledPromiseIndex(cName);
@@ -454,6 +433,7 @@ public final class Module2CCompiler {
 
       // State
       private final Map<BB, String> labelNames = new LinkedHashMap<>();
+      private final IdentifierMangler bbMangler = new IdentifierMangler();
 
       CfgEmitter(CFG cfg, CFunction cFunction) {
         this.cfg = cfg;
@@ -466,7 +446,9 @@ public final class Module2CCompiler {
       // region prepare
       private void prepare() {
         for (var bb : cfg.bbs()) {
-          labelNames.put(bb, mangler.unique("BB_%s".formatted(bb.label())));
+          if (!bb.isEntry()) {
+            labelNames.put(bb, bbMangler.unique("%s", bb.label()));
+          }
         }
       }
 
@@ -475,13 +457,15 @@ public final class Module2CCompiler {
       // region emit
       private void emit() {
         for (var bb : cfg.bbs()) {
-          cFunction.label("%s:", labelName(bb));
+          cFunction.blank();
+
+          if (!bb.isEntry()) {
+            cFunction.label("%s:", labelName(bb));
+          }
           for (var statement : bb.statements()) {
             emitStatement(statement);
           }
           emitJump(bb.jump());
-
-          cFunction.blank();
         }
       }
 
@@ -495,7 +479,7 @@ public final class Module2CCompiler {
         if (statement.assignee() == null) {
           cFunction.stmt("(void)(%s);", expr);
         } else {
-          cFunction.stmt("%s = %s;", registerName(statement.assignee()), expr);
+          cFunction.stmt("SEXP %s = %s;", registerName(statement.assignee()), expr);
         }
       }
 
@@ -584,7 +568,7 @@ public final class Module2CCompiler {
             var dispatch = compiledFunctionDispatch(calleeFun);
             var paramTypes =
                 signature == null ? "Rsh_Fir_param_types_empty()" : emitSignature(signature);
-            yield "Rsh_Fir_call_dispatch(&%s, %s, %s, %d, %s, %s)"
+            yield "%s(%s, %s, %d, %s, %s)"
                 .formatted(
                     dispatch.cFunctionName(),
                     VAR_POOL,
@@ -595,7 +579,7 @@ public final class Module2CCompiler {
           }
           case StaticCallee(var calleeFunction, var calleeVersion) -> {
             var compiled = compiledVersion(calleeFunction, calleeVersion);
-            yield "Rsh_Fir_call_version(&%s, %s, %s, %d, %s)"
+            yield "%s(%s, %s, %d, %s)"
                 .formatted(
                     compiled.cFunctionName(),
                     VAR_POOL,
@@ -713,7 +697,7 @@ public final class Module2CCompiler {
           var dest = registerName(phi);
           var value = emitArgument(arg);
 
-          cFunction.stmt(indentLevel, "%s = %s;", dest, value);
+          cFunction.stmt(indentLevel, "SEXP %s = %s;", dest, value);
         }
       }
 
@@ -722,7 +706,7 @@ public final class Module2CCompiler {
           return new Array(0, "NULL");
         }
 
-        var arrayName = mangler.unique(baseName);
+        var arrayName = mangler.unique("Rsh_Fir_array_%s", baseName);
         cFunction.stmt("SEXP %s[%d];", arrayName, arguments.size());
         for (var i = 0; i < arguments.size(); i++) {
           cFunction.stmt("%s[%d] = %s;", arrayName, i, emitArgument(arguments.get(i)));
@@ -748,7 +732,7 @@ public final class Module2CCompiler {
           return new Array(0, "NULL");
         }
 
-        var arrayName = mangler.unique(baseName);
+        var arrayName = mangler.unique("Rsh_Fir_array_%s", baseName);
         cFunction.stmt("SEXP %s[%d];", arrayName, size);
         for (var i = 0; i < size; i++) {
           var name = i < names.size() ? names.get(i).orNull() : null;
@@ -759,8 +743,7 @@ public final class Module2CCompiler {
       }
 
       private String emitSignature(Signature signature) {
-        return "Rsh_Fir_param_types_from_string(%s)"
-            .formatted(constantRef(SEXPs.string(signature.toString())));
+        return "/* TODO emitSignature(%s) */ NULL".formatted(signature);
       }
 
       private String emitType(Type type) {
@@ -817,6 +800,9 @@ public final class Module2CCompiler {
 
       // region interned
       private String labelName(BB bb) {
+        if (bb.isEntry()) {
+          throw new IllegalArgumentException("Can't refer to the entry BB");
+        }
         var name = labelNames.get(bb);
         if (name == null) {
           throw new IllegalArgumentException("Unknown (not in CFG) BB: " + bb);

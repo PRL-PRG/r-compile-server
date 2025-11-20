@@ -6,8 +6,6 @@
 
 #include "../bc2c/runtime_internals.h"
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,13 +18,40 @@ typedef enum {
   RSH_FIR_PRIMITIVE_STRING = 3,
 } Rsh_Fir_PrimitiveKind;
 
-typedef struct Rsh_Fir_Kind Rsh_Fir_Kind;
-typedef struct Rsh_Fir_Type Rsh_Fir_Type;
-typedef struct Rsh_Fir_ParamTypes Rsh_Fir_ParamTypes;
 
-typedef SEXP (*Rsh_Fir_DispatchFn)(SEXP pool, SEXP env, SEXP const *args,
-                                   Rsh_Fir_ParamTypes const *param_types);
-typedef SEXP (*Rsh_Fir_VersionFn)(SEXP pool, SEXP env, SEXP const *args);
+typedef enum {
+  RSH_FIR_KIND_ANY = 0,
+  RSH_FIR_KIND_ANY_VALUE = 1,
+  RSH_FIR_KIND_PRIMITIVE_SCALAR = 2,
+  RSH_FIR_KIND_PRIMITIVE_VECTOR = 3,
+  RSH_FIR_KIND_CLOSURE = 4,
+  RSH_FIR_KIND_DOTS = 5,
+  RSH_FIR_KIND_PROMISE = 6,
+} Rsh_Fir_KindTag;
+
+struct Rsh_Fir_Type;
+typedef struct {
+  Rsh_Fir_KindTag tag;
+  union {
+    struct {
+      int primitive;
+    } primitive;
+    struct {
+      struct Rsh_Fir_Type const *value_type;
+      int reflect;
+    } promise;
+  } as;
+} Rsh_Fir_Kind;
+
+typedef struct {
+  Rsh_Fir_Kind const *kind;
+  int ownership;
+  int definite;
+} Rsh_Fir_Type;
+
+typedef SEXP (*Rsh_Fir_DispatchFn)(SEXP pool, SEXP env, int nargs, SEXP const *args,
+                                   Rsh_Fir_Type const *param_types);
+typedef SEXP (*Rsh_Fir_VersionFn)(SEXP pool, SEXP env, int nargs, SEXP const *args);
 typedef SEXP (*Rsh_Fir_PromiseFn)(SEXP pool, SEXP env);
 
 extern Rsh_Fir_Kind const *Rsh_Fir_kind_any;
@@ -42,9 +67,7 @@ Rsh_Fir_Kind const *Rsh_Fir_kind_promise(Rsh_Fir_Type const *value_type,
 Rsh_Fir_Type const *Rsh_Fir_type(Rsh_Fir_Kind const *kind, int ownership,
                                  bool definite);
 
-Rsh_Fir_ParamTypes const *Rsh_Fir_param_types_empty(void);
-Rsh_Fir_ParamTypes const *
-Rsh_Fir_param_types_from_string(SEXP signature);
+Rsh_Fir_Type const *Rsh_Fir_param_types_empty(void);
 
 SEXP Rsh_Fir_cast(SEXP value, Rsh_Fir_Type const *type);
 SEXP Rsh_Fir_make_closure(Rsh_Fir_DispatchFn dispatch, SEXP env, SEXP pool);
@@ -67,7 +90,7 @@ SEXP Rsh_Fir_super_load(SEXP symbol, SEXP env);
 void Rsh_Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Rsh_Fir_call_dispatch(Rsh_Fir_DispatchFn dispatch, SEXP pool, SEXP env,
                            int argc, SEXP const *args,
-                           Rsh_Fir_ParamTypes const *param_types);
+                           Rsh_Fir_Type const *param_types);
 SEXP Rsh_Fir_call_version(Rsh_Fir_VersionFn version, SEXP pool, SEXP env,
                           int argc, SEXP const *args);
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,

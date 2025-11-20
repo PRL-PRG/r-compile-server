@@ -50,7 +50,14 @@ final class CModule {
     }
 
     for (var function : functions.values()) {
-      function.toString(pw);
+      function.declarationToString(pw);
+    }
+    if (!functions.isEmpty()) {
+      pw.println();
+    }
+
+    for (var function : functions.values()) {
+      function.implementationToString(pw);
       pw.println();
     }
 
@@ -85,6 +92,10 @@ final class CModule {
 
     public abstract void toString(PrintWriter pw);
 
+    public abstract void declarationToString(PrintWriter pw);
+
+    public abstract void implementationToString(PrintWriter pw);
+
     public void toString(Writer writer) {
       toString(writer instanceof PrintWriter pw ? pw : new PrintWriter(writer));
     }
@@ -104,11 +115,21 @@ final class CModule {
 
     @Override
     public void toString(PrintWriter pw) {
+      declarationToString(pw);
+    }
+
+    @Override
+    public void declarationToString(PrintWriter pw) {
       pw.print("extern ");
       printSignature(pw);
       pw.println(";");
 
       pw.flush();
+    }
+
+    @Override
+    public void implementationToString(PrintWriter pw) {
+      // Does nothing, since this is only a declaration.
     }
   }
 
@@ -143,6 +164,17 @@ final class CModule {
 
     @Override
     public void toString(PrintWriter pw) {
+      implementationToString(pw);
+    }
+
+    @Override
+    public void declarationToString(PrintWriter pw) {
+      printSignature(pw);
+      pw.println(";");
+    }
+
+    @Override
+    public void implementationToString(PrintWriter pw) {
       printSignature(pw);
       pw.println(" {");
       for (var line : body) {

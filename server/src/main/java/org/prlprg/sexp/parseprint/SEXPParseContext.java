@@ -79,7 +79,8 @@ public class SEXPParseContext {
   /// @throws IllegalArgumentException If the reference has already been assigned.
   public void setRef(int ref, SEXP sexp) {
     if (refs.containsKey(ref)) {
-      throw new IllegalArgumentException("SEXP already assigned for reference:\n" + ref + " => " + refs.get(ref));
+      throw new IllegalArgumentException(
+          "SEXP already assigned for reference:\n" + ref + " => " + refs.get(ref));
     }
     refs.put(ref, sexp);
   }

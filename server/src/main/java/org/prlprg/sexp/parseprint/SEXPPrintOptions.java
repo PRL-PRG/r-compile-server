@@ -68,17 +68,27 @@ public record SEXPPrintOptions(
   /// This or [#FULL_DELIMITED] is required for the string to be parse-able.
   public static final SEXPPrintOptions FULL =
       new SEXPPrintOptions(
-          false, true, true, true, false, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
+          false,
+          true,
+          true,
+          true,
+          false,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP] that indicate the SEXP is
   /// definitely semantically different.
   ///
   /// e.g. different promise bodies or bytecode don't matter, because different promise bodies
   /// may have the same semantics. But constants do.
-  public static final SEXPPrintOptions SEMANTIC = SEXPPrintOptions.FULL.withStaticEnvironmentDetails(false)
-      .withPromiseLazyDetails(false)
-      .withPromiseLazyDetails(false)
-      .withMapsSorted(true);
+  public static final SEXPPrintOptions SEMANTIC =
+      SEXPPrintOptions.FULL
+          .withStaticEnvironmentDetails(false)
+          .withPromiseLazyDetails(false)
+          .withPromiseLazyDetails(false)
+          .withMapsSorted(true);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP], and guarantee it's surrounded by
   /// `<` and `>` if not `NULL` or scalar.

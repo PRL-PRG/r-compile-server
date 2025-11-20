@@ -1,7 +1,6 @@
 package org.prlprg.fir2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -10,27 +9,22 @@ import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.UUID;
-import javax.annotation.Nullable;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.interpret.InterpretException;
-import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Logical;
 import org.prlprg.rds.RDSWriter;
-import org.prlprg.sexp.ListSXP;
-import org.prlprg.sexp.SEXP;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
+import org.prlprg.sexp.ListSXP;
+import org.prlprg.sexp.SEXP;
+import org.prlprg.util.DirectorySource;
 import org.prlprg.util.Files;
 import org.prlprg.util.TestPath;
-import org.prlprg.util.DirectorySource;
 import org.prlprg.util.cc.CCompilationException;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
@@ -50,7 +44,9 @@ public class Fir2CIntegrationTest {
     var caseName = firPath.name();
 
     var firModule = parseModule(firText);
-    if (!checkAll(firModule)) { fail("Invalid testcase (failed verification)"); }
+    if (!checkAll(firModule)) {
+      fail("Invalid testcase (failed verification)");
+    }
 
     var expected = interpret(firModule);
     var actual = compileAndExecute(firModule, caseName);
@@ -74,12 +70,15 @@ public class Fir2CIntegrationTest {
   private SEXP compileAndExecute(Module firModule, String caseName) throws Exception {
     var mainFun = firModule.localFunction(Variable.named("main"));
     assertNotNull(mainFun, "Testcase missing main function");
-    assertEquals(1, mainFun.versions().size(), "Testcase `main` function must have at exactly one version");
+    assertEquals(
+        1, mainFun.versions().size(), "Testcase `main` function must have at exactly one version");
     assertTrue(
         mainFun.version(0).parameters().isEmpty(),
         "Testcase `main` function version must have zero arguments");
 
-    var compiled = Module2CCompiler.compile(firModule, R.getSession(), Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
+    var compiled =
+        Module2CCompiler.compile(
+            firModule, R.getSession(), Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
     var dispatchIdx = compiled.compiledFunctionDispatches().get(mainFun);
     assertNotNull(dispatchIdx, "Missing dispatch for `main` function");
     var dispatchName = dispatchIdx.cFunctionName();
@@ -101,7 +100,8 @@ public class Fir2CIntegrationTest {
       var runResult = runSharedObject(entrySymbol, soFile, cpFile);
       return switch (runResult) {
         case RunResult.Ok(var value) -> value;
-        case RunResult.Error(var message) -> throw new AssertionError("Execution failed: " + message);
+        case RunResult.Error(var message) ->
+            throw new AssertionError("Execution failed: " + message);
       };
     } finally {
       Files.deleteRecursively(tempDir);
@@ -109,8 +109,9 @@ public class Fir2CIntegrationTest {
   }
 
   private static String driverSource(String dispatchName, String entrySymbol) {
-    return """
-extern SEXP %1$s(SEXP CCP, SEXP RHO, SEXP const *ARGS, Rsh_Fir_ParamTypes const *PARAM_TYPES);
+    return
+"""
+extern SEXP %1$s(SEXP CCP, SEXP RHO, SEXP const *ARGS, Rsh_Fir_Type const *PARAM_TYPES);
 
 SEXP %2$s(SEXP env, SEXP pool) {
   return %1$s(pool, env, NULL, Rsh_Fir_param_types_empty());
@@ -119,7 +120,8 @@ SEXP %2$s(SEXP env, SEXP pool) {
         .formatted(dispatchName, entrySymbol);
   }
 
-  private static void compileSharedObject(Path cFile, Path soFile, Path workDir, Module firModule, String caseName)
+  private static void compileSharedObject(
+      Path cFile, Path soFile, Path workDir, Module firModule, String caseName)
       throws IOException, InterruptedException {
     try {
       RshCompiler.getInstance(3, RuntimeVariant.FIR2C)
@@ -173,8 +175,7 @@ SEXP %2$s(SEXP env, SEXP pool) {
     var data = list.value(1);
 
     if (!ok) {
-      var message =
-          data.asScalarString().orElse(data.toString());
+      var message = data.asScalarString().orElse(data.toString());
       return new RunResult.Error(message);
     }
     return new RunResult.Ok(data);
@@ -190,6 +191,7 @@ SEXP %2$s(SEXP env, SEXP pool) {
 
   private sealed interface RunResult {
     record Ok(SEXP value) implements RunResult {}
+
     record Error(String message) implements RunResult {}
   }
 }

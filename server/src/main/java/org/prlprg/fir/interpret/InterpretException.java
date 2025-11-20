@@ -11,7 +11,8 @@ import org.prlprg.sexp.GlobalEnvSXP;
 public final class InterpretException extends RuntimeException {
   private final String printStack;
 
-  InterpretException(String message, @Nullable Throwable cause, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
+  InterpretException(
+      String message, @Nullable Throwable cause, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
     super(message, cause);
     printStack = Printer.use(p -> printStack(p, stack, globalEnv));
   }

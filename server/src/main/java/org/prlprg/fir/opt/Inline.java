@@ -139,9 +139,9 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           hasMaybeBeenForced = true;
           dominator = useAssignee;
         } else if (analyses
-            .get(cfg, CfgReachability.class)
-            .isReachable(use1.bb(), use1.instructionIndex(), bb, statementIndex) &&
-            !analyses
+                .get(cfg, CfgReachability.class)
+                .isReachable(use1.bb(), use1.instructionIndex(), bb, statementIndex)
+            && !analyses
                 .get(cfg, CfgDominatorTree.class)
                 .dominates(bb, statementIndex, use1.bb(), use1.instructionIndex())) {
           // `use` may occur before this force

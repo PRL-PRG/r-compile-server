@@ -1,8 +1,6 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
-import java.util.SequencedSet;
-import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
