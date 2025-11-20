@@ -787,16 +787,12 @@ static INLINE SEXP Rsh_append_values_to_args(Value *stack, Value const *vals,
   // individual cell. Instead of PROTECT/UNPROTECT calls, we can use the BC
   // stack.
   // FIXME: the same is used in the Rsh_Call, would be good to unify
-  PUSH_VAL(1);
-  Value *protect = GET_VAL(1);
-  SET_SXP_VAL(protect, args);
 
   for (int i = 0; i < n; i++, p--) {
+    PROTECT(args);
     args = CONS_NR(val_as_sexp(*p), args);
-    SET_SXP_VAL(protect, args);
+    UNPROTECT(1);
   }
-
-  POP_VAL(1); // unprotect
 
   return args;
 }
@@ -1109,7 +1105,7 @@ static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
-static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
+static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
   // stack:
   //  fun
   //  args_head
@@ -1144,7 +1140,7 @@ static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
     SEXP body = BODY(fun_sxp);
 
     // inline our call
-    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+    if (0 && TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
         !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
         R_GlobalContext->callflag != CTXT_GENERIC) {
 
@@ -1507,7 +1503,7 @@ static INLINE void Rsh_logic(Value *stack, SEXP call, RshLogic2Op op, SEXP rho,
 }
 
 #define X(a, b, c)                                                             \
-  static INLINE void Rsh_##c(Value *stack, Value r0, SEXP call, SEXP rho) {    \
+  static INLINE void Rsh_##c(Value *stack, SEXP call, SEXP rho) {              \
     assert(RSH_LOGIC2_OPS(b) == R_Primitive(#a));                              \
     Rsh_logic(stack, call, b, rho, RSH_LOGIC2_OPS(b));                         \
   }
@@ -2964,13 +2960,14 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
   // based arguments
 
   // 1. allocate a space on the stack to protect it
-  PUSH_VAL(1);
-  SEXP args = VAL_SXP(*GET_VAL(1));
-
+  SEXP args = R_NilValue;
   // 2. fill it from the args passed on the stack
   for (int i = 0; i < nargs; i++) {
+    PROTECT(args);
     args = CONS_NR(val_as_sexp(*(stack - 1 - i)), args);
+    UNPROTECT(1); /* old args */
   }
+  PROTECT(args);
 
   // 3. call the builtin
   SEXP sym = CADR(call);
@@ -2978,7 +2975,7 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
   SEXP val = do_dotcall(call, opPrim, args, rho);
 
   // 4. remove the temporary argument list
-  POP_VAL(1);
+  UNPROTECT(1); /* args */
 
   // 5. set the result
   SET_VAL(stack - 1, val);
