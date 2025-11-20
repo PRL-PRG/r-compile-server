@@ -23,15 +23,16 @@ public class RshCompiler {
   //  what we need is to keep this in the resources, versioned by R version
   //  and upon server instantiation, copy it to some temp directory
   //  and precompile the header file (if needed)
-  private static final Path RSH_INCLUDE_PATH =
+  private static final Path BC2C_RSH_INCLUDE_PATH =
       baseDirectory.resolve("client/rsh/src/bc2c").normalize().toAbsolutePath();
+  private static final Path FIR2C_RSH_INCLUDE_PATH =
+      baseDirectory.resolve("client/rsh/src/fir2c").normalize().toAbsolutePath();
   private static final Path R_INCLUDE_PATH =
       baseDirectory.resolve("external/R/include").normalize().toAbsolutePath();
 
   // TODO: which ones are needed?
   private static final List<String> COMMON_COMPILER_FLAGS =
       List.of(
-          "-I" + RSH_INCLUDE_PATH,
           "-I" + R_INCLUDE_PATH,
           "-fPIC",
           "-fno-plt",
@@ -50,12 +51,25 @@ public class RshCompiler {
 
   private final List<String> compilerFlags;
 
+  public enum RuntimeVariant {
+    BC2C,
+    FIR2C
+  }
+
   public RshCompiler(List<String> compilerFlags) {
     this.compilerFlags = compilerFlags;
   }
 
-  public static RshCompiler getInstance(int optimizationLevel) {
+  public static RshCompiler getInstance(int optimizationLevel, RuntimeVariant variant) {
     var flags = new ArrayList<>(COMMON_COMPILER_FLAGS);
+
+    var rshInclude =
+        switch (variant) {
+          case BC2C -> BC2C_RSH_INCLUDE_PATH;
+          case FIR2C -> FIR2C_RSH_INCLUDE_PATH;
+        };
+    flags.add("-I" + rshInclude);
+
 
     if (optimizationLevel == 0) {
       flags.add("-g3");

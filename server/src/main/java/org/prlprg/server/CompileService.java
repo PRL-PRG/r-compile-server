@@ -22,6 +22,7 @@ import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.NativeClosure;
 import org.prlprg.service.RshCompiler;
+import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.GNURSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
@@ -207,7 +208,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           module.file().writeTo(f);
           var output = File.createTempFile("ofile", ".o");
 
-          RshCompiler.getInstance(ccOpt)
+          RshCompiler.getInstance(ccOpt, RuntimeVariant.BC2C)
               .createBuilder(input.getPath(), output.getPath())
               .flag("-c")
               .compile();

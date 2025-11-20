@@ -182,7 +182,7 @@ public final class Module2CCompiler {
           "SEXP %s".formatted(VAR_POOL),
           "SEXP %s".formatted(VAR_ENV),
           "SEXP const *%s".formatted(VAR_SEXP_PARAMS),
-          "Rsh_ParamTypes %s".formatted(VAR_SEXP_PARAM_TYPES));
+          "Rsh_Fir_ParamTypes %s".formatted(VAR_SEXP_PARAM_TYPES));
 
   // TODO: Elide env if possible, and store each parameter as a C parameter instead of putting
   //  them in `VAR_SEXP_PARAMS`
