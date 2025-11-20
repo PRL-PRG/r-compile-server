@@ -79,7 +79,7 @@ public class Fir2CIntegrationTest {
         mainFun.version(0).parameters().isEmpty(),
         "Testcase `main` function version must have zero arguments");
 
-    var compiled = Module2CCompiler.compile(firModule, Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
+    var compiled = Module2CCompiler.compile(firModule, R.getSession(), Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
     var dispatchIdx = compiled.compiledFunctionDispatches().get(mainFun);
     assertNotNull(dispatchIdx, "Missing dispatch for `main` function");
     var dispatchName = dispatchIdx.cFunctionName();
@@ -96,7 +96,7 @@ public class Fir2CIntegrationTest {
       RDSWriter.writeFile(cpFile.toFile(), compiled.constantPool());
 
       Path soFile = tempDir.resolve("module.so");
-      compileSharedObject(cFile, soFile, tempDir, caseName);
+      compileSharedObject(cFile, soFile, tempDir, firModule, caseName);
 
       var runResult = runSharedObject(entrySymbol, soFile, cpFile);
       return switch (runResult) {
@@ -119,7 +119,7 @@ SEXP %2$s(SEXP env, SEXP pool) {
         .formatted(dispatchName, entrySymbol);
   }
 
-  private static void compileSharedObject(Path cFile, Path soFile, Path workDir, String caseName)
+  private static void compileSharedObject(Path cFile, Path soFile, Path workDir, Module firModule, String caseName)
       throws IOException, InterruptedException {
     try {
       RshCompiler.getInstance(3, RuntimeVariant.FIR2C)
@@ -130,6 +130,10 @@ SEXP %2$s(SEXP env, SEXP pool) {
           .workingDirectory(workDir.toFile())
           .compile();
     } catch (CCompilationException e) {
+      System.out.println("=== FIR ===");
+      System.out.println(firModule);
+      System.out.println("=== C ===");
+      System.out.println(Files.readString(cFile));
       fail("Failed to compile shared object for " + caseName, e);
     }
   }

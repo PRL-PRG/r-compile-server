@@ -5,6 +5,7 @@ import static org.prlprg.fir.GlobalModules.INTRINSICS;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.RangeSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -74,6 +75,7 @@ import org.prlprg.fir2c.CModule.CFunction;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledPromiseIndex;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledVersionIndex;
+import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Lists;
@@ -81,8 +83,8 @@ import org.prlprg.util.NotImplementedError;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Module2CCompiler {
-  public static FirCompiledModule compile(Module module, Option... options) {
-    return new Module2CCompiler(module, ImmutableSet.copyOf(options)).run();
+  public static FirCompiledModule compile(Module module, RSession rSession, Option... options) {
+    return new Module2CCompiler(module, rSession, ImmutableSet.copyOf(options)).run();
   }
 
   static final String VAR_ENV = "RHO";
@@ -92,6 +94,7 @@ public final class Module2CCompiler {
 
   // Input
   private final Module module;
+  private final RSession rSession;
   private final ImmutableSet<Option> options;
 
   // Output
@@ -105,8 +108,9 @@ public final class Module2CCompiler {
   // State
   private final IdentifierMangler mangler = new IdentifierMangler();
 
-  private Module2CCompiler(Module module, ImmutableSet<Option> options) {
+  private Module2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
     this.module = module;
+    this.rSession = rSession;
     this.options = options;
   }
 
@@ -226,10 +230,10 @@ public final class Module2CCompiler {
       return compiledFunctionDispatches.get(function);
     }
     if (function.owner() == BUILTINS) {
-      throw new NotImplementedError();
+      return FirCompiledDispatchIndex.builtin(function, rSession);
     }
     if (function.owner() == INTRINSICS) {
-      throw new NotImplementedError();
+      return FirCompiledDispatchIndex.intrinsic(function);
     }
     throw new IllegalStateException("Missing compiled dispatch for " + function.name());
   }
@@ -239,10 +243,10 @@ public final class Module2CCompiler {
       return compiledVersions.get(version);
     }
     if (version.module() == BUILTINS) {
-      throw new NotImplementedError();
+      return FirCompiledVersionIndex.builtin(function, version);
     }
     if (version.module() == INTRINSICS) {
-      throw new NotImplementedError();
+      return FirCompiledVersionIndex.intrinsic(function, version);
     }
     throw new IllegalStateException(
         "Missing compiled version for "
@@ -728,19 +732,14 @@ public final class Module2CCompiler {
 
       private ArrayAndNames emitNamedArgumentArrays(List<NamedArgument> namedArguments) {
         var values = new ArrayList<Argument>(namedArguments.size());
-        var names = new ArrayList<NamedVariable>(namedArguments.size());
+        var names = new ArrayList<OptionalNamedVariable>(namedArguments.size());
         for (var element : namedArguments) {
           values.add(element.argument());
-          names.add(element.name());
+          names.add(OptionalNamedVariable.ofNullable(element.name()));
         }
         var valueArray = emitArgumentArray("vector_values", values);
-        var nameArray = emitNameArray("vector_names", names);
+        var nameArray = emitOptionalNameArray("vector_names", names, names.size());
         return new ArrayAndNames(valueArray, nameArray);
-      }
-
-      private Array emitNameArray(String baseName, List<NamedVariable> names) {
-        return emitOptionalNameArray(
-            baseName, Lists.mapLazy(names, OptionalNamedVariable::of), names.size());
       }
 
       private Array emitOptionalNameArray(
