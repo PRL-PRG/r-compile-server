@@ -370,6 +370,7 @@ typedef struct {
     int *bytecode;
     SEXP *rho;
     const int *bcell_lookup;
+    uint8_t *executable_start;
 } PatchContext;
 
 static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole *hole, int hole_id, int *imms, int nextop, void* smc_variants, const PatchContext *ctx)
@@ -470,6 +471,11 @@ static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole
     }
     break;
 #endif
+    case RELOC_RCP_EXECUTABLE_START:
+    {
+        ptr = (ptrdiff_t)ctx->executable_start;
+    }
+    break;
     default:
     {
         error("Unsupported relocation kind: %d\n", hole->kind);
@@ -554,6 +560,35 @@ static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *
         }
         break;
 #endif
+#ifdef SWITCH_SPECIALIZE
+        case SWITCH_OP:
+        {
+            SEXP names = r_constpool[imms[1]];
+            SEXP ioffsets = r_constpool[imms[2]];
+            SEXP coffsets = r_constpool[imms[3]];
+
+            Rboolean is_names_null = names == R_NilValue;
+            int names_length = LENGTH(names);
+            int ioffsets_length = LENGTH(ioffsets);
+            DEBUG_PRINT("SWITCH_OP specialization: is_names_null=%d names_length=%d, ioffsets_length=%d\n", is_names_null, names_length, ioffsets_length);
+
+            if(!is_names_null && names_length != 1 && ioffsets_length != 1)
+                return &_RCP_SWITCH_000_OP;
+            else if(!is_names_null && names_length != 1 && ioffsets_length == 1)
+                return &_RCP_SWITCH_001_OP;
+            else if(!is_names_null && names_length == 1 && ioffsets_length != 1)
+                return &_RCP_SWITCH_010_OP;
+            else if(!is_names_null && names_length == 1 && ioffsets_length == 1)
+                return &_RCP_SWITCH_011_OP;
+            else if(is_names_null && ioffsets_length != 1)
+                return &_RCP_SWITCH_100_OP;
+            else if(is_names_null && ioffsets_length == 1)
+                return &_RCP_SWITCH_101_OP;
+            else
+                error("Invalid SWITCH_OP immediate values\n");
+        }
+        break;
+#endif
         default:
             return &stencils[opcode];
         }
@@ -590,6 +625,7 @@ static int can_fallthrough_from_opcode(R_OPCODE opcode) {
   case (RETURN_OP):
   case (GOTO_OP):
   case (STARTFOR_OP):
+  case (SWITCH_OP):
     return 0; // Always jumps
   default:
     return 1; // Can fallthrough
@@ -660,7 +696,7 @@ static void fill_stack_depth(int bytecode[], BasicBlockStackInfo* bb_stack)
     DEBUG_PRINT("\n");
 }
 
-static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, BasicBlock* block_lookup)
+static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, BasicBlock* block_lookup, SEXP* constpool)
 {
     bb->next_blocks_size = 0;
     if (bb->bytecode_end >= bytecode_size)
@@ -670,11 +706,36 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, 
     }
     int i = bb->bytecode_end;
 
-    int opcode = bytecode[i];
+    R_OPCODE opcode = bytecode[i];
+    int* imms = &bytecode[i + 1];
 
-    if(opcode == SWITCH_OP)
+    if (opcode == SWITCH_OP)
     {
-        assert(0); // TODO: implement
+        SEXP ioffsets_sexp = constpool[imms[2]];
+        int* ioffsets = INTEGER(ioffsets_sexp);
+        int ioffsets_size = LENGTH(ioffsets_sexp);
+
+        SEXP coffsets_sexp = constpool[imms[3]];
+        int* coffsets = INTEGER(coffsets_sexp);
+        int coffsets_size = LENGTH(coffsets_sexp);
+
+        bb->next_blocks = (BasicBlock **)S_alloc(ioffsets_size + coffsets_size, sizeof(BasicBlock *));
+
+        for (int i = 0; i < ioffsets_size; i++)
+        {
+            BasicBlock* target_bb = &block_lookup[ioffsets[i] - 1];
+            assert(target_bb->bytecode_end != 0);
+            bb->next_blocks[(bb->next_blocks_size)++] = target_bb;
+        }
+        if(ioffsets_sexp != coffsets_sexp) // Avoid double-linking if both point to the same array
+        {
+            for (int i = 0; i < coffsets_size; i++)
+            {
+                BasicBlock* target_bb = &block_lookup[coffsets[i] - 1];
+                assert(target_bb->bytecode_end != 0);
+                bb->next_blocks[(bb->next_blocks_size)++] = target_bb;
+            }
+        }
     }
     else
     {
@@ -696,24 +757,45 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, 
     }
 }
 
-static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size)
+static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *constpool)
 {
     BasicBlock* block_lookup = (BasicBlock *)S_alloc(bytecode_size, sizeof(BasicBlock));
     block_lookup[0].bytecode_start = -1; // First instruction is always a block start
+        
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
-        int jmp_target = jump_target(bytecode[i], &bytecode[i + 1]);
-        if (jmp_target != -1)
+        R_OPCODE opcode = bytecode[i];
+        int* imms = &bytecode[i + 1];
+
+        if (opcode == SWITCH_OP)
         {
-            block_lookup[jmp_target].bytecode_start = -1;
-            
-            int can_fallthrough = can_fallthrough_from_opcode(bytecode[i]);
-            
-            if (can_fallthrough)
+            const SEXP ioffsets = constpool[imms[2]];
+            for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
+                block_lookup[INTEGER(ioffsets)[i] - 1].bytecode_start = -1;
+
+            const SEXP coffsets = constpool[imms[3]];
+            if (ioffsets != coffsets) // Avoid double-marking if both point to the same array
             {
-                block_lookup[i + imms_cnt[bytecode[i]] + 1].bytecode_start = -1;
+                for (int i = 0, size = LENGTH(coffsets); i < size; i++)
+                    block_lookup[INTEGER(coffsets)[i] - 1].bytecode_start = -1;
             }
         }
+        else
+        {
+            int jmp_target = jump_target(opcode, imms);
+            if (jmp_target != -1)
+            {
+                block_lookup[jmp_target].bytecode_start = -1;
+            
+                int can_fallthrough = can_fallthrough_from_opcode(opcode);
+            
+                if (can_fallthrough)
+                {
+                    block_lookup[i + imms_cnt[opcode] + 1].bytecode_start = -1;
+                }
+            }
+        }
+
     }
     
     int j = 0, old_i = 0;
@@ -734,7 +816,7 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size)
     {
         if(block_lookup[i].bytecode_end != 0)
         {
-            link_basic_block(bytecode, bytecode_size, &block_lookup[i], block_lookup);
+            link_basic_block(bytecode, bytecode_size, &block_lookup[i], block_lookup, constpool);
         }
     }
     
@@ -963,7 +1045,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     res.bcells = bcells;
     res.bcells_size = bcells_size;
 
-    BasicBlock* bbs = build_basic_blocks(bytecode, bytecode_size);
+    BasicBlock* bbs = build_basic_blocks(bytecode, bytecode_size, constpool);
 
     res.max_stack_size = calculate_max_stack_depth(bytecode, bytecode_size, bbs);    
     DEBUG_PRINT("Max stack size needed: %d\n", res.max_stack_size);
@@ -977,7 +1059,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         .executable_lookup = inst_start,
         .bytecode = bytecode,
         .rho = rho,
-        .bcell_lookup = used_bcells
+        .bcell_lookup = used_bcells,
+        .executable_start = executable
     };
 
     memset(executable, 0x90, executable_size_aligned); // Fill the executable memory with NOPs to fill the gapps between instructions in case of non-trivial alignment
@@ -1041,6 +1124,27 @@ X_STEPFOR_TYPES
             // Stepfor was already handled during startfor
             continue;
 #endif
+        case SWITCH_OP:
+        {
+            SEXP ioffsets_sexp = constpool[opargs[2]];
+            int* ioffsets = INTEGER(ioffsets_sexp);
+            int ioffsets_size = LENGTH(ioffsets_sexp);
+
+            SEXP coffsets_sexp = constpool[opargs[3]];
+            int* coffsets = INTEGER(coffsets_sexp);
+            int coffsets_size = LENGTH(coffsets_sexp);
+            
+            for (int i = 0; i < ioffsets_size; i++)
+                ioffsets[i] = inst_start[ioffsets[i] - 1] - executable;
+
+            if (ioffsets != coffsets) // Avoid double patching if they point to the same memory
+            {
+                for (int i = 0; i < coffsets_size; i++)
+                    coffsets[i] = inst_start[coffsets[i] - 1] - executable;
+                // Possible bug: if some elements of ioffsets and coffsets point to the same label, it will be patched twice
+            }
+        }
+        break;
         default:
             break;
         }

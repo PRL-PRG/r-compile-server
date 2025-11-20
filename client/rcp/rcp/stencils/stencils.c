@@ -30,10 +30,10 @@ extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
 
 
 #if __GNUC__ >= 14
-  #define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers)) __attribute__ ((noinline))
+  #define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers))
 #else
   #warning "Compiler does not support no_callee_saved_registers directive. Generated code will be slower."
-  #define STENCIL_ATTRIBUTES __attribute__ ((noinline))
+  #define STENCIL_ATTRIBUTES 
 #endif
 
 #undef PUSH_VAL
@@ -49,7 +49,7 @@ extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
     stack -= (n);                                                              \
   } while (0)
 
-#define RCP_OP(op) STENCIL_ATTRIBUTES SEXP _RCP_##op##_OP (Value* stack)
+#define RCP_OP(op) __attribute__ ((noinline)) STENCIL_ATTRIBUTES SEXP _RCP_##op##_OP (Value* stack)
 
 /* PATCHING SYMBOLS */
 extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_NEXT(Value* stack);
@@ -100,6 +100,9 @@ EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM3;
 extern const void* const _RCP_PATCHED_VARIANTS[];
 #define GETVARIANTS() (const void*)&_RCP_PATCHED_VARIANTS
 
+extern const void* const _RCP_EXECUTABLE[];
+#define GETEXECUTABLE() (const void* const)&_RCP_EXECUTABLE
+#define GOTO_VAL(i) { STENCIL_ATTRIBUTES SEXP (*call)() = (const void* const)(((uint8_t*)GETEXECUTABLE()) + i); return call(); } 
 
 /**************************************************************************/
 
@@ -812,7 +815,127 @@ RCP_OP(DUP2ND) {
   NEXT;
 }
 
-//RCP_OP(SWITCH)
+#ifndef SWITCH_SPECIALIZE
+RCP_OP(SWITCH) {
+  int dest = Rsh_Switch(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONST_IMM(2), GETCONST_IMM(3));
+  POP_VAL(1);
+  GOTO_VAL(dest);
+}
+#else
+RCP_OP(SWITCH_000) {
+  SEXP call = GETCONST_IMM(0);
+  SEXP names = GETCONST_IMM(1);
+  SEXP coffsets = GETCONST_IMM(2);
+  SEXP ioffsets = GETCONST_IMM(3);
+  
+  Rboolean is_names_null = FALSE;
+  int names_length = LENGTH(names); __attribute__((__assume__(names_length != 1)));
+  int ioffsets_length = LENGTH(ioffsets); __attribute__((__assume__(ioffsets_length != 1)));
+
+  int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
+    is_names_null, TYPEOF(names) == STRSXP, names_length,
+    TYPEOF(ioffsets) == INTSXP, ioffsets_length,
+    TYPEOF(coffsets) == INTSXP, LENGTH(coffsets) == LENGTH(names));
+
+  POP_VAL(1);
+  GOTO_VAL(dest);
+}
+
+RCP_OP(SWITCH_001) {
+  SEXP call = GETCONST_IMM(0);
+  SEXP names = GETCONST_IMM(1);
+  SEXP coffsets = GETCONST_IMM(2);
+  SEXP ioffsets = GETCONST_IMM(3);
+
+  Rboolean is_names_null = FALSE;
+  int names_length = LENGTH(names); __attribute__((__assume__(names_length != 1)));
+  int ioffsets_length = 1;
+
+  int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
+    is_names_null, TYPEOF(names) == STRSXP, names_length,
+    TYPEOF(ioffsets) == INTSXP, ioffsets_length,
+    TYPEOF(coffsets) == INTSXP, LENGTH(coffsets) == LENGTH(names));
+
+  POP_VAL(1);
+  GOTO_VAL(dest);
+}
+
+RCP_OP(SWITCH_010) {
+  SEXP call = GETCONST_IMM(0);
+  SEXP names = GETCONST_IMM(1);
+  SEXP coffsets = GETCONST_IMM(2);
+  SEXP ioffsets = GETCONST_IMM(3);
+
+  Rboolean is_names_null = FALSE;
+  int names_length = 1;
+  int ioffsets_length = LENGTH(ioffsets); __attribute__((__assume__(ioffsets_length != 1)));
+
+  int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
+    is_names_null, TYPEOF(names) == STRSXP, names_length,
+    TYPEOF(ioffsets) == INTSXP, ioffsets_length,
+    TYPEOF(coffsets) == INTSXP, LENGTH(coffsets) == LENGTH(names));
+
+  POP_VAL(1);
+  GOTO_VAL(dest);
+}
+
+RCP_OP(SWITCH_011) {
+  SEXP call = GETCONST_IMM(0);
+  SEXP names = GETCONST_IMM(1);
+  SEXP coffsets = GETCONST_IMM(2);
+  SEXP ioffsets = GETCONST_IMM(3);
+
+  Rboolean is_names_null = FALSE;
+  int names_length = 1;
+  int ioffsets_length = 1;
+
+  int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
+    is_names_null, TYPEOF(names) == STRSXP, names_length,
+    TYPEOF(ioffsets) == INTSXP, ioffsets_length,
+    TYPEOF(coffsets) == INTSXP, LENGTH(coffsets) == LENGTH(names));
+
+  POP_VAL(1);
+  GOTO_VAL(dest);
+}
+
+RCP_OP(SWITCH_100) {
+  SEXP call = GETCONST_IMM(0);
+  SEXP names = GETCONST_IMM(1);
+  SEXP coffsets = GETCONST_IMM(2);
+  SEXP ioffsets = GETCONST_IMM(3);
+
+  Rboolean is_names_null = TRUE;
+  int names_length = 0;
+  int ioffsets_length = LENGTH(ioffsets); __attribute__((__assume__(ioffsets_length != 1)));
+
+  int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
+    is_names_null, TYPEOF(names) == STRSXP, names_length,
+    TYPEOF(ioffsets) == INTSXP, ioffsets_length,
+    TYPEOF(coffsets) == INTSXP, LENGTH(coffsets) == LENGTH(names));
+
+  POP_VAL(1);
+  GOTO_VAL(dest);
+}
+
+RCP_OP(SWITCH_101) {
+  SEXP call = GETCONST_IMM(0);
+  SEXP names = GETCONST_IMM(1);
+  SEXP coffsets = GETCONST_IMM(2);
+  SEXP ioffsets = GETCONST_IMM(3);
+
+  Rboolean is_names_null = TRUE;
+  int names_length = 0;
+  int ioffsets_length = 1;
+
+  int dest = Rsh_do_switch(stack, call, names, coffsets, ioffsets,
+    is_names_null, TYPEOF(names) == STRSXP, names_length,
+    TYPEOF(ioffsets) == INTSXP, ioffsets_length,
+    TYPEOF(coffsets) == INTSXP, LENGTH(coffsets) == LENGTH(names));
+
+  POP_VAL(1);
+  GOTO_VAL(dest);
+}
+#endif
 
 //RCP_OP(RETURNJMP)
 
