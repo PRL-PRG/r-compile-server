@@ -1,5 +1,4 @@
 #!/usr/bin/env Rscript
-set.seed(1)
 options(rcp.cmpfun.stats = TRUE)
 
 BC_OPTS <- list(optimize = 3L)
@@ -11,6 +10,8 @@ DEFAULT_RSH_OPT <- 3L
 wrap_with_verify <- function(f, expected, expected_output) {
   f <- force(f)
   function(x) {
+    gc(full=TRUE)
+    set.seed(1)
     output <- capture.output(actual <- f(x))
     if (!identical(actual, expected)) {
       stop("Benchmark failed with incorrect result, expected: ", expected, ", actual: ", actual)
@@ -22,7 +23,10 @@ wrap_with_verify <- function(f, expected, expected_output) {
 }
 
 benchmark <- function(options) {
+  # set the seed for the first run
+  set.seed(1)
   output <- capture.output(result <- execute(options$param))
+
   b <- list()
   rsh_stats <- NULL
 
