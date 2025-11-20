@@ -493,7 +493,7 @@ static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole
     memcpy(&dst[hole->offset], &ptr, hole->size);
 }
 
-static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_constpool)
+static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *r_constpool)
 {
     // For speciailized stencils
     switch(opcode)
@@ -560,12 +560,241 @@ static const Stencil *get_stencil(int opcode, const int *imms, const SEXP *r_con
         return NULL;
 }
 
+static int jump_target(R_OPCODE opcode, const int *imms) {
+  int res = 0;
+  switch (opcode) {
+  case (GOTO_OP):
+  case (STEPFOR_OP):
+    res = imms[0];
+    break;
+  case (BRIFNOT_OP):
+  case (STARTSUBSET_OP):
+  case (STARTSUBSET2_OP):
+  case (AND1ST_OP):
+  case (OR1ST_OP):
+  case (STARTSUBSET_N_OP):
+  case (STARTSUBASSIGN_N_OP):
+  case (STARTSUBSET2_N_OP):
+  case (STARTSUBASSIGN2_N_OP):
+    res = imms[1];
+    break;
+  case (STARTFOR_OP):
+    res = imms[2];
+    break;
+  }
+  return res - 1;
+}
+
+static int can_fallthrough_from_opcode(R_OPCODE opcode) {
+  switch (opcode) {
+  case (RETURN_OP):
+  case (GOTO_OP):
+  case (STARTFOR_OP):
+    return 0; // Always jumps
+  default:
+    return 1; // Can fallthrough
+  }
+}
+
+static int unlikely_to_jump(R_OPCODE opcode) {
+  switch (opcode) {
+  case (STARTSUBSET_OP):
+  case (STARTSUBSET2_OP):
+  case (STARTSUBSET_N_OP):
+  case (STARTSUBASSIGN_N_OP):
+  case (STARTSUBSET2_N_OP):
+  case (STARTSUBASSIGN2_N_OP):
+    // These instructions are very unlikely to jump (mostly just in the case of errors)
+    return 1; // Unlikely to jump
+  default:
+    return 0; // Likely to jump
+  }
+}
+
+static int8_t stack_effect(R_OPCODE opcode, int* imms) {
+  int8_t res = STACK_EFFECT[opcode];
+  switch (opcode) {
+  case (SUBSET_N_OP):
+  case (SUBSET2_N_OP):
+  case (SUBASSIGN_N_OP):
+  case (SUBASSIGN2_N_OP):
+    res -= imms[1];
+  }
+  return res;
+}
+
+typedef struct BasicBlock {
+    int bytecode_start;
+    int bytecode_end;
+    int next_blocks_size;
+    struct BasicBlock** next_blocks;
+} BasicBlock;
+
+typedef struct BasicBlockStackInfo {
+    const BasicBlock* bb;
+    int stack_depth_end;
+    int stack_depth_max;
+    int visited;
+} BasicBlockStackInfo;
+
+static void fill_stack_depth(int bytecode[], BasicBlockStackInfo* bb_stack)
+{
+    DEBUG_PRINT("Filling stack depth for block starting at bytecode %d ending at %d\n", bb_stack->bb->bytecode_start, bb_stack->bb->bytecode_end);
+    bb_stack->stack_depth_max = INT_MIN;
+    bb_stack->stack_depth_end = 0;
+    bb_stack->visited = 0;
+    for (int i = bb_stack->bb->bytecode_start; i <= bb_stack->bb->bytecode_end; i += imms_cnt[bytecode[i]] + 1)
+    {
+        bb_stack->stack_depth_end += stack_effect(bytecode[i], &bytecode[i + 1]);
+        if (bb_stack->stack_depth_end > bb_stack->stack_depth_max)
+            bb_stack->stack_depth_max = bb_stack->stack_depth_end;
+
+        DEBUG_PRINT("At bytecode %d (opcode %s):\tcurrent depth: %d, max depth: %d\n", i, OPCODES_NAMES[bytecode[i]], bb_stack->stack_depth_end, bb_stack->stack_depth_max);
+
+    }
+    DEBUG_PRINT("This bytecode can continue to: ");
+    for (int j = 0; j < bb_stack->bb->next_blocks_size; j++)
+    {
+        DEBUG_PRINT("%d, ", bb_stack->bb->next_blocks[j]->bytecode_start);
+    }
+    DEBUG_PRINT("\n");
+}
+
+static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, BasicBlock* block_lookup)
+{
+    bb->next_blocks_size = 0;
+    if (bb->bytecode_end >= bytecode_size)
+    {
+      bb->next_blocks = NULL;
+      return;
+    }
+    int i = bb->bytecode_end;
+
+    int opcode = bytecode[i];
+
+    if(opcode == SWITCH_OP)
+    {
+        assert(0); // TODO: implement
+    }
+    else
+    {
+        int jmp_target = jump_target(opcode, &bytecode[i + 1]);
+        int fallthrough_target = can_fallthrough_from_opcode(opcode)? (i + imms_cnt[opcode] + 1) : -1;
+
+        bb->next_blocks = (BasicBlock **)S_alloc((fallthrough_target != -1) + (jmp_target != -1), sizeof(BasicBlock *));
+
+        if(fallthrough_target != -1)
+        {
+            assert(block_lookup[fallthrough_target].bytecode_end != 0);
+            bb->next_blocks[(bb->next_blocks_size)++] = &block_lookup[fallthrough_target];
+        }
+        if(jmp_target != -1)
+        {
+            assert(block_lookup[jmp_target].bytecode_end != 0);
+            bb->next_blocks[(bb->next_blocks_size)++] = &block_lookup[jmp_target];
+        }
+    }
+}
+
+static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size)
+{
+    BasicBlock* block_lookup = (BasicBlock *)S_alloc(bytecode_size, sizeof(BasicBlock));
+    block_lookup[0].bytecode_start = -1; // First instruction is always a block start
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    {
+        int jmp_target = jump_target(bytecode[i], &bytecode[i + 1]);
+        if (jmp_target != -1)
+        {
+            block_lookup[jmp_target].bytecode_start = -1;
+            
+            int can_fallthrough = can_fallthrough_from_opcode(bytecode[i]);
+            
+            if (can_fallthrough)
+            {
+                block_lookup[i + imms_cnt[bytecode[i]] + 1].bytecode_start = -1;
+            }
+        }
+    }
+    
+    int j = 0, old_i = 0;
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    {
+        if(block_lookup[i].bytecode_start == -1)
+        {
+            block_lookup[i].bytecode_start = i;
+            block_lookup[j].bytecode_end = old_i;
+            j = i;
+        }
+        old_i = i;
+    }
+    block_lookup[j].bytecode_end = old_i;
+
+
+    for(int i = 0; i < bytecode_size; i++)
+    {
+        if(block_lookup[i].bytecode_end != 0)
+        {
+            link_basic_block(bytecode, bytecode_size, &block_lookup[i], block_lookup);
+        }
+    }
+    
+
+    for (int i = 0, j = 0; i < bytecode_size; i++)
+    {
+        if(block_lookup[i].bytecode_end != 0)
+            DEBUG_PRINT("Basic block %d: bytecode %d to %d\n", j++, block_lookup[i].bytecode_start, block_lookup[i].bytecode_end);
+    }
+    return block_lookup;
+}
+
+static int max_stack_depth_recursive(BasicBlockStackInfo* block, BasicBlockStackInfo* blocks_stack, const BasicBlock* blocks)
+{
+    int max_depth = block->stack_depth_max;
+    if(block->visited)
+        return max_depth;
+
+    block->visited = 1;
+
+    for (int i = 0; i < block->bb->next_blocks_size; i++)
+    {
+        int next_depth = max_stack_depth_recursive(&blocks_stack[block->bb->next_blocks[i] - blocks], blocks_stack, blocks) + block->stack_depth_end;
+        if (next_depth > max_depth)
+            max_depth = next_depth;
+    }
+
+    DEBUG_PRINT("Max possible depth at block %d - %d is %d\n", block->bb->bytecode_start, block->bb->bytecode_end, max_depth);
+
+    block->stack_depth_max = max_depth;
+
+    return max_depth;
+}
+
+static int calculate_max_stack_depth(int bytecode[], int bytecode_size, BasicBlock* bbs)
+{
+    const void *vmax = vmaxget();
+
+    BasicBlockStackInfo* block_stack = (BasicBlockStackInfo *)S_alloc(bytecode_size, sizeof(BasicBlockStackInfo));
+    for(int i = 0; i < bytecode_size; i++)
+    {
+        if(bbs[i].bytecode_end != 0)
+        {
+            block_stack[i].bb = &bbs[i];
+            fill_stack_depth(bytecode, &block_stack[i]);
+        }
+    }
+
+    DEBUG_PRINT("Created basic blocks for max stack depth calculation\n");
+    int max_depth = max_stack_depth_recursive(&block_stack[0], block_stack, bbs);
+    vmaxset(vmax);
+    return max_depth;
+}
+
 
 static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP *constpool, int constpool_size, CompilationStats *stats)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
-    size_t for_count = 0;
+    int for_count = 0;
 
     const void *vmax = vmaxget(); // Save to restore it later to free memory allocated by the following calls
     uint8_t **inst_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
@@ -584,48 +813,18 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         const int *imms = &bytecode[i + 1];
 
-        switch (bytecode[i])
+        if (unlikely_to_jump(bytecode[i]))
         {
-        case (STARTSUBSET_OP):
-        case (STARTSUBSET2_OP):
-        case (STARTSUBSET_N_OP):
-        case (STARTSUBASSIGN_N_OP):
-        case (STARTSUBSET2_N_OP):
-        case (STARTSUBASSIGN2_N_OP):
-            // These instructions are very unlikely to jump (mostly just in case of errors)
             alignment_labels = ALIGNMENT_LABELS_UNLIKELY;
             alignment_loops = ALIGNMENT_LOOPS_UNLIKELY;
-            break;
-        default:
+        }
+        else
+        {
             alignment_labels = ALIGNMENT_LABELS;
             alignment_loops = ALIGNMENT_LOOPS;
-            break;
         }
 
-        switch (bytecode[i])
-        {
-        case (GOTO_OP):
-        case (STEPFOR_OP):
-            jmp_target = imms[0];
-            break;
-        case (BRIFNOT_OP):
-        case (STARTSUBSET_OP):
-        case (STARTSUBSET2_OP):
-        case (AND1ST_OP):
-        case (OR1ST_OP):
-        case (STARTSUBSET_N_OP):
-        case (STARTSUBASSIGN_N_OP):
-        case (STARTSUBSET2_N_OP):
-        case (STARTSUBASSIGN2_N_OP):
-            jmp_target = imms[1];
-            break;
-        case (STARTFOR_OP):
-            jmp_target = imms[2];
-            break;
-        default:
-            jmp_target = -1;
-            break;
-        }
+        jmp_target = jump_target(bytecode[i], imms);
 
         // If the previous instruction cannot fallthrough, this instruction is aligned (at least) to ALIGNMENT_JUMPS
         if(!can_fallthrough)
@@ -636,7 +835,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         if (jmp_target > 0)
         {
-            jmp_target -= 1; // Convert to 0-based index
             if (jmp_target > i) // Forward jump (not a loop)
             {
                 DEBUG_PRINT("Forward jump from %d to %d\n", i, jmp_target);
@@ -653,17 +851,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         bytecode_alignment[i] = MAX(bytecode_alignment[i], get_stencil(bytecode[i], imms, constpool)->alignment);
 
         // Determine whether the next instruction can be jumped to directly or not
-        switch (bytecode[i])
-        {
-        case (RETURN_OP):
-        case (GOTO_OP):
-        case (STARTFOR_OP):
-            can_fallthrough = 0; // Always jumps
-            break;
-        default:
-            can_fallthrough = 1; // Can fallthrough
-            break;
-        }
+        can_fallthrough = can_fallthrough_from_opcode(bytecode[i]);
     }
 
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
@@ -774,6 +962,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
     res.bcells = bcells;
     res.bcells_size = bcells_size;
+
+    BasicBlock* bbs = build_basic_blocks(bytecode, bytecode_size);
+
+    res.max_stack_size = calculate_max_stack_depth(bytecode, bytecode_size, bbs);    
+    DEBUG_PRINT("Max stack size needed: %d\n", res.max_stack_size);
 
     // Context for patching, passed to the patch function
     PatchContext ctx = {

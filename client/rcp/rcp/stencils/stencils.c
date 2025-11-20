@@ -36,17 +36,30 @@ extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
   #define STENCIL_ATTRIBUTES __attribute__ ((noinline))
 #endif
 
-#define RCP_OP(op) STENCIL_ATTRIBUTES SEXP _RCP_##op##_OP (void)
+#undef PUSH_VAL
+#define PUSH_VAL(n)                                                            \
+  do {                                                                         \
+    stack += (n);                                                              \
+    assert(stack - 1 < R_BCNodeStackTop);                                      \
+  } while (0)
+
+#undef POP_VAL
+#define POP_VAL(n)                                                             \
+  do {                                                                         \
+    stack -= (n);                                                              \
+  } while (0)
+
+#define RCP_OP(op) STENCIL_ATTRIBUTES SEXP _RCP_##op##_OP (Value* stack)
 
 /* PATCHING SYMBOLS */
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_NEXT(void);
-#define NEXT return _RCP_EXEC_NEXT()
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_NEXT(Value* stack);
+#define NEXT return _RCP_EXEC_NEXT(stack)
 
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM0(void);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM1(void);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM2(void);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM3(void);
-#define GOTO_IMM(i) return _RCP_EXEC_IMM##i()
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM0(Value* stack);
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM1(Value* stack);
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM2(Value* stack);
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM3(Value* stack);
+#define GOTO_IMM(i) return _RCP_EXEC_IMM##i(stack)
 //__attribute__((musttail))
 //[[gnu::musttail]] 
 
@@ -91,7 +104,8 @@ extern const void* const _RCP_PATCHED_VARIANTS[];
 /**************************************************************************/
 
 
-SEXP _RCP_INIT () {
+SEXP _RCP_INIT (Value* stack) {
+  PUSH_VAL(0);
   NEXT;
 }
 
@@ -101,7 +115,9 @@ SEXP _RCP_INIT () {
 }*/
 
 RCP_OP(RETURN) {
-  Rsh_Return(GET_VAL(1), 1);
+  SEXP res = val_as_sexp(*GET_VAL(-1));
+  POP_VAL(1);
+  return res;
 }
 
 RCP_OP(GOTO) {
@@ -109,7 +125,7 @@ RCP_OP(GOTO) {
 }
 
 RCP_OP(BRIFNOT) {
-  Rboolean condition = Rsh_BrIfNot(*GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   if(condition)
     GOTO_IMM(1);
@@ -118,19 +134,19 @@ RCP_OP(BRIFNOT) {
 }
 
 RCP_OP(POP) {
-  Rsh_Pop(*GET_VAL(1));
+  Rsh_Pop(stack);
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(DUP) {
   PUSH_VAL(1);
-  Rsh_Dup(GET_VAL(2), GET_VAL(1));
+  Rsh_Dup(stack);
   NEXT;
 }
 
 /*RCP_OP(PRINTVALUE) {
-  PrintValue(val_as_sexp(*GET_VAL(1)));
+  PrintValue(val_as_sexp(stack));
   POP_VAL(1);
   NEXT;
 }*/
@@ -169,12 +185,12 @@ typedef struct {
 RCP_OP(STARTFOR) {
   PUSH_VAL(2);
 
-  Rsh_StartFor(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTCELL_IMM(1), GET_RHO());
+  Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTCELL_IMM(1), GET_RHO());
 
 #ifdef STEPFOR_SPECIALIZE
   StepFor_specialized *stepfor_mem = (StepFor_specialized *)GETVARIANTS();
 
-  RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(2)));
+  RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2)));
 
   int i;
   switch (info->type)
@@ -204,15 +220,17 @@ RCP_OP(STARTFOR) {
 #ifdef STEPFOR_SPECIALIZE
 #define X(a, b)                                                                \
   static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(                \
-      Value *s2, Value *s1, Value *s0, BCell *cell, SEXP rho) {                \
-    return Rsh_DoStepFor(s2, s1, s0, cell, rho, b);                            \
+      Value *stack, BCell *cell, SEXP rho) {                                   \
+    return Rsh_DoStepFor(GET_VAL(-3),                                          \
+                         (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2))),           \
+                         GET_VAL(-1), cell, rho, b);                           \
   }
 X_STEPFOR_TYPES
 #undef X
 
 #define X(a, b) \
 RCP_OP(STEPFOR_##a) { \
-  if(Rsh_StepFor_Specialized_##a(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONSTCELL_LABEL_IMM(0), GET_RHO())) \
+  if(Rsh_StepFor_Specialized_##a(stack, GETCONSTCELL_LABEL_IMM(0), GET_RHO())) \
     GOTO_IMM(0); \
   else \
     NEXT; \
@@ -223,7 +241,7 @@ X_STEPFOR_TYPES
 #else
 
 RCP_OP(STEPFOR) {
-  if(Rsh_StepFor(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONSTCELL_LABEL_IMM(0), GET_RHO()))
+  if(Rsh_StepFor(stack, GETCONSTCELL_LABEL_IMM(0), GET_RHO()))
     GOTO_IMM(0);
   else
     NEXT;
@@ -232,7 +250,7 @@ RCP_OP(STEPFOR) {
 #endif
 
 RCP_OP(ENDFOR) {
-  Rsh_EndFor(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GET_RHO());
+  Rsh_EndFor(stack, GET_RHO());
   POP_VAL(2);
   NEXT;
 }
@@ -240,7 +258,7 @@ RCP_OP(ENDFOR) {
 //RCP_OP(SETLOOPVAL)
 
 RCP_OP(INVISIBLE) {
-  Rsh_Invisible();
+  Rsh_Invisible(stack);
   NEXT;
 }
 
@@ -248,71 +266,71 @@ RCP_OP(INVISIBLE) {
 //RCP_OP(LDCONST) {
 //  PUSH_VAL(1);
 //  R_Visible = TRUE;
-//  SET_VAL(GET_VAL(1), GETCONST_IMM(0));
+//  SET_VAL(stack, GETCONST_IMM(0));
 //  NEXT;
 //}
 
 // Specialized versions
 RCP_OP(LDCONST_INT) {
   PUSH_VAL(1);
-  Rsh_LdConstInt(GET_VAL(1), GETCONST_IMM(0));
+  Rsh_LdConstInt(stack, GETCONST_IMM(0));
   NEXT;
 }
 RCP_OP(LDCONST_DBL) {
   PUSH_VAL(1);
-  Rsh_LdConstDbl(GET_VAL(1), GETCONST_IMM(0));
+  Rsh_LdConstDbl(stack, GETCONST_IMM(0));
   NEXT;
 }
 RCP_OP(LDCONST_LGL) {
   PUSH_VAL(1);
-  Rsh_LdConstLgl(GET_VAL(1), GETCONST_IMM(0));
+  Rsh_LdConstLgl(stack, GETCONST_IMM(0));
   NEXT;
 }
 RCP_OP(LDCONST_SEXP) {
   PUSH_VAL(1);
-  Rsh_LdConst(GET_VAL(1), GETCONST_IMM(0));
+  Rsh_LdConst(stack, GETCONST_IMM(0));
   NEXT;
 }
 
 
 RCP_OP(LDNULL) {
   PUSH_VAL(1);
-  Rsh_LdNull(GET_VAL(1));
+  Rsh_LdNull(stack);
   NEXT;
 }
 
 RCP_OP(LDTRUE) {
   PUSH_VAL(1);
-  Rsh_LdTrue(GET_VAL(1));
+  Rsh_LdTrue(stack);
   NEXT;
 }
 
 RCP_OP(LDFALSE) {
   PUSH_VAL(1);
-  Rsh_LdFalse(GET_VAL(1));
+  Rsh_LdFalse(stack);
   NEXT;
 }
 
 RCP_OP(GETVAR) {
   PUSH_VAL(1);
-  Rsh_GetVar(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  Rsh_GetVar(stack, GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(DDVAL) {
   PUSH_VAL(1);
-  Rsh_DdVal(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  Rsh_DdVal(stack, GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(SETVAR) {
-  Rsh_SetVar(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  Rsh_SetVar(stack, GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(GETFUN) {
   PUSH_VAL(3);
-  Rsh_GetFun(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_GetFun(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
@@ -323,96 +341,98 @@ RCP_OP(GETFUN) {
 RCP_OP(GETBUILTIN) {
   PUSH_VAL(3);
 
-  Rsh_GetBuiltin(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0));
+  Rsh_GetBuiltin(stack, GETCONST_IMM(0));
   NEXT;
 }
 
 RCP_OP(GETINTLBUILTIN) {
   PUSH_VAL(3);
 
-  Rsh_GetIntlBuiltin(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0));
+  Rsh_GetIntlBuiltin(stack, GETCONST_IMM(0));
   NEXT;
 }
 
 RCP_OP(CHECKFUN) {
   PUSH_VAL(2);
-  Rsh_CheckFun(GET_VAL(3), GET_VAL(2), GET_VAL(1));
+  Rsh_CheckFun(stack);
   NEXT;
 }
 
 RCP_OP(MAKEPROM)
 {
-  Rsh_MakeProm(GET_VAL(3), GET_VAL(2),  GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_MakeProm(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(DOMISSING) {
-  Rsh_DoMissing(GET_VAL(3), GET_VAL(2), GET_VAL(1));
+  Rsh_DoMissing(stack);
   NEXT;
 }
 
 RCP_OP(SETTAG) {
-  Rsh_SetTag(GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0));
+  Rsh_SetTag(stack, GETCONST_IMM(0));
   NEXT;
 }
 
 RCP_OP(DODOTS) {
-  Rsh_DoDots(GET_VAL(3), GET_VAL(2), GET_VAL(1), GET_RHO());
+  Rsh_DoDots(stack, GET_RHO());
   NEXT;
 }
 
 RCP_OP(PUSHARG)
 {
-  Rsh_PushArg(GET_VAL(3), GET_VAL(2), *GET_VAL(1));
+  Rsh_PushArg(stack);
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(PUSHCONSTARG)
 {
-  Rsh_PushConstArg(GET_VAL(2), GET_VAL(1), GETCONST_IMM(0));
+  Rsh_PushConstArg(stack, GETCONST_IMM(0));
   NEXT;
 }
 
 RCP_OP(PUSHNULLARG)
 {
-  Rsh_PushNullArg(GET_VAL(2), GET_VAL(1));
+  Rsh_PushNullArg(stack);
   NEXT;
 }
 
 RCP_OP(PUSHTRUEARG)
 {
-  Rsh_PushTrueArg(GET_VAL(2), GET_VAL(1));
+  Rsh_PushTrueArg(stack);
   NEXT;
 }
 
 RCP_OP(PUSHFALSEARG)
 {
-  Rsh_PushFalseArg(GET_VAL(2), GET_VAL(1));
+  Rsh_PushFalseArg(stack);
   NEXT;
 }
 
 RCP_OP(CALL)
 {
-  Rsh_Call(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Call(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(CALLBUILTIN)
 {
-  Rsh_CallBuiltin(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_CallBuiltin(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(CALLSPECIAL) {
   PUSH_VAL(1);
-  Rsh_CallSpecial(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_CallSpecial(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
-static INLINE void Rcp_MakeClosure(Value *res, SEXP mkclos_arg, SEXP rho) {
+static INLINE void Rcp_MakeClosure(Value *stack, SEXP mkclos_arg, SEXP rho) {
+  Value *res = GET_VAL(-1);
+
   SEXP forms = VECTOR_ELT(mkclos_arg, 0);
   SEXP rcp_body = VECTOR_ELT(mkclos_arg, 1);
   SEXP closure = Rf_mkCLOSXP(forms, rcp_body, rho);
@@ -432,110 +452,110 @@ static INLINE void Rcp_MakeClosure(Value *res, SEXP mkclos_arg, SEXP rho) {
 
 RCP_OP(MAKECLOSURE) {
   PUSH_VAL(1);
-  Rcp_MakeClosure(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rcp_MakeClosure(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(UMINUS) {
-  Rsh_UMinus(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_UMinus(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(UPLUS) {
-  Rsh_UPlus(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_UPlus(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(ADD) {
-  Rsh_Add(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Add(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(SUB) {
-  Rsh_Sub(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Sub(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(MUL) {
-  Rsh_Mul(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Mul(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(DIV) {
-  Rsh_Div(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Div(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(EXPT) {
-  Rsh_Expt(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Expt(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(SQRT) {
-  Rsh_Sqrt(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Sqrt(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(EXP) {
-  Rsh_Exp(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Exp(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(EQ) {
-  Rsh_Eq(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Eq(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(NE) {
-  Rsh_Ne(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Ne(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(LT) {
-  Rsh_Lt(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Lt(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(LE) {
-  Rsh_Le(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Le(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(GE) {
-  Rsh_Ge(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Ge(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(GT) {
-  Rsh_Gt(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Gt(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(AND) {
-  Rsh_And(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_And(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(OR) {
-  Rsh_Or(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Or(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(NOT) {
-  Rsh_Not(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Not(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
@@ -543,19 +563,19 @@ RCP_OP(NOT) {
 
 RCP_OP(STARTASSIGN) {
   PUSH_VAL(3);
-  Rsh_StartAssign(GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  Rsh_StartAssign(stack, GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(ENDASSIGN) {
-  Rsh_EndAssign(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  Rsh_EndAssign(stack, GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(STARTSUBSET) {
   PUSH_VAL(3);
-  Rboolean condition = Rsh_StartSubset(GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubset(stack, GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
   {
     POP_VAL(3);
@@ -566,14 +586,14 @@ RCP_OP(STARTSUBSET) {
 }
 
 RCP_OP(DFLTSUBSET) {
-  Rsh_DfltSubset(GET_VAL(4), *GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GET_RHO());
+  Rsh_DfltSubset(stack, GET_RHO());
   POP_VAL(3);
   NEXT;
 }
 
 RCP_OP(STARTSUBASSIGN) {
   PUSH_VAL(3);
-  Rboolean condition = Rsh_StartSubassign(GET_VAL(5), GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubassign(stack, GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
   {
     POP_VAL(4);
@@ -584,7 +604,7 @@ RCP_OP(STARTSUBASSIGN) {
 }
 
 RCP_OP(DFLTSUBASSIGN) {
-  Rsh_DfltSubassign(GET_VAL(5), *GET_VAL(4), *GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GET_RHO());
+  Rsh_DfltSubassign(stack, GET_RHO());
   POP_VAL(4);
   NEXT;
 }
@@ -595,7 +615,7 @@ RCP_OP(DFLTSUBASSIGN) {
 
 RCP_OP(STARTSUBSET2) {
   PUSH_VAL(3);
-  Rboolean condition = Rsh_StartSubset2(GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubset2(stack, GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
   {
     POP_VAL(3);
@@ -606,14 +626,14 @@ RCP_OP(STARTSUBSET2) {
 }
 
 RCP_OP(DFLTSUBSET2) {
-  Rsh_DfltSubset2(GET_VAL(4), *GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GET_RHO());
+  Rsh_DfltSubset2(stack, GET_RHO());
   POP_VAL(3);
   NEXT;
 }
 
 RCP_OP(STARTSUBASSIGN2) {
   PUSH_VAL(3);
-  Rboolean condition = Rsh_StartSubassign2(GET_VAL(5), GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubassign2(stack, GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
   {
     POP_VAL(4);
@@ -624,171 +644,171 @@ RCP_OP(STARTSUBASSIGN2) {
 }
 
 RCP_OP(DFLTSUBASSIGN2) {
-  Rsh_DfltSubassign2(GET_VAL(5), *GET_VAL(4), *GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GET_RHO());
+  Rsh_DfltSubassign2(stack, GET_RHO());
   POP_VAL(4);
   NEXT;
 }
 
 RCP_OP(DOLLAR) {
-  Rsh_Dollar(GET_VAL(1), GETCONST_IMM(0), GETCONST_IMM(1), GET_RHO());
+  Rsh_Dollar(stack, GETCONST_IMM(0), GETCONST_IMM(1), GET_RHO());
   NEXT;
 }
 
 RCP_OP(DOLLARGETS) {
-  Rsh_DollarGets(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GETCONST_IMM(1), GET_RHO());
+  Rsh_DollarGets(stack, GETCONST_IMM(0), GETCONST_IMM(1), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(ISNULL) {
-  Rsh_IsNull(GET_VAL(1));
+  Rsh_IsNull(stack);
   NEXT;
 }
 
 RCP_OP(ISLOGICAL) {
-  Rsh_IsLogical(GET_VAL(1));
+  Rsh_IsLogical(stack);
   NEXT;
 }
 
 RCP_OP(ISINTEGER) {
-  Rsh_IsInteger(GET_VAL(1));
+  Rsh_IsInteger(stack);
   NEXT;
 }
 
 RCP_OP(ISDOUBLE) {
-  Rsh_IsDouble(GET_VAL(1));
+  Rsh_IsDouble(stack);
   NEXT;
 }
 
 RCP_OP(ISCOMPLEX) {
-  Rsh_IsComplex(GET_VAL(1));
+  Rsh_IsComplex(stack);
   NEXT;
 }
 
 RCP_OP(ISCHARACTER) {
-  Rsh_IsCharacter(GET_VAL(1));
+  Rsh_IsCharacter(stack);
   NEXT;
 }
 
 RCP_OP(ISSYMBOL) {
-  Rsh_IsSymbol(GET_VAL(1));
+  Rsh_IsSymbol(stack);
   NEXT;
 }
 
 RCP_OP(ISOBJECT) {
-  Rsh_IsObject(GET_VAL(1));
+  Rsh_IsObject(stack);
   NEXT;
 }
 
 RCP_OP(ISNUMERIC) {
-  Rsh_IsNumeric(GET_VAL(1));
+  Rsh_IsNumeric(stack);
   NEXT;
 }
 
 RCP_OP(VECSUBSET) {
-  Rsh_VecSubset(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_VecSubset(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(MATSUBSET) {
-  Rsh_MatSubset(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_MatSubset(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(VECSUBASSIGN) {
-  Rsh_VecSubassign(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_VecSubassign(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(MATSUBASSIGN) {
-  Rsh_MatSubassign(GET_VAL(4), *GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_MatSubassign(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(3);
   NEXT;
 }
 
 RCP_OP(AND1ST) {
-  if(Rsh_And1st(GET_VAL(1), GETCONST_IMM(0)))
+  if(Rsh_And1st(stack, GETCONST_IMM(0)))
     GOTO_IMM(1);
   else
     NEXT;
 }
 
 RCP_OP(AND2ND) {
-  Rsh_And2nd(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0));
+  Rsh_And2nd(stack, GETCONST_IMM(0));
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(OR1ST) {
-  if(Rsh_Or1st(GET_VAL(1), GETCONST_IMM(0)))
+  if(Rsh_Or1st(stack, GETCONST_IMM(0)))
     GOTO_IMM(1);
   else
     NEXT;
 }
 
 RCP_OP(OR2ND) {
-  Rsh_Or2nd(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0));
+  Rsh_Or2nd(stack, GETCONST_IMM(0));
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(GETVAR_MISSOK) {
   PUSH_VAL(1);
-  Rsh_GetVarMissOk(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  Rsh_GetVarMissOk(stack, GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(DDVAL_MISSOK) {
   PUSH_VAL(1);
-  Rsh_DdValMissOk(GET_VAL(1), GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
+  Rsh_DdValMissOk(stack, GETCONST_IMM(0), GETCONSTCELL_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(VISIBLE) {
-  Rsh_Visible();
+  Rsh_Visible(stack);
   NEXT;
 }
 
 RCP_OP(SETVAR2) {
-  Rsh_SetVar2(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_SetVar2(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(STARTASSIGN2) {
   PUSH_VAL(3);
-  Rsh_StartAssign2(GET_VAL(4), GET_VAL(3), GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_StartAssign2(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(ENDASSIGN2) {
-  Rsh_EndAssign2(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_EndAssign2(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(SETTER_CALL) {
-  Rsh_SetterCall(GET_VAL(5), *GET_VAL(4), *GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GETCONST_IMM(1), GET_RHO());
+  Rsh_SetterCall(stack, GETCONST_IMM(0), GETCONST_IMM(1), GET_RHO());
   POP_VAL(4);
   NEXT;
 }
 
 RCP_OP(GETTER_CALL) {
-  Rsh_GetterCall(GET_VAL(5), GET_VAL(4), GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_GetterCall(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(SWAP) {
-  Rsh_SpecialSwap(GET_VAL(3), GET_VAL(2), GET_VAL(1));
+  Rsh_SpecialSwap(stack);
   NEXT;
 }
 
 RCP_OP(DUP2ND) {
   PUSH_VAL(1);
-  Rsh_Dup2nd(GET_VAL(3), GET_VAL(2), GET_VAL(1));
+  Rsh_Dup2nd(stack);
   NEXT;
 }
 
@@ -797,7 +817,7 @@ RCP_OP(DUP2ND) {
 //RCP_OP(RETURNJMP)
 
 RCP_OP(STARTSUBSET_N) {
-  Rboolean condition = Rsh_StartSubsetN(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubsetN(stack, GETCONST_IMM(0), GET_RHO());
   
   if(__builtin_expect(condition, FALSE))
     GOTO_IMM(1);
@@ -806,7 +826,7 @@ RCP_OP(STARTSUBSET_N) {
 }
 
 RCP_OP(STARTSUBASSIGN_N) {
-  Rboolean condition = Rsh_StartSubassignN(GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubassignN(stack, GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
   {
     POP_VAL(1);
@@ -817,31 +837,31 @@ RCP_OP(STARTSUBASSIGN_N) {
 }
 
 RCP_OP(VECSUBSET2) {
-  Rsh_VecSubset2(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_VecSubset2(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(MATSUBSET2) {
-  Rsh_MatSubset2(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_MatSubset2(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(VECSUBASSIGN2) {
-  Rsh_VecSubassign2(GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_VecSubassign2(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(2);
   NEXT;
 }
 
 RCP_OP(MATSUBASSIGN2) {
-  Rsh_MatSubassign2(GET_VAL(4), *GET_VAL(3), *GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_MatSubassign2(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(3);
   NEXT;
 }
 
 RCP_OP(STARTSUBSET2_N) {
-  Rboolean condition = Rsh_StartSubset2N(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubset2N(stack, GETCONST_IMM(0), GET_RHO());
   
   if(__builtin_expect(condition, FALSE))
     GOTO_IMM(1);
@@ -850,7 +870,7 @@ RCP_OP(STARTSUBSET2_N) {
 }
 
 RCP_OP(STARTSUBASSIGN2_N) {
-  Rboolean condition = Rsh_StartSubassign2N(GET_VAL(2), GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rboolean condition = Rsh_StartSubassign2N(stack, GETCONST_IMM(0), GET_RHO());
   if(__builtin_expect(condition, FALSE))
   {
     POP_VAL(1);
@@ -861,36 +881,36 @@ RCP_OP(STARTSUBASSIGN2_N) {
 }
 
 RCP_OP(SUBSET_N) {
-  Rsh_SubsetN(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_SubsetN(stack, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
   POP_VAL(GET_IMM(1));
   NEXT;
 }
 
 RCP_OP(SUBSET2_N) {
-  Rsh_Subset2N(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Subset2N(stack, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
   POP_VAL(GET_IMM(1));
   NEXT;
 }
 
 RCP_OP(SUBASSIGN_N) {
-  Rsh_SubassignN(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_SubassignN(stack, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
   POP_VAL(GET_IMM(1) + 1);
   NEXT;
 }
 
 RCP_OP(SUBASSIGN2_N) {
-  Rsh_Subassign2N(R_BCNodeStackTop - 1, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Subassign2N(stack, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
   POP_VAL(GET_IMM(1) + 1);
   NEXT;
 }
 
 RCP_OP(LOG) {
-  Rsh_Log(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Log(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(LOGBASE) {
-  Rsh_LogBase(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_LogBase(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
@@ -898,7 +918,7 @@ RCP_OP(LOGBASE) {
 // MATH1 specializations
 #define X(a, b, c) \
   RCP_OP(MATH1_##b) { \
-    Rsh_Math1(GET_VAL(1), GETCONST_IMM(0), b, GET_RHO()); \
+    Rsh_Math1(stack, GETCONST_IMM(0), b, GET_RHO()); \
     NEXT; \
   }
 
@@ -907,22 +927,22 @@ X_MATH1_EXT_OPS
 #undef X
 
 RCP_OP(DOTCALL) {
-  Rsh_DotCall(GET_VAL(1), GET_IMM(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_DotCall(stack, GET_IMM(1), GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(COLON) {
-  Rsh_Colon(GET_VAL(2), *GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_Colon(stack, GETCONST_IMM(0), GET_RHO());
   POP_VAL(1);
   NEXT;
 }
 
 RCP_OP(SEQALONG) {
-  Rsh_SeqAlong(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_SeqAlong(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
 
 RCP_OP(SEQLEN) {
-  Rsh_SeqLen(GET_VAL(1), GETCONST_IMM(0), GET_RHO());
+  Rsh_SeqLen(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
