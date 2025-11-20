@@ -54,14 +54,14 @@ public record FirCompiledModule(
             "Builtin doesn't have explicit versions: " + function.name());
       }
       var cName = BUILTINS_WITH_EXPLICIT_VERSIONS.get(name);
-      return new FirCompiledVersionIndex("Rsh_Fir_builtin_" + cName + index);
+      return new FirCompiledVersionIndex("Rsh_Fir_builtin_" + cName + "_v" + index);
     }
 
     public static FirCompiledVersionIndex intrinsic(Function function, Abstraction version) {
       var name = function.name().name();
       var index = function.indexOf(version);
 
-      return new FirCompiledVersionIndex("Rsh_Fir_intrinsic_" + name + index);
+      return new FirCompiledVersionIndex("Rsh_Fir_intrinsic_" + name + "_v" + index);
     }
   }
 
