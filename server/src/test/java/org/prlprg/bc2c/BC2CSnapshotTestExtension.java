@@ -12,6 +12,7 @@ import org.prlprg.bc.BCCompiler;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.service.RshCompiler;
+import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
@@ -197,7 +198,7 @@ public class BC2CSnapshotTestExtension
 
       Files.writeString(cFile.toPath(), module.file().toString());
 
-      RshCompiler.getInstance(3)
+      RshCompiler.getInstance(3, RuntimeVariant.BC2C)
           .createBuilder(cFile.getPath(), soFile.getPath())
           .flag("-shared")
           .flag("-DRSH_TESTS")

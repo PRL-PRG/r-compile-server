@@ -1,5 +1,6 @@
 package org.prlprg.util;
 
+import com.google.common.base.Charsets;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.io.File;
 import java.io.IOException;
@@ -94,11 +95,11 @@ public class Files {
   }
 
   public static void writeString(Path path, CharSequence out) {
-    ThrowingRunnable.run(() -> java.nio.file.Files.writeString(path, out));
+    ThrowingRunnable.run(() -> java.nio.file.Files.writeString(path, out, Charsets.UTF_8));
   }
 
   public static String readString(Path path) {
-    return ThrowingSupplier.get(() -> java.nio.file.Files.readString(path));
+    return ThrowingSupplier.get(() -> java.nio.file.Files.readString(path, Charsets.UTF_8));
   }
 
   public static void delete(Path path) {
