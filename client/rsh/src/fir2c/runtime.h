@@ -53,8 +53,8 @@ SEXP Rsh_Fir_force(SEXP value);
 SEXP Rsh_Fir_maybe_force(SEXP value);
 SEXP Rsh_Fir_load(SEXP symbol, SEXP env);
 SEXP Rsh_Fir_load_fun(int env_selector, SEXP symbol, SEXP env);
-void Rsh_Fir_push_env(SEXP env, SEXP enclos);
-void Rsh_Fir_pop_env(SEXP env);
+void Rsh_Fir_push_env(SEXP *env);
+void Rsh_Fir_pop_env(SEXP *env);
 SEXP Rsh_Fir_mk_vector(Rsh_Fir_Kind const *kind, int count, SEXP const *values,
                        SEXP const *names);
 SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, SEXP pool, SEXP env);

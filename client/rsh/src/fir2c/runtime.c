@@ -441,18 +441,23 @@ void Rsh_Fir_store(SEXP symbol, SEXP value, SEXP env) {
   Rf_defineVar(symbol, value, env);
 }
 
-void Rsh_Fir_push_env(SEXP env, SEXP enclos) {
-  if (!env || TYPEOF(env) != ENVSXP) {
-    Rf_error("push_env requires an environment pointer");
+void Rsh_Fir_push_env(SEXP *env_ptr) {
+  if (!env_ptr || !*env_ptr || TYPEOF(*env_ptr) != ENVSXP) {
+    Rf_error("push_env requires a pointer to an environment");
   }
-  env = Rf_NewEnvironment(R_NilValue, R_NilValue, enclos);
+  SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
+  *env_ptr = new_env;
 }
 
-void Rsh_Fir_pop_env(SEXP env) {
-  if (!env || TYPEOF(env) != ENVSXP) {
-    Rf_error("pop_env requires an environment pointer");
+void Rsh_Fir_pop_env(SEXP *env_ptr) {
+  if (!env_ptr || !*env_ptr || TYPEOF(*env_ptr) != ENVSXP) {
+    Rf_error("pop_env requires a pointer to an environment");
   }
-  env = ENCLOS(env);
+  SEXP parent = ENCLOS(*env_ptr);
+  if (!parent || parent == R_NilValue) {
+    Rf_error("pop_env called on environment without parent");
+  }
+  *env_ptr = parent;
 }
 
 static SEXP Rsh_Fir_make_names(int count, SEXP const *names) {
