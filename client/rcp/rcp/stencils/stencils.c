@@ -1069,3 +1069,17 @@ RCP_OP(SEQLEN) {
   Rsh_SeqLen(stack, GETCONST_IMM(0), GET_RHO());
   NEXT;
 }
+
+RCP_OP(BASEGUARD) {
+  PUSH_VAL(1);
+  Rboolean condition = Rsh_BaseGuard(stack, GETCONST_IMM(0), GET_RHO());
+  if(__builtin_expect(condition, FALSE))
+  {
+    GOTO_IMM(1);
+  }
+  else
+  {
+    POP_VAL(1);
+    NEXT;
+  }
+}

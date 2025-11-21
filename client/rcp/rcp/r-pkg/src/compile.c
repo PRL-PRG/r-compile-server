@@ -23,7 +23,7 @@ extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
 // Used as a hint where to map address space close to R internals to allow relative addressing
 #define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
-#define BC_DEFAULT_OPTIMIZE_LEVEL 3
+#define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
 #define MAX3(a, b, c) MAX(MAX(a, b), c)
 #define MAX4(a, b, c, d) MAX(MAX3(a, b, c), d)
@@ -611,6 +611,7 @@ static int jump_target(R_OPCODE opcode, const int *imms) {
   case (STARTSUBASSIGN_N_OP):
   case (STARTSUBSET2_N_OP):
   case (STARTSUBASSIGN2_N_OP):
+  case (BASEGUARD_OP):
     res = imms[1];
     break;
   case (STARTFOR_OP):
@@ -640,6 +641,7 @@ static int unlikely_to_jump(R_OPCODE opcode) {
   case (STARTSUBASSIGN_N_OP):
   case (STARTSUBSET2_N_OP):
   case (STARTSUBASSIGN2_N_OP):
+  case (BASEGUARD_OP):
     // These instructions are very unlikely to jump (mostly just in the case of errors)
     return 1; // Unlikely to jump
   default:
@@ -724,7 +726,6 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, 
         for (int i = 0; i < ioffsets_size; i++)
         {
             BasicBlock* target_bb = &block_lookup[ioffsets[i] - 1];
-            assert(target_bb->bytecode_end != 0);
             bb->next_blocks[(bb->next_blocks_size)++] = target_bb;
         }
         if(ioffsets_sexp != coffsets_sexp) // Avoid double-linking if both point to the same array
@@ -732,7 +733,6 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, 
             for (int i = 0; i < coffsets_size; i++)
             {
                 BasicBlock* target_bb = &block_lookup[coffsets[i] - 1];
-                assert(target_bb->bytecode_end != 0);
                 bb->next_blocks[(bb->next_blocks_size)++] = target_bb;
             }
         }
@@ -760,7 +760,10 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, 
 static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *constpool)
 {
     BasicBlock* block_lookup = (BasicBlock *)S_alloc(bytecode_size, sizeof(BasicBlock));
-    block_lookup[0].bytecode_start = -1; // First instruction is always a block start
+    for (size_t i = 0; i < bytecode_size; i++)
+        block_lookup[i].next_blocks = (void*)-1;
+    
+    block_lookup[0].next_blocks = NULL; // First instruction is always a block start
         
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
@@ -771,13 +774,13 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
         {
             const SEXP ioffsets = constpool[imms[2]];
             for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
-                block_lookup[INTEGER(ioffsets)[i] - 1].bytecode_start = -1;
+                block_lookup[INTEGER(ioffsets)[i] - 1].next_blocks = NULL;
 
             const SEXP coffsets = constpool[imms[3]];
             if (ioffsets != coffsets) // Avoid double-marking if both point to the same array
             {
                 for (int i = 0, size = LENGTH(coffsets); i < size; i++)
-                    block_lookup[INTEGER(coffsets)[i] - 1].bytecode_start = -1;
+                    block_lookup[INTEGER(coffsets)[i] - 1].next_blocks = NULL;
             }
         }
         else
@@ -785,13 +788,13 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
             int jmp_target = jump_target(opcode, imms);
             if (jmp_target != -1)
             {
-                block_lookup[jmp_target].bytecode_start = -1;
+                block_lookup[jmp_target].next_blocks = NULL;
             
                 int can_fallthrough = can_fallthrough_from_opcode(opcode);
             
                 if (can_fallthrough)
                 {
-                    block_lookup[i + imms_cnt[opcode] + 1].bytecode_start = -1;
+                    block_lookup[i + imms_cnt[opcode] + 1].next_blocks = NULL;
                 }
             }
         }
@@ -801,7 +804,7 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
     int j = 0, old_i = 0;
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
-        if(block_lookup[i].bytecode_start == -1)
+        if(block_lookup[i].next_blocks == NULL)
         {
             block_lookup[i].bytecode_start = i;
             block_lookup[j].bytecode_end = old_i;
@@ -814,7 +817,7 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
 
     for(int i = 0; i < bytecode_size; i++)
     {
-        if(block_lookup[i].bytecode_end != 0)
+        if(block_lookup[i].next_blocks == NULL)
         {
             link_basic_block(bytecode, bytecode_size, &block_lookup[i], block_lookup, constpool);
         }
@@ -823,7 +826,7 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
 
     for (int i = 0, j = 0; i < bytecode_size; i++)
     {
-        if(block_lookup[i].bytecode_end != 0)
+        if(block_lookup[i].next_blocks == NULL)
             DEBUG_PRINT("Basic block %d: bytecode %d to %d\n", j++, block_lookup[i].bytecode_start, block_lookup[i].bytecode_end);
     }
     return block_lookup;
@@ -858,7 +861,7 @@ static int calculate_max_stack_depth(int bytecode[], int bytecode_size, BasicBlo
     BasicBlockStackInfo* block_stack = (BasicBlockStackInfo *)S_alloc(bytecode_size, sizeof(BasicBlockStackInfo));
     for(int i = 0; i < bytecode_size; i++)
     {
-        if(bbs[i].bytecode_end != 0)
+        if(bbs[i].next_blocks != (void*)-1)
         {
             block_stack[i].bb = &bbs[i];
             fill_stack_depth(bytecode, &block_stack[i]);
