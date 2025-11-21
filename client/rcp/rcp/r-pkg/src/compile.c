@@ -1332,15 +1332,17 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
         Rf_setAttrib(options, R_NamesSymbol, options_names);
         UNPROTECT(1); // options_names
     }
-    #else
-    PROTECT(options); // To balance PROTECT/UNPROTECT
+    else
+        PROTECT(options); // To balance PROTECT/UNPROTECT
     #endif
 
     CompilationStats stats = {0, 0};
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     SEXP compiled = compile_to_bc(f, options);
+    #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
     UNPROTECT(1); // options
+    #endif
 
     if(TYPEOF(BODY(compiled)) != BCODESXP)
         error("The BC compiler could not compile this function.");
