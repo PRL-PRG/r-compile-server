@@ -627,6 +627,7 @@ static int can_fallthrough_from_opcode(R_OPCODE opcode) {
   case (GOTO_OP):
   case (STARTFOR_OP):
   case (SWITCH_OP):
+  case (DOTSERR_OP):
     return 0; // Always jumps
   default:
     return 1; // Can fallthrough

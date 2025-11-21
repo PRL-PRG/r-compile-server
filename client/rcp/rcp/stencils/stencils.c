@@ -562,7 +562,10 @@ RCP_OP(NOT) {
   NEXT;
 }
 
-//RCP_OP(DOTSERR)
+RCP_OP(DOTSERR) {
+  Rsh_DotsErr(stack);
+  NEXT;
+}
 
 RCP_OP(STARTASSIGN) {
   PUSH_VAL(3);
