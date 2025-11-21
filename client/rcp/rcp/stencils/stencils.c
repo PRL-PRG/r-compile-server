@@ -1086,3 +1086,15 @@ RCP_OP(BASEGUARD) {
     NEXT;
   }
 }
+
+RCP_OP(INCLNKSTK) {
+  PUSH_VAL(1);
+  Rsh_IncLnkStk(stack);
+  NEXT;
+}
+
+RCP_OP(DECLNKSTK) {
+  Rsh_DecLnkStk(stack);
+  POP_VAL(1);
+  NEXT;
+}
