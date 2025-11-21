@@ -3164,10 +3164,10 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
 
 static INLINE int Rsh_Switch(Value *stack, SEXP call, SEXP names, SEXP coffsets,
                              SEXP ioffsets) {
-  return Rsh_do_switch(stack, call, names, coffsets, ioffsets, names == R_NilValue,
-                       TYPEOF(names) == STRSXP, LENGTH(names),
-                       TYPEOF(ioffsets) == INTSXP, LENGTH(ioffsets),
-                       TYPEOF(coffsets) == INTSXP,
+  return Rsh_do_switch(stack, call, names, coffsets, ioffsets,
+                       names == R_NilValue, TYPEOF(names) == STRSXP,
+                       LENGTH(names), TYPEOF(ioffsets) == INTSXP,
+                       LENGTH(ioffsets), TYPEOF(coffsets) == INTSXP,
                        LENGTH(coffsets) == LENGTH(names));
 }
 
