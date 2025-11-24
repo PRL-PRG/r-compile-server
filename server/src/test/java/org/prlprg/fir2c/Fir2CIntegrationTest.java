@@ -20,8 +20,10 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
+import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.DirectorySource;
 import org.prlprg.util.Files;
 import org.prlprg.util.TestPath;
@@ -111,10 +113,10 @@ public class Fir2CIntegrationTest {
   private static String driverSource(String dispatchName, String entrySymbol) {
     return
 """
-extern SEXP %1$s(SEXP CCP, SEXP RHO, SEXP const *ARGS, Rsh_Fir_Type const *PARAM_TYPES);
+extern SEXP %1$s(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 
 SEXP %2$s(SEXP env, SEXP pool) {
-  return %1$s(pool, env, NULL, Rsh_Fir_param_types_empty());
+  return %1$s(pool, env, 0, NULL, Rsh_Fir_param_types_empty());
 }
 """
         .formatted(dispatchName, entrySymbol);
@@ -127,6 +129,7 @@ SEXP %2$s(SEXP env, SEXP pool) {
       RshCompiler.getInstance(3, RuntimeVariant.FIR2C)
           .createBuilder(cFile.getFileName().toString(), soFile.getFileName().toString())
           .flag("-shared")
+          .flag("-Wl,-undefined,dynamic_lookup")
           .flag("-DRSH_TESTS")
           .flag("-DRSH_PC")
           .workingDirectory(workDir.toFile())
@@ -144,6 +147,7 @@ SEXP %2$s(SEXP env, SEXP pool) {
     var script =
         """
             options(warn=1)
+            library(rsh)
             fir2c_run <- local({
               so_path <- '%1$s'
               cp_path <- '%2$s'
@@ -163,16 +167,16 @@ SEXP %2$s(SEXP env, SEXP pool) {
 
     var pair = R.capturingEval(script);
     var sexp = pair.first();
-    if (!(sexp instanceof ListSXP list) || list.size() != 2) {
+    if (!(sexp instanceof VecSXP vec) || vec.size() != 2) {
       throw new AssertionError("Unexpected R result: " + sexp);
     }
     var ok =
-        list.value(0)
+        vec.get(0)
             .asScalarLogical()
             .filter(v -> v != Logical.NA)
             .map(v -> v == Logical.TRUE)
             .orElseThrow(() -> new AssertionError("Missing ok flag"));
-    var data = list.value(1);
+    var data = vec.get(1);
 
     if (!ok) {
       var message = data.asScalarString().orElse(data.toString());

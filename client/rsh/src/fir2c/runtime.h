@@ -4,7 +4,7 @@
 // THIS HEADER NEEDS TO BE A C-COMPATIBLE HEADER
 // IT IS USED BY THE SERVER COMPILER
 
-#include "../bc2c/runtime_internals.h"
+#include "../common2c/runtime.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -18,7 +18,6 @@ typedef enum {
   RSH_FIR_PRIMITIVE_STRING = 3,
 } Rsh_Fir_PrimitiveKind;
 
-
 typedef enum {
   RSH_FIR_KIND_ANY = 0,
   RSH_FIR_KIND_ANY_VALUE = 1,
@@ -29,7 +28,7 @@ typedef enum {
   RSH_FIR_KIND_PROMISE = 6,
 } Rsh_Fir_KindTag;
 
-struct Rsh_Fir_Type;
+typedef struct Rsh_Fir_Type Rsh_Fir_Type;
 typedef struct {
   Rsh_Fir_KindTag tag;
   union {
@@ -37,13 +36,13 @@ typedef struct {
       int primitive;
     } primitive;
     struct {
-      struct Rsh_Fir_Type const *value_type;
+      Rsh_Fir_Type const *value_type;
       int reflect;
     } promise;
   } as;
 } Rsh_Fir_Kind;
 
-typedef struct {
+typedef struct Rsh_Fir_Type {
   Rsh_Fir_Kind const *kind;
   int ownership;
   int definite;
@@ -105,6 +104,11 @@ int Rsh_Fir_assume_type(SEXP value, Rsh_Fir_Type const *type);
 #define Rsh_Fir_LoadFun_Local 0
 #define Rsh_Fir_LoadFun_Global 1
 #define Rsh_Fir_LoadFun_Base 2
+
+NORET void Rsh_error(const char *fmt, ...);
+
+SEXP Rsh_Fir_builtin_add_v1(SEXP CCP, SEXP RHO, int nparams, SEXP const *args);
+
 
 #ifdef __cplusplus
 }

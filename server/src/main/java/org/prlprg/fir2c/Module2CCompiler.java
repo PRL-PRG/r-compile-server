@@ -299,7 +299,7 @@ public final class Module2CCompiler {
   ///
   /// The implementation keeps the translation extremely simple for now:
   /// - Registers are represented as local `SEXP` variables initialised to `R_NilValue`.
-  /// - Arguments arrive as `SEXP const *ARGS` with accompanying `int NARGS`.
+  /// - Arguments arrive as `SEXP const *PARAMS` with accompanying `int NPARAMS`.
   /// - Only a small subset of statements/jumps are lowered; the architecture is arranged so that
   ///   support can grow instruction-by-instruction.
   private final class VersionEmitter {
@@ -366,7 +366,7 @@ public final class Module2CCompiler {
       cFunction.stmt("if (%s != %d) {", VAR_NPARAMS, expected);
       cFunction.stmt(
           2,
-          "Rf_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", %s);",
+          "Rsh_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", %s);",
           sanitizeString(function.name().name()),
           versionIndex,
           expected,
@@ -524,7 +524,7 @@ public final class Module2CCompiler {
                     namedArrays.names().pointer());
           }
           case Placeholder() -> {
-            cFunction.stmt("Rf_error(\"FIŘ placeholder reached\");");
+            cFunction.stmt("Rsh_error(\"FIŘ placeholder reached\");");
             yield "R_NilValue";
           }
           case PopEnv() -> {
@@ -613,7 +613,7 @@ public final class Module2CCompiler {
             cFunction.stmt("goto %s;", labelName(target.bb()));
           }
           case Unreachable() -> {
-            cFunction.stmt("Rf_error(\"FIŘ unreachable reached\");");
+            cFunction.stmt("Rsh_error(\"FIŘ unreachable reached\");");
             cFunction.stmt("return R_NilValue;");
           }
           case If(var condition, var ifTrue, var ifFalse) -> {

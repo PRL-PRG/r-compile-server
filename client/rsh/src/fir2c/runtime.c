@@ -666,7 +666,7 @@ SEXP Rsh_Fir_call_dispatch(Rsh_Fir_DispatchFn dispatch, SEXP pool, SEXP env,
   if (!dispatch) {
     Rf_error("call_dispatch requires a function pointer");
   }
-  return dispatch(pool, env, args, param_types);
+  return dispatch(pool, env, argc, args, param_types);
 }
 
 SEXP Rsh_Fir_call_version(Rsh_Fir_VersionFn version, SEXP pool, SEXP env,
@@ -674,7 +674,7 @@ SEXP Rsh_Fir_call_version(Rsh_Fir_VersionFn version, SEXP pool, SEXP env,
   if (!version) {
     Rf_error("call_version requires a function pointer");
   }
-  return version(pool, env, args);
+  return version(pool, env, argc, args);
 }
 
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
@@ -682,7 +682,7 @@ SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
   (void)pool;
   Rsh_Fir_ClosureInfo *info = NULL;
   if (Rsh_Fir_is_compiled_closure(callee, &info)) {
-    return info->dispatch(info->pool, info->env, args,
+    return info->dispatch(info->pool, info->env, argc, args,
                           Rsh_Fir_param_types_empty());
   }
   int protect_count = 0;
@@ -723,4 +723,15 @@ int Rsh_Fir_assume_function(SEXP value, Rsh_Fir_DispatchFn dispatch) {
 
 int Rsh_Fir_assume_type(SEXP value, Rsh_Fir_Type const *type) {
   return Rsh_Fir_value_matches(value, type);
+}
+
+NORET void Rsh_error(const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Rf_error(fmt, args);
+  va_end(args);
+}
+
+SEXP Rsh_Fir_builtin_add_v1(SEXP CCP, SEXP RHO, int nparams, SEXP const *args) {
+  return Rf_ScalarInteger(Rf_asInteger(args[0]) + Rf_asInteger(args[1]));
 }
