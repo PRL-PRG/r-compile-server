@@ -1,6 +1,5 @@
 #include "R_ext/Error.h"
 #include "Rinternals.h"
-#include "runtime.h"
 
 #ifdef RSH_PC
 static Rsh_PerfCounters Rsh_GPC;
@@ -32,7 +31,7 @@ SEXP Rsh_pc_get(void) {
   return pc;
 }
 
-SEXP Rsh_pc_reset() {
+SEXP Rsh_pc_reset(void) {
   SEXP s = Rsh_pc_get();
   memset(&Rsh_GPC, 0, sizeof(Rsh_GPC));
   return s;

@@ -34,6 +34,7 @@ This is an R compilation server that provides a gRPC service for compiling R fun
 3. **R Bytecode Compiler (`bc/`)** - Compiles R functions to bytecode
 4. **Bytecode-to-C Compiler (`bc2c/`)** - Converts bytecode to C code
 5. **FIŘ (Functional IR) System (`fir/`)** - Intermediate representation with type system
+4. **FIŘ-to-C Compiler (`fir2c/`)** - Converts FIŘ to C code
 6. **R Session Management (`session/`)** - Manages GNU-R sessions and package databases
 
 ### Compilation Pipeline
@@ -51,6 +52,7 @@ R Function (SEXP) → Bytecode (BC) → C Code → Native Object Code
   - `bc2c/` - Bytecode to C compilation (BC2CCompiler)
   - `bc2fir/` - Bytecode to FIŘ conversion
   - `fir/` - Functional IR system with type checking and optimizations
+  - `fir2c/` - FIŘ to C conversion
   - `server/` - gRPC server and service implementation
   - `session/` - R session management and package handling
   - `sexp/` - R S-expression representation and manipulation
