@@ -111,11 +111,6 @@ SEXP _RCP_INIT (Value* restrict stack, rcpEval_locals* restrict locals) {
   NEXT;
 }
 
-/*RCP_OP(BCMISMATCH) {
-  error("byte code version mismatch");
-  NEXT;
-}*/
-
 RCP_OP(RETURN) {
   Rsh_Return(stack);
 }
@@ -145,19 +140,9 @@ RCP_OP(DUP) {
   NEXT;
 }
 
-/*RCP_OP(PRINTVALUE) {
-  PrintValue(val_as_sexp(stack));
-  POP_VAL(1);
-  NEXT;
-}*/
-
 //RCP_OP(STARTLOOPCNTXT)
 
 //RCP_OP(ENDLOOPCNTXT)
-
-//RCP_OP(DOLOOPNEXT)
-
-//RCP_OP(DOLOOPBREAK)
 
 #ifdef STEPFOR_SPECIALIZE
 typedef struct {
@@ -255,8 +240,6 @@ RCP_OP(ENDFOR) {
   NEXT;
 }
 
-//RCP_OP(SETLOOPVAL)
-
 RCP_OP(INVISIBLE) {
   Rsh_Invisible(stack);
   NEXT;
@@ -334,20 +317,14 @@ RCP_OP(GETFUN) {
   NEXT;
 }
 
-//RCP_OP(GETGLOBFUN)
-
-//RCP_OP(GETSYMFUN)
-
 RCP_OP(GETBUILTIN) {
   PUSH_VAL(3);
-
   Rsh_GetBuiltin(stack, GETCONST_IMM(0));
   NEXT;
 }
 
 RCP_OP(GETINTLBUILTIN) {
   PUSH_VAL(3);
-
   Rsh_GetIntlBuiltin(stack, GETCONST_IMM(0));
   NEXT;
 }
@@ -611,10 +588,6 @@ RCP_OP(DFLTSUBASSIGN) {
   POP_VAL(4);
   NEXT;
 }
-
-//RCP_OP(STARTC)
-
-//RCP_OP(DFLTC)
 
 RCP_OP(STARTSUBSET2) {
   PUSH_VAL(3);
