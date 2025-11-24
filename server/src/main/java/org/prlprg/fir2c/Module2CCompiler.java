@@ -73,6 +73,7 @@ import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledPromiseIndex;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledVersionIndex;
 import org.prlprg.session.RSession;
+import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
@@ -259,7 +260,7 @@ public final class Module2CCompiler {
 
   private record Array(int size, String pointer) {}
 
-  private record ArrayAndNames(Array values, Array names) {}
+  private record ArrayAndNames(Array values, String names) {}
 
   // endregion misc utils
 
@@ -521,7 +522,7 @@ public final class Module2CCompiler {
                     emitKind(kind),
                     namedArrays.values().size(),
                     namedArrays.values().pointer(),
-                    namedArrays.names().pointer());
+                    namedArrays.names());
           }
           case Placeholder() -> {
             cFunction.stmt("Rsh_error(\"FIŘ placeholder reached\");");
@@ -717,13 +718,17 @@ public final class Module2CCompiler {
       private ArrayAndNames emitNamedArgumentArrays(List<NamedArgument> namedArguments) {
         var values = new ArrayList<Argument>(namedArguments.size());
         var names = new ArrayList<OptionalNamedVariable>(namedArguments.size());
+        var hasNames = false;
         for (var element : namedArguments) {
           values.add(element.argument());
           names.add(OptionalNamedVariable.ofNullable(element.name()));
+          if (element.name() != null) {
+            hasNames = true;
+          }
         }
         var valueArray = emitArgumentArray("vector_values", values);
         var nameArray = emitOptionalNameArray("vector_names", names, names.size());
-        return new ArrayAndNames(valueArray, nameArray);
+        return new ArrayAndNames(valueArray, hasNames ? nameArray.pointer() : "NULL");
       }
 
       private Array emitOptionalNameArray(

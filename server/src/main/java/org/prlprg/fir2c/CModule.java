@@ -159,7 +159,7 @@ final class CModule {
     }
 
     public void comment(@PrintFormat String format, Object... args) {
-      body.add("  // " + format.formatted(args));
+      body.add("  // " + format.formatted(args).replace("\n", "\n  // "));
     }
 
     @Override
