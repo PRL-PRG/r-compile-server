@@ -117,9 +117,7 @@ SEXP _RCP_INIT (Value* restrict stack, rcpEval_locals* restrict locals) {
 }*/
 
 RCP_OP(RETURN) {
-  SEXP res = val_as_sexp(*GET_VAL(-1));
-  POP_VAL(1);
-  return res;
+  Rsh_Return(stack);
 }
 
 RCP_OP(GOTO) {
@@ -939,7 +937,9 @@ RCP_OP(SWITCH_101) {
 }
 #endif
 
-//RCP_OP(RETURNJMP)
+RCP_OP(RETURNJMP) {
+  Rsh_ReturnJmp(stack, GET_RHO());
+}
 
 RCP_OP(STARTSUBSET_N) {
   Rboolean condition = Rsh_StartSubsetN(stack, GETCONST_IMM(0), GET_RHO());
