@@ -365,10 +365,8 @@ typedef struct {
     mem_shared_data *shared_near;
     mem_shared_data *shared_low;
     SEXP *constpool;
-    SEXP *bcells;
     uint8_t **executable_lookup;
     int *bytecode;
-    SEXP *rho;
     const int *bcell_lookup;
     uint8_t *executable_start;
 } PatchContext;
@@ -416,11 +414,6 @@ static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole
         ptr = (ptrdiff_t)shared->rodata;
     }
     break;
-    case RELOC_RHO:
-    {
-        ptr = (ptrdiff_t)ctx->rho;
-    }
-    break;
     case RELOC_RCP_EXEC_NEXT:
     {
         ptr = (ptrdiff_t)ctx->executable_lookup[nextop];
@@ -455,13 +448,13 @@ static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole
     case RELOC_RCP_CONSTCELL_AT_IMM:
     {
         int bcell_index = imms[hole->val.imm_pos];
-        ptr = (ptrdiff_t)&ctx->bcells[ctx->bcell_lookup[bcell_index]];
+        ptr = ctx->bcell_lookup[bcell_index];
     }
     break;
     case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
     {
         int bcell_index = ctx->bytecode[imms[hole->val.imm_pos] - 3];
-        ptr = (ptrdiff_t)&ctx->bcells[ctx->bcell_lookup[bcell_index]];
+        ptr = ctx->bcell_lookup[bcell_index];
     }
     break;
 #ifdef STEPFOR_SPECIALIZE
@@ -1005,7 +998,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     // Allocate memory
     size_t executable_size_aligned = align_to_higher(insts_size, getpagesize()); // Align to page size to be able to map it as executable memory
 
-    size_t total_size = executable_size_aligned + sizeof(SEXP) + bcells_size * sizeof(SEXP)
+    size_t total_size = executable_size_aligned
 #ifdef STEPFOR_SPECIALIZE
     + (for_count * sizeof(StepFor_specialized))
 #endif
@@ -1030,10 +1023,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
     // Split memory into sections
     uint8_t *executable = &memory[0];
-    SEXP *rho = (SEXP *)&memory[executable_size_aligned];
-    SEXP *bcells = (SEXP *)&memory[executable_size_aligned + sizeof(*rho)];
 #ifdef STEPFOR_SPECIALIZE
-    StepFor_specialized* stepfor_storage = (StepFor_specialized*)&memory[executable_size_aligned + sizeof(*rho) + bcells_size * sizeof(*bcells)];
+    StepFor_specialized* stepfor_storage = (StepFor_specialized*)&memory[executable_size_aligned];
 #endif
 
     for (size_t i = 0; i < bytecode_size; i++)
@@ -1042,11 +1033,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             inst_start[i] += (ptrdiff_t)executable;
     }
     
-
     res.eval = (void *)executable;
-    res.rho = rho;
-
-    res.bcells = bcells;
     res.bcells_size = bcells_size;
 
     BasicBlock* bbs = build_basic_blocks(bytecode, bytecode_size, constpool);
@@ -1059,10 +1046,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         .shared_near = mem_shared->memory_shared_near,
         .shared_low = mem_shared->memory_shared_low,
         .constpool = constpool,
-        .bcells = bcells,
         .executable_lookup = inst_start,
         .bytecode = bytecode,
-        .rho = rho,
         .bcell_lookup = used_bcells,
         .executable_start = executable
     };
@@ -1180,7 +1165,7 @@ X_STEPFOR_TYPES
         perror("mprotect failed");
         exit(1);
     }
-    if (mprotect(rho, total_size - executable_size_aligned, PROT_READ | PROT_WRITE) != 0)
+    if (mprotect(executable + executable_size_aligned, total_size - executable_size_aligned, PROT_READ | PROT_WRITE) != 0)
     {
         perror("mprotect failed");
         exit(1);
@@ -1280,10 +1265,6 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
     rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats);
     UNPROTECT(1); // code
-
-    for (int i = 0; i < res.bcells_size; ++i)
-        res.bcells[i] = R_NilValue;
-    *res.rho = R_NilValue;
 
     rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
     *res_ptr = res;

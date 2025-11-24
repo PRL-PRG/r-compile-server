@@ -49,29 +49,28 @@ extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
     stack -= (n);                                                              \
   } while (0)
 
-#define RCP_OP(op) __attribute__ ((noinline)) STENCIL_ATTRIBUTES SEXP _RCP_##op##_OP (Value* stack)
+#define RCP_OP(op) __attribute__ ((noinline)) STENCIL_ATTRIBUTES SEXP _RCP_##op##_OP (Value* restrict stack, rcpEval_locals* restrict locals)
 
 /* PATCHING SYMBOLS */
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_NEXT(Value* stack);
-#define NEXT return _RCP_EXEC_NEXT(stack)
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_NEXT(Value* stack, rcpEval_locals* locals);
+#define NEXT return _RCP_EXEC_NEXT(stack, locals)
 
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM0(Value* stack);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM1(Value* stack);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM2(Value* stack);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM3(Value* stack);
-#define GOTO_IMM(i) return _RCP_EXEC_IMM##i(stack)
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM0(Value* stack, rcpEval_locals* locals);
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM1(Value* stack, rcpEval_locals* locals);
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM2(Value* stack, rcpEval_locals* locals);
+extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM3(Value* stack, rcpEval_locals* locals);
+#define GOTO_IMM(i) return _RCP_EXEC_IMM##i(stack, locals)
 //__attribute__((musttail))
 //[[gnu::musttail]] 
 
 
-EXTERN_ATTRIBUTES extern SEXP const _RCP_RHO;
-#define GET_RHO() _RCP_RHO
+#define GET_RHO() locals->rho
 
-extern const void* const _RCP_RAW_IMM0[];
-extern const void* const _RCP_RAW_IMM1[];
-extern const void* const _RCP_RAW_IMM2[];
-extern const void* const _RCP_RAW_IMM3[];
-#define GET_IMM(index) (unsigned)(int64_t)&_RCP_RAW_IMM##index
+extern const void* const _RCP_RAW_IMM0;
+extern const void* const _RCP_RAW_IMM1;
+extern const void* const _RCP_RAW_IMM2;
+extern const void* const _RCP_RAW_IMM3;
+#define GET_IMM(index) (int)(int64_t)&_RCP_RAW_IMM##index
 
 extern const void* const _RCP_CONST_AT_IMM0[];
 extern const void* const _RCP_CONST_AT_IMM1[];
@@ -85,17 +84,17 @@ extern const void* const _RCP_CONST_STR_AT_IMM2[];
 extern const void* const _RCP_CONST_STR_AT_IMM3[];
 #define GETCONST_STR_IMM(i) (const char* const)&_RCP_CONST_STR_AT_IMM##i
 
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_IMM0;
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_IMM1;
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_IMM2;
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_IMM3;
-#define GETCONSTCELL_IMM(i) &_RCP_CONSTCELL_AT_IMM##i
+extern const void* const _RCP_CONSTCELL_AT_IMM0;
+extern const void* const _RCP_CONSTCELL_AT_IMM1;
+extern const void* const _RCP_CONSTCELL_AT_IMM2;
+extern const void* const _RCP_CONSTCELL_AT_IMM3;
+#define GETCONSTCELL_IMM(i) (&locals->vcache[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_IMM##i])
 
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM0;
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM1;
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM2;
-EXTERN_ATTRIBUTES extern BCell _RCP_CONSTCELL_AT_LABEL_IMM3;
-#define GETCONSTCELL_LABEL_IMM(i) &_RCP_CONSTCELL_AT_LABEL_IMM##i
+extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM0;
+extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM1;
+extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM2;
+extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM3;
+#define GETCONSTCELL_LABEL_IMM(i) (&locals->vcache[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i])
 
 extern const void* const _RCP_PATCHED_VARIANTS[];
 #define GETVARIANTS() (const void*)&_RCP_PATCHED_VARIANTS
@@ -107,7 +106,7 @@ extern const void* const _RCP_EXECUTABLE[];
 /**************************************************************************/
 
 
-SEXP _RCP_INIT (Value* stack) {
+SEXP _RCP_INIT (Value* restrict stack, rcpEval_locals* restrict locals) {
   PUSH_VAL(0);
   NEXT;
 }

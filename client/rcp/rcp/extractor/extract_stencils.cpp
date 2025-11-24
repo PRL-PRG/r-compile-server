@@ -454,10 +454,6 @@ static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body
       hole.kind = RELOC_RCP_EXEC_IMM;
       hole.val.imm_pos = atoi(descr_imm);
     }
-    else if (strcmp(descr, "RHO") == 0)
-    {
-      hole.kind = RELOC_RHO;
-    }
     else if (strcmp(descr, "PATCHED_VARIANTS") == 0)
     {
       hole.kind = RELOC_RCP_PATCHED_VARIANTS;
