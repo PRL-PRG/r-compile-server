@@ -20,8 +20,6 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
-import org.prlprg.sexp.ListOrVectorSXP;
-import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.DirectorySource;
@@ -32,15 +30,15 @@ import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
 @GNURTestSupport
-public class Fir2CIntegrationTest {
+public class Fir2CAndInterpreterTest {
   private final GNUR R;
 
-  public Fir2CIntegrationTest(GNUR R) {
+  public Fir2CAndInterpreterTest(GNUR R) {
     this.R = R;
   }
 
   @ParameterizedTest
-  @DirectorySource(glob = "*.fir")
+  @DirectorySource(root = "fir-interpret", glob = "*.fir")
   void runtimeMatchesInterpreter(TestPath firPath) throws Exception {
     var firText = firPath.read();
     var caseName = firPath.name();
