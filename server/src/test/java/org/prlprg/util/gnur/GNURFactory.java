@@ -39,6 +39,11 @@ public class GNURFactory {
       try (var versionReader = versionProc.inputReader()) {
         var versionStr = versionReader.readLine();
 
+        // Skip lines like "WARNING: ignoring environment value of R_HOME"
+        while (versionStr.startsWith("WARNING:")) {
+          versionStr = versionReader.readLine();
+        }
+
         if (versionStr.startsWith("R version")) {
           version = versionStr.substring("R version ".length()).split(" ", 2)[0];
           if (!version.equals(session.version())) {
