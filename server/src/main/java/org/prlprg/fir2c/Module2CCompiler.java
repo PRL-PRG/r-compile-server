@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -73,9 +74,9 @@ import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledPromiseIndex;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledVersionIndex;
 import org.prlprg.session.RSession;
-import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.UnreachableError;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Module2CCompiler {
@@ -132,7 +133,7 @@ public final class Module2CCompiler {
   private void compileNames() {
     for (var function : module.localFunctions()) {
       var dispatchCName = dispatchCFunctionName(function);
-      compiledFunctionDispatches.put(function, new FirCompiledDispatchIndex(dispatchCName));
+      compiledFunctionDispatches.put(function, new FirCompiledDispatchIndex.Regular(dispatchCName));
 
       for (var versionIndex : function.versionIndices()) {
         var version = function.version(versionIndex);
@@ -178,7 +179,9 @@ public final class Module2CCompiler {
   }
 
   private void compileDispatchFunction(Function function) {
-    var cName = compiledFunctionDispatches.get(function).cFunctionName();
+    var index = compiledFunctionDispatches.get(function);
+    assert index instanceof FirCompiledDispatchIndex.Regular : "Can't compile " + function.name() + " because it's a builtin (index = " + index + ")";
+    var cName = ((FirCompiledDispatchIndex.Regular) index).cFunctionName();
 
     var cFunction = cModule.addFunction("SEXP", cName, dispatchCFunctionParameters);
     new DispatchEmitter(function, cFunction);
@@ -216,14 +219,18 @@ public final class Module2CCompiler {
     var idx = constantPool.intern(sexp);
     return "Rsh_const(%s, %d)".formatted(VAR_POOL, idx);
   }
-
-  private String dispatchName(Function function) {
-    return compiledFunctionDispatch(function).cFunctionName();
-  }
-
   // endregion interned
 
   // region lookup
+  private String dispatchPtrName(Function function) {
+    if (!(compiledFunctionDispatch(function) instanceof FirCompiledDispatchIndex.Regular(
+        var cFunctionName
+    ))) {
+      throw new UnsupportedOperationException("Can't get dispatch function pointer of " + function.name() + " because it's a builtin, so it doesn't dispatch like FIŘ functions");
+    }
+    return cFunctionName;
+  }
+
   private FirCompiledDispatchIndex compiledFunctionDispatch(Function function) {
     if (compiledFunctionDispatches.containsKey(function)) {
       return compiledFunctionDispatches.get(function);
@@ -461,7 +468,7 @@ public final class Module2CCompiler {
           cFunction.blank();
 
           if (!bb.isEntry()) {
-            cFunction.label("%s:", labelName(bb));
+            cFunction.label(labelName(bb));
           }
           for (var statement : bb.statements()) {
             emitStatement(statement);
@@ -495,7 +502,7 @@ public final class Module2CCompiler {
               "Rsh_Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(type));
           case Closure closure ->
               "Rsh_Fir_make_closure(&%s, %s, %s)"
-                  .formatted(dispatchName(closure.code()), VAR_ENV, VAR_POOL);
+                  .formatted(dispatchPtrName(closure.code()), VAR_ENV, VAR_POOL);
           case Dup(var value) -> "Rsh_Fir_dup(%s)".formatted(emitArgument(value));
           case Force(var value) -> "Rsh_Fir_force(%s)".formatted(emitArgument(value));
           case Load(var variable) ->
@@ -569,14 +576,26 @@ public final class Module2CCompiler {
             var dispatch = compiledFunctionDispatch(calleeFun);
             var paramTypes =
                 signature == null ? "Rsh_Fir_param_types_empty()" : emitSignature(signature);
-            yield "%s(%s, %s, %d, %s, %s)"
-                .formatted(
-                    dispatch.cFunctionName(),
-                    VAR_POOL,
-                    VAR_ENV,
-                    arguments.size(),
-                    arguments.pointer(),
-                    paramTypes);
+            yield switch (dispatch) {
+              case FirCompiledDispatchIndex.Regular(var cFunctionName) ->
+                  "%s(%s, %s, %d, %s, %s)"
+                      .formatted(
+                          cFunctionName,
+                          VAR_POOL,
+                          VAR_ENV,
+                          arguments.size(),
+                          arguments.pointer(),
+                          paramTypes);
+              case FirCompiledDispatchIndex.Builtin(var builtinIndex) ->
+                  "Rsh_Fir_call_builtin(%d, %s, %s, %d, %s, %s)"
+                      .formatted(
+                          builtinIndex,
+                          VAR_POOL,
+                          VAR_ENV,
+                          arguments.size(),
+                          arguments.pointer(),
+                          paramTypes);
+            };
           }
           case StaticCallee(var calleeFunction, var calleeVersion) -> {
             var compiled = compiledVersion(calleeFunction, calleeVersion);
@@ -669,7 +688,7 @@ public final class Module2CCompiler {
                   .formatted(emitArgument(target), constantRef(constant.sexp()));
           case AssumeFunction a ->
               "Rsh_Fir_assume_function(%s, &%s)"
-                  .formatted(emitArgument(a.target()), dispatchName(a.function()));
+                  .formatted(emitArgument(a.target()), dispatchPtrName(a.function()));
           case AssumeType(var target, var type) ->
               "Rsh_Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
         };

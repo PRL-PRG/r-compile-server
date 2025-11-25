@@ -1,5 +1,6 @@
 package org.prlprg.fir2c;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
@@ -24,19 +25,27 @@ public record FirCompiledModule(
     VecSXP constantPool) {
 
   /// Metadata describing the C entry point for a particular FIŘ [Function]'s dispatch.
-  public record FirCompiledDispatchIndex(String cFunctionName, String... cInitialArgs) {
-    public static FirCompiledDispatchIndex builtin(Function function, RSession session) {
+  public sealed interface FirCompiledDispatchIndex {
+    record Regular(String cFunctionName) implements FirCompiledDispatchIndex {
+
+    }
+
+    record Builtin(int builtinIndex) implements FirCompiledDispatchIndex {
+
+    }
+
+    static FirCompiledDispatchIndex builtin(Function function, RSession session) {
       var builtinIndex = session.RFunTab().indexOf(function.name().name());
       if (builtinIndex == -1) {
         throw new IllegalArgumentException(
             "Function in FIŘ's builtins module isn't in `R_FunTab`: " + function.name());
       }
-      return new FirCompiledDispatchIndex("Rsh_Fir_builtin", Integer.toString(builtinIndex));
+      return new FirCompiledDispatchIndex.Builtin(builtinIndex);
     }
 
-    public static FirCompiledDispatchIndex intrinsic(Function function) {
+    static FirCompiledDispatchIndex intrinsic(Function function) {
       var name = function.name().name();
-      return new FirCompiledDispatchIndex("Rsh_Fir_intrinsic_" + name);
+      return new FirCompiledDispatchIndex.Regular("Rsh_Fir_intrinsic_" + name);
     }
   }
 
