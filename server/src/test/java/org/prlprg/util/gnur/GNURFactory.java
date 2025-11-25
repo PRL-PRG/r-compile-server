@@ -55,7 +55,7 @@ public class GNURFactory {
           // OK -- this should be a bundled version
           version = "bundled";
         } else {
-          throw new RuntimeException("R (`" + R_BIN + " --version`) returned unexpected output");
+          throw new RuntimeException("R (`" + R_BIN + " --version`) returned unexpected output:\n" + versionStr);
         }
       }
 
