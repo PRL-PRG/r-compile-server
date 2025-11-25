@@ -140,8 +140,9 @@ final class CModule {
       super(returnType, name, parameters);
     }
 
-    public void label(@PrintFormat String format, Object... args) {
-      body.add(format.formatted(args));
+    public void label(String name) {
+      // The semicolon is necessary in case the label precedes a declaration (e.g. `SEXP foo`).
+      body.add("%s:;".formatted(name));
     }
 
     public void stmt(@PrintFormat String format, Object... args) {

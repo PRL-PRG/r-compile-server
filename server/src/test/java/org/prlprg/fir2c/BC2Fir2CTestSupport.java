@@ -13,6 +13,7 @@ import org.prlprg.bc2fir.BC2ClosureCompiler;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
@@ -72,13 +73,12 @@ final class BC2Fir2CTestSupport {
       Function function,
       String caseName,
       int argCount) {
-    var dispatchIdx = compiled.compiledFunctionDispatches().get(function);
-    if (dispatchIdx == null) {
-      throw new IllegalArgumentException("Missing dispatch for function: " + function.name());
+    if (!(compiled.compiledFunctionDispatches().get(function) instanceof FirCompiledDispatchIndex.Regular(var dispatchName))) {
+      throw new IllegalArgumentException("Missing dispatch for function, or it's a builtin: " + function.name());
     }
-    var dispatchName = dispatchIdx.cFunctionName();
+
     var entrySymbol = dispatchName + "_entry";
-    var cSource = compiled.cModule().toString() + driverSource(dispatchName, entrySymbol, argCount);
+    var cSource = compiled.cModule() + driverSource(dispatchName, entrySymbol, argCount);
 
     var tempDir =
         Files.createTempDirectory(

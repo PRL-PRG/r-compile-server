@@ -69,14 +69,14 @@ public class BC2Fir2CCompileTest implements StdlibClosuresSource {
               // L0().phis
               goto L0;
 
-            D0:
+            D0:;
               // deopt 0 [x1]
               SEXP Rsh_Fir_array_deopt_stack[1];
               Rsh_Fir_array_deopt_stack[0] = Rsh_Fir_reg_x1;
               Rsh_Fir_deopt(0, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
               return R_NilValue;
 
-            L0:
+            L0:;
               // x2 = force? x1
               SEXP Rsh_Fir_reg_x2 = Rsh_Fir_maybe_force(Rsh_Fir_reg_x1);
               // checkMissing(x2)
@@ -132,14 +132,14 @@ public class BC2Fir2CCompileTest implements StdlibClosuresSource {
               // L0().phis
               goto L0;
 
-            D0:
+            D0:;
               // deopt 0 [x1]
               SEXP Rsh_Fir_array_deopt_stack[1];
               Rsh_Fir_array_deopt_stack[0] = Rsh_Fir_reg_x1;
               Rsh_Fir_deopt(0, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
               return R_NilValue;
 
-            L0:
+            L0:;
               // x2 = force? x1
               SEXP Rsh_Fir_reg_x2 = Rsh_Fir_maybe_force(Rsh_Fir_reg_x1);
               // checkMissing(x2)
@@ -150,7 +150,7 @@ public class BC2Fir2CCompileTest implements StdlibClosuresSource {
               SEXP Rsh_Fir_array_args1[2];
               Rsh_Fir_array_args1[0] = Rsh_Fir_reg_x2;
               Rsh_Fir_array_args1[1] = Rsh_const(CCP, 1);
-              SEXP Rsh_Fir_reg_r = Rsh_Fir_builtin(CCP, RHO, 2, Rsh_Fir_array_args1, Rsh_Fir_param_types_empty());
+              SEXP Rsh_Fir_reg_r = Rsh_Fir_call_builtin(66, CCP, RHO, 2, Rsh_Fir_array_args1, Rsh_Fir_param_types_empty());
               // popenv
               Rsh_Fir_pop_env(&RHO);
               (void)(R_NilValue);

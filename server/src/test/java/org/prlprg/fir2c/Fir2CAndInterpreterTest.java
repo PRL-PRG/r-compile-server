@@ -16,6 +16,7 @@ import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.primitive.Logical;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
@@ -79,9 +80,11 @@ public class Fir2CAndInterpreterTest {
     var compiled =
         Module2CCompiler.compile(
             firModule, R.getSession(), Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
-    var dispatchIdx = compiled.compiledFunctionDispatches().get(mainFun);
-    assertNotNull(dispatchIdx, "Missing dispatch for `main` function");
-    var dispatchName = dispatchIdx.cFunctionName();
+
+    if (!(compiled.compiledFunctionDispatches().get(mainFun) instanceof FirCompiledDispatchIndex.Regular(var dispatchName))) {
+      throw new IllegalArgumentException("Missing dispatch for `main` function (or it's a builtin, but probably not)");
+    }
+
     var entrySymbol = dispatchName + "_entry";
     var cSource = compiled.cModule() + driverSource(dispatchName, entrySymbol);
 

@@ -87,11 +87,8 @@ SEXP Rsh_Fir_subscript_read(SEXP vector, SEXP index);
 SEXP Rsh_Fir_subscript_write(SEXP vector, SEXP index, SEXP value);
 SEXP Rsh_Fir_super_load(SEXP symbol, SEXP env);
 void Rsh_Fir_super_store(SEXP symbol, SEXP value, SEXP env);
-SEXP Rsh_Fir_call_dispatch(Rsh_Fir_DispatchFn dispatch, SEXP pool, SEXP env,
-                           int argc, SEXP const *args,
-                           Rsh_Fir_Type const *param_types);
-SEXP Rsh_Fir_call_version(Rsh_Fir_VersionFn version, SEXP pool, SEXP env,
-                          int argc, SEXP const *args);
+SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP CCP, SEXP RHO, int argc, SEXP const *args,
+                          Rsh_Fir_Type const *param_types);
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
                           SEXP const *names, SEXP pool, SEXP env);
 int Rsh_Fir_is_true(SEXP value);
@@ -107,8 +104,36 @@ int Rsh_Fir_assume_type(SEXP value, Rsh_Fir_Type const *type);
 
 NORET void Rsh_error(const char *fmt, ...);
 
-SEXP Rsh_Fir_builtin_add_v1(SEXP CCP, SEXP RHO, int nparams, SEXP const *args);
+#define DEFINE_DISPATCH_INTRINSIC(X)\
+  SEXP Rsh_Fir_intrinsic_ ## X(SEXP CCP, SEXP RHO, int nparams, SEXP const *args,\
+                                      Rsh_Fir_Type const *param_types)
 
+DEFINE_DISPATCH_INTRINSIC(checkFun);
+DEFINE_DISPATCH_INTRINSIC(checkMissing);
+DEFINE_DISPATCH_INTRINSIC(toForSeq);
+DEFINE_DISPATCH_INTRINSIC(invisible);
+DEFINE_DISPATCH_INTRINSIC(visible);
+DEFINE_DISPATCH_INTRINSIC(asSwitchIdx);
+DEFINE_DISPATCH_INTRINSIC(tryDispatchBuiltin);
+DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinDispatched);
+DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinValue);
+
+#define DEFINE_INTRINSIC(X, n)\
+  SEXP Rsh_Fir_intrinsic_ ## X ## _v ## n(SEXP CCP, SEXP RHO, int nparams, SEXP const *args)
+DEFINE_INTRINSIC(checkFun, 0);
+DEFINE_INTRINSIC(checkMissing, 0);
+DEFINE_INTRINSIC(toForSeq, 0);
+DEFINE_INTRINSIC(invisible, 0);
+DEFINE_INTRINSIC(visible, 0);
+DEFINE_INTRINSIC(asSwitchIdx, 0);
+DEFINE_INTRINSIC(tryDispatchBuiltin, 0);
+DEFINE_INTRINSIC(tryDispatchBuiltin, 1);
+DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0);
+DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0);
+
+#define DEFINE_OVERRIDDEN_BUILTIN(X, n)\
+  SEXP Rsh_Fir_builtin_ ## X ## _v ## n(SEXP CCP, SEXP RHO, int nparams, SEXP const *args)
+DEFINE_OVERRIDDEN_BUILTIN(add, 1);
 
 #ifdef __cplusplus
 }

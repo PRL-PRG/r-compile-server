@@ -660,21 +660,19 @@ static SEXP Rsh_Fir_build_arglist(int argc, SEXP const *args,
   return list;
 }
 
-SEXP Rsh_Fir_call_dispatch(Rsh_Fir_DispatchFn dispatch, SEXP pool, SEXP env,
-                           int argc, SEXP const *args,
-                           Rsh_Fir_Type const *param_types) {
-  if (!dispatch) {
-    Rf_error("call_dispatch requires a function pointer");
+SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP CCP, SEXP RHO, int argc, SEXP const *args,
+                          Rsh_Fir_Type const *param_types) {
+  FUNTAB fun = R_FunTab[bltIdx];
+  if (fun.arity != argc) {
+    Rf_error("Builtin %s called with incorrect number of arguments: expected %d, got %d",
+             fun.name, fun.arity, argc);
   }
-  return dispatch(pool, env, argc, args, param_types);
-}
 
-SEXP Rsh_Fir_call_version(Rsh_Fir_VersionFn version, SEXP pool, SEXP env,
-                          int argc, SEXP const *args) {
-  if (!version) {
-    Rf_error("call_version requires a function pointer");
-  }
-  return version(pool, env, argc, args);
+  int protect_count = 0;
+  SEXP arglist = Rsh_Fir_build_arglist(argc, args, NULL, &protect_count);
+  SEXP result = fun.cfun(R_NilValue, R_NilValue, arglist, RHO);
+  UNPROTECT(protect_count);
+  return result;
 }
 
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
@@ -732,6 +730,62 @@ NORET void Rsh_error(const char *fmt, ...) {
   va_end(args);
 }
 
-SEXP Rsh_Fir_builtin_add_v1(SEXP CCP, SEXP RHO, int nparams, SEXP const *args) {
+
+#define DEFINE_DISPATCH_INTRINSIC_BODY(X)\
+  DEFINE_DISPATCH_INTRINSIC(X) {\
+    return Rsh_Fir_intrinsic_ ## X ## _v0(CCP, RHO, nparams, args);\
+  }
+
+DEFINE_DISPATCH_INTRINSIC_BODY(checkFun)
+DEFINE_DISPATCH_INTRINSIC_BODY(checkMissing)
+DEFINE_DISPATCH_INTRINSIC_BODY(toForSeq)
+DEFINE_DISPATCH_INTRINSIC_BODY(invisible)
+DEFINE_DISPATCH_INTRINSIC_BODY(visible)
+DEFINE_DISPATCH_INTRINSIC_BODY(asSwitchIdx)
+DEFINE_DISPATCH_INTRINSIC_BODY(tryDispatchBuiltin)
+DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinDispatched)
+DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinValue)
+
+DEFINE_INTRINSIC(checkFun, 0) {
+  Rf_error("TODO: %s_v%d", "checkFun", 0);
+}
+
+DEFINE_INTRINSIC(checkMissing, 0) {
+  Rf_error("TODO: %s_v%d", "checkMissing", 0);
+}
+
+DEFINE_INTRINSIC(toForSeq, 0) {
+  Rf_error("TODO: %s_v%d", "toForSeq", 0);
+}
+
+DEFINE_INTRINSIC(invisible, 0) {
+  Rf_error("TODO: %s_v%d", "invisible", 0);
+}
+
+DEFINE_INTRINSIC(visible, 0) {
+  Rf_error("TODO: %s_v%d", "visible", 0);
+}
+
+DEFINE_INTRINSIC(asSwitchIdx, 0) {
+  Rf_error("TODO: %s_v%d", "asSwitchIdx", 0);
+}
+
+DEFINE_INTRINSIC(tryDispatchBuiltin, 0) {
+  Rf_error("TODO: %s_v%d", "tryDispatchBuiltin", 0);
+}
+
+DEFINE_INTRINSIC(tryDispatchBuiltin, 1) {
+  Rf_error("TODO: %s_v%d", "tryDispatchBuiltin", 1);
+}
+
+DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0) {
+  Rf_error("TODO: %s_v%d", "getTryDispatchBuiltinDispatched", 0);
+}
+
+DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0) {
+  Rf_error("TODO: %s_v%d", "getTryDispatchBuiltinValue", 0);
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(add, 1) {
   return Rf_ScalarInteger(Rf_asInteger(args[0]) + Rf_asInteger(args[1]));
 }
