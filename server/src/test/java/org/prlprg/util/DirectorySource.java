@@ -1,5 +1,6 @@
 package org.prlprg.util;
 
+import com.google.common.collect.ImmutableList;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -33,6 +34,10 @@ public @interface DirectorySource {
   /// append it to `.../test/resources`.
   String root() default ".";
 
+
+  /// If non-empty, overrides [#root()] and lists files from multiple roots.
+  String[] roots() default {};
+
   /// If set, change [#root()] to be relative to this class instead of the test class.
   Class<?> rootClass() default Object.class;
 
@@ -44,7 +49,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
   private boolean accepted = false;
   private String glob = "";
   private int depth;
-  private Path root = Paths.get("");
+  private ImmutableList<Path> roots = ImmutableList.of();
   private Class<?> rootClass = Object.class;
   private boolean appendClassName;
 
@@ -52,7 +57,9 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
   public void accept(DirectorySource directorySource) {
     accepted = true;
     glob = directorySource.glob();
-    root = Paths.get(directorySource.root());
+    roots = directorySource.roots().length == 0 ? ImmutableList.of(Paths.get(directorySource.root())) :
+
+            Stream.of(directorySource.roots()).map(Paths::get).collect(ImmutableList.toImmutableList());
     rootClass = directorySource.rootClass();
     appendClassName = directorySource.appendClassName();
     depth = directorySource.depth();
@@ -64,11 +71,14 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
 
     var testClass = context.getRequiredTestClass();
     var rootClass = this.rootClass != Object.class ? this.rootClass : testClass;
-    var root1 = Tests.getResourcePath(rootClass, root);
-    var root2 = !appendClassName ? root1 : root1.resolve(Tests.testName(testClass));
 
-    return Files.listDir(root2, glob, depth, false, true).stream()
-        .map(path -> new TestPath(root2, path))
-        .map(Arguments::of);
+    return roots.stream().flatMap(root -> {
+      root = Tests.getResourcePath(rootClass, root);
+      var root1 = !appendClassName ? root : root.resolve(Tests.testName(testClass));
+
+      return Files.listDir(root1, glob, depth, false, true).stream()
+          .map(path -> new TestPath(root1, path))
+          .map(Arguments::of);
+    });
   }
 }
