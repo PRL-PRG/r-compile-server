@@ -428,6 +428,10 @@ static INLINE void Rcp_MakeClosure(Value *stack, SEXP mkclos_arg, SEXP rho) {
   SEXP rcp_body = VECTOR_ELT(mkclos_arg, 1);
   SEXP closure = Rf_mkCLOSXP(forms, rcp_body, rho);
 
+  /* The LENGTH check below allows for byte code object created
+	   by older versions of the compiler that did not record a
+	   source attribute. */
+#ifdef RSH_LEGACY_COMPILER_SUPPORT
   if (LENGTH(mkclos_arg) > 2) {
     PROTECT(closure);
     SEXP srcref = VECTOR_ELT(mkclos_arg, 2);
@@ -436,6 +440,7 @@ static INLINE void Rcp_MakeClosure(Value *stack, SEXP mkclos_arg, SEXP rho) {
       Rf_setAttrib(closure, Rf_install("srcref"), srcref);
     UNPROTECT(1); /* closure */
   }
+#endif
   R_Visible = TRUE;
 
   SET_SXP_VAL(res, closure);
