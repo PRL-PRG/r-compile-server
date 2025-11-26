@@ -368,10 +368,11 @@ typedef struct {
     uint8_t **executable_lookup;
     int *bytecode;
     const int *bcell_lookup;
+    const int *loopcntxt_lookup;
     uint8_t *executable_start;
 } PatchContext;
 
-static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole *hole, int hole_id, int *imms, int nextop, void* smc_variants, const PatchContext *ctx)
+static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, const Hole *hole, int hole_id, int *imms, int nextop, void* smc_variants, const PatchContext *ctx)
 {
     ptrdiff_t ptr;
     const mem_shared_data *shared;
@@ -455,6 +456,11 @@ static void patch(uint8_t *dst, uint8_t *loc, const Stencil *stencil, const Hole
     {
         int bcell_index = ctx->bytecode[imms[hole->val.imm_pos] - 3];
         ptr = ctx->bcell_lookup[bcell_index];
+    }
+    break;
+    case RELOC_RCP_LOOPCNTXT:
+    {
+        ptr = ctx->loopcntxt_lookup[pos];
     }
     break;
 #ifdef STEPFOR_SPECIALIZE
@@ -605,6 +611,7 @@ static int jump_target(R_OPCODE opcode, const int *imms) {
   case (STARTSUBSET2_N_OP):
   case (STARTSUBASSIGN2_N_OP):
   case (BASEGUARD_OP):
+  case (STARTLOOPCNTXT_OP):
     res = imms[1];
     break;
   case (STARTFOR_OP):
@@ -784,12 +791,8 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
             {
                 block_lookup[jmp_target].next_blocks = NULL;
             
-                int can_fallthrough = can_fallthrough_from_opcode(opcode);
-            
-                if (can_fallthrough)
-                {
-                    block_lookup[i + imms_cnt[opcode] + 1].next_blocks = NULL;
-                }
+                //if (can_fallthrough_from_opcode(opcode))
+                block_lookup[i + imms_cnt[opcode] + 1].next_blocks = NULL;
             }
         }
 
@@ -878,6 +881,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     const void *vmax = vmaxget(); // Save to restore it later to free memory allocated by the following calls
     uint8_t **inst_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
     int *used_bcells = (int *)S_alloc(constpool_size, sizeof(int));
+    int *used_loopcntxt = (int *)S_alloc(bytecode_size, sizeof(int));
     int *bytecode_lut = (int *)R_alloc(bytecode_size, sizeof(int));
     uint8_t *bytecode_alignment = (uint8_t *)S_alloc(bytecode_size, sizeof(uint8_t));
 
@@ -936,6 +940,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
         DEBUG_PRINT("Instruction %d (%s) alignment: %d\n", i, OPCODES_NAMES[bytecode[i]], bytecode_alignment[i]);
 
+    int loopcntxts_size = 0;
     // First pass to calculate the sizes
     for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
     {
@@ -945,10 +950,15 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         if (stencil == NULL || stencil->body_size == 0)
             error("Opcode not implemented: %s\n", OPCODES_NAMES[bytecode[i]]);
         
-#ifdef STEPFOR_SPECIALIZE
-        if(bytecode[i] == STARTFOR_OP)
+        switch(bytecode[i])
+        {
+        case STARTFOR_OP:
             for_count++;
-#endif
+            break;
+        case ENDLOOPCNTXT_OP:
+            used_loopcntxt[i] = loopcntxts_size++;
+            break;
+        }
 
         size_t aligned_size = align_to_higher(insts_size, bytecode_alignment[i]);
         size_t aligned_diff = aligned_size - insts_size;
@@ -994,6 +1004,14 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             used_bcells[i] = bcells_size++;
 
     DEBUG_PRINT("Unique bcells used in this closure: %d\n", bcells_size);
+    DEBUG_PRINT("Loop rcntxts used in this closure: %d\n", loopcntxts_size);
+
+    // Fill in LOOPCNTXT lookup table
+    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    {
+        if (bytecode[i] == STARTLOOPCNTXT_OP)
+            used_loopcntxt[i] = used_loopcntxt[bytecode[i + 2] - 1];
+    }
 
     // Allocate memory
     size_t executable_size_aligned = align_to_higher(insts_size, getpagesize()); // Align to page size to be able to map it as executable memory
@@ -1035,6 +1053,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     
     res.eval = (void *)executable;
     res.bcells_size = bcells_size;
+    res.rcntxts_size = loopcntxts_size;
 
     BasicBlock* bbs = build_basic_blocks(bytecode, bytecode_size, constpool);
 
@@ -1049,6 +1068,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         .executable_lookup = inst_start,
         .bytecode = bytecode,
         .bcell_lookup = used_bcells,
+        .loopcntxt_lookup = used_loopcntxt,
         .executable_start = executable
     };
 
@@ -1057,7 +1077,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     // Start to copy-patch
     memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
     for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-        patch(executable, executable, &_RCP_INIT, &_RCP_INIT.holes[j], j, NULL, 0, NULL, &ctx);
+        patch(executable, executable, 0, &_RCP_INIT, &_RCP_INIT.holes[j], j, NULL, 0, NULL, &ctx);
 
 #ifdef STEPFOR_SPECIALIZE
     StepFor_specialized *stepfor_pool = stepfor_storage;
@@ -1103,7 +1123,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             DEBUG_PRINT("PATCHING CORRESPONDING STEPFOR_OP at %d, ptr pointing to %p\n", stepfor_bc, stepfor_code);
 #define X(a, b)                                                           \
             for (size_t j = 0; j < _RCP_STEPFOR_##a##_OP.holes_size; ++j) \
-                patch(stepfor_mem->src[a], stepfor_mem->dst, &_RCP_STEPFOR_##a##_OP, &_RCP_STEPFOR_##a##_OP.holes[j], j, &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
+                patch(stepfor_mem->src[a], stepfor_mem->dst, bc_pos, &_RCP_STEPFOR_##a##_OP, &_RCP_STEPFOR_##a##_OP.holes[j], j, &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
 X_STEPFOR_TYPES
 #undef X
             smc_variants = stepfor_mem;
@@ -1144,7 +1164,7 @@ X_STEPFOR_TYPES
 
         // Patch the holes
         for (size_t j = 0; j < stencil->holes_size; ++j)
-            patch(inst_start[bc_pos], inst_start[bc_pos], stencil, &stencil->holes[j], j, opargs, bc_pos + imms_cnt[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+            patch(inst_start[bc_pos], inst_start[bc_pos], bc_pos, stencil, &stencil->holes[j], j, opargs, bc_pos + imms_cnt[bytecode[bc_pos]] + 1, smc_variants, &ctx);
     }
 
 #ifdef DEBUG_MODE

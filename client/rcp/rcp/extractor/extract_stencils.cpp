@@ -458,6 +458,10 @@ static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body
     {
       hole.kind = RELOC_RCP_PATCHED_VARIANTS;
     }
+    else if (strcmp(descr, "LOOPCNTXT") == 0)
+    {
+      hole.kind = RELOC_RCP_LOOPCNTXT;
+    }
     else if (strcmp(descr, "EXECUTABLE") == 0)
     {
       hole.kind = RELOC_RCP_EXECUTABLE_START;

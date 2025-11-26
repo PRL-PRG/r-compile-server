@@ -99,6 +99,10 @@ extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM3;
 extern const void* const _RCP_PATCHED_VARIANTS[];
 #define GETVARIANTS() (const void*)&_RCP_PATCHED_VARIANTS
 
+extern const void* const _RCP_LOOPCNTXT;
+#define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT)
+#define GET_LOCAL_RCNTXT() locals->rcntxts[GET_RCNTXT_INDEX()]
+
 extern const void* const _RCP_EXECUTABLE[];
 #define GETEXECUTABLE() (const void* const)&_RCP_EXECUTABLE
 #define GOTO_VAL(i) { STENCIL_ATTRIBUTES SEXP (*call)() = (const void* const)(((uint8_t*)GETEXECUTABLE()) + i); return call(); } 
@@ -140,9 +144,19 @@ RCP_OP(DUP) {
   NEXT;
 }
 
-//RCP_OP(STARTLOOPCNTXT)
+RCP_OP(STARTLOOPCNTXT) {
+  Rboolean condition;
+  Rsh_StartLoopCntxt(stack, (&GET_LOCAL_RCNTXT()), GET_RHO(), &condition);
+  if(condition)
+    GOTO_IMM(1);
+  else
+    NEXT;
+}
 
-//RCP_OP(ENDLOOPCNTXT)
+RCP_OP(ENDLOOPCNTXT) {
+  Rsh_EndLoopCntxt(stack, &GET_LOCAL_RCNTXT());
+  NEXT;
+}
 
 #ifdef STEPFOR_SPECIALIZE
 typedef struct {
