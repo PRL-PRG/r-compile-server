@@ -3036,12 +3036,22 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
-static INLINE Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
-                                          SEXP rho) {
+#ifdef RCP
+#define Rsh_StartLoopCntxt(/*UNUSED Value **/ stack, /*RCNTXT **/ cntxt,       \
+                           /*SEXP */ rho, condition)                           \
+  {                                                                            \
+    Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,  \
+                    R_NilValue);                                               \
+    *condition = sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;                   \
+  }
+#else
+static INLINE NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack,
+                                                    RCNTXT *cntxt, SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
   return sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;
 }
+#endif
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
   Rf_endcontext(ctntxt);
