@@ -146,7 +146,7 @@ RCP_OP(DUP) {
 
 RCP_OP(STARTLOOPCNTXT) {
   Rboolean condition;
-  Rsh_StartLoopCntxt(stack, (&GET_LOCAL_RCNTXT()), GET_RHO(), &condition);
+  Rsh_do_start_loop_cntxt(stack, (&GET_LOCAL_RCNTXT()), GET_RHO(), &condition);
   if(condition)
     GOTO_IMM(1);
   else
