@@ -19,6 +19,11 @@ typedef int32_t i32;
 typedef uint64_t u64;
 typedef uint32_t u32;
 
+// VALUE REPRESENTATION
+// --------------------
+
+typedef R_bcstack_t Value;
+
 // For copy-and-patch. Possibly for Rsh as well.
 // To allow patching of internal symbols without unnecessary indirection
 #ifdef RCP
@@ -315,11 +320,6 @@ JIT_DECL SEXP NOT_OP;
 JIT_DECL SEXP LOG_OP; // FIXME: Is this needed? Log primitive is already defined
                       // in RSH_R_SYMBOLS
 #endif
-
-// VALUE REPRESENTATION
-// --------------------
-
-typedef R_bcstack_t Value;
 
 // Accessors
 
@@ -3036,22 +3036,20 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
-#ifdef RCP
-#define Rsh_StartLoopCntxt(/*UNUSED Value **/ stack, /*RCNTXT **/ cntxt,       \
-                           /*SEXP */ rho, condition)                           \
+#define Rsh_do_start_loop_cntxt(/*UNUSED Value **/ stack, /*RCNTXT **/ cntxt,  \
+                                /*SEXP */ rho, condition)                      \
   {                                                                            \
     Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,  \
                     R_NilValue);                                               \
-    *condition = sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;                   \
+    *condition = (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);       \
   }
-#else
-static INLINE NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack,
-                                                    RCNTXT *cntxt, SEXP rho) {
-  Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
-                  R_NilValue);
-  return sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;
+
+static NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+                                             SEXP rho) {
+  Rboolean condition;
+  Rsh_do_start_loop_cntxt(stack, cntxt, rho, (&condition));
+  return condition;
 }
-#endif
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
   Rf_endcontext(ctntxt);
@@ -3146,7 +3144,7 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
       which = n - 1;
       for (i = 0; i < n - 1; i++) {
         if (Rf_pmatch(STRING_ELT(value, 0), STRING_ELT(names, i),
-                      1 /* exact */)) {
+                      TRUE /* exact */)) {
           which = i;
           break;
         }
@@ -3175,10 +3173,11 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
 static INLINE int Rsh_Switch(Value *stack, SEXP call, SEXP names, SEXP coffsets,
                              SEXP ioffsets) {
   return Rsh_do_switch(stack, call, names, coffsets, ioffsets,
-                       names == R_NilValue, TYPEOF(names) == STRSXP,
-                       LENGTH(names), TYPEOF(ioffsets) == INTSXP,
-                       LENGTH(ioffsets), TYPEOF(coffsets) == INTSXP,
-                       LENGTH(coffsets) == LENGTH(names));
+                       (Rboolean)(names == R_NilValue),
+                       (Rboolean)(TYPEOF(names) == STRSXP), LENGTH(names),
+                       (Rboolean)(TYPEOF(ioffsets) == INTSXP), LENGTH(ioffsets),
+                       (Rboolean)(TYPEOF(coffsets) == INTSXP),
+                       (Rboolean)(LENGTH(coffsets) == LENGTH(names)));
 }
 
 #endif // RUNTIME_H
