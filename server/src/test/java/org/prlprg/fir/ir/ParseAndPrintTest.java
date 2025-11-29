@@ -6,7 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DirectorySource;
+import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.TestPath;
 
 /// Tests parsing and printing FIŘ files.

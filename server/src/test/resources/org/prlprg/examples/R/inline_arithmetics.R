@@ -1,0 +1,5 @@
+check(function(x = 1, y = .5) x + y)
+check(function(x = 2, y = .4) x - y)
+check(function(x = 3, y = .3) list(x + y - x + 10, -x + 1, +y))
+check(function(x = 4, y = .2) list(x * y / x * 10, exp(x) ^ 2, sqrt(exp(x))))
+check(function(x = 5, y = 10) list(log(x), log(x, y)))

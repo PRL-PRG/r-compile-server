@@ -1,16 +1,17 @@
 package org.prlprg.fir2c;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.gen2c.CUnit;
+import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.VecSXP;
 
 /// Result of translating a FIŘ module.
 ///
-/// @param cModule The rendered C translation unit.
+/// @param cUnit The rendered C translation unit.
 /// @param compiledFunctionDispatches Map of FIŘ [Function]s to the generated C function metadata
 /// for their dynamic-dispatch functions.
 /// @param compiledVersions Map of FIŘ [Abstraction]s to the generated C function metadata.
@@ -18,7 +19,7 @@ import org.prlprg.sexp.VecSXP;
 /// @param constantPool Constant pool mirrored in the generated code, compatible with
 /// `Rsh_const`.
 public record FirCompiledModule(
-    CModule cModule,
+    CUnit cUnit,
     ImmutableMap<Function, FirCompiledDispatchIndex> compiledFunctionDispatches,
     ImmutableMap<Abstraction, FirCompiledVersionIndex> compiledVersions,
     ImmutableMap<Promise, FirCompiledPromiseIndex> compiledPromises,

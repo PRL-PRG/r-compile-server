@@ -1,14 +1,14 @@
 package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.prlprg.fir.interpret.InterpretUtil.testInterpretFirFile;
+import static org.prlprg.fir.interpret.TestInterpret.testInterpretFirFile;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.prlprg.fir.interpret.InterpretUtil.TestInterpretCtx;
-import org.prlprg.util.DirectorySource;
+import org.prlprg.fir.interpret.TestInterpret.TestContext;
+import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.TestPath;
 
 public abstract class OptimizationTest {
@@ -56,7 +56,7 @@ public abstract class OptimizationTest {
     return String.join("\n", firLines);
   }
 
-  protected abstract Optimization optimization(TestInterpretCtx c);
+  protected abstract Optimization optimization(TestContext c);
 
   /// Tests that the optimization never crashes on valid FIŘ.
   @ParameterizedTest

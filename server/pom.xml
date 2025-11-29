@@ -20,11 +20,11 @@
 
   <dependencyManagement>
     <dependencies>
-      <!-- JUnit5, unit tests -->
+      <!-- JUnit, unit tests -->
       <dependency>
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
-        <version>5.10.1</version>
+        <version>6.0.1</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -69,7 +69,7 @@
       <artifactId>grpc-inprocess</artifactId>
       <version>${grpc.version}</version>
     </dependency>
-    <!-- To write unit tests for gRPC when using JUnit 5 -->
+    <!-- To write unit tests for gRPC when using JUnit -->
     <dependency>
       <groupId>com.asarkar.grpc</groupId>
       <artifactId>grpc-test</artifactId>
@@ -108,7 +108,7 @@
       <artifactId>javac-warning-annotation</artifactId>
       <version>1.0.0</version>
     </dependency>
-    <!-- JUnit5, unit tests -->
+    <!-- JUnit, unit tests -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -309,7 +309,7 @@
           <target>24</target>
         </configuration>
       </plugin>
-      <!-- JUnit5, unit test runner -->
+      <!-- JUnit, unit test runner -->
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.2</version>

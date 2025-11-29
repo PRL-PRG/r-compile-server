@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.fir.check.Checker.checkAll;
-import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
+import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import java.io.IOException;
@@ -13,7 +13,7 @@ import java.nio.file.Path;
 import java.util.UUID;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.interpret.InterpretException;
-import org.prlprg.fir.interpret.Interpreter;
+import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
@@ -23,7 +23,7 @@ import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
-import org.prlprg.util.DirectorySource;
+import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.Files;
 import org.prlprg.util.TestPath;
 import org.prlprg.util.cc.CCompilationException;
@@ -39,7 +39,7 @@ public class Fir2CAndInterpreterTest {
   }
 
   @ParameterizedTest
-  @DirectorySource(root = "fir-interpret", glob = "*.fir")
+  @DirectorySource(glob = "*.fir")
   void runtimeMatchesInterpreter(TestPath firPath) throws Exception {
     var firText = firPath.read();
     var caseName = firPath.name();
@@ -58,7 +58,7 @@ public class Fir2CAndInterpreterTest {
   }
 
   private SEXP interpret(Module firModule) {
-    var interpreter = new Interpreter(firModule);
+    var interpreter = new InternalInterpreter(firModule);
     registerBuiltins(interpreter);
     try {
       return interpreter.call("main");
@@ -86,7 +86,7 @@ public class Fir2CAndInterpreterTest {
     }
 
     var entrySymbol = dispatchName + "_entry";
-    var cSource = compiled.cModule() + driverSource(dispatchName, entrySymbol);
+    var cSource = compiled.cUnit() + driverSource(dispatchName, entrySymbol);
 
     var tempDir =
         Files.createTempDirectory("fir2c-" + sanitizeCaseName(caseName) + "-" + UUID.randomUUID());

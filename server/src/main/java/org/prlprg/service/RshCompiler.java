@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 import org.prlprg.AppConfig;
 import org.prlprg.util.cc.CCCompilationBuilder;
 
@@ -49,7 +48,7 @@ public class RshCompiler {
   private final List<String> compilerFlags;
 
   public enum RuntimeVariant {
-    BC2C,
+    DIRECT_BC2C,
     FIR2C
   }
 
@@ -62,7 +61,7 @@ public class RshCompiler {
 
     var rshInclude =
         switch (variant) {
-          case BC2C -> BC2C_RSH_INCLUDE_PATH;
+          case DIRECT_BC2C -> BC2C_RSH_INCLUDE_PATH;
           case FIR2C -> FIR2C_RSH_INCLUDE_PATH;
         };
     flags.add("-I" + rshInclude);

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.prlprg.util.DirectorySource;
+import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.TestPath;
 
 abstract class AbstractCheckTest {
