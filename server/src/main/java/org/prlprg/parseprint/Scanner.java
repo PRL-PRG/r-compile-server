@@ -427,6 +427,34 @@ public class Scanner {
         });
   }
 
+  /// Read until ',', ')', ']', '}', or EOI is encountered *and* there's no unclosed '(', '[',
+  /// or '{'.
+  ///
+  /// @throws ParseException At EOI if there's an unclosed '(', '[', or '{'.
+  public String readCodeItem() {
+    final int[] numOpen = {0};
+
+    var result = readUntil(c -> {
+      if (c == -1 || (numOpen[0] == 0 && (c == ')' || c == ']' || c == '}' || c == ','))) {
+        return false;
+      }
+
+      if (c == '(' || c == '[' || c == '{') {
+        numOpen[0]++;
+      } else if (c == ')' || c == ']' || c == '}') {
+        numOpen[0]--;
+      }
+
+      return true;
+    });
+
+    if (isAtEof && numOpen[0] > 0) {
+      throw fail("unclosed '(', '[', or '{' before end of input");
+    }
+
+    return result;
+  }
+
   /**
    * Read characters until, but not including, the first whitespace.
    *

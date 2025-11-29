@@ -205,10 +205,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
           var f = Files.newWriter(input, Charset.defaultCharset());
-          module.file().writeTo(f);
+          module.cUnit().writeTo(f);
           var output = File.createTempFile("ofile", ".o");
 
-          RshCompiler.getInstance(ccOpt, RuntimeVariant.BC2C)
+          RshCompiler.getInstance(ccOpt, RuntimeVariant.DIRECT_BC2C)
               .createBuilder(input.getPath(), output.getPath())
               .flag("-c")
               .compile();
@@ -218,7 +218,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
           ccCached =
               new NativeClosure(
-                  ByteString.copyFrom(res), module.topLevelFunName(), serializedConstantPool);
+                  ByteString.copyFrom(res), module.entryFunName(), serializedConstantPool);
 
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);

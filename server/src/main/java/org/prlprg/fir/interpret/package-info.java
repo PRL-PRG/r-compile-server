@@ -1,4 +1,6 @@
-/// Evaluate FIŘ programs by providing definitions.
+/// FIŘ interpreter interface ([org.prlprg.fir.interpret.Interpreter]). Both the internal
+/// hardcoded interpreter ([internal]( org.prlprg.fir.interpret)) and GNU-R compile-service
+/// inherit it.
 @ParametersAreNonnullByDefault
 @FieldsAreNonNullByDefault
 @ReturnTypesAreNonNullByDefault

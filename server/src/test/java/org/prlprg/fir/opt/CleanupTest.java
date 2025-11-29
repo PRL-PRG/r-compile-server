@@ -6,7 +6,7 @@ import static org.prlprg.fir.ir.ParseUtil.parseModule;
 import static org.prlprg.fir.opt.OptimizationTest.replaceAfterComments;
 
 import org.junit.jupiter.params.ParameterizedTest;
-import org.prlprg.util.DirectorySource;
+import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.TestPath;
 
 class CleanupTest {

@@ -8,13 +8,10 @@ import javax.annotation.Nullable;
 import org.junit.jupiter.api.extension.*;
 import org.prlprg.util.ThrowingSupplier;
 
-/**
- * JUnit 5 extension for snapshot testing.
- *
- * @param <T> the type of data stored in the snapshot.
- */
+/// Provide a snapshot test
+///
+/// @param <T> the type of data stored in the snapshot.
 public abstract class SnapshotExtension<T> implements ParameterResolver, AfterAllCallback {
-
   private final Map<Method, SnapshotStore<T>> stores = new HashMap<>();
   private final SnapshotStoreFactory<T> storeFactory;
 
@@ -109,7 +106,7 @@ public abstract class SnapshotExtension<T> implements ParameterResolver, AfterAl
    * Creates a snapshot for the given test method.
    *
    * <p>The result will be passed as a parameter to the test method. Eventually, it should call back
-   * the {@link #verify(Method, String, Object, ThrowingSupplier)}
+   * the {@link #verify(Method, String, Object, ThrowingSupplier, boolean)}
    *
    * @param testMethod the test method
    * @return the snapshot

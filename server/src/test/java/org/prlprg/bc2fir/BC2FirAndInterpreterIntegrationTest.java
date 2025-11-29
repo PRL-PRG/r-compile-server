@@ -4,23 +4,25 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
 import static org.prlprg.fir.check.Checker.checkAll;
-import static org.prlprg.fir.interpret.Builtins.registerBuiltins;
+import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
 
 import com.google.common.collect.ImmutableList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.bc.CompilerException;
-import org.prlprg.fir.interpret.DeoptSnapshot;
 import org.prlprg.fir.interpret.InterpretException;
+import org.prlprg.fir.interpret.internal.DeoptSnapshot;
+import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.util.DirectorySource;
+import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.TestPath;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
@@ -35,7 +37,7 @@ public class BC2FirAndInterpreterIntegrationTest {
 
   /// Tests that all R files in the test resources directory produce the same output:
   /// - When interpreted by GNU-R.
-  /// - When bytecode-compiled, converted into FIŘ, and interpreted by [Interpreter].
+  /// - When bytecode-compiled, converted into FIŘ, and interpreted by [InternalInterpreter].
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
   void testCompilerAndInterpreter(TestPath rFilePath) {
@@ -46,9 +48,9 @@ public class BC2FirAndInterpreterIntegrationTest {
 
   /// Tests that all R files in the test resources directory produce the same output:
   /// - When interpreted by GNU-R.
-  /// - When bytecode-compiled, converted into FIŘ, and interpreted by [Interpreter].
+  /// - When bytecode-compiled, converted into FIŘ, and interpreted by [InternalInterpreter].
   /// - When optimized with [default optimizations][
-  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [Interpreter].
+  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [InternalInterpreter].
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
   void testCompilerInterpreterOptimizer(TestPath rFilePath) {
@@ -90,9 +92,9 @@ public class BC2FirAndInterpreterIntegrationTest {
 
   /// Tests that all R files in the `deopt` directory produce the same output:
   /// - When interpreted by GNU-R.
-  /// - When bytecode-compiled, converted into FIŘ, and interpreted by [Interpreter].
+  /// - When bytecode-compiled, converted into FIŘ, and interpreted by [InternalInterpreter].
   /// - When optimized with [default optimizations][
-  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [Interpreter].
+  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [InternalInterpreter].
   /// - When `main2` is called with a real instead of an integer (same output but causes deopts)
   @ParameterizedTest
   @DirectorySource(root = "deopt", glob = "*.R", depth = 2)
@@ -176,13 +178,16 @@ public class BC2FirAndInterpreterIntegrationTest {
 
       firModule = compile(rModuleEnv, R.getSession());
 
-      var interpreter = new Interpreter(firModule);
-      registerBuiltins(interpreter);
+      for (var interpreter : List.of(new InternalInterpreter(firModule), new GnurInterpreter(firModule))) {
+        if (interpreter instanceof InternalInterpreter i) {
+          registerBuiltins(i);
+        }
 
-      // Use `toString()` because we only care about structural equivalence (environments won't
-      // be equal but that's OK, we want to check if they're structurally equivalent though).
-      var rOutputStr = rOutput.toString();
-      test.accept(interpreter, new Check(interpreter, rOutputStr));
+        // Use `toString()` because we only care about structural equivalence (environments won't
+        // be equal but that's OK, we want to check if they're structurally equivalent though).
+        var rOutputStr = rOutput.toString();
+        test.accept(interpreter, new Check(interpreter, rOutputStr));
+      }
     } catch (CompilerException | BcCompilerUnsupportedException e) {
       fail("GNU-R bytecode compiler crashed", e);
     } catch (BC2CFGCompilerException | BC2ClosureCompilerUnsupportedException e) {
@@ -194,10 +199,10 @@ public class BC2FirAndInterpreterIntegrationTest {
   }
 
   private static class Check {
-    private final Interpreter interpreter;
+    private final InternalInterpreter interpreter;
     private final String rOutputStr;
 
-    public Check(Interpreter interpreter, String rOutputStr) {
+    public Check(InternalInterpreter interpreter, String rOutputStr) {
       this.interpreter = interpreter;
       this.rOutputStr = rOutputStr;
     }

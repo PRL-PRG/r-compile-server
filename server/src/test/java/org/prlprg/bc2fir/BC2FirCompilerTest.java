@@ -87,7 +87,7 @@ public class BC2FirCompilerTest implements StdlibClosuresSource {
 
   @ParameterizedTest
   @MethodSource("stdlibFunctionNameSexpsAndCodes")
-  public void snapshotTestStdlibFunctions(
+  public void testFromStlib(
       String name, CloSXP function, String functionCode, BC2FirSnapshot snapshot) {
     var envOfFunction = new UserEnvSXP();
     envOfFunction.set(name, function);

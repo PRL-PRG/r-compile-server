@@ -5,10 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.logging.Logger;
-import org.prlprg.bc.BCCompiler;
+import org.prlprg.TestConfig;
+import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.rsession.TestRSession;
 import org.prlprg.service.RshCompiler;
@@ -16,7 +17,6 @@ import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Either;
 import org.prlprg.util.Files;
@@ -27,63 +27,25 @@ import org.prlprg.util.gnur.GNURFactory;
 import org.prlprg.util.snapshot.RDSFileSnapshotStoreFactory;
 import org.prlprg.util.snapshot.SnapshotExtension;
 
-public class BC2CSnapshotTestExtension
-    extends SnapshotExtension<BC2CSnapshotTestExtension.TestResult> {
-
+abstract class BC2CSnapshotTestExtension
+    extends SnapshotExtension<BC2CSnapshotTestResult> {
   private static final Logger logger = Logger.getLogger(BC2CSnapshotTestExtension.class.getName());
-  private final GNUR R;
+  protected final GNUR R;
 
-  @SuppressWarnings("unused")
-  public BC2CSnapshotTestExtension() {
+  abstract CompiledModule compile(CloSXP ast, boolean compilePromises);
+  abstract RuntimeVariant runtimeVariant();
+
+  BC2CSnapshotTestExtension() {
     this(new TestRSession());
   }
 
-  public BC2CSnapshotTestExtension(RSession session) {
-    super(new RDSFileSnapshotStoreFactory<>(session, TestResult::toSEXP, TestResult::fromSEXP));
+  private BC2CSnapshotTestExtension(RSession session) {
+    super(new RDSFileSnapshotStoreFactory<>(session, BC2CSnapshotTestResult::toSEXP, BC2CSnapshotTestResult::fromSEXP));
     this.R = GNURFactory.createRestarting(session);
   }
 
-  record TestArtifact(Either<Exception, TestResult> result, File tempDir) {
-    public void destroy() {
-      Files.deleteRecursively(tempDir.toPath());
-    }
-  }
-
-  // we do not persist the performance counters
-  public record TestResult(String code, SEXP value, PerformanceCounters pc, String output) {
-    public SEXP toSEXP() {
-      return SEXPs.vec(SEXPs.string(code), value, SEXPs.string(output));
-    }
-
-    public static TestResult fromSEXP(SEXP sexp) {
-      if (!(sexp instanceof VecSXP v) || v.size() != 3) {
-        throw new IllegalArgumentException("Value must be a vector of size 3, got: " + sexp);
-      }
-
-      var codeSxp = v.get(0);
-      var code =
-          codeSxp
-              .asScalarString()
-              .orElseThrow(
-                  () -> new IllegalArgumentException("Expected code as string, got: " + codeSxp));
-
-      var value = v.get(1);
-
-      var outputSxp = v.get(2);
-      var output =
-          outputSxp
-              .asScalarString()
-              .orElseThrow(
-                  () ->
-                      new IllegalArgumentException("Expected a string output, got: " + outputSxp));
-
-      // the performance counters are not kept in the snapshot
-      return new TestResult(code, value, PerformanceCounters.EMPTY, output);
-    }
-  }
-
   @Override
-  protected void checkEqual(TestResult expected, TestResult actual) {
+  protected void checkEqual(BC2CSnapshotTestResult expected, BC2CSnapshotTestResult actual) {
     assertEquals(expected.code(), actual.code(), "Code is different");
     assertEquals(expected.value(), actual.value(), "Result is different");
     assertEquals(expected.output(), actual.output(), "Output is different");
@@ -92,23 +54,17 @@ public class BC2CSnapshotTestExtension
   @Override
   protected Object createSnapshot(Method testMethod) {
     return new BC2CSnapshot() {
+      String snapshotPrefix = "";
       int seq = 0;
-      boolean clean = true;
-      boolean compilePromises = false;
-      boolean saveSnapshot = true;
 
       @Override
-      public void setCompilePromises(boolean compilePromises) {
-        this.compilePromises = compilePromises;
+      public void setName(String snapshotName) {
+        snapshotPrefix = snapshotName + "/";
+        seq = 0;
       }
 
       @Override
-      public void setSaveSnapshot(boolean saveSnapshot) {
-        this.saveSnapshot = saveSnapshot;
-      }
-
-      @Override
-      public void verify(String code, TestResultCheck... extraChecks) {
+      public void verify(String code, boolean compilePromises, boolean saveSnapshot, List<BC2CExampleExtraCheck> extraChecks) {
         var artifact = compileAndCall(code, compilePromises);
         try {
           if (artifact.result.isLeft()) {
@@ -116,13 +72,13 @@ public class BC2CSnapshotTestExtension
           } else {
             var res = artifact.result.getRight();
             BC2CSnapshotTestExtension.this.verify(
-                testMethod, String.valueOf(++seq), res, oracle(code), saveSnapshot);
+                testMethod, snapshotPrefix + (++seq), res, oracle(code), saveSnapshot);
 
             for (var check : extraChecks) {
               check.accept(res);
             }
 
-            if (clean) {
+            if (TestConfig.OVERRIDE_SNAPSHOTS) {
               artifact.destroy();
             } else {
               copyMakefile(artifact.tempDir);
@@ -134,11 +90,6 @@ public class BC2CSnapshotTestExtension
           throw new RuntimeException(
               "Test failed - compilation dir: " + artifact.tempDir.getAbsolutePath(), e);
         }
-      }
-
-      @Override
-      public void setClean(boolean clean) {
-        this.clean = clean;
       }
 
       private void copyMakefile(File tempDir) {
@@ -155,10 +106,10 @@ public class BC2CSnapshotTestExtension
     return BC2CSnapshot.class;
   }
 
-  private ThrowingSupplier<TestResult> oracle(String code) {
+  private ThrowingSupplier<BC2CSnapshotTestResult> oracle(String code) {
     return () -> {
       var res = R.capturingEval(code);
-      return new TestResult(code, res.first(), PerformanceCounters.EMPTY, res.second());
+      return new BC2CSnapshotTestResult(code, res.first(), PerformanceCounters.EMPTY, res.second());
     };
   }
 
@@ -179,26 +130,16 @@ public class BC2CSnapshotTestExtension
     }
 
     var funCode = "function() {" + code + "}";
-    var closure = (CloSXP) R.eval(funCode);
-    var ast2bc = new BCCompiler(closure, R.getSession());
-
-    // FIXME: just for now as we do not support guards
-    ast2bc.setOptimizationLevel(3);
-    var bc =
-        ast2bc
-            .compile()
-            .orElseThrow(() -> new RuntimeException("Compilation did not produce byte code"));
+    var funAst = (CloSXP) R.eval(funCode);
 
     try {
-      var name = "f_" + (bc.hashCode() < 0 ? "n" + -bc.hashCode() : bc.hashCode());
-      var bc2c = new BC2CCompiler(bc, name, compilePromises);
-      var module = bc2c.finish();
+      var module = compile(funAst, compilePromises);
 
       RDSWriter.writeFile(cpFile, module.constantPool());
 
-      Files.writeString(cFile.toPath(), module.file().toString());
+      Files.writeString(cFile.toPath(), module.cUnit().toString());
 
-      RshCompiler.getInstance(3, RuntimeVariant.BC2C)
+      RshCompiler.getInstance(3, runtimeVariant())
           .createBuilder(cFile.getPath(), soFile.getPath())
           .flag("-shared")
           .flag("-DRSH_TESTS")
@@ -213,7 +154,7 @@ public class BC2CSnapshotTestExtension
               + "env <- new.env()\n"
               + "parent.env(env) <- globalenv()\n"
               + "invisible(.Call('Rsh_initialize_runtime'))\n"
-              + "res <- .Call('%s', env, cp)\n".formatted(module.topLevelFunName())
+              + "res <- .Call('%s', env, cp)\n".formatted(module.entryFunName())
               + "pc <- .Call('Rsh_pc_get')\n"
               + "dyn.unload('%s')\n".formatted(soFile.getAbsolutePath())
               + "list(res, pc)\n";
@@ -223,7 +164,7 @@ public class BC2CSnapshotTestExtension
       var nestedWithOutput =
           R.capturingEval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
       var pair = splitValueAndPC(nestedWithOutput.first());
-      var res = new TestResult(code, pair.first(), pair.second(), nestedWithOutput.second());
+      var res = new BC2CSnapshotTestResult(code, pair.first(), pair.second(), nestedWithOutput.second());
 
       return new TestArtifact(Either.right(res), tempDir);
     } catch (Exception e) {
@@ -242,17 +183,9 @@ public class BC2CSnapshotTestExtension
     return Pair.of(res, pc);
   }
 
-  // removes the possible heap pollution from generic array creation
-  // in the BC2CSnapshot.verify method
-  public interface TestResultCheck extends Consumer<TestResult> {}
-
-  public interface BC2CSnapshot {
-    void verify(String code, TestResultCheck... extraChecks);
-
-    void setClean(boolean clean);
-
-    void setCompilePromises(boolean compilePromises);
-
-    void setSaveSnapshot(boolean save);
+  private record TestArtifact(Either<Exception, BC2CSnapshotTestResult> result, File tempDir) {
+    public void destroy() {
+      Files.deleteRecursively(tempDir.toPath());
+    }
   }
 }
