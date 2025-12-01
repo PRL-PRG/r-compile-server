@@ -1,4 +1,6 @@
-check({
+#? dontSaveSnapshot
+#? returns(6)
+main <- function() {
   x <- 0
   for (i in 1:3) {
     for (j in 1:3) {
@@ -9,4 +11,4 @@ check({
     }
   }
   x
-}, dontSaveSnapshot, returns(6))
+}

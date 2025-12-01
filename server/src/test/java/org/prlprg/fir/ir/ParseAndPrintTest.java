@@ -7,14 +7,14 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 
 /// Tests parsing and printing FIŘ files.
 class ParseAndPrintTest {
   /// Tests that all FIŘ files in the test resources directory can be parsed.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testParseFirFiles(TestPath firPath) {
+  void testParseFirFiles(ExamplePath firPath) {
     var firText = firPath.read();
 
     Parser.fromString(firText, Module.class);
@@ -24,7 +24,7 @@ class ParseAndPrintTest {
   /// to a string that matches the original content.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testParseAndPrintFirFiles(TestPath firPath) {
+  void testParseAndPrintFirFiles(ExamplePath firPath) {
     var originalFirText = firPath.read();
 
     var module = Parser.fromString(originalFirText, Module.class);

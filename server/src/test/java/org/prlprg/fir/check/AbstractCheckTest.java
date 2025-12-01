@@ -9,7 +9,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 
 abstract class AbstractCheckTest {
   private final String checkName;
@@ -26,7 +26,7 @@ abstract class AbstractCheckTest {
   /// checker, raise expected errors and no other errors.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir", depth = 2)
-  void testCheckFirFiles(TestPath firPath) {
+  void testCheckFirFiles(ExamplePath firPath) {
     var firText = firPath.read();
     var firModule = parseModule(firText);
 

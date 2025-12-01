@@ -1,11 +1,3 @@
-check({
-  43 + -1
-})
-
-check({
-  f <- function(x, y) {
-    x + y
-  }
-
-  f(43, -1)
-})
+main <- function(x = 43, y = -1) {
+  x + y
+}

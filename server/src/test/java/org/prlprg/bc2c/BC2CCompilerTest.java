@@ -11,14 +11,13 @@ import org.prlprg.bc2c.BC2CDirectSnapshotTestExtension.BC2CDirectSnapshot;
 import org.prlprg.bc2c.BC2CDirectSnapshotTestExtension.TestResultCheck;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.examples.RExampleFile;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 
 @ExtendWith(BC2CDirectSnapshotTestExtension.class)
 abstract class BC2CCompilerTest {
   @ParameterizedTest
   @DirectorySource(glob = "*.R")
-  void testSpecificExamples(TestPath rPath, BC2CSnapshot snapshot) {
+  void testSpecificExamples(ExamplePath rPath, BC2CSnapshot snapshot) {
     snapshot.setName(rPath.name());
 
     var testFile = new RExampleFile(rPath.read());

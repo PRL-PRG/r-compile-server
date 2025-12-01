@@ -8,14 +8,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 
 class SpeculateDispatchTest {
   /// Runs all FIŘ files in the test resources, compile new versions of its methods based on
   /// feedback (no optimizations), and runs once more.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testNeverCrashes(TestPath firPath) {
+  void testNeverCrashes(ExamplePath firPath) {
     testInterpretFirFile(
         firPath,
         false,

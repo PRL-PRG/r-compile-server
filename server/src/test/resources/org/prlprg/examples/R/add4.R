@@ -1,0 +1,4 @@
+main <- function() {
+  x <- 42
+  x + c(1, 2)
+}
