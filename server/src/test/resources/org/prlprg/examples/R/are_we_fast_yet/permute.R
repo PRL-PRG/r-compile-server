@@ -1,23 +1,21 @@
-check({
-  permute <- function(n, list) {
-    if (n == 1) {
-      return(1)
-    }
+main <- function() permute(4, 1:7)
 
-    count <- 0
-    for (i in 1:n) {
-      count <- count + permute(n - 1, swap(list, i, n))
-    }
-
-    return(count)
+permute <- function(n, list) {
+  if (n == 1) {
+    return(1)
   }
 
-  swap <- function(list, i, j) {
-    temp <- list[i]
-    list[i] <- list[j]
-    list[j] <- temp
-    list
+  count <- 0
+  for (i in 1:n) {
+    count <- count + permute(n - 1, swap(list, i, n))
   }
 
-  permute(4, 1:7)
-})
+  return(count)
+}
+
+swap <- function(list, i, j) {
+  temp <- list[i]
+  list[i] <- list[j]
+  list[j] <- temp
+  list
+}

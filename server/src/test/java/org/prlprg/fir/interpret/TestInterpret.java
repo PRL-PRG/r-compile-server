@@ -16,7 +16,7 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Streams;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 
 public final class TestInterpret {
   /// Tests that the FIŘ file, when interpreted, produces the expected output, and raises
@@ -24,7 +24,7 @@ public final class TestInterpret {
   ///
   /// Then, depending on the given function, optimizes the FIŘ file and tests more.
   public static void testInterpretFirFile(
-      TestPath firPath, boolean testInvalid, Consumer<TestContext> optimize) {
+      ExamplePath firPath, boolean testInvalid, Consumer<TestContext> optimize) {
     testInterpretFirFile(firPath.read(), testInvalid, optimize);
   }
 

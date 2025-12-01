@@ -8,14 +8,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.examples.RExampleOption;
+import org.prlprg.examples.ExampleOption;
 
 class BC2CExampleOptions {
   boolean compilePromises = false;
   boolean saveSnapshot = true;
   ArrayList<BC2CExampleExtraCheck> extraChecks = new ArrayList<>();
 
-  BC2CExampleOptions(boolean isDirect, List<RExampleOption> rawOptions) {
+  BC2CExampleOptions(boolean isDirect, List<ExampleOption> rawOptions) {
     for (var option : rawOptions) {
       if (option.isDirect() && !isDirect) {
         continue;

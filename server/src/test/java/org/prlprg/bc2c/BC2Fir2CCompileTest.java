@@ -8,8 +8,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.bc.StdlibClosuresSource;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.examples.RExampleFile;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
@@ -29,7 +28,7 @@ public class BC2Fir2CCompileTest implements StdlibClosuresSource {
 
   @ParameterizedTest
   @DirectorySource(glob = "*.R")
-  void testSpecificExamples(TestPath rPath, BC2CSnapshot snapshot) {
+  void testSpecificExamples(ExamplePath rPath, BC2CSnapshot snapshot) {
     snapshot.setName(rPath.name());
 
     var testFile = new RExampleFile(rPath.read());

@@ -15,15 +15,14 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.support.AnnotationConsumer;
 import org.prlprg.util.Files;
-import org.prlprg.util.TestPath;
 import org.prlprg.util.Tests;
 
-/// List all files in a directory and provide each one's path as an argument.
+/// Collect all examples.
 @Documented
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-@ArgumentsSource(DirectoryArgumentsProvider.class)
-public @interface DirectorySource {
+@ArgumentsSource(ExampleArgumentsProvider.class)
+public @interface RExampleSource {
   /// Filter files by glob applied to the filename. Default is to not filter.
   String glob() default "";
 
@@ -31,7 +30,7 @@ public @interface DirectorySource {
   /// infinitely. Defaults to 1.
   int depth() default 1;
 
-  /// Directory to list files from, relative to the test class (or [#rootClass()]). Default is `.`.
+  /// Example to list files from, relative to the test class (or [#rootClass()]). Default is `.`.
   ///
   /// "Relative to class A", means take the subpath of class A relative to `.../test/java`, and
   /// append it to `.../test/resources`.
@@ -48,7 +47,7 @@ public @interface DirectorySource {
   boolean appendClassName() default false;
 }
 
-class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsumer<DirectorySource> {
+class ExampleArgumentsProvider implements ArgumentsProvider, AnnotationConsumer<ExampleSource> {
   private boolean accepted = false;
   private String glob = "";
   private int depth;
@@ -57,7 +56,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
   private boolean appendClassName;
 
   @Override
-  public void accept(DirectorySource directorySource) {
+  public void accept(ExampleSource directorySource) {
     accepted = true;
     glob = directorySource.glob();
     roots = directorySource.roots().length == 0 ? ImmutableList.of(Paths.get(directorySource.root())) :
@@ -80,7 +79,7 @@ class DirectoryArgumentsProvider implements ArgumentsProvider, AnnotationConsume
       var root1 = !appendClassName ? root : root.resolve(Tests.testName(testClass));
 
       return Files.listDir(root1, glob, depth, false, true).stream()
-          .map(path -> new TestPath(root1, path))
+          .map(path -> new ExamplePath(root1, path))
           .map(Arguments::of);
     });
   }

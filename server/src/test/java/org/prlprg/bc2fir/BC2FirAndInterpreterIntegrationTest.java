@@ -23,7 +23,7 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
@@ -40,7 +40,7 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// - When bytecode-compiled, converted into FIŘ, and interpreted by [InternalInterpreter].
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
-  void testCompilerAndInterpreter(TestPath rFilePath) {
+  void testCompilerAndInterpreter(ExamplePath rFilePath) {
     testCompilerAndInterpreterAbstract(
         rFilePath,
         (interpreter, check) -> check.checkOutput("FIŘ output", () -> interpreter.call("main")));
@@ -53,7 +53,7 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [InternalInterpreter].
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
-  void testCompilerInterpreterOptimizer(TestPath rFilePath) {
+  void testCompilerInterpreterOptimizer(ExamplePath rFilePath) {
     testCompilerAndInterpreterAbstract(
         rFilePath,
         (interpreter, check) -> {
@@ -98,7 +98,7 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// - When `main2` is called with a real instead of an integer (same output but causes deopts)
   @ParameterizedTest
   @DirectorySource(root = "deopt", glob = "*.R", depth = 2)
-  void testCompilerAndInterpreterDeopt(TestPath rFilePath) {
+  void testCompilerAndInterpreterDeopt(ExamplePath rFilePath) {
     testCompilerAndInterpreterAbstract(
         rFilePath,
         (interpreter, check) -> {
@@ -162,7 +162,7 @@ public class BC2FirAndInterpreterIntegrationTest {
   }
 
   private void testCompilerAndInterpreterAbstract(
-      TestPath rFilePath, BiConsumer<Interpreter, Check> test) {
+      ExamplePath rFilePath, BiConsumer<Interpreter, Check> test) {
     Module firModule = null;
 
     try {

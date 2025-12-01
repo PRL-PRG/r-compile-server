@@ -5,9 +5,11 @@ import static org.prlprg.fir.check.Checker.checkAll;
 import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import org.prlprg.bc.BCCompiler;
+import org.prlprg.bc.Bc;
 import org.prlprg.fir.check.Checker.Exclude;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.RSession;
+import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
@@ -25,16 +27,19 @@ public final class BC2FirCompilerUtils {
                 + binding.getValue());
       }
 
-      var funBc =
-          new BCCompiler(funSexpNotCompiled, session)
-              .compile()
-              .orElseThrow(BcCompilerUnsupportedException::new);
-      var funSexp =
-          SEXPs.closure(
-              funSexpNotCompiled.parameters(),
-              SEXPs.bcode(funBc),
-              funSexpNotCompiled.env(),
-              funSexpNotCompiled.attributes());
+      var funSexp = funSexpNotCompiled;
+      if (!(funSexp.body() instanceof BCodeSXP)) {
+        var funBc =
+            new BCCompiler(funSexpNotCompiled, session)
+                .compile()
+                .orElseThrow(BcCompilerUnsupportedException::new);
+        funSexp =
+            SEXPs.closure(
+                funSexpNotCompiled.parameters(),
+                SEXPs.bcode(funBc),
+                funSexpNotCompiled.env(),
+                funSexpNotCompiled.attributes());
+      }
 
       BC2ClosureCompiler.compile(session, firModule, funName, funSexp);
       cleanup(firModule, false);

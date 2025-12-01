@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.fir.interpret.TestInterpret.TestContext;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 
 public abstract class OptimizationTest {
   /// Replace lines below `# commentType: ...` with `...` in `firText`.
@@ -61,7 +61,7 @@ public abstract class OptimizationTest {
   /// Tests that the optimization never crashes on valid FIŘ.
   @ParameterizedTest
   @DirectorySource(root = "..", rootClass = OptimizationTest.class, glob = "*.fir")
-  void testNeverCrashes(TestPath firPath) {
+  void testNeverCrashes(ExamplePath firPath) {
     testInterpretFirFile(
         firPath,
         false,
@@ -74,7 +74,7 @@ public abstract class OptimizationTest {
   /// Tests that the optimization works as expected on specific tests.
   @ParameterizedTest
   @DirectorySource(appendClassName = true, glob = "*.fir")
-  void test(TestPath firPath) {
+  void test(ExamplePath firPath) {
     var firText = firPath.read();
 
     testInterpretFirFile(

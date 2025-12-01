@@ -25,7 +25,7 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.Files;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 import org.prlprg.util.cc.CCompilationException;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
@@ -40,7 +40,7 @@ public class Fir2CAndInterpreterTest {
 
   @ParameterizedTest
   @DirectorySource(glob = "*.fir")
-  void runtimeMatchesInterpreter(TestPath firPath) throws Exception {
+  void runtimeMatchesInterpreter(ExamplePath firPath) throws Exception {
     var firText = firPath.read();
     var caseName = firPath.name();
 

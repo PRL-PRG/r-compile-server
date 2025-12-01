@@ -16,7 +16,7 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 import org.prlprg.util.gnur.GNUR;
 import org.prlprg.util.gnur.GNURTestSupport;
 
@@ -30,23 +30,23 @@ public class BC2Fir2CEvalTest {
 
   @ParameterizedTest
   @DirectorySource(roots = {".", "../bc2fir"}, glob = "*.R", depth = 2)
-  void testDirectCompile(TestPath rFilePath) throws Exception {
+  void testDirectCompile(ExamplePath rFilePath) throws Exception {
     runTest(rFilePath, CompileMode.DIRECT);
   }
 
   @ParameterizedTest
   @DirectorySource(roots = {".", "../bc2fir"}, glob = "*.R", depth = 2)
-  void testOptimizingCompile(TestPath rFilePath) throws Exception {
+  void testOptimizingCompile(ExamplePath rFilePath) throws Exception {
     runTest(rFilePath, CompileMode.OPTIMIZED);
   }
 
   @ParameterizedTest
   @DirectorySource(roots = {"deopt", "../bc2fir/deopt"}, glob = "*.R", depth = 2)
-  void testOptimizingCompileAndDeopts(TestPath rFilePath) throws Exception {
+  void testOptimizingCompileAndDeopts(ExamplePath rFilePath) throws Exception {
     runTest(rFilePath, CompileMode.OPTIMIZED_DEOPT);
   }
 
-  private void runTest(TestPath rFilePath, CompileMode mode) throws Exception {
+  private void runTest(ExamplePath rFilePath, CompileMode mode) throws Exception {
     Module firModule = null;
     var caseName = rFilePath.name();
 

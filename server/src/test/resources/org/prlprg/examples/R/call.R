@@ -1,4 +1,2 @@
-check({
-  str(42)
-})
+main <- function() str(42)
 

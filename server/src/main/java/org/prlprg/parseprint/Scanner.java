@@ -498,6 +498,14 @@ public class Scanner {
         skipsWhitespace.notSkippingNewlines(), () -> readUntil('\n', true));
   }
 
+
+  /**
+   * Read all remaining characters.
+   */
+  public String readUntilEndOfInput() {
+    return readUntil(-1);
+  }
+
   /**
    * Read characters until, but not including, {@code s}.
    *

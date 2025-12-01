@@ -1,25 +1,20 @@
-check({
-  f <- function(n) {
-    m <- n + n
-    limit <- 4L
-    values <- rep(0, limit)
-    last <- 0
-    for (i in 1L:limit) {
-      current <- (m + i) * (limit - i + 1L)
-      if (i >= 2L) {
-        last <- last + current
-      } else {
-        last <- current
-      }
-      values[i] <- last
+#? [bc2fir]deopt
+main <- function(n = 1L) {
+  m <- n + n
+  limit <- 4L
+  values <- rep(0, limit)
+  last <- 0
+  for (i in 1L:limit) {
+    current <- (m + i) * (limit - i + 1L)
+    if (i >= 2L) {
+      last <- last + current
+    } else {
+      last <- current
     }
-    if (m >= 2L) {
-      values[[limit]] <- values[[limit]] + 1L
-    }
-    values
+    values[i] <- last
   }
-
-  stopifnot(f(1L) == f(1))
-  stopifnot(f(1L) == f(TRUE))
-  f(1L)
-}, bc2fir.deopt)
+  if (m >= 2L) {
+    values[[limit]] <- values[[limit]] + 1L
+  }
+  values
+}

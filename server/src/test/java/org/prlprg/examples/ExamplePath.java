@@ -1,12 +1,12 @@
-package org.prlprg.util;
+package org.prlprg.examples;
 
 import java.nio.file.Path;
+import org.prlprg.util.Files;
+import org.prlprg.util.Paths;
 
-public record TestPath(Path root, Path relative) {
+record ExamplePath(Path root, Path relative) {
   public String name() {
-    String fileName = relative.getFileName().toString();
-    int dotIndex = fileName.lastIndexOf('.');
-    return dotIndex == -1 ? fileName : fileName.substring(0, dotIndex);
+    return Paths.getFileStem(relative);
   }
 
   public Path absolute() {

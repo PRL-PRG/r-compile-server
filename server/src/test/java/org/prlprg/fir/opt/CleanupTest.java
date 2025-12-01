@@ -7,14 +7,14 @@ import static org.prlprg.fir.opt.OptimizationTest.replaceAfterComments;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.examples.DirectorySource;
-import org.prlprg.util.TestPath;
+import org.prlprg.examples.ExamplePath;
 
 class CleanupTest {
   /// Tests that all FIŘ files in the test resources directory are affected by [Cleanup] as
   /// expected. Doesn't substitute origins because that changes a lot.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testWorksAsExpectedWithoutOriginSubstitutions(TestPath firPath) {
+  void testWorksAsExpectedWithoutOriginSubstitutions(ExamplePath firPath) {
     var firText = firPath.read();
     var firModule = parseModule(firText);
 
@@ -44,7 +44,7 @@ class CleanupTest {
   /// is run on them.
   @ParameterizedTest
   @DirectorySource(root = "..", glob = "*.fir")
-  void testDoesntCrash(TestPath firPath) {
+  void testDoesntCrash(ExamplePath firPath) {
     var firText = firPath.read();
     var firModule = parseModule(firText);
 
