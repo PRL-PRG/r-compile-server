@@ -186,7 +186,7 @@ static void print_byte_array(std::ostream& file, const unsigned char *arr, size_
     file << std::format("0x{:02X}, ", arr[i]);
 }
 
-static void export_body(std::ostream& file, const StencilExport& stencil, const char *opcode_name)
+static void export_body(std::ostream& file, const StencilExport& stencil, const char *opcode_name, const std::vector<StencilExport>& functions_not_inlined)
 {
   file << std::format("Hole _{}_HOLES[] = {{\n", opcode_name);
   for (const auto& hole : stencil.holes)
@@ -205,6 +205,18 @@ static void export_body(std::ostream& file, const StencilExport& stencil, const 
       file << std::format(", .val.call = {{ .sym = &{}, .arg = \"{}\" }}",
               (const char*)hole.val.call.sym, (const char*)hole.val.call.arg);
       break;
+    case RELOC_NOTINLINED_FUNCTION:
+    {
+      for (size_t i = 0; i < functions_not_inlined.size(); i++)
+      {
+        if(functions_not_inlined[i].name == hole.val.symbol_name)
+        {
+          file << std::format(", .val.imm_pos = {}", i);
+          break;
+        }
+      }
+      break;
+    }
     case RELOC_RCP_EXEC_IMM:
     case RELOC_RCP_RAW_IMM:
     case RELOC_RCP_CONST_AT_IMM:
@@ -241,7 +253,7 @@ static void export_to_files(const Stencils& stencils)
       std::ofstream file(filename);
 
       for(const auto& stencil : current.stencils)
-        export_body(file, stencil, (std::string(current.name) + '_' + stencil.name).c_str());
+        export_body(file, stencil, (std::string(current.name) + '_' + stencil.name).c_str(), stencils.functions_not_inlined);
         
       file << std::format("\nconst Stencil {}_stencils[] = {{\n", current.name);
       for(const auto& stencil : current.stencils)
@@ -257,7 +269,24 @@ static void export_to_files(const Stencils& stencils)
     filename += ".h";
 
     std::ofstream file(filename) ;
-    export_body(file, current, current.name.c_str());
+    export_body(file, current, current.name.c_str(), stencils.functions_not_inlined);
+  }
+
+  {
+    std::ofstream file("notinlined_functions.h");
+    size_t total_size = 0;
+    for (const auto& current : stencils.functions_not_inlined)
+    {
+      total_size += current.body.size();
+      export_body(file, current, current.name.c_str(), stencils.functions_not_inlined);
+    }
+
+    file << std::format("\nconst Stencil notinlined_stencils[] = {{\n");
+    for (const auto& current : stencils.functions_not_inlined)
+      file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n", current.body.size(), current.name, current.holes.size(), current.name, current.alignment, current.name);
+    file << "};\n\n";
+
+    file << std::format("#define notinlined_count {}\n#define notinlined_size {}\n", stencils.functions_not_inlined.size(), total_size);
   }
 
   std::ofstream file("stencils.h");
@@ -269,6 +298,7 @@ static void export_to_files(const Stencils& stencils)
     if (!current.stencils.empty())
       file << std::format("#include \"{}.h\"\n", current.name);
 
+  file << "#include \"notinlined_functions.h\"\n";
   file << "const uint8_t rodata[] = { ";
   print_byte_array(file, stencils.rodata.data(), stencils.rodata.size());
   file << "};\n";
@@ -295,6 +325,8 @@ static void export_to_files(const Stencils& stencils)
       file << std::format("&{}_stencils[{}],", std::string(current.name), i);
   for (const auto& current : stencils.stencils_extra)
     file << std::format("&{},", current.name);
+  for (size_t i = 0; i < stencils.functions_not_inlined.size(); ++i)
+    file << std::format("&notinlined_stencils[{}],", i);
 
   file << "\n};\n";
 }
@@ -496,6 +528,12 @@ static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body
       hole.val.symbol_name = strdup((*rel.sym_ptr_ptr)->name);
     }
   }
+  else if (descr_imm = remove_prefix((*rel.sym_ptr_ptr)->name, ".text."))
+  {
+    printf("Found notinlined function stencil reference: %s\n", (*rel.sym_ptr_ptr)->name);
+    hole.kind = RELOC_NOTINLINED_FUNCTION;
+    hole.val.symbol_name = strdup(descr_imm);
+  }
   else if (strcmp((*rel.sym_ptr_ptr)->name, ".rodata") == 0)
   {
     hole.kind = RELOC_RODATA;
@@ -660,7 +698,7 @@ static void free_stencil(const StencilExport& stencil)
 {
   for (const auto& hole : stencil.holes)
   {
-    if (hole.kind == RELOC_RUNTIME_SYMBOL || hole.kind == RELOC_RUNTIME_SYMBOL_GOT || hole.kind == RELOC_RUNTIME_SYMBOL_DEREF || hole.kind == RELOC_RUNTIME_CALL)
+    if (hole.kind == RELOC_RUNTIME_SYMBOL || hole.kind == RELOC_RUNTIME_SYMBOL_GOT || hole.kind == RELOC_RUNTIME_SYMBOL_DEREF || hole.kind == RELOC_RUNTIME_CALL || hole.kind == RELOC_NOTINLINED_FUNCTION)
       free(hole.val.symbol_name);
   }
 }

@@ -243,6 +243,7 @@ typedef struct {
 
 static rcp_sharedmem_ptrs *mem_shared;
 static SEXP mem_shared_sexp;
+static const uint8_t *notinlined_executable;
 
 static void prepare_shared_memory()
 {
@@ -287,6 +288,8 @@ static void prepare_shared_memory()
     mem_shared->memory_shared_near = mem_shared_near;
     mem_shared->memory_shared_low = mem_shared_low;
     mem_shared->memory_shared_size = total_size;
+    mem_shared->memory_functions_executable = (void*)notinlined_executable;
+    mem_shared->memory_functions_executable_size = notinlined_size;
 
     mem_shared_sexp = PROTECT(R_MakeExternalPtr(mem_shared, R_NilValue, R_NilValue));
     R_PreserveObject(mem_shared_sexp);
@@ -1152,6 +1155,72 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     return res;
 }
 
+
+static const uint8_t* prepare_notinlined_functions(void)
+{
+    if(notinlined_count == 0)
+        return NULL;
+    
+    void* notinlined_lut[notinlined_count];
+
+    uint8_t* mem_notinlined = mmap(get_near_memory(notinlined_size), notinlined_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mem_notinlined == MAP_FAILED)
+        exit(1);
+
+    // Copy ...
+    uint8_t* offset = mem_notinlined;
+    for (size_t i = 0; i < notinlined_count; i++)
+    {
+        const Stencil* stencil = &notinlined_stencils[i];
+        memcpy(offset, stencil->body, stencil->body_size);
+        notinlined_lut[i] = offset;
+        offset += stencil->body_size;
+    }
+
+    // ... resolve other holes ...
+    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    {
+        const Stencil *stencil = stencils_all[i];
+        for (size_t j = 0; j < stencil->holes_size; j++)
+        {
+            Hole *hole = &stencil->holes[j];
+            if (hole->kind == RELOC_NOTINLINED_FUNCTION)
+            {
+                DEBUG_PRINT("Patching notinlined function hole at imm_pos %d with address %p\n", hole->val.imm_pos, notinlined_lut[hole->val.imm_pos]);
+                hole->val.symbol = notinlined_lut[hole->val.imm_pos];
+                hole->kind = RELOC_RUNTIME_SYMBOL;
+            }
+        }
+    }
+
+    PatchContext ctx = {
+        .shared_near = mem_shared->memory_shared_near,
+        .shared_low = mem_shared->memory_shared_low,
+        .constpool = NULL,
+        .executable_lookup = NULL,
+        .bytecode = NULL,
+        .bcell_lookup = NULL,
+        .loopcntxt_lookup = NULL,
+        .executable_start = NULL
+    };
+
+    // ... and patch holes in notinlined functions
+    for (size_t i = 0; i < notinlined_count; i++)
+    {
+        const Stencil* stencil = &notinlined_stencils[i];
+        for (size_t j = 0; j < stencil->holes_size; ++j)
+            patch(notinlined_lut[i], notinlined_lut[i], 0, stencil, &stencil->holes[j], j, NULL, 0, NULL, &ctx);
+    }
+
+    if (mprotect(mem_notinlined, notinlined_size, PROT_EXEC) != 0)
+    {
+        perror("mprotect failed");
+        exit(1);
+    }
+    return mem_notinlined;
+}
+
+
 static SEXP original_cmpfun = NULL;
 static SEXP original_tryCmpfun = NULL;
 
@@ -1554,6 +1623,8 @@ void rcp_init(void)
     prepare_shared_memory();
 
     prepare_active_holes();
+
+    notinlined_executable = prepare_notinlined_functions();
 
 #ifdef STEPFOR_SPECIALIZE
     prepare_stepfor();
