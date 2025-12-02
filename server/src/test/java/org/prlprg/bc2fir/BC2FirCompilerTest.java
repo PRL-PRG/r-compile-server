@@ -15,11 +15,9 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.UserEnvSXP;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
+import org.prlprg.session.gnur.GNUR;
 
 @ExtendWith(BC2FirSnapshotTestExtension.class)
-@GNURTestSupport
 public class BC2FirCompilerTest implements StdlibClosuresSource {
   private final GNUR R;
 

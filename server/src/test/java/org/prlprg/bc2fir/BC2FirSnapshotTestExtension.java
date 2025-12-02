@@ -5,13 +5,13 @@ import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
 
 import java.lang.reflect.Method;
 import org.opentest4j.TestAbortedException;
-import org.prlprg.rsession.TestRSession;
+import org.prlprg.session.TestRSession;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
-import org.prlprg.util.snapshot.RDSFileSnapshotStoreFactory;
+import org.prlprg.session.snapshot.RDSFileSnapshotStoreFactory;
 import org.prlprg.util.snapshot.SnapshotExtension;
 
 public class BC2FirSnapshotTestExtension

@@ -27,10 +27,8 @@ import org.prlprg.examples.DirectorySource;
 import org.prlprg.util.Files;
 import org.prlprg.examples.ExamplePath;
 import org.prlprg.util.cc.CCompilationException;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
+import org.prlprg.session.gnur.GNUR;
 
-@GNURTestSupport
 public class Fir2CAndInterpreterTest {
   private final GNUR R;
 

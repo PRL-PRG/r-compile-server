@@ -1,9 +1,12 @@
-package org.prlprg.util.snapshot;
+package org.prlprg.session.snapshot;
 
 import java.nio.file.Path;
 import java.util.function.Function;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.util.snapshot.FileSnapshotStoreFactory;
+import org.prlprg.util.snapshot.ObjectSnapshotStore;
+import org.prlprg.util.snapshot.SnapshotStore;
 
 public class RDSFileSnapshotStoreFactory<T> extends FileSnapshotStoreFactory<T> {
   private final RSession session;

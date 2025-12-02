@@ -1,4 +1,4 @@
-package org.prlprg.util.snapshot;
+package org.prlprg.session.snapshot;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -13,6 +13,7 @@ import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.util.snapshot.SnapshotStore;
 
 public class RDSSnapshotStore implements SnapshotStore<SEXP> {
 
@@ -60,7 +61,7 @@ public class RDSSnapshotStore implements SnapshotStore<SEXP> {
 
   @Override
   public void close() {
-    if (snapshots == null || snapshots.size() == 0) {
+    if (snapshots == null || snapshots.isEmpty()) {
       return;
     }
 

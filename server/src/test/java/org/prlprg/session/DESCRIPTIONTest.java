@@ -1,4 +1,4 @@
-package org.prlprg.rsession;
+package org.prlprg.session;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -7,7 +7,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.prlprg.session.DESCRIPTION;
 
 public class DESCRIPTIONTest {
 

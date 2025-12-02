@@ -15,10 +15,8 @@ import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.*;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
+import org.prlprg.session.gnur.GNUR;
 
-@GNURTestSupport
 public class RDSWriterTest {
 
   private final GNUR R;

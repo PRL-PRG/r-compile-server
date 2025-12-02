@@ -11,7 +11,7 @@ import java.util.logging.Logger;
 import org.prlprg.TestConfig;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.rds.RDSWriter;
-import org.prlprg.rsession.TestRSession;
+import org.prlprg.session.TestRSession;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.RSession;
@@ -22,9 +22,8 @@ import org.prlprg.util.Either;
 import org.prlprg.util.Files;
 import org.prlprg.util.Pair;
 import org.prlprg.util.ThrowingSupplier;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURFactory;
-import org.prlprg.util.snapshot.RDSFileSnapshotStoreFactory;
+import org.prlprg.session.gnur.GNUR;
+import org.prlprg.session.snapshot.RDSFileSnapshotStoreFactory;
 import org.prlprg.util.snapshot.SnapshotExtension;
 
 abstract class BC2CSnapshotTestExtension

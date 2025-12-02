@@ -1,25 +1,26 @@
 package org.prlprg.examples;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.util.stream.Stream;
 import org.prlprg.util.Streams;
-import org.prlprg.util.gnur.GNUR;
+import org.prlprg.session.gnur.GNUR;
 
 /// Lazy static store of [FirExample]s.
-public class FirExampleStore {
-  private final ImmutableMap<String, FirExample> examples;
+class FirExampleStore {
+  private final ImmutableList<FirExample> examples;
 
-  public FirExampleStore(GNUR R, RExampleStore fromR, ExampleStore fromFir) {
+  FirExampleStore(GNUR R, RExampleStore fromR) {
     this.examples = Stream.concat(
-          fromR.examples().values().stream()
-            .map(example -> FirExample.fromR(R, example)),
-          fromFir.examples().values().stream()
-            .map(example -> FirExample.fromFir(R, example))
+          new ExampleStore("fir").examples().stream()
+            .map(example -> FirExample.fromFir(R, example)),
+          fromR.examples().stream()
+            .map(example -> FirExample.fromR(R, example))
         )
-        .collect(Streams.toImmutableMap(FirExample::name, e -> e));
+        .collect(ImmutableList.toImmutableList());
   }
 
-  public ImmutableMap<String, FirExample> examples() {
+  public ImmutableList<FirExample> examples() {
     return examples;
   }
 }

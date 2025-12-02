@@ -2,10 +2,7 @@ package org.prlprg.examples;
 
 import static org.prlprg.bc.BCCompiler.DEFAULT_OPTIMIZATION_LEVEL;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import java.util.Set;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.bc.BCCompiler;
@@ -13,9 +10,7 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
-import org.prlprg.util.Pair;
-import org.prlprg.util.Streams;
-import org.prlprg.util.gnur.GNUR;
+import org.prlprg.session.gnur.GNUR;
 
 /// An R source file
 public class RExample {

@@ -1,4 +1,4 @@
-package org.prlprg.rsession;
+package org.prlprg.session;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -9,8 +9,6 @@ import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.prlprg.rds.RDSReader;
-import org.prlprg.session.RSession;
-import org.prlprg.sexp.*;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
