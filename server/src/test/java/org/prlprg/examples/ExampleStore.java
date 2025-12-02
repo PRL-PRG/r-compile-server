@@ -1,5 +1,6 @@
 package org.prlprg.examples;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
@@ -11,12 +12,15 @@ import org.prlprg.util.Streams;
 
 /// Lazy static store of [Example]s.
 public class ExampleStore {
-  private final ImmutableMap<String, Example> examples;
+  private final ImmutableList<Example> examples;
 
-  public ExampleStore(Path root, String extension) {
-    examples = Files.listDir(root, "*." + extension, Integer.MAX_VALUE, false, true).stream()
+  public ExampleStore(String subDirAndExtension) {
+    var root = Paths.getResource(getClass(), subDirAndExtension);
+    examples = Files.listDir(root, "*." + subDirAndExtension, Integer.MAX_VALUE, false, true).stream()
         .map(relative -> {
-          var name = Paths.getFileStem(relative);
+          // Keep extension, because FIŘ examples come from R and FIŘ files.
+          var name = relative.getFileName().toString();
+
           var path = root.resolve(relative);
           try {
             return Parser.fromFile(path.toFile(), Example.class, new Example.ParseContext(name));
@@ -24,10 +28,10 @@ public class ExampleStore {
             throw new RuntimeException(e);
           }
         })
-        .collect(Streams.toImmutableMap(Example::name, e -> e));
+        .collect(ImmutableList.toImmutableList());
   }
 
-  public ImmutableMap<String, Example> examples() {
+  public ImmutableList<Example> examples() {
     return examples;
   }
 }

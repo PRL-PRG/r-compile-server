@@ -9,11 +9,9 @@ import org.prlprg.bc.StdlibClosuresSource;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.examples.DirectorySource;
 import org.prlprg.examples.ExamplePath;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
+import org.prlprg.session.gnur.GNUR;
 
 @ExtendWith(BC2Fir2CSnapshotTestExtension.class)
-@GNURTestSupport
 public class BC2Fir2CCompileTest implements StdlibClosuresSource {
   private final GNUR R;
 

@@ -24,10 +24,8 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.examples.DirectorySource;
 import org.prlprg.examples.ExamplePath;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
+import org.prlprg.session.gnur.GNUR;
 
-@GNURTestSupport
 public class BC2FirAndInterpreterIntegrationTest {
   private final GNUR R;
 

@@ -11,13 +11,16 @@ import org.prlprg.util.ThrowingSupplier;
 /// Provide a snapshot test
 ///
 /// @param <T> the type of data stored in the snapshot.
-public abstract class SnapshotExtension<T> implements ParameterResolver, AfterAllCallback {
+public abstract class SnapshotExtension<T> implements ParameterResolver, BeforeAllCallback, AfterAllCallback {
   private final Map<Method, SnapshotStore<T>> stores = new HashMap<>();
-  private final SnapshotStoreFactory<T> storeFactory;
+  private @Nullable SnapshotStoreFactory<T> storeFactory;
 
-  protected SnapshotExtension(SnapshotStoreFactory<T> storeFactory) {
-    this.storeFactory = storeFactory;
+  @Override
+  public void beforeAll(ExtensionContext context) {
+    storeFactory = createStoreFactory(context);
   }
+
+  protected abstract SnapshotStoreFactory<T> createStoreFactory(ExtensionContext context);
 
   @Override
   public boolean supportsParameter(
@@ -62,6 +65,7 @@ public abstract class SnapshotExtension<T> implements ParameterResolver, AfterAl
       T actual,
       @Nullable ThrowingSupplier<T> oracle,
       boolean saveSnapshot) {
+    assert storeFactory != null : "`beforeAll` not called`";
     var store = stores.computeIfAbsent(testMethod, storeFactory::create);
 
     var expectedOpt = Optional.<T>empty();

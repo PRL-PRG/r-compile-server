@@ -2,52 +2,45 @@ package org.prlprg.bc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.prlprg.util.SingletonParameterResolver.resolveSingleton;
 
 import java.lang.reflect.Method;
-import org.prlprg.rsession.TestRSession;
-import org.prlprg.session.RSession;
+import javax.annotation.Nullable;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.prlprg.session.snapshot.RDSSnapshotExtension;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Files;
 import org.prlprg.util.ThrowingSupplier;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURFactory;
-import org.prlprg.util.snapshot.RDSFileSnapshotStoreFactory;
+import org.prlprg.session.gnur.GNUR;
+import org.prlprg.session.snapshot.RDSFileSnapshotStoreFactory;
 import org.prlprg.util.snapshot.SnapshotExtension;
+import org.prlprg.util.snapshot.SnapshotStoreFactory;
 
-public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExtension.TestResult> {
-  private final GNUR R;
+public class BCSnapshotTestExtension extends RDSSnapshotExtension<BCSnapshotTestExtension.TestResult> {
+  public record TestResult(String code, int optimizationLevel, SEXP body) {}
 
-  public BCSnapshotTestExtension() {
-    this(new TestRSession());
+  @Override
+  protected SEXP serializeTestResult(TestResult testResult) {
+    return SEXPs.vec(SEXPs.string(testResult.code), SEXPs.integer(testResult.optimizationLevel), testResult.body);
   }
 
-  public BCSnapshotTestExtension(RSession session) {
-    super(new RDSFileSnapshotStoreFactory<>(session, TestResult::toSEXP, TestResult::fromSEXP));
-    this.R = GNURFactory.createRestarting(session);
-  }
-
-  public record TestResult(String code, int optimizationLevel, SEXP body) {
-    public SEXP toSEXP() {
-      return SEXPs.vec(SEXPs.string(code), SEXPs.integer(optimizationLevel), body);
+  @Override
+  protected TestResult deserializeTestResult(SEXP value) {
+    if (!(value instanceof VecSXP v) || v.size() != 3) {
+      throw new IllegalArgumentException("Expected a vector of length 3, got: " + value);
     }
 
-    public static TestResult fromSEXP(SEXP value) {
-      if (!(value instanceof VecSXP v) || v.size() != 3) {
-        throw new IllegalArgumentException("Expected a vector of length 3, got: " + value);
-      }
+    var code =
+        v.get(0)
+            .asScalarString()
+            .orElseThrow(() -> new IllegalArgumentException("Expected a string"));
+    var optimizationLevel =
+        v.get(1)
+            .asScalarInteger()
+            .orElseThrow(() -> new IllegalArgumentException("Expected an integer"));
+    var body = v.get(2);
 
-      var code =
-          v.get(0)
-              .asScalarString()
-              .orElseThrow(() -> new IllegalArgumentException("Expected a string"));
-      var optimizationLevel =
-          v.get(1)
-              .asScalarInteger()
-              .orElseThrow(() -> new IllegalArgumentException("Expected an integer"));
-      var body = v.get(2);
-
-      return new TestResult(code, optimizationLevel, body);
-    }
+    return new TestResult(code, optimizationLevel, body);
   }
 
   @Override
@@ -96,11 +89,13 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
 
   protected SEXP bcCompileBody(String code, int optimizationLevel) {
     var temp = Files.writeString(code);
-    try {
+    try (var R = R()) {
       CloSXP fun = (CloSXP) R.eval("eval(parse('" + temp + "'))");
       var compiler = new BCCompiler(fun, R.getSession());
       compiler.setOptimizationLevel(optimizationLevel);
       return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
+    } catch (Exception e) {
+      throw e instanceof RuntimeException re ? re : new RuntimeException(e);
     } finally {
       Files.delete(temp);
     }
@@ -109,7 +104,7 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
   protected ThrowingSupplier<TestResult> oracle(String name, String code, int optimizationLevel) {
     return () -> {
       var temp = Files.writeString(code);
-      try {
+      try (var R = R()) {
         var value =
             R.eval(
                 "compiler::cmpfun(eval(parse('"
@@ -122,6 +117,8 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
         }
 
         return new TestResult(code, optimizationLevel, closure.body());
+      } catch (Exception e) {
+        throw e instanceof RuntimeException re ? re : new RuntimeException(e);
       } finally {
         Files.delete(temp);
       }
@@ -129,7 +126,6 @@ public class BCSnapshotTestExtension extends SnapshotExtension<BCSnapshotTestExt
   }
 
   public interface BCSnapshot {
-
     default void verify(String code) {
       verify(code, BCCompiler.DEFAULT_OPTIMIZATION_LEVEL);
     }

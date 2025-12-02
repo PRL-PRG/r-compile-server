@@ -1,0 +1,7 @@
+/** Misc test utilities. */
+@ParametersAreNonnullByDefault
+@FieldsAreNonNullByDefault
+@ReturnTypesAreNonNullByDefault
+package org.prlprg.util;
+
+import javax.annotation.ParametersAreNonnullByDefault;

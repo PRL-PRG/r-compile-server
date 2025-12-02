@@ -1,4 +1,4 @@
-package org.prlprg.rsession;
+package org.prlprg.session;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.prlprg.RVersion;
-import org.prlprg.session.GNURSession;
 
 public class GNURSessionTest {
   private static final Path RDir = Path.of("../external/R/");
