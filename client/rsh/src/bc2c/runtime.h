@@ -1105,97 +1105,95 @@ static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
-#define Rsh_do_call(stack, call, rho)                                          \
-  do {                                                                         \
-    /* stack: */                                                               \
-    /*  fun */                                                                 \
-    /*  args_head */                                                           \
-    /*  args_tail */                                                           \
-    /*  -> top */                                                              \
-    SEXP fun_sxp = VAL_SXP(*GET_VAL(-3));                                      \
-    SEXP args_sxp = VAL_SXP(*GET_VAL(-2));                                     \
-    SEXP value = NULL;                                                         \
-    int flag;                                                                  \
-                                                                               \
-    switch (TYPEOF(fun_sxp)) {                                                 \
-    case BUILTINSXP:                                                           \
-      args_sxp = Rsh_builtin_call_args(args_sxp);                              \
-      checkForMissings(args_sxp, call);                                        \
-      flag = PRIMPRINT(fun_sxp);                                               \
-      R_Visible = (Rboolean)(flag != 1);                                       \
-      value = PRIMFUN(fun_sxp)(call, fun_sxp, args_sxp, rho);                  \
-      if (flag < 2) {                                                          \
-        R_Visible = (Rboolean)(flag != 1);                                     \
-      }                                                                        \
-      break;                                                                   \
-    case SPECIALSXP:                                                           \
-      flag = PRIMPRINT(fun_sxp);                                               \
-      R_Visible = (Rboolean)(flag != 1);                                       \
-      value =                                                                  \
-          PRIMFUN(fun_sxp)(call, fun_sxp, markSpecialArgs(CDR(call)), rho);    \
-      if (flag < 2) {                                                          \
-        R_Visible = (Rboolean)(flag != 1);                                     \
-      }                                                                        \
-      break;                                                                   \
-    case CLOSXP: {                                                             \
-      args_sxp = Rsh_closure_call_args(args_sxp);                              \
-      SEXP body = BODY(fun_sxp);                                               \
-                                                                               \
-      /* inline our call */                                                    \
-      if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&            \
-          !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&               \
-          R_GlobalContext->callflag != CTXT_GENERIC) {                         \
-        SEXP newrho =                                                          \
-            make_applyClosure_env(call, fun_sxp, args_sxp, rho, R_NilValue);   \
-        PROTECT(newrho);                                                       \
-        RCNTXT ctx;                                                            \
-        Rf_begincontext(&ctx, CTXT_RETURN, call, newrho, rho, args_sxp,        \
-                        fun_sxp);                                              \
-        R_Visible = TRUE;                                                      \
-                                                                               \
-        if (sigsetjmp(ctx.cjmpbuf, 0)) {                                       \
-          if (!ctx.jumptarget) {                                               \
-            /* ignores intermediate jumps for on.exits */                      \
-            value = R_ReturnedValue;                                           \
-            SET_SXP_VAL_N(-3, value); /* to protect */                         \
-          } else {                                                             \
-            /* FIXME: not sure what to do here, R does the following: */       \
-            /*                                                        */       \
-            /* ctx.returnValue = SEXP_TO_STACKVAL(NULL); undefined    */       \
-            /*                                                        */       \
-            /* with the following comment:                            */       \
-            /* > might be better so use something less                */       \
-            /* > segfault-prone than NULL here and elsewhere          */       \
-            assert(0);                                                         \
-          }                                                                    \
-        } else {                                                               \
-          value = rcpEval(body, newrho);                                       \
-        }                                                                      \
-                                                                               \
-        UNPROTECT(1); /* newrho */                                             \
-        Rf_endcontext(&ctx);                                                   \
-                                                                               \
-        break;                                                                 \
-      }                                                                        \
-                                                                               \
-      /* slow path */                                                          \
-      value = Rf_applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE); \
-      break;                                                                   \
-    }                                                                          \
-    default:                                                                   \
-      Rf_error("bad function");                                                \
-    }                                                                          \
-                                                                               \
-    SET_VAL_N(-3, value);                                                      \
-  } while (0)
+static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
+  // stack:
+  //  fun
+  //  args_head
+  //  args_tail
+  //  -> top
+  SEXP fun_sxp = VAL_SXP(*GET_VAL(-3));
+  SEXP args_sxp = VAL_SXP(*GET_VAL(-2));
+  SEXP value = NULL;
+  int flag;
 
-#ifdef RCP
-#define Rsh_Call Rsh_do_call
-#else
-static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
-  Rsh_do_call(stack, call, rho);
+  switch (TYPEOF(fun_sxp)) {
+  case BUILTINSXP:
+    args_sxp = Rsh_builtin_call_args(args_sxp);
+    checkForMissings(args_sxp, call);
+    flag = PRIMPRINT(fun_sxp);
+    R_Visible = (Rboolean)(flag != 1);
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, args_sxp, rho);
+    if (flag < 2) {
+      R_Visible = (Rboolean)(flag != 1);
+    }
+    break;
+  case SPECIALSXP:
+    flag = PRIMPRINT(fun_sxp);
+    R_Visible = (Rboolean)(flag != 1);
+    value = PRIMFUN(fun_sxp)(call, fun_sxp, markSpecialArgs(CDR(call)), rho);
+    if (flag < 2) {
+      R_Visible = (Rboolean)(flag != 1);
+    }
+    break;
+  case CLOSXP: {
+    args_sxp = Rsh_closure_call_args(args_sxp);
+    SEXP body = BODY(fun_sxp);
+
+    // inline our call
+    if (0 && TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+        !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
+        R_GlobalContext->callflag != CTXT_GENERIC) {
+
+      SEXP newrho =
+          make_applyClosure_env(call, fun_sxp, args_sxp, rho, R_NilValue);
+      PROTECT(newrho);
+      RCNTXT ctx;
+      Rf_begincontext(&ctx, CTXT_RETURN, call, newrho, rho, args_sxp, fun_sxp);
+      R_Visible = TRUE;
+
+      if (sigsetjmp(ctx.cjmpbuf, 0)) {
+        if (!ctx.jumptarget) {
+          /* ignores intermediate jumps for on.exits */
+          value = R_ReturnedValue;
+          SET_SXP_VAL_N(-3, value); // to protect
+        } else {
+          // FIXME: not sure what to do here, R does the following:
+          //
+          // ctx.returnValue = SEXP_TO_STACKVAL(NULL); /* undefined */
+          //
+          // with the following comment:
+          // > might be better so use something less
+          // > segfault-prone than NULL here and elsewhere
+          assert(0);
+        }
+      } else {
+        // FIXME: the same code is in the eval.c - make it work with RCP
+        SEXP c_cp = R_ExternalPtrProtected(body);
+        assert(TYPEOF(c_cp) == VECSXP);
+
+        // seems like unnecesary complicated casting, but otherwise C complains
+        // cf. https://stackoverflow.com/a/19487645
+        Rsh_closure fun;
+        *(void **)(&fun) = R_ExternalPtrAddr(body);
+        value = fun(newrho, c_cp);
+      }
+
+      UNPROTECT(1); // newrho
+      Rf_endcontext(&ctx);
+
+      break;
+    }
+
+    // slow path
+    value = Rf_applyClosure(call, fun_sxp, args_sxp, rho, R_NilValue, TRUE);
+    break;
+  }
+  default:
+    Rf_error("bad function");
+  }
+
+  SET_VAL_N(-3, value);
 }
-#endif
 
 static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
                                              SEXP rho) {
