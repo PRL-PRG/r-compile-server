@@ -49,7 +49,9 @@ extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
     stack -= (n);                                                              \
   } while (0)
 
-#define RCP_OP(op) __attribute__ ((noinline)) STENCIL_ATTRIBUTES SEXP _RCP_##op##_OP (Value* restrict stack, rcpEval_locals* restrict locals)
+#define RCP_STENCIL(name) __attribute__ ((noinline)) STENCIL_ATTRIBUTES SEXP name (Value* restrict stack, rcpEval_locals* restrict locals)
+#define RCP_OP_EX(op, ex) RCP_STENCIL(_RCP_##op##_OP_##ex)
+#define RCP_OP(op) RCP_STENCIL(_RCP_##op##_OP)
 
 /* PATCHING SYMBOLS */
 extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_NEXT(Value* stack, rcpEval_locals* locals);
@@ -111,7 +113,6 @@ extern const void* const _RCP_EXECUTABLE[];
 
 
 SEXP _RCP_INIT (Value* restrict stack, rcpEval_locals* restrict locals) {
-  PUSH_VAL(0);
   NEXT;
 }
 
@@ -228,7 +229,7 @@ X_STEPFOR_TYPES
 #undef X
 
 #define X(a, b) \
-RCP_OP(STEPFOR_##a) { \
+RCP_OP_EX(STEPFOR, a) { \
   if(Rsh_StepFor_Specialized_##a(stack, GETCONSTCELL_LABEL_IMM(0), GET_RHO())) \
     GOTO_IMM(0); \
   else \
@@ -268,22 +269,22 @@ RCP_OP(INVISIBLE) {
 //}
 
 // Specialized versions
-RCP_OP(LDCONST_INT) {
+RCP_OP_EX(LDCONST, INT) {
   PUSH_VAL(1);
   Rsh_LdConstInt(stack, GETCONST_IMM(0));
   NEXT;
 }
-RCP_OP(LDCONST_DBL) {
+RCP_OP_EX(LDCONST, DBL) {
   PUSH_VAL(1);
   Rsh_LdConstDbl(stack, GETCONST_IMM(0));
   NEXT;
 }
-RCP_OP(LDCONST_LGL) {
+RCP_OP_EX(LDCONST, LGL) {
   PUSH_VAL(1);
   Rsh_LdConstLgl(stack, GETCONST_IMM(0));
   NEXT;
 }
-RCP_OP(LDCONST_SEXP) {
+RCP_OP_EX(LDCONST, SEXP) {
   PUSH_VAL(1);
   Rsh_LdConst(stack, GETCONST_IMM(0));
   NEXT;
@@ -814,7 +815,7 @@ RCP_OP(SWITCH) {
   GOTO_VAL(dest);
 }
 #else
-RCP_OP(SWITCH_000) {
+RCP_OP_EX(SWITCH, 000) {
   SEXP call = GETCONST_IMM(0);
   SEXP names = GETCONST_IMM(1);
   SEXP coffsets = GETCONST_IMM(2);
@@ -833,7 +834,7 @@ RCP_OP(SWITCH_000) {
   GOTO_VAL(dest);
 }
 
-RCP_OP(SWITCH_001) {
+RCP_OP_EX(SWITCH, 001) {
   SEXP call = GETCONST_IMM(0);
   SEXP names = GETCONST_IMM(1);
   SEXP coffsets = GETCONST_IMM(2);
@@ -852,7 +853,7 @@ RCP_OP(SWITCH_001) {
   GOTO_VAL(dest);
 }
 
-RCP_OP(SWITCH_010) {
+RCP_OP_EX(SWITCH, 010) {
   SEXP call = GETCONST_IMM(0);
   SEXP names = GETCONST_IMM(1);
   SEXP coffsets = GETCONST_IMM(2);
@@ -871,7 +872,7 @@ RCP_OP(SWITCH_010) {
   GOTO_VAL(dest);
 }
 
-RCP_OP(SWITCH_011) {
+RCP_OP_EX(SWITCH, 011) {
   SEXP call = GETCONST_IMM(0);
   SEXP names = GETCONST_IMM(1);
   SEXP coffsets = GETCONST_IMM(2);
@@ -890,7 +891,7 @@ RCP_OP(SWITCH_011) {
   GOTO_VAL(dest);
 }
 
-RCP_OP(SWITCH_100) {
+RCP_OP_EX(SWITCH, 100) {
   SEXP call = GETCONST_IMM(0);
   SEXP names = GETCONST_IMM(1);
   SEXP coffsets = GETCONST_IMM(2);
@@ -909,7 +910,7 @@ RCP_OP(SWITCH_100) {
   GOTO_VAL(dest);
 }
 
-RCP_OP(SWITCH_101) {
+RCP_OP_EX(SWITCH, 101) {
   SEXP call = GETCONST_IMM(0);
   SEXP names = GETCONST_IMM(1);
   SEXP coffsets = GETCONST_IMM(2);
@@ -1034,7 +1035,7 @@ RCP_OP(LOGBASE) {
 
 // MATH1 specializations
 #define X(a, b, c) \
-  RCP_OP(MATH1_##b) { \
+  RCP_OP_EX(MATH1, b) { \
     Rsh_Math1(stack, GETCONST_IMM(0), b, GET_RHO()); \
     NEXT; \
   }

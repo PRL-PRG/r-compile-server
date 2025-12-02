@@ -25,16 +25,6 @@ extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 #define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
 #define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
-#define MAX3(a, b, c) MAX(MAX(a, b), c)
-#define MAX4(a, b, c, d) MAX(MAX3(a, b, c), d)
-#define MAX5(a, b, c, d, e) MAX(MAX4(a, b, c, d), e)
-#define MAX6(a, b, c, d, e, f) MAX(MAX5(a, b, c, d, e), f)
-#define MAX7(a, b, c, d, e, f, g) MAX(MAX6(a, b, c, d, e, f), g)
-#define MAX8(a, b, c, d, e, f, g, h) MAX(MAX7(a, b, c, d, e, f, g), h)
-#define MAX9(a, b, c, d, e, f, g, h, i) MAX(MAX8(a, b, c, d, e, f, g, h), i)
-#define MAX10(a, b, c, d, e, f, g, h, i, j) MAX(MAX9(a, b, c, d, e, f, g, h, i), j)
-#define MAX11(a, b, c, d, e, f, g, h, i, j, k) MAX(MAX10(a, b, c, d, e, f, g, h, i, j), k)
-
 #ifndef ALIGNMENT_LABELS
 #define ALIGNMENT_LABELS 1
 #endif
@@ -308,37 +298,10 @@ static void prepare_shared_memory()
 typedef struct {
   int cached_type;
   uint8_t *dst;
-  uint8_t *src[11];
-  uint16_t sizes[11];
-  uint8_t data[0
-#define X(a, b)                          \
-  + sizeof(__RCP_STEPFOR_##a##_OP_BODY) 
-  X_STEPFOR_TYPES
-#undef X
-  ];
+  uint8_t *src[stepfor_variant_count];
+  uint16_t sizes[stepfor_variant_count];
+  uint8_t data[stepfor_sum_size];
 } StepFor_specialized;
-
-#define stepfor_max_size MAX11( \
-        sizeof(__RCP_STEPFOR_0_OP_BODY), \
-        sizeof(__RCP_STEPFOR_1_OP_BODY), \
-        sizeof(__RCP_STEPFOR_2_OP_BODY), \
-        sizeof(__RCP_STEPFOR_3_OP_BODY), \
-        sizeof(__RCP_STEPFOR_4_OP_BODY), \
-        sizeof(__RCP_STEPFOR_5_OP_BODY), \
-        sizeof(__RCP_STEPFOR_6_OP_BODY), \
-        sizeof(__RCP_STEPFOR_7_OP_BODY), \
-        sizeof(__RCP_STEPFOR_8_OP_BODY), \
-        sizeof(__RCP_STEPFOR_9_OP_BODY), \
-        sizeof(__RCP_STEPFOR_10_OP_BODY))
-
-static void prepare_variant_one(uint16_t *size, ptrdiff_t *offset, uint8_t *mem, size_t *pos, const Stencil* stencil)
-{
-    *size = stencil->body_size;
-    
-    *offset = *pos;
-    memcpy(&mem[*pos], stencil->body, stencil->body_size);
-    *pos += stencil->body_size;
-}
 
 StepFor_specialized stepfor_data;
 
@@ -348,10 +311,13 @@ void prepare_stepfor()
     stepfor_data.dst = NULL;
     size_t pos = 0;
 
-#define X(a, b) \
-    prepare_variant_one(&stepfor_data.sizes[a], (ptrdiff_t*)&stepfor_data.src[a], stepfor_data.data, &pos, &_RCP_STEPFOR_##a##_OP);
-X_STEPFOR_TYPES
-#undef X
+    for (size_t a = 0; a < stepfor_variant_count; a++)
+    {
+        stepfor_data.sizes[a] = STEPFOR_OP_stencils[a].body_size;
+        *(ptrdiff_t*)&stepfor_data.src[a] = pos;
+        memcpy(&stepfor_data.data[pos], STEPFOR_OP_stencils[a].body, STEPFOR_OP_stencils[a].body_size);
+        pos += STEPFOR_OP_stencils[a].body_size;
+    }
 }
 #endif
 
@@ -500,23 +466,12 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
 
 static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *r_constpool)
 {
+    const Stencil* stencil_set = stencils[opcode];
     // For speciailized stencils
     switch(opcode)
     {
         case MATH1_OP:
-        {
-            switch(imms[1])
-            {
-            #define X(a, b, c) case b: return &_RCP_MATH1_##b##_OP;
-            X_MATH1_EXT_OPS
-            #undef X
-            default:
-            {
-                error("Invalid MATH1 IMM: %d\n", imms[1]);
-                return NULL;
-            }
-            }
-        }
+            return &stencil_set[imms[1]];
         break;
         case LDCONST_OP:
         {
@@ -527,19 +482,19 @@ static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *
                 {
                 case REALSXP:
                     DEBUG_PRINT("Using specialized version of LDCONST_OP: REAL\n");
-                    return &_RCP_LDCONST_DBL_OP;
+                    return &stencil_set[0];
                 case INTSXP:
                     DEBUG_PRINT("Using specialized version of LDCONST_OP: INT\n");
-                    return &_RCP_LDCONST_INT_OP;
+                    return &stencil_set[1];
                 case LGLSXP:
                     DEBUG_PRINT("Using specialized version of LDCONST_OP: LGL\n");
-                    return &_RCP_LDCONST_LGL_OP;
+                    return &stencil_set[2];
                 default:
                     break;
                 }
             }
             DEBUG_PRINT("Using specialized version of LDCONST_OP: SEXP\n");
-            return &_RCP_LDCONST_SEXP_OP;
+            return &stencil_set[3];
         }
         break;
 #ifdef STEPFOR_SPECIALIZE
@@ -572,26 +527,26 @@ static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *
             DEBUG_PRINT("SWITCH_OP specialization: is_names_null=%d names_length=%d, ioffsets_length=%d\n", is_names_null, names_length, ioffsets_length);
 
             if(!is_names_null && names_length != 1 && ioffsets_length != 1)
-                return &_RCP_SWITCH_000_OP;
+                return &stencil_set[0];//&_RCP_SWITCH_000_OP;
             else if(!is_names_null && names_length != 1 && ioffsets_length == 1)
-                return &_RCP_SWITCH_001_OP;
+                return &stencil_set[1];//&_RCP_SWITCH_001_OP;
             else if(!is_names_null && names_length == 1 && ioffsets_length != 1)
-                return &_RCP_SWITCH_010_OP;
+                return &stencil_set[2];//&_RCP_SWITCH_010_OP;
             else if(!is_names_null && names_length == 1 && ioffsets_length == 1)
-                return &_RCP_SWITCH_011_OP;
+                return &stencil_set[3];//&_RCP_SWITCH_011_OP;
             else if(is_names_null && ioffsets_length != 1)
-                return &_RCP_SWITCH_100_OP;
+                return &stencil_set[4];//&_RCP_SWITCH_100_OP;
             else if(is_names_null && ioffsets_length == 1)
-                return &_RCP_SWITCH_101_OP;
+                return &stencil_set[5];//&_RCP_SWITCH_101_OP;
             else
                 error("Invalid SWITCH_OP immediate values\n");
         }
         break;
 #endif
         default:
-            return &stencils[opcode];
-        }
-        return NULL;
+            return &stencil_set[0];
+    }
+    return NULL;
 }
 
 static int jump_target(R_OPCODE opcode, const int *imms) {
@@ -1117,15 +1072,15 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             stepfor_mem->dst = stepfor_code;
 
             // Set the source pointers to point to the specialized StepFor bodies
-            for (size_t i = 0; i < sizeof(stepfor_mem->src)/sizeof(*stepfor_mem->src); i++)
+            for (size_t i = 0; i < stepfor_variant_count; i++)
                 stepfor_mem->src[i] += (ptrdiff_t)stepfor_mem->data;
                 
             DEBUG_PRINT("PATCHING CORRESPONDING STEPFOR_OP at %d, ptr pointing to %p\n", stepfor_bc, stepfor_code);
-#define X(a, b)                                                           \
-            for (size_t j = 0; j < _RCP_STEPFOR_##a##_OP.holes_size; ++j) \
-                patch(stepfor_mem->src[a], stepfor_mem->dst, bc_pos, &_RCP_STEPFOR_##a##_OP, &_RCP_STEPFOR_##a##_OP.holes[j], j, &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
-X_STEPFOR_TYPES
-#undef X
+
+            for (size_t a = 0; a < stepfor_variant_count; a++)
+                for (size_t j = 0; j < STEPFOR_OP_stencils[a].holes_size; ++j)
+                    patch(stepfor_mem->src[a], stepfor_mem->dst, bc_pos, &STEPFOR_OP_stencils[a], &STEPFOR_OP_stencils[a].holes[j], j, &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
+
             smc_variants = stepfor_mem;
         }
         break;

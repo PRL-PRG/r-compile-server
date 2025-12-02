@@ -66,20 +66,6 @@ typedef struct {
   const char* name;
 } StencilMutable;
 
-#define X_STEPFOR_TYPES                                                     \
-  X(0, 0)                                                                   \
-  X(1, INTSXP)                                                              \
-  X(2, ISQSXP)                                                              \
-  X(3, REALSXP)                                                             \
-  X(4, LGLSXP)                                                              \
-  X(5, CPLXSXP)                                                             \
-  X(6, STRSXP)                                                              \
-  X(7, RAWSXP)                                                              \
-  X(8, EXPRSXP)                                                             \
-  X(9, VECSXP)                                                              \
-  X(10, LISTSXP)                                                            \
-
-
 
 #define X_MATH1_OPS                                                            \
   X(sqrt, SQRT_OP, Sqrt)                                                       \

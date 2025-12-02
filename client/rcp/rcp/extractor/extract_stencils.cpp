@@ -12,6 +12,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <string_view>
+#include <algorithm>
 
 enum X86_64_RELOC_KIND
 {
@@ -45,32 +46,26 @@ enum X86_64_RELOC_KIND
 
 struct StencilExport
 {
+  std::string name;
   std::vector<uint8_t> body;
   std::vector<Hole> holes;
   uint8_t alignment = 0;
+  StencilExport(std::string name) : name(std::move(name)) {}
 };
 
-struct StencilExportNamed : public StencilExport
+struct StencilExportSet
 {
-  std::string name;
-
-  StencilExportNamed(std::string name) : name(std::move(name)) {}
+  std::string_view name;
+  std::vector<StencilExport> stencils;
+  std::string extra_string;
 };
-
-struct StencilExportOpcode : public StencilExport
-{
-  const char* name;
-
-  StencilExportOpcode(const char* name) : name(std::move(name)) {}
-  StencilExportOpcode() = default;
-};
-
 
 struct Stencils
 {
   std::vector<uint8_t> rodata;
-  std::array<StencilExportOpcode, sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)> stencils_opcodes;
-  std::vector<StencilExportNamed> stencils_extra;
+  std::array<StencilExportSet, sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)> stencils_opcodes;
+  std::vector<StencilExport> stencils_extra;
+  std::vector<StencilExport> functions_not_inlined;
 
   Stencils()
   {
@@ -107,6 +102,17 @@ static const char *remove_prefix(const char *str, const char *prefix)
     prefix++;
   }
   return str;
+}
+
+std::unordered_map<std::string_view, uint8_t> opcode_idx;
+static auto prepare_opcodes()
+{
+  std::unordered_map<std::string_view, uint8_t> idx;
+  idx.reserve(sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)); // avoid rehashes
+  for (size_t i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
+      idx.emplace(std::string_view(OPCODES_NAMES[i]), i);
+
+  return idx;
 }
 
 static int get_opcode(const char *str)
@@ -154,16 +160,24 @@ static void prepare_variant_one(StencilExport& stencil, size_t stepfor_max_size)
     }
 }
 
-void prepare_stepfor(std::vector<StencilExportNamed>& stencil_list)
+void prepare_stepfor(StencilExportSet& stencil_set)
 {
   size_t stepfor_max_size = 0;
-  for(auto& current : stencil_list)
-    if(current.name.starts_with("_RCP_STEPFOR_"))
-      stepfor_max_size = std::max(stepfor_max_size, current.body.size());
+  size_t stepfor_sum_size = 0;
+  for(const auto& current : stencil_set.stencils)
+    stepfor_max_size = std::max(stepfor_max_size, current.body.size());
 
-  for(auto& current : stencil_list)
-    if(current.name.starts_with("_RCP_STEPFOR_"))
-      prepare_variant_one(current, stepfor_max_size);
+  for(auto& current : stencil_set.stencils)
+    prepare_variant_one(current, stepfor_max_size);
+  
+  for(const auto& current : stencil_set.stencils)
+    stepfor_sum_size += current.body.size();
+  
+  stencil_set.extra_string += std::format(
+    "#define stepfor_variant_count sizeof(STEPFOR_OP_stencils)/sizeof(*STEPFOR_OP_stencils)\n"
+    "#define stepfor_max_size {}\n"
+    "#define stepfor_sum_size {}\n",
+    stepfor_max_size, stepfor_sum_size);
 }
 
 static void print_byte_array(std::ostream& file, const unsigned char *arr, size_t len)
@@ -219,14 +233,22 @@ static void export_to_files(const Stencils& stencils)
 {
   for (const auto& current : stencils.stencils_opcodes)
   {
-    if (!current.body.empty())
+    if (!current.stencils.empty())
     {
       std::string filename(current.name);
       filename += ".h";
 
-      std::ofstream file(filename) ;
+      std::ofstream file(filename);
 
-      export_body(file, current, current.name);
+      for(const auto& stencil : current.stencils)
+        export_body(file, stencil, (std::string(current.name) + '_' + stencil.name).c_str());
+        
+      file << std::format("\nconst Stencil {}_stencils[] = {{\n", current.name);
+      for(const auto& stencil : current.stencils)
+        file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n", stencil.body.size(), std::string(current.name) + '_' + stencil.name, stencil.holes.size(), std::string(current.name) + '_' + stencil.name, stencil.alignment, std::string(current.name) + '_' + stencil.name);
+      file << "};\n\n";
+
+      file << current.extra_string;
     }
   }
   for (const auto& current : stencils.stencils_extra)
@@ -244,7 +266,7 @@ static void export_to_files(const Stencils& stencils)
     file << std::format("#include \"{}.h\"\n", current.name);
 
   for (const auto& current : stencils.stencils_opcodes)
-    if (!current.body.empty())
+    if (!current.stencils.empty())
       file << std::format("#include \"{}.h\"\n", current.name);
 
   file << "const uint8_t rodata[] = { ";
@@ -252,29 +274,29 @@ static void export_to_files(const Stencils& stencils)
   file << "};\n";
 
   for (const auto& current : stencils.stencils_extra)
-    file << std::format("const Stencil {} = {{ {}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}};\n", current.name, current.body.size(), current.name, current.holes.size(), current.name, current.alignment, current.name);
+    file << std::format("const Stencil {} = {{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}};\n", current.name, current.body.size(), current.name, current.holes.size(), current.name, current.alignment, current.name);
 
-  file << std::format("\nconst Stencil stencils[{}] = {{\n", stencils.stencils_opcodes.size());
+  file << std::format("\nconst Stencil* stencils[{}] = {{\n", stencils.stencils_opcodes.size());
 
   for (const auto& current : stencils.stencils_opcodes)
   {
-    if (!current.body.empty())
-      file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n", current.body.size(), current.name, current.holes.size(), current.name, current.alignment, current.name);
+    if (!current.stencils.empty())
+      file << std::format("{}_stencils,\n", current.name);
     else
-      file << std::format("{{0, NULL, 0, NULL, 0, \"{}\"}},\n", current.name);
+      file << std::format("NULL,//{}\n", current.name);
   }
 
   file << "};\n";
   
   file << "\nconst Stencil* stencils_all[] = {\n";
 
-  for (int i = 0; i < stencils.stencils_opcodes.size(); ++i)
-    if (!stencils.stencils_opcodes[i].body.empty())
-      file << std::format("&stencils[{}],", i);
+  for (const auto& current : stencils.stencils_opcodes)
+    for (size_t i = 0; i < current.stencils.size(); ++i)
+      file << std::format("&{}_stencils[{}],", std::string(current.name), i);
   for (const auto& current : stencils.stencils_extra)
     file << std::format("&{},", current.name);
 
-  file << "};\n";
+  file << "\n};\n";
 }
 
 std::unordered_map<std::string, std::string> rsh_symbol_map;
@@ -350,10 +372,10 @@ static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body
   break;
   }
 
+  const char *descr_imm = NULL;
   if (starts_with((*rel.sym_ptr_ptr)->name, "_RCP_"))
   {
     const char *descr = &((*rel.sym_ptr_ptr)->name)[5];
-    const char *descr_imm = NULL;
 
     if (descr_imm = remove_prefix(descr, "CRUNTIME0_"))
     {
@@ -519,6 +541,47 @@ static std::vector<Hole> process_relocations(std::vector<uint8_t>& stencil_body,
   return holes;
 }
 
+static StencilExport &add_stencil(Stencils &stencils, std::string_view symbol) {
+  if (symbol.starts_with("_RCP_")) {
+    size_t end = symbol.find("_OP");
+    if (end != std::string_view::npos) {
+      std::string_view opcode_part = symbol.substr(5, end + 3 - 5);
+
+      auto opcode_it = opcode_idx.find(opcode_part);
+      if (opcode_it == opcode_idx.end())
+        throw std::runtime_error(
+            std::format("Invalid opcode stencil name: {}\n", opcode_part));
+      uint8_t opcode = opcode_it->second;
+      const char *opcode_name = opcode_it->first.data();
+
+      std::string stencil_suffix;
+      if (symbol.size() >= end + 4) {
+        stencil_suffix = (std::string)(symbol.substr(end + 4));
+        if (!stencil_suffix.empty()) {
+          bool is_all_digits = true;
+          for (char c : stencil_suffix) {
+            if (!isdigit(c)) {
+              is_all_digits = false;
+              break;
+            }
+          }
+          if (is_all_digits) {
+            if (stencil_suffix.size() == 1)
+              stencil_suffix = "0" + stencil_suffix;
+          }
+        }
+      }
+
+      return stencils.stencils_opcodes.at(opcode).stencils.emplace_back(
+          std::move(stencil_suffix));
+    } else {
+      return stencils.stencils_extra.emplace_back(std::string(symbol));
+    }
+  } else {
+    return stencils.functions_not_inlined.emplace_back(std::string(symbol));
+  }
+}
+
 static void process_section(bfd& abfd, asection& section, Stencils& stencils)
 {
   bfd_size_type size = bfd_section_size(&section);
@@ -557,21 +620,11 @@ static void process_section(bfd& abfd, asection& section, Stencils& stencils)
   {
     std::vector<Hole> holes = process_relocations(body, reloc_count, relocs);
 
-    StencilExport *stencil;
-    int opcode = get_opcode(&symbol[6]);
-    if (opcode != -1)
-    {
-      stencil = &stencils.stencils_opcodes.at(opcode);
-    }
-    else
-    {
-      stencils.stencils_extra.push_back(StencilExportNamed{std::string(&symbol[6])});
-      stencil = &stencils.stencils_extra.back();
-    }
+    StencilExport& stencil = add_stencil(stencils, std::string_view(symbol).substr(6)); // Remove .text prefix
 
-    stencil->body = std::move(body);
-    stencil->holes = std::move(holes);
-    stencil->alignment = 1 << section.alignment_power;
+    stencil.body = std::move(body);
+    stencil.holes = std::move(holes);
+    stencil.alignment = 1 << section.alignment_power;
   }
   else if ((section.flags & SEC_READONLY) && (section.flags & BSF_KEEP))
   {
@@ -615,7 +668,8 @@ static void free_stencil(const StencilExport& stencil)
 static void cleanup(Stencils& stencils)
 {
   for (const auto& current : stencils.stencils_opcodes)
-    free_stencil(current);
+    for (const auto& current : current.stencils)
+        free_stencil(current);
 
   for (const auto& current : stencils.stencils_extra)
     free_stencil(current);
@@ -641,24 +695,36 @@ static void analyze_object_file(const char *filename, Stencils& stencils)
   bfd_close(abfd);
 }
 
+static void sort_stencil_set(StencilExportSet &stencil_set) {
+  std::sort(stencil_set.stencils.begin(), stencil_set.stencils.end(),
+            [](const StencilExport &a, const StencilExport &b) {
+              return a.name < b.name;
+            });
+}
+
 static void print_sizes(const Stencils& stencils)
 {
   size_t total_size = 0;
   size_t count = 0;
   for (const auto& current : stencils.stencils_opcodes)
   {
-    if (!current.body.empty())
+    size_t size_specific = 0;
+    for (const auto& current : current.stencils)
+      size_specific += current.body.size();
+
+    if(!current.stencils.empty())
     {
-      total_size += current.body.size();
+      total_size += size_specific / current.stencils.size();
       count++;
     }
   }
+  /*
   for (const auto& current : stencils.stencils_extra)
   {
     total_size += current.body.size();
     count++;
   }
-
+  */
   std::cerr << std::format("Total size of stencils: {} bytes\n", total_size);
   std::cerr << std::format("Average size of stencils: {:.1f} bytes\n", (double)(total_size) / count);
 }
@@ -674,11 +740,16 @@ int main(int argc, char **argv)
 
   rsh_symbol_map = init_rsh_symbol_map();
 
+  opcode_idx = prepare_opcodes();
+
   Stencils stencils;
 
   analyze_object_file(argv[1], stencils);
 
-  prepare_stepfor(stencils.stencils_extra);
+  for (auto& current : stencils.stencils_opcodes)
+    sort_stencil_set(current);
+
+  prepare_stepfor(stencils.stencils_opcodes[STEPFOR_OP]);
 
   export_to_files(stencils);
 
