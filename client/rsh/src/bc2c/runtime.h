@@ -1105,7 +1105,7 @@ static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
-static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
+static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
   // stack:
   //  fun
   //  args_head
@@ -1140,7 +1140,7 @@ static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
     SEXP body = BODY(fun_sxp);
 
     // inline our call
-    if (0 && TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
         !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
         R_GlobalContext->callflag != CTXT_GENERIC) {
 
@@ -1167,15 +1167,7 @@ static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
           assert(0);
         }
       } else {
-        // FIXME: the same code is in the eval.c - make it work with RCP
-        SEXP c_cp = R_ExternalPtrProtected(body);
-        assert(TYPEOF(c_cp) == VECSXP);
-
-        // seems like unnecesary complicated casting, but otherwise C complains
-        // cf. https://stackoverflow.com/a/19487645
-        Rsh_closure fun;
-        *(void **)(&fun) = R_ExternalPtrAddr(body);
-        value = fun(newrho, c_cp);
+        value = rcpEval(body, newrho);
       }
 
       UNPROTECT(1); // newrho
@@ -3036,19 +3028,11 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
-#define Rsh_do_start_loop_cntxt(/*UNUSED Value **/ stack, /*RCNTXT **/ cntxt,  \
-                                /*SEXP */ rho, condition)                      \
-  {                                                                            \
-    Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,  \
-                    R_NilValue);                                               \
-    *condition = (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);       \
-  }
-
 static NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
                                              SEXP rho) {
-  Rboolean condition;
-  Rsh_do_start_loop_cntxt(stack, cntxt, rho, (&condition));
-  return condition;
+  Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
+                  R_NilValue);
+  return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
 }
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
