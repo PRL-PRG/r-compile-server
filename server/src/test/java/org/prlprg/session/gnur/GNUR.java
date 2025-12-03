@@ -21,7 +21,7 @@ public interface GNUR extends AutoCloseable {
   EnvSXP evalEnvironment(String source);
 
   @Override
-  void close() throws Exception;
+  void close();
 
   RSession getSession();
 }

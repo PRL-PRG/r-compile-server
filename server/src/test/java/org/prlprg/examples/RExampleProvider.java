@@ -9,13 +9,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.support.AnnotationConsumer;
 import org.junit.jupiter.params.support.ParameterDeclarations;
-import org.prlprg.util.SingletonParameterResolver;
 
-class RExampleProvider implements ArgumentsProvider, AnnotationConsumer<@NotNull RExampleSource> {
+final class RExampleProvider implements ArgumentsProvider, AnnotationConsumer<@NotNull RExampleTest> {
   private boolean accepted = false;
 
   @Override
-  public void accept(RExampleSource annotation) {
+  public void accept(RExampleTest annotation) {
     accepted = true;
   }
 

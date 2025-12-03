@@ -56,7 +56,7 @@ class RestartingGNURProcess implements GNUR {
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() {
     if (R != null) {
       R.close();
     }

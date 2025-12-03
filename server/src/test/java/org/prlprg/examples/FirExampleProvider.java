@@ -9,13 +9,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.support.AnnotationConsumer;
 import org.junit.jupiter.params.support.ParameterDeclarations;
-import org.prlprg.util.SingletonParameterResolver;
 
-class FirExampleProvider implements ArgumentsProvider, AnnotationConsumer<@NotNull FirExampleSource> {
+final class FirExampleProvider implements ArgumentsProvider, AnnotationConsumer<@NotNull FirExampleTest> {
   private boolean accepted = false;
 
   @Override
-  public void accept(FirExampleSource annotation) {
+  public void accept(FirExampleTest annotation) {
     accepted = true;
   }
 

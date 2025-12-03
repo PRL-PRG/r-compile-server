@@ -12,7 +12,7 @@ public class ConstantFoldingTest {
   public void testPlus() {
     var a = SEXPs.complex(1, 2);
     var b = SEXPs.integer(5);
-    var res = ConstantFolding.add(List.of(a, b)).get();
+    var res = ConstantFolding.add(List.of(a, b)).orElseThrow();
     var expected = SEXPs.complex(6, 2);
     assertEquals(res, expected);
   }
@@ -21,7 +21,7 @@ public class ConstantFoldingTest {
   public void textExp() {
     var a = SEXPs.real(new double[] {2, 4});
     var b = SEXPs.real(new double[] {2, 3});
-    var res = ConstantFolding.pow(List.of(a, b)).get();
+    var res = ConstantFolding.pow(List.of(a, b)).orElseThrow();
     var expected = SEXPs.real(new double[] {4, 64});
     assertEquals(res, expected);
   }

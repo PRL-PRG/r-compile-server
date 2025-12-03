@@ -3,6 +3,7 @@ package org.prlprg;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.regex.Pattern;
 import org.prlprg.util.Strings;
 
 /**
@@ -121,12 +122,12 @@ abstract class Config {
   }
 
   protected static int get(String name, int defaultValue) {
-    String value = System.getenv(name);
+    var value = System.getenv(name);
     return value != null ? Integer.parseInt(value) : defaultValue;
   }
 
   protected static boolean get(String name, boolean defaultValue) {
-    String value = System.getenv(name);
+    var value = System.getenv(name);
     return value != null ? Boolean.parseBoolean(value) : defaultValue;
   }
 
