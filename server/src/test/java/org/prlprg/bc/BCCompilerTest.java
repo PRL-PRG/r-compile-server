@@ -8,7 +8,7 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.session.gnur.GNUR;
 
-@ExtendWith(BCSnapshotTestExtension.class)
+@ExtendWith(BCQuery.class)
 public class BCCompilerTest {
 
   private final GNUR R;

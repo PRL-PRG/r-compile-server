@@ -4,7 +4,6 @@ import static org.prlprg.util.SingletonParameterResolver.resolveSingleton;
 
 import javax.annotation.Nullable;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.prlprg.bc.BCSnapshotTestExtension.TestResult;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.snapshot.SnapshotExtension;

@@ -1,8 +1,8 @@
 package org.prlprg.examples;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Set;
 import org.jetbrains.annotations.Unmodifiable;
@@ -10,11 +10,34 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Paths;
 
-/// A source file consisting of a set of closures that is put through various tests.
-public record Example(String name, String text, ImmutableSet<ExampleOption> options) {
+public record Example(Path rpath, String text, ImmutableSet<ExampleOption> options) {
+  public String name() {
+    return Paths.getFileStem(rpath);
+  }
+
+  public String type() {
+    return Paths.getExtension(rpath);
+  }
+
   public @Unmodifiable Set<ExampleOption> options(String filter) {
     return Sets.filter(options, o -> Objects.requireNonNull(o).appliesTo(filter));
+  }
+
+  /// Equality and hashing only use path.
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof Example example)) {
+      return false;
+    }
+    return Objects.equals(rpath, example.rpath);
+  }
+
+  /// Equality and hashing only use path.
+  @Override
+  public int hashCode() {
+    return Objects.hash(rpath);
   }
 
   @Override
@@ -22,7 +45,7 @@ public record Example(String name, String text, ImmutableSet<ExampleOption> opti
     return Printer.toString(this);
   }
 
-  public record ParseContext(String name) {}
+  public record ParseContext(Path rpath) {}
 
   @ParseMethod
   private static Example parse(Parser p, ParseContext ctx) {
@@ -34,7 +57,7 @@ public record Example(String name, String text, ImmutableSet<ExampleOption> opti
     }
 
     var text = s.readUntilEndOfInput();
-    return new Example(ctx.name, text, options.build());
+    return new Example(ctx.rpath, text, options.build());
   }
 
   @PrintMethod

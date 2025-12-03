@@ -12,6 +12,8 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 
 public record ExampleOption(@Nullable ImmutableSet<String> filter, String name, ImmutableList<SEXP> args) {
+  public static ExampleOption DONT_SAVE_SNAPSHOTS = Parser.fromString("dontSaveSnapshots", ExampleOption.class);
+
   public boolean appliesTo(String testName) {
     return filter == null || filter.contains(testName);
   }
