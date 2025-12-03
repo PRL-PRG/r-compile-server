@@ -530,9 +530,11 @@ static std::optional<Hole> process_relocation(std::vector<uint8_t>& stencil_body
   }
   else if (descr_imm = remove_prefix((*rel.sym_ptr_ptr)->name, ".text."))
   {
-    printf("Found notinlined function stencil reference: %s\n", (*rel.sym_ptr_ptr)->name);
     hole.kind = RELOC_NOTINLINED_FUNCTION;
     hole.val.symbol_name = strdup(descr_imm);
+    for (size_t i = 0; hole.val.symbol_name[i] != '\0'; i++)
+      if(hole.val.symbol_name[i] == '.')
+        hole.val.symbol_name[i] = '_';
   }
   else if (strcmp((*rel.sym_ptr_ptr)->name, ".rodata") == 0)
   {
@@ -616,7 +618,12 @@ static StencilExport &add_stencil(Stencils &stencils, std::string_view symbol) {
       return stencils.stencils_extra.emplace_back(std::string(symbol));
     }
   } else {
-    return stencils.functions_not_inlined.emplace_back(std::string(symbol));
+    std::string res(symbol);
+    for (size_t i = 0; i < res.size(); i++)
+      if (res[i] == '.')
+        res[i] = '_';
+    
+    return stencils.functions_not_inlined.emplace_back(std::move(res));
   }
 }
 
