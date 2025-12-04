@@ -90,19 +90,19 @@ extern const void* const _RCP_CONSTCELL_AT_IMM0;
 extern const void* const _RCP_CONSTCELL_AT_IMM1;
 extern const void* const _RCP_CONSTCELL_AT_IMM2;
 extern const void* const _RCP_CONSTCELL_AT_IMM3;
-#define GETCONSTCELL_IMM(i) (&locals->vcache[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_IMM##i])
+#define GETCONSTCELL_IMM(i) (__builtin_assume_aligned((SEXP*)(&((uint8_t*)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_IMM##i]), __alignof__(SEXP*)))
 
 extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM0;
 extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM1;
 extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void* const _RCP_CONSTCELL_AT_LABEL_IMM3;
-#define GETCONSTCELL_LABEL_IMM(i) (&locals->vcache[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i])
+#define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP*)(&((uint8_t*)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP*)))
 
 extern const void* const _RCP_PATCHED_VARIANTS[];
 #define GETVARIANTS() (const void*)&_RCP_PATCHED_VARIANTS
 
 extern const void* const _RCP_LOOPCNTXT;
-#define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT)
+#define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
 #define GET_LOCAL_RCNTXT() locals->rcntxts[GET_RCNTXT_INDEX()]
 
 extern const void* const _RCP_EXECUTABLE[];

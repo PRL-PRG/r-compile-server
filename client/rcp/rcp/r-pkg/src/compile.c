@@ -430,8 +430,9 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     {
         assert(ctx->bcell_lookup != NULL);
         assert(imms != NULL);
-        int bcell_index = imms[hole->val.imm_pos];
-        ptr = ctx->bcell_lookup[bcell_index];
+        int constant_index = imms[hole->val.imm_pos];
+        int bcell_index = ctx->bcell_lookup[constant_index];
+        ptr = offsetof(rcpEval_locals, vcache) + bcell_index * sizeof(SEXP);
     }
     break;
     case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
@@ -439,14 +440,15 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
         assert(ctx->bcell_lookup != NULL);
         assert(imms != NULL);
         assert(ctx->bytecode != NULL);
-        int bcell_index = ctx->bytecode[imms[hole->val.imm_pos] - 3];
-        ptr = ctx->bcell_lookup[bcell_index];
+        int constant_index = ctx->bytecode[imms[hole->val.imm_pos] - 3];
+        int bcell_index = ctx->bcell_lookup[constant_index];
+        ptr = offsetof(rcpEval_locals, vcache) + bcell_index * sizeof(SEXP);
     }
     break;
     case RELOC_RCP_LOOPCNTXT:
     {
         assert(ctx->loopcntxt_lookup != NULL);
-        ptr = ctx->loopcntxt_lookup[pos];
+        ptr = ctx->loopcntxt_lookup[pos] + 1; // -1 to allow for a zero index with copy-and-patch (that does not allow value of 0)
     }
     break;
 #ifdef STEPFOR_SPECIALIZE
