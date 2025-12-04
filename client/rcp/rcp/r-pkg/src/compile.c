@@ -346,6 +346,7 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     ptrdiff_t ptr;
     const mem_shared_data *shared;
 
+    assert(ctx != NULL);
     #ifdef MCMODEL_SMALL
     // Point to different memory regions to allow relative addressing in smaller memory model
     if (hole->is_pc_relative)
@@ -356,6 +357,7 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     shared = ctx->shared_near;
     #endif
 
+    assert(hole != NULL);
     switch (hole->kind)
     {
     case RELOC_RUNTIME_SYMBOL:
@@ -365,16 +367,19 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     break;
     case RELOC_RUNTIME_SYMBOL_GOT:
     {
+        assert(shared != NULL);
         ptr = (ptrdiff_t)&shared->got_table[hole->got_pos];
     }
     break;
     case RELOC_RUNTIME_SYMBOL_DEREF:
     {
+        assert(hole->val.symbol != NULL);
         ptr = (ptrdiff_t)(*((SEXP *)(hole->val.symbol)));
     }
     break;
     case RELOC_RUNTIME_CALL:
     {
+        assert(hole->val.call.sym != NULL);
         void* (*fun)(const void*) = hole->val.call.sym;
         ptr = (ptrdiff_t)fun(hole->val.call.arg);
     }
@@ -387,27 +392,33 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     case RELOC_RCP_EXEC_NEXT:
     {
         ptr = (ptrdiff_t)ctx->executable_lookup[nextop];
+        assert(ptr != 0);
     }
     break;
     case RELOC_RCP_EXEC_IMM:
     {
+        assert(ctx->executable_lookup != NULL);
+        assert(imms != NULL);
         ptr = (ptrdiff_t)ctx->executable_lookup[imms[hole->val.imm_pos] - 1];
     }
     break;
     case RELOC_RCP_RAW_IMM:
     {
+        assert(imms != NULL);
         ptr = imms[hole->val.imm_pos];
-        if(ptr == 0)
-            error("Zero integer passed as an argument to BC instruction.");
     }
     break;
     case RELOC_RCP_CONST_AT_IMM:
     {
+        assert(ctx->constpool != NULL);
+        assert(imms != NULL);
         ptr = (ptrdiff_t)ctx->constpool[imms[hole->val.imm_pos]];
     }
     break;
     case RELOC_RCP_CONST_STR_AT_IMM:
     {
+        assert(ctx->constpool != NULL);
+        assert(imms != NULL);
         SEXP symbol = ctx->constpool[imms[hole->val.imm_pos]];
         if (TYPEOF(symbol) != SYMSXP)
             error("The const referenced is not a symbol.");
@@ -417,30 +428,38 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     break;
     case RELOC_RCP_CONSTCELL_AT_IMM:
     {
+        assert(ctx->bcell_lookup != NULL);
+        assert(imms != NULL);
         int bcell_index = imms[hole->val.imm_pos];
         ptr = ctx->bcell_lookup[bcell_index];
     }
     break;
     case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
     {
+        assert(ctx->bcell_lookup != NULL);
+        assert(imms != NULL);
+        assert(ctx->bytecode != NULL);
         int bcell_index = ctx->bytecode[imms[hole->val.imm_pos] - 3];
         ptr = ctx->bcell_lookup[bcell_index];
     }
     break;
     case RELOC_RCP_LOOPCNTXT:
     {
+        assert(ctx->loopcntxt_lookup != NULL);
         ptr = ctx->loopcntxt_lookup[pos];
     }
     break;
 #ifdef STEPFOR_SPECIALIZE
     case RELOC_RCP_PATCHED_VARIANTS:
     {
+        assert(smc_variants != NULL);
         ptr = (ptrdiff_t)smc_variants;
     }
     break;
 #endif
     case RELOC_RCP_EXECUTABLE_START:
     {
+        assert(ctx->executable_start != NULL);
         ptr = (ptrdiff_t)ctx->executable_start;
     }
     break;
@@ -459,10 +478,9 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     // DEBUG_PRINT("0x%zx\n", ptr);
 
     if (!fits_in(ptr, hole->size))
-    {
         error("Offset to a value does not fit into required patch hole (%p does not fit into %hu bytes). Relocation type: %d. Stencil: %s. Hole: %d. Try to set memory model to large.\n", (void *)ptr, hole->size, hole->kind, stencil->name, hole_id);
-        return;
-    }
+    if (ptr == 0)
+        error("Zero integer passed as an argument to BC instruction. Relocation type: %d. Stencil: %s. Hole: %d. ", hole->kind, stencil->name, hole_id);
 
     memcpy(&dst[hole->offset], &ptr, hole->size);
 }
