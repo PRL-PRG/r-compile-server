@@ -1,2 +1,2 @@
-main <- function() str(42)
+str(42)
 

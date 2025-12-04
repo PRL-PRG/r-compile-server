@@ -1,14 +1,12 @@
 #? dontSaveSnapshot
 #? returns(6)
-main <- function() {
-  x <- 0
-  for (i in 1:3) {
-    for (j in 1:3) {
-      x <- x + 1
-    }
-    if (i == 2) {
-      break()
-    }
+x <- 0
+for (i in 1:3) {
+  for (j in 1:3) {
+    x <- x + 1
   }
-  x
+  if (i == 2) {
+    break()
+  }
 }
+x

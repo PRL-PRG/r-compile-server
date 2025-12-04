@@ -3,6 +3,7 @@ package org.prlprg.examples;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.NotNull;
@@ -12,12 +13,6 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 
 public record ExampleOption(@Nullable ImmutableSet<String> filter, String name, ImmutableList<SEXP> args) {
-  public static ExampleOption DONT_SAVE_SNAPSHOTS = Parser.fromString("dontSaveSnapshots", ExampleOption.class);
-
-  public boolean appliesTo(String testName) {
-    return filter == null || filter.contains(testName);
-  }
-
   public void failUnknown() {
     fail("Unknown option \"" + name + "\"");
   }
@@ -33,6 +28,14 @@ public record ExampleOption(@Nullable ImmutableSet<String> filter, String name, 
       fail("Option \"" + name + "\" expects one argument, got \"" + args + "\"");
     }
     return args.getFirst();
+  }
+
+  public int expectOneScalarIntegerArg() {
+    var arg = expectOneArg();
+    if (arg.asScalarInteger().isEmpty()) {
+      fail("Option \"" + name + "\" expects one scalar integer argument, got \"" + arg + "\"");
+    }
+    return arg.asScalarInteger().get();
   }
 
   @Override

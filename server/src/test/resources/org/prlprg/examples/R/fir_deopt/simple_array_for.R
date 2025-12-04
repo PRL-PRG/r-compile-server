@@ -1,5 +1,5 @@
 #? [bc2fir]deopt
-main <- function(n = 1L) {
+main <- function(n) {
   m <- n + 1L
   x <- rep(0, m)
   for (i in 1L:m) {
@@ -7,3 +7,5 @@ main <- function(n = 1L) {
   }
   x
 }
+
+main(1L)

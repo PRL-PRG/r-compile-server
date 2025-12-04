@@ -1,27 +1,25 @@
 package org.prlprg.util.cc;
 
 import java.io.*;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.prlprg.AppConfig;
 import org.prlprg.util.Files;
 
 // TODO: consider in-memory filesystem
 public class CCCompilationBuilder {
   public static final Logger LOG = Logger.getLogger(CCCompilationBuilder.class.getName());
 
-  // TODO: configurable from environment variable
-  private static final String DEFAULT_COMPILER = "/usr/bin/gcc";
-
-  private final String input;
-  private final String output;
+  private final Path input;
+  private final Path output;
   private final List<String> flags = new ArrayList<>();
-  private String compiler = DEFAULT_COMPILER;
-  private File workingDirectory;
+  private Path workingDirectory;
 
-  public CCCompilationBuilder(String input, String output) {
+  public CCCompilationBuilder(Path input, Path output) {
     this.input = input;
     this.output = output;
   }
@@ -33,16 +31,16 @@ public class CCCompilationBuilder {
 
   public void compile() throws IOException, InterruptedException, CCompilationException {
     if (LOG.isLoggable(Level.FINE)) {
-      var lines = Files.readLines(new File(workingDirectory, input)).size();
-      LOG.fine("Compiling input: " + input + " (lines: " + lines + "), output: " + output);
+      var size = Files.readString(workingDirectory.resolve(input)).length();
+      LOG.fine("Compiling input: %s (size: %s), output: %s".formatted(input, size, output));
     }
 
     var time = System.currentTimeMillis();
 
     var builder = new ProcessBuilder();
     builder.redirectErrorStream(true);
-    builder.directory(workingDirectory);
-    builder.command(compiler, "-o", output, input);
+    builder.directory(workingDirectory.toFile());
+    builder.command(AppConfig.CC, "-o", output.toString(), input.toString());
     builder.command().addAll(flags);
 
     var cmd = String.join(" ", builder.command());
@@ -67,7 +65,7 @@ public class CCCompilationBuilder {
 
     if (exitCode != 0) {
       throw new CCompilationException(
-          cmd, new File(workingDirectory, input), stdout.toString(), exitCode);
+          cmd, workingDirectory.resolve(input), stdout.toString(), exitCode);
     }
 
     if (!stdout.isEmpty()) {
@@ -75,7 +73,7 @@ public class CCCompilationBuilder {
     }
 
     time = System.currentTimeMillis() - time;
-    var size = new File(workingDirectory, output).length();
+    var size = Files.readString(workingDirectory.resolve(output)).length();
 
     if (LOG.isLoggable(Level.FINE)) {
       LOG.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
@@ -87,7 +85,7 @@ public class CCCompilationBuilder {
     return this;
   }
 
-  public CCCompilationBuilder workingDirectory(File directory) {
+  public CCCompilationBuilder workingDirectory(Path directory) {
     this.workingDirectory = directory;
     return this;
   }

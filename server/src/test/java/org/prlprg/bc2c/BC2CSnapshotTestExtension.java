@@ -24,10 +24,11 @@ import org.prlprg.util.Pair;
 import org.prlprg.util.ThrowingSupplier;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.session.snapshot.RDSFileSnapshotStoreFactory;
+import org.prlprg.util.cc.EvalOutput;
 import org.prlprg.util.snapshot.SnapshotExtension;
 
 abstract class BC2CSnapshotTestExtension
-    extends SnapshotExtension<BC2CSnapshotTestResult> {
+    extends SnapshotExtension<EvalOutput> {
   private static final Logger logger = Logger.getLogger(BC2CSnapshotTestExtension.class.getName());
   protected final GNUR R;
 
@@ -39,12 +40,12 @@ abstract class BC2CSnapshotTestExtension
   }
 
   private BC2CSnapshotTestExtension(RSession session) {
-    super(new RDSFileSnapshotStoreFactory<>(session, BC2CSnapshotTestResult::toSEXP, BC2CSnapshotTestResult::fromSEXP));
+    super(new RDSFileSnapshotStoreFactory<>(session, EvalOutput::toSEXP, EvalOutput::fromSEXP));
     this.R = GNURFactory.createRestarting(session);
   }
 
   @Override
-  protected void checkEqual(BC2CSnapshotTestResult expected, BC2CSnapshotTestResult actual) {
+  protected void checkEqual(EvalOutput expected, EvalOutput actual) {
     assertEquals(expected.code(), actual.code(), "Code is different");
     assertEquals(expected.value(), actual.value(), "Result is different");
     assertEquals(expected.output(), actual.output(), "Output is different");
@@ -105,10 +106,10 @@ abstract class BC2CSnapshotTestExtension
     return BC2CSnapshot.class;
   }
 
-  private ThrowingSupplier<BC2CSnapshotTestResult> oracle(String code) {
+  private ThrowingSupplier<EvalOutput> oracle(String code) {
     return () -> {
       var res = R.capturingEval(code);
-      return new BC2CSnapshotTestResult(code, res.first(), PerformanceCounters.EMPTY, res.second());
+      return new EvalOutput(code, res.first(), PerformanceCounters.EMPTY, res.second());
     };
   }
 
@@ -163,7 +164,7 @@ abstract class BC2CSnapshotTestExtension
       var nestedWithOutput =
           R.capturingEval("source('%s', local=F)$value".formatted(rFile.getAbsolutePath()));
       var pair = splitValueAndPC(nestedWithOutput.first());
-      var res = new BC2CSnapshotTestResult(code, pair.first(), pair.second(), nestedWithOutput.second());
+      var res = new EvalOutput(code, pair.first(), pair.second(), nestedWithOutput.second());
 
       return new TestArtifact(Either.right(res), tempDir);
     } catch (Exception e) {
@@ -171,18 +172,7 @@ abstract class BC2CSnapshotTestExtension
     }
   }
 
-  private Pair<SEXP, PerformanceCounters> splitValueAndPC(SEXP value) {
-    if (!(value instanceof VecSXP v) || v.size() != 2) {
-      throw new IllegalArgumentException(
-          "Value first item must be a vector of size 2, got: " + value);
-    }
-    var res = v.get(0);
-    var pc = PerformanceCounters.from(v.get(1));
-
-    return Pair.of(res, pc);
-  }
-
-  private record TestArtifact(Either<Exception, BC2CSnapshotTestResult> result, File tempDir) {
+  private record TestArtifact(Either<Exception, EvalOutput> result, File tempDir) {
     public void destroy() {
       Files.deleteRecursively(tempDir.toPath());
     }

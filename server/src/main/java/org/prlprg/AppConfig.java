@@ -6,96 +6,85 @@ import java.util.Arrays;
 import java.util.regex.Pattern;
 import org.prlprg.util.Strings;
 
-/**
- * Environment variables to configure the application.
- *
- * @see Config
- */
+/// Environment variables to configure the application.
+///
+/// @see Config
 public final class AppConfig extends Config {
   public static final boolean DEBUG = get("DEBUG", false);
 
-  /**
-   * Shell command to invoke R. <b>Default</b> is "R", pass something else to provide a custom R
-   * binary (e.g. different version than the default installed one).
-   *
-   * <p>Note that we pass extra arguments to the command. The working directory of the command is
-   * the working directory of this running program.
-   */
+  /// Shell command to invoke R. **Default** is "R", pass something else to provide a custom R
+  /// binary (e.g. different version than the default installed one).
+  ///
+  /// Note that we pass extra arguments to the command. The working directory of the command is
+  /// the working directory of this running program.
   public static final String R_BIN = get("R_BIN", DEBUG ? "../external/R-debug/bin/R" : "../external/R/bin/R");
 
-  /**
-   * R library paths. There are the paths that the compile server will look libraries for in. We
-   * could call `.libPaths()` in R to get the paths R knows, but we also want to support custom
-   * paths?
-   */
+  /// R library paths. There are the paths that the compile server will look libraries for in. We
+  /// could call `.libPaths()` in R to get the paths R knows, but we also want to support custom
+  /// paths?
   public static final ArrayList<Path> R_LIBS = new ArrayList<>();
 
   static {
-    String defaultRlibs = "~/R/x86_64-pc-linux-gnu-library/4.3/:/usr/lib/R/library";
+    var defaultRlibs = "~/R/x86_64-pc-linux-gnu-library/4.3/:/usr/lib/R/library";
     defaultRlibs = defaultRlibs.replaceFirst("^~", System.getProperty("user.home"));
-    String r_libs = get("R_LIBS", defaultRlibs);
-    if (r_libs != null) {
-      R_LIBS.addAll(Arrays.stream(r_libs.split(":")).map(Path::of).toList());
-    }
+    var r_libs = get("R_LIBS", defaultRlibs);
+    R_LIBS.addAll(Arrays.stream(r_libs.split(":")).map(Path::of).toList());
   }
 
-  /**
-   * Adds extra verification checks.
-   *
-   * <p><b>Default:</b>: {@link CfgDebugLevel#AFTER_STEP}.
-   */
+  /// Adds extra verification checks.
+  ///
+  /// **Default:**: [#AFTER_STEP].
   public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.NONE);
 
-  /**
-   * Maximum number of characters vectors will print in `toString` before being truncated.
-   *
-   * <p><b>Default:</b>: 1000
-   */
+  /// Maximum number of characters vectors will print in `toString` before being truncated.
+  ///
+  /// **Default:**: 1000
   public static final int VECTOR_TRUNCATE_SIZE = get("VECTOR_TRUNCATE_SIZE", 1000);
 
-  /**
-   * Whether to log optimization phases/passes, and if so, how granular.
-   *
-   * <p><b>Default:</b>: {@link OptimizationLogLevel#NONE}.
-   */
+  /// Whether to log optimization phases/passes, and if so, how granular.
+  ///
+  /// **Default:**: [#NONE].
   public static final OptimizationLogLevel OPTIMIZATION_LOG_LEVEL =
       get("OPTIMIZATION_LOG_LEVEL", OptimizationLogLevel.NONE);
 
+  /// Path or C compiler command this uses.
+  ///
+  /// **Default:**: "gcc"
+  public static final String CC = get("CC", "gcc");
+
   public enum CfgDebugLevel implements Comparable<CfgDebugLevel> {
-    /** No extra checks. */
+    /// No extra checks.
     NONE,
-    /** Run verification after every pass. */
+    /// Run verification after every pass.
     AFTER_STEP,
   }
 
   public enum OptimizationLogLevel implements Comparable<OptimizationLogLevel> {
-    /** Don't log anything wrt. optimizations (excluding compiler bugs). */
+    /// Don't log anything wrt. optimizations (excluding compiler bugs).
     NONE,
-    /** Log when a closure gets optimized. */
+    /// Log when a closure gets optimized.
     CLOSURE,
-    /** Log every optimization phase. */
+    /// Log every optimization phase.
     PHASE,
-    /** Log every optimization pass. */
+    /// Log every optimization pass.
     PASS,
-    /** Log as much as possible. */
+    /// Log as much as possible.
     ALL,
   }
 }
 
-/**
- * Environment variables to configure an application.
- *
- * <p>One config contains every environment variable used everywhere in the main application: {@link
- * AppConfig}. Another config contains every test-exclusive environment variable: {@code
- * TestConfig}.
- *
- * <p>This provides a balance between having configuration variables everywhere (no structure, hard
- * to find every configuration), and over-engineered configuration libraries with features we don't
- * use or need (which can also end up with no structure and make it hard to find every
- * configuration). Every configuration variable is an environment variable, and is defined/located
- * in {@link AppConfig} if its used within the app, or {@code TestConfig} if it's only used within
- * tests.
- */
+/// Environment variables to configure an application.
+///
+/// One config contains every environment variable used everywhere in the main application:
+/// [AppConfig]. Another config contains every test-exclusive environment variable:
+/// `TestConfig`.
+///
+/// This provides a balance between having configuration variables everywhere (no structure, hard
+/// to find every configuration), and over-engineered configuration libraries with features we don't
+/// use or need (which can also end up with no structure and make it hard to find every
+/// configuration). Every configuration variable is an environment variable, and is defined/located
+/// in [AppConfig] if its used within the app, or `TestConfig` if it's only used within
+/// tests.
 abstract class Config {
   protected static <E extends Enum<E>> E get(String name, E defaultValue) {
     String value = System.getenv(name);
