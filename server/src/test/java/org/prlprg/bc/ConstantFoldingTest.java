@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.sexp.SEXPs;
 
 public class ConstantFoldingTest {
-
   @Test
   public void testPlus() {
     var a = SEXPs.complex(1, 2);

@@ -79,7 +79,7 @@ public class RshCompiler {
     return new RshCompiler(flags);
   }
 
-  public CCCompilationBuilder createBuilder(String input, String output) {
+  public CCCompilationBuilder createBuilder(Path input, Path output) {
     return new CCCompilationBuilder(input, output).flags(compilerFlags);
   }
 }

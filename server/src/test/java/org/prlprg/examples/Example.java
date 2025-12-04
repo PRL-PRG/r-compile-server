@@ -5,14 +5,16 @@ import com.google.common.collect.Sets;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Paths;
 
-public record Example(Path rpath, String text, ImmutableSet<ExampleOption> options) {
+public record Example(Path rpath, String text, ExampleOptions options) {
   public String name() {
     return Paths.getFileStem(rpath);
   }
@@ -21,8 +23,26 @@ public record Example(Path rpath, String text, ImmutableSet<ExampleOption> optio
     return Paths.getExtension(rpath);
   }
 
-  public @Unmodifiable Set<ExampleOption> options(String filter) {
-    return Sets.filter(options, o -> Objects.requireNonNull(o).appliesTo(filter));
+  public boolean hasOption(String filter, String name) {
+    return options.get(filter, name) != null;
+  }
+
+  public SEXP sexpOption(String filter, String name) {
+    var option = options.get(filter, name);
+    if (option == null) {
+      throw new IllegalArgumentException("Option \"" + name + "\" not found for filter \"" + filter + "\"");
+    }
+    return option.expectOneArg();
+  }
+
+  public SEXP sexpOption(String filter, String name, SEXP defaultValue) {
+    var option = options.get(filter, name);
+    return option == null ? defaultValue : option.expectOneArg();
+  }
+
+  public int intOption(String filter, String name, int defaultValue) {
+    var option = options.get(filter, name);
+    return option == null ? defaultValue : option.expectOneScalarIntegerArg();
   }
 
   /// Equality and hashing only use path.
@@ -51,24 +71,15 @@ public record Example(Path rpath, String text, ImmutableSet<ExampleOption> optio
   private static Example parse(Parser p, ParseContext ctx) {
     var s = p.scanner();
 
-    var options = ImmutableSet.<ExampleOption>builder();
-    while (s.trySkip("#? ")) {
-      options.add(p.parse(ExampleOption.class));
-    }
-
+    var options = p.parse(ExampleOptions.class);
     var text = s.readUntilEndOfInput();
-    return new Example(ctx.rpath, text, options.build());
+    return new Example(ctx.rpath, text, options);
   }
 
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
-    for (var option : options) {
-      w.write("#? ");
-      p.print(option);
-      w.write('\n');
-    }
-
+    w.write(options.toString());
     w.write(text);
   }
 }

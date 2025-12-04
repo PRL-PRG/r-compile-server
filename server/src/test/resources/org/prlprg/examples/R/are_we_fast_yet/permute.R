@@ -1,5 +1,3 @@
-main <- function() permute(4, 1:7)
-
 permute <- function(n, list) {
   if (n == 1) {
     return(1)
@@ -19,3 +17,5 @@ swap <- function(list, i, j) {
   list[j] <- temp
   list
 }
+
+permute(4, 1:7)
