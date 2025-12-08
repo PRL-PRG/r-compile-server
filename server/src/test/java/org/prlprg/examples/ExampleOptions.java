@@ -35,7 +35,7 @@ public class ExampleOptions extends ForwardingList<ExampleOption> {
 
   public @Nullable ExampleOption get(String filter, String name) {
     var anyOptions = organized.get("");
-    var filteredOptions = organized.get(filter);
+    var filteredOptions = filter.isEmpty() ? null : organized.get(filter);
     if (filteredOptions != null && filteredOptions.containsKey(name)) {
       return filteredOptions.get(name);
     }

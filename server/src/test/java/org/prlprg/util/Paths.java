@@ -22,5 +22,9 @@ public class Paths {
     return lastDot == -1 ? "" : fileName.substring(lastDot);
   }
 
+  public static Path addExtension(Path path, String extension) {
+    return path.resolveSibling(path.getFileName().toString() + extension);
+  }
+
   private Paths() {}
 }

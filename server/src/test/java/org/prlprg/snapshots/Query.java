@@ -12,6 +12,12 @@ import org.prlprg.session.gnur.GNUR;
 public interface Query<T> {
   /// Default is package name after `org.prlprg`.
   default String name() {
+    try {
+      getClass().getDeclaredField("INSTANCE");
+    } catch (NoSuchFieldException e) {
+      throw new UnsupportedOperationException("No default for `Query#name` for class without static `INSTANCE` field");
+    }
+
     var packageName = getClass().getPackageName();
     if (!packageName.startsWith("org.prlprg.")) {
       throw new UnsupportedOperationException("No default for `Query#name` for subclass outside `org.prlprg`");
@@ -39,6 +45,11 @@ public interface Query<T> {
   default T oracle(Example example, SnapshotStore store) {
     return compute(example, store);
   }
+
+  /// Run extra checks (assertions) on the computed data.
+  ///
+  /// By default, does nothing.
+  default void verifyExtra(T data, Example example, SnapshotStore store) {}
 
   T deserialize(Path path, Example example, SnapshotStore store) throws IOException;
 

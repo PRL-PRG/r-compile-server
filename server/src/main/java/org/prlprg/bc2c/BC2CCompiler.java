@@ -21,7 +21,7 @@ public class BC2CCompiler {
   public CompiledModule finish() {
     var compiledClosure = module.compileClosure(bc, closureName);
 
-    return new CompiledModule(module.cUnit(), compiledClosure.name(), compiledClosure.constantPool());
+    return new CompiledModule(module.cUnit().toString(), compiledClosure.name(), compiledClosure.constantPool());
   }
 }
 
