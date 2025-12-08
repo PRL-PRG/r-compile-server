@@ -1,4 +1,4 @@
-package org.prlprg.bc2c;
+package org.prlprg.gen2c;
 
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;

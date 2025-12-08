@@ -1,3 +1,3 @@
-#? [bc2c]fastArith
+#? [bc2c.eval]fastArith
 x <- 42L
 x + 21

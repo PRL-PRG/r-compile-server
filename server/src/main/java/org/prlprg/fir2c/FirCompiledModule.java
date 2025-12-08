@@ -5,7 +5,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.gen2c.CUnit;
-import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.VecSXP;
 

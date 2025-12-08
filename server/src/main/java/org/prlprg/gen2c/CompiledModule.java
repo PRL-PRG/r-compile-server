@@ -2,4 +2,4 @@ package org.prlprg.gen2c;
 
 import org.prlprg.sexp.VecSXP;
 
-public record CompiledModule(CUnit cUnit, String entryFunName, VecSXP constantPool) {}
+public record CompiledModule(String cCode, String entryFunName, VecSXP constantPool) {}

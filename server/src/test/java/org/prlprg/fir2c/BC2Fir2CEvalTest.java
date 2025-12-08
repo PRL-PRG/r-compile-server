@@ -1,4 +1,4 @@
-package org.prlprg.bc2c;
+package org.prlprg.fir2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
