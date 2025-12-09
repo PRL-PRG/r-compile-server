@@ -6,6 +6,7 @@ import java.util.List;
 import org.prlprg.AppConfig;
 import org.prlprg.AppConfig.CfgDebugLevel;
 import org.prlprg.fir.check.Checker.Exclude;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 
 /// An optimization that runs sub-optimizations in a sequence repeatedly until a fixpoint.
@@ -17,20 +18,27 @@ public class FixpointSequence implements AbstractionOptimization {
   /// and an error is thrown.
   private static final int HARD_LIMIT = 100000;
 
+  private final String name;
   private final int maxIterations;
   private final List<AbstractionOptimization> subOptimizations;
 
-  public FixpointSequence(AbstractionOptimization... subOptimizations) {
-    this(Integer.MAX_VALUE, subOptimizations);
+  public FixpointSequence(String name, AbstractionOptimization... subOptimizations) {
+    this(name, Integer.MAX_VALUE, subOptimizations);
   }
 
-  public FixpointSequence(int maxIterations, AbstractionOptimization... subOptimizations) {
+  public FixpointSequence(String name, int maxIterations, AbstractionOptimization... subOptimizations) {
+    this.name = name;
     this.maxIterations = maxIterations;
     this.subOptimizations = List.of(subOptimizations);
   }
 
   @Override
-  public boolean run(Abstraction abstraction) {
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
     var check = AppConfig.CFG_DEBUG_LEVEL.compareTo(CfgDebugLevel.AFTER_STEP) >= 0;
 
     var iteration = 0;
@@ -40,7 +48,7 @@ public class FixpointSequence implements AbstractionOptimization {
       for (var opt : subOptimizations) {
         var codePreOpt = check ? abstraction.toString() : null;
 
-        iterationChanged |= opt.run(abstraction);
+        iterationChanged |= opt.run(feedback, abstraction);
 
         if (check && !checkAll(abstraction, Exclude.STRICT_CFG)) {
           throw new AssertionError(

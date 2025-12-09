@@ -108,6 +108,13 @@ public class Strings {
     return true;
   }
 
+  public static String pascalCaseToCamelCase(String s) {
+    if (s.isEmpty()) {
+      return s;
+    }
+    return Character.toLowerCase(s.charAt(0)) + s.substring(1);
+  }
+
   public static String camelCaseToSnakeCase(String s) {
     var sb = new StringBuilder();
     for (var i = 0; i < s.length(); i++) {

@@ -14,6 +14,7 @@ import org.prlprg.fir.analyze.cfg.CfgReachability;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.NamedVariablesOf;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.InlineSubstituter;
 import org.prlprg.fir.ir.abstraction.substitute.Substituter;
@@ -38,7 +39,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// Inline forces, maybe-forces, and static calls when possible.
 public record Inline(int maxInlineeSize) implements AbstractionOptimization {
   @Override
-  public boolean run(Abstraction abstraction) {
+  public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;

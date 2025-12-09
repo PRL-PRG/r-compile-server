@@ -14,19 +14,19 @@ import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 
-public class BC2CCompilerTest extends Gen2CCompilerTest {
+public class BC2CCompilerTest implements Gen2CCompilerTest {
   @Override
-  protected Query<CompiledModule> moduleQuery() {
+  public Query<CompiledModule> moduleQuery() {
     return BC2CQuery.INSTANCE;
   }
 
   @Override
-  protected Query<CompiledModule> oracleModuleQuery() {
+  public Query<CompiledModule> oracleModuleQuery() {
     return BC2CQuery.INSTANCE;
   }
 
   @Override
-  protected RuntimeVariant runtimeVariant() {
+  public RuntimeVariant runtimeVariant() {
     return RuntimeVariant.DIRECT_BC2C;
   }
 }

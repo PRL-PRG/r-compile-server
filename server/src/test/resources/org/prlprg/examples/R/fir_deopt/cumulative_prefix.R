@@ -1,5 +1,5 @@
-#? [bc2fir]deopt
-main <- function(n) {
+#? deopt
+f <- function(n) {
   m <- n + n + n
   limit <- 4L
   totals <- rep(0, limit)
@@ -13,4 +13,4 @@ main <- function(n) {
   totals
 }
 
-main(1L)
+f(1L)

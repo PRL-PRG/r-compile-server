@@ -185,7 +185,7 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
   public EvalOutput deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
     try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      var returnValuePath = path.resolve("constants.RDS");
+      var returnValuePath = path.resolve("returnValue.RDS");
       var outputLogPath = path.resolve("output.log");
 
       var returnValue = RDSReader.readFile(R.getSession(), returnValuePath.toFile());
@@ -198,7 +198,7 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
   @Override
   public void serialize(EvalOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    var returnValuePath = path.resolve("constants.RDS");
+    var returnValuePath = path.resolve("returnValue.RDS");
     var outputLogPath = path.resolve("output.log");
 
     Files.createDirectories(path);

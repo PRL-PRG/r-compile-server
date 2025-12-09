@@ -9,5 +9,5 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 /// There's [MockModuleFeedback][MockModuleFeedback] which is a simple
 /// hash-map, but this can also be implemented by a compile service.
 public interface ModuleFeedback {
-  @Nullable AbstractionFeedback get(Abstraction scope);
+  AbstractionFeedback get(Abstraction scope);
 }

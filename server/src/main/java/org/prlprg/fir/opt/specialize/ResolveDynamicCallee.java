@@ -9,6 +9,7 @@ import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
@@ -48,6 +49,7 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
       @Nullable Register assignee,
       Expression expression,
       Abstraction scope,
+      AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {

@@ -5,6 +5,7 @@ import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
@@ -13,6 +14,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.server.Messages.TypeFeedback.Feedback;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 
@@ -22,18 +24,17 @@ import org.prlprg.util.Streams;
 /// Also remove ones with more specific assumptions which turn out to not be optimizations over
 /// other verisons, and try to merge ones that are equal by compiling with the intersected
 /// assumptions. In both cases, we need to keep track of those removed so they aren't recompiled.
-public record SpeculateDispatch(
-    ModuleFeedback feedback, int threshold, int parameterLimit, int versionLimit)
+public record SpeculateDispatch(int threshold, int parameterLimit, int versionLimit)
     implements Optimization {
   @Override
-  public void run(Function function) {
+  public void run(ModuleFeedback feedback, Function function) {
     // Copy `version` because we may modify it.
     for (var version : List.copyOf(function.versions())) {
-      run(function, version);
+      run(function, feedback.get(version), version);
     }
   }
 
-  private void run(Function function, Abstraction version) {
+  private void run(Function function, AbstractionFeedback feedback, Abstraction version) {
     // Don't specialize stubs
     if (version.cfg() == null) {
       return;
@@ -42,12 +43,6 @@ public record SpeculateDispatch(
     // If the function has too many versions, don't add any more.
     var newVersionLimit = versionLimit - function.versions().size();
     if (newVersionLimit <= 0) {
-      return;
-    }
-
-    // Get version feedback, and abort if we don't have any.
-    var feedback = this.feedback.get(version);
-    if (feedback == null) {
       return;
     }
 

@@ -6,10 +6,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
+import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
+import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
@@ -69,7 +72,7 @@ import org.prlprg.primitive.Logical;
 ///   - Remove trivial no-ops (pure expressions not assigned to anything).
 public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptimization {
   public static void cleanup(Module module, boolean substituteWithOrigins) {
-    new Cleanup(substituteWithOrigins).run(module);
+    new Cleanup(substituteWithOrigins).run(new MockModuleFeedback(), module);
   }
 
   public Cleanup() {
@@ -77,7 +80,12 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
   }
 
   @Override
-  public boolean run(Abstraction abstraction) {
+  public String name() {
+    return substituteWithOrigins ? "cleanup" : "cleanupWithoutSubstOrigins";
+  }
+
+  @Override
+  public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;

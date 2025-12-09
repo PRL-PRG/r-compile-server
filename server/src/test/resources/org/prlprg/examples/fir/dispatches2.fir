@@ -31,9 +31,7 @@ fun g(`...`) {
   # Slow case with variables, no optimizations due to `force r` causing reflection
   (reg r:*) -+> V { |
     mkenv;
-    # cleanup:
     40;
-    # cleanup:
     41;
     popenv;
     return 42;

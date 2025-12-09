@@ -3,15 +3,21 @@ package org.prlprg.fir.opt.specialize;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.util.Strings;
 
 /// An optimization that replaces individual expressions with those that are faster and/or have
 /// better types (see [org.prlprg.fir.opt.specialize]).
 public interface SpecializeOptimization {
+  default String name() {
+    return Strings.pascalCaseToCamelCase(getClass().getSimpleName());
+  }
+
   /// Analyses this optimization may use.
   AnalysisTypes analyses();
 
@@ -32,6 +38,7 @@ public interface SpecializeOptimization {
       @Nullable Register assignee,
       Expression expression,
       Abstraction scope,
+      AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer);
