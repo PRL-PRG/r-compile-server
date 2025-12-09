@@ -5,8 +5,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
@@ -24,6 +26,7 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.server.Messages.TypeFeedback.Feedback;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Pair;
 
@@ -45,31 +48,26 @@ import org.prlprg.util.Pair;
 ///
 /// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
 /// baseline we don't have anywhere to go that isn't FIŘ.
-public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean onBaseline)
+public record SpeculateAssume(int threshold, boolean onBaseline)
     implements AbstractionOptimization {
-  public SpeculateAssume(ModuleFeedback feedback, int threshold) {
-    this(feedback, threshold, false);
+  public SpeculateAssume(int threshold) {
+    this(threshold, false);
   }
 
   @Override
-  public void run(Function function) {
+  public void run(ModuleFeedback feedback, Function function) {
     for (var version : function.versions()) {
       // Don't run on baseline unless overridden via field
       if (!onBaseline && version == function.baseline()) {
         continue;
       }
 
-      run(version);
+      run(feedback.get(version), version);
     }
   }
 
   @Override
-  public boolean run(Abstraction scope) {
-    var feedback = this.feedback.get(scope);
-    if (feedback == null) {
-      return false;
-    }
-
+  public boolean run(AbstractionFeedback feedback, Abstraction scope) {
     // Compute checkpoint BBs and analyses we'll need
     var checkpointBbs =
         scope

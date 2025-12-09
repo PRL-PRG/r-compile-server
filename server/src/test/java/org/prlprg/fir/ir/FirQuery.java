@@ -19,7 +19,7 @@ import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.Paths;
 
-public class FirQuery implements Query<Module> {
+public class FirQuery implements GenFirQuery {
   public static final FirQuery INSTANCE = new FirQuery();
 
   private FirQuery() {}
@@ -31,37 +31,21 @@ public class FirQuery implements Query<Module> {
 
   @Override
   public Module compute(Example example, SnapshotStore store) {
-    if (example.rpath().endsWith(".fir")) {
-      return parseModule(example.text());
-    } else if (example.rpath().endsWith(".R")) {
-      try (var R = store.query(example, GNURQuery.INSTANCE)) {
-        var bc = store.query(example, BCQuery.INSTANCE);
+    return switch (example.type()) {
+      case "fir" -> parseModule(example.text());
+      case "R" -> {
+        try (var R = store.query(example, GNURQuery.INSTANCE)) {
+          var bc = store.query(example, BCQuery.INSTANCE);
 
-        // An environment with one function, `main`,
-        // which takes zero arguments and its body is `bc`.
-        var env = new UserEnvSXP();
-        env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
+          // An environment with one function, `main`,
+          // which takes zero arguments and its body is `bc`.
+          var env = new UserEnvSXP();
+          env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
 
-        return compile(env, R.getSession());
+          yield compile(env, R.getSession());
+        }
       }
-    } else {
-      throw new AssertionFailedError("Can't get fir module from this type of example: " + example.rpath());
-    }
-  }
-
-  @Override
-  public Module deserialize(Path path, Example example, SnapshotStore store)
-      throws IOException {
-    path = Paths.addExtension(path, "fir");
-
-    return Parser.fromFile(path.toFile(), Module.class);
-  }
-
-  @Override
-  public void serialize(Module data, Path path, Example example, SnapshotStore store)
-      throws IOException {
-    path = Paths.addExtension(path, "fir");
-
-    new Printer(path.toFile()).print(data);
+      default -> throw new AssertionFailedError("Can't get fir module from this type of example: " + example.rpath());
+    };
   }
 }

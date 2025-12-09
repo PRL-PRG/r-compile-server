@@ -10,10 +10,17 @@ import org.prlprg.fir.ir.module.Function;
 
 /// Run the optimizations in order, then don't re-run.
 public class Sequence implements Optimization {
+  private final String name;
   private final List<Optimization> subOptimizations;
 
-  public Sequence(Optimization... subOptimizations) {
+  public Sequence(String name, Optimization... subOptimizations) {
+    this.name = name;
     this.subOptimizations = List.of(subOptimizations);
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 
   @Override

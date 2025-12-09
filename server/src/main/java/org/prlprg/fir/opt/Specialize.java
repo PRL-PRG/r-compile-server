@@ -14,6 +14,7 @@ import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferType;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
@@ -29,10 +30,16 @@ import org.prlprg.fir.opt.specialize.SpecializeOptimization.NonLocalSpecializati
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
 public class Specialize implements AbstractionOptimization {
+  private final String name;
   private final List<SpecializeOptimization> subOptimizations;
   private final AnalysisTypes analysisTypes;
 
-  public Specialize(SpecializeOptimization... subOptimizations) {
+  public Specialize(SpecializeOptimization subOptimization) {
+    this(subOptimization.name(), subOptimization);
+  }
+
+  public Specialize(String name, SpecializeOptimization... subOptimizations) {
+    this.name = name;
     this.subOptimizations = List.of(subOptimizations);
     this.analysisTypes =
         Arrays.stream(subOptimizations)
@@ -41,7 +48,12 @@ public class Specialize implements AbstractionOptimization {
   }
 
   @Override
-  public boolean run(Abstraction abstraction) {
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =
         this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();
@@ -49,20 +61,22 @@ public class Specialize implements AbstractionOptimization {
       return false;
     }
 
-    var opt = new OnAbstraction(abstraction, analyses, subOptimizations);
+    var opt = new OnAbstraction(abstraction, feedback, analyses, subOptimizations);
     opt.run();
     return opt.changed;
   }
 
   private static class OnAbstraction {
     final Abstraction scope;
+    final AbstractionFeedback feedback;
     final Analyses analyses;
     final List<SpecializeOptimization> subOptimizations;
     boolean changed = false;
 
     public OnAbstraction(
-        Abstraction scope, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
+        Abstraction scope, AbstractionFeedback feedback, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
       this.scope = scope;
+      this.feedback = feedback;
       this.analyses = analyses;
       this.subOptimizations = subOptimizations;
     }
@@ -173,6 +187,7 @@ public class Specialize implements AbstractionOptimization {
                 assignee,
                 expr,
                 scope,
+                feedback,
                 analyses,
                 nonLocalAdapter,
                 deferredInsertionsAdapter);

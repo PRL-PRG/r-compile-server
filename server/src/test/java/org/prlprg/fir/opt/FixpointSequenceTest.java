@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Module;
 
@@ -19,7 +20,7 @@ class FixpointSequenceTest {
     }
 
     @Override
-    public boolean run(Abstraction abstraction) {
+    public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
       // Cycle through `changedReturns`.
       return changedReturns[callCount++ % changedReturns.length];
     }
@@ -36,8 +37,8 @@ class FixpointSequenceTest {
     var optimization = new TestOptimization(false);
     var abstraction = testAbstraction();
 
-    var fixpoint = new FixpointSequence(optimization);
-    var changed = fixpoint.run(abstraction);
+    var fixpoint = new FixpointSequence("testSequence", optimization);
+    var changed = runOpt(fixpoint, abstraction);
 
     assertFalse(changed);
     assertEquals(1, optimization.callCount);
@@ -48,8 +49,8 @@ class FixpointSequenceTest {
     var optimization = new TestOptimization(true, false);
     var abstraction = testAbstraction();
 
-    var fixpoint = new FixpointSequence(optimization);
-    var changed = fixpoint.run(abstraction);
+    var fixpoint = new FixpointSequence("testSequence", optimization);
+    var changed = runOpt(fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(2, optimization.callCount);
@@ -60,8 +61,8 @@ class FixpointSequenceTest {
     var optimization = new TestOptimization(true, true, false);
     var abstraction = testAbstraction();
 
-    var fixpoint = new FixpointSequence(optimization);
-    var changed = fixpoint.run(abstraction);
+    var fixpoint = new FixpointSequence("testSequence", optimization);
+    var changed = runOpt(fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(3, optimization.callCount);
@@ -73,8 +74,8 @@ class FixpointSequenceTest {
     var opt2 = new TestOptimization(false, false);
     var abstraction = testAbstraction();
 
-    var fixpoint = new FixpointSequence(opt1, opt2);
-    var changed = fixpoint.run(abstraction);
+    var fixpoint = new FixpointSequence("testSequence", opt1, opt2);
+    var changed = runOpt(fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(2, opt1.callCount);
@@ -86,8 +87,8 @@ class FixpointSequenceTest {
     var optimization = new TestOptimization(true); // Always returns true
     var abstraction = testAbstraction();
 
-    var fixpoint = new FixpointSequence(3, optimization);
-    var changed = fixpoint.run(abstraction);
+    var fixpoint = new FixpointSequence("testSequence", 3, optimization);
+    var changed = runOpt(fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(3, optimization.callCount);
@@ -98,9 +99,9 @@ class FixpointSequenceTest {
     var optimization = new TestOptimization(true); // Always returns true
     var abstraction = testAbstraction();
 
-    var fixpoint = new FixpointSequence(optimization);
+    var fixpoint = new FixpointSequence("testSequence", optimization);
 
-    var exception = assertThrows(IllegalStateException.class, () -> fixpoint.run(abstraction));
+    var exception = assertThrows(IllegalStateException.class, () -> runOpt(fixpoint, abstraction));
 
     assertTrue(exception.getMessage().contains("Didn't reach a fixpoint after 100000 iterations"));
   }
@@ -112,11 +113,15 @@ class FixpointSequenceTest {
     var opt2 = new TestOptimization(false, true, false); // Changes second iteration only
     var abstraction = testAbstraction();
 
-    var fixpoint = new FixpointSequence(opt1, opt2);
-    var changed = fixpoint.run(abstraction);
+    var fixpoint = new FixpointSequence("testSequence", opt1, opt2);
+    var changed = runOpt(fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(3, opt1.callCount);
     assertEquals(3, opt2.callCount);
+  }
+
+  boolean runOpt(AbstractionOptimization optimization, Abstraction abstraction) {
+    return optimization.run(new AbstractionFeedback(), abstraction);
   }
 }

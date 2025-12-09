@@ -7,19 +7,19 @@ import org.prlprg.gen2c.Gen2CCompilerTest;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.snapshots.Query;
 
-public class Fir2CCompileTest extends Gen2CCompilerTest {
+public class Fir2CCompileTest implements Gen2CCompilerTest {
   @Override
-  protected Query<CompiledModule> moduleQuery() {
+  public Query<CompiledModule> moduleQuery() {
     return Fir2CQuery.DIRECT;
   }
 
   @Override
-  protected Query<CompiledModule> oracleModuleQuery() {
+  public Query<CompiledModule> oracleModuleQuery() {
     return Fir2CQuery.DIRECT;
   }
 
   @Override
-  protected RuntimeVariant runtimeVariant() {
+  public RuntimeVariant runtimeVariant() {
     return RuntimeVariant.FIR2C;
   }
 }

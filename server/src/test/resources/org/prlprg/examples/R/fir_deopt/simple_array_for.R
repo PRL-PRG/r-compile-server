@@ -1,5 +1,5 @@
-#? [bc2fir]deopt
-main <- function(n) {
+#? deopt
+f <- function(n) {
   m <- n + 1L
   x <- rep(0, m)
   for (i in 1L:m) {
@@ -8,4 +8,4 @@ main <- function(n) {
   x
 }
 
-main(1L)
+f(1L)

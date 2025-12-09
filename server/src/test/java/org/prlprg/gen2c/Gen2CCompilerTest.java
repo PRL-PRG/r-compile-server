@@ -9,11 +9,11 @@ import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 
-public abstract class Gen2CCompilerTest {
+public interface Gen2CCompilerTest {
   @RExampleTest
-  void test(Example example, SnapshotStore store) {
+  default void test(Example example, SnapshotStore store) {
     // Check evaluation against the "oracle" module, then that the module matches itself.
-    // We call `eval` with a freshly computed `module` instead of a cached one,
+    // We call `eval` with a freshly computed module instead of a cached one,
     // so that we always test the code,
     // not a snapshot
     // (whose results would never change since the "evaluator" is the C compiler + CPU).
@@ -29,11 +29,11 @@ public abstract class Gen2CCompilerTest {
     }
   }
 
-  protected abstract Query<CompiledModule> moduleQuery();
+  Query<CompiledModule> moduleQuery();
 
-  protected abstract Query<CompiledModule> oracleModuleQuery();
+  Query<CompiledModule> oracleModuleQuery();
 
-  protected abstract RuntimeVariant runtimeVariant();
+  RuntimeVariant runtimeVariant();
 
   private Query<EvalOutput> evalQuery() {
     return new EvalQuery(oracleModuleQuery(), runtimeVariant());

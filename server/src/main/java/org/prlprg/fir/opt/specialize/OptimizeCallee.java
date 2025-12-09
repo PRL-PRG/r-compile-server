@@ -6,6 +6,7 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -35,7 +36,7 @@ import org.prlprg.util.Streams;
 ///   an argument has a more specific runtime type, *and* that type was recorded enough times.
 ///   - If so, convert into a dispatch call with the guessed (not better) version's signature.
 ///   - If not, convert into a static call to the guessed version.
-public record OptimizeCallee(ModuleFeedback feedback, int threshold)
+public record OptimizeCallee(int threshold)
     implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
@@ -49,6 +50,7 @@ public record OptimizeCallee(ModuleFeedback feedback, int threshold)
       @Nullable Register assignee,
       Expression expression,
       Abstraction scope,
+      AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
@@ -59,9 +61,9 @@ public record OptimizeCallee(ModuleFeedback feedback, int threshold)
     var newCallee =
         switch (call.callee()) {
           case DispatchCallee(var function, var signature) ->
-              run(scope, call.callArguments(), function, signature);
+              run(scope, feedback, call.callArguments(), function, signature);
           case StaticCallee(var function, var version) ->
-              run(scope, call.callArguments(), function, version.signature());
+              run(scope, feedback, call.callArguments(), function, version.signature());
           default -> null;
         };
     if (newCallee == null) {
@@ -73,6 +75,7 @@ public record OptimizeCallee(ModuleFeedback feedback, int threshold)
 
   @Nullable Callee run(
       Abstraction scope,
+      AbstractionFeedback feedback,
       List<Argument> callArguments,
       Function callFunction,
       @Nullable Signature oldSignature) {
@@ -98,7 +101,6 @@ public record OptimizeCallee(ModuleFeedback feedback, int threshold)
     }
 
     // Check if there are better versions that can be called with recorded runtime types.
-    var feedback = this.feedback.get(scope);
     var isBestAtRuntime =
         callFunction.versionsSorted().headSet(bestVersion).stream()
             .noneMatch(
@@ -114,8 +116,7 @@ public record OptimizeCallee(ModuleFeedback feedback, int threshold)
                                         Type.of(constant).isSubtypeOf(parameterType);
                                     case Read(var _), Use(var _) -> {
                                       var register = Objects.requireNonNull(argument.variable());
-                                      yield feedback != null
-                                          && feedback
+                                      yield feedback
                                               .type(register)
                                               .streamHits(threshold, parameterType)
                                               .findAny()

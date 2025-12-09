@@ -12,21 +12,24 @@ import org.prlprg.fir.opt.specialize.ResolveLoadFun;
 import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 public class Optimizations {
-  public static Optimization defaultOptimizations(ModuleFeedback feedback) {
-    return defaultOptimizations(feedback, 10);
+  public static Optimization defaultOptimizations() {
+    return defaultOptimizations(10);
   }
 
-  public static Optimization defaultOptimizations(ModuleFeedback feedback, int threshold) {
+  public static Optimization defaultOptimizations(int threshold) {
     return new Sequence(
-        new SpeculateAssume(feedback, threshold),
-        new SpeculateDispatch(feedback, threshold, 3, 9),
+        "default",
+        new SpeculateAssume(threshold),
+        new SpeculateDispatch(threshold, 3, 9),
         new FixpointSequence(
+            "defaultFixpoint",
             new Specialize(
+                "defaultSpecialize",
                 new DefiniteForce(),
                 new ElideDeadStore(),
                 new ElideTrivialCast(),
                 new ElideUseSubscriptWrite(),
-                new OptimizeCallee(feedback, threshold),
+                new OptimizeCallee(threshold),
                 new ResolveDynamicCallee(),
                 new ResolveLoad(),
                 new ResolveLoadFun(),

@@ -47,13 +47,11 @@ fun g(n, a) {
     st x = r;
     deopt 5 [r, n];
   }
-  # cleanup: (reg n:V, reg a:I) --> I { reg r1:V, var x:* |
   (reg n:V, reg a:I) --> I { reg r:I, reg r1:V, var x:* |
     provide(n);
     r1 = n;
     check BB1() else BB2();
   BB1():
-    # cleanup: n ?: I;
     r = n ?: I;
     provide("bar");
     return 24;
