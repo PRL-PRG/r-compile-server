@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
+import javax.annotation.WillNotClose;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
@@ -31,16 +33,32 @@ public class SnapshotStore {
 
   /// Check `actual` against the stored computation for `query`.
   public <T> void verify(Example example, Query<T> query, T actual) {
+    verify(example, query, actual, null);
+  }
+
+  public <T> void verify(Example example, Query<T> query, T actual, @Nullable String context) {
     var expected = query(example, query);
-    assertEquals(expected, actual);
+    assertEquals(
+        expected,
+        actual,
+        "Verification failed for " + query.name() + (context != null ? ", " + context : ""));
     query.verifyExtra(actual, example, this);
+  }
+
+  /// Abort if [#verify(Example, Query, Object)] would fail
+  public <T> void assumeVerify(Example example, Query<T> query, T actual) {
+    try {
+      verify(example, query, actual);
+    } catch (AssertionError e) {
+      throw new TestAbortedException("Verification failed for " + query.name(), e);
+    }
   }
 
   /// Load or compute the result of `query` for `example`.
   ///
   /// This only computes if not saved in-memory or in a prior run, and uses
   /// [Query#oracle(Example, SnapshotStore)].
-  public <T> T query(Example example, Query<T> query) {
+  public <T> @WillNotClose T query(Example example, Query<T> query) {
     return query(example, query, new LinkedHashSet<>());
   }
 

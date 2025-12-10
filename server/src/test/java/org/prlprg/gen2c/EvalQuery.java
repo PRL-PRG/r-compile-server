@@ -1,6 +1,7 @@
 package org.prlprg.gen2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -10,12 +11,14 @@ import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
+import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
+import org.prlprg.util.Either;
 import org.prlprg.util.Files;
 import org.prlprg.util.Pair;
 
@@ -49,40 +52,46 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
     }
 
     try {
-      RDSWriter.writeFile(cpPath.toFile(), module.constantPool());
+      try {
+        RDSWriter.writeFile(cpPath.toFile(), module.constantPool());
 
-      Files.writeString(cPath, module.cCode());
+        Files.writeString(cPath, module.cCode());
 
-      RshCompiler.getInstance(3, runtime)
-          .createBuilder(cPath, soPath)
-          .flag("-shared")
-          .flag("-Wl,-undefined,dynamic_lookup")
-          .flag("-DRSH_TESTS")
-          .flag("-DRSH_PC")
-          .compile();
+        RshCompiler.getInstance(3, runtime)
+            .createBuilder(cPath, soPath)
+            .flag("-shared")
+            .flag("-Wl,-undefined,dynamic_lookup")
+            .flag("-DRSH_TESTS")
+            .flag("-DRSH_PC")
+            .compile();
 
-      // FIXME: try global env
-      var testDriver =
-          "options(warn=1)\n"
-              + "dyn.load('%s')\n".formatted(soPath.toAbsolutePath())
-              + "cp <- readRDS('%s')\n".formatted(cpPath.toAbsolutePath())
-              + "env <- new.env()\n"
-              + "parent.env(env) <- globalenv()\n"
-              + "invisible(.Call('Rsh_initialize_runtime'))\n"
-              + "res <- .Call('%s', env, cp)\n".formatted(module.entryFunName())
-              + "pc <- .Call('Rsh_pc_get')\n"
-              + "dyn.unload('%s')\n".formatted(soPath.toAbsolutePath())
-              + "list(res, pc)\n";
+        // FIXME: try global env
+        var testDriver =
+            "options(warn=1)\n"
+                + "dyn.load('%s')\n".formatted(soPath.toAbsolutePath())
+                + "cp <- readRDS('%s')\n".formatted(cpPath.toAbsolutePath())
+                + "env <- new.env()\n"
+                + "parent.env(env) <- globalenv()\n"
+                + "invisible(.Call('Rsh_initialize_runtime'))\n"
+                + "res <- .Call('%s', env, cp)\n".formatted(module.entryFunName())
+                + "pc <- .Call('Rsh_pc_get')\n"
+                + "dyn.unload('%s')\n".formatted(soPath.toAbsolutePath())
+                + "list(res, pc)\n";
 
-      Files.writeString(rPath, testDriver);
+        Files.writeString(rPath, testDriver);
+      } catch (Exception e) {
+        throw new AssertionError("Failed to compile", e);
+      }
 
-      var nestedWithOutput =
-          R.capturingEval("source('%s', local=F)$value".formatted(rPath.toAbsolutePath()));
-
-      var pair = splitValueAndPC(nestedWithOutput.first());
-      return new EvalOutput(pair.first(), nestedWithOutput.second(), pair.second());
-    } catch (Exception e) {
-      throw new AssertionError("Failed to compile", e);
+      try {
+        var nestedWithOutput =
+            R.capturingEval("source('%s', local=F)$value".formatted(rPath.toAbsolutePath()));
+        var pair = splitValueAndPC(nestedWithOutput.first());
+        return new EvalOutput(Either.left(pair.first()), nestedWithOutput.second(), pair.second());
+      } catch (EvalException e) {
+        return new EvalOutput(
+            Either.right(e.mainMessage()), e.outputLog(), PerformanceCounters.EMPTY);
+      }
     } finally {
       Files.deleteRecursively(tempDir);
     }
@@ -106,10 +115,10 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
 
   @Override
   public EvalOutput compute(Example example, SnapshotStore store) {
-    try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      var module = store.query(example, moduleQuery);
-      return eval(module, runtime, R);
-    }
+    var R = store.query(example, GNURQuery.INSTANCE);
+    var module = store.query(example, moduleQuery);
+
+    return eval(module, runtime, R);
   }
 
   @Override
@@ -185,25 +194,39 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
   @Override
   public EvalOutput deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      var returnValuePath = path.resolve("returnValue.RDS");
-      var outputLogPath = path.resolve("output.log");
+    var R = store.query(example, GNURQuery.INSTANCE);
 
-      var returnValue = RDSReader.readFile(R.getSession(), returnValuePath.toFile());
-      var outputLog = Files.readString(outputLogPath);
+    var returnValuePath = path.resolve("returnValue.RDS");
+    var crashPath = path.resolve("crash.txt");
+    var outputLogPath = path.resolve("output.log");
 
-      return new EvalOutput(returnValue, outputLog, PerformanceCounters.EMPTY);
+    if (Files.exists(returnValuePath) && Files.exists(crashPath)) {
+      fail("Snapshot has both return value and crash");
     }
+    Either<SEXP, String> returnValue =
+        Files.exists(returnValuePath)
+            ? Either.left(RDSReader.readFile(R.getSession(), returnValuePath.toFile()))
+            : Either.right(Files.readString(crashPath).trim());
+    var outputLog = Files.readString(outputLogPath);
+
+    return new EvalOutput(returnValue, outputLog, PerformanceCounters.EMPTY);
   }
 
   @Override
   public void serialize(EvalOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
     var returnValuePath = path.resolve("returnValue.RDS");
+    var crashPath = path.resolve("crash.txt");
     var outputLogPath = path.resolve("output.log");
 
     Files.createDirectories(path);
-    RDSWriter.writeFile(returnValuePath.toFile(), data.returnValue());
+    if (data.returnValue().isLeft()) {
+      Files.deleteIfExists(crashPath);
+      RDSWriter.writeFile(returnValuePath.toFile(), data.returnValue().getLeft());
+    } else {
+      Files.deleteIfExists(returnValuePath);
+      Files.writeString(crashPath, data.returnValue().getRight());
+    }
     Files.writeString(outputLogPath, data.outputLog());
   }
 }

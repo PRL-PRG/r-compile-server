@@ -9,8 +9,8 @@ import org.prlprg.snapshots.SnapshotStore;
 
 public class BCCompilerIT {
   @RExampleTest
-  public void testStdlibFunctions(Example example, SnapshotStore store) {
-    if (example.rpath().equals(Path.of("stdlib", "utils", ".install.macbinary"))
+  public void test(Example example, SnapshotStore store) {
+    if (example.rpath().equals(Path.of("stdlib", "utils", ".install.macbinary.R"))
         && System.getProperty("os.name").contains("Mac")) {
       abort("utils/.install.macbinary is different on macOS, so the snapshot also differs");
     }

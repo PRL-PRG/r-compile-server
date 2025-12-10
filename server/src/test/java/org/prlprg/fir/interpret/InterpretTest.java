@@ -1,16 +1,27 @@
 package org.prlprg.fir.interpret;
 
+import org.prlprg.examples.Example;
+import org.prlprg.examples.FirExampleTest;
 import org.prlprg.fir.ir.FirQuery;
-import org.prlprg.fir.ir.module.Module;
-import org.prlprg.snapshots.Query;
+import org.prlprg.snapshots.SnapshotStore;
 
 /// Runs supported FIŘ modules in the internal interpreter, testing the interpreter, BC->FIŘ,
 /// and FIŘ parsing.
-///
-/// TODO: Handle expected errors
-class InterpretTest implements GenInterpretTest {
-  @Override
-  public Query<Module> moduleQuery() {
-    return FirQuery.INSTANCE;
+class InterpretTest {
+  /// Call the interpreter once, check output.
+  @FirExampleTest
+  void test(Example example, SnapshotStore store) {
+    store.verify(example, InterpretQuery.MAIN);
+  }
+
+  /// Call the interpreter many times, check that output is the same.
+  @FirExampleTest
+  void testRepeat(Example example, SnapshotStore store) {
+    var module = store.query(example, FirQuery.INSTANCE);
+    var interpreter = new TestInterpreter(module);
+
+    for (int i = 1; i <= 3; i++) {
+      store.verify(example, InterpretQuery.MAIN, interpreter.call("main"), "run " + i);
+    }
   }
 }

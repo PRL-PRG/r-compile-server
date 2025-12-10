@@ -55,14 +55,15 @@ public class BCQuery implements Query<Bc> {
   private Bc genCompute(Example example, SnapshotStore store, ComputeImpl impl) {
     var optimizationLevel =
         example.intOption(name(), "optimizationLevel", DEFAULT_OPTIMIZATION_LEVEL);
-    try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      var bodySexp = impl.run(R, "function() { " + example.text() + " }", optimizationLevel);
-      if (!(bodySexp instanceof BCodeSXP bcSxp)) {
-        throw new TestAbortedException(
-            "Bytecode compilation for this is unsupported (e.g. uses `browser`)");
-      }
-      return bcSxp.bc();
+
+    var R = store.query(example, GNURQuery.INSTANCE);
+
+    var bodySexp = impl.run(R, "function() { " + example.text() + " }", optimizationLevel);
+    if (!(bodySexp instanceof BCodeSXP bcSxp)) {
+      throw new TestAbortedException(
+          "Bytecode compilation for this is unsupported (e.g. uses `browser`)");
     }
+    return bcSxp.bc();
   }
 
   @FunctionalInterface
@@ -72,9 +73,8 @@ public class BCQuery implements Query<Bc> {
 
   @Override
   public Bc deserialize(Path path, Example example, SnapshotStore store) throws IOException {
-    try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      return ((BCodeSXP) RDSReader.readFile(R.getSession(), path.toFile())).bc();
-    }
+    var R = store.query(example, GNURQuery.INSTANCE);
+    return ((BCodeSXP) RDSReader.readFile(R.getSession(), path.toFile())).bc();
   }
 
   @Override
