@@ -161,12 +161,12 @@ class SingleGNURProcess implements GNUR {
     try {
       while (true) {
         if (!process.isAlive()) {
-          throw new RuntimeException("R exited unexpectedly");
+          throw new RuntimeException("R exited unexpectedly. Output:\n" + output);
         }
 
         var line = out.readLine();
         if (line == null) {
-          throw new RuntimeException("R exited unexpectedly");
+          throw new RuntimeException("R exited unexpectedly. Output:\n" + output);
         }
 
         if (line.equals(requestId)) {

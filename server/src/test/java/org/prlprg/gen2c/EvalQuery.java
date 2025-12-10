@@ -1,12 +1,16 @@
 package org.prlprg.gen2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Function;
+import org.prlprg.bc2c.BC2CQuery;
 import org.prlprg.examples.Example;
+import org.prlprg.fir2c.Fir2CQuery;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
@@ -21,11 +25,15 @@ import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.Either;
 import org.prlprg.util.Files;
 import org.prlprg.util.Pair;
+import org.prlprg.util.cc.CCompilationException;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
 public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtime)
     implements Query<EvalOutput> {
+  public static EvalQuery BC = new EvalQuery(BC2CQuery.INSTANCE, RuntimeVariant.DIRECT_BC2C);
+  public static EvalQuery FIR_ORACLE = new EvalQuery(Fir2CQuery.DIRECT, RuntimeVariant.FIR2C);
+
   /// Compile the C source code in [CompiledModule] into a binary and run. Return the
   /// side-effects and output.
   ///
@@ -79,8 +87,11 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
                 + "list(res, pc)\n";
 
         Files.writeString(rPath, testDriver);
-      } catch (Exception e) {
+      } catch (CCompilationException | IOException e) {
+        System.out.println(Files.readString(cPath));
         throw new AssertionError("Failed to compile", e);
+      } catch (InterruptedException e) {
+        throw new RuntimeException("Compilation interrupted", e);
       }
 
       try {
@@ -123,9 +134,19 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
 
   @Override
   public void verifyExtra(EvalOutput data, Example example, SnapshotStore store) {
+    // TODO: Abstract `Either<SEXP, String>` this code, and serialization/deserialization
+    if (example.hasOption(name(), "crashes")) {
+      assertFalse(data.success(), "Expected crash");
+    } else {
+      assertTrue(
+          data.success(), () -> "Expected success, got crash:\n" + data.returnValue().getRight());
+    }
+
     if (example.hasOption(name(), "returns")) {
       var expected = example.sexpOption(name(), "returns");
-      assertEquals(expected, data.returnValue(), "Wrong return value");
+      if (data.success()) {
+        assertEquals(expected, data.returnValue().getLeft(), "Wrong return value");
+      }
     }
 
     if (runtime == RuntimeVariant.DIRECT_BC2C) {

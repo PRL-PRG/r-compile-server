@@ -1,4 +1,4 @@
-#? returns(10)
+#? returns(10.0)
 result <- 0
 for (outer in 1:3) {
   inner_sum <- 0

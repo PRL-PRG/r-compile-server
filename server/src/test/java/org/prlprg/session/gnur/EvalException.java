@@ -7,7 +7,7 @@ public class EvalException extends RuntimeException {
   private final String outputLog;
 
   public EvalException(int exitCode, String outputLog, IOException cause) {
-    super("R REPL died (status: " + exitCode + "), output so far:\n " + outputLog, cause);
+    super("R REPL died (status: " + exitCode + "). Output:\n " + outputLog, cause);
     this.exitCode = exitCode;
     this.outputLog = outputLog;
   }

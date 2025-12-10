@@ -26,7 +26,7 @@ final class RExampleProvider
       ParameterDeclarations parameters, ExtensionContext context) {
     assert accepted;
     return resolveSingleton(RExampleStore.class, context).examples().stream()
-        .filter(example -> example.hasOption("", option))
+        .filter(example -> option.isEmpty() || example.hasOption("", option))
         .map(Arguments::of);
   }
 }

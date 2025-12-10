@@ -8,7 +8,6 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
-import javax.annotation.WillNotClose;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
@@ -58,7 +57,7 @@ public class SnapshotStore {
   ///
   /// This only computes if not saved in-memory or in a prior run, and uses
   /// [Query#oracle(Example, SnapshotStore)].
-  public <T> @WillNotClose T query(Example example, Query<T> query) {
+  public <T> T query(Example example, Query<T> query) {
     return query(example, query, new LinkedHashSet<>());
   }
 
@@ -105,6 +104,10 @@ public class SnapshotStore {
                 // Save snapshot
                 if (snapshotPassedExtraChecks && !example.hasOption("", "dontSaveSnapshots")) {
                   Files.createDirectories(path.getParent());
+                  if (!Files.exists(path.resolveSibling(".gitkeep"))) {
+                    Files.writeString(path.resolveSibling(".gitkeep"), "");
+                  }
+
                   try {
                     query.serialize(next, path, example, this);
                   } catch (Exception e) {
@@ -127,9 +130,9 @@ public class SnapshotStore {
 
   /// Returns the path where `query`'s data is cached on-disk.
   private Path cachePath(Example example, Query<?> query) {
-    return Paths.getResource(getClass(), example.type())
+    return Paths.getResourceSource(getClass(), example.type())
         .resolve(query.name())
-        .resolve(example.rpath());
+        .resolve(Paths.removingExtension(example.rpath()));
   }
 
   private static class DependencyCycleException extends RuntimeException {

@@ -17,7 +17,6 @@ public class CCCompilationBuilder {
   private final Path input;
   private final Path output;
   private final List<String> flags = new ArrayList<>();
-  private Path workingDirectory;
 
   public CCCompilationBuilder(Path input, Path output) {
     this.input = input;
@@ -29,9 +28,14 @@ public class CCCompilationBuilder {
     return this;
   }
 
+  public CCCompilationBuilder flags(Collection<String> flags) {
+    this.flags.addAll(flags);
+    return this;
+  }
+
   public void compile() throws IOException, InterruptedException, CCompilationException {
     if (LOG.isLoggable(Level.FINE)) {
-      var size = Files.readString(workingDirectory.resolve(input)).length();
+      var size = Files.size(input);
       LOG.fine("Compiling input: %s (size: %s), output: %s".formatted(input, size, output));
     }
 
@@ -39,7 +43,6 @@ public class CCCompilationBuilder {
 
     var builder = new ProcessBuilder();
     builder.redirectErrorStream(true);
-    builder.directory(workingDirectory.toFile());
     builder.command(AppConfig.CC, "-o", output.toString(), input.toString());
     builder.command().addAll(flags);
 
@@ -64,8 +67,7 @@ public class CCCompilationBuilder {
     int exitCode = process.waitFor();
 
     if (exitCode != 0) {
-      throw new CCompilationException(
-          cmd, workingDirectory.resolve(input), stdout.toString(), exitCode);
+      throw new CCompilationException(cmd, input, stdout.toString(), exitCode);
     }
 
     if (!stdout.isEmpty()) {
@@ -73,20 +75,10 @@ public class CCCompilationBuilder {
     }
 
     time = System.currentTimeMillis() - time;
-    var size = Files.readString(workingDirectory.resolve(output)).length();
+    var size = Files.size(output);
 
     if (LOG.isLoggable(Level.FINE)) {
       LOG.fine("Finished compilation in %d ms (size: %d)\n".formatted(time, size));
     }
-  }
-
-  public CCCompilationBuilder flags(Collection<String> flags) {
-    this.flags.addAll(flags);
-    return this;
-  }
-
-  public CCCompilationBuilder workingDirectory(Path directory) {
-    this.workingDirectory = directory;
-    return this;
   }
 }

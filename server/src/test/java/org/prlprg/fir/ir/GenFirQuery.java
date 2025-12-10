@@ -27,7 +27,7 @@ public interface GenFirQuery extends Query<Module> {
 
   @Override
   default Module deserialize(Path path, Example example, SnapshotStore store) throws IOException {
-    path = Paths.addExtension(path, "fir");
+    path = Paths.addingExtension(path, "fir");
 
     return Parser.fromFile(path.toFile(), Module.class);
   }
@@ -35,7 +35,7 @@ public interface GenFirQuery extends Query<Module> {
   @Override
   default void serialize(Module data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    path = Paths.addExtension(path, "fir");
+    path = Paths.addingExtension(path, "fir");
 
     new Printer(path.toFile()).print(data);
   }

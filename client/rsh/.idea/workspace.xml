@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="BackendCodeEditorMiscSettings">
+    <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexedValue" value="true" type="bool" />
+  </component>
+  <component name="CMakeProjectFlavorService">
+    <option name="flavorId" value="CMakePlainProjectFlavor" />
+  </component>
+  <component name="CMakeRunConfigurationManager">
+    <generated />
+  </component>
+  <component name="CMakeSettings">
+    <configurations>
+      <configuration PROFILE_NAME="Debug" ENABLED="true" CONFIG_NAME="Debug" />
+    </configurations>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/codeStyles/codeStyleConfig.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/copilot.data.migration.agent.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/copilot.data.migration.ask.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/copilot.data.migration.edit.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/encodings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpretException.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/package-info.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpreterTesterSource.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/TestInterpret.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/internal/InternalTestInterpret.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/feedback/ModuleFeedback.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/feedback/ModuleFeedback.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/Builtins.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/CheckpointTrace.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/CheckpointTrace.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/DeoptSnapshot.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/DeoptSnapshot.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/ExternalVersion.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/ExternalVersion.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/InterpretException.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/InterpretException.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/Interpreter.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/Interpreter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/MockModuleFeedback.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/MockModuleFeedback.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/PrintStack.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/PrintStack.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/StackFrame.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/StackFrame.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/package-info.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/package-info.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirAndInterpreterIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirAndInterpreterIntegrationTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirCompilerUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirCompilerUtils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretUtil.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/SimpleInterpretTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/internal/SimpleInternalInterpretTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/DefaultOptimizationsTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/DefaultOptimizationsTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizationTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizeOriginTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizeOriginTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateAssumeTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateAssumeTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateDispatchTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateDispatchTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/OptimizeCalleeTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/OptimizeCalleeTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/ReturnTypeAndEffectsTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/ReturnTypeAndEffectsTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CEvalTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CEvalTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CTestSupport.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CTestSupport.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CAndInterpreterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CAndInterpreterTest.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="CompDBLocalSettings">
+    <option name="availableProjects">
+      <map>
+        <entry>
+          <key>
+            <ExternalProjectPojo>
+              <option name="name" value="rsh" />
+              <option name="path" value="$PROJECT_DIR$" />
+            </ExternalProjectPojo>
+          </key>
+          <value>
+            <list>
+              <ExternalProjectPojo>
+                <option name="name" value="rsh" />
+                <option name="path" value="$PROJECT_DIR$" />
+              </ExternalProjectPojo>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="projectSyncType">
+      <map>
+        <entry key="$PROJECT_DIR$" value="RE_IMPORT" />
+      </map>
+    </option>
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="Pdmy5aIO" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 2
+}]]></component>
+  <component name="ProjectId" id="363wvnueAl2eJhNFucy1ST2UgaA" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "/home/jakob/Desktop/r-compile-server/client/rsh/compile_commands.json",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration default="true" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="" />
+      <created>1764248797118</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1764248797118</updated>
+      <workItem from="1764248800497" duration="1261000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
+  </component>
+</project>

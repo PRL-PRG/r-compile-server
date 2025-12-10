@@ -58,7 +58,7 @@ public record Example(Path rpath, String text, ExampleOptions options) {
 
   @Override
   public String toString() {
-    return Printer.toString(this);
+    return name();
   }
 
   public record ParseContext(Path rpath) {}
