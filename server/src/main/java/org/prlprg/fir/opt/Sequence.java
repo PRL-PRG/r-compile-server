@@ -6,6 +6,7 @@ import java.util.List;
 import org.prlprg.AppConfig;
 import org.prlprg.AppConfig.CfgDebugLevel;
 import org.prlprg.fir.check.Checker.Exclude;
+import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
 
 /// Run the optimizations in order, then don't re-run.
@@ -24,13 +25,13 @@ public class Sequence implements Optimization {
   }
 
   @Override
-  public void run(Function function) {
+  public void run(ModuleFeedback feedback, Function function) {
     var check = AppConfig.CFG_DEBUG_LEVEL.compareTo(CfgDebugLevel.AFTER_STEP) >= 0;
 
     for (var opt : subOptimizations) {
       var codePreOpt = check ? function.toString() : null;
 
-      opt.run(function);
+      opt.run(feedback, function);
 
       if (check && !checkAll(function, Exclude.STRICT_CFG)) {
         throw new AssertionError(

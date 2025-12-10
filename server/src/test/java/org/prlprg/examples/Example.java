@@ -1,12 +1,7 @@
 package org.prlprg.examples;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -30,7 +25,8 @@ public record Example(Path rpath, String text, ExampleOptions options) {
   public SEXP sexpOption(String filter, String name) {
     var option = options.get(filter, name);
     if (option == null) {
-      throw new IllegalArgumentException("Option \"" + name + "\" not found for filter \"" + filter + "\"");
+      throw new IllegalArgumentException(
+          "Option \"" + name + "\" not found for filter \"" + filter + "\"");
     }
     return option.expectOneArg();
   }

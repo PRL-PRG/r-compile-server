@@ -1,10 +1,8 @@
 package org.prlprg.fir.interpret;
 
-import java.util.List;
 import javax.annotation.Nullable;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXP;
 
 /// FIŘ interpreter interface. Both the internal hardcoded interpreter ([internal](

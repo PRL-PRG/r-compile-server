@@ -1,68 +1,65 @@
 package org.prlprg.bc;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.abort;
 import static org.prlprg.bc.BCCompiler.DEFAULT_OPTIMIZATION_LEVEL;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.file.Path;
-import javax.annotation.Nullable;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.examples.Example;
-import org.prlprg.examples.ExampleOption;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.session.gnur.GNURQuery;
-import org.prlprg.session.snapshot.RDSSnapshotExtension;
 import org.prlprg.sexp.*;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.Files;
-import org.prlprg.util.ThrowingSupplier;
 
 public class BCQuery implements Query<Bc> {
   public static BCQuery INSTANCE = new BCQuery();
 
-  private BCQuery() {
-
-  }
+  private BCQuery() {}
 
   @Override
   public Bc compute(Example example, SnapshotStore store) {
-    return genCompute(example, store, (R, text, optimizationLevel) -> {
-      var fun = (CloSXP) R.eval(text);
-      var compiler = new BCCompiler(fun, R.getSession());
-      compiler.setOptimizationLevel(optimizationLevel);
-      return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
-    });
+    return genCompute(
+        example,
+        store,
+        (R, text, optimizationLevel) -> {
+          var fun = (CloSXP) R.eval(text);
+          var compiler = new BCCompiler(fun, R.getSession());
+          compiler.setOptimizationLevel(optimizationLevel);
+          return compiler.compile().<SEXP>map(SEXPs::bcode).orElse(fun.body());
+        });
   }
 
   @Override
   public Bc oracle(Example example, SnapshotStore store) {
-    return genCompute(example, store, (R, text, optimizationLevel) -> {
-      var value =
-          R.eval(
-              "compiler::cmpfun("
-                  + text
-                  + ", options = list(optimize = "
-                  + optimizationLevel
-                  + "))");
-      if (!(value instanceof CloSXP closure)) {
-        throw new IllegalArgumentException("Expected a closure, got: " + value);
-      }
-      return closure.body();
-    });
+    return genCompute(
+        example,
+        store,
+        (R, text, optimizationLevel) -> {
+          var value =
+              R.eval(
+                  "compiler::cmpfun("
+                      + text
+                      + ", options = list(optimize = "
+                      + optimizationLevel
+                      + "))");
+          if (!(value instanceof CloSXP closure)) {
+            throw new IllegalArgumentException("Expected a closure, got: " + value);
+          }
+          return closure.body();
+        });
   }
 
   private Bc genCompute(Example example, SnapshotStore store, ComputeImpl impl) {
-    var optimizationLevel = example.intOption(name(), "optimizationLevel", DEFAULT_OPTIMIZATION_LEVEL);
+    var optimizationLevel =
+        example.intOption(name(), "optimizationLevel", DEFAULT_OPTIMIZATION_LEVEL);
     try (var R = store.query(example, GNURQuery.INSTANCE)) {
       var bodySexp = impl.run(R, "function() { " + example.text() + " }", optimizationLevel);
       if (!(bodySexp instanceof BCodeSXP bcSxp)) {
-        throw new TestAbortedException("Bytecode compilation for this is unsupported (e.g. uses `browser`)");
+        throw new TestAbortedException(
+            "Bytecode compilation for this is unsupported (e.g. uses `browser`)");
       }
       return bcSxp.bc();
     }
@@ -73,16 +70,16 @@ public class BCQuery implements Query<Bc> {
     SEXP run(GNUR R, String text, int optimizationLevel);
   }
 
-
   @Override
   public Bc deserialize(Path path, Example example, SnapshotStore store) throws IOException {
     try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      return ((BCodeSXP)RDSReader.readFile(R.getSession(), path.toFile())).bc();
+      return ((BCodeSXP) RDSReader.readFile(R.getSession(), path.toFile())).bc();
     }
   }
 
   @Override
-  public void serialize(Bc body, Path path, Example example, SnapshotStore store) throws IOException {
+  public void serialize(Bc body, Path path, Example example, SnapshotStore store)
+      throws IOException {
     RDSWriter.writeFile(path.toFile(), SEXPs.bcode(body));
   }
 }

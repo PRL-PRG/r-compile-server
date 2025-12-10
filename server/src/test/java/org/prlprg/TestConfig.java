@@ -14,4 +14,3 @@ public class TestConfig extends Config {
   /// If set, filters tested examples according to the regular expression (on path).
   public static final Pattern EXAMPLE_FILTER = Pattern.compile(get("EXAMPLE_FILTER", ".*"));
 }
-

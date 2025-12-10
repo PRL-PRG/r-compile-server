@@ -14,7 +14,6 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
-import org.prlprg.server.Messages.TypeFeedback.Feedback;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 

@@ -5,12 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
-import org.prlprg.session.gnur.GNUR;
 
 public class ContextTest {
 

@@ -30,9 +30,13 @@ public class CUnit {
     var pw = new PrintWriter(w);
 
     includes.forEach(x -> pw.format("#include <%s>", x));
-    if (!includes.isEmpty()) { pw.println(); }
+    if (!includes.isEmpty()) {
+      pw.println();
+    }
     externFunctions.forEach(x -> x.writeTo(pw));
-    if (!externFunctions.isEmpty()) { pw.println(); }
+    if (!externFunctions.isEmpty()) {
+      pw.println();
+    }
     functions.forEach(x -> x.writeForwardDeclaration(pw));
     functions.forEach(x -> x.writeDefinition(pw));
   }

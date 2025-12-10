@@ -9,11 +9,13 @@ import org.prlprg.util.cc.CCCompilationBuilder;
 
 public class RshCompiler {
   // Make it work whether we run it  from the server directory or from the root of the project
-  private static final Path BASE_DIRECTORY = Paths.get("").toAbsolutePath().endsWith("server")
-      ? Paths.get("").toAbsolutePath().getParent()
-      : Paths.get("").toAbsolutePath();
+  private static final Path BASE_DIRECTORY =
+      Paths.get("").toAbsolutePath().endsWith("server")
+          ? Paths.get("").toAbsolutePath().getParent()
+          : Paths.get("").toAbsolutePath();
   public static final Path RSH_DIRECTORY = BASE_DIRECTORY.resolve("client/rsh");
-  public static final Path R_DIRECTORY = BASE_DIRECTORY.resolve(AppConfig.DEBUG ? "external/R-debug" : "external/R");
+  public static final Path R_DIRECTORY =
+      BASE_DIRECTORY.resolve(AppConfig.DEBUG ? "external/R-debug" : "external/R");
 
   // TODO: this is just temporary
   //  what we need is to keep this in the resources, versioned by R version

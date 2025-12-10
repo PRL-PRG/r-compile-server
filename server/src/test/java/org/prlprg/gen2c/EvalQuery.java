@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Function;
-import org.prlprg.bc2c.BC2CQuery;
 import org.prlprg.examples.Example;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
@@ -22,7 +21,8 @@ import org.prlprg.util.Pair;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
-public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtime) implements Query<EvalOutput> {
+public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtime)
+    implements Query<EvalOutput> {
   /// Compile the C source code in [CompiledModule] into a binary and run. Return the
   /// side-effects and output.
   ///
@@ -177,7 +177,8 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
     }
   }
 
-  private static void assertNoSlow(PerformanceCounters pc, Function<PerformanceCounters, Integer> metric, String message) {
+  private static void assertNoSlow(
+      PerformanceCounters pc, Function<PerformanceCounters, Integer> metric, String message) {
     assertEquals(0, metric.apply(pc), message);
   }
 

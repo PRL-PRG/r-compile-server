@@ -24,18 +24,13 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.VecSXP;
-import org.prlprg.sexp.VectorSXP;
 
 class ClosureCompiler {
 
-  /**
-   * The name of the variable representing the current environment
-   */
+  /** The name of the variable representing the current environment */
   private static final String VAR_RHO = "RHO";
 
-  /**
-   * The name of the variable representing the C constant pool
-   */
+  /** The name of the variable representing the C constant pool */
   private static final String VAR_CCP = "CCP";
 
   private static final String VAR_STACK_SAVE = "STACK_SAVE";
@@ -65,7 +60,11 @@ class ClosureCompiler {
     this.bc = bc;
     this.name = name;
     this.module = module;
-    this.fun = module.cUnit().addFunction("SEXP", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP)));
+    this.fun =
+        module
+            .cUnit()
+            .addFunction(
+                "SEXP", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP)));
     this.prologue = fun.add();
     this.body = fun.add();
     this.extraConstPoolIdx = bc.consts().size() + 1;
@@ -132,8 +131,7 @@ class ClosureCompiler {
         case BcInstr.StartFor(var _, var symbol, var label) -> {
           hasLoop = true;
         }
-        default -> {
-        }
+        default -> {}
       }
 
       instr.label().ifPresent(l -> labels.add(l.target()));
@@ -142,8 +140,7 @@ class ClosureCompiler {
           .ifPresent(
               s -> {
                 cells.merge(
-                    s.idx(), new BCell(s.idx(), symbolName(s), 1),
-                    (o, _) -> o.uses(o.uses() + 1));
+                    s.idx(), new BCell(s.idx(), symbolName(s), 1), (o, _) -> o.uses(o.uses() + 1));
               });
     }
 
@@ -198,8 +195,7 @@ class ClosureCompiler {
           case BcInstr.SubsetN(var call, var rank) -> compileSubsetN(builder, call, rank);
           case BcInstr.Subset2N(var call, var rank) -> compileSubsetN(builder, call, rank);
           case BcInstr.SubassignN(var call, var rank) -> compileSubassignN(builder, call, rank);
-          case BcInstr.Subassign2N(var call, var rank) ->
-              compileSubassignN(builder, call, rank);
+          case BcInstr.Subassign2N(var call, var rank) -> compileSubassignN(builder, call, rank);
           case BcInstr.StartFor(var _, var symbol, var label) -> {
             var cell = cells.get(symbol.idx());
             assert cell != null;
@@ -221,11 +217,9 @@ class ClosureCompiler {
               throw new IllegalStateException(
                   "Expected StartFor instruction around pc: %d".formatted(label.target()));
             }
-            yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.cell(cell).compile(),
-                label(label));
+            yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.cell(cell).compile(), label(label));
           }
-          case BcInstr.Math1(var _, var op) ->
-              builder.addArgs(String.valueOf(op)).compileStmt();
+          case BcInstr.Math1(var _, var op) -> builder.addArgs(String.valueOf(op)).compileStmt();
           case BcInstr.DotCall(var call, var numArgs) -> compileDotCall(builder, call, numArgs);
           case BcInstr.StartLoopCntxt(var _, var label) -> {
             int idx = loopContexts.size();
@@ -369,8 +363,7 @@ class ClosureCompiler {
     private int push = 0;
     private int pop = 0;
     private boolean needsRho = false;
-    @Nullable
-    private BCell cell = null;
+    @Nullable private BCell cell = null;
     private List<String> args = new ArrayList<>();
     private final List<String> debugMessages = new ArrayList<>();
 

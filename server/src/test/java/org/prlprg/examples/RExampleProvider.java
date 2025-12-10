@@ -10,7 +10,8 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.support.AnnotationConsumer;
 import org.junit.jupiter.params.support.ParameterDeclarations;
 
-final class RExampleProvider implements ArgumentsProvider, AnnotationConsumer<@NotNull RExampleTest> {
+final class RExampleProvider
+    implements ArgumentsProvider, AnnotationConsumer<@NotNull RExampleTest> {
   private boolean accepted = false;
 
   @Override
@@ -19,8 +20,8 @@ final class RExampleProvider implements ArgumentsProvider, AnnotationConsumer<@N
   }
 
   @Override
-  public Stream<? extends Arguments> provideArguments(ParameterDeclarations parameters,
-      ExtensionContext context) {
+  public Stream<? extends Arguments> provideArguments(
+      ParameterDeclarations parameters, ExtensionContext context) {
     assert accepted;
     return resolveSingleton(RExampleStore.class, context).examples().stream().map(Arguments::of);
   }

@@ -14,6 +14,4 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @Retention(RetentionPolicy.RUNTIME)
 @Test
 @ExtendWith(GNURParameterResolver.class)
-public @interface GNURTest {
-
-}
+public @interface GNURTest {}

@@ -7,7 +7,6 @@ import javax.annotation.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -36,8 +35,7 @@ import org.prlprg.util.Streams;
 ///   an argument has a more specific runtime type, *and* that type was recorded enough times.
 ///   - If so, convert into a dispatch call with the guessed (not better) version's signature.
 ///   - If not, convert into a static call to the guessed version.
-public record OptimizeCallee(int threshold)
-    implements SpecializeOptimization {
+public record OptimizeCallee(int threshold) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
     return new AnalysisTypes();
@@ -117,10 +115,10 @@ public record OptimizeCallee(int threshold)
                                     case Read(var _), Use(var _) -> {
                                       var register = Objects.requireNonNull(argument.variable());
                                       yield feedback
-                                              .type(register)
-                                              .streamHits(threshold, parameterType)
-                                              .findAny()
-                                              .isPresent();
+                                          .type(register)
+                                          .streamHits(threshold, parameterType)
+                                          .findAny()
+                                          .isPresent();
                                     }
                                   })
                           .allMatch(b -> b);

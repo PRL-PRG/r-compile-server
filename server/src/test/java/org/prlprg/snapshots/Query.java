@@ -4,9 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Path;
 import java.util.Arrays;
-import javax.annotation.Nullable;
 import org.prlprg.examples.Example;
-import org.prlprg.session.gnur.GNUR;
 
 /// Cached/snapshot data in an example, e.g. bytecode generated from AST closures.
 public interface Query<T> {
@@ -15,12 +13,14 @@ public interface Query<T> {
     try {
       getClass().getDeclaredField("INSTANCE");
     } catch (NoSuchFieldException e) {
-      throw new UnsupportedOperationException("No default for `Query#name` for class without static `INSTANCE` field");
+      throw new UnsupportedOperationException(
+          "No default for `Query#name` for class without static `INSTANCE` field");
     }
 
     var packageName = getClass().getPackageName();
     if (!packageName.startsWith("org.prlprg.")) {
-      throw new UnsupportedOperationException("No default for `Query#name` for subclass outside `org.prlprg`");
+      throw new UnsupportedOperationException(
+          "No default for `Query#name` for subclass outside `org.prlprg`");
     }
     return packageName.substring("org.prlprg.".length()).replace('.', '/');
   }
@@ -28,9 +28,18 @@ public interface Query<T> {
   /// Default uses reflection
   @SuppressWarnings("unchecked")
   default Class<T> dataClass() {
-    var queryInterface = Arrays.stream(getClass().getGenericInterfaces()).filter(type -> type instanceof ParameterizedType p && p.getRawType().equals(Query.class) && p.getActualTypeArguments().length == 1)
-        .findFirst()
-        .orElseThrow(() -> new UnsupportedOperationException("No default for `Query#dataClass` for subclass that doesn't directly inherit `Query<T>` for some `T`"));
+    var queryInterface =
+        Arrays.stream(getClass().getGenericInterfaces())
+            .filter(
+                type ->
+                    type instanceof ParameterizedType p
+                        && p.getRawType().equals(Query.class)
+                        && p.getActualTypeArguments().length == 1)
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new UnsupportedOperationException(
+                        "No default for `Query#dataClass` for subclass that doesn't directly inherit `Query<T>` for some `T`"));
     return (Class<T>) ((ParameterizedType) queryInterface).getActualTypeArguments()[0];
   }
 

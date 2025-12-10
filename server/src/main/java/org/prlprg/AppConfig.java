@@ -3,7 +3,6 @@ package org.prlprg;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.regex.Pattern;
 import org.prlprg.util.Strings;
 
 /// Environment variables to configure the application.
@@ -17,7 +16,8 @@ public final class AppConfig extends Config {
   ///
   /// Note that we pass extra arguments to the command. The working directory of the command is
   /// the working directory of this running program.
-  public static final String R_BIN = get("R_BIN", DEBUG ? "../external/R-debug/bin/R" : "../external/R/bin/R");
+  public static final String R_BIN =
+      get("R_BIN", DEBUG ? "../external/R-debug/bin/R" : "../external/R/bin/R");
 
   /// R library paths. There are the paths that the compile server will look libraries for in. We
   /// could call `.libPaths()` in R to get the paths R knows, but we also want to support custom

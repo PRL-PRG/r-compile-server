@@ -39,4 +39,3 @@ public interface Gen2CCompilerTest {
     return new EvalQuery(oracleModuleQuery(), runtimeVariant());
   }
 }
-

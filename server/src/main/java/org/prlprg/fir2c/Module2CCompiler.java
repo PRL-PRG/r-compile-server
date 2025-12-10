@@ -180,7 +180,8 @@ public final class Module2CCompiler {
 
   private void compileDispatchFunction(Function function) {
     var index = compiledFunctionDispatches.get(function);
-    assert index instanceof FirCompiledDispatchIndex.Regular : "Can't compile " + function.name() + " because it's a builtin (index = " + index + ")";
+    assert index instanceof FirCompiledDispatchIndex.Regular
+        : "Can't compile " + function.name() + " because it's a builtin (index = " + index + ")";
     var cName = ((FirCompiledDispatchIndex.Regular) index).cFunctionName();
 
     var cFunction = cUnit.addFunction("SEXP", cName, dispatchCFunctionParameters);
@@ -219,14 +220,17 @@ public final class Module2CCompiler {
     var idx = constantPool.intern(sexp);
     return "Rsh_const(%s, %d)".formatted(VAR_POOL, idx);
   }
+
   // endregion interned
 
   // region lookup
   private String dispatchPtrName(Function function) {
-    if (!(compiledFunctionDispatch(function) instanceof FirCompiledDispatchIndex.Regular(
-        var cFunctionName
-    ))) {
-      throw new UnsupportedOperationException("Can't get dispatch function pointer of " + function.name() + " because it's a builtin, so it doesn't dispatch like FIŘ functions");
+    if (!(compiledFunctionDispatch(function)
+        instanceof FirCompiledDispatchIndex.Regular(var cFunctionName))) {
+      throw new UnsupportedOperationException(
+          "Can't get dispatch function pointer of "
+              + function.name()
+              + " because it's a builtin, so it doesn't dispatch like FIŘ functions");
     }
     return cFunctionName;
   }
@@ -289,15 +293,19 @@ public final class Module2CCompiler {
     // region emit
     private void emit() {
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cFunction.add().comment(
-            "FIR %s dynamic dispatch (%s)", function.name().name(), function.parameterNames());
+        cFunction
+            .add()
+            .comment(
+                "FIR %s dynamic dispatch (%s)", function.name().name(), function.parameterNames());
       }
 
       // TODO: Actually dispatch based on argument types.
       var baselineIndex = compiledVersion(function, function.baseline());
-      cFunction.add().stmt(
-          "return %s(%s, %s, %s, %s);",
-          baselineIndex.cFunctionName(), VAR_POOL, VAR_ENV, VAR_NPARAMS, VAR_SEXP_PARAMS);
+      cFunction
+          .add()
+          .stmt(
+              "return %s(%s, %s, %s, %s);",
+              baselineIndex.cFunctionName(), VAR_POOL, VAR_ENV, VAR_NPARAMS, VAR_SEXP_PARAMS);
     }
 
     // endregion emit
@@ -355,9 +363,11 @@ public final class Module2CCompiler {
     // region emit
     private void emit() {
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cFunction.add().comment(
-            "FIR %s version %d (%s)",
-            function.name().name(), versionIndex, abstraction.signature());
+        cFunction
+            .add()
+            .comment(
+                "FIR %s version %d (%s)",
+                function.name().name(), versionIndex, abstraction.signature());
       }
 
       emitArityCheck();
@@ -371,11 +381,16 @@ public final class Module2CCompiler {
       }
 
       var expected = abstraction.parameters().size();
-      cFunction.add().stmt("if (%s != %d) Rsh_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", %s);", VAR_NPARAMS, expected,
-          sanitizeString(function.name().name()),
-          versionIndex,
-          expected,
-          VAR_NPARAMS);
+      cFunction
+          .add()
+          .stmt(
+              "if (%s != %d) Rsh_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", %s);",
+              VAR_NPARAMS,
+              expected,
+              sanitizeString(function.name().name()),
+              versionIndex,
+              expected,
+              VAR_NPARAMS);
     }
 
     private void emitParameterBinding() {
@@ -511,8 +526,9 @@ public final class Module2CCompiler {
             case Call call -> emitCall(call);
             case Cast(var target, var type) ->
                 "Rsh_Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(type));
-            case Closure closure -> "Rsh_Fir_make_closure(&%s, %s, %s)"
-                .formatted(dispatchPtrName(closure.code()), VAR_ENV, VAR_POOL);
+            case Closure closure ->
+                "Rsh_Fir_make_closure(&%s, %s, %s)"
+                    .formatted(dispatchPtrName(closure.code()), VAR_ENV, VAR_POOL);
             case Dup(var value) -> "Rsh_Fir_dup(%s)".formatted(emitArgument(value));
             case Force(var value) -> "Rsh_Fir_force(%s)".formatted(emitArgument(value));
             case Load(var variable) ->
@@ -527,8 +543,7 @@ public final class Module2CCompiler {
               yield "Rsh_Fir_load_fun(%s, %s, %s)"
                   .formatted(envSelector, nvSymbolRef(variable), VAR_ENV);
             }
-            case MaybeForce(var value) ->
-                "Rsh_Fir_maybe_force(%s)".formatted(emitArgument(value));
+            case MaybeForce(var value) -> "Rsh_Fir_maybe_force(%s)".formatted(emitArgument(value));
             case MkEnv() -> {
               cCode.stmt("Rsh_Fir_push_env(&%s);", VAR_ENV);
               yield "R_NilValue";
@@ -544,22 +559,23 @@ public final class Module2CCompiler {
             }
             case Placeholder() -> "Rsh_error(\"FIŘ placeholder reached\"); R_NilValue";
             case PopEnv() -> "Rsh_Fir_pop_env(&%s); R_NilValue".formatted(VAR_ENV);
-            case Promise promise -> "Rsh_Fir_make_promise(&%s, %s, %s)"
-                .formatted(promiseName(promise), VAR_POOL, VAR_ENV);
-            case ReflectiveLoad(var promArg, var variable) -> "Rsh_Fir_reflective_load(%s, %s)"
-                .formatted(emitArgument(promArg), nvSymbolRef(variable));
+            case Promise promise ->
+                "Rsh_Fir_make_promise(&%s, %s, %s)"
+                    .formatted(promiseName(promise), VAR_POOL, VAR_ENV);
+            case ReflectiveLoad(var promArg, var variable) ->
+                "Rsh_Fir_reflective_load(%s, %s)"
+                    .formatted(emitArgument(promArg), nvSymbolRef(variable));
             case ReflectiveStore(var promArg, var variable, var value) ->
                 "Rsh_Fir_reflective_store(%s, %s, %s)"
-                    .formatted(emitArgument(promArg), nvSymbolRef(variable),
-                        emitArgument(value));
+                    .formatted(emitArgument(promArg), nvSymbolRef(variable), emitArgument(value));
             case Store(var variable, var value) -> {
               var arg = emitArgument(value);
               cCode.stmt("Rsh_Fir_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
               yield arg;
             }
             case SubscriptRead(var vector, var index) ->
-                "Rsh_Fir_subscript_read(%s, %s)".formatted(emitArgument(vector),
-                    emitArgument(index));
+                "Rsh_Fir_subscript_read(%s, %s)"
+                    .formatted(emitArgument(vector), emitArgument(index));
             case SubscriptWrite(var vector, var index, var value) ->
                 "Rsh_Fir_subscript_write(%s, %s, %s)"
                     .formatted(emitArgument(vector), emitArgument(index), emitArgument(value));
@@ -680,10 +696,12 @@ public final class Module2CCompiler {
           }
 
           return switch (assume) {
-            case AssumeConstant(var target, var constant) -> "Rsh_Fir_assume_constant(%s, %s)"
-                .formatted(emitArgument(target), constantRef(constant.sexp()));
-            case AssumeFunction a -> "Rsh_Fir_assume_function(%s, &%s)"
-                .formatted(emitArgument(a.target()), dispatchPtrName(a.function()));
+            case AssumeConstant(var target, var constant) ->
+                "Rsh_Fir_assume_constant(%s, %s)"
+                    .formatted(emitArgument(target), constantRef(constant.sexp()));
+            case AssumeFunction a ->
+                "Rsh_Fir_assume_function(%s, &%s)"
+                    .formatted(emitArgument(a.target()), dispatchPtrName(a.function()));
             case AssumeType(var target, var type) ->
                 "Rsh_Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
           };
@@ -813,6 +831,7 @@ public final class Module2CCompiler {
           };
         }
       }
+
       // endregion emit
 
       // region interned

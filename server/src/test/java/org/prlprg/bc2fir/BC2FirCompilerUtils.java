@@ -5,7 +5,6 @@ import static org.prlprg.fir.check.Checker.checkAll;
 import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import org.prlprg.bc.BCCompiler;
-import org.prlprg.bc.Bc;
 import org.prlprg.fir.check.Checker.Exclude;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.RSession;

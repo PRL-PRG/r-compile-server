@@ -26,8 +26,7 @@ public interface GenFirQuery extends Query<Module> {
   }
 
   @Override
-  default Module deserialize(Path path, Example example, SnapshotStore store)
-      throws IOException {
+  default Module deserialize(Path path, Example example, SnapshotStore store) throws IOException {
     path = Paths.addExtension(path, "fir");
 
     return Parser.fromFile(path.toFile(), Module.class);

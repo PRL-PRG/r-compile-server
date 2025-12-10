@@ -74,7 +74,10 @@ public class Specialize implements AbstractionOptimization {
     boolean changed = false;
 
     public OnAbstraction(
-        Abstraction scope, AbstractionFeedback feedback, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
+        Abstraction scope,
+        AbstractionFeedback feedback,
+        Analyses analyses,
+        List<SpecializeOptimization> subOptimizations) {
       this.scope = scope;
       this.feedback = feedback;
       this.analyses = analyses;

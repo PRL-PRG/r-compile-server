@@ -1,11 +1,9 @@
 package org.prlprg.fir.opt;
 
-import javax.annotation.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.server.Messages.TypeFeedback.Feedback;
 
 /// An optimization that runs on an [Abstraction].
 public interface AbstractionOptimization extends Optimization {

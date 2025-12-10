@@ -3,16 +3,15 @@ package org.prlprg.examples;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import javax.annotation.Nullable;
-import org.jetbrains.annotations.NotNull;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 
-public record ExampleOption(@Nullable ImmutableSet<String> filter, String name, ImmutableList<SEXP> args) {
+public record ExampleOption(
+    @Nullable ImmutableSet<String> filter, String name, ImmutableList<SEXP> args) {
   public void failUnknown() {
     fail("Unknown option \"" + name + "\"");
   }
@@ -59,7 +58,7 @@ public record ExampleOption(@Nullable ImmutableSet<String> filter, String name, 
 
     var name = s.readIdentifierOrKeyword();
 
-  var args = s.nextCharIs('(') ? p.parseList("(", ")", SEXP.class) : ImmutableList.<SEXP>of();
+    var args = s.nextCharIs('(') ? p.parseList("(", ")", SEXP.class) : ImmutableList.<SEXP>of();
 
     return new ExampleOption(filter, name, args);
   }

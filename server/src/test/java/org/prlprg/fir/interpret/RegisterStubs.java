@@ -1,10 +1,5 @@
 package org.prlprg.fir.interpret;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.abort;
-import static org.prlprg.fir.check.Checker.checkAll;
-
 import org.prlprg.fir.interpret.internal.ExternalVersion;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.variable.Variable;
@@ -17,7 +12,9 @@ class RegisterStubs {
     switch (interpreter) {
       case InternalInterpreter internalInterpreter -> registerStubs(internalInterpreter);
       case GnurInterpreter gnurInterpreter -> registerStubs(gnurInterpreter);
-      default -> throw new UnsupportedOperationException("Unsupported interpreter type: " + interpreter.getClass().getName());
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported interpreter type: " + interpreter.getClass().getName());
     }
   }
 

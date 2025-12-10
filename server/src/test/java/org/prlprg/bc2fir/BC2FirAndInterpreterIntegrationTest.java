@@ -14,17 +14,17 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.prlprg.bc.CompilerException;
+import org.prlprg.examples.DirectorySource;
+import org.prlprg.examples.ExamplePath;
 import org.prlprg.fir.interpret.InterpretException;
+import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.interpret.internal.DeoptSnapshot;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
-import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.examples.DirectorySource;
-import org.prlprg.examples.ExamplePath;
-import org.prlprg.session.gnur.GNUR;
 
 public class BC2FirAndInterpreterIntegrationTest {
   private final GNUR R;
@@ -48,7 +48,8 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// - When interpreted by GNU-R.
   /// - When bytecode-compiled, converted into FIŘ, and interpreted by [InternalInterpreter].
   /// - When optimized with [default optimizations][
-  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [InternalInterpreter].
+  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by
+  // [InternalInterpreter].
   @ParameterizedTest
   @DirectorySource(glob = "*.R", depth = 2)
   void testCompilerInterpreterOptimizer(ExamplePath rFilePath) {
@@ -92,7 +93,8 @@ public class BC2FirAndInterpreterIntegrationTest {
   /// - When interpreted by GNU-R.
   /// - When bytecode-compiled, converted into FIŘ, and interpreted by [InternalInterpreter].
   /// - When optimized with [default optimizations][
-  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by [InternalInterpreter].
+  /// org.prlprg.fir.opt.Optimizations#defaultOptimizations] and interpreted by
+  // [InternalInterpreter].
   /// - When `main2` is called with a real instead of an integer (same output but causes deopts)
   @ParameterizedTest
   @DirectorySource(root = "deopt", glob = "*.R", depth = 2)
@@ -176,7 +178,8 @@ public class BC2FirAndInterpreterIntegrationTest {
 
       firModule = compile(rModuleEnv, R.getSession());
 
-      for (var interpreter : List.of(new InternalInterpreter(firModule), new GnurInterpreter(firModule))) {
+      for (var interpreter :
+          List.of(new InternalInterpreter(firModule), new GnurInterpreter(firModule))) {
         if (interpreter instanceof InternalInterpreter i) {
           registerBuiltins(i);
         }

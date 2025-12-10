@@ -13,7 +13,11 @@ public class ParseUtil {
     } catch (ParseException e) {
       // Can't use `fail` because then Java expects a `return` after.
       throw new AssertionError(
-          "Failed to parse FIŘ file: " + e.getMessage() + "\n" + region(firText, e.position().line(), e.position().column()), e.getCause());
+          "Failed to parse FIŘ file: "
+              + e.getMessage()
+              + "\n"
+              + region(firText, e.position().line(), e.position().column()),
+          e.getCause());
     }
   }
 
@@ -23,7 +27,10 @@ public class ParseUtil {
     } catch (ParseException e) {
       // Can't use `fail` because then Java expects a `return` after.
       throw new AssertionError(
-          "Failed to parse SEXP in FIŘ file: " + e.getMessage() + "\n" + region(sexpText, e.position().line(), e.position().column()),
+          "Failed to parse SEXP in FIŘ file: "
+              + e.getMessage()
+              + "\n"
+              + region(sexpText, e.position().line(), e.position().column()),
           e.getCause());
     }
   }

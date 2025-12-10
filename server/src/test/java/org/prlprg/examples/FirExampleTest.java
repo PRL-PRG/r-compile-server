@@ -20,4 +20,3 @@ import org.prlprg.snapshots.SnapshotStoreParameterResolver;
 @ArgumentsSource(FirExampleProvider.class)
 @ExtendWith(SnapshotStoreParameterResolver.class)
 public @interface FirExampleTest {}
-

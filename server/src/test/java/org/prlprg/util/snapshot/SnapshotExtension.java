@@ -11,7 +11,8 @@ import org.prlprg.util.ThrowingSupplier;
 /// Provide a snapshot test
 ///
 /// @param <T> the type of data stored in the snapshot.
-public abstract class SnapshotExtension<T> implements ParameterResolver, BeforeAllCallback, AfterAllCallback {
+public abstract class SnapshotExtension<T>
+    implements ParameterResolver, BeforeAllCallback, AfterAllCallback {
   private final Map<Method, SnapshotStore<T>> stores = new HashMap<>();
   private @Nullable SnapshotStoreFactory<T> storeFactory;
 

@@ -15,46 +15,58 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 /// `T`'s constructor arguments themselves are also singletons that may be shared by other
 /// [SingletonParameterResolver]s.
 public abstract class SingletonParameterResolver<T> implements ParameterResolver {
-  private static final Namespace NAMESPACE = Namespace.create(SingletonParameterResolver.class.getName());
+  private static final Namespace NAMESPACE =
+      Namespace.create(SingletonParameterResolver.class.getName());
 
-  /// Recursively construct `clazz` and dependencies, reusing what has already been constructed in the root store.
+  /// Recursively construct `clazz` and dependencies, reusing what has already been constructed in
+  // the root store.
   public static <T> T resolveSingleton(Class<T> clazz, ExtensionContext context) {
     return resolveSingleton(clazz, context.getRoot().getStore(NAMESPACE), new HashSet<>());
   }
 
   private static <T> T resolveSingleton(Class<T> clazz, Store store, Set<Class<?>> pending) {
-    return store.computeIfAbsent(clazz, _ -> {
-      if (!pending.add(clazz)) {
-        throw new IllegalStateException("Cyclic dependency: " + Strings.join(" -> ", Class::getName, pending) + " --> " + clazz.getName());
-      }
+    return store.computeIfAbsent(
+        clazz,
+        _ -> {
+          if (!pending.add(clazz)) {
+            throw new IllegalStateException(
+                "Cyclic dependency: "
+                    + Strings.join(" -> ", Class::getName, pending)
+                    + " --> "
+                    + clazz.getName());
+          }
 
-      try {
-        var singletonClassAnnotation = clazz.getAnnotation(SingletonClass.class);
-        if (singletonClassAnnotation != null) {
-          return clazz.cast(resolveSingleton(singletonClassAnnotation.value(), store, pending));
-        }
+          try {
+            var singletonClassAnnotation = clazz.getAnnotation(SingletonClass.class);
+            if (singletonClassAnnotation != null) {
+              return clazz.cast(resolveSingleton(singletonClassAnnotation.value(), store, pending));
+            }
 
-        var ctors = clazz.getDeclaredConstructors();
-        if (ctors.length != 1) {
-          throw new IllegalStateException(
-              "Expected exactly one constructor for " + clazz.getName() + ", found "
-                  + ctors.length);
-        }
-        var ctor = ctors[0];
+            var ctors = clazz.getDeclaredConstructors();
+            if (ctors.length != 1) {
+              throw new IllegalStateException(
+                  "Expected exactly one constructor for "
+                      + clazz.getName()
+                      + ", found "
+                      + ctors.length);
+            }
+            var ctor = ctors[0];
 
-        var args = Arrays.stream(ctor.getParameterTypes())
-            .map(paramType -> resolveSingleton(paramType, store, pending))
-            .toArray();
+            var args =
+                Arrays.stream(ctor.getParameterTypes())
+                    .map(paramType -> resolveSingleton(paramType, store, pending))
+                    .toArray();
 
-        try {
-          return clazz.cast(ctor.newInstance(args));
-        } catch (Exception e) {
-          throw new RuntimeException("Failed to construct " + clazz.getName(), e);
-        }
-      } finally {
-        pending.remove(clazz);
-      }
-    }, clazz);
+            try {
+              return clazz.cast(ctor.newInstance(args));
+            } catch (Exception e) {
+              throw new RuntimeException("Failed to construct " + clazz.getName(), e);
+            }
+          } finally {
+            pending.remove(clazz);
+          }
+        },
+        clazz);
   }
 
   private final Class<T> clazz;
@@ -64,14 +76,15 @@ public abstract class SingletonParameterResolver<T> implements ParameterResolver
   }
 
   @Override
-  public boolean supportsParameter(ParameterContext parameterContext,
-      ExtensionContext extensionContext) throws ParameterResolutionException {
+  public boolean supportsParameter(
+      ParameterContext parameterContext, ExtensionContext extensionContext)
+      throws ParameterResolutionException {
     return parameterContext.getParameter().getType() == clazz;
   }
 
   @Override
-  public T resolveParameter(ParameterContext parameterContext,
-      ExtensionContext extensionContext) throws ParameterResolutionException {
+  public T resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext)
+      throws ParameterResolutionException {
     return resolveSingleton(clazz, extensionContext);
   }
 }

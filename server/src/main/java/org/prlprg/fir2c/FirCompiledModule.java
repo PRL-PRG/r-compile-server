@@ -26,13 +26,9 @@ public record FirCompiledModule(
 
   /// Metadata describing the C entry point for a particular FIŘ [Function]'s dispatch.
   public sealed interface FirCompiledDispatchIndex {
-    record Regular(String cFunctionName) implements FirCompiledDispatchIndex {
+    record Regular(String cFunctionName) implements FirCompiledDispatchIndex {}
 
-    }
-
-    record Builtin(int builtinIndex) implements FirCompiledDispatchIndex {
-
-    }
+    record Builtin(int builtinIndex) implements FirCompiledDispatchIndex {}
 
     static FirCompiledDispatchIndex builtin(Function function, RSession session) {
       var builtinIndex = session.RFunTab().indexOf(function.name().name());

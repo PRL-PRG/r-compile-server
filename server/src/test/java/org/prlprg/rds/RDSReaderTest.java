@@ -8,8 +8,8 @@ import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
-import org.prlprg.sexp.*;
 import org.prlprg.session.gnur.GNUR;
+import org.prlprg.sexp.*;
 
 public class RDSReaderTest {
 

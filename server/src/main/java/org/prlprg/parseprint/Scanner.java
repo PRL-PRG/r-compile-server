@@ -434,19 +434,21 @@ public class Scanner {
   public String readCodeItem() {
     final int[] numOpen = {0};
 
-    var result = readUntil(c -> {
-      if (c == -1 || (numOpen[0] == 0 && (c == ')' || c == ']' || c == '}' || c == ','))) {
-        return false;
-      }
+    var result =
+        readUntil(
+            c -> {
+              if (c == -1 || (numOpen[0] == 0 && (c == ')' || c == ']' || c == '}' || c == ','))) {
+                return false;
+              }
 
-      if (c == '(' || c == '[' || c == '{') {
-        numOpen[0]++;
-      } else if (c == ')' || c == ']' || c == '}') {
-        numOpen[0]--;
-      }
+              if (c == '(' || c == '[' || c == '{') {
+                numOpen[0]++;
+              } else if (c == ')' || c == ']' || c == '}') {
+                numOpen[0]--;
+              }
 
-      return true;
-    });
+              return true;
+            });
 
     if (isAtEof && numOpen[0] > 0) {
       throw fail("unclosed '(', '[', or '{' before end of input");
@@ -498,10 +500,7 @@ public class Scanner {
         skipsWhitespace.notSkippingNewlines(), () -> readUntil('\n', true));
   }
 
-
-  /**
-   * Read all remaining characters.
-   */
+  /** Read all remaining characters. */
   public String readUntilEndOfInput() {
     return readUntil(-1);
   }

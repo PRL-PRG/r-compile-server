@@ -2,11 +2,10 @@ package org.prlprg.bc;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import org.junit.jupiter.api.Test;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.session.gnur.GNURTest;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.LangSXP;
-import org.prlprg.session.gnur.GNUR;
 
 public class BCCompilerTest {
   @GNURTest

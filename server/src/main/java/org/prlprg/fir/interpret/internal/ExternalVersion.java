@@ -1,7 +1,6 @@
 package org.prlprg.fir.interpret.internal;
 
 import java.util.List;
-import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -54,5 +53,6 @@ public interface ExternalVersion {
     };
   }
 
-  SEXP call(Interpreter runtime, Abstraction hijacked, List<SEXP> arguments, EnvSXP environment);
+  SEXP call(
+      InternalInterpreter runtime, Abstraction hijacked, List<SEXP> arguments, EnvSXP environment);
 }
