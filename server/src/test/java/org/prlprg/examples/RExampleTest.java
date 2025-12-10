@@ -15,11 +15,11 @@ import org.prlprg.snapshots.SnapshotStoreParameterResolver;
 ///
 /// The arguments given to the test are [Example] and [org.prlprg.snapshots.SnapshotStore].
 @Documented
-@Target(ElementType.METHOD)
+@Target({ElementType.ANNOTATION_TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Tag("R")
 @Tag("examples")
-@ParameterizedTest
+@ParameterizedTest(allowZeroInvocations = true)
 @ArgumentsSource(RExampleProvider.class)
 @ExtendWith(SnapshotStoreParameterResolver.class)
 public @interface RExampleTest {

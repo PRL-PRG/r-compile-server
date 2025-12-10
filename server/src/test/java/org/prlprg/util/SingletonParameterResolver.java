@@ -25,18 +25,18 @@ public abstract class SingletonParameterResolver<T> implements ParameterResolver
   }
 
   private static <T> T resolveSingleton(Class<T> clazz, Store store, Set<Class<?>> pending) {
-    return store.computeIfAbsent(
-        clazz,
-        _ -> {
-          if (!pending.add(clazz)) {
-            throw new IllegalStateException(
-                "Cyclic dependency: "
-                    + Strings.join(" -> ", Class::getName, pending)
-                    + " --> "
-                    + clazz.getName());
-          }
+    if (!pending.add(clazz)) {
+      throw new IllegalStateException(
+          "Cyclic dependency: "
+              + Strings.join(" -> ", Class::getName, pending)
+              + " --> "
+              + clazz.getName());
+    }
 
-          try {
+    try {
+      return store.computeIfAbsent(
+          clazz,
+          _ -> {
             var singletonClassAnnotation = clazz.getAnnotation(SingletonClass.class);
             if (singletonClassAnnotation != null) {
               return clazz.cast(resolveSingleton(singletonClassAnnotation.value(), store, pending));
@@ -58,15 +58,16 @@ public abstract class SingletonParameterResolver<T> implements ParameterResolver
                     .toArray();
 
             try {
+              ctor.setAccessible(true);
               return clazz.cast(ctor.newInstance(args));
             } catch (Exception e) {
               throw new RuntimeException("Failed to construct " + clazz.getName(), e);
             }
-          } finally {
-            pending.remove(clazz);
-          }
-        },
-        clazz);
+          },
+          clazz);
+    } finally {
+      pending.remove(clazz);
+    }
   }
 
   private final Class<T> clazz;

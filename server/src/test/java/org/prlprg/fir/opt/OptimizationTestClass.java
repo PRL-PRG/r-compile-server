@@ -26,7 +26,7 @@ import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 /// various optimizations.
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
+@Target({ElementType.ANNOTATION_TYPE, ElementType.TYPE})
 @ParameterizedClass
 @ArgumentsSource(OptimizationProvider.class)
 public @interface OptimizationTestClass {}

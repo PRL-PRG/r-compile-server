@@ -4,8 +4,8 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
-import org.junit.jupiter.api.Test;
 import org.prlprg.session.gnur.GNUR;
+import org.prlprg.session.gnur.GNURTest;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
@@ -13,15 +13,8 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
 
 public class ContextTest {
-
-  private final GNUR R;
-
-  public ContextTest(GNUR R) {
-    this.R = R;
-  }
-
-  @Test
-  public void testFindLocals() {
+  @GNURTest
+  public void testFindLocals(GNUR R) {
     var fun =
         (CloSXP)
             R.eval(
@@ -38,8 +31,8 @@ public class ContextTest {
     assertThat(ctx.findLocals(fun.bodyAST())).containsExactly("y", "z", "zz");
   }
 
-  @Test
-  public void testFindLocalsInFormals() {
+  @GNURTest
+  public void testFindLocalsInFormals(GNUR R) {
     var fun =
         (CloSXP)
             R.eval(
@@ -53,8 +46,8 @@ public class ContextTest {
     assertThat(ctx.findLocals(fun.parameters())).containsExactly("x");
   }
 
-  @Test
-  public void testFindLocalsWithShadowing() {
+  @GNURTest
+  public void testFindLocalsWithShadowing(GNUR R) {
     var fun =
         (CloSXP)
             R.eval(
@@ -74,8 +67,8 @@ public class ContextTest {
   }
 
   @SuppressWarnings("OptionalGetWithoutIsPresent")
-  @Test
-  public void testBindingInNestedFunction() {
+  @GNURTest
+  public void testBindingInNestedFunction(GNUR R) {
     var fun =
         (CloSXP)
             R.eval(
@@ -109,8 +102,8 @@ public class ContextTest {
     assertThat(b.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
   }
 
-  @Test
-  public void testFindLocalsWithShadowingInOtherEnvironment() {
+  @GNURTest
+  public void testFindLocalsWithShadowingInOtherEnvironment(GNUR R) {
     /*
     > local <- function(a) a
     > f <- function(y) { local(x <- y); x }
@@ -138,8 +131,8 @@ public class ContextTest {
     assertThat(ctx.findLocals(fun.bodyAST())).containsExactly("x");
   }
 
-  @Test
-  public void testFrameTypes() {
+  @GNURTest
+  public void testFrameTypes(GNUR R) {
     var fun = (CloSXP) R.eval("utils::unzip");
     var ctx = Context.functionContext(fun);
 
