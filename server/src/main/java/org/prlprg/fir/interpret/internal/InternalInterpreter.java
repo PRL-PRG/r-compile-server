@@ -426,8 +426,8 @@ public final class InternalInterpreter implements Interpreter {
   /// Executes a jump instruction and returns the next control-flow action.
   private ControlFlow run(Jump jump) {
     return switch (jump) {
-      case Goto(var next) -> new ControlFlow.Goto(next);
-      case If(var condition, var ifTrue, var ifFalse) -> {
+      case Goto(var _, var next) -> new ControlFlow.Goto(next);
+      case If(var _, var condition, var ifTrue, var ifFalse) -> {
         var condSexp = run(condition);
 
         if (condition instanceof Read(var conditionReg)) {
@@ -436,17 +436,17 @@ public final class InternalInterpreter implements Interpreter {
 
         yield new ControlFlow.Goto(isTrue(condSexp) ? ifTrue : ifFalse);
       }
-      case Return(var ret) -> new ControlFlow.Return(run(ret));
-      case Checkpoint(var ok, var deopt) -> {
+      case Return(var _, var ret) -> new ControlFlow.Return(run(ret));
+      case Checkpoint(var _, var ok, var deopt) -> {
         // TODO: refactor lambda into method for readability.
         checkpointTrace.record(() -> snapshotAtCheckpoint(deopt));
         yield new ControlFlow.Goto(check(ok) ? ok : deopt);
       }
-      case Deopt(var pc, var argStack) -> {
+      case Deopt(var _, var pc, var argStack) -> {
         var valueStack = argStack.stream().map(this::run).collect(ImmutableList.toImmutableList());
         yield new ControlFlow.Deopt(pc, valueStack);
       }
-      case Unreachable _ -> throw fail("Reached unimplemented or \"unreachable\" code");
+      case Unreachable(var _) -> throw fail("Reached unimplemented or \"unreachable\" code");
     };
   }
 
@@ -932,7 +932,7 @@ public final class InternalInterpreter implements Interpreter {
     // Get corresponding deopt BC and run sanity checks
     var deoptBc =
         deoptRestoreCfg.bbs().stream()
-            .filter(bb -> bb.jump() instanceof Deopt(var pc1, var _) && pc == pc1)
+            .filter(bb -> bb.jump() instanceof Deopt(var _, var pc1, var _) && pc == pc1)
             .collect(
                 Streams.zeroOneOrThrow(() -> fail("multiple deopt branches with the same pc?")))
             .orElseThrow(
@@ -942,7 +942,7 @@ public final class InternalInterpreter implements Interpreter {
                             + pc
                             + "\n"
                             + deoptRestoreCfg));
-    if (!(deoptBc.jump() instanceof Deopt(var _, var argStack))) {
+    if (!(deoptBc.jump() instanceof Deopt(var _, var _, var argStack))) {
       throw new UnreachableError();
     }
     var checkBc =

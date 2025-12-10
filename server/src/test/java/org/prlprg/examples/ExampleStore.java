@@ -15,7 +15,7 @@ sealed class ExampleStore permits RExampleStore, FirExampleStore {
   static Stream<Example> listDir(String type) {
     var root = Paths.getResource(ExampleStore.class, type);
     return Files.listDir(root, "*." + type, Integer.MAX_VALUE, false, true).stream()
-        .filter(rpath -> EXAMPLE_FILTER.matcher(rpath.getFileName().toString()).matches())
+        .filter(rpath -> EXAMPLE_FILTER.matcher(rpath.toString()).matches())
         .map(
             rpath -> {
               var path = root.resolve(rpath);

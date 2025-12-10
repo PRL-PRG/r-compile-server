@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.CommentParser;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -38,6 +38,7 @@ public final class BB implements Comparable<BB> {
   private final CFG owner;
 
   // Data
+  private final Comments comments;
   private final String label;
   private final List<Register> parameters = new ArrayList<>();
   private final List<Statement> statements = new ArrayList<>();
@@ -54,6 +55,7 @@ public final class BB implements Comparable<BB> {
     }
 
     this.owner = owner;
+    this.comments = new Comments();
     this.label = label;
 
     // Since the jump is `Unreachable`, this is an exit.
@@ -355,6 +357,8 @@ public final class BB implements Comparable<BB> {
   private void print(Printer p) {
     var w = p.writer();
 
+    p.print(comments);
+
     if (!label.equals(ENTRY_LABEL)) {
       w.write(label);
       p.printAsList("(", ")", parameters);
@@ -394,9 +398,10 @@ public final class BB implements Comparable<BB> {
     var s = p.scanner();
 
     if (ctx.isEntry) {
+      comments = new Comments();
       label = ENTRY_LABEL;
     } else {
-      CommentParser.skipComments(s);
+      comments = p.parse(Comments.class);
       label = s.readIdentifierOrKeyword();
       var params = p.parseList("(", ")", Register.class);
       parameters.addAll(params);
@@ -408,7 +413,6 @@ public final class BB implements Comparable<BB> {
             new Instruction.ParseContext(owner, ctx.postOwner, ctx.oostModule, p.context()));
     Instruction instr;
     do {
-      CommentParser.skipComments(s);
       instr = p2.parse(Instruction.class);
       switch (instr) {
         case Statement expr -> statements.add(expr);

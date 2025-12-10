@@ -8,6 +8,6 @@ public class InterpretException extends RuntimeException {
   }
 
   public String mainMessage() {
-    return getMessage();
+    return super.getMessage();
   }
 }

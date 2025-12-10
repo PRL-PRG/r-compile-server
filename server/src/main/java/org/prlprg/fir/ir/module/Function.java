@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.CommentParser;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.type.Signature;
@@ -34,6 +34,7 @@ public final class Function {
   private final Module owner;
 
   // Data
+  private final Comments comments;
   private final NamedVariable name;
   private final List<NamedVariable> parameterNames;
   /// Versions are stored so that removing a version doesn't decrement other versions' indices,
@@ -53,6 +54,7 @@ public final class Function {
       List<NamedVariable> parameterNames,
       List<Parameter> baselineParameters,
       boolean baselineIsStub) {
+    comments = new Comments();
     this.owner = owner;
     this.name = name;
     this.parameterNames = List.copyOf(parameterNames);
@@ -218,6 +220,8 @@ public final class Function {
   private void print(Printer p) {
     var w = p.writer();
 
+    p.print(comments);
+
     w.write("fun ");
     p.print(name);
 
@@ -251,6 +255,8 @@ public final class Function {
 
     var s = p.scanner();
 
+    comments = p.parse(Comments.class);
+
     s.assertAndSkip("fun ");
     name = p.parse(NamedVariable.class);
 
@@ -258,8 +264,6 @@ public final class Function {
 
     s.assertAndSkip('{');
     for (; !s.nextCharIs('}'); nextVersionIndex++) {
-      CommentParser.skipComments(s);
-
       // Skip removed version but increment the index (hence the weird `for` loop).
       if (s.trySkip("<removed>")) {
         if (versions.isEmpty()) {

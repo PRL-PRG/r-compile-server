@@ -4,6 +4,7 @@ import java.util.Collection;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.module.Module;
@@ -13,6 +14,8 @@ import org.prlprg.util.DeferredCallbacks;
 
 @Immutable
 public sealed interface Instruction permits Statement, Jump {
+  Comments comments();
+
   @UnmodifiableView
   Collection<Argument> arguments();
 

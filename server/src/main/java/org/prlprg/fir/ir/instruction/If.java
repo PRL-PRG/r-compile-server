@@ -3,6 +3,7 @@ package org.prlprg.fir.ir.instruction;
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
@@ -10,7 +11,11 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Lists;
 
-public record If(Argument cond, Target ifTrue, Target ifFalse) implements Jump {
+public record If(Comments comments, Argument cond, Target ifTrue, Target ifFalse) implements Jump {
+  public If(Argument cond, Target ifTrue, Target ifFalse) {
+    this(new Comments(), cond, ifTrue, ifFalse);
+  }
+
   @Override
   public @UnmodifiableView Collection<Target> targets() {
     return List.of(ifTrue, ifFalse);
@@ -35,6 +40,7 @@ public record If(Argument cond, Target ifTrue, Target ifFalse) implements Jump {
   private void print(Printer p) {
     var w = p.writer();
 
+    p.print(comments);
     w.write("if ");
     p.print(cond);
     w.write(" then ");

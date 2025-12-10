@@ -647,20 +647,20 @@ public final class Module2CCompiler {
           }
 
           switch (jump) {
-            case Return(var value) -> cCode.stmt("return %s;", emitArgument(value));
-            case Goto(var target) -> emitJumpTo(1, target);
-            case Unreachable() -> {
+            case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
+            case Goto(var _, var target) -> emitJumpTo(1, target);
+            case Unreachable(var _) -> {
               cCode.stmt("Rsh_error(\"FIŘ unreachable reached\");");
               cCode.stmt("return R_NilValue;");
             }
-            case If(var condition, var ifTrue, var ifFalse) -> {
+            case If(var _, var condition, var ifTrue, var ifFalse) -> {
               cCode.stmt("if (Rsh_Fir_is_true(%s)) {", condition);
               emitJumpTo(2, ifTrue);
               cCode.stmt("} else {");
               emitJumpTo(2, ifFalse);
               cCode.stmt("}");
             }
-            case Checkpoint(var success, var deopt) -> {
+            case Checkpoint(var _, var success, var deopt) -> {
               for (var assume : assumptionsFor(success)) {
                 var condition = emitAssumptionCondition(assume);
                 cCode.stmt("if (!(%s)) {", condition);
@@ -669,7 +669,7 @@ public final class Module2CCompiler {
               }
               emitJumpTo(1, success);
             }
-            case Deopt(var pc, var stack) -> {
+            case Deopt(var _, var pc, var stack) -> {
               var stackArgs = emitArgumentArray("deopt_stack", stack);
               cCode.stmt(
                   "Rsh_Fir_deopt(%d, %d, %s, %s, %s);",

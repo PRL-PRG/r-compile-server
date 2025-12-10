@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
@@ -24,18 +25,20 @@ public sealed interface Jump extends Instruction
 
     var s = p.scanner();
 
+    var comments = p.parse(Comments.class);
+
     var k = s.readIdentifierOrKeyword();
     return switch (k) {
       case "check" -> {
         var success = p2.parse(Target.class);
         s.assertAndSkip("else");
         var failure = p2.parse(Target.class);
-        yield new Checkpoint(success, failure);
+        yield new Checkpoint(comments, success, failure);
       }
       case "deopt" -> {
         var pc = s.readInt();
         var stack = p.parseList("[", "]", Argument.class);
-        yield new Deopt(pc, stack);
+        yield new Deopt(comments, pc, stack);
       }
       case "if" -> {
         var cond = p.parse(Argument.class);
@@ -43,17 +46,17 @@ public sealed interface Jump extends Instruction
         var ifTrue = p2.parse(Target.class);
         s.assertAndSkip("else");
         var ifFalse = p2.parse(Target.class);
-        yield new If(cond, ifTrue, ifFalse);
+        yield new If(comments, cond, ifTrue, ifFalse);
       }
       case "goto" -> {
         var target = p2.parse(Target.class);
-        yield new Goto(target);
+        yield new Goto(comments, target);
       }
       case "return" -> {
         var ret = p.parse(Argument.class);
-        yield new Return(ret);
+        yield new Return(comments, ret);
       }
-      case "unreachable" -> new Unreachable();
+      case "unreachable" -> new Unreachable(comments);
       default -> throw s.fail("'check', 'deopt', 'if', 'goto', 'return' or 'unreachable'", k);
     };
   }

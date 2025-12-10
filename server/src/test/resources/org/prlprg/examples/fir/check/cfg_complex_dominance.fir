@@ -8,10 +8,12 @@ fun main() {
     x = 24;
     goto BB5();
   BB3():
-    y = r;  # r dominates this use
+    # r dominates this use
+    y = r;
     goto BB5();
   BB4():
-    z = r;  # r dominates this use  
+    # r dominates this use
+    z = r;
     goto BB5();
   BB5():
     return 100;

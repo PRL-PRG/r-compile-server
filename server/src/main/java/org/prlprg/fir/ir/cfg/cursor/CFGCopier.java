@@ -3,7 +3,8 @@ package org.prlprg.fir.ir.cfg.cursor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
@@ -27,7 +28,7 @@ public class CFGCopier {
   }
 
   /// Appends instructions from `inner`'s entry block into `dstBb`, and copies all other blocks.
-  static void copyFrom(BB dstBb, CFG inner, Function<Argument, Jump> replaceReturn) {
+  static void copyFrom(BB dstBb, CFG inner, BiFunction<Comments, Argument, Jump> replaceReturn) {
     var dst = dstBb.owner();
 
     var substitutedBbLabels = new HashMap<BB, String>();
@@ -54,8 +55,8 @@ public class CFGCopier {
       bbCopy.appendParameters(bb.phiParameters());
       bbCopy.appendStatements(Lists.mapLazy(bb.statements(), s -> copy(s, dst.scope())));
       bbCopy.setJump(
-          bb.jump() instanceof Return(var value)
-              ? replaceReturn.apply(value)
+          bb.jump() instanceof Return(var comments, var value)
+              ? replaceReturn.apply(comments, value)
               : substLabels(dst, bb.jump(), substitutedBbLabels));
     }
   }
@@ -72,24 +73,28 @@ public class CFGCopier {
 
     var newCode = new CFG(newScope);
     copyFrom(newCode, code);
-    return new Statement(stmt.assignee(), new Promise(innerType, effects, newCode));
+    return new Statement(
+        stmt.comments().copy(), stmt.assignee(), new Promise(innerType, effects, newCode));
   }
 
   private static Jump substLabels(CFG dst, Jump jump, Map<BB, String> substitutedBbLabels) {
     return switch (jump) {
-      case Goto(var next) -> new Goto(substLabels(dst, next, substitutedBbLabels));
-      case If(var condition, var ifTrue, var ifFalse) ->
+      case Goto(var comments, var next) ->
+          new Goto(comments, substLabels(dst, next, substitutedBbLabels));
+      case If(var comments, var condition, var ifTrue, var ifFalse) ->
           new If(
+              comments,
               condition,
               substLabels(dst, ifTrue, substitutedBbLabels),
               substLabels(dst, ifFalse, substitutedBbLabels));
-      case Checkpoint(var success, var deopt) ->
+      case Checkpoint(var comments, var success, var deopt) ->
           new Checkpoint(
+              comments,
               substLabels(dst, success, substitutedBbLabels),
               substLabels(dst, deopt, substitutedBbLabels));
-      case Return(var value) -> new Return(value);
-      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-      case Unreachable() -> new Unreachable();
+      case Return(var comments, var value) -> new Return(comments, value);
+      case Deopt(var comments, var pc, var stack) -> new Deopt(comments, pc, stack);
+      case Unreachable(var comments) -> new Unreachable(comments);
     };
   }
 

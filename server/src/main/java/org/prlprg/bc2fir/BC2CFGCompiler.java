@@ -1148,7 +1148,7 @@ public class BC2CFGCompiler {
             // so `loop.end` will only consist of a `Goto` to the "real" end BB. This is allowed,
             // and this long inverted AND-chain checks if it's the case.
             && !(loop.end.statements().isEmpty()
-                && loop.end.jump() instanceof Goto(var loopEndGoto)
+                && loop.end.jump() instanceof Goto(var _, var loopEndGoto)
                 && loopEndGoto.bb() == cursor.bb()))
         || cursor.instructionIndex() != -1) {
       throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.label());
