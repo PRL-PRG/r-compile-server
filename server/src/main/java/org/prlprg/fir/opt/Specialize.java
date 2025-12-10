@@ -157,7 +157,7 @@ public class Specialize implements AbstractionOptimization {
 
               // Immediately replace
               var assignee = oldStmt.assignee();
-              pos.replaceWith(new Statement(assignee, newExpression));
+              pos.replaceWith(new Statement(oldStmt.comments(), assignee, newExpression));
               changed = true;
 
               // Update type if necessary
@@ -198,7 +198,7 @@ public class Specialize implements AbstractionOptimization {
 
       // If actually specialized, replace statement
       if (!expr.equals(oldStmt.expression())) {
-        var newStmt = new Statement(assignee, expr);
+        var newStmt = new Statement(oldStmt.comments(), assignee, expr);
         bb.replaceStatementAt(statementIndex, newStmt);
         changed = true;
       }

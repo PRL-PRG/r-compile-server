@@ -41,8 +41,9 @@ public final class CFGInliner {
     copyFrom(
         bb,
         inlinee,
-        value ->
+        (comments, value) ->
             new Goto(
+                comments,
                 new Target(
                     successor,
                     returnDestination == null ? ImmutableList.of() : ImmutableList.of(value))));

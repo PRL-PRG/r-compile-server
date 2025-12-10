@@ -145,7 +145,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     }
 
     void simplifyBranches(BB bb) {
-      if (bb.jump() instanceof If(Argument cond, Target ifTrue, Target ifFalse)) {
+      if (bb.jump() instanceof If(var comments, var cond, var ifTrue, var ifFalse)) {
         // Case 1: Condition is a constant
         if (cond instanceof Constant literal) {
           var target =
@@ -159,7 +159,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
             return;
           }
 
-          bb.setJump(new Goto(target));
+          bb.setJump(new Goto(comments, target));
           changed = true;
           return;
         }
@@ -240,7 +240,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       // Can merge if:
 
       // 1. Block has exactly one successor ([Goto])
-      if (!(bb.jump() instanceof Goto(var target))) {
+      if (!(bb.jump() instanceof Goto(var _, var target))) {
         return false;
       }
       var successor = target.bb();
@@ -357,7 +357,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
             }
           } else {
             // Convert assignment to void statement
-            localDef.replaceWith(new Statement(defStmt.expression()));
+            localDef.replaceWith(new Statement(defStmt.comments(), defStmt.expression()));
           }
         }
 
@@ -413,38 +413,44 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
   /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
   public static Jump removingJumpArgument(Jump jump, BB targetBb, int index) {
     return switch (jump) {
-      case Goto(var next) -> new Goto(removingJumpArgument(next, targetBb, index));
-      case If(var condition, var ifTrue, var ifFalse) ->
+      case Goto(var comments, var next) ->
+          new Goto(comments, removingJumpArgument(next, targetBb, index));
+      case If(var comments, var condition, var ifTrue, var ifFalse) ->
           new If(
+              comments,
               condition,
               removingJumpArgument(ifTrue, targetBb, index),
               removingJumpArgument(ifFalse, targetBb, index));
-      case Return(var value) -> new Return(value);
-      case Checkpoint(var success, var deopt) ->
+      case Return(var comments, var value) -> new Return(comments, value);
+      case Checkpoint(var comments, var success, var deopt) ->
           new Checkpoint(
+              comments,
               removingJumpArgument(success, targetBb, index),
               removingJumpArgument(deopt, targetBb, index));
-      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-      case Unreachable() -> new Unreachable();
+      case Deopt(var comments, var pc, var stack) -> new Deopt(comments, pc, stack);
+      case Unreachable(var comments) -> new Unreachable(comments);
     };
   }
 
   /// Returns the jump removing all phi arguments for the given target BB
   private static Jump removingAllJumpArguments(Jump jump, BB targetBb) {
     return switch (jump) {
-      case Goto(var next) -> new Goto(removingAllJumpArguments(next, targetBb));
-      case If(var condition, var ifTrue, var ifFalse) ->
+      case Goto(var comments, var next) ->
+          new Goto(comments, removingAllJumpArguments(next, targetBb));
+      case If(var comments, var condition, var ifTrue, var ifFalse) ->
           new If(
+              comments,
               condition,
               removingAllJumpArguments(ifTrue, targetBb),
               removingAllJumpArguments(ifFalse, targetBb));
-      case Return(var value) -> new Return(value);
-      case Checkpoint(var success, var deopt) ->
+      case Return(var comments, var value) -> new Return(comments, value);
+      case Checkpoint(var comments, var success, var deopt) ->
           new Checkpoint(
+              comments,
               removingAllJumpArguments(success, targetBb),
               removingAllJumpArguments(deopt, targetBb));
-      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-      case Unreachable() -> new Unreachable();
+      case Deopt(var comments, var pc, var stack) -> new Deopt(comments, pc, stack);
+      case Unreachable(var comments) -> new Unreachable(comments);
     };
   }
 

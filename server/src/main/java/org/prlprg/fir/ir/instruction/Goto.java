@@ -3,13 +3,18 @@ package org.prlprg.fir.ir.instruction;
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record Goto(Target target) implements Jump {
+public record Goto(Comments comments, Target target) implements Jump {
+  public Goto(Target target) {
+    this(new Comments(), target);
+  }
+
   @Override
   public @UnmodifiableView Collection<Target> targets() {
     return List.of(target);
@@ -32,6 +37,7 @@ public record Goto(Target target) implements Jump {
 
   @PrintMethod
   private void print(Printer p) {
+    p.print(comments);
     p.writer().write("goto ");
     p.print(target);
   }

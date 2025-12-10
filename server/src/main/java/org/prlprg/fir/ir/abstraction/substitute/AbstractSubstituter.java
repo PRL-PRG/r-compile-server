@@ -154,7 +154,7 @@ abstract class AbstractSubstituter {
     var newAssignee = substituteAssignee(bb, oldAssignee);
     var newExpr = substitute(bb, oldExpr);
 
-    return new Statement(newAssignee, newExpr);
+    return new Statement(statement.comments(), newAssignee, newExpr);
   }
 
   private Expression substitute(BB bb, Expression expression) {
@@ -213,19 +213,21 @@ abstract class AbstractSubstituter {
 
   private Jump substitute(BB bb, Jump jump) {
     return switch (jump) {
-      case Goto(var target) -> new Goto(substitute(bb, target));
-      case If(var condition, var ifTrue, var ifFalse) ->
-          new If(substitute(bb, condition), substitute(bb, ifTrue), substitute(bb, ifFalse));
-      case Return(var value) -> new Return(substitute(bb, value));
-      case Checkpoint(var success, var deopt) ->
-          new Checkpoint(substitute(bb, success), substitute(bb, deopt));
-      case Deopt(var pc, var arguments) ->
+      case Goto(var comments, var target) -> new Goto(comments, substitute(bb, target));
+      case If(var comments, var condition, var ifTrue, var ifFalse) ->
+          new If(
+              comments, substitute(bb, condition), substitute(bb, ifTrue), substitute(bb, ifFalse));
+      case Return(var comments, var value) -> new Return(comments, substitute(bb, value));
+      case Checkpoint(var comments, var success, var deopt) ->
+          new Checkpoint(comments, substitute(bb, success), substitute(bb, deopt));
+      case Deopt(var comments, var pc, var arguments) ->
           new Deopt(
+              comments,
               pc,
               arguments.stream()
                   .map(a -> substitute(bb, a))
                   .collect(ImmutableList.toImmutableList()));
-      case Unreachable() -> new Unreachable();
+      case Unreachable(var comments) -> new Unreachable(comments);
     };
   }
 

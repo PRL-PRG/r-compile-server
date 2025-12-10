@@ -124,7 +124,8 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           continue;
         }
 
-        if (!(use2.instruction() instanceof Statement(var useAssignee, var useExpr))
+        if (!(use2.instruction()
+                instanceof Statement(var useComments, var useAssignee, var useExpr))
             || !(useExpr instanceof Force)) {
           continue;
         }
@@ -155,8 +156,9 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
 
       if (dominator != null) {
         // This will never evaluate, so replace with the dominator.
+        var comments = bb.statements().get(statementIndex).comments();
         bb.replaceStatementAt(
-            statementIndex, new Statement(assignee, new Aea(new Read(dominator))));
+            statementIndex, new Statement(comments, assignee, new Aea(new Read(dominator))));
       } else if (!hasMaybeBeenForced) {
         // This will always evaluate, so:
         // - Remove promise (it has duplicate register definitions if we keep it)

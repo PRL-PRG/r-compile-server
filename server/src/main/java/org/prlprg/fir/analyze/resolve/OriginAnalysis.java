@@ -138,7 +138,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     var def = defUses.definition(originReg);
     if (def == null
-        || !(def.inInnermostCfg().instruction() instanceof Statement(var _, var expr))) {
+        || !(def.inInnermostCfg().instruction() instanceof Statement(var _, var _, var expr))) {
       return null;
     }
 
@@ -284,7 +284,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     @Override
     protected void run(Jump jump) {
-      if (jump instanceof Return(var value)) {
+      if (jump instanceof Return(var _, var value)) {
         returnOrigin = new ReturnOrigin(value).merge(returnOrigin);
       }
 

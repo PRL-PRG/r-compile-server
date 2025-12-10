@@ -498,12 +498,12 @@ public final class TypeAndEffectChecker extends Checker {
 
       void run(Jump jump) {
         switch (jump) {
-          case Checkpoint(var _, var _),
-              Deopt(var _, var _),
-              Goto(var _),
-              Return(var _),
-              Unreachable() -> {}
-          case If(var condition, var _, var _) -> {
+          case Checkpoint(var _, var _, var _),
+              Deopt(var _, var _, var _),
+              Goto(var _, var _),
+              Return(var _, var _),
+              Unreachable(var _) -> {}
+          case If(var _, var condition, var _, var _) -> {
             var condType = scope.typeOf(condition);
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");
           }

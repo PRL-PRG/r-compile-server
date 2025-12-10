@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
@@ -43,6 +44,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   private final Module module;
 
   // Data
+  private final Comments comments;
   private final ImmutableList<Parameter> parameters;
   private Type returnType;
   private Effects effects;
@@ -58,6 +60,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public Abstraction(Module module, List<Parameter> parameters, boolean isStub) {
+    comments = new Comments();
     this.module = module;
     this.parameters = ImmutableList.copyOf(parameters);
 
@@ -368,6 +371,8 @@ public final class Abstraction implements Comparable<Abstraction> {
   private void print(Printer p) {
     var w = p.writer();
 
+    p.print(comments);
+
     w.write('(');
     p.printSeparated(", ", parameters);
     w.write(')');
@@ -405,6 +410,8 @@ public final class Abstraction implements Comparable<Abstraction> {
     var p = p1.withContext(ctx.inner);
 
     var s = p.scanner();
+
+    comments = p.parse(Comments.class);
 
     parameters = p.parseList("(", ")", Parameter.class);
     nameToParam = computeNameToParam(parameters);

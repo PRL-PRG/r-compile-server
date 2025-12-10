@@ -228,7 +228,7 @@ public class CFGChecker extends Checker {
 
               if (bb.predecessors().size() == 1) {
                 var predecessor = Iterables.getOnlyElement(bb.predecessors());
-                if (!(predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
+                if (!(predecessor.jump() instanceof If(var _, var _, var ifTrue, var ifFalse)
                     && ifTrue.bb() == bb
                     && ifFalse.bb() == bb
                     && !ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {

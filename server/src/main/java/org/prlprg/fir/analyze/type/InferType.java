@@ -59,7 +59,7 @@ public final class InferType implements Analysis {
   public @Nullable Type of(CFG cfg) {
     Type result = null;
     for (var bb : cfg.bbs()) {
-      if (bb.jump() instanceof Return(var value)) {
+      if (bb.jump() instanceof Return(var _, var value)) {
         result = Type.union(result, of(value));
       }
     }
