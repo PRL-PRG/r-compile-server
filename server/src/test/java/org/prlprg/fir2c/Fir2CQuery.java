@@ -21,25 +21,24 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
 
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {
-    try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      var firModule = store.query(example, FirQuery.INSTANCE);
+    var R = store.query(example, GNURQuery.INSTANCE);
+    var firModule = store.query(example, FirQuery.INSTANCE);
 
-      var main = firModule.localFunction(Variable.named("main"));
-      if (main == null || !main.baseline().parameters().isEmpty() || main.baseline().isStub()) {
-        fail(
-            "FIR module must have `main` function, whose baseline takes zero arguments and isn't a stub");
-      }
-
-      var firCompiledModule =
-          compile(firModule, R.getSession(), Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
-
-      if (!(firCompiledModule.compiledFunctionDispatches().get(main)
-          instanceof FirCompiledDispatchIndex.Regular(var entryFunName))) {
-        throw new AssertionFailedError("Missing main function index");
-      }
-      return new CompiledModule(
-          firCompiledModule.cUnit().toString(), entryFunName, firCompiledModule.constantPool());
+    var main = firModule.localFunction(Variable.named("main"));
+    if (main == null || !main.baseline().parameters().isEmpty() || main.baseline().isStub()) {
+      fail(
+          "FIR module must have `main` function, whose baseline takes zero arguments and isn't a stub");
     }
+
+    var firCompiledModule =
+        compile(firModule, R.getSession(), Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
+
+    if (!(firCompiledModule.compiledFunctionDispatches().get(main)
+        instanceof FirCompiledDispatchIndex.Regular(var entryFunName))) {
+      throw new AssertionFailedError("Missing main function index");
+    }
+    return new CompiledModule(
+        firCompiledModule.cUnit().toString(), entryFunName, firCompiledModule.constantPool());
   }
 
   @Override

@@ -8,16 +8,6 @@ import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
 
 class RegisterStubs {
-  public static void registerStubs(Interpreter interpreter) {
-    switch (interpreter) {
-      case InternalInterpreter internalInterpreter -> registerStubs(internalInterpreter);
-      case GnurInterpreter gnurInterpreter -> registerStubs(gnurInterpreter);
-      default ->
-          throw new UnsupportedOperationException(
-              "Unsupported interpreter type: " + interpreter.getClass().getName());
-    }
-  }
-
   /// Hijack unimplemented functions in the examples, e.g. `inc`.
   public static void registerStubs(InternalInterpreter interpreter) {
     registerIfDefined(

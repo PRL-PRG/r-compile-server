@@ -27,16 +27,15 @@ public class FirQuery implements GenFirQuery {
     return switch (example.type()) {
       case "fir" -> parseModule(example.text());
       case "R" -> {
-        try (var R = store.query(example, GNURQuery.INSTANCE)) {
-          var bc = store.query(example, BCQuery.INSTANCE);
+        var R = store.query(example, GNURQuery.INSTANCE);
+        var bc = store.query(example, BCQuery.INSTANCE);
 
-          // An environment with one function, `main`,
-          // which takes zero arguments and its body is `bc`.
-          var env = new UserEnvSXP();
-          env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
+        // An environment with one function, `main`,
+        // which takes zero arguments and its body is `bc`.
+        var env = new UserEnvSXP();
+        env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
 
-          yield compile(env, R.getSession());
-        }
+        yield compile(env, R.getSession());
       }
       default ->
           throw new AssertionFailedError(

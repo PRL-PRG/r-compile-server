@@ -1,76 +1,75 @@
 package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.prlprg.fir.interpret.RegisterStubs.registerStubs;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
-import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.FirQuery;
-import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
+import org.prlprg.util.Either;
 import org.prlprg.util.Files;
-import org.prlprg.util.Strings;
 
-public final class InterpretQuery implements Query<InterpreterOutput> {
-  public static InterpreterOutput interpret(Module module, Example example) {
-    var mainFun = module.localFunction(Variable.named("main"));
-    if (mainFun == null
-        || mainFun.versions().isEmpty()
-        || !mainFun.version(0).parameters().isEmpty()) {
-      fail(
-          "File must have `fun main` with at least one version, and the first version must have no parameters");
-    }
+public record InterpretQuery(@Override String name, String functionName, SEXP... arguments)
+    implements Query<InterpretOutput> {
+  public static final InterpretQuery MAIN = new InterpretQuery("interpret", "main");
 
-    var interpreter = new InternalInterpreter(module);
-    registerStubs(interpreter);
-
-    SEXP[] returnValue = {null};
-    var checkpointTrace =
-        interpreter.checkpointTrace().track(() -> returnValue[0] = interpreter.call("main"));
-    var checkpointTraceStr = Strings.join("\n", checkpointTrace);
-    return new InterpreterOutput(checkpointTraceStr, returnValue[0]);
-  }
-
-  public final InterpretQuery INSTANCE = new InterpretQuery();
-
-  private InterpretQuery() {}
+  public static final InterpretQuery DEOPT_INT =
+      new InterpretQuery("interpret.deopt.integer", "f", SEXPs.integer(1));
+  public static final InterpretQuery DEOPT_REAL =
+      new InterpretQuery("interpret.deopt.real", "f", SEXPs.real(1));
+  public static final InterpretQuery DEOPT_LGL =
+      new InterpretQuery("interpret.deopt.logical", "f", SEXPs.TRUE);
 
   @Override
-  public InterpreterOutput compute(Example example, SnapshotStore store) {
-    var oracleModule = store.query(example, FirQuery.INSTANCE);
-    return interpret(oracleModule, example);
+  public InterpretOutput compute(Example example, SnapshotStore store) {
+    var module = store.query(example, FirQuery.INSTANCE);
+
+    return new TestInterpreter(module).call(functionName, arguments);
   }
 
   @Override
-  public InterpreterOutput deserialize(Path path, Example example, SnapshotStore store)
+  public InterpretOutput deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      var returnValuePath = path.resolve("returnValue.RDS");
-      var checkpointTracePath = path.resolve("trace.log");
+    var R = store.query(example, GNURQuery.INSTANCE);
 
-      var returnValue = RDSReader.readFile(R.getSession(), returnValuePath.toFile());
-      var checkpointTrace = Files.readString(checkpointTracePath);
+    var returnValuePath = path.resolve("returnValue.RDS");
+    var crashPath = path.resolve("crash.txt");
+    var checkpointTracePath = path.resolve("trace.log");
 
-      return new InterpreterOutput(checkpointTrace, returnValue);
+    if (Files.exists(returnValuePath) && Files.exists(crashPath)) {
+      fail("Snapshot has both return value and crash");
     }
+    Either<SEXP, String> returnValue =
+        Files.exists(returnValuePath)
+            ? Either.left(RDSReader.readFile(R.getSession(), returnValuePath.toFile()))
+            : Either.right(Files.readString(crashPath).trim());
+    var checkpointTrace = Files.readString(checkpointTracePath);
+
+    return new InterpretOutput(returnValue, checkpointTrace);
   }
 
   @Override
-  public void serialize(InterpreterOutput data, Path path, Example example, SnapshotStore store)
+  public void serialize(InterpretOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
     var returnValuePath = path.resolve("returnValue.RDS");
+    var crashPath = path.resolve("crash.txt");
     var checkpointTracePath = path.resolve("trace.log");
 
     Files.createDirectories(path);
-    RDSWriter.writeFile(returnValuePath.toFile(), data.returnValue());
+    if (data.returnValue().isLeft()) {
+      Files.deleteIfExists(crashPath);
+      RDSWriter.writeFile(returnValuePath.toFile(), data.returnValue().getLeft());
+    } else {
+      Files.deleteIfExists(returnValuePath);
+      Files.writeString(crashPath, data.returnValue().getRight());
+    }
     Files.writeString(checkpointTracePath, data.checkpointTrace());
   }
 }

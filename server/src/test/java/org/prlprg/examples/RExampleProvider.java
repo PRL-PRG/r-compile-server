@@ -13,16 +13,20 @@ import org.junit.jupiter.params.support.ParameterDeclarations;
 final class RExampleProvider
     implements ArgumentsProvider, AnnotationConsumer<@NotNull RExampleTest> {
   private boolean accepted = false;
+  private String option = "";
 
   @Override
   public void accept(RExampleTest annotation) {
     accepted = true;
+    option = annotation.option();
   }
 
   @Override
   public Stream<? extends Arguments> provideArguments(
       ParameterDeclarations parameters, ExtensionContext context) {
     assert accepted;
-    return resolveSingleton(RExampleStore.class, context).examples().stream().map(Arguments::of);
+    return resolveSingleton(RExampleStore.class, context).examples().stream()
+        .filter(example -> example.hasOption("", option))
+        .map(Arguments::of);
   }
 }

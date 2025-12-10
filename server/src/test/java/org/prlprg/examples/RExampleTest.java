@@ -5,6 +5,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
@@ -16,7 +17,11 @@ import org.prlprg.snapshots.SnapshotStoreParameterResolver;
 @Documented
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
+@Tag("R")
+@Tag("examples")
 @ParameterizedTest
 @ArgumentsSource(RExampleProvider.class)
 @ExtendWith(SnapshotStoreParameterResolver.class)
-public @interface RExampleTest {}
+public @interface RExampleTest {
+  String option() default "";
+}

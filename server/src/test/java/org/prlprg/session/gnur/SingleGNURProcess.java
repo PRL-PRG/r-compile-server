@@ -175,14 +175,12 @@ class SingleGNURProcess implements GNUR {
 
         output.append(line).append("\n");
       }
-    } catch (Exception e) {
+    } catch (IOException e) {
       int exit;
       try {
         exit = process.waitFor();
 
-        throw new RuntimeException(
-            "R REPL died (status: " + exit + ") Output so far:\n " + output, e);
-
+        throw new EvalException(exit, output.toString(), e);
       } catch (InterruptedException ex) {
         throw new RuntimeException("Interrupted waiting for R process to finish dying", ex);
       }

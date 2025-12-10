@@ -20,17 +20,17 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   @Override
   default CompiledModule deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    try (var R = store.query(example, GNURQuery.INSTANCE)) {
-      var cPath = path.resolve("code.c");
-      var entryPath = path.resolve("entrypoint.txt");
-      var rdsPath = path.resolve("constants.RDS");
+    var R = store.query(example, GNURQuery.INSTANCE);
 
-      var code = Files.readString(cPath);
-      var entryFunName = Files.readString(entryPath).trim();
-      var constantPool = (VecSXP) RDSReader.readFile(R.getSession(), rdsPath.toFile());
+    var cPath = path.resolve("code.c");
+    var entryPath = path.resolve("entrypoint.txt");
+    var rdsPath = path.resolve("constants.RDS");
 
-      return new CompiledModule(code, entryFunName, constantPool);
-    }
+    var code = Files.readString(cPath);
+    var entryFunName = Files.readString(entryPath).trim();
+    var constantPool = (VecSXP) RDSReader.readFile(R.getSession(), rdsPath.toFile());
+
+    return new CompiledModule(code, entryFunName, constantPool);
   }
 
   @Override

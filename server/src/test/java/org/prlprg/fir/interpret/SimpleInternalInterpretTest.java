@@ -1,4 +1,4 @@
-package org.prlprg.fir.interpret.internal;
+package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -8,8 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.interpret.InterpretException;
-import org.prlprg.fir.interpret.Interpreter;
+import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Parameter;
