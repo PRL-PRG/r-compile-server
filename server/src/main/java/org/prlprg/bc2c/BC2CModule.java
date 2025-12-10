@@ -10,6 +10,8 @@ class BC2CModule {
 
   BC2CModule(boolean compilePromises) {
     this.compilePromises = compilePromises;
+
+    cUnit.addInclude("runtime.h");
   }
 
   CUnit cUnit() {

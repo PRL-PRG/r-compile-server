@@ -1,5 +1,8 @@
 package org.prlprg.fir.interpret;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
@@ -32,6 +35,24 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
     var module = store.query(example, FirQuery.INSTANCE);
 
     return new TestInterpreter(module).call(functionName, arguments);
+  }
+
+  @Override
+  public void verifyExtra(InterpretOutput data, Example example, SnapshotStore store) {
+    // TODO: Abstract `Either<SEXP, String>` this code, and serialization/deserialization
+    if (example.hasOption(name(), "crashes")) {
+      assertFalse(data.success(), "Expected crash");
+    } else {
+      assertTrue(
+          data.success(), () -> "Expected success, got crash:\n" + data.returnValue().getRight());
+    }
+
+    if (example.hasOption(name(), "returns")) {
+      var expected = example.sexpOption(name(), "returns");
+      if (data.success()) {
+        assertEquals(expected, data.returnValue().getLeft(), "Wrong return value");
+      }
+    }
   }
 
   @Override

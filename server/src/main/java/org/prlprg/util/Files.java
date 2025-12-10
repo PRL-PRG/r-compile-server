@@ -104,6 +104,10 @@ public class Files {
     return ThrowingSupplier.get(() -> java.nio.file.Files.readString(path, Charsets.UTF_8));
   }
 
+  public static long size(Path path) {
+    return ThrowingSupplier.get(() -> java.nio.file.Files.size(path));
+  }
+
   public static void delete(Path path) {
     ThrowingRunnable.run(() -> java.nio.file.Files.delete(path));
   }

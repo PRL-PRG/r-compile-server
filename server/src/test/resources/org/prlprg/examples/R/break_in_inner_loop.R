@@ -1,5 +1,5 @@
 #? dontSaveSnapshot
-#? returns(7)
+#? returns(6.0)
 x <- 0
 for (i in 1:3) {
   for (j in 1:3) {
