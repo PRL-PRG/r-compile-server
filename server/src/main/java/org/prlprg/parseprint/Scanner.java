@@ -438,7 +438,7 @@ public class Scanner {
         readUntil(
             c -> {
               if (c == -1 || (numOpen[0] == 0 && (c == ')' || c == ']' || c == '}' || c == ','))) {
-                return false;
+                return true;
               }
 
               if (c == '(' || c == '[' || c == '{') {
@@ -447,7 +447,7 @@ public class Scanner {
                 numOpen[0]--;
               }
 
-              return true;
+              return false;
             });
 
     if (isAtEof && numOpen[0] > 0) {

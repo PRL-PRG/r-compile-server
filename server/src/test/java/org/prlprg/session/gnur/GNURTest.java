@@ -10,7 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 /// Adds [GNUR] to the set of parameters.
 @Documented
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ElementType.ANNOTATION_TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Test
 @ExtendWith(GNURParameterResolver.class)

@@ -50,7 +50,7 @@ public record ExampleOption(
     if (s.trySkip('[')) {
       var filterBuilder = ImmutableSet.<String>builder();
       do {
-        filterBuilder.add(s.readIdentifierOrKeyword());
+        filterBuilder.add(s.readCodeItem());
       } while (s.trySkip(','));
       s.assertAndSkip(']');
       filter = filterBuilder.build();

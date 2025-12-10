@@ -5,6 +5,7 @@ import static org.prlprg.TestConfig.EXAMPLE_FILTER;
 import com.google.common.collect.ImmutableList;
 import java.io.FileNotFoundException;
 import java.util.stream.Stream;
+import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
@@ -21,6 +22,8 @@ sealed class ExampleStore permits RExampleStore, FirExampleStore {
               try {
                 return Parser.fromFile(
                     path.toFile(), Example.class, new Example.ParseContext(rpath));
+              } catch (ParseException e) {
+                throw new AssertionError("Malformed options in example: " + rpath, e);
               } catch (FileNotFoundException e) {
                 throw new RuntimeException(e);
               }
