@@ -18,8 +18,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   }
 
   @Override
-  default CompiledModule deserialize(Path path, Example example,
-      SnapshotStore store) throws IOException {
+  default CompiledModule deserialize(Path path, Example example, SnapshotStore store)
+      throws IOException {
     try (var R = store.query(example, GNURQuery.INSTANCE)) {
       var cPath = path.resolve("code.c");
       var entryPath = path.resolve("entrypoint.txt");
@@ -34,8 +34,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   }
 
   @Override
-  default void serialize(CompiledModule data, Path path, Example example,
-      SnapshotStore store) throws IOException {
+  default void serialize(CompiledModule data, Path path, Example example, SnapshotStore store)
+      throws IOException {
     var cPath = path.resolve("code.c");
     var entryPath = path.resolve("entrypoint.txt");
     var rdsPath = path.resolve("constants.RDS");

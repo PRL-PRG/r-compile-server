@@ -3,11 +3,11 @@ package org.prlprg.fir.ir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.params.ParameterizedTest;
+import org.prlprg.examples.DirectorySource;
+import org.prlprg.examples.ExamplePath;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.examples.DirectorySource;
-import org.prlprg.examples.ExamplePath;
 
 /// Tests parsing and printing FIŘ files.
 class ParseAndPrintTest {

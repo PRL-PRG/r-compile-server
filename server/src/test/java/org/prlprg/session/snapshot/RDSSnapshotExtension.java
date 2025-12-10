@@ -20,11 +20,14 @@ public abstract class RDSSnapshotExtension<T> extends SnapshotExtension<T> {
 
   @Override
   protected SnapshotStoreFactory<T> createStoreFactory(ExtensionContext context) {
-    assert R != null : "This is called in `super.beforeAll` which is called after `R` is initialized";
-    return new RDSFileSnapshotStoreFactory<>(R.getSession(), this::serializeTestResult, this::deserializeTestResult);
+    assert R != null
+        : "This is called in `super.beforeAll` which is called after `R` is initialized";
+    return new RDSFileSnapshotStoreFactory<>(
+        R.getSession(), this::serializeTestResult, this::deserializeTestResult);
   }
 
   protected abstract SEXP serializeTestResult(T testResult);
+
   protected abstract T deserializeTestResult(SEXP value);
 
   protected final GNUR R() {

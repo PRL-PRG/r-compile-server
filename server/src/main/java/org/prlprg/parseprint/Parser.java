@@ -80,6 +80,7 @@ public class Parser {
     var p = new Parser(s).withContext(context);
     return p.parseEntire(clazz);
   }
+
   /**
    * Creates a {@link Parser} to only parse an object of the given class from the entire given
    * input, with no context.
@@ -98,7 +99,8 @@ public class Parser {
    * @throws ParseException if the object failed to parse.
    * @throws ParseException if the input wasn't entirely parsed, excluding trailing whitespace.
    */
-  public static <T> T fromFile(File file, Class<T> clazz, @Nullable Object context) throws FileNotFoundException {
+  public static <T> T fromFile(File file, Class<T> clazz, @Nullable Object context)
+      throws FileNotFoundException {
     var p = new Parser(file).withContext(context);
     return p.parseEntire(clazz);
   }

@@ -660,7 +660,8 @@ public final class Builtins {
     }
   }
 
-  private static SEXP c(InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static SEXP c(
+      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`c` takes 1 argument (a dots list)");
     }

@@ -26,7 +26,8 @@ public class FixpointSequence implements AbstractionOptimization {
     this(name, Integer.MAX_VALUE, subOptimizations);
   }
 
-  public FixpointSequence(String name, int maxIterations, AbstractionOptimization... subOptimizations) {
+  public FixpointSequence(
+      String name, int maxIterations, AbstractionOptimization... subOptimizations) {
     this.name = name;
     this.maxIterations = maxIterations;
     this.subOptimizations = List.of(subOptimizations);

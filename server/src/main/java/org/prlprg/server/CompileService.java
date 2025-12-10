@@ -7,7 +7,7 @@ import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Optional;
@@ -204,12 +204,11 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           var bc2cCompiler = new BC2CCompiler(bc, name, false);
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
-          var f = Files.newWriter(input, Charset.defaultCharset());
-          module.cUnit().writeTo(f);
+          Files.write(module.cCode().getBytes(StandardCharsets.UTF_8), input);
           var output = File.createTempFile("ofile", ".o");
 
           RshCompiler.getInstance(ccOpt, RuntimeVariant.DIRECT_BC2C)
-              .createBuilder(input.getPath(), output.getPath())
+              .createBuilder(input.toPath(), output.toPath())
               .flag("-c")
               .compile();
 

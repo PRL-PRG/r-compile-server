@@ -1,11 +1,7 @@
 package org.prlprg.fir.interpret;
 
-import static org.prlprg.gen2c.EvalQuery.eval;
-
-import org.junit.jupiter.params.ParameterizedClass;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
-import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;

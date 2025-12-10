@@ -20,4 +20,3 @@ import org.prlprg.snapshots.SnapshotStoreParameterResolver;
 @ArgumentsSource(RExampleProvider.class)
 @ExtendWith(SnapshotStoreParameterResolver.class)
 public @interface RExampleTest {}
-

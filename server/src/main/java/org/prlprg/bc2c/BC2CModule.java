@@ -1,9 +1,7 @@
 package org.prlprg.bc2c;
 
-import java.util.List;
 import org.prlprg.bc.Bc;
 import org.prlprg.gen2c.CUnit;
-import org.prlprg.gen2c.CFunction;
 
 class BC2CModule {
   private final CUnit cUnit = new CUnit();

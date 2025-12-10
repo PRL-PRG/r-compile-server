@@ -11,8 +11,8 @@ public record EvalOutput(SEXP returnValue, String outputLog, PerformanceCounters
     if (!(o instanceof EvalOutput that)) {
       return false;
     }
-    return Objects.equals(outputLog, that.outputLog) && Objects.equals(returnValue,
-        that.returnValue);
+    return Objects.equals(outputLog, that.outputLog)
+        && Objects.equals(returnValue, that.returnValue);
   }
 
   /// Ignore `pc` in comparison

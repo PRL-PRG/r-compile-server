@@ -1,20 +1,15 @@
 package org.prlprg.snapshots;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assumptions.abort;
 
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.logging.Logger;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
-import org.prlprg.session.RSession;
-import org.prlprg.session.gnur.GNUR;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 import org.prlprg.util.Strings;
@@ -24,7 +19,6 @@ public class SnapshotStore {
   private final HashMap<Query<?>, HashMap<Example, Object>> queries = new HashMap<>();
 
   public SnapshotStore() {}
-
 
   /// Compute `query` (using cached dependencies but not itself), then check against the stored
   /// computation which is cached across dependencies and
@@ -60,50 +54,54 @@ public class SnapshotStore {
     try {
       // Try to load cached in-memory, else load cached from disk, else compute
       var queryStore = queries.computeIfAbsent(query, _ -> new HashMap<>());
-      var queryData = queryStore.computeIfAbsent(example, _ -> {
-        var path = cachePath(example, query);
+      var queryData =
+          queryStore.computeIfAbsent(
+              example,
+              _ -> {
+                var path = cachePath(example, query);
 
-        // Try to load snapshot
-        if (!TestConfig.OVERRIDE_SNAPSHOTS && Files.exists(path)) {
-          try {
-            return query.deserialize(path, example, this);
-          } catch (Exception e) {
-            throw new RuntimeException("Failed to load snapshot for " + path, e);
-          }
-        }
+                // Try to load snapshot
+                if (!TestConfig.OVERRIDE_SNAPSHOTS && Files.exists(path)) {
+                  try {
+                    return query.deserialize(path, example, this);
+                  } catch (Exception e) {
+                    throw new RuntimeException("Failed to load snapshot for " + path, e);
+                  }
+                }
 
-        // Can't use snapshot, instead compute
-        var next = query.oracle(example, this);
+                // Can't use snapshot, instead compute
+                var next = query.oracle(example, this);
 
-        // Run extra checks on oracle, only to avoid saving if it fails.
-        // We actually report extra check failures in `verify`.
-        var snapshotPassedExtraChecks = true;
-        try {
-          query.verifyExtra(next, example, this);
-        } catch (AssertionError e) {
-          snapshotPassedExtraChecks = false;
+                // Run extra checks on oracle, only to avoid saving if it fails.
+                // We actually report extra check failures in `verify`.
+                var snapshotPassedExtraChecks = true;
+                try {
+                  query.verifyExtra(next, example, this);
+                } catch (AssertionError e) {
+                  snapshotPassedExtraChecks = false;
 
-          var logger = Logger.getLogger("org.prlprg." + query.name());
-          logger.warning("Oracle's data failed extra check: " + e.getMessage());
-        }
+                  var logger = Logger.getLogger("org.prlprg." + query.name());
+                  logger.warning("Oracle's data failed extra check: " + e.getMessage());
+                }
 
-        // Save snapshot
-        if (snapshotPassedExtraChecks && !example.hasOption("", "dontSaveSnapshots")) {
-          Files.createDirectories(path.getParent());
-          try {
-            query.serialize(next, path, example, this);
-          } catch (Exception e) {
-            throw new RuntimeException("Failed to save snapshot for " + path, e);
-          }
-        }
+                // Save snapshot
+                if (snapshotPassedExtraChecks && !example.hasOption("", "dontSaveSnapshots")) {
+                  Files.createDirectories(path.getParent());
+                  try {
+                    query.serialize(next, path, example, this);
+                  } catch (Exception e) {
+                    throw new RuntimeException("Failed to save snapshot for " + path, e);
+                  }
+                }
 
-        return next;
-      });
+                return next;
+              });
       return query.dataClass().cast(queryData);
     } catch (DependencyCycleException | TestAbortedException e) {
       throw e;
     } catch (Exception e) {
-      throw new TestAbortedException("Failed to load snapshot or compute dependency of " + query.name(), e);
+      throw new TestAbortedException(
+          "Failed to load snapshot or compute dependency of " + query.name(), e);
     } finally {
       pending.remove(query);
     }
@@ -111,12 +109,18 @@ public class SnapshotStore {
 
   /// Returns the path where `query`'s data is cached on-disk.
   private Path cachePath(Example example, Query<?> query) {
-    return Paths.getResource(getClass(), example.type()).resolve(query.name()).resolve(example.rpath());
+    return Paths.getResource(getClass(), example.type())
+        .resolve(query.name())
+        .resolve(example.rpath());
   }
 
   private static class DependencyCycleException extends RuntimeException {
     public DependencyCycleException(Set<Query<?>> pending, Query<?> next) {
-      super("Dependency cycle: " + Strings.join(" -> ", Query::name, pending) + " --> " + next.name());
+      super(
+          "Dependency cycle: "
+              + Strings.join(" -> ", Query::name, pending)
+              + " --> "
+              + next.name());
     }
   }
 }

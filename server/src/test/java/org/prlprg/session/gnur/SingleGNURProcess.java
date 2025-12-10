@@ -16,8 +16,8 @@ import java.util.logging.Logger;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
-import org.prlprg.session.TestRSession;
 import org.prlprg.session.RSession;
+import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
@@ -70,12 +70,10 @@ class SingleGNURProcess implements GNUR {
         }
       }
 
-      process =
-          new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
+      process = new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
 
       if (logger.isLoggable(Level.FINE)) {
-        logger.fine(
-            "Started %s version: %s process: %d".formatted(R_BIN, version, process.pid()));
+        logger.fine("Started %s version: %s process: %d".formatted(R_BIN, version, process.pid()));
       }
     } catch (IOException | SecurityException | UnsupportedOperationException e) {
       throw new RuntimeException("Unable to start R (R_BIN = " + R_BIN + ")", e);

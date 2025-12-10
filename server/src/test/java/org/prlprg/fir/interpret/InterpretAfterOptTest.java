@@ -1,6 +1,5 @@
 package org.prlprg.fir.interpret;
 
-import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.OptimizationTestClass;

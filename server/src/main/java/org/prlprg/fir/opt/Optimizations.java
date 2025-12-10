@@ -1,6 +1,5 @@
 package org.prlprg.fir.opt;
 
-import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;

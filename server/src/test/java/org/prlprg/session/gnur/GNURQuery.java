@@ -1,13 +1,10 @@
 package org.prlprg.session.gnur;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import org.prlprg.bc.BCQuery;
 import org.prlprg.examples.Example;
 import org.prlprg.session.TestRSession;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.SingletonParameterResolver;
 
 /// Get the specific [GNUR] instance for an [org.prlprg.examples.Example].
 ///
@@ -32,7 +29,5 @@ public class GNURQuery implements Query<GNUR> {
   }
 
   @Override
-  public void serialize(GNUR data, Path path, Example example, SnapshotStore store) {
-
-  }
+  public void serialize(GNUR data, Path path, Example example, SnapshotStore store) {}
 }

@@ -1,6 +1,5 @@
 package org.prlprg.fir2c;
 
-import javax.annotation.Nullable;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.OptimizationTestClass;
 import org.prlprg.gen2c.CompiledModule;
@@ -25,4 +24,3 @@ record FirAfterOpt2CCompileTest(Optimization optimization) implements Gen2CCompi
     return RuntimeVariant.FIR2C;
   }
 }
-

@@ -5,9 +5,10 @@ import java.util.Objects;
 
 public class Paths {
   public static Path getResource(Class<?> anchor, String name) {
-    return Files.pathFromFileUrl(Objects.requireNonNull(
-        anchor.getResource(name),
-        "Resource not found in " + anchor.getPackageName() + ": " + name));
+    return Files.pathFromFileUrl(
+        Objects.requireNonNull(
+            anchor.getResource(name),
+            "Resource not found in " + anchor.getPackageName() + ": " + name));
   }
 
   public static String getFileStem(Path path) {
