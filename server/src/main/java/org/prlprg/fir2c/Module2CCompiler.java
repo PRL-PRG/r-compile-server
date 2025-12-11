@@ -557,8 +557,14 @@ public final class Module2CCompiler {
                       namedArrays.values().pointer(),
                       namedArrays.names());
             }
-            case Placeholder() -> "Rsh_error(\"FIŘ placeholder reached\"); R_NilValue";
-            case PopEnv() -> "Rsh_Fir_pop_env(&%s); R_NilValue".formatted(VAR_ENV);
+            case Placeholder() -> {
+              cCode.stmt("Rsh_error(\"FIŘ placeholder reached\");");
+              yield "R_NilValue";
+            }
+            case PopEnv() -> {
+              cCode.stmt("Rsh_Fir_pop_env(&%s);", VAR_ENV);
+              yield "R_NilValue";
+            }
             case Promise promise ->
                 "Rsh_Fir_make_promise(&%s, %s, %s)"
                     .formatted(promiseName(promise), VAR_POOL, VAR_ENV);
