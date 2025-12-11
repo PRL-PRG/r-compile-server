@@ -11,7 +11,6 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.Paths;
 
 public interface GenFirQuery extends Query<Module> {
   @Override
@@ -26,17 +25,18 @@ public interface GenFirQuery extends Query<Module> {
   }
 
   @Override
-  default Module deserialize(Path path, Example example, SnapshotStore store) throws IOException {
-    path = Paths.addingExtension(path, "fir");
+  default String snapshotExtension() {
+    return "fir";
+  }
 
+  @Override
+  default Module deserialize(Path path, Example example, SnapshotStore store) throws IOException {
     return Parser.fromFile(path.toFile(), Module.class);
   }
 
   @Override
   default void serialize(Module data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    path = Paths.addingExtension(path, "fir");
-
     new Printer(path.toFile()).print(data);
   }
 }

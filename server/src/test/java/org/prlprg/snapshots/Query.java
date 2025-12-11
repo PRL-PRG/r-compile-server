@@ -60,6 +60,13 @@ public interface Query<T> {
   /// By default, does nothing.
   default void verifyExtra(T data, Example example, SnapshotStore store) {}
 
+  /// Add an extension to the snapshot file.
+  ///
+  /// By default, is empty (for directories or binaries).
+  default String snapshotExtension() {
+    return "";
+  }
+
   T deserialize(Path path, Example example, SnapshotStore store) throws IOException;
 
   void serialize(T data, Path path, Example example, SnapshotStore store) throws IOException;

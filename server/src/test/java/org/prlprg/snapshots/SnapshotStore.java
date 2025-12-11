@@ -78,7 +78,9 @@ public class SnapshotStore {
                 var path = cachePath(example, query);
 
                 // Try to load snapshot
-                if (!TestConfig.OVERRIDE_SNAPSHOTS && Files.exists(path)) {
+                if (!TestConfig.OVERRIDE_SNAPSHOTS
+                    && Files.exists(path)
+                    && !(Files.isDirectory(path) && Files.list(path).findAny().isPresent())) {
                   try {
                     return query.deserialize(path, example, this);
                   } catch (Exception e) {
@@ -130,9 +132,14 @@ public class SnapshotStore {
 
   /// Returns the path where `query`'s data is cached on-disk.
   private Path cachePath(Example example, Query<?> query) {
-    return Paths.getResourceSource(getClass(), example.type())
-        .resolve(query.name())
-        .resolve(Paths.removingExtension(example.rpath()));
+    var path =
+        Paths.getResourceSource(getClass(), example.type())
+            .resolve(query.name())
+            .resolve(Paths.removingExtension(example.rpath()));
+    if (!query.snapshotExtension().isEmpty()) {
+      path = Paths.addingExtension(path, query.snapshotExtension());
+    }
+    return path;
   }
 
   private static class DependencyCycleException extends RuntimeException {

@@ -158,32 +158,36 @@ class SingleGNURProcess implements GNUR {
 
   private String waitForCommand(String requestId) {
     var output = new StringBuilder();
-    try {
-      while (true) {
-        if (!process.isAlive()) {
-          throw new RuntimeException("R exited unexpectedly. Output:\n" + output);
-        }
 
-        var line = out.readLine();
-        if (line == null) {
-          throw new RuntimeException("R exited unexpectedly. Output:\n" + output);
-        }
-
-        if (line.equals(requestId)) {
-          return output.toString();
-        }
-
-        output.append(line).append("\n");
-      }
-    } catch (IOException e) {
-      int exit;
+    IOException exception = null;
+    while (true) {
+      String line = null;
       try {
-        exit = process.waitFor();
-
-        throw new EvalException(exit, output.toString(), e);
-      } catch (InterruptedException ex) {
-        throw new RuntimeException("Interrupted waiting for R process to finish dying", ex);
+        line = out.readLine();
+      } catch (IOException e) {
+        exception = e;
       }
+      if (line == null) {
+        break;
+      }
+
+      if (line.equals(requestId)) {
+        return output.toString();
+      }
+
+      output.append(line).append("\n");
+    }
+
+    int exit;
+    try {
+      exit = process.waitFor();
+      if (exit == 0) {
+        throw new RuntimeException("R finished without printing request ID. Output:\n" + output);
+      } else {
+        throw new EvalException(exit, output.toString(), exception);
+      }
+    } catch (InterruptedException ex) {
+      throw new RuntimeException("Interrupted waiting for R process to finish dying", ex);
     }
   }
 

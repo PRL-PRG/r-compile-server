@@ -13,6 +13,7 @@ import java.nio.file.attribute.FileTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class Files {
   /// Recursively list paths of files in a directory.
@@ -115,6 +116,10 @@ public class Files {
   @CanIgnoreReturnValue
   public static boolean deleteIfExists(Path path) {
     return ThrowingSupplier.get(() -> java.nio.file.Files.deleteIfExists(path));
+  }
+
+  public static Stream<Path> list(Path dir) {
+    return ThrowingSupplier.get(() -> java.nio.file.Files.list(dir));
   }
 
   public static void clearDirectory(Path path) throws IOException {
