@@ -13,7 +13,6 @@ import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.sexp.*;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.Paths;
 
 public class BCQuery implements Query<Bc> {
   public static BCQuery INSTANCE = new BCQuery();
@@ -73,9 +72,12 @@ public class BCQuery implements Query<Bc> {
   }
 
   @Override
-  public Bc deserialize(Path path, Example example, SnapshotStore store) throws IOException {
-    path = Paths.addingExtension(path, "bc");
+  public String snapshotExtension() {
+    return "bc";
+  }
 
+  @Override
+  public Bc deserialize(Path path, Example example, SnapshotStore store) throws IOException {
     var R = store.query(example, GNURQuery.INSTANCE);
     return ((BCodeSXP) RDSReader.readFile(R.getSession(), path.toFile())).bc();
   }
@@ -83,8 +85,6 @@ public class BCQuery implements Query<Bc> {
   @Override
   public void serialize(Bc body, Path path, Example example, SnapshotStore store)
       throws IOException {
-    path = Paths.addingExtension(path, "bc");
-
     RDSWriter.writeFile(path.toFile(), SEXPs.bcode(body));
   }
 }

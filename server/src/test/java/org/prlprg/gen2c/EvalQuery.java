@@ -65,7 +65,7 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
 
         Files.writeString(cPath, module.cCode());
 
-        RshCompiler.getInstance(3, runtime)
+        RshCompiler.getInstance(0, runtime)
             .createBuilder(cPath, soPath)
             .flag("-shared")
             .flag("-Wl,-undefined,dynamic_lookup")
