@@ -1,14 +1,12 @@
-check({
-  process <- function() {
-    x <- 0
-    for (i in 1:5) {
-      if (i == 3) {
-        break()
-      }
-      x <- x + i
+process <- function() {
+  x <- 0
+  for (i in 1:5) {
+    if (i == 3) {
+      break()
     }
-    return(x)
+    x <- x + i
   }
-  process()
-})
+  return(x)
+}
 
+process()

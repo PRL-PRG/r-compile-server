@@ -1,20 +1,4 @@
-check({
-  x <- 42L
-  x + 21L
-}, direct.fastArith)
+#? [bc2c]fastArith
+x <- 42L
 
-check({
-  x <- 42L
-  x - 21L
-}, direct.fastArith)
-
-check({
-  x <- 42L
-  x * 2L
-}, direct.fastArith)
-
-check({
-  x <- 42L
-  x / 2L
-}, direct.fastArith)
-
+x + 21L

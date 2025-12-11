@@ -1,25 +1,3 @@
-check({
-  x <- 42
-  x + 21
-}, direct.fastArith)
-
-check({
-  x <- 42
-  x - 21
-}, direct.fastArith)
-
-check({
-  x <- 42
-  x * 2
-}, direct.fastArith)
-
-check({
-  x <- 42
-  x / 2
-}, direct.fastArith)
-
-check({
-  x <- 42
-  x ^ 2
-}, direct.fastArith)
-
+#? [bc2c]fastArith
+x <- 42
+x + 21

@@ -1,1 +1,3 @@
-check(function(x = NULL) local(x))
+x <- NULL
+
+local(x)

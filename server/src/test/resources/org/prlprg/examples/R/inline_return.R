@@ -1,1 +1,3 @@
-check(function(x = 42) return(x))
+function(x) return(x)
+
+f(42)

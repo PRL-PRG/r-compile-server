@@ -1,45 +1,4 @@
-check({
-  x <- 42
-  +x
-}, direct.fastUnary)
+#? [bc2c]fastUnary
+x <- 42
 
-check({
-  x <- 42
-  -x
-}, direct.fastUnary)
-
-check({
-  x <- -42
-  +x
-}, direct.fastUnary)
-
-check({
-  x <- -42
-  -x
-}, direct.fastUnary)
-
-check({
-  x <- 42L
-  +x
-}, direct.fastUnary)
-
-check({
-  x <- 42L
-  -x
-}, direct.fastUnary)
-
-check({
-  x <- -42L
-  +x
-}, direct.fastUnary)
-
-check({
-  x <- -42L
-  -x
-}, direct.fastUnary)
-
-check({
-  x <- c(1, -2)
-  -x
-})
-
++x

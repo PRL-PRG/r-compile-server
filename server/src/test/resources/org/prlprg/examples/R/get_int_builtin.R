@@ -1,4 +1,1 @@
-check({
-  vector(length=2)
-})
-
+vector(length=2)
