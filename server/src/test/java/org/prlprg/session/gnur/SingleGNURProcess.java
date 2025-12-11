@@ -128,8 +128,8 @@ class SingleGNURProcess implements GNUR {
       assert sourceDeleted && targetDeleted;
 
       return Pair.of(res, output);
-    } catch (Exception e) {
-      throw new RuntimeException("Unable to eval R source", e);
+    } catch (IOException e) {
+      throw new RuntimeException("I/O exception during R source evaluation", e);
     }
   }
 

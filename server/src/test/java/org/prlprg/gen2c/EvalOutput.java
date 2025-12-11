@@ -1,6 +1,8 @@
 package org.prlprg.gen2c;
 
 import java.util.Objects;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Either;
 
@@ -25,5 +27,31 @@ public record EvalOutput(
   @Override
   public int hashCode() {
     return Objects.hash(outputLog, returnValue);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    var w = p.writer();
+
+    returnValue.destruct(
+        sexp -> {
+          w.write("Return: ");
+          p.print(sexp);
+          return null;
+        },
+        err -> {
+          w.write("Crash: ");
+          w.write(err);
+          return null;
+        });
+
+    w.write("\n---\n");
+
+    w.write(outputLog);
   }
 }

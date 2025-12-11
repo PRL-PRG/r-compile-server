@@ -19,48 +19,132 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/codeStyles/codeStyleConfig.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/copilot.data.migration.ask.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/copilot.data.migration.edit.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/encodings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpretException.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/InternalInterpreter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/package-info.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpreterTesterSource.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/TestInterpret.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/internal/InternalTestInterpret.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/feedback/ModuleFeedback.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/feedback/ModuleFeedback.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/Builtins.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/Builtins.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/CheckpointTrace.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/CheckpointTrace.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/DeoptSnapshot.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/DeoptSnapshot.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/ExternalVersion.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/ExternalVersion.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/InterpretException.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/InterpretException.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/Interpreter.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/Interpreter.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/MockModuleFeedback.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/MockModuleFeedback.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/PrintStack.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/PrintStack.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/StackFrame.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/internal/StackFrame.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/package-info.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/interpret/package-info.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirAndInterpreterIntegrationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirAndInterpreterIntegrationTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirCompilerUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2fir/BC2FirCompilerUtils.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretUtil.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/SimpleInterpretTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/internal/SimpleInternalInterpretTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/DefaultOptimizationsTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/DefaultOptimizationsTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizationTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizationTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizeOriginTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/OptimizeOriginTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateAssumeTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateAssumeTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateDispatchTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/SpeculateDispatchTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/DefiniteForceTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/OptimizeCalleeTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/OptimizeCalleeTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/ReturnTypeAndEffectsTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/opt/specialize/ReturnTypeAndEffectsTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CEvalTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CEvalTest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CTestSupport.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/BC2Fir2CTestSupport.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CAndInterpreterTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CAndInterpreterTest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/UnsupportedBcInstrException.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/ClosureCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/ClosureCompiler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/complex_assign.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/complex_assign.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/function_left_paren_inlining.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/function_left_paren_inlining.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/get_int_builtin.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/get_int_builtin.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/getter_calls.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/getter_calls.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/if.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/if.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/if_else.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/if_else.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_arithmetics.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_arithmetics.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_assign1.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_assign1.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_assign2.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_assign2.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_assign3.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_assign3.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_builtins_internal.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_builtins_internal.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_dollar_assign.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_dollar_assign.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_dot_call.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_dot_call.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_for.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_for.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_identical.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_identical.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_int_generating_sequences.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_int_generating_sequences.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_is_xyz.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_is_xyz.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_local.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_local.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical_and.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical_and.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical_and_or.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical_and_or.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical_or.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_logical_or.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_math1.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_math1.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_repeat.bc" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc/inline_repeat.bc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c.eval/function_inlining/returnValue.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c.eval/function_inlining/returnValue.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add2/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add2/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add2/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add2/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add3/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add3/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add3/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/add3/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/fibonacci/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/fibonacci/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/fibonacci/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/fibonacci/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/permute/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/permute/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/permute/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/permute/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/towers/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/towers/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/towers/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/are_we_fast_yet/towers/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins2/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins2/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins2/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/arith_builtins2/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_inner_loop/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_inner_loop/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_inner_loop/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_inner_loop/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_outer_loop/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_outer_loop/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_outer_loop/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_outer_loop/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/call/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/call/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/call/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/call/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/closure/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/closure/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/closure/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/closure/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/colon/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/colon/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/colon/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/colon/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_assign/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_assign/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_assign/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_assign/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_nested_structure/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_nested_structure/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_nested_structure/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/complex_nested_structure/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_add/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_add/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_add/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_add/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_mul/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_mul/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_mul/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_mul/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_mul/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/constant_fold_mul/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dd_val/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dd_val/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dd_val/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dd_val/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dd_val/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dd_val/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dispatch_operations/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dispatch_operations/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dispatch_operations/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dispatch_operations/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dispatch_operations/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/dispatch_operations/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/empty_block/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/empty_block/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/empty_block/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/empty_block/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/empty_block/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/empty_block/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for_with_return/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for_with_return/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for_with_return/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for_with_return/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for_with_return/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/for_with_return/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_inlining/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_inlining/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_inlining/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_inlining/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_inlining/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_inlining/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_left_paren_inlining/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_left_paren_inlining/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_left_paren_inlining/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_left_paren_inlining/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_left_paren_inlining/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/function_left_paren_inlining/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/getter_calls/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/getter_calls/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/getter_calls/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/getter_calls/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/getter_calls/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/getter_calls/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if_else/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if_else/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if_else/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if_else/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if_else/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/if_else/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_arithmetics/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_arithmetics/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_arithmetics/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_arithmetics/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_arithmetics/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_arithmetics/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign1/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign1/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign1/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign1/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign1/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign1/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign2/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign2/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign2/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign2/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign2/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign2/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign3/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign3/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign3/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign3/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign3/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_assign3/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_dollar_assign/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_dollar_assign/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_dollar_assign/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_dollar_assign/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_dollar_assign/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_dollar_assign/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_for/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_for/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_for/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_for/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_for/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_for/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_local/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_local/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_local/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_local/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_local/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_local/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and_or/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and_or/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and_or/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and_or/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and_or/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_and_or/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_or/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_or/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_or/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_or/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_or/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_logical_or/entrypoint.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_repeat/code.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_repeat/code.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_repeat/constants.RDS" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_repeat/constants.RDS" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_repeat/entrypoint.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/snapshots/R/bc2c/inline_repeat/entrypoint.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -108,9 +192,9 @@
   <component name="MacroExpansionManager">
     <option name="directoryName" value="Pdmy5aIO" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 2
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2
+}</component>
   <component name="ProjectId" id="363wvnueAl2eJhNFucy1ST2UgaA" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -122,6 +206,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
@@ -138,10 +223,148 @@
   }
 }]]></component>
   <component name="RunManager">
-    <configuration default="true" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
       <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
       </method>
+    </configuration>
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="Tox" factoryName="Tox">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Autodetect">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Doctests">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Nosetests">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_regexPattern" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Twisted Trial">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Unittests">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="py.test">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
     </configuration>
   </component>
   <component name="TaskManager">
@@ -152,6 +375,7 @@
       <option name="presentableId" value="Default" />
       <updated>1764248797118</updated>
       <workItem from="1764248800497" duration="1261000" />
+      <workItem from="1765467639988" duration="409000" />
     </task>
     <servers />
   </component>

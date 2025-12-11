@@ -625,7 +625,7 @@ class ClosureCompiler {
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
-      throw new UnsupportedOperationException("Unsupported instruction: " + instr);
+      throw new UnsupportedBcInstrException(instr);
     }
   }
 }
