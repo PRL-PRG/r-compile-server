@@ -1,1 +1,1 @@
-check({ f(g(h(x, k), j), i) <- v })
+f(g(h(x, k), j), i) <- v

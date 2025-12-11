@@ -1,1 +1,1 @@
-check({ list(compiler::cmpfun, compiler:::makeCenv) })
+list(compiler::cmpfun, compiler:::makeCenv)

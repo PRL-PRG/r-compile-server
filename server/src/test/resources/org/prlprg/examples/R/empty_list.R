@@ -1,3 +1,1 @@
-check({
-  function(other = list()) 1
-})
+list()

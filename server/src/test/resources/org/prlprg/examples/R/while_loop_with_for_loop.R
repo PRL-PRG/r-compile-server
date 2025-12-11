@@ -1,20 +1,18 @@
+#? returns(2.0)
 # returns 1 per outer iteration
-check({
-  x <- 0
-  i <- 1
-  while (i <= 2) {
-    for (j in 1:3) {
-      if (j == 2) {
-        break()
-      }
-      x <- x + 1
+x <- 0
+i <- 1
+while (i <= 2) {
+  for (j in 1:3) {
+    if (j == 2) {
+      break()
     }
-    if (i == 1) {
-      i <- i + 1
-      next()
-    }
-    i <- i + 1
+    x <- x + 1
   }
-  x
-}, returns(2))
-
+  if (i == 1) {
+    i <- i + 1
+    next()
+  }
+  i <- i + 1
+}
+x

@@ -1,3 +1,1 @@
-check({
-  identical(unzip, "internal")
-})
+identical(unzip, "internal")

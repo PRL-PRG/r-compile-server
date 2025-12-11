@@ -1,2 +1,3 @@
-check(function(x) (x))
-check(function(x) (...))
+f <- function(x) (x)
+
+f(1)
