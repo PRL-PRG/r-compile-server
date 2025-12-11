@@ -1,7 +1,7 @@
 #include <runtime.h>
-SEXP f_1715757088_0(SEXP RHO, SEXP CCP);
-SEXP f_1715757088_0_1(SEXP RHO, SEXP CCP);
-SEXP f_1715757088_0(SEXP RHO, SEXP CCP) {
+SEXP f_2118806304_0(SEXP RHO, SEXP CCP);
+SEXP f_2118806304_0_1(SEXP RHO, SEXP CCP);
+SEXP f_2118806304_0(SEXP RHO, SEXP CCP) {
   int STACK_SAVE = 3;
   CHECK_OVERFLOW(3);
   // CELLS
@@ -11,7 +11,7 @@ SEXP f_1715757088_0(SEXP RHO, SEXP CCP) {
   DEFINE_VAL(R2);
   DEFINE_VAL(R3);
 
-  Rsh_MakeClosure(R1, Rsh_const(CCP, 0), &f_1715757088_0_1, Rsh_const(CCP, 1), RHO) /* stack: 1 */;
+  Rsh_MakeClosure(R1, Rsh_const(CCP, 0), &f_2118806304_0_1, Rsh_const(CCP, 1), RHO) /* stack: 1 */;
   Rsh_SetVar(R1, Rsh_const(CCP, 2), &C3, RHO) /* symbol: 'towers', stack: 1 */;
   Rsh_Pop(*R1) /* stack: 0 */;
   Rsh_GetFun(R1, R2, R3, Rsh_const(CCP, 2), RHO) /* stack: 3 */;
@@ -22,7 +22,7 @@ SEXP f_1715757088_0(SEXP RHO, SEXP CCP) {
   Rsh_Call(R1, *R2, *R3, Rsh_const(CCP, 7), RHO) /* stack: 1 */;
   Rsh_Return(R1, STACK_SAVE) /* stack: 1 */;
 }
-SEXP f_1715757088_0_1(SEXP RHO, SEXP CCP) {
+SEXP f_2118806304_0_1(SEXP RHO, SEXP CCP) {
   int STACK_SAVE = 4;
   CHECK_OVERFLOW(4);
   // CELLS
