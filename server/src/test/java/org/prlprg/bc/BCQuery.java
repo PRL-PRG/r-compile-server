@@ -12,6 +12,7 @@ import org.prlprg.session.gnur.GNUR;
 import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.sexp.*;
 import org.prlprg.snapshots.Query;
+import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 
 public class BCQuery implements Query<Bc> {
@@ -60,8 +61,7 @@ public class BCQuery implements Query<Bc> {
 
     var bodySexp = impl.run(R, "function() { " + example.text() + " }", optimizationLevel);
     if (!(bodySexp instanceof BCodeSXP bcSxp)) {
-      throw new TestAbortedException(
-          "Bytecode compilation for this is unsupported (e.g. uses `browser`)");
+      throw new SkipQueryException();
     }
     return bcSxp.bc();
   }

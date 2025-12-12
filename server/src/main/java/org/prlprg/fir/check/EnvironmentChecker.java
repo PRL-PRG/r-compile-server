@@ -79,9 +79,9 @@ public class EnvironmentChecker extends Checker {
       boolean hasEnv = environmentCount.hasEnvironmentAt(bb, instructionIndex - 1);
 
       switch (jump) {
-        case Return(var _) when hasEnv && !bb.owner().isPromise() ->
+        case Return(var _, var _) when hasEnv && !bb.owner().isPromise() ->
             report(bb, instructionIndex, "Closure version return must exit with 0 environments");
-        case Deopt(var _, var _) when !hasEnv ->
+        case Deopt(var _, var _, var _) when !hasEnv ->
             report(bb, instructionIndex, "Deopt must exit with at least 1 environment");
         default -> {}
       }
