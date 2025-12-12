@@ -4,7 +4,7 @@ SEXP Rsh_Fir_user_version_main_v0(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *P
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
-  return Rsh_Fir_user_version_main_v0(CCP, RHO, NPARAMS, PARAMS);
+  return Rsh_Fir_user_version_main_v0(CCP, RHO, 0, PARAMS);
 }
 SEXP Rsh_Fir_user_version_main_v0(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS) {
   // FIR main version 0 (-+> V)

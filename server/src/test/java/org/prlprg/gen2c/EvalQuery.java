@@ -76,12 +76,16 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
         // FIXME: try global env
         var testDriver =
             "options(warn=1)\n"
+                + "library(rsh)\n"
                 + "dyn.load('%s')\n".formatted(soPath.toAbsolutePath())
                 + "cp <- readRDS('%s')\n".formatted(cpPath.toAbsolutePath())
                 + "env <- new.env()\n"
                 + "parent.env(env) <- globalenv()\n"
                 + "invisible(.Call('Rsh_initialize_runtime'))\n"
-                + "res <- .Call('%s', env, cp)\n".formatted(module.entryFunName())
+                + switch (runtime) {
+          case DIRECT_BC2C -> "res <- .Call('%s', env, cp)\n".formatted(module.entryFunName());
+              case FIR2C ->  "res <- .Call('%s', cp, env, 0, NULL, NULL)\n".formatted(module.entryFunName());
+        }
                 + "pc <- .Call('Rsh_pc_get')\n"
                 + "dyn.unload('%s')\n".formatted(soPath.toAbsolutePath())
                 + "list(res, pc)\n";
@@ -135,11 +139,10 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
   @Override
   public void verifyExtra(EvalOutput data, Example example, SnapshotStore store) {
     // TODO: Abstract `Either<SEXP, String>` this code, and serialization/deserialization
-    if (example.hasOption(name(), "crashes")) {
-      assertFalse(data.success(), "Expected crash");
-    } else {
-      assertTrue(
-          data.success(), () -> "Expected success, got crash:\n" + data.returnValue().getRight());
+    if (example.hasOption(name(), "crashes") && data.success()) {
+      fail("Expected **crash**, got success.\n" + data);
+    } else if (!data.success()) {
+      fail("Expected success.\n" + data);
     }
 
     if (example.hasOption(name(), "returns")) {
