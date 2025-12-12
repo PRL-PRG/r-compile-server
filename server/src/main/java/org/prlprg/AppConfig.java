@@ -1,15 +1,22 @@
 package org.prlprg;
 
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Properties;
+import javax.annotation.Nullable;
+import org.prlprg.util.Files;
 import org.prlprg.util.Strings;
 
 /// Environment variables to configure the application.
 ///
 /// @see Config
 public final class AppConfig extends Config {
-  public static final boolean DEBUG = get("DEBUG", false);
+  private static final AppConfig INSTANCE = new AppConfig();
+
+  public static final boolean DEBUG = INSTANCE.get("DEBUG", false);
 
   /// Shell command to invoke R. **Default** is "R", pass something else to provide a custom R
   /// binary (e.g. different version than the default installed one).
@@ -17,7 +24,7 @@ public final class AppConfig extends Config {
   /// Note that we pass extra arguments to the command. The working directory of the command is
   /// the working directory of this running program.
   public static final String R_BIN =
-      get("R_BIN", DEBUG ? "../external/R-debug/bin/R" : "../external/R/bin/R");
+      INSTANCE.get("R_BIN", DEBUG ? "../external/R-debug/bin/R" : "../external/R/bin/R");
 
   /// R library paths. There are the paths that the compile server will look libraries for in. We
   /// could call `.libPaths()` in R to get the paths R knows, but we also want to support custom
@@ -27,30 +34,30 @@ public final class AppConfig extends Config {
   static {
     var defaultRlibs = "~/R/x86_64-pc-linux-gnu-library/4.3/:/usr/lib/R/library";
     defaultRlibs = defaultRlibs.replaceFirst("^~", System.getProperty("user.home"));
-    var r_libs = get("R_LIBS", defaultRlibs);
+    var r_libs = INSTANCE.get("R_LIBS", defaultRlibs);
     R_LIBS.addAll(Arrays.stream(r_libs.split(":")).map(Path::of).toList());
   }
 
   /// Adds extra verification checks.
   ///
   /// **Default:**: [#AFTER_STEP].
-  public static final CfgDebugLevel CFG_DEBUG_LEVEL = get("CFG_DEBUG_LEVEL", CfgDebugLevel.NONE);
+  public static final CfgDebugLevel CFG_DEBUG_LEVEL = INSTANCE.get("CFG_DEBUG_LEVEL", CfgDebugLevel.NONE);
 
   /// Maximum number of characters vectors will print in `toString` before being truncated.
   ///
   /// **Default:**: 1000
-  public static final int VECTOR_TRUNCATE_SIZE = get("VECTOR_TRUNCATE_SIZE", 1000);
+  public static final int VECTOR_TRUNCATE_SIZE = INSTANCE.get("VECTOR_TRUNCATE_SIZE", 1000);
 
   /// Whether to log optimization phases/passes, and if so, how granular.
   ///
   /// **Default:**: [#NONE].
   public static final OptimizationLogLevel OPTIMIZATION_LOG_LEVEL =
-      get("OPTIMIZATION_LOG_LEVEL", OptimizationLogLevel.NONE);
+      INSTANCE.get("OPTIMIZATION_LOG_LEVEL", OptimizationLogLevel.NONE);
 
   /// Path or C compiler command this uses.
   ///
   /// **Default:**: "gcc"
-  public static final String CC = get("CC", "gcc");
+  public static final String CC = INSTANCE.get("CC", "gcc");
 
   public enum CfgDebugLevel implements Comparable<CfgDebugLevel> {
     /// No extra checks.
@@ -86,8 +93,21 @@ public final class AppConfig extends Config {
 /// in [AppConfig] if its used within the app, or `TestConfig` if it's only used within
 /// tests.
 abstract class Config {
-  protected static <E extends Enum<E>> E get(String name, E defaultValue) {
-    String value = System.getenv(name);
+  private final Properties properties = new Properties();
+
+  protected Config() {
+    if (Files.exists(Path.of(".config.properties"))) {
+      try {
+        var propertiesStream = new FileInputStream(".config.properties");
+        properties.load(propertiesStream);
+      } catch (IOException e) {
+        throw new RuntimeException("Failed to load config", e);
+      }
+    }
+  }
+
+  protected <E extends Enum<E>> E get(String name, E defaultValue) {
+    var value = get(name);
     if (value == null) {
       return defaultValue;
     }
@@ -106,19 +126,26 @@ abstract class Config {
     }
   }
 
-  protected static String get(String name, String defaultValue) {
-    return System.getenv().getOrDefault(name, defaultValue);
+  protected String get(String name, String defaultValue) {
+    var value = get(name);
+    return value != null ? value : defaultValue;
   }
 
-  protected static int get(String name, int defaultValue) {
-    var value = System.getenv(name);
+  protected int get(String name, int defaultValue) {
+    var value = get(name);
     return value != null ? Integer.parseInt(value) : defaultValue;
   }
 
-  protected static boolean get(String name, boolean defaultValue) {
-    var value = System.getenv(name);
+  protected boolean get(String name, boolean defaultValue) {
+    var value = get(name);
     return value != null ? Boolean.parseBoolean(value) : defaultValue;
   }
 
-  protected Config() {}
+  private @Nullable String get(String name) {
+    var fromEnv = System.getenv(name);
+    if (fromEnv != null) {
+      return fromEnv;
+    }
+    return properties.getProperty("env." + name);
+  }
 }

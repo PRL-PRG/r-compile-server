@@ -8,7 +8,9 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
+import org.opentest4j.IncompleteExecutionException;
 import org.opentest4j.TestAbortedException;
+import org.opentest4j.TestSkippedException;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
 import org.prlprg.util.Files;
@@ -36,12 +38,12 @@ public class SnapshotStore {
   }
 
   public <T> void verify(Example example, Query<T> query, T actual, @Nullable String context) {
+    query.verifyExtra(actual, example, this);
     var expected = query(example, query);
     assertEquals(
         expected,
         actual,
         "Verification failed for " + query.name() + (context != null ? ", " + context : ""));
-    query.verifyExtra(actual, example, this);
   }
 
   /// Abort if [#verify(Example, Query, Object)] would fail
@@ -84,27 +86,21 @@ public class SnapshotStore {
                   try {
                     return query.deserialize(path, example, this);
                   } catch (Exception e) {
-                    throw new RuntimeException("Failed to load snapshot for " + path, e);
+                    throw new RuntimeException("Failed to load " + query.name() + " snapshot for " + path, e);
                   }
                 }
 
                 // Can't use snapshot, instead compute
-                var next = query.oracle(example, this);
-
-                // Run extra checks on oracle, only to avoid saving if it fails.
-                // We actually report extra check failures in `verify`.
-                var snapshotPassedExtraChecks = true;
+                T next;
                 try {
+                  next = query.oracle(example, this);
                   query.verifyExtra(next, example, this);
-                } catch (AssertionError e) {
-                  snapshotPassedExtraChecks = false;
-
-                  var logger = Logger.getLogger("org.prlprg." + query.name());
-                  logger.warning("Oracle's data failed extra check: " + e.getMessage());
+                } catch (Throwable e) {
+                  throw new TestAbortedException("Failed prerequisite: " + query.name(), e);
                 }
 
                 // Save snapshot
-                if (snapshotPassedExtraChecks && !example.hasOption("", "dontSaveSnapshots")) {
+                if (!example.hasOption("", "dontSaveSnapshots")) {
                   Files.createDirectories(path.getParent());
                   if (!Files.exists(path.resolveSibling(".gitkeep"))) {
                     Files.writeString(path.resolveSibling(".gitkeep"), "");
@@ -113,18 +109,13 @@ public class SnapshotStore {
                   try {
                     query.serialize(next, path, example, this);
                   } catch (Exception e) {
-                    throw new RuntimeException("Failed to save snapshot for " + path, e);
+                    throw new RuntimeException("Failed to save " + query.name() + " snapshot for " + path, e);
                   }
                 }
 
                 return next;
               });
       return query.dataClass().cast(queryData);
-    } catch (DependencyCycleException | TestAbortedException e) {
-      throw e;
-    } catch (Exception e) {
-      throw new TestAbortedException(
-          "Failed to load snapshot or compute dependency of " + query.name(), e);
     } finally {
       pending.remove(query);
     }

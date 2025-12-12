@@ -27,7 +27,7 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
     var main = firModule.localFunction(Variable.named("main"));
     if (main == null || !main.baseline().parameters().isEmpty() || main.baseline().isStub()) {
       fail(
-          "FIR module must have `main` function, whose baseline takes zero arguments and isn't a stub");
+          "FIR module must have `main` function, whose baseline takes zero arguments and isn't a stub:\n" + firModule);
     }
 
     var firCompiledModule =
