@@ -60,7 +60,7 @@ public final class InferEffects implements Analysis {
 
   public Effects of(Instruction instruction) {
     return switch (instruction) {
-      case Statement(var _, var expression) -> of(expression);
+      case Statement(var _, var _, var expression) -> of(expression);
       case Jump _ -> Effects.NONE;
     };
   }

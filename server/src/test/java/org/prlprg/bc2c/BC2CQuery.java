@@ -6,6 +6,7 @@ import org.prlprg.examples.Example;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.snapshots.SnapshotStore;
+import org.prlprg.snapshots.SkipQueryException;
 
 public class BC2CQuery implements CompiledModuleQuery {
   public static final BC2CQuery INSTANCE = new BC2CQuery();
@@ -22,6 +23,10 @@ public class BC2CQuery implements CompiledModuleQuery {
 
   private static CompiledModule compile(Bc bc, boolean compilePromises) {
     var name = "f_" + (bc.hashCode() < 0 ? "n" + -bc.hashCode() : bc.hashCode());
-    return new BC2CCompiler(bc, name, compilePromises).finish();
+    try {
+      return new BC2CCompiler(bc, name, compilePromises).finish();
+    } catch (UnsupportedBcInstrException e) {
+      throw new SkipQueryException(e);
+    }
   }
 }
