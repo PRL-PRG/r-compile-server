@@ -1515,7 +1515,7 @@ SEXP C_rcp_tryCmpfun(SEXP f)
     return result;
 }
 
-static void install_cmpfun_hook(void)
+static void save_original_cmpfun(void)
 {
     // Get the compiler namespace
     SEXP compiler_namespace = Rf_eval(
@@ -1537,10 +1537,20 @@ static void install_cmpfun_hook(void)
     PROTECT(original_cmpfun);
     R_PreserveObject(original_cmpfun);
     UNPROTECT(1);
+}
 
-    // Unlock the binding before modifying it
-    SEXP cmpfun_sym = PROTECT(Rf_install("cmpfun"));
-    R_unLockBinding(cmpfun_sym, compiler_namespace);
+static SEXP cmpfun_call_sexp(void)
+{
+    // Get the compiler namespace
+    SEXP compiler_namespace = Rf_eval(
+        PROTECT(Rf_lang2(
+            PROTECT(Rf_install("getNamespace")),
+            PROTECT(Rf_mkString("compiler"))
+        )),
+        R_GlobalEnv
+    );
+    UNPROTECT(3);
+    PROTECT(compiler_namespace);
 
     // Build the body: .Call("C_rcp_cmpfun", f, options, PACKAGE = "rcp")
     SEXP call_sym = PROTECT(Rf_install(".Call"));
@@ -1570,18 +1580,37 @@ static void install_cmpfun_hook(void)
     SET_FORMALS(wrapper, formals);
     SET_BODY(wrapper, call_expr);
     SET_CLOENV(wrapper, compiler_namespace);
+    UNPROTECT(3); // formals, call_expr, compiler_namespace
+
+    return wrapper;
+}
+
+static SEXP C_rcp_override_cmpfun(SEXP cmpfun)
+{
+    // Get the compiler namespace
+    SEXP compiler_namespace = Rf_eval(
+        PROTECT(Rf_lang2(
+            PROTECT(Rf_install("getNamespace")),
+            PROTECT(Rf_mkString("compiler"))
+        )),
+        R_GlobalEnv
+    );
+    UNPROTECT(3);
+    PROTECT(compiler_namespace);
+
+    // Unlock the binding before modifying it
+    SEXP cmpfun_sym = PROTECT(Rf_install("cmpfun"));
+    R_unLockBinding(cmpfun_sym, compiler_namespace);
     
     // Replace cmpfun in the compiler namespace
-    Rf_defineVar(cmpfun_sym, wrapper, compiler_namespace);
-
-    UNPROTECT(3); // wrapper, formals, call_expr
+    Rf_defineVar(cmpfun_sym, cmpfun, compiler_namespace);
     
     // Re-lock the binding
     R_LockBinding(cmpfun_sym, compiler_namespace);
     
     UNPROTECT(2); // cmpfun_sym, compiler_namespace
 
-    DEBUG_PRINT("Installed cmpfun hook\n");
+    DEBUG_PRINT("cmpfun hooked\n");
 }
 
 static void install_tryCmpfun_hook(void)
@@ -1650,6 +1679,21 @@ static void install_tryCmpfun_hook(void)
     DEBUG_PRINT("Installed tryCmpfun hook\n");
 }
 
+SEXP C_rcp_jit_enable()
+{
+    SEXP wrapper = cmpfun_call_sexp();
+    PROTECT(wrapper);
+    C_rcp_override_cmpfun(wrapper);
+    UNPROTECT(1); // wrapper
+
+    return R_NilValue;
+}
+
+SEXP C_rcp_jit_disable()
+{
+    C_rcp_override_cmpfun(original_cmpfun);
+    return R_NilValue;
+}
 
 void rcp_init(void)
 {
@@ -1665,8 +1709,7 @@ void rcp_init(void)
     prepare_stepfor();
 #endif
 
-    install_cmpfun_hook();
-    //install_tryCmpfun_hook();
+    save_original_cmpfun();
 
     DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, UNLIKELY_LOOPS=%d\n", ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS, ALIGNMENT_LABELS_UNLIKELY, ALIGNMENT_LOOPS_UNLIKELY);
 
@@ -1680,9 +1723,14 @@ void rcp_destr(void)
         mem_shared_sexp = NULL;
     }
 
-    // TODO restore binding?
+    if (original_tryCmpfun != NULL) {
+        R_ReleaseObject(original_tryCmpfun);
+        original_tryCmpfun = NULL;
+    }
 
     if (original_cmpfun != NULL) {
+        C_rcp_override_cmpfun(original_cmpfun);
+        DEBUG_PRINT("Restored original cmpfun\n");
         R_ReleaseObject(original_cmpfun);
         original_cmpfun = NULL;
     }

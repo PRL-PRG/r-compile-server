@@ -27,3 +27,17 @@ rcp_tryCmpfun <- function(f) {
 is_compiled <- function(f) {
   .Call(C_is_compiled, f)
 }
+
+#' Activate the RCP JIT
+#'
+#' @export
+rcp_jit_enable <- function() {
+  .Call(C_rcp_jit_enable)
+}
+
+#' Deactivate the RCP JIT
+#'
+#' @export
+rcp_jit_disable <- function() {
+  .Call(C_rcp_jit_disable)
+}
