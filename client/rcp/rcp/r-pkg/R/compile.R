@@ -18,3 +18,12 @@ rcp_cmpfun <- function(f, options = NULL) {
 rcp_tryCmpfun <- function(f) {
   .Call("C_rcp_tryCmpfun", f, PACKAGE = "rcp")
 }
+
+#' Check if the closure is natively compiled
+#'
+#' @param f closure to be checked
+#' @return TRUE if the closure is compiled, FALSE otherwise
+#' @export
+is_compiled <- function(f) {
+  .Call(C_is_compiled, f)
+}

@@ -5,6 +5,7 @@
 // Declare the function
 extern SEXP C_rcp_cmpfun(SEXP f, SEXP options);
 extern SEXP C_rcp_tryCmpfun(SEXP f);
+extern SEXP C_is_compiled(SEXP closure);
 extern void rcp_init(void);
 extern void rcp_destr(void);
 
@@ -12,6 +13,7 @@ extern void rcp_destr(void);
 static const R_CallMethodDef CallEntries[] = {
     {"C_rcp_cmpfun", (DL_FUNC) &C_rcp_cmpfun, 2},
     {"C_rcp_tryCmpfun", (DL_FUNC) &C_rcp_tryCmpfun, 1},
+    {"is_compiled", (DL_FUNC) &C_is_compiled, 1},
     {NULL, NULL, 0}
 };
 

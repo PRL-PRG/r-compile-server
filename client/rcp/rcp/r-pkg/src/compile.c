@@ -1356,6 +1356,21 @@ static const char *stats_names[STATS_COUNT] = {
 
 static double stats_values[STATS_COUNT];
 
+SEXP C_is_compiled(SEXP closure) {
+    if (TYPEOF(closure) != CLOSXP) {
+        Rf_error("Expected a closure");
+    }
+
+    SEXP body = BODY(closure);
+
+    if (TYPEOF(body) != EXTPTRSXP)
+        return Rf_ScalarLogical(FALSE);
+    if (!RSH_IS_CLOSURE_BODY(body))
+        return Rf_ScalarLogical(FALSE);
+
+    return Rf_ScalarLogical(TRUE);
+}
+
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
     struct timespec start, mid, end;
