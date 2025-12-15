@@ -663,14 +663,15 @@ static SEXP Rsh_Fir_build_arglist(int argc, SEXP const *args,
 SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP CCP, SEXP RHO, int argc, SEXP const *args,
                           Rsh_Fir_Type const *param_types) {
   FUNTAB fun = R_FunTab[bltIdx];
-  if (fun.arity != argc) {
+  if (fun.arity != -1 && fun.arity != argc) {
     Rf_error("Builtin %s called with incorrect number of arguments: expected %d, got %d",
              fun.name, fun.arity, argc);
   }
 
   int protect_count = 0;
   SEXP arglist = Rsh_Fir_build_arglist(argc, args, NULL, &protect_count);
-  SEXP result = fun.cfun(R_NilValue, R_NilValue, arglist, RHO);
+  SEXP op = R_Primitive(fun.name);
+  SEXP result = fun.cfun(R_NilValue, op, arglist, RHO);
   UNPROTECT(protect_count);
   return result;
 }
@@ -741,49 +742,61 @@ DEFINE_DISPATCH_INTRINSIC_BODY(checkMissing)
 DEFINE_DISPATCH_INTRINSIC_BODY(toForSeq)
 DEFINE_DISPATCH_INTRINSIC_BODY(invisible)
 DEFINE_DISPATCH_INTRINSIC_BODY(visible)
-DEFINE_DISPATCH_INTRINSIC_BODY(asSwitchIdx)
 DEFINE_DISPATCH_INTRINSIC_BODY(tryDispatchBuiltin)
 DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinDispatched)
 DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinValue)
 
 DEFINE_INTRINSIC(checkFun, 0) {
-  Rf_error("TODO: %s_v%d", "checkFun", 0);
+  SEXP value = args[0];
+
+  if (TYPEOF(value) != CLOSXP && TYPEOF(value) != BUILTINSXP &&
+      TYPEOF(value) != SPECIALSXP) {
+    Rf_error("attempt to apply non-function");
+  }
+
+  return R_NilValue;
 }
 
 DEFINE_INTRINSIC(checkMissing, 0) {
-  Rf_error("TODO: %s_v%d", "checkMissing", 0);
+  SEXP value = args[0];
+
+  if (value == R_MissingArg) {
+    Rf_error("argument is missing, with no default");
+  }
+
+  return R_NilValue;
 }
 
 DEFINE_INTRINSIC(toForSeq, 0) {
-  Rf_error("TODO: %s_v%d", "toForSeq", 0);
+  // TODO: idk what this should do. If the following works, this intrinsic should be removed.
+  return args[0];
 }
 
 DEFINE_INTRINSIC(invisible, 0) {
-  Rf_error("TODO: %s_v%d", "invisible", 0);
+  R_Visible = FALSE;
+  return R_NilValue;
 }
 
 DEFINE_INTRINSIC(visible, 0) {
-  Rf_error("TODO: %s_v%d", "visible", 0);
-}
-
-DEFINE_INTRINSIC(asSwitchIdx, 0) {
-  Rf_error("TODO: %s_v%d", "asSwitchIdx", 0);
+  R_Visible = TRUE;
+  return R_NilValue;
 }
 
 DEFINE_INTRINSIC(tryDispatchBuiltin, 0) {
-  Rf_error("TODO: %s_v%d", "tryDispatchBuiltin", 0);
+  return R_NilValue;
 }
 
 DEFINE_INTRINSIC(tryDispatchBuiltin, 1) {
-  Rf_error("TODO: %s_v%d", "tryDispatchBuiltin", 1);
+  return R_NilValue;
 }
 
 DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0) {
-  Rf_error("TODO: %s_v%d", "getTryDispatchBuiltinDispatched", 0);
+  return FALSE;
 }
 
 DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0) {
-  Rf_error("TODO: %s_v%d", "getTryDispatchBuiltinValue", 0);
+  Rf_error("unimplemented. Dispatch intrinsics will probably be removed and we'll prevent compiling this complex bytecode");
+  return R_NilValue;
 }
 
 DEFINE_OVERRIDDEN_BUILTIN(add, 1) {

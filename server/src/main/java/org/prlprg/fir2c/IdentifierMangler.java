@@ -10,6 +10,7 @@ final class IdentifierMangler {
 
   public String unique(@PrintFormat String format, Object... args) {
     var sanitized = sanitize(format.formatted(args));
+
     int count = counters.merge(sanitized, 1, Integer::sum);
     if (count == 1) {
       return sanitized;
@@ -33,6 +34,11 @@ final class IdentifierMangler {
     }
     if (!Character.isLetter(builder.charAt(0)) && builder.charAt(0) != '_') {
       builder.insert(0, '_');
+    }
+    // Ensure it doesn't conflict with demangled names, in a way that also distinguishes it to
+    // the user.
+    if (Character.isDigit(builder.charAt(builder.length() - 1))) {
+      builder.append('_');
     }
     return builder.toString();
   }

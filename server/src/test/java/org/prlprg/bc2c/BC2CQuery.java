@@ -5,13 +5,19 @@ import org.prlprg.bc.Bc;
 import org.prlprg.examples.Example;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
-import org.prlprg.snapshots.SnapshotStore;
+import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.snapshots.SkipQueryException;
+import org.prlprg.snapshots.SnapshotStore;
 
 public class BC2CQuery implements CompiledModuleQuery {
   public static final BC2CQuery INSTANCE = new BC2CQuery();
 
   private BC2CQuery() {}
+
+  @Override
+  public RuntimeVariant runtime() {
+    return RuntimeVariant.DIRECT_BC2C;
+  }
 
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {

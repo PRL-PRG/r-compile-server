@@ -12,12 +12,18 @@ import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
+import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.snapshots.SnapshotStore;
 
 public record Fir2CQuery(@Override String name, @Nullable Optimization optimization)
     implements CompiledModuleQuery {
   public static final Fir2CQuery DIRECT = new Fir2CQuery("fir2c", null);
+
+  @Override
+  public RuntimeVariant runtime() {
+    return RuntimeVariant.FIR2C;
+  }
 
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {
@@ -27,7 +33,8 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
     var main = firModule.localFunction(Variable.named("main"));
     if (main == null || !main.baseline().parameters().isEmpty() || main.baseline().isStub()) {
       fail(
-          "FIR module must have `main` function, whose baseline takes zero arguments and isn't a stub:\n" + firModule);
+          "FIR module must have `main` function, whose baseline takes zero arguments and isn't a stub:\n"
+              + firModule);
     }
 
     var firCompiledModule =
@@ -37,8 +44,19 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
         instanceof FirCompiledDispatchIndex.Regular(var entryFunName))) {
       throw new AssertionFailedError("Missing main function index");
     }
+
+    var entryAdapter =
+        """
+        SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
+          return %s(CCP, RHO, 0, NULL, NULL);
+        }
+        """
+            .formatted(entryFunName);
+
     return new CompiledModule(
-        firCompiledModule.cUnit().toString(), entryFunName, firCompiledModule.constantPool());
+        firCompiledModule.cUnit() + entryAdapter,
+        "Rsh_Fir_snapshot_entrypoint",
+        firCompiledModule.constantPool());
   }
 
   @Override

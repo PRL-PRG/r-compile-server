@@ -1,8 +1,8 @@
 #include <runtime.h>
-SEXP f_1239795264_0(SEXP RHO, SEXP CCP);
-SEXP f_1239795264_0_1(SEXP RHO, SEXP CCP);
-SEXP f_1239795264_0_2(SEXP RHO, SEXP CCP);
-SEXP f_1239795264_0(SEXP RHO, SEXP CCP) {
+SEXP f_645182304_0(SEXP RHO, SEXP CCP);
+SEXP f_645182304_0_1(SEXP RHO, SEXP CCP);
+SEXP f_645182304_0_2(SEXP RHO, SEXP CCP);
+SEXP f_645182304_0(SEXP RHO, SEXP CCP) {
   int STACK_SAVE = 3;
   CHECK_OVERFLOW(3);
   // CELLS
@@ -13,10 +13,10 @@ SEXP f_1239795264_0(SEXP RHO, SEXP CCP) {
   DEFINE_VAL(R2);
   DEFINE_VAL(R3);
 
-  Rsh_MakeClosure(R1, Rsh_const(CCP, 0), &f_1239795264_0_1, Rsh_const(CCP, 1), RHO) /* stack: 1 */;
+  Rsh_MakeClosure(R1, Rsh_const(CCP, 0), &f_645182304_0_1, Rsh_const(CCP, 1), RHO) /* stack: 1 */;
   Rsh_SetVar(R1, Rsh_const(CCP, 2), &C3, RHO) /* symbol: 'permute', stack: 1 */;
   Rsh_Pop(*R1) /* stack: 0 */;
-  Rsh_MakeClosure(R1, Rsh_const(CCP, 3), &f_1239795264_0_2, Rsh_const(CCP, 4), RHO) /* stack: 1 */;
+  Rsh_MakeClosure(R1, Rsh_const(CCP, 3), &f_645182304_0_2, Rsh_const(CCP, 4), RHO) /* stack: 1 */;
   Rsh_SetVar(R1, Rsh_const(CCP, 5), &C7, RHO) /* symbol: 'swap', stack: 1 */;
   Rsh_Pop(*R1) /* stack: 0 */;
   Rsh_GetFun(R1, R2, R3, Rsh_const(CCP, 2), RHO) /* stack: 3 */;
@@ -25,7 +25,7 @@ SEXP f_1239795264_0(SEXP RHO, SEXP CCP) {
   Rsh_Call(R1, *R2, *R3, Rsh_const(CCP, 8), RHO) /* stack: 1 */;
   Rsh_Return(R1, STACK_SAVE) /* stack: 1 */;
 }
-SEXP f_1239795264_0_1(SEXP RHO, SEXP CCP) {
+SEXP f_645182304_0_1(SEXP RHO, SEXP CCP) {
   int STACK_SAVE = 7;
   CHECK_OVERFLOW(7);
   // CELLS
@@ -80,7 +80,7 @@ L24: /* stack: 3 */
   Rsh_GetVar(R1, Rsh_const(CCP, 5), &C7, RHO) /* symbol: 'count', stack: 1 */;
   Rsh_Return(R1, STACK_SAVE) /* stack: 1 */;
 }
-SEXP f_1239795264_0_2(SEXP RHO, SEXP CCP) {
+SEXP f_645182304_0_2(SEXP RHO, SEXP CCP) {
   int STACK_SAVE = 5;
   CHECK_OVERFLOW(5);
   // CELLS

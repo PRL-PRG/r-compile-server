@@ -6,12 +6,17 @@ import java.nio.file.Path;
 import org.prlprg.examples.Example;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
+import org.prlprg.service.RshCompiler;
+import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
+import org.prlprg.util.cc.CCompilationException;
 
 public interface CompiledModuleQuery extends Query<CompiledModule> {
+  RuntimeVariant runtime();
+
   @Override
   default Class<CompiledModule> dataClass() {
     return CompiledModule.class;
@@ -47,5 +52,21 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     Files.writeString(cPath, data.cCode());
     Files.writeString(entryPath, data.entryFunName());
     RDSWriter.writeFile(rdsPath.toFile(), data.constantPool());
+
+    // Compile for both `EvalQuery` and easier debugging outside of tests.
+    var soPath = path.resolve("code.so");
+    try {
+      RshCompiler.getInstance(0, runtime())
+          .createBuilder(cPath, soPath)
+          .flag("-shared")
+          .flag("-Wl,-undefined,dynamic_lookup")
+          .flag("-DRSH_TESTS")
+          .flag("-DRSH_PC")
+          .compile();
+    } catch (CCompilationException e) {
+      throw new AssertionError("Failed to compile", e);
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Compilation interrupted", e);
+    }
   }
 }

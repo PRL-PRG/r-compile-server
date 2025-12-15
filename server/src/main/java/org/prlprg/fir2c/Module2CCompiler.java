@@ -517,7 +517,6 @@ public final class Module2CCompiler {
           }
         }
 
-        // TODO(runtime): All Rsh_Fir_* helpers referenced below require runtime support.
         private String emitExpression(Expression expression) {
           return switch (expression) {
             case Aea(var arg) -> emitArgument(arg);
@@ -660,7 +659,7 @@ public final class Module2CCompiler {
               cCode.stmt("return R_NilValue;");
             }
             case If(var _, var condition, var ifTrue, var ifFalse) -> {
-              cCode.stmt("if (Rsh_Fir_is_true(%s)) {", condition);
+              cCode.stmt("if (Rsh_Fir_is_true(%s)) {", emitArgument(condition));
               emitJumpTo(2, ifTrue);
               cCode.stmt("} else {");
               emitJumpTo(2, ifFalse);

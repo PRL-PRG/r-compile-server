@@ -1016,11 +1016,12 @@ public class BC2CFGCompiler {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var asInteger = insertAndReturn("i", intrinsic("asSwitchIdx", value));
+          var asInteger = insertAndReturn("i", builtin("as.integer", value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
-                insertAndReturn("c", builtin("==", 5, asInteger, new Constant(SEXPs.integer(i))));
+                insertAndReturn(
+                    "c", builtin("==", 5, asInteger, new Constant(SEXPs.integer(i + 1))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.

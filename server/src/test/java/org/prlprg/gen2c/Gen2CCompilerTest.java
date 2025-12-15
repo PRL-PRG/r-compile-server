@@ -17,9 +17,9 @@ public interface Gen2CCompilerTest {
   @RExampleTest
   default void testEval(Example example, SnapshotStore store) {
     var R = store.query(example, GNURQuery.INSTANCE);
-    var module = store.query(example, moduleQuery());
+    var modulePath = store.queryPath(example, moduleQuery());
 
-    var output = eval(module, evalQuery().runtime(), R);
+    var output = eval(modulePath, R);
 
     store.verify(example, evalQuery(), output);
   }
