@@ -41,12 +41,8 @@ public final class AppConfig extends Config {
   /// Adds extra verification checks.
   ///
   /// **Default:**: [#AFTER_STEP].
-  public static final CfgDebugLevel CFG_DEBUG_LEVEL = INSTANCE.get("CFG_DEBUG_LEVEL", CfgDebugLevel.NONE);
-
-  /// Maximum number of characters vectors will print in `toString` before being truncated.
-  ///
-  /// **Default:**: 1000
-  public static final int VECTOR_TRUNCATE_SIZE = INSTANCE.get("VECTOR_TRUNCATE_SIZE", 1000);
+  public static final CfgDebugLevel CFG_DEBUG_LEVEL =
+      INSTANCE.get("CFG_DEBUG_LEVEL", CfgDebugLevel.NONE);
 
   /// Whether to log optimization phases/passes, and if so, how granular.
   ///

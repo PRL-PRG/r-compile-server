@@ -1,8 +1,6 @@
 package org.prlprg.gen2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
@@ -13,7 +11,6 @@ import org.prlprg.examples.Example;
 import org.prlprg.fir2c.Fir2CQuery;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
-import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
@@ -25,90 +22,27 @@ import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.Either;
 import org.prlprg.util.Files;
 import org.prlprg.util.Pair;
-import org.prlprg.util.cc.CCompilationException;
+import org.prlprg.util.Paths;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
-public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtime)
-    implements Query<EvalOutput> {
-  public static EvalQuery BC = new EvalQuery(BC2CQuery.INSTANCE, RuntimeVariant.DIRECT_BC2C);
-  public static EvalQuery FIR_ORACLE = new EvalQuery(Fir2CQuery.DIRECT, RuntimeVariant.FIR2C);
+public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOutput> {
+  public static EvalQuery BC = new EvalQuery(BC2CQuery.INSTANCE);
+  public static EvalQuery FIR_ORACLE = new EvalQuery(Fir2CQuery.DIRECT);
 
-  /// Compile the C source code in [CompiledModule] into a binary and run. Return the
-  /// side-effects and output.
-  ///
-  /// This compiles the C source every time it's called. We don't cache the binary because we
-  /// cache the output (elsewhere) and the binary isn't for anything else.
-  ///
-  /// Currently, we redundantly write `module` a `.c` file when it usually already exists
-  /// somewhere else. If necessary we can optimize that by passing the [Example] and [Query]
-  /// that generate `module`.
-  public static EvalOutput eval(CompiledModule module, RuntimeVariant runtime, GNUR R) {
-    // this has to be the same as in the test/resources/.../Makefile
-    var prefix = "test";
+  private static final String EVAL_DRIVER =
+      Files.readString(Paths.getResource(EvalQuery.class, "eval.R"));
 
-    var tempDir = Files.createTempDirectory("test-bc2cc");
-    var cPath = tempDir.resolve(prefix + ".c");
-    var cpPath = tempDir.resolve(prefix + ".RDS");
-    var soPath = tempDir.resolve(prefix + ".so");
-    var rPath = tempDir.resolve(prefix + ".R");
-
+  /// Evaluate the snapshot generated at [Path] by some [CompiledModuleQuery] and return the output.
+  public static EvalOutput eval(Path path, GNUR R) {
     try {
-      Files.clearDirectory(tempDir);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-
-    try {
-      try {
-        RDSWriter.writeFile(cpPath.toFile(), module.constantPool());
-
-        Files.writeString(cPath, module.cCode());
-
-        RshCompiler.getInstance(0, runtime)
-            .createBuilder(cPath, soPath)
-            .flag("-shared")
-            .flag("-Wl,-undefined,dynamic_lookup")
-            .flag("-DRSH_TESTS")
-            .flag("-DRSH_PC")
-            .compile();
-
-        // FIXME: try global env
-        var testDriver =
-            "options(warn=1)\n"
-                + "library(rsh)\n"
-                + "dyn.load('%s')\n".formatted(soPath.toAbsolutePath())
-                + "cp <- readRDS('%s')\n".formatted(cpPath.toAbsolutePath())
-                + "env <- new.env()\n"
-                + "parent.env(env) <- globalenv()\n"
-                + "invisible(.Call('Rsh_initialize_runtime'))\n"
-                + switch (runtime) {
-          case DIRECT_BC2C -> "res <- .Call('%s', env, cp)\n".formatted(module.entryFunName());
-              case FIR2C ->  "res <- .Call('%s', cp, env, 0, NULL, NULL)\n".formatted(module.entryFunName());
-        }
-                + "pc <- .Call('Rsh_pc_get')\n"
-                + "dyn.unload('%s')\n".formatted(soPath.toAbsolutePath())
-                + "list(res, pc)\n";
-
-        Files.writeString(rPath, testDriver);
-      } catch (CCompilationException | IOException e) {
-        System.out.println(Files.readString(cPath));
-        throw new AssertionError("Failed to compile", e);
-      } catch (InterruptedException e) {
-        throw new RuntimeException("Compilation interrupted", e);
-      }
-
-      try {
-        var nestedWithOutput =
-            R.capturingEval("source('%s', local=F)$value".formatted(rPath.toAbsolutePath()));
-        var pair = splitValueAndPC(nestedWithOutput.first());
-        return new EvalOutput(Either.left(pair.first()), nestedWithOutput.second(), pair.second());
-      } catch (EvalException e) {
-        return new EvalOutput(
-            Either.right(e.mainMessage()), e.outputLog(), PerformanceCounters.EMPTY);
-      }
-    } finally {
-      Files.deleteRecursively(tempDir);
+      var nestedWithOutput =
+          R.capturingEval("setwd('%s')\n%s".formatted(path.toAbsolutePath(), EVAL_DRIVER));
+      var pair = splitValueAndPC(nestedWithOutput.first());
+      return new EvalOutput(Either.left(pair.first()), nestedWithOutput.second(), pair.second());
+    } catch (EvalException e) {
+      return new EvalOutput(
+          Either.right(e.mainMessage()), e.outputLog(), PerformanceCounters.EMPTY);
     }
   }
 
@@ -131,9 +65,9 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
   @Override
   public EvalOutput compute(Example example, SnapshotStore store) {
     var R = store.query(example, GNURQuery.INSTANCE);
-    var module = store.query(example, moduleQuery);
+    var modulePath = store.queryPath(example, moduleQuery);
 
-    return eval(module, runtime, R);
+    return eval(modulePath, R);
   }
 
   @Override
@@ -152,7 +86,7 @@ public record EvalQuery(Query<CompiledModule> moduleQuery, RuntimeVariant runtim
       }
     }
 
-    if (runtime == RuntimeVariant.DIRECT_BC2C) {
+    if (moduleQuery.runtime() == RuntimeVariant.DIRECT_BC2C) {
       if (example.hasOption(name(), "fastArith")) {
         assertNoSlow(data.pc(), PerformanceCounters::slowArith, "Expected fast arithmetics");
       }

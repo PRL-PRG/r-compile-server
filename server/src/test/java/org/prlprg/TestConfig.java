@@ -14,5 +14,6 @@ public class TestConfig extends Config {
   public static final boolean OVERRIDE_SNAPSHOTS = INSTANCE.get("OVERRIDE_SNAPSHOTS", false);
 
   /// If set, filters tested examples according to the regular expression (on path).
-  public static final Pattern EXAMPLE_FILTER = Pattern.compile(INSTANCE.get("EXAMPLE_FILTER", ".*"));
+  public static final Pattern EXAMPLE_FILTER =
+      Pattern.compile(INSTANCE.get("EXAMPLE_FILTER", ".*"));
 }

@@ -1,7 +1,7 @@
 #include <runtime.h>
-SEXP f_n2019673472_0(SEXP RHO, SEXP CCP);
-SEXP f_n2019673472_0_1(SEXP RHO, SEXP CCP);
-SEXP f_n2019673472_0(SEXP RHO, SEXP CCP) {
+SEXP f_n2044946016_0(SEXP RHO, SEXP CCP);
+SEXP f_n2044946016_0_1(SEXP RHO, SEXP CCP);
+SEXP f_n2044946016_0(SEXP RHO, SEXP CCP) {
   int STACK_SAVE = 3;
   CHECK_OVERFLOW(3);
   // CELLS
@@ -27,7 +27,7 @@ SEXP f_n2019673472_0(SEXP RHO, SEXP CCP) {
   Rsh_Call(R1, *R2, *R3, Rsh_const(CCP, 8), RHO) /* stack: 1 */;
   Rsh_SetVar(R1, Rsh_const(CCP, 9), &C11, RHO) /* symbol: 'd', stack: 1 */;
   Rsh_Pop(*R1) /* stack: 0 */;
-  Rsh_MakeClosure(R1, Rsh_const(CCP, 10), &f_n2019673472_0_1, Rsh_const(CCP, 11), RHO) /* stack: 1 */;
+  Rsh_MakeClosure(R1, Rsh_const(CCP, 10), &f_n2044946016_0_1, Rsh_const(CCP, 11), RHO) /* stack: 1 */;
   Rsh_SetVar(R1, Rsh_const(CCP, 12), &C15, RHO) /* symbol: 'h', stack: 1 */;
   Rsh_Pop(*R1) /* stack: 0 */;
   Rsh_GetFun(R1, R2, R3, Rsh_const(CCP, 12), RHO) /* stack: 3 */;
@@ -36,7 +36,7 @@ SEXP f_n2019673472_0(SEXP RHO, SEXP CCP) {
   Rsh_Call(R1, *R2, *R3, Rsh_const(CCP, 15), RHO) /* stack: 1 */;
   Rsh_Return(R1, STACK_SAVE) /* stack: 1 */;
 }
-SEXP f_n2019673472_0_1(SEXP RHO, SEXP CCP) {
+SEXP f_n2044946016_0_1(SEXP RHO, SEXP CCP) {
   int STACK_SAVE = 9;
   CHECK_OVERFLOW(9);
   // CELLS

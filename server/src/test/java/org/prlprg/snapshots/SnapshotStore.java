@@ -6,11 +6,8 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.logging.Logger;
 import javax.annotation.Nullable;
-import org.opentest4j.IncompleteExecutionException;
 import org.opentest4j.TestAbortedException;
-import org.opentest4j.TestSkippedException;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
 import org.prlprg.util.Files;
@@ -63,6 +60,18 @@ public class SnapshotStore {
     return query(example, query, new LinkedHashSet<>());
   }
 
+  /// Compute and save a snapshot for `query` if it doesn't exist, then return its *path*.
+  ///
+  /// @throws TestAbortedException if no snapshot exists
+  public <T> Path queryPath(Example example, Query<T> query) {
+    query(example, query);
+    var path = cachePath(example, query);
+    if (!Files.exists(path)) {
+      throw new TestAbortedException("No snapshot for " + query.name());
+    }
+    return path;
+  }
+
   /// [#query(Example, Query)]'s implementation, which uses `pending` to track cycles.
   private <T> T query(Example example, Query<T> query, Set<Query<?>> pending) {
     // Check and report cycles
@@ -86,7 +95,8 @@ public class SnapshotStore {
                   try {
                     return query.deserialize(path, example, this);
                   } catch (Exception e) {
-                    throw new RuntimeException("Failed to load " + query.name() + " snapshot for " + path, e);
+                    throw new RuntimeException(
+                        "Failed to load " + query.name() + " snapshot for " + path, e);
                   }
                 }
 
@@ -109,7 +119,8 @@ public class SnapshotStore {
                   try {
                     query.serialize(next, path, example, this);
                   } catch (Exception e) {
-                    throw new RuntimeException("Failed to save " + query.name() + " snapshot for " + path, e);
+                    throw new RuntimeException(
+                        "Failed to save " + query.name() + " snapshot for " + path, e);
                   }
                 }
 

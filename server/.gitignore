@@ -1,5 +1,6 @@
 **/src/test/snapshots/**/*.fail*
 !src/test/resources/**/*.log
+src/test/resources/**/*.so*
 .config.properties
 
 ### Build ###

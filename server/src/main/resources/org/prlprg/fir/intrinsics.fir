@@ -13,9 +13,6 @@ fun invisible() {
 fun visible() {
   () --> V { ... }
 }
-fun asSwitchIdx(r) {
-  (reg r:V) --> I { ... }
-}
 fun tryDispatchBuiltin(name, target, rhs) {
   (reg name:S, reg target:*, reg rhs:*) -+> V { ... }
   (reg name:S, reg target:*) -+> V { ... }

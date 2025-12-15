@@ -4,7 +4,6 @@ import static org.prlprg.bc.BCCompiler.DEFAULT_OPTIMIZATION_LEVEL;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import org.opentest4j.TestAbortedException;
 import org.prlprg.examples.Example;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;

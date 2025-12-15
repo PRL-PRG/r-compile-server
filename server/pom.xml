@@ -278,6 +278,7 @@
             </includes>
             <excludes>
               <exclude>target/**/*</exclude>
+              <exclude>**/*.dSYM/**/*</exclude>
             </excludes>
             <indent>
               <spaces>true</spaces>
