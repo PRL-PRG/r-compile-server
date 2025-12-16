@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 public class TestConfig extends Config {
   private static final TestConfig INSTANCE = new TestConfig();
 
-  /// If set, snapshot deviations from previous runs will always be allowed.
+  /// If set, snapshot deviations from previous runs will always be allowed. Additionally,
+  /// corrupted snapshots will be ignored (whereas normally they fail tests).
   ///
   /// This is **unset** by default.
   public static final boolean ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS =

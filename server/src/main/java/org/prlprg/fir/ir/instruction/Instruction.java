@@ -33,7 +33,7 @@ public sealed interface Instruction permits Statement, Jump {
         || s.nextCharsAre("if ")
         || s.nextCharsAre("goto ")
         || s.nextCharsAre("return ")
-        || s.nextCharsAre("...")) {
+        || s.nextCharsAre("unreachable")) {
       return p.parse(Jump.class);
     } else {
       return p.parse(Statement.class);

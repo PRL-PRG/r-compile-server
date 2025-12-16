@@ -14,7 +14,6 @@ import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
-import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshots.Query;
@@ -64,10 +63,18 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
   @Override
   public EvalOutput compute(Example example, SnapshotStore store) {
-    var R = store.query(example, GNURQuery.INSTANCE);
+    var R = GNUR.instance();
     var modulePath = store.queryPath(example, moduleQuery);
 
     return eval(modulePath, R);
+  }
+
+  @Override
+  public void verifyNoRegression(
+      EvalOutput previous, EvalOutput current, Example example, SnapshotStore store) {
+    assertEquals(
+        previous.returnValue(), current.returnValue(), "Return value or crash reason changed");
+    assertEquals(previous.outputLog(), current.outputLog(), "Output changed");
   }
 
   @Override
@@ -152,7 +159,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   @Override
   public EvalOutput deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    var R = store.query(example, GNURQuery.INSTANCE);
+    var R = GNUR.instance();
 
     var returnValuePath = path.resolve("returnValue.RDS");
     var crashPath = path.resolve("crash.txt");

@@ -1,5 +1,6 @@
 package org.prlprg.fir.ir;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.prlprg.fir.check.Checker.checkAll;
 
@@ -13,6 +14,11 @@ import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 
 public interface GenFirQuery extends Query<Module> {
+  @Override
+  default void verifyEqual(Module expected, Module actual, Example example, SnapshotStore store) {
+    assertEquals(expected.toString(), actual.toString());
+  }
+
   @Override
   default void verifyExtra(Module data, Example example, SnapshotStore store) {
     // TODO: Handle and explicitly look for expected errors

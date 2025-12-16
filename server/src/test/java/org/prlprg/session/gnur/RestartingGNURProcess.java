@@ -8,6 +8,7 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
 
 class RestartingGNURProcess implements GNUR {
+  static @Nullable RestartingGNURProcess INSTANCE;
 
   private final TestRSession session;
   private @Nullable GNUR R;

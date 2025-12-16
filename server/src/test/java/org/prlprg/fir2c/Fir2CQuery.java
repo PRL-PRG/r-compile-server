@@ -13,7 +13,7 @@ import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
-import org.prlprg.session.gnur.GNURQuery;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.snapshots.SnapshotStore;
 
 public record Fir2CQuery(@Override String name, @Nullable Optimization optimization)
@@ -27,7 +27,7 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
 
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {
-    var R = store.query(example, GNURQuery.INSTANCE);
+    var R = GNUR.instance();
     var firModule = store.query(example, FirQuery.INSTANCE);
 
     var main = firModule.localFunction(Variable.named("main"));

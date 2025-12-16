@@ -9,17 +9,19 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.session.gnur.GNUR;
-import org.prlprg.session.gnur.GNURTest;
 import org.prlprg.sexp.*;
 
 public class RDSWriterTest {
-  @GNURTest
-  public void testInts(GNUR R) throws Exception {
+  @Test
+  public void testInts() throws Exception {
+    var R = GNUR.instance();
+
     var ints = integer(5, 4, 3, 2, 1);
     var output = new ByteArrayOutputStream();
 
@@ -40,8 +42,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testInts_withR(GNUR R) {
+  @Test
+  public void testInts_withR() {
+    var R = GNUR.instance();
+
     var ints = integer(5, 4, 3, 2, 1);
     var output =
         R.eval("typeof(input) == 'integer' && identical(input, c(5L, 4L, 3L, 2L, 1L))", ints);
@@ -54,8 +58,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testComplex(GNUR R) throws Exception {
+  @Test
+  public void testComplex() throws Exception {
+    var R = GNUR.instance();
+
     var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
     var output = new ByteArrayOutputStream();
 
@@ -72,8 +78,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testComplex_withR(GNUR R) {
+  @Test
+  public void testComplex_withR() {
+    var R = GNUR.instance();
+
     var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
     var output =
         R.eval("typeof(input) == 'complex' && identical(input, c(0+0i, 1+2i, -2-1i))", complexes);
@@ -86,8 +94,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testLang(GNUR R) throws Exception {
+  @Test
+  public void testLang() throws Exception {
+    var R = GNUR.instance();
+
     var lang =
         lang(
             symbol("func"),
@@ -106,14 +116,16 @@ public class RDSWriterTest {
 
       assert name.isPresent();
 
-      assertEquals(name.get(), "func");
-      assertEquals(arg1, new TaggedElem("arg", integer(1)));
-      assertEquals(arg2, new TaggedElem(integer(2)));
+      assertEquals("func", name.get());
+      assertEquals(new TaggedElem("arg", integer(1)), arg1);
+      assertEquals(new TaggedElem(integer(2)), arg2);
     }
   }
 
-  @GNURTest
-  public void testVecAttributes(GNUR R) throws Exception {
+  @Test
+  public void testVecAttributes() throws Exception {
+    var R = GNUR.instance();
+
     var attrs =
         new Attributes.Builder().put("a", integer(1)).put("b", logical(Logical.TRUE)).build();
     var ints = integer(1, attrs);
@@ -134,8 +146,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testLgls(GNUR R) throws Exception {
+  @Test
+  public void testLgls() throws Exception {
+    var R = GNUR.instance();
+
     var lgls = logical(Logical.TRUE, Logical.FALSE, Logical.NA);
     var output = new ByteArrayOutputStream();
 
@@ -154,8 +168,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testReals(GNUR R) throws Exception {
+  @Test
+  public void testReals() throws Exception {
+    var R = GNUR.instance();
+
     var reals = real(5.2, 4.0, Constants.NA_REAL, 2.0, NaN, 1.0);
     var output = new ByteArrayOutputStream();
 
@@ -177,8 +193,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testNull(GNUR R) throws Exception {
+  @Test
+  public void testNull() throws Exception {
+    var R = GNUR.instance();
+
     var output = new ByteArrayOutputStream();
 
     RDSWriter.writeStream(output, NULL);
@@ -189,8 +207,10 @@ public class RDSWriterTest {
     assertEquals(NULL, sexp);
   }
 
-  @GNURTest
-  public void testVec(GNUR R) throws Exception {
+  @Test
+  public void testVec() throws Exception {
+    var R = GNUR.instance();
+
     var vec = vec(integer(1, 2, 3), logical(Logical.TRUE, Logical.FALSE, Logical.NA));
     var output = new ByteArrayOutputStream();
 
@@ -222,8 +242,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testList(GNUR R) throws Exception {
+  @Test
+  public void testList() throws Exception {
+    var R = GNUR.instance();
+
     var elems =
         new TaggedElem[] {
           new TaggedElem("a", integer(1)),
@@ -264,8 +286,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testEnv(GNUR R) throws Exception {
+  @Test
+  public void testEnv() throws Exception {
+    var R = GNUR.instance();
+
     var env = new UserEnvSXP();
     env.set("a", integer(1));
     env.set("b", logical(Logical.TRUE));
@@ -294,8 +318,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testEnv_withR(GNUR R) {
+  @Test
+  public void testEnv_withR() {
+    var R = GNUR.instance();
+
     var env = new UserEnvSXP();
     env.set("a", integer(1));
     env.set("b", logical(Logical.TRUE));
@@ -312,8 +338,10 @@ public class RDSWriterTest {
     }
   }
 
-  @GNURTest
-  public void testClosureEval(GNUR R) {
+  @Test
+  public void testClosureEval() {
+    var R = GNUR.instance();
+
     // function(x, y=1) length(x) + x + y
     // test by loading the closure into R and evaluating
     var clo =
@@ -334,8 +362,10 @@ public class RDSWriterTest {
     assertEquals(output, real(6, 7));
   }
 
-  @GNURTest
-  public void testClosureWithBC(GNUR R) throws Exception {
+  @Test
+  public void testClosureWithBC() throws Exception {
+    var R = GNUR.instance();
+
     // Same closure as `testClosure`, just compiled to bytecode
     // Test by serializing and deserializing
     var clo =
@@ -359,8 +389,10 @@ public class RDSWriterTest {
     assertEquals(sexp, bcode(bc));
   }
 
-  @GNURTest
-  public void testClosureWithBCEval(GNUR R) {
+  @Test
+  public void testClosureWithBCEval() {
+    var R = GNUR.instance();
+
     // Same closure as `testClosure`, just compiled to bytecode
     // Test by loading into R and evaluating
     var clo =

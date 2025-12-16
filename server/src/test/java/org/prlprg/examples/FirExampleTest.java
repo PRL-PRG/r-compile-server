@@ -24,4 +24,6 @@ import org.prlprg.snapshots.SnapshotStoreParameterResolver;
 @ExtendWith(SnapshotStoreParameterResolver.class)
 public @interface FirExampleTest {
   String option() default "";
+
+  boolean includeFromR() default true;
 }

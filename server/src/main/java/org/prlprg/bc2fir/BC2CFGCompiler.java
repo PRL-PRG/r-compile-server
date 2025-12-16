@@ -1016,7 +1016,11 @@ public class BC2CFGCompiler {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var asInteger = insertAndReturn("i", builtin("as.integer", value));
+          var dotsList =
+              insertAndReturn(
+                  "i_ddd",
+                  new MkVector(new Kind.Dots(), ImmutableList.of(new NamedArgument(value))));
+          var asInteger = insertAndReturn("i", builtin("as.integer", dotsList));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
@@ -1324,6 +1328,8 @@ public class BC2CFGCompiler {
     var success = cfg.addBB();
     cursor.bb().setJump(new Checkpoint(new Target(success), new Target(deopt)));
     cursor.moveToStart(success);
+    // TODO: Is the below correct?
+    bbsWithPhis.add(success);
   }
 
   // endregion checkpoints

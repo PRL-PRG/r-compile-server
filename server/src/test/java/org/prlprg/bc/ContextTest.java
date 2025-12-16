@@ -4,8 +4,8 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
+import org.junit.jupiter.api.Test;
 import org.prlprg.session.gnur.GNUR;
-import org.prlprg.session.gnur.GNURTest;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
@@ -13,8 +13,10 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
 
 public class ContextTest {
-  @GNURTest
-  public void testFindLocals(GNUR R) {
+  @Test
+  public void testFindLocals() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -31,8 +33,10 @@ public class ContextTest {
     assertThat(ctx.findLocals(fun.bodyAST())).containsExactly("y", "z", "zz");
   }
 
-  @GNURTest
-  public void testFindLocalsInFormals(GNUR R) {
+  @Test
+  public void testFindLocalsInFormals() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -46,8 +50,10 @@ public class ContextTest {
     assertThat(ctx.findLocals(fun.parameters())).containsExactly("x");
   }
 
-  @GNURTest
-  public void testFindLocalsWithShadowing(GNUR R) {
+  @Test
+  public void testFindLocalsWithShadowing() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -67,8 +73,10 @@ public class ContextTest {
   }
 
   @SuppressWarnings("OptionalGetWithoutIsPresent")
-  @GNURTest
-  public void testBindingInNestedFunction(GNUR R) {
+  @Test
+  public void testBindingInNestedFunction() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -102,8 +110,10 @@ public class ContextTest {
     assertThat(b.second()).isEqualTo(SEXPs.UNBOUND_VALUE);
   }
 
-  @GNURTest
-  public void testFindLocalsWithShadowingInOtherEnvironment(GNUR R) {
+  @Test
+  public void testFindLocalsWithShadowingInOtherEnvironment() {
+    var R = GNUR.instance();
+
     /*
     > local <- function(a) a
     > f <- function(y) { local(x <- y); x }
@@ -131,8 +141,10 @@ public class ContextTest {
     assertThat(ctx.findLocals(fun.bodyAST())).containsExactly("x");
   }
 
-  @GNURTest
-  public void testFrameTypes(GNUR R) {
+  @Test
+  public void testFrameTypes() {
+    var R = GNUR.instance();
+
     var fun = (CloSXP) R.eval("utils::unzip");
     var ctx = Context.functionContext(fun);
 

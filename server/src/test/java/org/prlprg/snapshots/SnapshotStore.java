@@ -1,22 +1,18 @@
 package org.prlprg.snapshots;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import javax.annotation.Nullable;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
-import org.prlprg.util.Strings;
 
 /// Stores and manages snapshots for every [Example]/[Query] combination, in memory and on disk.
 public class SnapshotStore {
-  private final HashMap<Query<?>, HashMap<Example, Object>> queries = new HashMap<>();
+  private final HashMap<Query<?>, HashMap<Example, SnapshotInMemory<?>>> snapshotsInMemory =
+      new HashMap<>();
 
   public SnapshotStore() {}
 
@@ -39,7 +35,35 @@ public class SnapshotStore {
   /// (this call raises an exception) but the snapshot is still saved for debugging.
   public <T> void verify(Example example, Query<T> query) {
     var actual = query.compute(example, this);
-    verify(example, query, actual);
+
+    RegressionStatus[] regresses = {RegressionStatus.UNCHECKED};
+    Throwable error = null;
+    try {
+      verify(example, query, actual, null, regresses);
+    } catch (Exception | Error e) {
+      error = e;
+      throw e;
+    } finally {
+      if (regresses[0] == RegressionStatus.UNCHECKED) {
+        assert error != null
+            : "didn't get to set regression status but no prior exception was thrown, how did control-flow divert?";
+        try {
+          verifyNoRegression(example, query, actual, regresses);
+        } catch (Exception | Error e) {
+          error.addSuppressed(e);
+        }
+      }
+      assert regresses[0] != RegressionStatus.UNCHECKED
+          : "`verifyNoRegression` didn't set regression status";
+
+      var shouldSaveToDisk =
+          !example.hasOption("", "dontSaveSnapshots")
+              && (regresses[0] == RegressionStatus.NO
+                  || TestConfig.ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS);
+      if (shouldSaveToDisk) {
+        saveToDisk(actual, example, query);
+      }
+    }
   }
 
   /// Runs every check in [Query#verify(Object, Example, SnapshotStore)] on `actual`.
@@ -52,12 +76,56 @@ public class SnapshotStore {
 
   /// Same as [#verify(Example, Query, Object)] but provides `context` in the error message.
   public <T> void verify(Example example, Query<T> query, T actual, @Nullable String context) {
-    query.verifyExtra(actual, example, this);
-    var expected = query(example, query);
-    assertEquals(
-        expected,
-        actual,
-        "Verification failed for " + query.name() + (context != null ? ", " + context : ""));
+    verify(example, query, actual, context, new RegressionStatus[] {RegressionStatus.UNCHECKED});
+  }
+
+  private <T> void verify(
+      Example example,
+      Query<T> query,
+      T actual,
+      @Nullable String context,
+      RegressionStatus[] regresses) {
+    try {
+      var oracle = loadFromMemory(true, example, query);
+      if (oracle == null) {
+        oracle = query.oracle(example, this);
+        saveToMemory(oracle, true, example, query);
+      }
+      query.verifyEqual(oracle, actual, example, this);
+
+      query.verifyExtra(actual, example, this);
+
+      verifyNoRegression(example, query, actual, regresses);
+    } catch (Exception | Error e) {
+      if (context != null) {
+        e.addSuppressed(new RuntimeException("Context: " + context));
+      }
+      throw e;
+    }
+  }
+
+  private <T> void verifyNoRegression(
+      Example example, Query<T> query, T actual, RegressionStatus[] regresses) {
+    if (!example.hasOption("", "dontSaveSnapshots")
+        && !TestConfig.ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS) {
+      T oldFromDisk;
+      try {
+        oldFromDisk = loadFromDisk(example, query);
+      } catch (Exception | Error e) {
+        regresses[0] = RegressionStatus.NO;
+        throw e;
+      }
+      if (oldFromDisk != null) {
+        try {
+          query.verifyNoRegression(oldFromDisk, actual, example, this);
+        } catch (Exception | Error e) {
+          regresses[0] = RegressionStatus.YES;
+          throw e;
+        }
+      }
+    }
+
+    regresses[0] = RegressionStatus.NO;
   }
 
   /// Same as [#verify(Example, Query, Object)] but aborts the test instead of failing.
@@ -78,7 +146,20 @@ public class SnapshotStore {
   /// point before in the run. If there's no snapshot, this won't compute, it will raise
   /// [MissingSnapshotException].
   public <T> T query(Example example, Query<T> query) {
-    return query(example, query, new LinkedHashSet<>());
+    // Try to load from memory
+    var inMemory = loadFromMemory(false, example, query);
+    if (inMemory != null) {
+      return inMemory;
+    }
+
+    // Try to load from disk. If so, save to memory
+    var onDisk = loadFromDisk(example, query);
+    if (onDisk != null) {
+      saveToMemory(onDisk, false, example, query);
+      return onDisk;
+    }
+
+    throw new MissingSnapshotException(query.name());
   }
 
   /// Return the path of the already-existing snapshot of `query` for `example`.
@@ -98,63 +179,67 @@ public class SnapshotStore {
     return path;
   }
 
-  /// [#query(Example, Query)]'s implementation, which uses `pending` to track cycles.
-  private <T> T query(Example example, Query<T> query, Set<Query<?>> pending) {
-    // Check and report cycles
-    if (!pending.add(query)) {
-      throw new DependencyCycleException(pending, query);
+  private <T> @Nullable T loadFromMemory(boolean isOracle, Example example, Query<T> query) {
+    var querySnapshots = snapshotsInMemory.get(query);
+    if (querySnapshots == null) {
+      return null;
+    }
+    var snapshot = querySnapshots.get(example);
+    if (snapshot == null) {
+      return null;
+    }
+
+    if (isOracle && !snapshot.isOracle) {
+      throw new RuntimeException(
+          "Tests are out of order, you must run tests that verify a query before running those that use it as a dependency");
+    }
+
+    return query.dataClass().cast(snapshot.snapshot);
+  }
+
+  private <T> void saveToMemory(T snapshot, boolean isOracle, Example example, Query<T> query) {
+    snapshotsInMemory
+        .computeIfAbsent(query, _ -> new HashMap<>())
+        .put(example, new SnapshotInMemory<>(snapshot, isOracle));
+  }
+
+  private <T> @Nullable T loadFromDisk(Example example, Query<T> query) {
+    var path = snapshotPath(example, query);
+    if (!Files.exists(path)) {
+      return null;
     }
 
     try {
-      // Try to load cached in-memory, else load cached from disk, else compute
-      var queryStore = queries.computeIfAbsent(query, _ -> new HashMap<>());
-      var queryData =
-          queryStore.computeIfAbsent(
-              example,
-              _ -> {
-                var path = snapshotPath(example, query);
+      return query.deserialize(path, example, this);
+    } catch (Exception e) {
+      if (TestConfig.ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS) {
+        System.err.println(
+            "Failed to load "
+                + query.name()
+                + " snapshot for "
+                + path
+                + "\nSuppressing because of `ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS`");
+        return null;
+      } else {
+        throw new RuntimeException(
+            "Failed to load "
+                + query.name()
+                + " snapshot for "
+                + path
+                + "\nYou may need to delete it or run with `ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS`",
+            e);
+      }
+    }
+  }
 
-                // Try to load snapshot
-                if (!TestConfig.OVERRIDE_SNAPSHOTS
-                    && Files.exists(path)
-                    && !(Files.isDirectory(path) && Files.list(path).findAny().isPresent())) {
-                  try {
-                    return query.deserialize(path, example, this);
-                  } catch (Exception e) {
-                    throw new RuntimeException(
-                        "Failed to load " + query.name() + " snapshot for " + path, e);
-                  }
-                }
+  private <T> void saveToDisk(T snapshot, Example example, Query<T> query) {
+    var path = snapshotPath(example, query);
+    Files.createDirectories(path.getParent());
 
-                // Can't use snapshot, instead compute
-                T next;
-                try {
-                  next = query.oracle(example, this);
-                  query.verifyExtra(next, example, this);
-                } catch (Throwable e) {
-                  throw new TestAbortedException("Failed prerequisite: " + query.name(), e);
-                }
-
-                // Save snapshot
-                if (!example.hasOption("", "dontSaveSnapshots")) {
-                  Files.createDirectories(path.getParent());
-                  if (!Files.exists(path.resolveSibling(".gitkeep"))) {
-                    Files.writeString(path.resolveSibling(".gitkeep"), "");
-                  }
-
-                  try {
-                    query.serialize(next, path, example, this);
-                  } catch (Exception e) {
-                    throw new RuntimeException(
-                        "Failed to save " + query.name() + " snapshot for " + path, e);
-                  }
-                }
-
-                return next;
-              });
-      return query.dataClass().cast(queryData);
-    } finally {
-      pending.remove(query);
+    try {
+      query.serialize(snapshot, path, example, this);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to save " + query.name() + " snapshot for " + path, e);
     }
   }
 
@@ -175,13 +260,11 @@ public class SnapshotStore {
     return path;
   }
 
-  private static class DependencyCycleException extends RuntimeException {
-    public DependencyCycleException(Set<Query<?>> pending, Query<?> next) {
-      super(
-          "Dependency cycle: "
-              + Strings.join(" -> ", Query::name, pending)
-              + " --> "
-              + next.name());
-    }
+  private record SnapshotInMemory<T>(T snapshot, boolean isOracle) {}
+
+  private enum RegressionStatus {
+    YES,
+    NO,
+    UNCHECKED
   }
 }
