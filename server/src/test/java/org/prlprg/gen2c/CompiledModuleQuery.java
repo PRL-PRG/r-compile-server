@@ -18,11 +18,6 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   RuntimeVariant runtime();
 
   @Override
-  default Class<CompiledModule> dataClass() {
-    return CompiledModule.class;
-  }
-
-  @Override
   default CompiledModule deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
     var R = store.query(example, GNURQuery.INSTANCE);

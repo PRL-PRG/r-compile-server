@@ -14,26 +14,43 @@ import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 import org.prlprg.util.Strings;
 
-/// Lazy static store of [Example] snapshot data.
+/// Stores and manages snapshots for every [Example]/[Query] combination, in memory and on disk.
 public class SnapshotStore {
   private final HashMap<Query<?>, HashMap<Example, Object>> queries = new HashMap<>();
 
   public SnapshotStore() {}
 
-  /// Compute `query` (using cached dependencies but not itself), then check against the stored
-  /// computation which is cached across dependencies and
-  /// [Query#oracle(Example, SnapshotStore)] instead of [Query#compute(Example, SnapshotStore)]
-  /// (they may be different, if not it checks determinism).
+  /// Compute and check `query`.
+  ///
+  /// `query` itself is always computed, but its dependencies are cached.
+  ///
+  /// `query` is then checked by:
+  /// - Asserting equality against [Query#oracle(Example, SnapshotStore)] (unless overridden,
+  ///   this compares against itself i.e. tests non-determinism).
+  /// - [Query#verifyExtra(Example, SnapshotStore)].
+  /// - If there's a snapshot from a previous run,
+  ///   [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)].
+  ///
+  /// Finally, `query` is saved to disk, *only unless*:
+  /// - `example` has the option `dontSaveSnapshots`
+  /// - OR [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)] fails, and
+  ///   [TestConfig#ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS] is unset.
+  /// If other checks (e.g. [Query#verifyExtra(Example, SnapshotStore)]) fail, they are reported
+  /// (this call raises an exception) but the snapshot is still saved for debugging.
   public <T> void verify(Example example, Query<T> query) {
     var actual = query.compute(example, this);
     verify(example, query, actual);
   }
 
-  /// Check `actual` against the stored computation for `query`.
+  /// Runs every check in [Query#verify(Object, Example, SnapshotStore)] on `actual`.
+  ///
+  /// Effectively [Query#verify(Object, Example, SnapshotStore)], but uses `actual` in place of
+  /// computing `query`, and never saves to disk.
   public <T> void verify(Example example, Query<T> query, T actual) {
     verify(example, query, actual, null);
   }
 
+  /// Same as [#verify(Example, Query, Object)] but provides `context` in the error message.
   public <T> void verify(Example example, Query<T> query, T actual, @Nullable String context) {
     query.verifyExtra(actual, example, this);
     var expected = query(example, query);
@@ -43,7 +60,10 @@ public class SnapshotStore {
         "Verification failed for " + query.name() + (context != null ? ", " + context : ""));
   }
 
-  /// Abort if [#verify(Example, Query, Object)] would fail
+  /// Same as [#verify(Example, Query, Object)] but aborts the test instead of failing.
+  ///
+  /// For when verification is expected to fail in some cases, and in those cases the rest of
+  /// the enclosing test is expected to not necessarily work either (abort != fail).
   public <T> void assumeVerify(Example example, Query<T> query, T actual) {
     try {
       verify(example, query, actual);
@@ -52,22 +72,28 @@ public class SnapshotStore {
     }
   }
 
-  /// Load or compute the result of `query` for `example`.
+  /// Load the already-existing snapshot of `query` for `example`.
   ///
-  /// This only computes if not saved in-memory or in a prior run, and uses
-  /// [Query#oracle(Example, SnapshotStore)].
+  /// If there is no snapshot on disk, [#verify(Example, Query)] must have been called at some
+  /// point before in the run. If there's no snapshot, this won't compute, it will raise
+  /// [MissingSnapshotException].
   public <T> T query(Example example, Query<T> query) {
     return query(example, query, new LinkedHashSet<>());
   }
 
-  /// Compute and save a snapshot for `query` if it doesn't exist, then return its *path*.
+  /// Return the path of the already-existing snapshot of `query` for `example`.
+  ///
+  /// Throws [TestAbortedException] if the example doesn't have a snapshot. Otherwise, like
+  /// [#query(Example, Query)], throws [MissingSnapshotException] if no snapshot exists.
   ///
   /// @throws TestAbortedException if no snapshot exists
   public <T> Path queryPath(Example example, Query<T> query) {
-    query(example, query);
-    var path = cachePath(example, query);
+    if (example.hasOption("", "dontSaveSnapshots")) {
+      throw new TestAbortedException("Example has no snapshot");
+    }
+    var path = snapshotPath(example, query);
     if (!Files.exists(path)) {
-      throw new TestAbortedException("No snapshot for " + query.name());
+      throw new MissingSnapshotException(query.name());
     }
     return path;
   }
@@ -86,7 +112,7 @@ public class SnapshotStore {
           queryStore.computeIfAbsent(
               example,
               _ -> {
-                var path = cachePath(example, query);
+                var path = snapshotPath(example, query);
 
                 // Try to load snapshot
                 if (!TestConfig.OVERRIDE_SNAPSHOTS
@@ -133,11 +159,16 @@ public class SnapshotStore {
   }
 
   /// Returns the path where `query`'s data is cached on-disk.
-  private Path cachePath(Example example, Query<?> query) {
+  private Path snapshotPath(Example example, Query<?> query) {
     var path =
-        Paths.getResourceSource(getClass(), example.type())
-            .resolve(query.name())
-            .resolve(Paths.removingExtension(example.rpath()));
+        Path.of(
+            "src",
+            "test",
+            "snapshots",
+            getClass().getPackageName().replace('.', '/'),
+            example.type(),
+            query.name().replace('.', '/'));
+    path = path.resolve(Paths.removingExtension(example.rpath()));
     if (!query.snapshotExtension().isEmpty()) {
       path = Paths.addingExtension(path, query.snapshotExtension());
     }

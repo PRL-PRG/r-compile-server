@@ -4,10 +4,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 public class Paths {
-  public static Path getResourceSource(Class<?> anchor, String name) {
-    return Path.of("src", "test", "resources", anchor.getPackageName().replace(".", "/"), name);
-  }
-
   public static Path getResource(Class<?> anchor, String name) {
     return Files.pathFromFileUrl(
         Objects.requireNonNull(

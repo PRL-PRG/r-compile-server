@@ -14,11 +14,6 @@ import org.prlprg.snapshots.SnapshotStore;
 
 public interface GenFirQuery extends Query<Module> {
   @Override
-  default Class<Module> dataClass() {
-    return Module.class;
-  }
-
-  @Override
   default void verifyExtra(Module data, Example example, SnapshotStore store) {
     // TODO: Handle and explicitly look for expected errors
     assertTrue(checkAll(data), "Verification failed with unexpected errors");
