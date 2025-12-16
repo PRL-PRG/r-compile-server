@@ -1,5 +1,7 @@
 package org.prlprg.snapshots;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Path;
@@ -79,13 +81,20 @@ public interface Query<T> {
     return compute(example, store);
   }
 
+  /// Assert the queries are equal.
+  ///
+  /// By default, calls `assertEquals`, but subclasses may test different equality.
+  default void verifyEqual(T expected, T actual, Example example, SnapshotStore store) {
+    assertEquals(expected, actual);
+  }
+
   /// Check the parts of the snapshot that shouldn't change between runs.
   ///
   /// For example, if the snapshot shouldn't change at all between runs (e.g. for eval), assert
   /// that `current` equals `previous`.
   ///
   /// By default, does nothing.
-  default void verifyNoRegression(T current, T previous, Example example, SnapshotStore store) {}
+  default void verifyNoRegression(T previous, T current, Example example, SnapshotStore store) {}
 
   /// Run extra checks (assertions) on the computed data.
   ///

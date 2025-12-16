@@ -14,11 +14,13 @@ final class FirExampleProvider
     implements ArgumentsProvider, AnnotationConsumer<@NotNull FirExampleTest> {
   private boolean accepted = false;
   private String option = "";
+  private boolean includeFromR = true;
 
   @Override
   public void accept(FirExampleTest annotation) {
     accepted = true;
     option = annotation.option();
+    includeFromR = annotation.includeFromR();
   }
 
   @Override
@@ -27,6 +29,7 @@ final class FirExampleProvider
     assert accepted;
     return resolveSingleton(FirExampleStore.class, context).examples().stream()
         .filter(example -> option.isEmpty() || example.hasOption("", option))
+        .filter(example -> includeFromR || !example.type().equals("R"))
         .map(Arguments::of);
   }
 }

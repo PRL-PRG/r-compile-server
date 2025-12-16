@@ -11,7 +11,7 @@ import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
-import org.prlprg.session.gnur.GNURQuery;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.Query;
@@ -38,6 +38,14 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   }
 
   @Override
+  public void verifyNoRegression(
+      InterpretOutput previous, InterpretOutput current, Example example, SnapshotStore store) {
+    assertEquals(
+        previous.returnValue(), current.returnValue(), "Return value or crash reason changed");
+    assertEquals(previous.checkpointTrace(), current.checkpointTrace(), "Checkpoint trace changed");
+  }
+
+  @Override
   public void verifyExtra(InterpretOutput data, Example example, SnapshotStore store) {
     // TODO: Abstract `Either<SEXP, String>` this code, and serialization/deserialization
     if (example.hasOption(name(), "crashes")) {
@@ -58,7 +66,7 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   @Override
   public InterpretOutput deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    var R = store.query(example, GNURQuery.INSTANCE);
+    var R = GNUR.instance();
 
     var returnValuePath = path.resolve("returnValue.RDS");
     var crashPath = path.resolve("crash.txt");

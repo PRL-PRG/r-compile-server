@@ -7,7 +7,7 @@ import junit.framework.AssertionFailedError;
 import org.prlprg.bc.BCQuery;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.session.gnur.GNURQuery;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.snapshots.SnapshotStore;
@@ -27,7 +27,7 @@ public class FirQuery implements GenFirQuery {
     return switch (example.type()) {
       case "fir" -> parseModule(example.text());
       case "R" -> {
-        var R = store.query(example, GNURQuery.INSTANCE);
+        var R = GNUR.instance();
         var bc = store.query(example, BCQuery.INSTANCE);
 
         // An environment with one function, `main`,

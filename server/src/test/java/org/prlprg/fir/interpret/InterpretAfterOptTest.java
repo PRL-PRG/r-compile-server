@@ -1,15 +1,21 @@
 package org.prlprg.fir.interpret;
 
+import org.prlprg.bc2fir.BC2FirCompilerTest;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
+import org.prlprg.fir.ir.FirParseTest;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.OptimizationTestClass;
 import org.prlprg.fir.opt.OptimizedFirQuery;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.SnapshotStore;
+import org.prlprg.snapshots.order.OrderAfter;
 
 /// Test that various optimizations don't change interpreter output.
+@OrderAfter(BC2FirCompilerTest.class)
+@OrderAfter(FirParseTest.class)
+@OrderAfter(InterpretTest.class)
 @OptimizationTestClass
 public record InterpretAfterOptTest(Optimization optimization) {
   /// Call the interpreter once on an optimization without feedback, check output.

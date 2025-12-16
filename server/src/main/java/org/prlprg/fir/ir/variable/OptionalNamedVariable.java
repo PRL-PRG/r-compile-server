@@ -78,7 +78,7 @@ public class OptionalNamedVariable {
   }
 
   @ParseMethod
-  private OptionalNamedVariable parse(Parser p) {
+  private static OptionalNamedVariable parse(Parser p) {
     return p.scanner().nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))
         ? of(p.parse(NamedVariable.class))
         : empty();

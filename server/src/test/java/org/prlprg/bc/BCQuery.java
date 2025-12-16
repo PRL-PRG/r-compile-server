@@ -8,7 +8,6 @@ import org.prlprg.examples.Example;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNUR;
-import org.prlprg.session.gnur.GNURQuery;
 import org.prlprg.sexp.*;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SkipQueryException;
@@ -23,7 +22,6 @@ public class BCQuery implements Query<Bc> {
   public Bc compute(Example example, SnapshotStore store) {
     return genCompute(
         example,
-        store,
         (R, text, optimizationLevel) -> {
           var fun = (CloSXP) R.eval(text);
           var compiler = new BCCompiler(fun, R.getSession());
@@ -36,7 +34,6 @@ public class BCQuery implements Query<Bc> {
   public Bc oracle(Example example, SnapshotStore store) {
     return genCompute(
         example,
-        store,
         (R, text, optimizationLevel) -> {
           var value =
               R.eval(
@@ -52,11 +49,11 @@ public class BCQuery implements Query<Bc> {
         });
   }
 
-  private Bc genCompute(Example example, SnapshotStore store, ComputeImpl impl) {
+  private Bc genCompute(Example example, ComputeImpl impl) {
     var optimizationLevel =
         example.intOption(name(), "optimizationLevel", DEFAULT_OPTIMIZATION_LEVEL);
 
-    var R = store.query(example, GNURQuery.INSTANCE);
+    var R = GNUR.instance();
 
     var bodySexp = impl.run(R, "function() { " + example.text() + " }", optimizationLevel);
     if (!(bodySexp instanceof BCodeSXP bcSxp)) {
@@ -77,7 +74,7 @@ public class BCQuery implements Query<Bc> {
 
   @Override
   public Bc deserialize(Path path, Example example, SnapshotStore store) throws IOException {
-    var R = store.query(example, GNURQuery.INSTANCE);
+    var R = GNUR.instance();
     return ((BCodeSXP) RDSReader.readFile(R.getSession(), path.toFile())).bc();
   }
 

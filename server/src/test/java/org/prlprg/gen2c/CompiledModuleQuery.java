@@ -8,7 +8,7 @@ import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
-import org.prlprg.session.gnur.GNURQuery;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
@@ -20,7 +20,7 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   @Override
   default CompiledModule deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    var R = store.query(example, GNURQuery.INSTANCE);
+    var R = GNUR.instance();
 
     var cPath = path.resolve("code.c");
     var entryPath = path.resolve("entrypoint.txt");

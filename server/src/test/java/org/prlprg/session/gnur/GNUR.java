@@ -1,6 +1,7 @@
 package org.prlprg.session.gnur;
 
 import org.prlprg.session.RSession;
+import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Pair;
@@ -8,6 +9,14 @@ import org.prlprg.util.SingletonClass;
 
 @SingletonClass(RestartingGNURProcess.class)
 public interface GNUR extends AutoCloseable {
+  /// Lazily create the instance.
+  static GNUR instance() {
+    if (RestartingGNURProcess.INSTANCE == null) {
+      RestartingGNURProcess.INSTANCE = new RestartingGNURProcess(new TestRSession());
+    }
+    return RestartingGNURProcess.INSTANCE;
+  }
+
   boolean isAlive();
 
   SEXP eval(String source);

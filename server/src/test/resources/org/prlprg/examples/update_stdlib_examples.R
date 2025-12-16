@@ -35,7 +35,7 @@ for (pkg in c("base", "tools", "utils", "graphics", "methods", "stats")) {
     filename <- file.path("R", paste0("stdlib_", pkg, "_", sub("[\\/:\n]", "_", name), ".R"))
     content <- paste0(
       "#? stdlib\n",
-      name, " <- ", paste(deparse(f), collapse = "\n"),
+      "`" , name, "` <- ", paste(deparse(f), collapse = "\n"),
       if (is.null(examples)) "" else paste0("\n\n# Examples", examples)
     )
     writeLines(content, filename)
