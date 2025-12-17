@@ -670,18 +670,27 @@ SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args) {
 }
 
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
-                          SEXP const *names, SEXP pool, SEXP env) {
-  (void)pool;
+                          SEXP const *names, SEXP env) {
+  // Fastcase if we know it's a wrapped FIR closure
   Rsh_Fir_ClosureInfo *info = NULL;
   if (Rsh_Fir_is_compiled_closure(callee, &info)) {
     return info->dispatch(info->pool, info->env, argc, args,
                           Rsh_Fir_param_types_empty());
   }
+
   int protect_count = 0;
   SEXP arglist = Rsh_Fir_build_arglist(argc, args, names, &protect_count);
   SEXP call = PROTECT(Rf_lcons(callee, arglist));
   SEXP result = Rf_eval(call, env);
   UNPROTECT(protect_count + 1);
+  return result;
+}
+
+SEXP Rsh_Fir_call_from_R(SEXP calleeName, SEXP args, SEXP pool, SEXP env) {
+  const char *name = CHAR(STRING_ELT(calleeName, 0));
+
+
+
   return result;
 }
 

@@ -1,13 +1,20 @@
 package org.prlprg.fir2c;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.Formatter;
 import java.util.Map;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.gen2c.CUnit;
+import org.prlprg.bc2c.DirectCompiledModule;
 import org.prlprg.session.RSession;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Streams;
+import org.prlprg.util.Strings;
 
 /// Result of translating a FIŘ module.
 ///
@@ -24,6 +31,20 @@ public record FirCompiledModule(
     ImmutableMap<Abstraction, FirCompiledVersionIndex> compiledVersions,
     ImmutableMap<Promise, FirCompiledPromiseIndex> compiledPromises,
     VecSXP constantPool) {
+  public String rCodeForBindings() {
+    var sb = new StringBuilder();
+    var f = new Formatter(sb);
+
+    for (var entry : compiledFunctionDispatches.entrySet()) {
+      var fn = entry.getKey();
+      if (!(entry.getValue() instanceof FirCompiledDispatchIndex.Regular(var cFunctionName))) continue;
+
+      f.format("%s <- function(%s) .Call('%s', .Rsh_constants, %s)\n", fn.name(), Strings.join(", ", fn.parameterNames()), cFunctionName, Strings.join(", ", fn.parameterNames()));
+      sb.append("\n");
+    }
+
+    return sb.toString();
+  }
 
   /// Metadata describing the C entry point for a particular FIŘ [Function]'s dispatch.
   public sealed interface FirCompiledDispatchIndex {

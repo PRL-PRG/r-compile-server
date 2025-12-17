@@ -755,13 +755,12 @@ public final class Fir2CCompiler {
             }
             case DynamicCallee(var actualCallee, var argumentNames) -> {
               var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
-              yield "Rsh_Fir_call_dynamic(%s, %d, %s, %s, %s, %s)"
+              yield "Rsh_Fir_call_dynamic(%s, %d, %s, %s, %s)"
                   .formatted(
                       emitArgument(actualCallee),
                       arguments.size(),
                       arguments.pointer(),
                       names.pointer(),
-                      VAR_POOL,
                       VAR_ENV);
             }
           };

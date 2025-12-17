@@ -13,8 +13,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -24,8 +24,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `anyDuplicated.default` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -42,28 +42,28 @@ SEXP Rsh_Fir_user_version_inner2206513454_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 4) Rsh_error("FIŘ arity mismatch for inner2206513454/0: expected 4, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_x;  // x
-  SEXP Rsh_Fir_reg_incomparables;  // incomparables
-  SEXP Rsh_Fir_reg_fromLast;  // fromLast
-  SEXP Rsh_Fir_reg_ddd;  // ddd
-  SEXP Rsh_Fir_reg_incomparables_isMissing;  // incomparables_isMissing
-  SEXP Rsh_Fir_reg_incomparables_orDefault;  // incomparables_orDefault
-  SEXP Rsh_Fir_reg_fromLast_isMissing;  // fromLast_isMissing
-  SEXP Rsh_Fir_reg_fromLast_orDefault;  // fromLast_orDefault
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r1;  // r
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_x1_;  // x1
-  SEXP Rsh_Fir_reg_x2_;  // x2
-  SEXP Rsh_Fir_reg_incomparables1_;  // incomparables1
-  SEXP Rsh_Fir_reg_incomparables2_;  // incomparables2
-  SEXP Rsh_Fir_reg_fromLast1_;  // fromLast1
-  SEXP Rsh_Fir_reg_fromLast2_;  // fromLast2
-  SEXP Rsh_Fir_reg_anyDuplicated;  // anyDuplicated
-  SEXP Rsh_Fir_reg_r2_;  // r2
+  // Declare locals
+  SEXP Rsh_Fir_reg_x;
+  SEXP Rsh_Fir_reg_incomparables;
+  SEXP Rsh_Fir_reg_fromLast;
+  SEXP Rsh_Fir_reg_ddd;
+  SEXP Rsh_Fir_reg_incomparables_isMissing;
+  SEXP Rsh_Fir_reg_incomparables_orDefault;
+  SEXP Rsh_Fir_reg_fromLast_isMissing;
+  SEXP Rsh_Fir_reg_fromLast_orDefault;
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r1;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_x1_;
+  SEXP Rsh_Fir_reg_x2_;
+  SEXP Rsh_Fir_reg_incomparables1_;
+  SEXP Rsh_Fir_reg_incomparables2_;
+  SEXP Rsh_Fir_reg_fromLast1_;
+  SEXP Rsh_Fir_reg_fromLast2_;
+  SEXP Rsh_Fir_reg_anyDuplicated;
+  SEXP Rsh_Fir_reg_r2_;
 
   // Bind parameters
   Rsh_Fir_reg_x = PARAMS[0];

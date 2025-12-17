@@ -2,17 +2,16 @@ package org.prlprg.fir2c;
 
 import org.prlprg.bc2fir.BC2FirCompilerTest;
 import org.prlprg.fir.ir.FirParseTest;
-import org.prlprg.gen2c.CompiledModule;
+import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.gen2c.EvalQuery;
 import org.prlprg.gen2c.Gen2CCompilerTest;
-import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.order.OrderAfter;
 
 @OrderAfter(BC2FirCompilerTest.class)
 @OrderAfter(FirParseTest.class)
 public class Fir2CCompileTest implements Gen2CCompilerTest {
   @Override
-  public Query<CompiledModule> moduleQuery() {
+  public CompiledModuleQuery moduleQuery() {
     return Fir2CQuery.DIRECT;
   }
 

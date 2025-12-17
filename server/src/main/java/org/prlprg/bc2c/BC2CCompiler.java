@@ -1,7 +1,6 @@
 package org.prlprg.bc2c;
 
 import org.prlprg.bc.*;
-import org.prlprg.gen2c.CompiledModule;
 
 public class BC2CCompiler {
   private final BC2CModule module;
@@ -18,10 +17,12 @@ public class BC2CCompiler {
     this.closureName = closureName;
   }
 
-  public CompiledModule finish() {
+  public DirectCompiledModule finish() {
     var compiledClosure = module.compileClosure(bc, closureName);
 
-    return new CompiledModule(
+    var rCode = "%s <- function"
+
+    return new DirectCompiledModule(
         module.cUnit().toString(), compiledClosure.name(), compiledClosure.constantPool());
   }
 }

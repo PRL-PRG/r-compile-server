@@ -5,12 +5,12 @@ import static org.prlprg.fir2c.Fir2CCompiler.compile;
 
 import javax.annotation.Nullable;
 import junit.framework.AssertionFailedError;
+import org.prlprg.bc2c.DirectCompiledModule;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
-import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.GNUR;
@@ -26,7 +26,7 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
   }
 
   @Override
-  public CompiledModule compute(Example example, SnapshotStore store) {
+  public DirectCompiledModule compute(Example example, SnapshotStore store) {
     var R = GNUR.instance();
     var firModule = store.load(example, FirQuery.INSTANCE);
 
@@ -53,14 +53,14 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
         """
             .formatted(entryFunName);
 
-    return new CompiledModule(
+    return new DirectCompiledModule(
         firCompiledModule.cUnit() + entryAdapter,
         "Rsh_Fir_snapshot_entrypoint",
         firCompiledModule.constantPool());
   }
 
   @Override
-  public CompiledModule oracle(Example example, SnapshotStore store) {
+  public DirectCompiledModule oracle(Example example, SnapshotStore store) {
     return DIRECT.compute(example, store);
   }
 }

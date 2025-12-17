@@ -3,7 +3,7 @@ SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PAR
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_function_inner3882044078_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_inner3882044078_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
-SEXP Rsh_Fir_user_promise_inner3882044078_(SEXP CCP, SEXP RHO);
+SEXP Rsh_Fir_user_promise_inner3882044078_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -14,8 +14,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -25,8 +25,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `all.vars` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -43,33 +43,33 @@ SEXP Rsh_Fir_user_version_inner3882044078_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 4) Rsh_error("FIŘ arity mismatch for inner3882044078/0: expected 4, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_expr;  // expr
-  SEXP Rsh_Fir_reg_functions;  // functions
-  SEXP Rsh_Fir_reg_max_names;  // max_names
-  SEXP Rsh_Fir_reg_unique;  // unique
-  SEXP Rsh_Fir_reg_functions_isMissing;  // functions_isMissing
-  SEXP Rsh_Fir_reg_functions_orDefault;  // functions_orDefault
-  SEXP Rsh_Fir_reg_max_names_isMissing;  // max_names_isMissing
-  SEXP Rsh_Fir_reg_max_names_orDefault;  // max_names_orDefault
-  SEXP Rsh_Fir_reg_p;  // p
-  SEXP Rsh_Fir_reg_unique_isMissing;  // unique_isMissing
-  SEXP Rsh_Fir_reg_unique_orDefault;  // unique_orDefault
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_r2_;  // r2
-  SEXP Rsh_Fir_reg_expr1_;  // expr1
-  SEXP Rsh_Fir_reg_expr2_;  // expr2
-  SEXP Rsh_Fir_reg_functions1_;  // functions1
-  SEXP Rsh_Fir_reg_functions2_;  // functions2
-  SEXP Rsh_Fir_reg_max_names1_;  // max_names1
-  SEXP Rsh_Fir_reg_max_names2_;  // max_names2
-  SEXP Rsh_Fir_reg_unique1_;  // unique1
-  SEXP Rsh_Fir_reg_unique2_;  // unique2
-  SEXP Rsh_Fir_reg_all_names;  // all_names
-  SEXP Rsh_Fir_reg_r3_;  // r3
+  // Declare locals
+  SEXP Rsh_Fir_reg_expr;
+  SEXP Rsh_Fir_reg_functions;
+  SEXP Rsh_Fir_reg_max_names;
+  SEXP Rsh_Fir_reg_unique;
+  SEXP Rsh_Fir_reg_functions_isMissing;
+  SEXP Rsh_Fir_reg_functions_orDefault;
+  SEXP Rsh_Fir_reg_max_names_isMissing;
+  SEXP Rsh_Fir_reg_max_names_orDefault;
+  SEXP Rsh_Fir_reg_p;
+  SEXP Rsh_Fir_reg_unique_isMissing;
+  SEXP Rsh_Fir_reg_unique_orDefault;
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_r2_;
+  SEXP Rsh_Fir_reg_expr1_;
+  SEXP Rsh_Fir_reg_expr2_;
+  SEXP Rsh_Fir_reg_functions1_;
+  SEXP Rsh_Fir_reg_functions2_;
+  SEXP Rsh_Fir_reg_max_names1_;
+  SEXP Rsh_Fir_reg_max_names2_;
+  SEXP Rsh_Fir_reg_unique1_;
+  SEXP Rsh_Fir_reg_unique2_;
+  SEXP Rsh_Fir_reg_all_names;
+  SEXP Rsh_Fir_reg_r3_;
 
   // Bind parameters
   Rsh_Fir_reg_expr = PARAMS[0];
@@ -120,7 +120,7 @@ L1_:;
   // p = prom<V +>{
   //   return -1;
   // }
-  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner3882044078_, CCP, RHO);
+  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner3882044078_, 0, NULL, CCP, RHO);
   // goto L2(p)
   // L2(p)
   Rsh_Fir_reg_max_names_orDefault = Rsh_Fir_reg_p;
@@ -298,7 +298,9 @@ L11_:;
   Rsh_Fir_reg_r2_ = Rsh_Fir_reg_r3_;
   goto L4_;
 }
-SEXP Rsh_Fir_user_promise_inner3882044078_(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner3882044078_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner3882044078/0: expected 0, got %d", NCAPTURES);
+
   // return -1
   return Rsh_const(CCP, 4);
 }

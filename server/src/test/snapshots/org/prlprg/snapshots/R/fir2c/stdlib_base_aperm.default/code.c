@@ -13,8 +13,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -24,8 +24,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `aperm.default` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -42,28 +42,28 @@ SEXP Rsh_Fir_user_version_inner4231209718_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 4) Rsh_error("FIŘ arity mismatch for inner4231209718/0: expected 4, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_a;  // a
-  SEXP Rsh_Fir_reg_perm;  // perm
-  SEXP Rsh_Fir_reg_resize;  // resize
-  SEXP Rsh_Fir_reg_ddd;  // ddd
-  SEXP Rsh_Fir_reg_perm_isMissing;  // perm_isMissing
-  SEXP Rsh_Fir_reg_perm_orDefault;  // perm_orDefault
-  SEXP Rsh_Fir_reg_resize_isMissing;  // resize_isMissing
-  SEXP Rsh_Fir_reg_resize_orDefault;  // resize_orDefault
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r1;  // r
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_a1_;  // a1
-  SEXP Rsh_Fir_reg_a2_;  // a2
-  SEXP Rsh_Fir_reg_perm1_;  // perm1
-  SEXP Rsh_Fir_reg_perm2_;  // perm2
-  SEXP Rsh_Fir_reg_resize1_;  // resize1
-  SEXP Rsh_Fir_reg_resize2_;  // resize2
-  SEXP Rsh_Fir_reg_aperm;  // aperm
-  SEXP Rsh_Fir_reg_r2_;  // r2
+  // Declare locals
+  SEXP Rsh_Fir_reg_a;
+  SEXP Rsh_Fir_reg_perm;
+  SEXP Rsh_Fir_reg_resize;
+  SEXP Rsh_Fir_reg_ddd;
+  SEXP Rsh_Fir_reg_perm_isMissing;
+  SEXP Rsh_Fir_reg_perm_orDefault;
+  SEXP Rsh_Fir_reg_resize_isMissing;
+  SEXP Rsh_Fir_reg_resize_orDefault;
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r1;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_a1_;
+  SEXP Rsh_Fir_reg_a2_;
+  SEXP Rsh_Fir_reg_perm1_;
+  SEXP Rsh_Fir_reg_perm2_;
+  SEXP Rsh_Fir_reg_resize1_;
+  SEXP Rsh_Fir_reg_resize2_;
+  SEXP Rsh_Fir_reg_aperm;
+  SEXP Rsh_Fir_reg_r2_;
 
   // Bind parameters
   Rsh_Fir_reg_a = PARAMS[0];
