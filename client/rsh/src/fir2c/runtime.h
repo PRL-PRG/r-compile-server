@@ -51,7 +51,7 @@ typedef struct Rsh_Fir_Type {
 typedef SEXP (*Rsh_Fir_DispatchFn)(SEXP pool, SEXP env, int nargs, SEXP const *args,
                                    Rsh_Fir_Type const *param_types);
 typedef SEXP (*Rsh_Fir_VersionFn)(SEXP pool, SEXP env, int nargs, SEXP const *args);
-typedef SEXP (*Rsh_Fir_PromiseFn)(SEXP pool, SEXP env);
+typedef SEXP (*Rsh_Fir_PromiseFn)(SEXP pool, SEXP env, int ncaptures, SEXP const **captures);
 
 extern Rsh_Fir_Kind const *Rsh_Fir_kind_any;
 extern Rsh_Fir_Kind const *Rsh_Fir_kind_anyValue;
@@ -79,7 +79,7 @@ void Rsh_Fir_push_env(SEXP *env);
 void Rsh_Fir_pop_env(SEXP *env);
 SEXP Rsh_Fir_mk_vector(Rsh_Fir_Kind const *kind, int count, SEXP const *values,
                        SEXP const *names);
-SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, SEXP pool, SEXP env);
+SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, int ncaptures, SEXP const **captures, SEXP pool, SEXP env);
 SEXP Rsh_Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Rsh_Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);
 void Rsh_Fir_store(SEXP symbol, SEXP value, SEXP env);
@@ -87,8 +87,7 @@ SEXP Rsh_Fir_subscript_read(SEXP vector, SEXP index);
 SEXP Rsh_Fir_subscript_write(SEXP vector, SEXP index, SEXP value);
 SEXP Rsh_Fir_super_load(SEXP symbol, SEXP env);
 void Rsh_Fir_super_store(SEXP symbol, SEXP value, SEXP env);
-SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP CCP, SEXP RHO, int argc, SEXP const *args,
-                          Rsh_Fir_Type const *param_types);
+SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args);
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
                           SEXP const *names, SEXP pool, SEXP env);
 int Rsh_Fir_is_true(SEXP value);

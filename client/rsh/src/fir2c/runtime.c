@@ -15,6 +15,8 @@ typedef struct Rsh_Fir_PromiseInfo {
   Rsh_Fir_PromiseFn evaluate;
   SEXP env;
   SEXP pool;
+  int ncaptures;
+  SEXP const **captures;
   int forced;
   SEXP value;
 } Rsh_Fir_PromiseInfo;
@@ -75,8 +77,7 @@ static void Rsh_Fir_closure_finalizer(SEXP ext) {
   if (TYPEOF(ext) != EXTPTRSXP) {
     return;
   }
-  Rsh_Fir_ClosureInfo *info =
-      (Rsh_Fir_ClosureInfo *)R_ExternalPtrAddr(ext);
+  Rsh_Fir_ClosureInfo *info = R_ExternalPtrAddr(ext);
   if (!info) {
     return;
   }
@@ -94,8 +95,7 @@ static void Rsh_Fir_promise_finalizer(SEXP ext) {
   if (TYPEOF(ext) != EXTPTRSXP) {
     return;
   }
-  Rsh_Fir_PromiseInfo *info =
-      (Rsh_Fir_PromiseInfo *)R_ExternalPtrAddr(ext);
+  Rsh_Fir_PromiseInfo *info = R_ExternalPtrAddr(ext);
   if (!info) {
     return;
   }
@@ -108,6 +108,7 @@ static void Rsh_Fir_promise_finalizer(SEXP ext) {
   if (info->value != R_NilValue) {
     R_ReleaseObject(info->value);
   }
+  free(info->captures);
   free(info);
   R_ClearExternalPtr(ext);
 }
@@ -183,8 +184,7 @@ static int Rsh_Fir_is_compiled_closure(SEXP value,
   if (R_ExternalPtrTag(value) != Rsh_Fir_ClosureTag) {
     return 0;
   }
-  Rsh_Fir_ClosureInfo *ptr =
-      (Rsh_Fir_ClosureInfo *)R_ExternalPtrAddr(value);
+  Rsh_Fir_ClosureInfo *ptr = R_ExternalPtrAddr(value);
   if (!ptr) {
     return 0;
   }
@@ -202,8 +202,7 @@ static int Rsh_Fir_is_compiled_promise(SEXP value,
   if (R_ExternalPtrTag(value) != Rsh_Fir_PromiseTag) {
     return 0;
   }
-  Rsh_Fir_PromiseInfo *ptr =
-      (Rsh_Fir_PromiseInfo *)R_ExternalPtrAddr(value);
+  Rsh_Fir_PromiseInfo *ptr = R_ExternalPtrAddr(value);
   if (!ptr) {
     return 0;
   }
@@ -219,7 +218,6 @@ static int Rsh_Fir_value_matches(SEXP value, Rsh_Fir_Type const *type) {
   }
   switch (type->kind->tag) {
   case RSH_FIR_KIND_ANY:
-    return 1;
   case RSH_FIR_KIND_ANY_VALUE:
     return 1;
   case RSH_FIR_KIND_PRIMITIVE_SCALAR: {
@@ -277,8 +275,7 @@ SEXP Rsh_Fir_make_closure(Rsh_Fir_DispatchFn dispatch, SEXP env, SEXP pool) {
     Rf_error("Closure environment must be ENVSXP");
   }
   Rsh_Fir_init_tags();
-  Rsh_Fir_ClosureInfo *info =
-      (Rsh_Fir_ClosureInfo *)calloc(1, sizeof(Rsh_Fir_ClosureInfo));
+  Rsh_Fir_ClosureInfo *info = calloc(1, sizeof(Rsh_Fir_ClosureInfo));
   info->dispatch = dispatch;
   info->env = env;
   info->pool = pool;
@@ -354,9 +351,6 @@ void Rsh_Fir_pop_env(SEXP *env_ptr) {
 }
 
 static SEXP Rsh_Fir_make_names(int count, SEXP const *names) {
-  if (!names) {
-    return R_NilValue;
-  }
   SEXP result = PROTECT(Rf_allocVector(STRSXP, count));
   for (int i = 0; i < count; ++i) {
     SEXP name = names[i];
@@ -452,13 +446,13 @@ SEXP Rsh_Fir_mk_vector(Rsh_Fir_Kind const *kind, int count, SEXP const *values,
   }
 }
 
-static void Rsh_Fir_check_promise_env(Rsh_Fir_PromiseInfo *info) {
+static void Rsh_Fir_check_promise_env(Rsh_Fir_PromiseInfo const *info) {
   if (!info->env || TYPEOF(info->env) != ENVSXP) {
     Rf_error("Internal promise without environment");
   }
 }
 
-SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, SEXP pool, SEXP env) {
+SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, int ncaptures, SEXP const **captures, SEXP pool, SEXP env) {
   if (!fn) {
     Rf_error("Cannot create promise without function");
   }
@@ -466,11 +460,13 @@ SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, SEXP pool, SEXP env) {
     Rf_error("Promise environment must be ENVSXP");
   }
   Rsh_Fir_init_tags();
-  Rsh_Fir_PromiseInfo *info =
-      (Rsh_Fir_PromiseInfo *)calloc(1, sizeof(Rsh_Fir_PromiseInfo));
+  Rsh_Fir_PromiseInfo *info = calloc(1, sizeof(Rsh_Fir_PromiseInfo));
   info->evaluate = fn;
   info->env = env;
   info->pool = pool;
+  info->ncaptures = ncaptures;
+  info->captures = calloc(ncaptures, sizeof(SEXP));
+  memcpy(info->captures, captures, ncaptures * sizeof(SEXP));
   info->forced = 0;
   info->value = R_NilValue;
   R_PreserveObject(env);
@@ -486,7 +482,7 @@ SEXP Rsh_Fir_force(SEXP value) {
   if (Rsh_Fir_is_compiled_promise(value, &info)) {
     Rsh_Fir_check_promise_env(info);
     if (!info->forced) {
-      SEXP result = info->evaluate(info->pool, info->env);
+      SEXP result = info->evaluate(info->pool, info->env, info->ncaptures, info->captures);
       R_PreserveObject(result);
       info->value = result;
       info->forced = 1;
@@ -641,9 +637,7 @@ static SEXP Rsh_Fir_build_arglist(int argc, SEXP const *args,
   SEXP list = R_NilValue;
   for (int i = argc - 1; i >= 0; --i) {
     SEXP node = PROTECT(Rf_cons(args[i], list));
-    if (protect_count) {
-      (*protect_count)++;
-    }
+    (*protect_count)++;
     if (names) {
       SEXP name = names[i];
       if (name && name != R_MissingArg && name != R_NilValue) {
@@ -660,8 +654,7 @@ static SEXP Rsh_Fir_build_arglist(int argc, SEXP const *args,
   return list;
 }
 
-SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP CCP, SEXP RHO, int argc, SEXP const *args,
-                          Rsh_Fir_Type const *param_types) {
+SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args) {
   FUNTAB fun = R_FunTab[bltIdx];
   if (fun.arity != -1 && fun.arity != argc) {
     Rf_error("Builtin %s called with incorrect number of arguments: expected %d, got %d",
@@ -702,6 +695,7 @@ int Rsh_Fir_is_true(SEXP value) {
 
 void Rsh_Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP pool,
                    SEXP env) {
+  (void)stack_size;
   (void)stack_values;
   (void)pool;
   (void)env;
@@ -796,7 +790,6 @@ DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0) {
 
 DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0) {
   Rf_error("unimplemented. Dispatch intrinsics will probably be removed and we'll prevent compiling this complex bytecode");
-  return R_NilValue;
 }
 
 DEFINE_OVERRIDDEN_BUILTIN(add, 1) {
