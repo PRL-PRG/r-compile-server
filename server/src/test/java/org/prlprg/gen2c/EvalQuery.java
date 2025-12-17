@@ -64,7 +64,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   @Override
   public EvalOutput compute(Example example, SnapshotStore store) {
     var R = GNUR.instance();
-    var modulePath = store.queryPath(example, moduleQuery);
+    var modulePath = store.loadPath(example, moduleQuery);
 
     return eval(modulePath, R);
   }

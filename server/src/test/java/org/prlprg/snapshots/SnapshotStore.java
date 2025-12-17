@@ -140,12 +140,10 @@ public class SnapshotStore {
     }
   }
 
-  /// Load the already-existing snapshot of `query` for `example`.
+  /// Load the snapshot of `query` for `example`, computing if necessary.
   ///
-  /// If there is no snapshot on disk, [#verify(Example, Query)] must have been called at some
-  /// point before in the run. If there's no snapshot, this won't compute, it will raise
-  /// [MissingSnapshotException].
-  public <T> T query(Example example, Query<T> query) {
+  /// @throws MissingSnapshotException if no snapshot exists and computation failed
+  public <T> T load(Example example, Query<T> query) {
     // Try to load from memory
     var inMemory = loadFromMemory(false, example, query);
     if (inMemory != null) {
@@ -159,24 +157,37 @@ public class SnapshotStore {
       return onDisk;
     }
 
-    throw new MissingSnapshotException(query.name());
+    // Try to compute. If so, save to disk and memory
+    return computeAndSave(example, query);
   }
 
-  /// Return the path of the already-existing snapshot of `query` for `example`.
+  /// Return the path of the snapshot of `query` for `example`.
   ///
-  /// Throws [TestAbortedException] if the example doesn't have a snapshot. Otherwise, like
-  /// [#query(Example, Query)], throws [MissingSnapshotException] if no snapshot exists.
-  ///
-  /// @throws TestAbortedException if no snapshot exists
-  public <T> Path queryPath(Example example, Query<T> query) {
+  /// @throws TestAbortedException if the example doesn't have a snapshot.
+  /// @throws MissingSnapshotException if no snapshot exists and computation failed
+  public <T> Path loadPath(Example example, Query<T> query) {
     if (example.hasOption("", "dontSaveSnapshots")) {
       throw new TestAbortedException("Example has no snapshot");
     }
     var path = snapshotPath(example, query);
     if (!Files.exists(path)) {
-      throw new MissingSnapshotException(query.name());
+      computeAndSave(example, query);
     }
     return path;
+  }
+
+  private <T> T computeAndSave(Example example, Query<T> query) {
+    T computed;
+    try {
+      computed = query.oracle(example, this);
+    } catch (Exception | Error e) {
+      throw new MissingSnapshotException(query.name(), e);
+    }
+    saveToMemory(computed, true, example, query);
+    if (!example.hasOption("", "dontSaveSnapshots")) {
+      saveToDisk(computed, example, query);
+    }
+    return computed;
   }
 
   private <T> @Nullable T loadFromMemory(boolean isOracle, Example example, Query<T> query) {
@@ -190,8 +201,8 @@ public class SnapshotStore {
     }
 
     if (isOracle && !snapshot.isOracle) {
-      throw new RuntimeException(
-          "Tests are out of order, you must run tests that verify a query before running those that use it as a dependency");
+      // May be old
+      return null;
     }
 
     return query.dataClass().cast(snapshot.snapshot);

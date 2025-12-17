@@ -27,8 +27,8 @@ class InterpretTest {
   /// Check that the interpreter and evaluator both fail, or both have the same return value.
   @FirExampleTest
   void testAgainstEval(Example example, SnapshotStore store) {
-    var interpretOutput = store.query(example, InterpretQuery.MAIN);
-    var evalOutput = store.query(example, EvalQuery.FIR_ORACLE);
+    var interpretOutput = store.load(example, InterpretQuery.MAIN);
+    var evalOutput = store.load(example, EvalQuery.FIR_ORACLE);
 
     // TODO: When abstracting `Either<SEXP, String>`, also abstract these `assertEqual`s which
     //  have the same message.
@@ -41,7 +41,7 @@ class InterpretTest {
   /// Call the interpreter many times, check that output is the same.
   @FirExampleTest
   void testRepeat(Example example, SnapshotStore store) {
-    var module = store.query(example, FirQuery.INSTANCE);
+    var module = store.load(example, FirQuery.INSTANCE);
     var interpreter = new TestInterpreter(module);
 
     for (int i = 1; i <= 3; i++) {

@@ -28,7 +28,7 @@ public class FirQuery implements GenFirQuery {
       case "fir" -> parseModule(example.text());
       case "R" -> {
         var R = GNUR.instance();
-        var bc = store.query(example, BCQuery.INSTANCE);
+        var bc = store.load(example, BCQuery.INSTANCE);
 
         // An environment with one function, `main`,
         // which takes zero arguments and its body is `bc`.

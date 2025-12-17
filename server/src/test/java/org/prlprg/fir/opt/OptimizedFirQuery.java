@@ -29,7 +29,7 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
   @Override
   public Module compute(Example example, SnapshotStore store) {
-    var fir = store.query(example, FirQuery.INSTANCE);
+    var fir = store.load(example, FirQuery.INSTANCE);
     optimization.run(new MockModuleFeedback(), fir);
     return fir;
   }

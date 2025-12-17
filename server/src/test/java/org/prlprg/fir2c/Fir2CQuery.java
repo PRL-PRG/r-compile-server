@@ -28,7 +28,7 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {
     var R = GNUR.instance();
-    var firModule = store.query(example, FirQuery.INSTANCE);
+    var firModule = store.load(example, FirQuery.INSTANCE);
 
     var main = firModule.localFunction(Variable.named("main"));
     if (main == null || !main.baseline().parameters().isEmpty() || main.baseline().isStub()) {
