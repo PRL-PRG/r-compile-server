@@ -7,15 +7,19 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
@@ -77,6 +81,7 @@ import org.prlprg.gen2c.CUnit;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Lists;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Fir2CCompiler {
@@ -89,6 +94,8 @@ public final class Fir2CCompiler {
   static final String VAR_NPARAMS = "NPARAMS";
   static final String VAR_SEXP_PARAMS = "PARAMS";
   static final String VAR_SEXP_PARAM_TYPES = "PARAM_TYPES";
+  static final String VAR_NCAPTURES = "NCAPTURES";
+  static final String VAR_SEXP_CAPTURES = "CAPTURES";
 
   // Input
   private final Module module;
@@ -207,7 +214,11 @@ public final class Fir2CCompiler {
 
   // TODO: Elide env if possible
   private static final List<String> promiseCFunctionParameters =
-      List.of("SEXP %s".formatted(VAR_POOL), "SEXP %s".formatted(VAR_ENV));
+      List.of(
+          "SEXP %s".formatted(VAR_POOL),
+          "SEXP %s".formatted(VAR_ENV),
+          "int %s".formatted(VAR_NCAPTURES),
+          "SEXP const **%s".formatted(VAR_SEXP_CAPTURES));
 
   // endregion compile definitions
 
@@ -329,6 +340,8 @@ public final class Fir2CCompiler {
 
     // State
     private final Map<Register, String> registerNames = new LinkedHashMap<>();
+    private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
+    private final Map<CFG, Set<Register>> captures = new LinkedHashMap<>();
 
     VersionEmitter(
         Function function, int versionIndex, Abstraction abstraction, CFunction cFunction) {
@@ -348,13 +361,47 @@ public final class Fir2CCompiler {
 
     // region prepare
     private void prepare() {
-      // Prepare registers
+      // Compute register names
       abstraction
           .streamRegisterBindings()
           .forEach(
               binding -> {
                 var register = (Register) binding.variable();
                 registerNames.put(register, mangler.unique("Rsh_Fir_reg_%s", register.name()));
+              });
+
+      // Compute local and captured registers
+      abstraction.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
+      abstraction.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
+      var defUses = new DefUses(abstraction);
+      abstraction
+          .streamRegisterBindings()
+          .forEach(
+              binding -> {
+                var register = (Register) binding.variable();
+
+                CFG defCfg;
+                if (binding instanceof Parameter) {
+                  defCfg = abstraction.cfg();
+                } else {
+                  var def = defUses.definition(register);
+                  if (def == null) {
+                    // Malformed CFG
+                    return;
+                  }
+
+                  defCfg = def.inInnermostCfg().cfg();
+                }
+
+                locals.get(defCfg).add(register);
+
+                for (var use : defUses.uses(register)) {
+                  var useCfg = use.inInnermostCfg().cfg();
+
+                  if (useCfg != defCfg) {
+                    captures.get(useCfg).add(register);
+                  }
+                }
               });
     }
 
@@ -371,8 +418,6 @@ public final class Fir2CCompiler {
       }
 
       emitArityCheck();
-      emitLocalDeclarations();
-      emitParameterBindings();
       new CfgEmitter(Objects.requireNonNull(abstraction.cfg()), cFunction);
     }
 
@@ -394,44 +439,6 @@ public final class Fir2CCompiler {
               VAR_NPARAMS);
     }
 
-    private void emitLocalDeclarations() {
-      if (registerNames.isEmpty()) {
-        return;
-      }
-
-      var sec = cFunction.add();
-
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        sec.comment("Local declarations");
-      }
-
-      for (var entry : registerNames.entrySet()) {
-        var register = entry.getKey();
-        var cName = entry.getValue();
-
-        sec.stmt("SEXP %s;  // %s", cName, register.name());
-      }
-    }
-
-    private void emitParameterBindings() {
-      var parameters = abstraction.parameters();
-      if (parameters.isEmpty()) {
-        return;
-      }
-
-      var sec = cFunction.add();
-
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        sec.comment("Bind parameters");
-      }
-
-      for (var i = 0; i < parameters.size(); i++) {
-        var param = parameters.get(i);
-        var name = registerName(param.variable());
-        sec.stmt("%s = %s[%d];", name, VAR_SEXP_PARAMS, i);
-      }
-    }
-
     // endregion emit
 
     // region interned
@@ -451,14 +458,19 @@ public final class Fir2CCompiler {
     // endregion interned
 
     private FirCompiledPromiseIndex ensurePromiseCompiled(Promise promise) {
-      return compiledPromises.computeIfAbsent(
-          promise,
-          _ -> {
-            var cName = mangler.unique("Rsh_Fir_user_promise_%s", function.name().name());
-            var promiseFunction = cUnit.addFunction("SEXP", cName, promiseCFunctionParameters);
-            new CfgEmitter(promise.code(), promiseFunction);
-            return new FirCompiledPromiseIndex(cName);
-          });
+      var existing = compiledPromises.get(promise);
+      if (existing != null) {
+        return existing;
+      }
+
+      var cName = mangler.unique("Rsh_Fir_user_promise_%s", function.name().name());
+      var index = new FirCompiledPromiseIndex(cName);
+      compiledPromises.put(promise, index);
+
+      var promiseFunction = cUnit.addFunction("SEXP", cName, promiseCFunctionParameters);
+      new CfgEmitter(promise.code(), promiseFunction);
+
+      return index;
     }
 
     final class CfgEmitter {
@@ -482,6 +494,7 @@ public final class Fir2CCompiler {
 
       // region prepare
       private void prepare() {
+        // Add label names
         for (var bb : cfg.bbs()) {
           if (!bb.isEntry()) {
             labelNames.put(bb, bbMangler.unique("%s", bb.label()));
@@ -493,8 +506,92 @@ public final class Fir2CCompiler {
 
       // region emit
       private void emit() {
+        emitLocalDeclarations();
+        if (cfg.isPromise()) {
+          emitCaptureArityCheck();
+          emitCaptureBindings();
+        } else {
+          assert captures.get(cfg).isEmpty();
+          emitParameterBindings();
+        }
+
         for (var bb : cfg.bbs()) {
           new BBEmitter(bb, cFunction.add());
+        }
+      }
+
+      private void emitLocalDeclarations() {
+        var localRegisters = Objects.requireNonNull(locals.get(cfg));
+        if (localRegisters.isEmpty()) {
+          return;
+        }
+
+        var sec = cFunction.add();
+
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          sec.comment("Declare locals");
+        }
+
+        for (var register : localRegisters) {
+          var cName = registerName(register);
+          sec.stmt("SEXP %s;", cName);
+        }
+      }
+
+      private void emitCaptureArityCheck() {
+        if (!options.contains(Option.CHECK_ARITY)) {
+          return;
+        }
+
+        var expected = Objects.requireNonNull(captures.get(cfg)).size();
+        cFunction
+            .add()
+            .stmt(
+                "if (%s != %d) Rsh_error(\"FIŘ capture arity mismatch for %s/%d: expected %d, got %%d\", %s);",
+                VAR_NCAPTURES,
+                expected,
+                sanitizeString(function.name().name()),
+                versionIndex,
+                expected,
+                VAR_NCAPTURES);
+      }
+
+      private void emitCaptureBindings() {
+        var capturedRegisters = Objects.requireNonNull(captures.get(cfg));
+        if (capturedRegisters.isEmpty()) {
+          return;
+        }
+
+        var sec = cFunction.add();
+
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          sec.comment("Declare and bind captures");
+        }
+
+        var capturedRegistersIter = capturedRegisters.iterator();
+        for (var i = 0; i < capturedRegisters.size(); i++) {
+          var capture = capturedRegistersIter.next();
+          var name = registerName(capture);
+          sec.stmt("SEXP %s = %s[%d];", name, VAR_SEXP_CAPTURES, i);
+        }
+      }
+
+      private void emitParameterBindings() {
+        var parameters = abstraction.parameters();
+        if (parameters.isEmpty()) {
+          return;
+        }
+
+        var sec = cFunction.add();
+
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          sec.comment("Bind parameters");
+        }
+
+        for (var i = 0; i < parameters.size(); i++) {
+          var param = parameters.get(i);
+          var name = registerName(param.variable());
+          sec.stmt("%s = %s[%d];", name, VAR_SEXP_PARAMS, i);
         }
       }
 
@@ -533,7 +630,7 @@ public final class Fir2CCompiler {
           if (statement.assignee() == null) {
             cCode.stmt("(void)(%s);", expr);
           } else {
-            cCode.stmt("%s = %s;", registerName(statement.assignee()), expr);
+            cCode.stmt("%s = %s;", registerPlace(statement.assignee()), expr);
           }
         }
 
@@ -584,9 +681,19 @@ public final class Fir2CCompiler {
               cCode.stmt("Rsh_Fir_pop_env(&%s);", VAR_ENV);
               yield "R_NilValue";
             }
-            case Promise promise ->
-                "Rsh_Fir_make_promise(&%s, %s, %s)"
-                    .formatted(promiseName(promise), VAR_POOL, VAR_ENV);
+            case Promise promise -> {
+              var cName = promiseName(promise);
+
+              var capturedRegs = Objects.requireNonNull(captures.get(promise.code()));
+              var capturesArray =
+                  emitArray(
+                      "captures",
+                      capturedRegs.stream().map(reg -> "&" + registerPlace(reg)).toList());
+
+              yield "Rsh_Fir_make_promise(&%s, %d, %s, %s, %s)"
+                  .formatted(
+                      cName, capturesArray.size(), capturesArray.pointer(), VAR_POOL, VAR_ENV);
+            }
             case ReflectiveLoad(var promArg, var variable) ->
                 "Rsh_Fir_reflective_load(%s, %s)"
                     .formatted(emitArgument(promArg), nvSymbolRef(variable));
@@ -632,14 +739,8 @@ public final class Fir2CCompiler {
                             arguments.pointer(),
                             paramTypes);
                 case FirCompiledDispatchIndex.Builtin(var builtinIndex) ->
-                    "Rsh_Fir_call_builtin(%d, %s, %s, %d, %s, %s)"
-                        .formatted(
-                            builtinIndex,
-                            VAR_POOL,
-                            VAR_ENV,
-                            arguments.size(),
-                            arguments.pointer(),
-                            paramTypes);
+                    "Rsh_Fir_call_builtin(%d, %s, %d, %s)"
+                        .formatted(builtinIndex, VAR_ENV, arguments.size(), arguments.pointer());
               };
             }
             case StaticCallee(var calleeFunction, var calleeVersion) -> {
@@ -748,7 +849,7 @@ public final class Fir2CCompiler {
             var phi = parameters.get(i);
             var arg = phiArgs.get(i);
 
-            var dest = registerName(phi);
+            var dest = registerPlace(phi);
             var value = emitArgument(arg);
 
             cCode.stmt(indentLevel, "%s = %s;", dest, value);
@@ -758,6 +859,10 @@ public final class Fir2CCompiler {
         }
 
         private Array emitArgumentArray(String baseName, List<Argument> arguments) {
+          return emitArray(baseName, Lists.mapLazy(arguments, this::emitArgument));
+        }
+
+        private Array emitArray(String baseName, List<String> arguments) {
           if (arguments.isEmpty()) {
             return new Array(0, "NULL");
           }
@@ -765,7 +870,7 @@ public final class Fir2CCompiler {
           var arrayName = mangler.unique("Rsh_Fir_array_%s", baseName);
           cCode.stmt("SEXP %s[%d];", arrayName, arguments.size());
           for (var i = 0; i < arguments.size(); i++) {
-            cCode.stmt("%s[%d] = %s;", arrayName, i, emitArgument(arguments.get(i)));
+            cCode.stmt("%s[%d] = %s;", arrayName, i, arguments.get(i));
           }
           return new Array(arguments.size(), arrayName);
         }
@@ -851,8 +956,8 @@ public final class Fir2CCompiler {
         private String emitArgument(Argument argument) {
           return switch (argument) {
             case Constant(var constant) -> constantRef(constant);
-            case Read(var variable) -> registerName(variable);
-            case Use(var variable) -> registerName(variable);
+            case Read(var variable) -> registerPlace(variable);
+            case Use(var variable) -> registerPlace(variable);
           };
         }
       }
@@ -867,6 +972,14 @@ public final class Fir2CCompiler {
         var name = labelNames.get(bb);
         if (name == null) {
           throw new IllegalArgumentException("Unknown (not in CFG) BB: " + bb);
+        }
+        return name;
+      }
+
+      private String registerPlace(Register register) {
+        var name = registerName(register);
+        if (Objects.requireNonNull(captures.get(cfg)).contains(register)) {
+          name = "*" + name;
         }
         return name;
       }
