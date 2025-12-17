@@ -8,7 +8,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.RExampleTest;
 import org.prlprg.session.gnur.GNUR;
-import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 
 @TestMethodOrder(OrderAnnotation.class)
@@ -30,7 +29,7 @@ public interface Gen2CCompilerTest {
     store.verify(example, evalQuery(), output);
   }
 
-  Query<CompiledModule> moduleQuery();
+  CompiledModuleQuery moduleQuery();
 
   EvalQuery evalQuery();
 }

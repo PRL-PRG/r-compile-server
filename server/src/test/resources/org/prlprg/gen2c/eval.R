@@ -10,14 +10,14 @@ library(rsh)
 
 dyn.load("code.so")
 cp <- readRDS("constants.RDS")
-entryFun <- readLines("entrypoint.txt", n=1, warn=FALSE)
 
 # FIXME: try global env
 env <- new.env()
+env$.Rsh_constants <- cp
 parent.env(env) <- globalenv()
 
 invisible(.Call("Rsh_initialize_runtime"))
-res <- .Call(entryFun, env, cp)
+source("bindings.R", local = env)
 pc <- .Call("Rsh_pc_get")
 
 dyn.unload("code.so")
