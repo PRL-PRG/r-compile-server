@@ -92,20 +92,3 @@
     attr(retval, "file") <- file
     retval
 }
-
-# Examples\donttest{
-packageDescription("stats")
-packageDescription("stats", fields = c("Package", "Version"))
-
-packageDescription("stats", fields = "Version")
-packageDescription("stats", fields = "Version", drop = FALSE)
-}
-if(requireNamespace("MASS") && packageVersion("MASS") < "7.3.29")
-  message("you need to update 'MASS'")
-
-pu <- packageDate("utils")
-\donttest{str(pu)}
-stopifnot(identical(pu, packageDate(desc = packageDescription("utils"))),
-          identical(pu, packageDate("stats"))) # as "utils" and "stats" are
-                                   # both 'base R' and "Built" at same time
-

@@ -9,5 +9,3 @@
         x <- x[!ii]
     .Internal(is.unsorted(x, na.rm, strictly))
 }
-
-# Examples

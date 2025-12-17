@@ -105,5 +105,3 @@
         out <- iconv(out, "UTF-8", "latin1")
     out
 }
-
-# Examples

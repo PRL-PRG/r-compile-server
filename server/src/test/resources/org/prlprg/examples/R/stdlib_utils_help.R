@@ -62,31 +62,3 @@
         tried_all_packages = try.all.packages, type = help_type, 
         class = "help_files_with_topic")
 }
-
-# Examples
-help()
-help(help)              # the same
-
-help(lapply)
-
-help("for")             # or ?"for", but quotes/backticks are needed
-
-\donttest{try({# requires working TeX installation:
- help(dgamma, help_type = "pdf")
- ## -> nicely formatted pdf -- including math formula -- for help(dgamma):
- system2(getOption("pdfviewer"), "dgamma.pdf", wait = FALSE)
-})
-}
-\donttest{help(package = "splines") # get help even when package is not loaded}
-
-topi <- "women"
-help(topi)
-
-try(help("bs", try.all.packages = FALSE)) # reports not found (an error)
-help("bs", try.all.packages = TRUE)       # reports can be found
-                                          # in package 'splines'
-
-\donttest{## For programmatic use:
-topic <- "family"; pkg_ref <- "stats"
-help((topic), (pkg_ref))
-}

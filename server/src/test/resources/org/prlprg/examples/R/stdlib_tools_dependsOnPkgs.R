@@ -19,10 +19,3 @@
     }
     setdiff(uses, pkgs)
 }
-
-# Examples\donttest{
-
-## there are few dependencies in a vanilla R installation:
-## lattice may not be installed
-dependsOnPkgs("lattice")
-}

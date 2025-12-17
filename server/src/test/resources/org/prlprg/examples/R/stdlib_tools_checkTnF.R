@@ -80,5 +80,3 @@
     class(bad_exprs) <- "checkTnF"
     bad_exprs
 }
-
-# Examples

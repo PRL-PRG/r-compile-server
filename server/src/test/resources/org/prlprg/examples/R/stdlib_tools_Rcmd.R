@@ -6,5 +6,3 @@
     else system2(file.path(R.home("bin"), "R"), c("CMD", args), 
         ...)
 }
-
-# Examples

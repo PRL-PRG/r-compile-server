@@ -8,5 +8,3 @@
         stop("invalid 'time' argument")
     .Internal(setFileTime(path, time))
 }
-
-# Examples

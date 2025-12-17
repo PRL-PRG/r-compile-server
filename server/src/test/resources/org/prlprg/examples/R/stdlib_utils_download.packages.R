@@ -65,5 +65,3 @@
     }
     retval
 }
-
-# Examples

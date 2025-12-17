@@ -158,14 +158,3 @@
         fit$keep <- re.arrange(keep.list[seq(nm)])
     step.results(models = models[seq(nm)], fit, object, usingCp)
 }
-
-# Examples\donttest{
-## following on from example(lm)
-utils::example("lm", echo = FALSE)
-step(lm.D9)
-
-summary(lm1 <- lm(Fertility ~ ., data = swiss))
-slm1 <- step(lm1)
-summary(slm1)
-slm1$anova
-}

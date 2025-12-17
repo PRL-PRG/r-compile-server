@@ -61,5 +61,3 @@
     }
     unique(keep)
 }
-
-# Examples

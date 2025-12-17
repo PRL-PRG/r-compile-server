@@ -48,5 +48,3 @@
         .fileDesc(filename), ".\n")
     invisible(filename)
 }
-
-# Examples

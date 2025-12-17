@@ -10,5 +10,3 @@
         options(BioC_mirror = url)
     invisible()
 }
-
-# Examples

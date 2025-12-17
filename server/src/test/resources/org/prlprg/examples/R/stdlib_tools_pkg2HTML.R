@@ -55,9 +55,3 @@
     writeHTML(hfcomps$footer, sep = "")
     invisible(out)
 }
-
-# Examples
-\donttest{
-pkg2HTML("tools", out = tempfile(fileext = ".html")) |> browseURL()
-}
-

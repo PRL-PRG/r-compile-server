@@ -106,5 +106,3 @@
     }
     structure(stats::na.omit(ans), class = c("compactPDF", "data.frame"))
 }
-
-# Examples

@@ -159,19 +159,3 @@
     }
     res
 }
-
-# Examples\donttest{
-## Count package licenses
-db <- available.packages(repos = findCRANmirror("web"), filters = "duplicates")
-table(db[,"License"])
-
-## Use custom filter function to only keep recommended packages
-## which do not require compilation
-available.packages(repos = findCRANmirror("web"),
-  filters = list(
-    add = TRUE,
-    function (db) db[db[,"Priority"] %in% "recommended" &
-                     db[,"NeedsCompilation"] == "no", ]
-  ))
-}
-

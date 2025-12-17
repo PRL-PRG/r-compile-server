@@ -15,5 +15,3 @@
     close(outConn)
     file.show(outFile, delete.file = TRUE)
 }
-
-# Examples

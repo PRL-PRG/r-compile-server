@@ -137,14 +137,3 @@
     }
     invisible(0L)
 }
-
-# Examples
-str(stPkgs <- standard_package_names())
-\donttest{
-## consistency of packageDescription and standard_package_names :
-(pNms <- unlist(stPkgs, FALSE))
-(prio <- sapply(as.vector(pNms), packageDescription, fields = "Priority"))
-stopifnot(identical(unname(prio),
-                    sub("[0-9]+$", '', names(pNms))))
-}
-

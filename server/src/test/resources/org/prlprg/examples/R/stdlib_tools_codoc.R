@@ -315,5 +315,3 @@
     class(bad_doc_objects) <- "codoc"
     bad_doc_objects
 }
-
-# Examples

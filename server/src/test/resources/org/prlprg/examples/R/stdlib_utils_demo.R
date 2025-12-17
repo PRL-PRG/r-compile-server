@@ -113,23 +113,3 @@
     source(available, echo = echo, max.deparse.length = Inf, 
         keep.source = TRUE, encoding = encoding)
 }
-
-# Examples
-demo() # for attached packages
-
-## All available demos:
-demo(package = .packages(all.available = TRUE))
-
-\donttest{
-## Display a demo, pausing between pages
-demo(lm.glm, package = "stats", ask = TRUE)
-
-## Display it without pausing
-demo(lm.glm, package = "stats", ask = FALSE)
-}
-
-
-
-## Find the location of a demo
-system.file("demo", "lm.glm.R", package = "stats")
-

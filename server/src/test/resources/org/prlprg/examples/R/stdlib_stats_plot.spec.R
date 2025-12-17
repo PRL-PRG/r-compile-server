@@ -86,5 +86,3 @@
     }
     invisible(x)
 }
-
-# Examples

@@ -101,29 +101,3 @@
     }
     depends
 }
-
-# Examples
-\donttest{
-myPkgs <- c("MASS", "Matrix", "KernSmooth", "class", "cluster", "codetools")
-pdb <- available.packages(repos = findCRANmirror("web"))
-system.time(
-dep1 <- package_dependencies(myPkgs, db = pdb) # all arguments at default
-) # very fast
-utils::str(dep1, vec.len=10)
-
-system.time( ## reverse dependencies, recursively --- takes much longer:
-deps <- package_dependencies(myPkgs, db = pdb, which = "most",
-                             recursive = TRUE, reverse = TRUE)
-) # seen ~ 10 seconds
-
-lengths(deps) # 2020-05-03: all are 16053, but codetools with 16057
-
-## install.packages(dependencies = TRUE) installs 'most' dependencies
-## and the strong recursive dependencies of these: these dependencies
-## can be obtained using 'which = "most"' and 'recursive = "strong"'.
-## To illustrate on the first packages with non-missing Suggests:
-packages <- pdb[head(which(!is.na(pdb[, "Suggests"]))), "Package"]
-package_dependencies(packages, db = pdb,
-                     which = "most", recursive = "strong")
-}
-

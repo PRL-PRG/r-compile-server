@@ -22,5 +22,3 @@
     close(con)
     invisible()
 }
-
-# Examples

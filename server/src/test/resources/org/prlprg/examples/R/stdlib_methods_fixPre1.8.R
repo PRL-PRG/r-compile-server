@@ -36,5 +36,3 @@
     }
     done
 }
-
-# Examples

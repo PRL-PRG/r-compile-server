@@ -10,5 +10,3 @@
         trace.hat = match.arg(trace.hat), cell = cell, iterations = iterations, 
         iterTrace = iterTrace)
 }
-
-# Examples

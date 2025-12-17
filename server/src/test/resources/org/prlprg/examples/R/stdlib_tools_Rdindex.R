@@ -21,5 +21,3 @@
     writeLines(formatDL(index, width = width, indent = indent), 
         outFile)
 }
-
-# Examples

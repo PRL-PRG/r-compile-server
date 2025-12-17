@@ -15,9 +15,3 @@
         e2 <- as.Date(e2)
     NextMethod(.Generic)
 }
-
-# Examples\donttest{
-(z <- Sys.Date())
-z + 10
-z < c("2009-06-01", "2010-01-01", "2015-01-01")
-}

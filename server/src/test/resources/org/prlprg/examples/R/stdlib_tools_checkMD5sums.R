@@ -42,5 +42,3 @@
     }
     res
 }
-
-# Examples

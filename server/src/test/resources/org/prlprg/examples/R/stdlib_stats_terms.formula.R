@@ -45,5 +45,3 @@
         class(terms) <- c(oldClass(terms), "formula")
     terms
 }
-
-# Examples

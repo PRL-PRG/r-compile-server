@@ -27,21 +27,3 @@
         .Internal(sink(file, closeOnExit, FALSE, split))
     }
 }
-
-# Examples
-sink("sink-examp.txt")
-i <- 1:10
-outer(i, i)
-sink()
-unlink("sink-examp.txt")
-\donttest{
-## capture all the output to a file.
-zz <- file("all.Rout", open = "wt")
-sink(zz)
-sink(zz, type = "message")
-try(log("a"))
-## revert output back to the console -- only then access the file!
-sink(type = "message")
-sink()
-file.show("all.Rout", delete.file = TRUE)
-}

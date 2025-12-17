@@ -57,5 +57,3 @@
     }
     invisible(httpdPort())
 }
-
-# Examples

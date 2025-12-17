@@ -31,5 +31,3 @@
     else names(syms) <- name
     syms
 }
-
-# Examples

@@ -5,5 +5,3 @@
         writedoc = RweaveLatexWritedoc, finish = RweaveLatexFinish, 
         checkopts = RweaveLatexOptions)
 }
-
-# Examples

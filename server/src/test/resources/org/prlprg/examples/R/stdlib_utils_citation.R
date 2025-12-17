@@ -144,28 +144,3 @@
         other = z)
     .citation(rval, package)
 }
-
-# Examples
-## the basic R reference
-citation()
-
-## extract the BibTeX entry from the return value
-x <- citation()
-toBibtex(x)
-\donttest{
-## references for a package
-citation("lattice")
-citation("lattice", auto = TRUE)  # request the Manual-type reference
-citation("foreign")
-
-## a CITATION file with more than one bibentry:
-file.show(system.file("CITATION", package="mgcv"))
-cm <- citation("mgcv")
-cm # header, text references, plus "reminder" about getting BibTeX
-print(cm, bibtex = TRUE) # each showing its bibtex code
-
-## a CITATION file including citation(auto = meta)
-file.show(system.file("CITATION", package="nlme"))
-citation("nlme")
-}
-

@@ -27,5 +27,3 @@
     setMethod(f, signature, NULL, where = where)
     TRUE
 }
-
-# Examples

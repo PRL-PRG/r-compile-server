@@ -22,5 +22,3 @@
     file.rename(tarball, file.path(outDir, basename(tarball)))
     invisible()
 }
-
-# Examples

@@ -17,5 +17,3 @@
     }
     result
 }
-
-# Examples

@@ -37,5 +37,3 @@
             "contrib", ver, sep = "/"), stop("invalid 'type'"))
     res
 }
-
-# Examples

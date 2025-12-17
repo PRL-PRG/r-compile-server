@@ -214,5 +214,3 @@
     }
     invisible(NULL)
 }
-
-# Examples

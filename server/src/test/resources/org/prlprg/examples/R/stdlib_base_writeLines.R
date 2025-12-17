@@ -9,5 +9,3 @@
     }
     .Internal(writeLines(text, con, sep, useBytes))
 }
-
-# Examples

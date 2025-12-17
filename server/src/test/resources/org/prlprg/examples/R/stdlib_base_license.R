@@ -19,5 +19,3 @@
     cat("\n")
     cat("'Share and Enjoy.'\n\n")
 }
-
-# Examples

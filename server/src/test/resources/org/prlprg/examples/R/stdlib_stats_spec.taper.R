@@ -23,5 +23,3 @@
     attributes(x) <- a
     x
 }
-
-# Examples

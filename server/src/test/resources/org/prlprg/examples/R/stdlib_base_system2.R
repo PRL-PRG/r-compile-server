@@ -58,5 +58,3 @@
         command <- paste(command, "&")
     .Internal(system(command, intern, timeout, receive.console.signals))
 }
-
-# Examples

@@ -39,5 +39,3 @@
         access = access, package = package, versionKey = version, 
         sealed = sealed)
 }
-
-# Examples

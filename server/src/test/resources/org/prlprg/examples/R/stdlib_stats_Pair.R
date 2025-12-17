@@ -5,5 +5,3 @@
     class(pp) <- "Pair"
     pp
 }
-
-# Examples

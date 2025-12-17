@@ -18,8 +18,3 @@
     on.exit()
     structure(new.time - time, class = "proc_time")
 }
-
-# Examples
-require(stats)
-\donttest{system.time(for(i in 1:100) mad(runif(1000)))}
-

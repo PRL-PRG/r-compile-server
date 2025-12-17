@@ -139,5 +139,3 @@
     class(result) <- "checkVignettes"
     result
 }
-
-# Examples

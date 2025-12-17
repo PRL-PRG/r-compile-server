@@ -153,26 +153,3 @@
     class(y) <- "hsearch"
     y
 }
-
-# Examples
-help.search("linear models", lib.loc = .Library) # (limit to "base + Rec." packages)
-
-help.search("non-existent topic")
-
-??utils::help  # All the topics matching "help" in the utils package
-
-\donttest{
-## Documentation with topic/concept/title matching 'print'
-## (disabling fuzzy matching to not also match 'point')
-help.search("print", agrep = FALSE)
-help.search(apropos = "print", agrep = FALSE)  # ignores concepts
-
-## Help pages with documented topics starting with 'try':
-help.search("^try", fields = "alias")
-alias??"^try"  # the same
-
-## Help pages documenting high-level plots:
-help.search(keyword = "hplot")
-}
-RShowDoc("KEYWORDS")  # show all keywords
-

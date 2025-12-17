@@ -7,5 +7,3 @@
     }
     value
 }
-
-# Examples
