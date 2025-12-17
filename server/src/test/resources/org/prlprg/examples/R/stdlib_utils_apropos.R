@@ -23,39 +23,3 @@
     }
     sort(x)
 }
-
-# Examples
-require(stats)
-
-
-
-apropos("GLM")                      # several
-apropos("GLM", ignore.case = FALSE) # not one
-apropos("lq")
-
-cor <- 1:pi
-find("cor")                         #> ".GlobalEnv"   "package:stats"
-find("cor", numeric = TRUE)                     # numbers with these names
-find("cor", numeric = TRUE, mode = "function")  # only the second one
-rm(cor)
-
-
-
-# extraction/replacement methods (need a DOUBLE backslash '\\')
-apropos("\\[")
-
-\donttest{# everything % not diff-able
-length(apropos("."))
-
-# those starting with 'pr'
-apropos("^pr")
-
-# the 1-letter things
-apropos("^.$")
-# the 1-2-letter things
-apropos("^..?$")
-# the 2-to-4 letter things
-apropos("^.{2,4}$")
-# frequencies of 8-and-more letter things
-table(nchar(apropos("^.{8,}$")))
-}

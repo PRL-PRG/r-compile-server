@@ -14,11 +14,3 @@
     class(db) <- "browseVignettes"
     return(db)
 }
-
-# Examples\donttest{
-## List vignettes from all *attached* packages
-browseVignettes(all = FALSE)
-
-## List vignettes from a specific package
-browseVignettes("grid")
-}

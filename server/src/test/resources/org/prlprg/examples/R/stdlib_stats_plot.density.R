@@ -12,5 +12,3 @@
         abline(h = 0, lwd = 0.25, col = "gray")
     invisible(NULL)
 }
-
-# Examples

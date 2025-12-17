@@ -83,5 +83,3 @@
         rep.int("", 3)), description = "bug report", subject = subject, 
         address = address, filename = file, info = info, ...)
 }
-
-# Examples

@@ -14,5 +14,3 @@
     pp[il.tri] <- p.adjust(pp[il.tri], p.adjust.method)
     pp
 }
-
-# Examples

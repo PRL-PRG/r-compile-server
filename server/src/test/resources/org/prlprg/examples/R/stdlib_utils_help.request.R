@@ -106,5 +106,3 @@
         description = "help request", subject = subject, address = address, 
         filename = file, info = bug.report.info(), ...)
 }
-
-# Examples

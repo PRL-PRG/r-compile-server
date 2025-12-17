@@ -10,5 +10,3 @@
         names(ret) <- bdexpr[[2L]]
     ret
 }
-
-# Examples

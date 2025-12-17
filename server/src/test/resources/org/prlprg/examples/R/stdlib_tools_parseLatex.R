@@ -8,8 +8,3 @@
     .External2(C_parseLatex, text, srcfile, verbose, as.character(verbatim), 
         as.character(verb))
 }
-
-# Examples\donttest{
-latex <- parseLatex("fran\\c{c}ais")
-deparseLatex(latexToUtf8(latex))
-}

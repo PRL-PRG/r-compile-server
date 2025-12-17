@@ -19,5 +19,3 @@
         invisible(system2(zip, args, input = input, invisible = TRUE))
     else invisible(system2(zip, args, input = input))
 }
-
-# Examples

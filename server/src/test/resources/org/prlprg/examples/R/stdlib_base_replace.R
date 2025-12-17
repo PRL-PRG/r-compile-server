@@ -4,5 +4,3 @@
     x[list] <- values
     x
 }
-
-# Examples

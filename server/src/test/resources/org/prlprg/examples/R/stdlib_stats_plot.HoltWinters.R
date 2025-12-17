@@ -23,5 +23,3 @@
         abline(v = time(x$x)[length(x$x)], lty = lty.separator, 
             col = col.separator)
 }
-
-# Examples

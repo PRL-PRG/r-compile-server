@@ -10,5 +10,3 @@
             tz = tz)
     }
 }
-
-# Examples

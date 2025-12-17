@@ -159,11 +159,3 @@
     }
     stop("document not found")
 }
-
-# Examples\donttest{
-RShowDoc("R-lang")
-RShowDoc("FAQ", type = "html")
-RShowDoc("frame", package = "grid")
-RShowDoc("changes.txt", package = "grid")
-RShowDoc("NEWS", package = "MASS")
-}

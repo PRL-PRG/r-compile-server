@@ -33,16 +33,3 @@
     cat(gettext("The results page should open in your browser shortly\n"))
     invisible(qstring)
 }
-
-# Examples
-\donttest{# need Internet connection
-## for phrase searching you may use (escaped) double quotes or brackets
-RSiteSearch("{logistic regression} \"glm object\"")
-RSiteSearch('"logistic regression"')
-
-## Search in vignettes and help files of R base packages
-## store the query string:
-fullquery <- RSiteSearch("lattice", restrict = c("vignettes","Rfunctions"))
-fullquery # a string of 112 characters
-}
-

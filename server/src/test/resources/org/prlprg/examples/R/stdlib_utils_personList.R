@@ -7,5 +7,3 @@
             domain = NA)
     do.call(c, z)
 }
-
-# Examples

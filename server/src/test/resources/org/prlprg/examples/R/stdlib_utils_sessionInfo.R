@@ -51,11 +51,3 @@
     class(z) <- "sessionInfo"
     z
 }
-
-# Examples\donttest{
-sI <- sessionInfo()
-sI
-# The same, showing the RNGkind, but not the locale :
-  print(sI, RNG = TRUE, locale = FALSE)
-toLatex(sI, locale = FALSE) # shortest; possibly desirable at end of report
-}

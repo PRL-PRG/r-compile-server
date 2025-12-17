@@ -68,37 +68,3 @@
             iS[sel]
     }
 }
-
-# Examples\donttest{
-## A largish data set
-n <- 10000
-x1  <- matrix(rnorm(n), ncol = 2)
-x2  <- matrix(rnorm(n, mean = 3, sd = 1.5), ncol = 2)
-x   <- rbind(x1, x2)
-
-oldpar <- par(mfrow = c(2, 2), mar=.1+c(3,3,1,1), mgp = c(1.5, 0.5, 0))
-smoothScatter(x, nrpoints = 0)
-smoothScatter(x)
-
-## a different color scheme:
-Lab.palette <- colorRampPalette(c("blue", "orange", "red"), space = "Lab")
-i.s <- smoothScatter(x, colramp = Lab.palette,
-                     ## pch=NA: do not draw them
-                     nrpoints = 250, ret.selection=TRUE)
-## label the 20 very lowest-density points,the "outliers" (with obs.number):
-i.20 <- i.s[1:20]
-text(x[i.20,], labels = i.20, cex= 0.75)
-
-## somewhat similar, using identical smoothing computations,
-## but considerably *less* efficient for really large data:
-plot(x, col = densCols(x), pch = 20)
-
-## use with pairs:
-par(mfrow = c(1, 1))
-y <- matrix(rnorm(40000), ncol = 4) + 3*rnorm(10000)
-y[, c(2,4)] <-  -y[, c(2,4)]
-pairs(y, panel = function(...) smoothScatter(..., nrpoints = 0, add = TRUE),
-      gap = 0.2)
-
-par(oldpar)
-}

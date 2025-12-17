@@ -56,11 +56,3 @@
     class(retval) <- "packageStatus"
     retval
 }
-
-# Examples
-\donttest{
-x <- packageStatus(repositories = contrib.url(findCRANmirror("web")))
-print(x)
-summary(x)
-}
-

@@ -196,5 +196,3 @@
     }
     invisible(0L)
 }
-
-# Examples

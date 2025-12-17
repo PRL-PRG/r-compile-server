@@ -4,5 +4,3 @@
     warning("'memory.size()' is Windows-specific", call. = FALSE)
     Inf
 }
-
-# Examples

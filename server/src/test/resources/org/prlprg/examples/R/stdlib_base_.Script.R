@@ -10,5 +10,3 @@
         interpreter, shQuote(file.path(R.home("share"), interpreter, 
             script)), args), ...)
 }
-
-# Examples

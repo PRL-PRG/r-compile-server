@@ -7,5 +7,3 @@
         UseMethod("Axis", at)
     else axis(side = side, at = at, labels = labels, ...)
 }
-
-# Examples

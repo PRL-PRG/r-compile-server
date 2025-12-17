@@ -191,8 +191,3 @@
     vigns$sources <- sourceList
     invisible(vigns)
 }
-
-# Examples
-gVigns <- pkgVignettes("grid")
-\donttest{str(gVigns)}
-

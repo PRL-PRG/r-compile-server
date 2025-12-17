@@ -11,5 +11,3 @@
     }
     else data[[which]]
 }
-
-# Examples

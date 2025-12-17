@@ -86,5 +86,3 @@
         permissify(result)
     else result
 }
-
-# Examples

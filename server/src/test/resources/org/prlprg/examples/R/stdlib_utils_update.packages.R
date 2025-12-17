@@ -95,5 +95,3 @@
             ..., type = type)
     }
 }
-
-# Examples

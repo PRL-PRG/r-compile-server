@@ -6,5 +6,3 @@
         res
     else invisible(res)
 }
-
-# Examples

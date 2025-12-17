@@ -210,5 +210,3 @@
     }
     invisible()
 }
-
-# Examples

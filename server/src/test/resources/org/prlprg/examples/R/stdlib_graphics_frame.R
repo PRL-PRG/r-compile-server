@@ -15,5 +15,3 @@
     }
     invisible()
 }
-
-# Examples

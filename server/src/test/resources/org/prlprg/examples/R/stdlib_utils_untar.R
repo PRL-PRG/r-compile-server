@@ -104,5 +104,3 @@
         invisible(res)
     }
 }
-
-# Examples

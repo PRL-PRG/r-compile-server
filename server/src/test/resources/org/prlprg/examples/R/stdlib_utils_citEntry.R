@@ -3,5 +3,3 @@
     ...) 
 bibentry(bibtype = entry, textVersion = textVersion, header = header, 
     footer = footer, ...)
-
-# Examples

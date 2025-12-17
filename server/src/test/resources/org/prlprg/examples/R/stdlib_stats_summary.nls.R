@@ -32,5 +32,3 @@
     class(ans) <- "summary.nls"
     ans
 }
-
-# Examples

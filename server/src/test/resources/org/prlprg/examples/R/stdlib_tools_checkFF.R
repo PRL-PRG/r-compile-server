@@ -326,7 +326,3 @@
         invisible(bad_exprs)
     else bad_exprs
 }
-
-# Examples\donttest{ # order is pretty much random
-checkFF(package = "stats", verbose = TRUE)
-}

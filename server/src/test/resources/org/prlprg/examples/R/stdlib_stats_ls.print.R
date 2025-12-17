@@ -63,5 +63,3 @@
     names(coef.table) <- Ynames
     invisible(list(summary = summary, coef.table = coef.table))
 }
-
-# Examples

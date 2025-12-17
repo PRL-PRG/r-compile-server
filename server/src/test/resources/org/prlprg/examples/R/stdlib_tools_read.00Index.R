@@ -34,5 +34,3 @@
     colnames(y) <- c("Item", "Description")
     y
 }
-
-# Examples

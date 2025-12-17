@@ -16,5 +16,3 @@
         check_for_XQuartz(file.path(R.home("modules"), "R_de.so"))
     invisible(.External2(C_dataviewer, x, title))
 }
-
-# Examples

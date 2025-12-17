@@ -30,9 +30,3 @@
         do.call(rbind, lapply(paths, getVinfo))
     else empty
 }
-
-# Examples
-\donttest{
-getVignetteInfo("grid")
-}
-

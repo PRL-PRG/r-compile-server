@@ -11,5 +11,3 @@
     if ((n <- z[[3L]]) > 0) 
         list(x = x[1L:n], y = y[1L:n])
 }
-
-# Examples

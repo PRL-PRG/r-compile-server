@@ -55,9 +55,3 @@
         options(repos = repos)
     }
 }
-
-# Examples
-oldrepos <- setRepositories(name = c("CRAN", "R-Forge"))
-\donttest{getOption("repos")}
-options(oldrepos) # restore
-

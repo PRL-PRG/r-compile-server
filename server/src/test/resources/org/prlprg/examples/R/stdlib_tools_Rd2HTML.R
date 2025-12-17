@@ -788,14 +788,3 @@
     }
     invisible(out)
 }
-
-# Examples\donttest{
-## Simulate rendering of this (installed) page in HTML and text format
-Rd <- Rd_db("tools")[["Rd2HTML.Rd"]]
-
-outfile <- tempfile(fileext = ".html")
-Rd2HTML(Rd, outfile, package = "tools") |> browseURL()
-
-outfile <- tempfile(fileext = ".txt")
-Rd2txt(Rd, outfile, package = "tools") |> file.show()
-}

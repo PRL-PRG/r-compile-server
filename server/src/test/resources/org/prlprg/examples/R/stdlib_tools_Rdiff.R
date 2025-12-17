@@ -138,5 +138,3 @@
         else system(paste("diff -bw", shQuote(a), shQuote(b)))
     }
 }
-
-# Examples

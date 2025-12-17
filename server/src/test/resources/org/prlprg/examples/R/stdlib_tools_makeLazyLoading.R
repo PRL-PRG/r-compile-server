@@ -32,5 +32,3 @@
     }
     invisible()
 }
-
-# Examples

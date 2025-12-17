@@ -378,23 +378,3 @@
         TRUE
     else invisible(.packages())
 }
-
-# Examples
-library()                   # list all available packages
-library(lib.loc = .Library) # list all packages in the default library
-\donttest{library(help = splines)     # documentation on package 'splines'}
-library(splines)            # attach package 'splines'
-require(splines)            # the same
-search()                    # "splines", too
-detach("package:splines")
-
-# if the package name is in a character vector, use
-pkg <- "splines"
-library(pkg, character.only = TRUE)
-detach(pos = match(paste("package", pkg, sep = ":"), search()))
-
-require(pkg, character.only = TRUE)
-detach(pos = match(paste("package", pkg, sep = ":"), search()))
-
-require(nonexistent)        # FALSE
-

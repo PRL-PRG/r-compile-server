@@ -32,10 +32,3 @@
     browseURL(url, browser = browser)
     invisible()
 }
-
-# Examples\donttest{
-help.start()
-
-## the 'remote' arg can be tested by
-help.start(remote = paste0("file://", R.home()))
-}

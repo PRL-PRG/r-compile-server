@@ -52,5 +52,3 @@
         warning("download had nonzero exit status")
     invisible(status)
 }
-
-# Examples
