@@ -84,8 +84,6 @@ fun `!=`(lhs, rhs) {
   (reg lhs:R, reg rhs:R) --> L { ... }
   (reg lhs:S, reg rhs:S) --> L { ... }
   (reg lhs:cls, reg rhs:cls) --> L { ... }
-  (reg lhs:V, reg rhs:I) --> L { ... }
-  (reg lhs:V, reg rhs:S) --> L { ... }
 }
 
 fun `&`(lhs, rhs) {

@@ -748,7 +748,8 @@ public class BC2CFGCompiler {
         // This causes snapshots to fail if we change how SEXPs are printed.
         // We just need to update them because the generated names are different.
         // `String#hashCode` is stable, so it shouldn't fail otherwise.
-        var generatedName = "inner" + cloSxp.toString().hashCode();
+        var generatedName =
+            "inner" + ((long) cloSxp.toString().hashCode() + (long) Integer.MAX_VALUE);
 
         // Since we generate the name from a hash of the closure's body, we may have a name
         // conflict, but it's only with an identical closure we've already compiled.
@@ -999,7 +1000,7 @@ public class BC2CFGCompiler {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
               var cond =
-                  insertAndReturn("c", builtin("==", 6, value, new Constant(SEXPs.string(name))));
+                  insertAndReturn("c", builtin("==", 3, value, new Constant(SEXPs.string(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -1025,7 +1026,7 @@ public class BC2CFGCompiler {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
                 insertAndReturn(
-                    "c", builtin("==", 5, asInteger, new Constant(SEXPs.integer(i + 1))));
+                    "c", builtin("==", 1, asInteger, new Constant(SEXPs.integer(i + 1))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.
