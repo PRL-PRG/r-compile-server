@@ -21,9 +21,16 @@ extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 #include "runtime_internals.h"
 #include "stencils/stencils.h"
 
+#define UNPROTECT_SAFE(ptr)                         \
+    do                                              \
+    {                                               \
+        assert(R_PPStack[R_PPStackTop - 1] == ptr); \
+        UNPROTECT(1);                               \
+    } while (0)
+
 // Used as a hint where to map address space close to R internals to allow relative addressing
 #define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
-#define BC_DEFAULT_OPTIMIZE_LEVEL 2
+//#define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
 #ifndef ALIGNMENT_LABELS
 #define ALIGNMENT_LABELS 1
@@ -1373,7 +1380,7 @@ SEXP C_is_compiled(SEXP closure) {
 
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
-    struct timespec start, mid, end;
+    DEBUG_PRINT("Starting to JIT a function...\n");
 
     if (TYPEOF(f) != CLOSXP)
         error("The first argument must be a closure.");
@@ -1397,8 +1404,9 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
         PROTECT(options); // To balance PROTECT/UNPROTECT
     #endif
 
-    CompilationStats stats = {0, 0};
+    struct timespec start, mid, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
+    CompilationStats stats = {0, 0};
 
     SEXP compiled = compile_to_bc(f, options);
     #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
@@ -1677,6 +1685,130 @@ static void install_tryCmpfun_hook(void)
     UNPROTECT(2); // tryCmpfun_sym, compiler_namespace
 
     DEBUG_PRINT("Installed tryCmpfun hook\n");
+}
+
+SEXP C_rcp_cmppackage(SEXP package_name)
+{
+    if (TYPEOF(package_name) != STRSXP || LENGTH(package_name) != 1)
+        error("Package name must be a single character string.");
+    
+    const char *pkg = CHAR(STRING_ELT(package_name, 0));
+    
+    // Get the package namespace
+    SEXP getNamespace_call = Rf_lang2(
+        PROTECT(Rf_install("getNamespace")),
+        package_name
+    );
+    UNPROTECT(1);
+    PROTECT(getNamespace_call);
+    
+    int error_occurred = 0;
+    SEXP pkg_namespace = R_tryEval(getNamespace_call, R_GlobalEnv, &error_occurred);
+    UNPROTECT_SAFE(getNamespace_call);
+    
+    if (error_occurred || pkg_namespace == R_UnboundValue) {
+        error("Package '%s' is not loaded.  Please load it first with library().", pkg);
+    }
+    
+    PROTECT(pkg_namespace);
+    
+    // Get all object names in the namespace
+    SEXP ls_call = Rf_lang3(
+        PROTECT(Rf_install("ls")),
+        pkg_namespace,
+        PROTECT(Rf_ScalarLogical(TRUE)) // all. names = TRUE
+    );
+    UNPROTECT(2); // ls and all.names arg
+    PROTECT(ls_call);
+    
+    SEXP obj_names = Rf_eval(ls_call, R_GlobalEnv);
+    UNPROTECT_SAFE(ls_call);
+    PROTECT(obj_names);
+    
+    int n_objects = LENGTH(obj_names);
+    int compiled_count = 0;
+    int failed_count = 0;
+    
+    fprintf(stderr, "Compiling functions from package '%s'...\n", pkg);
+    
+    // Iterate through all objects
+    for (int i = 0; i < n_objects; i++) {
+        fprintf(stderr, "  Compiling:  %s\n", CHAR(STRING_ELT(obj_names, i)));
+        SEXP name_sym = Rf_install(CHAR(STRING_ELT(obj_names, i)));
+        PROTECT(name_sym);
+        SEXP obj = Rf_findVarInFrame(pkg_namespace, name_sym);
+
+        if (obj == R_UnboundValue)
+            continue;
+
+        if (TYPEOF(obj) == PROMSXP) {
+            obj = Rf_eval(name_sym, pkg_namespace);
+        }
+        
+        // Check if it's a function
+        if (TYPEOF(obj) != CLOSXP){
+            UNPROTECT_SAFE(name_sym);
+            continue;
+        }
+
+        // Check if already compiled
+        if (TYPEOF(BODY(obj)) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(BODY(obj))) {
+            fprintf(stderr, "  Skipping %s (already compiled)\n", CHAR(STRING_ELT(obj_names, i)));
+            UNPROTECT_SAFE(name_sym);
+            continue;
+        }
+        
+        PROTECT(obj);
+        // Try to compile the function
+        SEXP cmpfun_call = Rf_lang3(
+            PROTECT(Rf_install("rcp_cmpfun")),
+            obj,
+            R_NilValue
+        );
+        UNPROTECT(1); // install
+        UNPROTECT_SAFE(obj);
+        PROTECT(cmpfun_call);
+        int comp_error = 0;
+        SEXP compiled = R_tryEval(cmpfun_call, R_GlobalEnv, &comp_error);
+        UNPROTECT_SAFE(cmpfun_call);
+        
+        if (comp_error) {
+            Rf_warning("Failed to compile function %s in package %s.", CHAR(STRING_ELT(obj_names, i)), pkg);
+            failed_count++;
+            UNPROTECT_SAFE(name_sym);
+            continue;
+        }
+        
+        // Replace the function in-place in the namespace
+        PROTECT(compiled);
+        R_unLockBinding(name_sym, pkg_namespace);
+        Rf_defineVar(name_sym, compiled, pkg_namespace);
+        R_LockBinding(name_sym, pkg_namespace);
+        UNPROTECT_SAFE(compiled);
+        UNPROTECT_SAFE(name_sym);
+        
+        compiled_count++;
+    }
+
+    UNPROTECT_SAFE(obj_names);
+    UNPROTECT_SAFE(pkg_namespace);
+    
+    fprintf(stderr, "Compilation complete:  %d succeeded, %d failed\n", 
+            compiled_count, failed_count);
+    
+    // Return a list with statistics
+    SEXP result = PROTECT(Rf_allocVector(VECSXP, 2));
+    SET_VECTOR_ELT(result, 0, Rf_ScalarInteger(compiled_count));
+    SET_VECTOR_ELT(result, 1, Rf_ScalarInteger(failed_count));
+    
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+    SET_STRING_ELT(names, 0, Rf_mkChar("compiled"));
+    SET_STRING_ELT(names, 1, Rf_mkChar("failed"));
+    Rf_setAttrib(result, R_NamesSymbol, names);
+    
+    UNPROTECT_SAFE(names);
+    UNPROTECT_SAFE(result);
+    return result;
 }
 
 SEXP C_rcp_jit_enable()

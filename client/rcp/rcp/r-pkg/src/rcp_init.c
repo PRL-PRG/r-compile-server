@@ -8,6 +8,7 @@ extern SEXP C_rcp_tryCmpfun(SEXP f);
 extern SEXP C_is_compiled(SEXP closure);
 extern SEXP C_rcp_jit_enable(void);
 extern SEXP C_rcp_jit_disable(void);
+extern SEXP C_rcp_cmppackage(SEXP pkg);
 extern void rcp_init(void);
 extern void rcp_destr(void);
 
@@ -18,6 +19,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"is_compiled", (DL_FUNC) &C_is_compiled, 1},
     {"rcp_jit_enable", (DL_FUNC) &C_rcp_jit_enable, 0},
     {"rcp_jit_disable", (DL_FUNC) &C_rcp_jit_disable, 0},
+    {"rcp_cmppackage", (DL_FUNC) &C_rcp_cmppackage, 0},
     {NULL, NULL, 0}
 };
 

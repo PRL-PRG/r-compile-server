@@ -41,3 +41,15 @@ rcp_jit_enable <- function() {
 rcp_jit_disable <- function() {
   .Call(C_rcp_jit_disable)
 }
+
+#' Compile all functions in a package to native code
+#'
+#' This function compiles all functions in a specified package namespace
+#' in-place using RCP JIT compilation.
+#'
+#' @param package Character string naming the package to compile
+#' @return A list with counts of successfully compiled and failed functions
+#' @export
+rcp_cmppackage <- function(package) {
+  .Call(C_rcp_cmppackage, package)
+}
