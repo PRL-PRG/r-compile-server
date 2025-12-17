@@ -36,6 +36,13 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // L1()
   goto L1_;
 
+L0_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return dx1
+  return Rsh_Fir_reg_dx1_;
+
 D0_:;
   // deopt 1 []
   Rsh_Fir_deopt(1, 0, NULL, CCP, RHO);
@@ -102,13 +109,6 @@ L3_:;
     Rsh_Fir_reg_x3_ = Rsh_Fir_reg_x1_;
     goto L5_;
   }
-
-L0_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return dx1
-  return Rsh_Fir_reg_dx1_;
 
 L4_:;
   // dr = tryDispatchBuiltin.1("[", x1)

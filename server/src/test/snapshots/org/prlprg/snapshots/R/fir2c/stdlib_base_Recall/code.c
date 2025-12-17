@@ -279,6 +279,20 @@ SEXP Rsh_Fir_user_version_inner4266987626_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
   // L2()
   goto L2_;
 
+L0_:;
+  // Recall = ldf Recall
+  Rsh_Fir_reg_Recall = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
+  // check L8() else D2()
+  // L8()
+  goto L8_;
+
+L1_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return 0.0
+  return Rsh_const(CCP, 9);
+
 D0_:;
   // deopt 0 [n1]
   SEXP Rsh_Fir_array_deopt_stack3[1];
@@ -296,7 +310,7 @@ L2_:;
   // r = `<=`(n2, 2.0)
   SEXP Rsh_Fir_array_args8[2];
   Rsh_Fir_array_args8[0] = Rsh_Fir_reg_n2_;
-  Rsh_Fir_array_args8[1] = Rsh_const(CCP, 9);
+  Rsh_Fir_array_args8[1] = Rsh_const(CCP, 10);
   Rsh_Fir_reg_r2 = Rsh_Fir_call_builtin(77, RHO, 2, Rsh_Fir_array_args8);
   // c = `as.logical`(r)
   SEXP Rsh_Fir_array_args9[1];
@@ -310,13 +324,6 @@ L2_:;
   // L0()
     goto L0_;
   }
-
-L0_:;
-  // Recall = ldf Recall
-  Rsh_Fir_reg_Recall = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
-  // check L8() else D2()
-  // L8()
-  goto L8_;
 
 L3_:;
   // n3 = ld n
@@ -332,11 +339,6 @@ D1_:;
   Rsh_Fir_deopt(4, 1, Rsh_Fir_array_deopt_stack4, CCP, RHO);
   return R_NilValue;
 
-D2_:;
-  // deopt 13 []
-  Rsh_Fir_deopt(13, 0, NULL, CCP, RHO);
-  return R_NilValue;
-
 L4_:;
   // n4 = force? n3
   Rsh_Fir_reg_n4_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_n3_);
@@ -347,7 +349,7 @@ L4_:;
   // r1 = `>=`(n4, 0.0)
   SEXP Rsh_Fir_array_args11[2];
   Rsh_Fir_array_args11[0] = Rsh_Fir_reg_n4_;
-  Rsh_Fir_array_args11[1] = Rsh_const(CCP, 10);
+  Rsh_Fir_array_args11[1] = Rsh_const(CCP, 9);
   Rsh_Fir_reg_r1_2 = Rsh_Fir_call_builtin(78, RHO, 2, Rsh_Fir_array_args11);
   // c1 = `as.logical`(r1)
   SEXP Rsh_Fir_array_args12[1];
@@ -361,6 +363,18 @@ L4_:;
   // L1()
     goto L1_;
   }
+
+L5_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return 1.0
+  return Rsh_const(CCP, 11);
+
+D2_:;
+  // deopt 13 []
+  Rsh_Fir_deopt(13, 0, NULL, CCP, RHO);
+  return R_NilValue;
 
 L8_:;
   // p = prom<V +>{
@@ -387,20 +401,6 @@ D3_:;
   Rsh_Fir_array_deopt_stack5[0] = Rsh_Fir_reg_r4_1;
   Rsh_Fir_deopt(15, 1, Rsh_Fir_array_deopt_stack5, CCP, RHO);
   return R_NilValue;
-
-L1_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return 0.0
-  return Rsh_const(CCP, 10);
-
-L5_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return 1.0
-  return Rsh_const(CCP, 11);
 
 L9_:;
   // Recall1 = ldf Recall
@@ -498,7 +498,7 @@ SEXP Rsh_Fir_user_promise_inner4266987626_1(SEXP CCP, SEXP RHO, int NCAPTURES, S
   // r5 = `-`(n8, 2.0)
   SEXP Rsh_Fir_array_args17[2];
   Rsh_Fir_array_args17[0] = Rsh_Fir_reg_n8_;
-  Rsh_Fir_array_args17[1] = Rsh_const(CCP, 9);
+  Rsh_Fir_array_args17[1] = Rsh_const(CCP, 10);
   Rsh_Fir_reg_r5_ = Rsh_Fir_call_builtin(67, RHO, 2, Rsh_Fir_array_args17);
   // return r5
   return Rsh_Fir_reg_r5_;

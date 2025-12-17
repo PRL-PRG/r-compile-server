@@ -29,7 +29,7 @@ fun inner1246119658(`...`) {
     __2 = force? __1;
     checkMissing(__2);
     st x = __2;
-    invisible.0();
+    setInvisible.0();
     popenv;
     return __2;
   }

@@ -96,18 +96,18 @@ D0_:;
   Rsh_Fir_deopt(7, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
   return R_NilValue;
 
+L3_:;
+  // goto L0(r2)
+  // L0(r2)
+  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r2_;
+  goto L0_;
+
 D1_:;
   // deopt 9 [x]
   SEXP Rsh_Fir_array_deopt_stack1[1];
   Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_x;
   Rsh_Fir_deopt(9, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
   return R_NilValue;
-
-L3_:;
-  // goto L0(r2)
-  // L0(r2)
-  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r2_;
-  goto L0_;
 
 L4_:;
   // x1 = force? x

@@ -36,6 +36,13 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // L1()
   goto L1_;
 
+L0_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return r2
+  return Rsh_Fir_reg_r2_;
+
 D0_:;
   // deopt 4 [1.0, a]
   SEXP Rsh_Fir_array_deopt_stack[2];
@@ -76,13 +83,6 @@ L1_:;
   // L3()
     goto L3_;
   }
-
-L0_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return r2
-  return Rsh_Fir_reg_r2_;
 
 L2_:;
   // x = ld x

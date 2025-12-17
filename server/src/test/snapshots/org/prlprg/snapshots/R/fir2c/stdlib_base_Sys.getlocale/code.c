@@ -13,8 +13,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -24,8 +24,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `Sys.getlocale` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -42,42 +42,42 @@ SEXP Rsh_Fir_user_version_inner1501270050_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 1) Rsh_error("FIŘ arity mismatch for inner1501270050/0: expected 1, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_category;  // category
-  SEXP Rsh_Fir_reg_category_isMissing;  // category_isMissing
-  SEXP Rsh_Fir_reg_category_orDefault;  // category_orDefault
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r1;  // r
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_category1_;  // category1
-  SEXP Rsh_Fir_reg_category2_;  // category2
-  SEXP Rsh_Fir_reg__LC_categories;  // _LC_categories
-  SEXP Rsh_Fir_reg__LC_categories1_;  // _LC_categories1
-  SEXP Rsh_Fir_reg_match;  // match
-  SEXP Rsh_Fir_reg_r2_;  // r2
-  SEXP Rsh_Fir_reg_sym1_;  // sym1
-  SEXP Rsh_Fir_reg_base1_;  // base1
-  SEXP Rsh_Fir_reg_guard1_;  // guard1
-  SEXP Rsh_Fir_reg_r3_;  // r3
-  SEXP Rsh_Fir_reg_r4_;  // r4
-  SEXP Rsh_Fir_reg_category3_;  // category3
-  SEXP Rsh_Fir_reg_category4_;  // category4
-  SEXP Rsh_Fir_reg_is_na;  // is_na
-  SEXP Rsh_Fir_reg_r5_;  // r5
-  SEXP Rsh_Fir_reg_c;  // c
-  SEXP Rsh_Fir_reg_stop;  // stop
-  SEXP Rsh_Fir_reg_r6_;  // r6
-  SEXP Rsh_Fir_reg_sym2_;  // sym2
-  SEXP Rsh_Fir_reg_base2_;  // base2
-  SEXP Rsh_Fir_reg_guard2_;  // guard2
-  SEXP Rsh_Fir_reg_r8_;  // r8
-  SEXP Rsh_Fir_reg_r9_;  // r9
-  SEXP Rsh_Fir_reg_category5_;  // category5
-  SEXP Rsh_Fir_reg_category6_;  // category6
-  SEXP Rsh_Fir_reg_Sys_getlocale;  // Sys_getlocale
-  SEXP Rsh_Fir_reg_r10_;  // r10
+  // Declare locals
+  SEXP Rsh_Fir_reg_category;
+  SEXP Rsh_Fir_reg_category_isMissing;
+  SEXP Rsh_Fir_reg_category_orDefault;
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r1;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_category1_;
+  SEXP Rsh_Fir_reg_category2_;
+  SEXP Rsh_Fir_reg__LC_categories;
+  SEXP Rsh_Fir_reg__LC_categories1_;
+  SEXP Rsh_Fir_reg_match;
+  SEXP Rsh_Fir_reg_r2_;
+  SEXP Rsh_Fir_reg_sym1_;
+  SEXP Rsh_Fir_reg_base1_;
+  SEXP Rsh_Fir_reg_guard1_;
+  SEXP Rsh_Fir_reg_r3_;
+  SEXP Rsh_Fir_reg_r4_;
+  SEXP Rsh_Fir_reg_category3_;
+  SEXP Rsh_Fir_reg_category4_;
+  SEXP Rsh_Fir_reg_is_na;
+  SEXP Rsh_Fir_reg_r5_;
+  SEXP Rsh_Fir_reg_c;
+  SEXP Rsh_Fir_reg_stop;
+  SEXP Rsh_Fir_reg_r6_;
+  SEXP Rsh_Fir_reg_sym2_;
+  SEXP Rsh_Fir_reg_base2_;
+  SEXP Rsh_Fir_reg_guard2_;
+  SEXP Rsh_Fir_reg_r8_;
+  SEXP Rsh_Fir_reg_r9_;
+  SEXP Rsh_Fir_reg_category5_;
+  SEXP Rsh_Fir_reg_category6_;
+  SEXP Rsh_Fir_reg_Sys_getlocale;
+  SEXP Rsh_Fir_reg_r10_;
 
   // Bind parameters
   Rsh_Fir_reg_category = PARAMS[0];
@@ -148,7 +148,7 @@ L2_:;
   // c = `as.logical`(r4)
   SEXP Rsh_Fir_array_args3[1];
   Rsh_Fir_array_args3[0] = Rsh_Fir_reg_r4_;
-  Rsh_Fir_reg_c = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args3, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args3);
   // if c then L15() else L3()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c)) {
   // L15()

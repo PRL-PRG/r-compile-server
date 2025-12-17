@@ -105,6 +105,13 @@ SEXP Rsh_Fir_user_version_inner4266987626_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
   // L2()
   goto L2_;
 
+L0_:;
+  // fibonacci = ldf fibonacci
+  Rsh_Fir_reg_fibonacci1 = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
+  // check L7() else D2()
+  // L7()
+  goto L7_;
+
 D0_:;
   // deopt 0 [n1]
   SEXP Rsh_Fir_array_deopt_stack1[1];
@@ -137,13 +144,6 @@ L2_:;
     goto L0_;
   }
 
-L0_:;
-  // fibonacci = ldf fibonacci
-  Rsh_Fir_reg_fibonacci1 = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
-  // check L7() else D2()
-  // L7()
-  goto L7_;
-
 L3_:;
   // n3 = ld n
   Rsh_Fir_reg_n3_ = Rsh_Fir_load(Rsh_const(CCP, 2), RHO);
@@ -158,11 +158,6 @@ D1_:;
   Rsh_Fir_deopt(4, 1, Rsh_Fir_array_deopt_stack2, CCP, RHO);
   return R_NilValue;
 
-D2_:;
-  // deopt 10 []
-  Rsh_Fir_deopt(10, 0, NULL, CCP, RHO);
-  return R_NilValue;
-
 L4_:;
   // n4 = force? n3
   Rsh_Fir_reg_n4_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_n3_);
@@ -175,6 +170,11 @@ L4_:;
   (void)(R_NilValue);
   // return n4
   return Rsh_Fir_reg_n4_;
+
+D2_:;
+  // deopt 10 []
+  Rsh_Fir_deopt(10, 0, NULL, CCP, RHO);
+  return R_NilValue;
 
 L7_:;
   // p = prom<V +>{

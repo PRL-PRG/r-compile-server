@@ -640,7 +640,7 @@ public class BC2CFGCompiler {
         pop();
         push(new Constant(SEXPs.NULL));
       }
-      case Invisible() -> insert(intrinsic("invisible", 0));
+      case Invisible() -> insert(intrinsic("setInvisible", 0));
       case LdConst(var constant) -> push(new Constant(get(constant)));
       case LdNull() -> push(new Constant(SEXPs.NULL));
       case LdTrue() -> push(new Constant(SEXPs.TRUE));
@@ -882,7 +882,7 @@ public class BC2CFGCompiler {
         tryAddCheckpoint(false);
         pushInsert(getStr(name), new MaybeForce(pop()));
       }
-      case Visible() -> insert(intrinsic("visible", 0));
+      case Visible() -> insert(intrinsic("setVisible", 0));
       case SetVar2(var name) -> insert(new SuperStore(getVar(name), top()));
       case StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.

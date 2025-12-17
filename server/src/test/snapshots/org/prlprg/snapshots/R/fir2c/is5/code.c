@@ -71,6 +71,13 @@ L0_:;
     goto L6_;
   }
 
+L1_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return r4
+  return Rsh_Fir_reg_r4_;
+
 L2_:;
   // c = ldf c in base
   Rsh_Fir_reg_c = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 0), RHO);
@@ -106,13 +113,6 @@ D0_:;
   Rsh_Fir_array_deopt_stack[0] = Rsh_Fir_reg_r2_;
   Rsh_Fir_deopt(5, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
   return R_NilValue;
-
-L1_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return r4
-  return Rsh_Fir_reg_r4_;
 
 L4_:;
   // goto L0(r2)

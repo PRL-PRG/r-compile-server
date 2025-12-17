@@ -45,6 +45,28 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // L2()
   goto L2_;
 
+L0_:;
+  // c6 = `as.logical`(c1)
+  SEXP Rsh_Fir_array_args[1];
+  Rsh_Fir_array_args[0] = Rsh_Fir_reg_c1_;
+  Rsh_Fir_reg_c6_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args);
+  // if c6 then L1(c6) else L6()
+  if (Rsh_Fir_is_true(Rsh_Fir_reg_c6_)) {
+  // L1(c6)
+    Rsh_Fir_reg_c7_ = Rsh_Fir_reg_c6_;
+    goto L1_;
+  } else {
+  // L6()
+    goto L6_;
+  }
+
+L1_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return c7
+  return Rsh_Fir_reg_c7_;
+
 D0_:;
   // deopt 9 [x]
   SEXP Rsh_Fir_array_deopt_stack[1];
@@ -56,13 +78,13 @@ L2_:;
   // x1 = force? x
   Rsh_Fir_reg_x1_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_x);
   // checkMissing(x1)
-  SEXP Rsh_Fir_array_args[1];
-  Rsh_Fir_array_args[0] = Rsh_Fir_reg_x1_;
-  (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args, Rsh_Fir_param_types_empty()));
-  // c = `as.logical`(x1)
   SEXP Rsh_Fir_array_args1[1];
   Rsh_Fir_array_args1[0] = Rsh_Fir_reg_x1_;
-  Rsh_Fir_reg_c = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args1);
+  (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args1, Rsh_Fir_param_types_empty()));
+  // c = `as.logical`(x1)
+  SEXP Rsh_Fir_array_args2[1];
+  Rsh_Fir_array_args2[0] = Rsh_Fir_reg_x1_;
+  Rsh_Fir_reg_c = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args2);
   // if c then L0(c) else L3()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c)) {
   // L0(c)
@@ -71,21 +93,6 @@ L2_:;
   } else {
   // L3()
     goto L3_;
-  }
-
-L0_:;
-  // c6 = `as.logical`(c1)
-  SEXP Rsh_Fir_array_args2[1];
-  Rsh_Fir_array_args2[0] = Rsh_Fir_reg_c1_;
-  Rsh_Fir_reg_c6_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args2);
-  // if c6 then L1(c6) else L6()
-  if (Rsh_Fir_is_true(Rsh_Fir_reg_c6_)) {
-  // L1(c6)
-    Rsh_Fir_reg_c7_ = Rsh_Fir_reg_c6_;
-    goto L1_;
-  } else {
-  // L6()
-    goto L6_;
   }
 
 L3_:;
@@ -102,13 +109,6 @@ D1_:;
   Rsh_Fir_array_deopt_stack1[1] = Rsh_Fir_reg_y;
   Rsh_Fir_deopt(11, 2, Rsh_Fir_array_deopt_stack1, CCP, RHO);
   return R_NilValue;
-
-L1_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return c7
-  return Rsh_Fir_reg_c7_;
 
 L4_:;
   // y1 = force? y

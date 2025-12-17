@@ -40,6 +40,16 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // L1()
   goto L1_;
 
+L0_:;
+  // st x = dx1
+  Rsh_Fir_store(Rsh_const(CCP, 1), Rsh_Fir_reg_dx1_, RHO);
+  (void)(Rsh_Fir_reg_dx1_);
+  // x = ld x
+  Rsh_Fir_reg_x = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
+  // check L6() else D2()
+  // L6()
+  goto L6_;
+
 D0_:;
   // deopt 1 []
   Rsh_Fir_deopt(1, 0, NULL, CCP, RHO);
@@ -83,8 +93,8 @@ L1_:;
   Rsh_Fir_array_args6[0] = Rsh_Fir_reg_p;
   Rsh_Fir_array_args6[1] = Rsh_Fir_reg_p1_;
   SEXP Rsh_Fir_array_arg_names4[2];
-  Rsh_Fir_array_arg_names4[0] = Rsh_const(CCP, 6);
-  Rsh_Fir_array_arg_names4[1] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_arg_names4[0] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_arg_names4[1] = Rsh_const(CCP, 8);
   Rsh_Fir_reg_r8_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_data_frame, 2, Rsh_Fir_array_args6, Rsh_Fir_array_arg_names4, CCP, RHO);
   // check L2() else D1()
   // L2()
@@ -99,10 +109,10 @@ D1_:;
 
 L2_:;
   // st x = r8
-  Rsh_Fir_store(Rsh_const(CCP, 8), Rsh_Fir_reg_r8_, RHO);
+  Rsh_Fir_store(Rsh_const(CCP, 1), Rsh_Fir_reg_r8_, RHO);
   (void)(Rsh_Fir_reg_r8_);
   // l = ld x
-  Rsh_Fir_reg_l = Rsh_Fir_load(Rsh_const(CCP, 8), RHO);
+  Rsh_Fir_reg_l = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
   // c2 = `is.object`(l)
   SEXP Rsh_Fir_array_args7[1];
   Rsh_Fir_array_args7[0] = Rsh_Fir_reg_l;
@@ -117,16 +127,6 @@ L2_:;
     Rsh_Fir_reg_l2_ = Rsh_Fir_reg_l;
     goto L4_;
   }
-
-L0_:;
-  // st x = dx1
-  Rsh_Fir_store(Rsh_const(CCP, 8), Rsh_Fir_reg_dx1_, RHO);
-  (void)(Rsh_Fir_reg_dx1_);
-  // x = ld x
-  Rsh_Fir_reg_x = Rsh_Fir_load(Rsh_const(CCP, 8), RHO);
-  // check L6() else D2()
-  // L6()
-  goto L6_;
 
 L3_:;
   // dr = tryDispatchBuiltin.0("[<-", l, 42.0)
@@ -157,8 +157,8 @@ L4_:;
   SEXP Rsh_Fir_array_args10[4];
   Rsh_Fir_array_args10[0] = Rsh_Fir_reg_l2_;
   Rsh_Fir_array_args10[1] = Rsh_const(CCP, 9);
-  Rsh_Fir_array_args10[2] = Rsh_const(CCP, 2);
-  Rsh_Fir_array_args10[3] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args10[2] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args10[3] = Rsh_const(CCP, 4);
   SEXP Rsh_Fir_array_arg_names5[4];
   Rsh_Fir_array_arg_names5[0] = R_MissingArg;
   Rsh_Fir_array_arg_names5[1] = R_MissingArg;
@@ -170,13 +170,6 @@ L4_:;
   Rsh_Fir_reg_dx1_ = Rsh_Fir_reg_r13_;
   goto L0_;
 
-D2_:;
-  // deopt 16 [x]
-  SEXP Rsh_Fir_array_deopt_stack1[1];
-  Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_x;
-  Rsh_Fir_deopt(16, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
-  return R_NilValue;
-
 L5_:;
   // dx = getTryDispatchBuiltinValue(dr)
   SEXP Rsh_Fir_array_args11[1];
@@ -186,6 +179,13 @@ L5_:;
   // L0(dx)
   Rsh_Fir_reg_dx1_ = Rsh_Fir_reg_dx;
   goto L0_;
+
+D2_:;
+  // deopt 16 [x]
+  SEXP Rsh_Fir_array_deopt_stack1[1];
+  Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_x;
+  Rsh_Fir_deopt(16, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
+  return R_NilValue;
 
 L6_:;
   // x1 = force? x
@@ -213,9 +213,9 @@ SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **C
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // sym = ldf c
-  Rsh_Fir_reg_sym = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_sym = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 2), RHO);
   // base = ldf c in base
-  Rsh_Fir_reg_base = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_base = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 2), RHO);
   // guard = `==`.4(sym, base)
   SEXP Rsh_Fir_array_args[2];
   Rsh_Fir_array_args[0] = Rsh_Fir_reg_sym;
@@ -236,11 +236,11 @@ L0_:;
 
 L1_:;
   // c = ldf c in base
-  Rsh_Fir_reg_c = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_c = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 2), RHO);
   // r2 = dyn c(1.0, 2.0)
   SEXP Rsh_Fir_array_args1[2];
-  Rsh_Fir_array_args1[0] = Rsh_const(CCP, 2);
-  Rsh_Fir_array_args1[1] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args1[0] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args1[1] = Rsh_const(CCP, 4);
   SEXP Rsh_Fir_array_arg_names[2];
   Rsh_Fir_array_arg_names[0] = R_MissingArg;
   Rsh_Fir_array_arg_names[1] = R_MissingArg;
@@ -253,8 +253,8 @@ L1_:;
 L2_:;
   // r = dyn base(1.0, 2.0)
   SEXP Rsh_Fir_array_args2[2];
-  Rsh_Fir_array_args2[0] = Rsh_const(CCP, 2);
-  Rsh_Fir_array_args2[1] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args2[0] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args2[1] = Rsh_const(CCP, 4);
   SEXP Rsh_Fir_array_arg_names1[2];
   Rsh_Fir_array_arg_names1[0] = R_MissingArg;
   Rsh_Fir_array_arg_names1[1] = R_MissingArg;
@@ -277,9 +277,9 @@ SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // sym1 = ldf c
-  Rsh_Fir_reg_sym1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_sym1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 2), RHO);
   // base1 = ldf c in base
-  Rsh_Fir_reg_base1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_base1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 2), RHO);
   // guard1 = `==`.4(sym1, base1)
   SEXP Rsh_Fir_array_args3[2];
   Rsh_Fir_array_args3[0] = Rsh_Fir_reg_sym1_;
@@ -300,11 +300,11 @@ L0_:;
 
 L1_:;
   // c1 = ldf c in base
-  Rsh_Fir_reg_c1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_c1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 2), RHO);
   // r6 = dyn c1(3.0, 4.0)
   SEXP Rsh_Fir_array_args4[2];
-  Rsh_Fir_array_args4[0] = Rsh_const(CCP, 4);
-  Rsh_Fir_array_args4[1] = Rsh_const(CCP, 5);
+  Rsh_Fir_array_args4[0] = Rsh_const(CCP, 5);
+  Rsh_Fir_array_args4[1] = Rsh_const(CCP, 6);
   SEXP Rsh_Fir_array_arg_names2[2];
   Rsh_Fir_array_arg_names2[0] = R_MissingArg;
   Rsh_Fir_array_arg_names2[1] = R_MissingArg;
@@ -317,8 +317,8 @@ L1_:;
 L2_:;
   // r4 = dyn base1(3.0, 4.0)
   SEXP Rsh_Fir_array_args5[2];
-  Rsh_Fir_array_args5[0] = Rsh_const(CCP, 4);
-  Rsh_Fir_array_args5[1] = Rsh_const(CCP, 5);
+  Rsh_Fir_array_args5[0] = Rsh_const(CCP, 5);
+  Rsh_Fir_array_args5[1] = Rsh_const(CCP, 6);
   SEXP Rsh_Fir_array_arg_names3[2];
   Rsh_Fir_array_arg_names3[0] = R_MissingArg;
   Rsh_Fir_array_arg_names3[1] = R_MissingArg;

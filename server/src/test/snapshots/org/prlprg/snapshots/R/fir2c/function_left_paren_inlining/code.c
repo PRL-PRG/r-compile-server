@@ -106,8 +106,8 @@ L0_:;
   SEXP Rsh_Fir_array_args1[1];
   Rsh_Fir_array_args1[0] = Rsh_Fir_reg_x2_;
   (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args1, Rsh_Fir_param_types_empty()));
-  // visible.0()
-  (void)(Rsh_Fir_intrinsic_visible_v0(CCP, RHO, 0, NULL));
+  // setVisible.0()
+  (void)(Rsh_Fir_intrinsic_setVisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);

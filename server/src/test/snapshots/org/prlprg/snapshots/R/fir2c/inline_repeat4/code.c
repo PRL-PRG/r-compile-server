@@ -122,6 +122,16 @@ SEXP Rsh_Fir_user_version_inner799576941_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SE
   // L2()
   goto L2_;
 
+L0_:;
+  // goto L1()
+  // L1()
+  goto L1_;
+
+L1_:;
+  // goto L2()
+  // L2()
+  goto L2_;
+
 L2_:;
   // x1 = ld x
   Rsh_Fir_reg_x1_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
@@ -155,16 +165,6 @@ L3_:;
   // L0()
     goto L0_;
   }
-
-L0_:;
-  // goto L1()
-  // L1()
-  goto L1_;
-
-L1_:;
-  // goto L2()
-  // L2()
-  goto L2_;
 
 L4_:;
   // y1 = ld y

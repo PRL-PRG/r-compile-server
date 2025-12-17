@@ -98,6 +98,20 @@ SEXP Rsh_Fir_user_version_inner2501545716_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
   // L2()
   goto L2_;
 
+L0_:;
+  // x3 = ld x
+  Rsh_Fir_reg_x3_ = Rsh_Fir_load(Rsh_const(CCP, 2), RHO);
+  // check L5() else D1()
+  // L5()
+  goto L5_;
+
+L1_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return 3.0
+  return Rsh_const(CCP, 3);
+
 D0_:;
   // deopt 0 [x1]
   SEXP Rsh_Fir_array_deopt_stack1[1];
@@ -130,13 +144,6 @@ L2_:;
     goto L0_;
   }
 
-L0_:;
-  // x3 = ld x
-  Rsh_Fir_reg_x3_ = Rsh_Fir_load(Rsh_const(CCP, 2), RHO);
-  // check L5() else D1()
-  // L5()
-  goto L5_;
-
 L3_:;
   // popenv
   Rsh_Fir_pop_env(&RHO);
@@ -161,7 +168,7 @@ L5_:;
   // r1 = `==`(x4, 2.0)
   SEXP Rsh_Fir_array_args5[2];
   Rsh_Fir_array_args5[0] = Rsh_Fir_reg_x4_;
-  Rsh_Fir_array_args5[1] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args5[1] = Rsh_const(CCP, 4);
   Rsh_Fir_reg_r1_1 = Rsh_Fir_call_builtin(74, RHO, 2, Rsh_Fir_array_args5);
   // c1 = `as.logical`(r1)
   SEXP Rsh_Fir_array_args6[1];
@@ -176,19 +183,12 @@ L5_:;
     goto L1_;
   }
 
-L1_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return 3.0
-  return Rsh_const(CCP, 4);
-
 L6_:;
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
   // return 2.0
-  return Rsh_const(CCP, 3);
+  return Rsh_const(CCP, 4);
 }
 SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
   return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);

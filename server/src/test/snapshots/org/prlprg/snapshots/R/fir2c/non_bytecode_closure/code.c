@@ -162,6 +162,11 @@ L0_:;
   // L2()
   goto L2_;
 
+L1_:;
+  // goto L2()
+  // L2()
+  goto L2_;
+
 L2_:;
   // return 1.0
   return Rsh_const(CCP, 2);
@@ -184,11 +189,6 @@ L3_:;
   // L5()
     goto L5_;
   }
-
-L1_:;
-  // goto L2()
-  // L2()
-  goto L2_;
 
 L4_:;
   // browser = ldf browser in base

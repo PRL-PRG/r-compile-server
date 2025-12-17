@@ -18,7 +18,8 @@ public final class GlobalModules {
 
   static {
     // Add GNU-R builtins that we don't have explicit versions for.
-    for (var bltNameStr : GNURSession.getAllBuiltins()) {
+    var bltNameStrs = GNURSession.getAllBuiltins();
+    for (var bltNameStr : bltNameStrs) {
       var bltName = Variable.named(bltNameStr);
       if (BUILTINS.localFunction(bltName) != null) {
         // Already defined.
@@ -31,7 +32,7 @@ public final class GlobalModules {
 
     // Ensure intrinsic names don't conflict with builtins.
     for (var function : INTRINSICS.localFunctions()) {
-      assert !BUILTINS.localFunctions().contains(function)
+      assert !bltNameStrs.contains(function.name().name())
           : "intrinsic function is also a builtin, it must be renamed: " + function.name();
     }
   }

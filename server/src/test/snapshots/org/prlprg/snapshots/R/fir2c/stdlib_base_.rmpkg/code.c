@@ -3,7 +3,7 @@ SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PAR
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_function_inner423301576_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_inner423301576_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
-SEXP Rsh_Fir_user_promise_inner423301576_(SEXP CCP, SEXP RHO);
+SEXP Rsh_Fir_user_promise_inner423301576_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -14,8 +14,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -25,8 +25,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `.rmpkg` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -43,13 +43,11 @@ SEXP Rsh_Fir_user_version_inner423301576_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SE
 
   if (NPARAMS != 1) Rsh_error("FIŘ arity mismatch for inner423301576/0: expected 1, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_pkg;  // pkg
-  SEXP Rsh_Fir_reg_sub;  // sub
-  SEXP Rsh_Fir_reg_pkg1_;  // pkg1
-  SEXP Rsh_Fir_reg_pkg2_;  // pkg2
-  SEXP Rsh_Fir_reg_p;  // p
-  SEXP Rsh_Fir_reg_r1_;  // r1
+  // Declare locals
+  SEXP Rsh_Fir_reg_pkg;
+  SEXP Rsh_Fir_reg_sub;
+  SEXP Rsh_Fir_reg_p;
+  SEXP Rsh_Fir_reg_r1_;
 
   // Bind parameters
   Rsh_Fir_reg_pkg = PARAMS[0];
@@ -78,7 +76,7 @@ L0_:;
   //   checkMissing(pkg2);
   //   return pkg2;
   // }
-  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner423301576_, CCP, RHO);
+  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner423301576_, 0, NULL, CCP, RHO);
   // r1 = dyn sub[, , , fixed]("package:", "", p, TRUE)
   SEXP Rsh_Fir_array_args1[4];
   Rsh_Fir_array_args1[0] = Rsh_const(CCP, 3);
@@ -109,7 +107,13 @@ L1_:;
   // return r1
   return Rsh_Fir_reg_r1_;
 }
-SEXP Rsh_Fir_user_promise_inner423301576_(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner423301576_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_pkg1_;
+  SEXP Rsh_Fir_reg_pkg2_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner423301576/0: expected 0, got %d", NCAPTURES);
+
   // pkg1 = ld pkg
   Rsh_Fir_reg_pkg1_ = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
   // pkg2 = force? pkg1

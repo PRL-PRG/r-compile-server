@@ -143,11 +143,6 @@ L4_:;
   Rsh_Fir_reg_dx1_ = Rsh_Fir_reg_r9_;
   goto L2_;
 
-D2_:;
-  // deopt 12 []
-  Rsh_Fir_deopt(12, 0, NULL, CCP, RHO);
-  return R_NilValue;
-
 L5_:;
   // dx = getTryDispatchBuiltinValue(dr)
   SEXP Rsh_Fir_array_args6[1];
@@ -157,6 +152,11 @@ L5_:;
   // L2(dx)
   Rsh_Fir_reg_dx1_ = Rsh_Fir_reg_dx;
   goto L2_;
+
+D2_:;
+  // deopt 12 []
+  Rsh_Fir_deopt(12, 0, NULL, CCP, RHO);
+  return R_NilValue;
 
 L6_:;
   // p1 = prom<V +>{

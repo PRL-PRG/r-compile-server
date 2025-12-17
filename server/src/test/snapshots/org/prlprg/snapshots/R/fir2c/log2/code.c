@@ -54,16 +54,27 @@ L0_:;
   // return r1
   return Rsh_Fir_reg_r1_;
 
+L1_:;
+  // r5 = log(r3, 2.718281828459045)
+  SEXP Rsh_Fir_array_args1[2];
+  Rsh_Fir_array_args1[0] = Rsh_Fir_reg_r3_;
+  Rsh_Fir_array_args1[1] = Rsh_const(CCP, 1);
+  Rsh_Fir_reg_r5_ = Rsh_Fir_call_builtin(163, RHO, 2, Rsh_Fir_array_args1);
+  // goto L0(r5)
+  // L0(r5)
+  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r5_;
+  goto L0_;
+
 L2_:;
   // sym1 = ldf c
-  Rsh_Fir_reg_sym1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_sym1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 2), RHO);
   // base1 = ldf c in base
-  Rsh_Fir_reg_base1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_base1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 2), RHO);
   // guard1 = `==`.4(sym1, base1)
-  SEXP Rsh_Fir_array_args1[2];
-  Rsh_Fir_array_args1[0] = Rsh_Fir_reg_sym1_;
-  Rsh_Fir_array_args1[1] = Rsh_Fir_reg_base1_;
-  Rsh_Fir_reg_guard1_ = Rsh_Fir_builtin_eq_v4(CCP, RHO, 2, Rsh_Fir_array_args1);
+  SEXP Rsh_Fir_array_args2[2];
+  Rsh_Fir_array_args2[0] = Rsh_Fir_reg_sym1_;
+  Rsh_Fir_array_args2[1] = Rsh_Fir_reg_base1_;
+  Rsh_Fir_reg_guard1_ = Rsh_Fir_builtin_eq_v4(CCP, RHO, 2, Rsh_Fir_array_args2);
   // if guard1 then L4() else L5()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_guard1_)) {
   // L4()
@@ -75,30 +86,19 @@ L2_:;
 
 L3_:;
   // r = dyn base(<lang c(1.0, 10.0, 100.0, NA_LGL)>)
-  SEXP Rsh_Fir_array_args2[1];
-  Rsh_Fir_array_args2[0] = Rsh_const(CCP, 2);
+  SEXP Rsh_Fir_array_args3[1];
+  Rsh_Fir_array_args3[0] = Rsh_const(CCP, 3);
   SEXP Rsh_Fir_array_arg_names[1];
   Rsh_Fir_array_arg_names[0] = R_MissingArg;
-  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 1, Rsh_Fir_array_args2, Rsh_Fir_array_arg_names, CCP, RHO);
+  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 1, Rsh_Fir_array_args3, Rsh_Fir_array_arg_names, CCP, RHO);
   // goto L0(r)
   // L0(r)
   Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r;
   goto L0_;
 
-L1_:;
-  // r5 = log(r3, 2.718281828459045)
-  SEXP Rsh_Fir_array_args3[2];
-  Rsh_Fir_array_args3[0] = Rsh_Fir_reg_r3_;
-  Rsh_Fir_array_args3[1] = Rsh_const(CCP, 3);
-  Rsh_Fir_reg_r5_ = Rsh_Fir_call_builtin(163, RHO, 2, Rsh_Fir_array_args3);
-  // goto L0(r5)
-  // L0(r5)
-  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r5_;
-  goto L0_;
-
 L4_:;
   // c = ldf c in base
-  Rsh_Fir_reg_c = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
+  Rsh_Fir_reg_c = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 2), RHO);
   // r4 = dyn c(1.0, 10.0, 100.0, NA_LGL)
   SEXP Rsh_Fir_array_args4[4];
   Rsh_Fir_array_args4[0] = Rsh_const(CCP, 4);

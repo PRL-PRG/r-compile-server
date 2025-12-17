@@ -3,27 +3,27 @@ SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PAR
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_function_inner1888930683_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_inner1888930683_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
-SEXP Rsh_Fir_user_promise_inner1888930683_(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_1(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_2(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_3(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_4(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_5(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_6(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_7(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_8(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_9(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_10(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_11(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_12(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_13(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_14(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_15(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_16(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_17(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_18(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_19(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_inner1888930683_20(SEXP CCP, SEXP RHO);
+SEXP Rsh_Fir_user_promise_inner1888930683_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_3(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_4(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_5(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_6(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_7(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_8(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_9(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_10(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_11(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_12(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_13(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_14(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_15(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_16(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_17(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_18(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_19(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_inner1888930683_20(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -34,8 +34,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -45,8 +45,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `La.svd` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -63,444 +63,366 @@ SEXP Rsh_Fir_user_version_inner1888930683_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 3) Rsh_error("FIŘ arity mismatch for inner1888930683/0: expected 3, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_x;  // x
-  SEXP Rsh_Fir_reg_nu;  // nu
-  SEXP Rsh_Fir_reg_nv;  // nv
-  SEXP Rsh_Fir_reg_nu_isMissing;  // nu_isMissing
-  SEXP Rsh_Fir_reg_nu_orDefault;  // nu_orDefault
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r1;  // r
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_n;  // n
-  SEXP Rsh_Fir_reg_n1_;  // n1
-  SEXP Rsh_Fir_reg_p;  // p
-  SEXP Rsh_Fir_reg_p1_;  // p1
-  SEXP Rsh_Fir_reg_min;  // min
-  SEXP Rsh_Fir_reg_r2_;  // r2
-  SEXP Rsh_Fir_reg_p2_;  // p2
-  SEXP Rsh_Fir_reg_nv_isMissing;  // nv_isMissing
-  SEXP Rsh_Fir_reg_nv_orDefault;  // nv_orDefault
-  SEXP Rsh_Fir_reg_sym1_;  // sym1
-  SEXP Rsh_Fir_reg_base1_;  // base1
-  SEXP Rsh_Fir_reg_guard1_;  // guard1
-  SEXP Rsh_Fir_reg_r4_;  // r4
-  SEXP Rsh_Fir_reg_r5_;  // r5
-  SEXP Rsh_Fir_reg_n2_;  // n2
-  SEXP Rsh_Fir_reg_n3_;  // n3
-  SEXP Rsh_Fir_reg_p3_;  // p3
-  SEXP Rsh_Fir_reg_p4_;  // p4
-  SEXP Rsh_Fir_reg_min1_;  // min1
-  SEXP Rsh_Fir_reg_r6_;  // r6
-  SEXP Rsh_Fir_reg_p5_;  // p5
-  SEXP Rsh_Fir_reg_sym2_;  // sym2
-  SEXP Rsh_Fir_reg_base2_;  // base2
-  SEXP Rsh_Fir_reg_guard2_;  // guard2
-  SEXP Rsh_Fir_reg_r8_;  // r8
-  SEXP Rsh_Fir_reg_r9_;  // r9
-  SEXP Rsh_Fir_reg_x1_;  // x1
-  SEXP Rsh_Fir_reg_x2_;  // x2
-  SEXP Rsh_Fir_reg_c;  // c
-  SEXP Rsh_Fir_reg_r10_;  // r10
-  SEXP Rsh_Fir_reg_c1_;  // c1
-  SEXP Rsh_Fir_reg_c3_;  // c3
-  SEXP Rsh_Fir_reg_sym3_;  // sym3
-  SEXP Rsh_Fir_reg_base3_;  // base3
-  SEXP Rsh_Fir_reg_guard3_;  // guard3
-  SEXP Rsh_Fir_reg_r11_;  // r11
-  SEXP Rsh_Fir_reg_c6_;  // c6
-  SEXP Rsh_Fir_reg_r12_;  // r12
-  SEXP Rsh_Fir_reg_x3_;  // x3
-  SEXP Rsh_Fir_reg_x4_;  // x4
-  SEXP Rsh_Fir_reg_is_numeric;  // is_numeric
-  SEXP Rsh_Fir_reg_r13_;  // r13
-  SEXP Rsh_Fir_reg_r14_;  // r14
-  SEXP Rsh_Fir_reg_c7_;  // c7
-  SEXP Rsh_Fir_reg_c8_;  // c8
-  SEXP Rsh_Fir_reg_c10_;  // c10
-  SEXP Rsh_Fir_reg_c12_;  // c12
-  SEXP Rsh_Fir_reg_sym4_;  // sym4
-  SEXP Rsh_Fir_reg_base4_;  // base4
-  SEXP Rsh_Fir_reg_guard4_;  // guard4
-  SEXP Rsh_Fir_reg_r15_;  // r15
-  SEXP Rsh_Fir_reg_c15_;  // c15
-  SEXP Rsh_Fir_reg_r16_;  // r16
-  SEXP Rsh_Fir_reg_x5_;  // x5
-  SEXP Rsh_Fir_reg_x6_;  // x6
-  SEXP Rsh_Fir_reg_c16_;  // c16
-  SEXP Rsh_Fir_reg_r17_;  // r17
-  SEXP Rsh_Fir_reg_c17_;  // c17
-  SEXP Rsh_Fir_reg_c18_;  // c18
-  SEXP Rsh_Fir_reg_c20_;  // c20
-  SEXP Rsh_Fir_reg_stop;  // stop
-  SEXP Rsh_Fir_reg_r18_;  // r18
-  SEXP Rsh_Fir_reg_sym5_;  // sym5
-  SEXP Rsh_Fir_reg_base5_;  // base5
-  SEXP Rsh_Fir_reg_guard5_;  // guard5
-  SEXP Rsh_Fir_reg_r20_;  // r20
-  SEXP Rsh_Fir_reg_r21_;  // r21
-  SEXP Rsh_Fir_reg_sym6_;  // sym6
-  SEXP Rsh_Fir_reg_base6_;  // base6
-  SEXP Rsh_Fir_reg_guard6_;  // guard6
-  SEXP Rsh_Fir_reg_r22_;  // r22
-  SEXP Rsh_Fir_reg_r23_;  // r23
-  SEXP Rsh_Fir_reg_x7_;  // x7
-  SEXP Rsh_Fir_reg_x8_;  // x8
-  SEXP Rsh_Fir_reg_is_finite;  // is_finite
-  SEXP Rsh_Fir_reg_r24_;  // r24
-  SEXP Rsh_Fir_reg_r25_;  // r25
-  SEXP Rsh_Fir_reg_any;  // any
-  SEXP Rsh_Fir_reg_r26_;  // r26
-  SEXP Rsh_Fir_reg_c21_;  // c21
-  SEXP Rsh_Fir_reg_stop1_;  // stop1
-  SEXP Rsh_Fir_reg_r27_;  // r27
-  SEXP Rsh_Fir_reg_as_matrix;  // as_matrix
-  SEXP Rsh_Fir_reg_x9_;  // x9
-  SEXP Rsh_Fir_reg_x10_;  // x10
-  SEXP Rsh_Fir_reg_p6_;  // p6
-  SEXP Rsh_Fir_reg_r30_;  // r30
-  SEXP Rsh_Fir_reg_nrow;  // nrow
-  SEXP Rsh_Fir_reg_x11_;  // x11
-  SEXP Rsh_Fir_reg_x12_;  // x12
-  SEXP Rsh_Fir_reg_p7_;  // p7
-  SEXP Rsh_Fir_reg_r32_;  // r32
-  SEXP Rsh_Fir_reg_ncol;  // ncol
-  SEXP Rsh_Fir_reg_x13_;  // x13
-  SEXP Rsh_Fir_reg_x14_;  // x14
-  SEXP Rsh_Fir_reg_p8_;  // p8
-  SEXP Rsh_Fir_reg_r34_;  // r34
-  SEXP Rsh_Fir_reg_n4_;  // n4
-  SEXP Rsh_Fir_reg_n5_;  // n5
-  SEXP Rsh_Fir_reg_r35_;  // r35
-  SEXP Rsh_Fir_reg_c22_;  // c22
-  SEXP Rsh_Fir_reg_c23_;  // c23
-  SEXP Rsh_Fir_reg_p9_;  // p9
-  SEXP Rsh_Fir_reg_p10_;  // p10
-  SEXP Rsh_Fir_reg_r36_;  // r36
-  SEXP Rsh_Fir_reg_c25_;  // c25
-  SEXP Rsh_Fir_reg_c26_;  // c26
-  SEXP Rsh_Fir_reg_c28_;  // c28
-  SEXP Rsh_Fir_reg_stop2_;  // stop2
-  SEXP Rsh_Fir_reg_r37_;  // r37
-  SEXP Rsh_Fir_reg_sym7_;  // sym7
-  SEXP Rsh_Fir_reg_base7_;  // base7
-  SEXP Rsh_Fir_reg_guard7_;  // guard7
-  SEXP Rsh_Fir_reg_r39_;  // r39
-  SEXP Rsh_Fir_reg_r40_;  // r40
-  SEXP Rsh_Fir_reg_x15_;  // x15
-  SEXP Rsh_Fir_reg_x16_;  // x16
-  SEXP Rsh_Fir_reg_c29_;  // c29
-  SEXP Rsh_Fir_reg_c30_;  // c30
-  SEXP Rsh_Fir_reg_r41_;  // r41
-  SEXP Rsh_Fir_reg_nu1_;  // nu1
-  SEXP Rsh_Fir_reg_nu2_;  // nu2
-  SEXP Rsh_Fir_reg_c31_;  // c31
-  SEXP Rsh_Fir_reg_c32_;  // c32
-  SEXP Rsh_Fir_reg_nv1_;  // nv1
-  SEXP Rsh_Fir_reg_nv2_;  // nv2
-  SEXP Rsh_Fir_reg_c34_;  // c34
-  SEXP Rsh_Fir_reg_c35_;  // c35
-  SEXP Rsh_Fir_reg_c37_;  // c37
-  SEXP Rsh_Fir_reg_sym8_;  // sym8
-  SEXP Rsh_Fir_reg_base8_;  // base8
-  SEXP Rsh_Fir_reg_guard8_;  // guard8
-  SEXP Rsh_Fir_reg_r42_;  // r42
-  SEXP Rsh_Fir_reg_r43_;  // r43
-  SEXP Rsh_Fir_reg_n6_;  // n6
-  SEXP Rsh_Fir_reg_n7_;  // n7
-  SEXP Rsh_Fir_reg_p11_;  // p11
-  SEXP Rsh_Fir_reg_p12_;  // p12
-  SEXP Rsh_Fir_reg_min2_;  // min2
-  SEXP Rsh_Fir_reg_r44_;  // r44
-  SEXP Rsh_Fir_reg_nu3_;  // nu3
-  SEXP Rsh_Fir_reg_nu4_;  // nu4
-  SEXP Rsh_Fir_reg_np;  // np
-  SEXP Rsh_Fir_reg_np1_;  // np1
-  SEXP Rsh_Fir_reg_r45_;  // r45
-  SEXP Rsh_Fir_reg_c38_;  // c38
-  SEXP Rsh_Fir_reg_c40_;  // c40
-  SEXP Rsh_Fir_reg_nv3_;  // nv3
-  SEXP Rsh_Fir_reg_nv4_;  // nv4
-  SEXP Rsh_Fir_reg_np2_;  // np2
-  SEXP Rsh_Fir_reg_np3_;  // np3
-  SEXP Rsh_Fir_reg_r46_;  // r46
-  SEXP Rsh_Fir_reg_c41_;  // c41
-  SEXP Rsh_Fir_reg_c42_;  // c42
-  SEXP Rsh_Fir_reg_c44_;  // c44
-  SEXP Rsh_Fir_reg_matrix;  // matrix
-  SEXP Rsh_Fir_reg_zero;  // zero
-  SEXP Rsh_Fir_reg_zero1_;  // zero1
-  SEXP Rsh_Fir_reg_p13_;  // p13
-  SEXP Rsh_Fir_reg_n8_;  // n8
-  SEXP Rsh_Fir_reg_n9_;  // n9
-  SEXP Rsh_Fir_reg_p14_;  // p14
-  SEXP Rsh_Fir_reg_np4_;  // np4
-  SEXP Rsh_Fir_reg_np5_;  // np5
-  SEXP Rsh_Fir_reg_p15_;  // p15
-  SEXP Rsh_Fir_reg_r50_;  // r50
-  SEXP Rsh_Fir_reg_matrix1_;  // matrix1
-  SEXP Rsh_Fir_reg_zero2_;  // zero2
-  SEXP Rsh_Fir_reg_zero3_;  // zero3
-  SEXP Rsh_Fir_reg_p16_;  // p16
-  SEXP Rsh_Fir_reg_np6_;  // np6
-  SEXP Rsh_Fir_reg_np7_;  // np7
-  SEXP Rsh_Fir_reg_p17_;  // p17
-  SEXP Rsh_Fir_reg_p18_;  // p18
-  SEXP Rsh_Fir_reg_p19_;  // p19
-  SEXP Rsh_Fir_reg_p20_;  // p20
-  SEXP Rsh_Fir_reg_r54_;  // r54
-  SEXP Rsh_Fir_reg_np8_;  // np8
-  SEXP Rsh_Fir_reg_np9_;  // np9
-  SEXP Rsh_Fir_reg_np10_;  // np10
-  SEXP Rsh_Fir_reg_matrix2_;  // matrix2
-  SEXP Rsh_Fir_reg_zero4_;  // zero4
-  SEXP Rsh_Fir_reg_zero5_;  // zero5
-  SEXP Rsh_Fir_reg_p21_;  // p21
-  SEXP Rsh_Fir_reg_n10_;  // n10
-  SEXP Rsh_Fir_reg_n11_;  // n11
-  SEXP Rsh_Fir_reg_p22_;  // p22
-  SEXP Rsh_Fir_reg_n12_;  // n12
-  SEXP Rsh_Fir_reg_n13_;  // n13
-  SEXP Rsh_Fir_reg_p23_;  // p23
-  SEXP Rsh_Fir_reg_r58_;  // r58
-  SEXP Rsh_Fir_reg_matrix3_;  // matrix3
-  SEXP Rsh_Fir_reg_zero6_;  // zero6
-  SEXP Rsh_Fir_reg_zero7_;  // zero7
-  SEXP Rsh_Fir_reg_p24_;  // p24
-  SEXP Rsh_Fir_reg_p25_;  // p25
-  SEXP Rsh_Fir_reg_p26_;  // p26
-  SEXP Rsh_Fir_reg_p27_;  // p27
-  SEXP Rsh_Fir_reg_p28_;  // p28
-  SEXP Rsh_Fir_reg_p29_;  // p29
-  SEXP Rsh_Fir_reg_p30_;  // p30
-  SEXP Rsh_Fir_reg_r62_;  // r62
-  SEXP Rsh_Fir_reg_n14_;  // n14
-  SEXP Rsh_Fir_reg_n15_;  // n15
-  SEXP Rsh_Fir_reg_p31_;  // p31
-  SEXP Rsh_Fir_reg_p32_;  // p32
-  SEXP Rsh_Fir_reg_matrix4_;  // matrix4
-  SEXP Rsh_Fir_reg_zero8_;  // zero8
-  SEXP Rsh_Fir_reg_zero9_;  // zero9
-  SEXP Rsh_Fir_reg_p33_;  // p33
-  SEXP Rsh_Fir_reg_r64_;  // r64
-  SEXP Rsh_Fir_reg_matrix5_;  // matrix5
-  SEXP Rsh_Fir_reg_zero10_;  // zero10
-  SEXP Rsh_Fir_reg_zero11_;  // zero11
-  SEXP Rsh_Fir_reg_p34_;  // p34
-  SEXP Rsh_Fir_reg_r66_;  // r66
-  SEXP Rsh_Fir_reg_sym9_;  // sym9
-  SEXP Rsh_Fir_reg_base9_;  // base9
-  SEXP Rsh_Fir_reg_guard9_;  // guard9
-  SEXP Rsh_Fir_reg_r67_;  // r67
-  SEXP Rsh_Fir_reg_r68_;  // r68
-  SEXP Rsh_Fir_reg_x17_;  // x17
-  SEXP Rsh_Fir_reg_x18_;  // x18
-  SEXP Rsh_Fir_reg_c45_;  // c45
-  SEXP Rsh_Fir_reg_c46_;  // c46
-  SEXP Rsh_Fir_reg_sym10_;  // sym10
-  SEXP Rsh_Fir_reg_base10_;  // base10
-  SEXP Rsh_Fir_reg_guard10_;  // guard10
-  SEXP Rsh_Fir_reg_r69_;  // r69
-  SEXP Rsh_Fir_reg_r70_;  // r70
-  SEXP Rsh_Fir_reg_jobu;  // jobu
-  SEXP Rsh_Fir_reg_jobu1_;  // jobu1
-  SEXP Rsh_Fir_reg_x19_;  // x19
-  SEXP Rsh_Fir_reg_x20_;  // x20
-  SEXP Rsh_Fir_reg_double;  // double
-  SEXP Rsh_Fir_reg_sym11_;  // sym11
-  SEXP Rsh_Fir_reg_base11_;  // base11
-  SEXP Rsh_Fir_reg_guard11_;  // guard11
-  SEXP Rsh_Fir_reg_r71_;  // r71
-  SEXP Rsh_Fir_reg_r72_;  // r72
-  SEXP Rsh_Fir_reg_n16_;  // n16
-  SEXP Rsh_Fir_reg_n17_;  // n17
-  SEXP Rsh_Fir_reg_p35_;  // p35
-  SEXP Rsh_Fir_reg_p36_;  // p36
-  SEXP Rsh_Fir_reg_min3_;  // min3
-  SEXP Rsh_Fir_reg_r73_;  // r73
-  SEXP Rsh_Fir_reg_p37_;  // p37
-  SEXP Rsh_Fir_reg_r75_;  // r75
-  SEXP Rsh_Fir_reg_u;  // u
-  SEXP Rsh_Fir_reg_u1_;  // u1
-  SEXP Rsh_Fir_reg_vt;  // vt
-  SEXP Rsh_Fir_reg_vt1_;  // vt1
-  SEXP Rsh_Fir_reg_La_svd_cmplx;  // La_svd_cmplx
-  SEXP Rsh_Fir_reg_r76_;  // r76
-  SEXP Rsh_Fir_reg_r77_;  // r77
-  SEXP Rsh_Fir_reg_sym12_;  // sym12
-  SEXP Rsh_Fir_reg_base12_;  // base12
-  SEXP Rsh_Fir_reg_guard12_;  // guard12
-  SEXP Rsh_Fir_reg_r78_;  // r78
-  SEXP Rsh_Fir_reg_jobu2_;  // jobu2
-  SEXP Rsh_Fir_reg_jobu3_;  // jobu3
-  SEXP Rsh_Fir_reg_x21_;  // x21
-  SEXP Rsh_Fir_reg_x22_;  // x22
-  SEXP Rsh_Fir_reg_double1_;  // double1
-  SEXP Rsh_Fir_reg_sym13_;  // sym13
-  SEXP Rsh_Fir_reg_base13_;  // base13
-  SEXP Rsh_Fir_reg_guard13_;  // guard13
-  SEXP Rsh_Fir_reg_r79_;  // r79
-  SEXP Rsh_Fir_reg_r80_;  // r80
-  SEXP Rsh_Fir_reg_n18_;  // n18
-  SEXP Rsh_Fir_reg_n19_;  // n19
-  SEXP Rsh_Fir_reg_p38_;  // p38
-  SEXP Rsh_Fir_reg_p39_;  // p39
-  SEXP Rsh_Fir_reg_min4_;  // min4
-  SEXP Rsh_Fir_reg_r81_;  // r81
-  SEXP Rsh_Fir_reg_p40_;  // p40
-  SEXP Rsh_Fir_reg_r83_;  // r83
-  SEXP Rsh_Fir_reg_u2_;  // u2
-  SEXP Rsh_Fir_reg_u3_;  // u3
-  SEXP Rsh_Fir_reg_vt2_;  // vt2
-  SEXP Rsh_Fir_reg_vt3_;  // vt3
-  SEXP Rsh_Fir_reg_La_svd;  // La_svd
-  SEXP Rsh_Fir_reg_r84_;  // r84
-  SEXP Rsh_Fir_reg_res;  // res
-  SEXP Rsh_Fir_reg_res1_;  // res1
-  SEXP Rsh_Fir_reg_c47_;  // c47
-  SEXP Rsh_Fir_reg_res3_;  // res3
-  SEXP Rsh_Fir_reg_dr;  // dr
-  SEXP Rsh_Fir_reg_dc;  // dc
-  SEXP Rsh_Fir_reg_dx;  // dx
-  SEXP Rsh_Fir_reg_dx1_;  // dx1
-  SEXP Rsh_Fir_reg_sym14_;  // sym14
-  SEXP Rsh_Fir_reg_base14_;  // base14
-  SEXP Rsh_Fir_reg_guard14_;  // guard14
-  SEXP Rsh_Fir_reg_r85_;  // r85
-  SEXP Rsh_Fir_reg_res6_;  // res6
-  SEXP Rsh_Fir_reg_r86_;  // r86
-  SEXP Rsh_Fir_reg_nu5_;  // nu5
-  SEXP Rsh_Fir_reg_nu6_;  // nu6
-  SEXP Rsh_Fir_reg_c48_;  // c48
-  SEXP Rsh_Fir_reg_res9_;  // res9
-  SEXP Rsh_Fir_reg_r87_;  // r87
-  SEXP Rsh_Fir_reg_nv5_;  // nv5
-  SEXP Rsh_Fir_reg_nv6_;  // nv6
-  SEXP Rsh_Fir_reg_c49_;  // c49
-  SEXP Rsh_Fir_reg_res12_;  // res12
-  SEXP Rsh_Fir_reg_r88_;  // r88
-  SEXP Rsh_Fir_reg_c50_;  // c50
-  SEXP Rsh_Fir_reg_r89_;  // r89
-  SEXP Rsh_Fir_reg___;  // __
-  SEXP Rsh_Fir_reg_r90_;  // r90
-  SEXP Rsh_Fir_reg_nu7_;  // nu7
-  SEXP Rsh_Fir_reg_nu8_;  // nu8
-  SEXP Rsh_Fir_reg_c51_;  // c51
-  SEXP Rsh_Fir_reg_c53_;  // c53
-  SEXP Rsh_Fir_reg_nu9_;  // nu9
-  SEXP Rsh_Fir_reg_nu10_;  // nu10
-  SEXP Rsh_Fir_reg_nu11_;  // nu11
-  SEXP Rsh_Fir_reg_nu12_;  // nu12
-  SEXP Rsh_Fir_reg_r91_;  // r91
-  SEXP Rsh_Fir_reg_c54_;  // c54
-  SEXP Rsh_Fir_reg_c55_;  // c55
-  SEXP Rsh_Fir_reg_c57_;  // c57
-  SEXP Rsh_Fir_reg_res13_;  // res13
-  SEXP Rsh_Fir_reg_res14_;  // res14
-  SEXP Rsh_Fir_reg_c58_;  // c58
-  SEXP Rsh_Fir_reg_res16_;  // res16
-  SEXP Rsh_Fir_reg_dr2_;  // dr2
-  SEXP Rsh_Fir_reg_dc1_;  // dc1
-  SEXP Rsh_Fir_reg_dx2_;  // dx2
-  SEXP Rsh_Fir_reg_dx3_;  // dx3
-  SEXP Rsh_Fir_reg_r92_;  // r92
-  SEXP Rsh_Fir_reg_c59_;  // c59
-  SEXP Rsh_Fir_reg_dx5_;  // dx5
-  SEXP Rsh_Fir_reg_dr4_;  // dr4
-  SEXP Rsh_Fir_reg_dc2_;  // dc2
-  SEXP Rsh_Fir_reg_dx6_;  // dx6
-  SEXP Rsh_Fir_reg_dx7_;  // dx7
-  SEXP Rsh_Fir_reg_sym15_;  // sym15
-  SEXP Rsh_Fir_reg_base15_;  // base15
-  SEXP Rsh_Fir_reg_guard15_;  // guard15
-  SEXP Rsh_Fir_reg_r93_;  // r93
-  SEXP Rsh_Fir_reg_r94_;  // r94
-  SEXP Rsh_Fir_reg_sym16_;  // sym16
-  SEXP Rsh_Fir_reg_base16_;  // base16
-  SEXP Rsh_Fir_reg_guard16_;  // guard16
-  SEXP Rsh_Fir_reg_r95_;  // r95
-  SEXP Rsh_Fir_reg_dx13_;  // dx13
-  SEXP Rsh_Fir_reg_r96_;  // r96
-  SEXP Rsh_Fir_reg_n20_;  // n20
-  SEXP Rsh_Fir_reg_n21_;  // n21
-  SEXP Rsh_Fir_reg_nu13_;  // nu13
-  SEXP Rsh_Fir_reg_nu14_;  // nu14
-  SEXP Rsh_Fir_reg_min5_;  // min5
-  SEXP Rsh_Fir_reg_r97_;  // r97
-  SEXP Rsh_Fir_reg_r98_;  // r98
-  SEXP Rsh_Fir_reg___1_;  // __1
-  SEXP Rsh_Fir_reg_r99_;  // r99
-  SEXP Rsh_Fir_reg_l;  // l
-  SEXP Rsh_Fir_reg_c60_;  // c60
-  SEXP Rsh_Fir_reg_dx15_;  // dx15
-  SEXP Rsh_Fir_reg_l2_;  // l2
-  SEXP Rsh_Fir_reg_dr6_;  // dr6
-  SEXP Rsh_Fir_reg_dc3_;  // dc3
-  SEXP Rsh_Fir_reg_dx17_;  // dx17
-  SEXP Rsh_Fir_reg_dx18_;  // dx18
-  SEXP Rsh_Fir_reg_dx19_;  // dx19
-  SEXP Rsh_Fir_reg_r100_;  // r100
-  SEXP Rsh_Fir_reg_nv7_;  // nv7
-  SEXP Rsh_Fir_reg_nv8_;  // nv8
-  SEXP Rsh_Fir_reg_c61_;  // c61
-  SEXP Rsh_Fir_reg_c63_;  // c63
-  SEXP Rsh_Fir_reg_nv9_;  // nv9
-  SEXP Rsh_Fir_reg_nv10_;  // nv10
-  SEXP Rsh_Fir_reg_nv11_;  // nv11
-  SEXP Rsh_Fir_reg_nv12_;  // nv12
-  SEXP Rsh_Fir_reg_r101_;  // r101
-  SEXP Rsh_Fir_reg_c64_;  // c64
-  SEXP Rsh_Fir_reg_c65_;  // c65
-  SEXP Rsh_Fir_reg_c67_;  // c67
-  SEXP Rsh_Fir_reg_res17_;  // res17
-  SEXP Rsh_Fir_reg_res18_;  // res18
-  SEXP Rsh_Fir_reg_c68_;  // c68
-  SEXP Rsh_Fir_reg_res20_;  // res20
-  SEXP Rsh_Fir_reg_dr8_;  // dr8
-  SEXP Rsh_Fir_reg_dc4_;  // dc4
-  SEXP Rsh_Fir_reg_dx21_;  // dx21
-  SEXP Rsh_Fir_reg_dx22_;  // dx22
-  SEXP Rsh_Fir_reg_r102_;  // r102
-  SEXP Rsh_Fir_reg_c69_;  // c69
-  SEXP Rsh_Fir_reg_dx24_;  // dx24
-  SEXP Rsh_Fir_reg_dr10_;  // dr10
-  SEXP Rsh_Fir_reg_dc5_;  // dc5
-  SEXP Rsh_Fir_reg_dx25_;  // dx25
-  SEXP Rsh_Fir_reg_dx26_;  // dx26
-  SEXP Rsh_Fir_reg_sym17_;  // sym17
-  SEXP Rsh_Fir_reg_base17_;  // base17
-  SEXP Rsh_Fir_reg_guard17_;  // guard17
-  SEXP Rsh_Fir_reg_r103_;  // r103
-  SEXP Rsh_Fir_reg_r104_;  // r104
-  SEXP Rsh_Fir_reg_sym18_;  // sym18
-  SEXP Rsh_Fir_reg_base18_;  // base18
-  SEXP Rsh_Fir_reg_guard18_;  // guard18
-  SEXP Rsh_Fir_reg_r105_;  // r105
-  SEXP Rsh_Fir_reg_dx32_;  // dx32
-  SEXP Rsh_Fir_reg_r106_;  // r106
-  SEXP Rsh_Fir_reg_p41_;  // p41
-  SEXP Rsh_Fir_reg_p42_;  // p42
-  SEXP Rsh_Fir_reg_nv13_;  // nv13
-  SEXP Rsh_Fir_reg_nv14_;  // nv14
-  SEXP Rsh_Fir_reg_min6_;  // min6
-  SEXP Rsh_Fir_reg_r107_;  // r107
-  SEXP Rsh_Fir_reg_r108_;  // r108
-  SEXP Rsh_Fir_reg___2_;  // __2
-  SEXP Rsh_Fir_reg_r109_;  // r109
-  SEXP Rsh_Fir_reg_l3_;  // l3
-  SEXP Rsh_Fir_reg_c70_;  // c70
-  SEXP Rsh_Fir_reg_dx34_;  // dx34
-  SEXP Rsh_Fir_reg_l5_;  // l5
-  SEXP Rsh_Fir_reg_dr12_;  // dr12
-  SEXP Rsh_Fir_reg_dc6_;  // dc6
-  SEXP Rsh_Fir_reg_dx36_;  // dx36
-  SEXP Rsh_Fir_reg_dx37_;  // dx37
-  SEXP Rsh_Fir_reg_dx38_;  // dx38
-  SEXP Rsh_Fir_reg_r110_;  // r110
-  SEXP Rsh_Fir_reg_res21_;  // res21
-  SEXP Rsh_Fir_reg_res22_;  // res22
+  // Declare locals
+  SEXP Rsh_Fir_reg_x;
+  SEXP Rsh_Fir_reg_nu;
+  SEXP Rsh_Fir_reg_nv;
+  SEXP Rsh_Fir_reg_nu_isMissing;
+  SEXP Rsh_Fir_reg_nu_orDefault;
+  SEXP Rsh_Fir_reg_p2_;
+  SEXP Rsh_Fir_reg_nv_isMissing;
+  SEXP Rsh_Fir_reg_nv_orDefault;
+  SEXP Rsh_Fir_reg_p5_;
+  SEXP Rsh_Fir_reg_sym2_;
+  SEXP Rsh_Fir_reg_base2_;
+  SEXP Rsh_Fir_reg_guard2_;
+  SEXP Rsh_Fir_reg_r8_;
+  SEXP Rsh_Fir_reg_r9_;
+  SEXP Rsh_Fir_reg_x1_;
+  SEXP Rsh_Fir_reg_x2_;
+  SEXP Rsh_Fir_reg_c;
+  SEXP Rsh_Fir_reg_r10_;
+  SEXP Rsh_Fir_reg_c1_;
+  SEXP Rsh_Fir_reg_c3_;
+  SEXP Rsh_Fir_reg_sym3_;
+  SEXP Rsh_Fir_reg_base3_;
+  SEXP Rsh_Fir_reg_guard3_;
+  SEXP Rsh_Fir_reg_r11_;
+  SEXP Rsh_Fir_reg_c6_;
+  SEXP Rsh_Fir_reg_r12_;
+  SEXP Rsh_Fir_reg_x3_;
+  SEXP Rsh_Fir_reg_x4_;
+  SEXP Rsh_Fir_reg_is_numeric;
+  SEXP Rsh_Fir_reg_r13_;
+  SEXP Rsh_Fir_reg_r14_;
+  SEXP Rsh_Fir_reg_c7_;
+  SEXP Rsh_Fir_reg_c8_;
+  SEXP Rsh_Fir_reg_c10_;
+  SEXP Rsh_Fir_reg_c12_;
+  SEXP Rsh_Fir_reg_sym4_;
+  SEXP Rsh_Fir_reg_base4_;
+  SEXP Rsh_Fir_reg_guard4_;
+  SEXP Rsh_Fir_reg_r15_;
+  SEXP Rsh_Fir_reg_c15_;
+  SEXP Rsh_Fir_reg_r16_;
+  SEXP Rsh_Fir_reg_x5_;
+  SEXP Rsh_Fir_reg_x6_;
+  SEXP Rsh_Fir_reg_c16_;
+  SEXP Rsh_Fir_reg_r17_;
+  SEXP Rsh_Fir_reg_c17_;
+  SEXP Rsh_Fir_reg_c18_;
+  SEXP Rsh_Fir_reg_c20_;
+  SEXP Rsh_Fir_reg_stop;
+  SEXP Rsh_Fir_reg_r18_;
+  SEXP Rsh_Fir_reg_sym5_;
+  SEXP Rsh_Fir_reg_base5_;
+  SEXP Rsh_Fir_reg_guard5_;
+  SEXP Rsh_Fir_reg_r20_;
+  SEXP Rsh_Fir_reg_r21_;
+  SEXP Rsh_Fir_reg_sym6_;
+  SEXP Rsh_Fir_reg_base6_;
+  SEXP Rsh_Fir_reg_guard6_;
+  SEXP Rsh_Fir_reg_r22_;
+  SEXP Rsh_Fir_reg_r23_;
+  SEXP Rsh_Fir_reg_x7_;
+  SEXP Rsh_Fir_reg_x8_;
+  SEXP Rsh_Fir_reg_is_finite;
+  SEXP Rsh_Fir_reg_r24_;
+  SEXP Rsh_Fir_reg_r25_;
+  SEXP Rsh_Fir_reg_any;
+  SEXP Rsh_Fir_reg_r26_;
+  SEXP Rsh_Fir_reg_c21_;
+  SEXP Rsh_Fir_reg_stop1_;
+  SEXP Rsh_Fir_reg_r27_;
+  SEXP Rsh_Fir_reg_as_matrix;
+  SEXP Rsh_Fir_reg_p6_;
+  SEXP Rsh_Fir_reg_r30_;
+  SEXP Rsh_Fir_reg_nrow;
+  SEXP Rsh_Fir_reg_p7_;
+  SEXP Rsh_Fir_reg_r32_;
+  SEXP Rsh_Fir_reg_ncol;
+  SEXP Rsh_Fir_reg_p8_;
+  SEXP Rsh_Fir_reg_r34_;
+  SEXP Rsh_Fir_reg_n4_;
+  SEXP Rsh_Fir_reg_n5_;
+  SEXP Rsh_Fir_reg_r35_;
+  SEXP Rsh_Fir_reg_c22_;
+  SEXP Rsh_Fir_reg_c23_;
+  SEXP Rsh_Fir_reg_p9_;
+  SEXP Rsh_Fir_reg_p10_;
+  SEXP Rsh_Fir_reg_r36_;
+  SEXP Rsh_Fir_reg_c25_;
+  SEXP Rsh_Fir_reg_c26_;
+  SEXP Rsh_Fir_reg_c28_;
+  SEXP Rsh_Fir_reg_stop2_;
+  SEXP Rsh_Fir_reg_r37_;
+  SEXP Rsh_Fir_reg_sym7_;
+  SEXP Rsh_Fir_reg_base7_;
+  SEXP Rsh_Fir_reg_guard7_;
+  SEXP Rsh_Fir_reg_r39_;
+  SEXP Rsh_Fir_reg_r40_;
+  SEXP Rsh_Fir_reg_x15_;
+  SEXP Rsh_Fir_reg_x16_;
+  SEXP Rsh_Fir_reg_c29_;
+  SEXP Rsh_Fir_reg_c30_;
+  SEXP Rsh_Fir_reg_r41_;
+  SEXP Rsh_Fir_reg_nu1_;
+  SEXP Rsh_Fir_reg_nu2_;
+  SEXP Rsh_Fir_reg_c31_;
+  SEXP Rsh_Fir_reg_c32_;
+  SEXP Rsh_Fir_reg_nv1_;
+  SEXP Rsh_Fir_reg_nv2_;
+  SEXP Rsh_Fir_reg_c34_;
+  SEXP Rsh_Fir_reg_c35_;
+  SEXP Rsh_Fir_reg_c37_;
+  SEXP Rsh_Fir_reg_sym8_;
+  SEXP Rsh_Fir_reg_base8_;
+  SEXP Rsh_Fir_reg_guard8_;
+  SEXP Rsh_Fir_reg_r42_;
+  SEXP Rsh_Fir_reg_r43_;
+  SEXP Rsh_Fir_reg_n6_;
+  SEXP Rsh_Fir_reg_n7_;
+  SEXP Rsh_Fir_reg_p11_;
+  SEXP Rsh_Fir_reg_p12_;
+  SEXP Rsh_Fir_reg_min2_;
+  SEXP Rsh_Fir_reg_r44_;
+  SEXP Rsh_Fir_reg_nu3_;
+  SEXP Rsh_Fir_reg_nu4_;
+  SEXP Rsh_Fir_reg_np;
+  SEXP Rsh_Fir_reg_np1_;
+  SEXP Rsh_Fir_reg_r45_;
+  SEXP Rsh_Fir_reg_c38_;
+  SEXP Rsh_Fir_reg_c40_;
+  SEXP Rsh_Fir_reg_nv3_;
+  SEXP Rsh_Fir_reg_nv4_;
+  SEXP Rsh_Fir_reg_np2_;
+  SEXP Rsh_Fir_reg_np3_;
+  SEXP Rsh_Fir_reg_r46_;
+  SEXP Rsh_Fir_reg_c41_;
+  SEXP Rsh_Fir_reg_c42_;
+  SEXP Rsh_Fir_reg_c44_;
+  SEXP Rsh_Fir_reg_matrix;
+  SEXP Rsh_Fir_reg_p13_;
+  SEXP Rsh_Fir_reg_p14_;
+  SEXP Rsh_Fir_reg_p15_;
+  SEXP Rsh_Fir_reg_r50_;
+  SEXP Rsh_Fir_reg_matrix1_;
+  SEXP Rsh_Fir_reg_p16_;
+  SEXP Rsh_Fir_reg_p17_;
+  SEXP Rsh_Fir_reg_p20_;
+  SEXP Rsh_Fir_reg_r54_;
+  SEXP Rsh_Fir_reg_np8_;
+  SEXP Rsh_Fir_reg_np9_;
+  SEXP Rsh_Fir_reg_np10_;
+  SEXP Rsh_Fir_reg_matrix2_;
+  SEXP Rsh_Fir_reg_p21_;
+  SEXP Rsh_Fir_reg_p22_;
+  SEXP Rsh_Fir_reg_p23_;
+  SEXP Rsh_Fir_reg_r58_;
+  SEXP Rsh_Fir_reg_matrix3_;
+  SEXP Rsh_Fir_reg_p24_;
+  SEXP Rsh_Fir_reg_p27_;
+  SEXP Rsh_Fir_reg_p30_;
+  SEXP Rsh_Fir_reg_r62_;
+  SEXP Rsh_Fir_reg_n14_;
+  SEXP Rsh_Fir_reg_n15_;
+  SEXP Rsh_Fir_reg_p31_;
+  SEXP Rsh_Fir_reg_p32_;
+  SEXP Rsh_Fir_reg_matrix4_;
+  SEXP Rsh_Fir_reg_p33_;
+  SEXP Rsh_Fir_reg_r64_;
+  SEXP Rsh_Fir_reg_matrix5_;
+  SEXP Rsh_Fir_reg_p34_;
+  SEXP Rsh_Fir_reg_r66_;
+  SEXP Rsh_Fir_reg_sym9_;
+  SEXP Rsh_Fir_reg_base9_;
+  SEXP Rsh_Fir_reg_guard9_;
+  SEXP Rsh_Fir_reg_r67_;
+  SEXP Rsh_Fir_reg_r68_;
+  SEXP Rsh_Fir_reg_x17_;
+  SEXP Rsh_Fir_reg_x18_;
+  SEXP Rsh_Fir_reg_c45_;
+  SEXP Rsh_Fir_reg_c46_;
+  SEXP Rsh_Fir_reg_sym10_;
+  SEXP Rsh_Fir_reg_base10_;
+  SEXP Rsh_Fir_reg_guard10_;
+  SEXP Rsh_Fir_reg_r69_;
+  SEXP Rsh_Fir_reg_r70_;
+  SEXP Rsh_Fir_reg_jobu;
+  SEXP Rsh_Fir_reg_jobu1_;
+  SEXP Rsh_Fir_reg_x19_;
+  SEXP Rsh_Fir_reg_x20_;
+  SEXP Rsh_Fir_reg_double;
+  SEXP Rsh_Fir_reg_p37_;
+  SEXP Rsh_Fir_reg_r75_;
+  SEXP Rsh_Fir_reg_u;
+  SEXP Rsh_Fir_reg_u1_;
+  SEXP Rsh_Fir_reg_vt;
+  SEXP Rsh_Fir_reg_vt1_;
+  SEXP Rsh_Fir_reg_La_svd_cmplx;
+  SEXP Rsh_Fir_reg_r76_;
+  SEXP Rsh_Fir_reg_r77_;
+  SEXP Rsh_Fir_reg_sym12_;
+  SEXP Rsh_Fir_reg_base12_;
+  SEXP Rsh_Fir_reg_guard12_;
+  SEXP Rsh_Fir_reg_r78_;
+  SEXP Rsh_Fir_reg_jobu2_;
+  SEXP Rsh_Fir_reg_jobu3_;
+  SEXP Rsh_Fir_reg_x21_;
+  SEXP Rsh_Fir_reg_x22_;
+  SEXP Rsh_Fir_reg_double1_;
+  SEXP Rsh_Fir_reg_p40_;
+  SEXP Rsh_Fir_reg_r83_;
+  SEXP Rsh_Fir_reg_u2_;
+  SEXP Rsh_Fir_reg_u3_;
+  SEXP Rsh_Fir_reg_vt2_;
+  SEXP Rsh_Fir_reg_vt3_;
+  SEXP Rsh_Fir_reg_La_svd;
+  SEXP Rsh_Fir_reg_r84_;
+  SEXP Rsh_Fir_reg_res;
+  SEXP Rsh_Fir_reg_res1_;
+  SEXP Rsh_Fir_reg_c47_;
+  SEXP Rsh_Fir_reg_res3_;
+  SEXP Rsh_Fir_reg_dr;
+  SEXP Rsh_Fir_reg_dc;
+  SEXP Rsh_Fir_reg_dx;
+  SEXP Rsh_Fir_reg_dx1_;
+  SEXP Rsh_Fir_reg_sym14_;
+  SEXP Rsh_Fir_reg_base14_;
+  SEXP Rsh_Fir_reg_guard14_;
+  SEXP Rsh_Fir_reg_r85_;
+  SEXP Rsh_Fir_reg_res6_;
+  SEXP Rsh_Fir_reg_r86_;
+  SEXP Rsh_Fir_reg_nu5_;
+  SEXP Rsh_Fir_reg_nu6_;
+  SEXP Rsh_Fir_reg_c48_;
+  SEXP Rsh_Fir_reg_res9_;
+  SEXP Rsh_Fir_reg_r87_;
+  SEXP Rsh_Fir_reg_nv5_;
+  SEXP Rsh_Fir_reg_nv6_;
+  SEXP Rsh_Fir_reg_c49_;
+  SEXP Rsh_Fir_reg_res12_;
+  SEXP Rsh_Fir_reg_r88_;
+  SEXP Rsh_Fir_reg_c50_;
+  SEXP Rsh_Fir_reg_r89_;
+  SEXP Rsh_Fir_reg___;
+  SEXP Rsh_Fir_reg_r90_;
+  SEXP Rsh_Fir_reg_nu7_;
+  SEXP Rsh_Fir_reg_nu8_;
+  SEXP Rsh_Fir_reg_c51_;
+  SEXP Rsh_Fir_reg_c53_;
+  SEXP Rsh_Fir_reg_nu9_;
+  SEXP Rsh_Fir_reg_nu10_;
+  SEXP Rsh_Fir_reg_nu11_;
+  SEXP Rsh_Fir_reg_nu12_;
+  SEXP Rsh_Fir_reg_r91_;
+  SEXP Rsh_Fir_reg_c54_;
+  SEXP Rsh_Fir_reg_c55_;
+  SEXP Rsh_Fir_reg_c57_;
+  SEXP Rsh_Fir_reg_res13_;
+  SEXP Rsh_Fir_reg_res14_;
+  SEXP Rsh_Fir_reg_c58_;
+  SEXP Rsh_Fir_reg_res16_;
+  SEXP Rsh_Fir_reg_dr2_;
+  SEXP Rsh_Fir_reg_dc1_;
+  SEXP Rsh_Fir_reg_dx2_;
+  SEXP Rsh_Fir_reg_dx3_;
+  SEXP Rsh_Fir_reg_r92_;
+  SEXP Rsh_Fir_reg_c59_;
+  SEXP Rsh_Fir_reg_dx5_;
+  SEXP Rsh_Fir_reg_dr4_;
+  SEXP Rsh_Fir_reg_dc2_;
+  SEXP Rsh_Fir_reg_dx6_;
+  SEXP Rsh_Fir_reg_dx7_;
+  SEXP Rsh_Fir_reg_sym15_;
+  SEXP Rsh_Fir_reg_base15_;
+  SEXP Rsh_Fir_reg_guard15_;
+  SEXP Rsh_Fir_reg_r93_;
+  SEXP Rsh_Fir_reg_r94_;
+  SEXP Rsh_Fir_reg_sym16_;
+  SEXP Rsh_Fir_reg_base16_;
+  SEXP Rsh_Fir_reg_guard16_;
+  SEXP Rsh_Fir_reg_r95_;
+  SEXP Rsh_Fir_reg_dx13_;
+  SEXP Rsh_Fir_reg_r96_;
+  SEXP Rsh_Fir_reg_n20_;
+  SEXP Rsh_Fir_reg_n21_;
+  SEXP Rsh_Fir_reg_nu13_;
+  SEXP Rsh_Fir_reg_nu14_;
+  SEXP Rsh_Fir_reg_min5_;
+  SEXP Rsh_Fir_reg_r97_;
+  SEXP Rsh_Fir_reg_r98_;
+  SEXP Rsh_Fir_reg___1_;
+  SEXP Rsh_Fir_reg_r99_;
+  SEXP Rsh_Fir_reg_l;
+  SEXP Rsh_Fir_reg_c60_;
+  SEXP Rsh_Fir_reg_dx15_;
+  SEXP Rsh_Fir_reg_l2_;
+  SEXP Rsh_Fir_reg_dr6_;
+  SEXP Rsh_Fir_reg_dc3_;
+  SEXP Rsh_Fir_reg_dx17_;
+  SEXP Rsh_Fir_reg_dx18_;
+  SEXP Rsh_Fir_reg_dx19_;
+  SEXP Rsh_Fir_reg_r100_;
+  SEXP Rsh_Fir_reg_nv7_;
+  SEXP Rsh_Fir_reg_nv8_;
+  SEXP Rsh_Fir_reg_c61_;
+  SEXP Rsh_Fir_reg_c63_;
+  SEXP Rsh_Fir_reg_nv9_;
+  SEXP Rsh_Fir_reg_nv10_;
+  SEXP Rsh_Fir_reg_nv11_;
+  SEXP Rsh_Fir_reg_nv12_;
+  SEXP Rsh_Fir_reg_r101_;
+  SEXP Rsh_Fir_reg_c64_;
+  SEXP Rsh_Fir_reg_c65_;
+  SEXP Rsh_Fir_reg_c67_;
+  SEXP Rsh_Fir_reg_res17_;
+  SEXP Rsh_Fir_reg_res18_;
+  SEXP Rsh_Fir_reg_c68_;
+  SEXP Rsh_Fir_reg_res20_;
+  SEXP Rsh_Fir_reg_dr8_;
+  SEXP Rsh_Fir_reg_dc4_;
+  SEXP Rsh_Fir_reg_dx21_;
+  SEXP Rsh_Fir_reg_dx22_;
+  SEXP Rsh_Fir_reg_r102_;
+  SEXP Rsh_Fir_reg_c69_;
+  SEXP Rsh_Fir_reg_dx24_;
+  SEXP Rsh_Fir_reg_dr10_;
+  SEXP Rsh_Fir_reg_dc5_;
+  SEXP Rsh_Fir_reg_dx25_;
+  SEXP Rsh_Fir_reg_dx26_;
+  SEXP Rsh_Fir_reg_sym17_;
+  SEXP Rsh_Fir_reg_base17_;
+  SEXP Rsh_Fir_reg_guard17_;
+  SEXP Rsh_Fir_reg_r103_;
+  SEXP Rsh_Fir_reg_r104_;
+  SEXP Rsh_Fir_reg_sym18_;
+  SEXP Rsh_Fir_reg_base18_;
+  SEXP Rsh_Fir_reg_guard18_;
+  SEXP Rsh_Fir_reg_r105_;
+  SEXP Rsh_Fir_reg_dx32_;
+  SEXP Rsh_Fir_reg_r106_;
+  SEXP Rsh_Fir_reg_p41_;
+  SEXP Rsh_Fir_reg_p42_;
+  SEXP Rsh_Fir_reg_nv13_;
+  SEXP Rsh_Fir_reg_nv14_;
+  SEXP Rsh_Fir_reg_min6_;
+  SEXP Rsh_Fir_reg_r107_;
+  SEXP Rsh_Fir_reg_r108_;
+  SEXP Rsh_Fir_reg___2_;
+  SEXP Rsh_Fir_reg_r109_;
+  SEXP Rsh_Fir_reg_l3_;
+  SEXP Rsh_Fir_reg_c70_;
+  SEXP Rsh_Fir_reg_dx34_;
+  SEXP Rsh_Fir_reg_l5_;
+  SEXP Rsh_Fir_reg_dr12_;
+  SEXP Rsh_Fir_reg_dc6_;
+  SEXP Rsh_Fir_reg_dx36_;
+  SEXP Rsh_Fir_reg_dx37_;
+  SEXP Rsh_Fir_reg_dx38_;
+  SEXP Rsh_Fir_reg_r110_;
+  SEXP Rsh_Fir_reg_res21_;
+  SEXP Rsh_Fir_reg_res22_;
 
   // Bind parameters
   Rsh_Fir_reg_x = PARAMS[0];
@@ -549,7 +471,7 @@ L0_:;
   //   r = dyn base(<sym n>, <sym p>);
   //   goto L0(r);
   // }
-  Rsh_Fir_reg_p2_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_, CCP, RHO);
+  Rsh_Fir_reg_p2_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_, 0, NULL, CCP, RHO);
   // goto L1(p2)
   // L1(p2)
   Rsh_Fir_reg_nu_orDefault = Rsh_Fir_reg_p2_;
@@ -595,7 +517,7 @@ L2_:;
   //   r4 = dyn base1(<sym n>, <sym p>);
   //   goto L0(r4);
   // }
-  Rsh_Fir_reg_p5_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_1, CCP, RHO);
+  Rsh_Fir_reg_p5_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_1, 0, NULL, CCP, RHO);
   // goto L3(p5)
   // L3(p5)
   Rsh_Fir_reg_nv_orDefault = Rsh_Fir_reg_p5_;
@@ -627,11 +549,11 @@ L4_:;
   // r10 = `!`(r9)
   SEXP Rsh_Fir_array_args13[1];
   Rsh_Fir_array_args13[0] = Rsh_Fir_reg_r9_;
-  Rsh_Fir_reg_r10_ = Rsh_Fir_call_builtin(82, CCP, RHO, 1, Rsh_Fir_array_args13, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r10_ = Rsh_Fir_call_builtin(82, RHO, 1, Rsh_Fir_array_args13);
   // c1 = `as.logical`(r10)
   SEXP Rsh_Fir_array_args14[1];
   Rsh_Fir_array_args14[0] = Rsh_Fir_reg_r10_;
-  Rsh_Fir_reg_c1_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args14, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c1_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args14);
   // if c1 then L53() else L5(c1)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c1_)) {
   // L53()
@@ -646,7 +568,7 @@ L5_:;
   // c10 = `as.logical`(c3)
   SEXP Rsh_Fir_array_args15[1];
   Rsh_Fir_array_args15[0] = Rsh_Fir_reg_c3_;
-  Rsh_Fir_reg_c10_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args15, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c10_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args15);
   // if c10 then L59() else L7(c10)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c10_)) {
   // L59()
@@ -661,16 +583,16 @@ L6_:;
   // r14 = `!`(r12)
   SEXP Rsh_Fir_array_args16[1];
   Rsh_Fir_array_args16[0] = Rsh_Fir_reg_r12_;
-  Rsh_Fir_reg_r14_ = Rsh_Fir_call_builtin(82, CCP, RHO, 1, Rsh_Fir_array_args16, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r14_ = Rsh_Fir_call_builtin(82, RHO, 1, Rsh_Fir_array_args16);
   // c7 = `as.logical`(r14)
   SEXP Rsh_Fir_array_args17[1];
   Rsh_Fir_array_args17[0] = Rsh_Fir_reg_r14_;
-  Rsh_Fir_reg_c7_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args17, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c7_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args17);
   // c8 = `&&`(c6, c7)
   SEXP Rsh_Fir_array_args18[2];
   Rsh_Fir_array_args18[0] = Rsh_Fir_reg_c6_;
   Rsh_Fir_array_args18[1] = Rsh_Fir_reg_c7_;
-  Rsh_Fir_reg_c8_ = Rsh_Fir_call_builtin(83, CCP, RHO, 2, Rsh_Fir_array_args18, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c8_ = Rsh_Fir_call_builtin(83, RHO, 2, Rsh_Fir_array_args18);
   // goto L5(c8)
   // L5(c8)
   Rsh_Fir_reg_c3_ = Rsh_Fir_reg_c8_;
@@ -680,7 +602,7 @@ L7_:;
   // c20 = `as.logical`(c12)
   SEXP Rsh_Fir_array_args19[1];
   Rsh_Fir_array_args19[0] = Rsh_Fir_reg_c12_;
-  Rsh_Fir_reg_c20_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args19, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c20_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args19);
   // if c20 then L64() else L9()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c20_)) {
   // L64()
@@ -694,16 +616,16 @@ L8_:;
   // r17 = `!`(r16)
   SEXP Rsh_Fir_array_args20[1];
   Rsh_Fir_array_args20[0] = Rsh_Fir_reg_r16_;
-  Rsh_Fir_reg_r17_ = Rsh_Fir_call_builtin(82, CCP, RHO, 1, Rsh_Fir_array_args20, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r17_ = Rsh_Fir_call_builtin(82, RHO, 1, Rsh_Fir_array_args20);
   // c17 = `as.logical`(r17)
   SEXP Rsh_Fir_array_args21[1];
   Rsh_Fir_array_args21[0] = Rsh_Fir_reg_r17_;
-  Rsh_Fir_reg_c17_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args21, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c17_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args21);
   // c18 = `&&`(c15, c17)
   SEXP Rsh_Fir_array_args22[2];
   Rsh_Fir_array_args22[0] = Rsh_Fir_reg_c15_;
   Rsh_Fir_array_args22[1] = Rsh_Fir_reg_c17_;
-  Rsh_Fir_reg_c18_ = Rsh_Fir_call_builtin(83, CCP, RHO, 2, Rsh_Fir_array_args22, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c18_ = Rsh_Fir_call_builtin(83, RHO, 2, Rsh_Fir_array_args22);
   // goto L7(c18)
   // L7(c18)
   Rsh_Fir_reg_c12_ = Rsh_Fir_reg_c18_;
@@ -737,7 +659,7 @@ L11_:;
   // c21 = `as.logical`(r21)
   SEXP Rsh_Fir_array_args24[1];
   Rsh_Fir_array_args24[0] = Rsh_Fir_reg_r21_;
-  Rsh_Fir_reg_c21_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args24, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c21_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args24);
   // if c21 then L75() else L13()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c21_)) {
   // L75()
@@ -751,7 +673,7 @@ L12_:;
   // r25 = `!`(r23)
   SEXP Rsh_Fir_array_args25[1];
   Rsh_Fir_array_args25[0] = Rsh_Fir_reg_r23_;
-  Rsh_Fir_reg_r25_ = Rsh_Fir_call_builtin(82, CCP, RHO, 1, Rsh_Fir_array_args25, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r25_ = Rsh_Fir_call_builtin(82, RHO, 1, Rsh_Fir_array_args25);
   // any = ldf any in base
   Rsh_Fir_reg_any = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 8), RHO);
   // r26 = dyn any(r25)
@@ -780,7 +702,7 @@ L15_:;
   // c28 = `as.logical`(c23)
   SEXP Rsh_Fir_array_args27[1];
   Rsh_Fir_array_args27[0] = Rsh_Fir_reg_c23_;
-  Rsh_Fir_reg_c28_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args27, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c28_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args27);
   // if c28 then L89() else L16()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c28_)) {
   // L89()
@@ -818,7 +740,7 @@ L18_:;
   // c30 = `as.logical`(r40)
   SEXP Rsh_Fir_array_args29[1];
   Rsh_Fir_array_args29[0] = Rsh_Fir_reg_r40_;
-  Rsh_Fir_reg_c30_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args29, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c30_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args29);
   // if c30 then L96() else L19()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c30_)) {
   // L96()
@@ -848,7 +770,7 @@ L21_:;
   // c37 = `as.logical`(c32)
   SEXP Rsh_Fir_array_args30[1];
   Rsh_Fir_array_args30[0] = Rsh_Fir_reg_c32_;
-  Rsh_Fir_reg_c37_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args30, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c37_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args30);
   // if c37 then L102() else L22()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c37_)) {
   // L102()
@@ -882,7 +804,7 @@ L24_:;
   // c44 = `as.logical`(c40)
   SEXP Rsh_Fir_array_args31[1];
   Rsh_Fir_array_args31[0] = Rsh_Fir_reg_c40_;
-  Rsh_Fir_reg_c44_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args31, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c44_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args31);
   // if c44 then L114() else L25()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c44_)) {
   // L114()
@@ -930,7 +852,7 @@ L28_:;
   // c46 = `as.logical`(r68)
   SEXP Rsh_Fir_array_args33[1];
   Rsh_Fir_array_args33[0] = Rsh_Fir_reg_r68_;
-  Rsh_Fir_reg_c46_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args33, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c46_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args33);
   // if c46 then L135() else L29()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c46_)) {
   // L135()
@@ -1043,7 +965,7 @@ L38_:;
   // c57 = `as.logical`(c53)
   SEXP Rsh_Fir_array_args37[1];
   Rsh_Fir_array_args37[0] = Rsh_Fir_reg_c53_;
-  Rsh_Fir_reg_c57_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args37, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c57_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args37);
   // if c57 then L173() else L39()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c57_)) {
   // L173()
@@ -1064,7 +986,7 @@ L40_:;
   // c60 = `is.object`(l)
   SEXP Rsh_Fir_array_args38[1];
   Rsh_Fir_array_args38[0] = Rsh_Fir_reg_l;
-  Rsh_Fir_reg_c60_ = Rsh_Fir_call_builtin(397, CCP, RHO, 1, Rsh_Fir_array_args38, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c60_ = Rsh_Fir_call_builtin(397, RHO, 1, Rsh_Fir_array_args38);
   // if c60 then L190() else L191(dx7, l)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c60_)) {
   // L190()
@@ -1100,7 +1022,7 @@ L42_:;
   // r98 = seq_len(r96)
   SEXP Rsh_Fir_array_args40[1];
   Rsh_Fir_array_args40[0] = Rsh_Fir_reg_r96_;
-  Rsh_Fir_reg_r98_ = Rsh_Fir_call_builtin(423, CCP, RHO, 1, Rsh_Fir_array_args40, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r98_ = Rsh_Fir_call_builtin(423, RHO, 1, Rsh_Fir_array_args40);
   // goto L41(r98)
   // L41(r98)
   Rsh_Fir_reg_r94_ = Rsh_Fir_reg_r98_;
@@ -1117,7 +1039,7 @@ L44_:;
   // c67 = `as.logical`(c63)
   SEXP Rsh_Fir_array_args41[1];
   Rsh_Fir_array_args41[0] = Rsh_Fir_reg_c63_;
-  Rsh_Fir_reg_c67_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args41, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c67_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args41);
   // if c67 then L199() else L45()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c67_)) {
   // L199()
@@ -1138,7 +1060,7 @@ L46_:;
   // c70 = `is.object`(l3)
   SEXP Rsh_Fir_array_args42[1];
   Rsh_Fir_array_args42[0] = Rsh_Fir_reg_l3_;
-  Rsh_Fir_reg_c70_ = Rsh_Fir_call_builtin(397, CCP, RHO, 1, Rsh_Fir_array_args42, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c70_ = Rsh_Fir_call_builtin(397, RHO, 1, Rsh_Fir_array_args42);
   // if c70 then L216() else L217(dx26, l3)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c70_)) {
   // L216()
@@ -1174,7 +1096,7 @@ L48_:;
   // r108 = seq_len(r106)
   SEXP Rsh_Fir_array_args44[1];
   Rsh_Fir_array_args44[0] = Rsh_Fir_reg_r106_;
-  Rsh_Fir_reg_r108_ = Rsh_Fir_call_builtin(423, CCP, RHO, 1, Rsh_Fir_array_args44, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r108_ = Rsh_Fir_call_builtin(423, RHO, 1, Rsh_Fir_array_args44);
   // goto L47(r108)
   // L47(r108)
   Rsh_Fir_reg_r104_ = Rsh_Fir_reg_r108_;
@@ -1223,7 +1145,7 @@ L52_:;
   // c = `is.logical`(x2)
   SEXP Rsh_Fir_array_args47[1];
   Rsh_Fir_array_args47[0] = Rsh_Fir_reg_x2_;
-  Rsh_Fir_reg_c = Rsh_Fir_call_builtin(385, CCP, RHO, 1, Rsh_Fir_array_args47, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c = Rsh_Fir_call_builtin(385, RHO, 1, Rsh_Fir_array_args47);
   // goto L4(c)
   // L4(c)
   Rsh_Fir_reg_r9_ = Rsh_Fir_reg_c;
@@ -1367,7 +1289,7 @@ L62_:;
   // c16 = `is.complex`(x6)
   SEXP Rsh_Fir_array_args55[1];
   Rsh_Fir_array_args55[0] = Rsh_Fir_reg_x6_;
-  Rsh_Fir_reg_c16_ = Rsh_Fir_call_builtin(388, CCP, RHO, 1, Rsh_Fir_array_args55, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c16_ = Rsh_Fir_call_builtin(388, RHO, 1, Rsh_Fir_array_args55);
   // goto L8(c10, c16)
   // L8(c10, c16)
   Rsh_Fir_reg_c15_ = Rsh_Fir_reg_c10_;
@@ -1558,7 +1480,7 @@ L79_:;
   //   checkMissing(x10);
   //   return x10;
   // }
-  Rsh_Fir_reg_p6_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_2, CCP, RHO);
+  Rsh_Fir_reg_p6_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_2, 0, NULL, CCP, RHO);
   // r30 = dyn as_matrix(p6)
   SEXP Rsh_Fir_array_args64[1];
   Rsh_Fir_array_args64[0] = Rsh_Fir_reg_p6_;
@@ -1598,7 +1520,7 @@ L81_:;
   //   checkMissing(x12);
   //   return x12;
   // }
-  Rsh_Fir_reg_p7_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_3, CCP, RHO);
+  Rsh_Fir_reg_p7_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_3, 0, NULL, CCP, RHO);
   // r32 = dyn nrow(p7)
   SEXP Rsh_Fir_array_args66[1];
   Rsh_Fir_array_args66[0] = Rsh_Fir_reg_p7_;
@@ -1638,7 +1560,7 @@ L83_:;
   //   checkMissing(x14);
   //   return x14;
   // }
-  Rsh_Fir_reg_p8_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_4, CCP, RHO);
+  Rsh_Fir_reg_p8_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_4, 0, NULL, CCP, RHO);
   // r34 = dyn ncol(p8)
   SEXP Rsh_Fir_array_args68[1];
   Rsh_Fir_array_args68[0] = Rsh_Fir_reg_p8_;
@@ -1683,11 +1605,11 @@ L85_:;
   // r35 = `!`(n5)
   SEXP Rsh_Fir_array_args70[1];
   Rsh_Fir_array_args70[0] = Rsh_Fir_reg_n5_;
-  Rsh_Fir_reg_r35_ = Rsh_Fir_call_builtin(82, CCP, RHO, 1, Rsh_Fir_array_args70, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r35_ = Rsh_Fir_call_builtin(82, RHO, 1, Rsh_Fir_array_args70);
   // c22 = `as.logical`(r35)
   SEXP Rsh_Fir_array_args71[1];
   Rsh_Fir_array_args71[0] = Rsh_Fir_reg_r35_;
-  Rsh_Fir_reg_c22_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args71, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c22_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args71);
   // if c22 then L15(c22) else L86()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c22_)) {
   // L15(c22)
@@ -1723,16 +1645,16 @@ L87_:;
   // r36 = `!`(p10)
   SEXP Rsh_Fir_array_args73[1];
   Rsh_Fir_array_args73[0] = Rsh_Fir_reg_p10_;
-  Rsh_Fir_reg_r36_ = Rsh_Fir_call_builtin(82, CCP, RHO, 1, Rsh_Fir_array_args73, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r36_ = Rsh_Fir_call_builtin(82, RHO, 1, Rsh_Fir_array_args73);
   // c25 = `as.logical`(r36)
   SEXP Rsh_Fir_array_args74[1];
   Rsh_Fir_array_args74[0] = Rsh_Fir_reg_r36_;
-  Rsh_Fir_reg_c25_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args74, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c25_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args74);
   // c26 = `||`(c22, c25)
   SEXP Rsh_Fir_array_args75[2];
   Rsh_Fir_array_args75[0] = Rsh_Fir_reg_c22_;
   Rsh_Fir_array_args75[1] = Rsh_Fir_reg_c25_;
-  Rsh_Fir_reg_c26_ = Rsh_Fir_call_builtin(84, CCP, RHO, 2, Rsh_Fir_array_args75, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c26_ = Rsh_Fir_call_builtin(84, RHO, 2, Rsh_Fir_array_args75);
   // goto L15(c26)
   // L15(c26)
   Rsh_Fir_reg_c23_ = Rsh_Fir_reg_c26_;
@@ -1809,7 +1731,7 @@ L95_:;
   // c29 = `is.complex`(x16)
   SEXP Rsh_Fir_array_args79[1];
   Rsh_Fir_array_args79[0] = Rsh_Fir_reg_x16_;
-  Rsh_Fir_reg_c29_ = Rsh_Fir_call_builtin(388, CCP, RHO, 1, Rsh_Fir_array_args79, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c29_ = Rsh_Fir_call_builtin(388, RHO, 1, Rsh_Fir_array_args79);
   // goto L18(c29)
   // L18(c29)
   Rsh_Fir_reg_r40_ = Rsh_Fir_reg_c29_;
@@ -1838,7 +1760,7 @@ L98_:;
   // c31 = `as.logical`(nu2)
   SEXP Rsh_Fir_array_args81[1];
   Rsh_Fir_array_args81[0] = Rsh_Fir_reg_nu2_;
-  Rsh_Fir_reg_c31_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args81, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c31_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args81);
   // if c31 then L21(c31) else L99()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c31_)) {
   // L21(c31)
@@ -1874,12 +1796,12 @@ L100_:;
   // c34 = `as.logical`(nv2)
   SEXP Rsh_Fir_array_args83[1];
   Rsh_Fir_array_args83[0] = Rsh_Fir_reg_nv2_;
-  Rsh_Fir_reg_c34_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args83, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c34_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args83);
   // c35 = `||`(c31, c34)
   SEXP Rsh_Fir_array_args84[2];
   Rsh_Fir_array_args84[0] = Rsh_Fir_reg_c31_;
   Rsh_Fir_array_args84[1] = Rsh_Fir_reg_c34_;
-  Rsh_Fir_reg_c35_ = Rsh_Fir_call_builtin(84, CCP, RHO, 2, Rsh_Fir_array_args84, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c35_ = Rsh_Fir_call_builtin(84, RHO, 2, Rsh_Fir_array_args84);
   // goto L21(c35)
   // L21(c35)
   Rsh_Fir_reg_c32_ = Rsh_Fir_reg_c35_;
@@ -2025,11 +1947,11 @@ L109_:;
   SEXP Rsh_Fir_array_args92[2];
   Rsh_Fir_array_args92[0] = Rsh_Fir_reg_nu4_;
   Rsh_Fir_array_args92[1] = Rsh_Fir_reg_np1_;
-  Rsh_Fir_reg_r45_ = Rsh_Fir_call_builtin(77, CCP, RHO, 2, Rsh_Fir_array_args92, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r45_ = Rsh_Fir_call_builtin(77, RHO, 2, Rsh_Fir_array_args92);
   // c38 = `as.logical`(r45)
   SEXP Rsh_Fir_array_args93[1];
   Rsh_Fir_array_args93[0] = Rsh_Fir_reg_r45_;
-  Rsh_Fir_reg_c38_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args93, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c38_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args93);
   // if c38 then L110() else L24(c38)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c38_)) {
   // L110()
@@ -2088,16 +2010,16 @@ L112_:;
   SEXP Rsh_Fir_array_args96[2];
   Rsh_Fir_array_args96[0] = Rsh_Fir_reg_nv4_;
   Rsh_Fir_array_args96[1] = Rsh_Fir_reg_np3_;
-  Rsh_Fir_reg_r46_ = Rsh_Fir_call_builtin(77, CCP, RHO, 2, Rsh_Fir_array_args96, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r46_ = Rsh_Fir_call_builtin(77, RHO, 2, Rsh_Fir_array_args96);
   // c41 = `as.logical`(r46)
   SEXP Rsh_Fir_array_args97[1];
   Rsh_Fir_array_args97[0] = Rsh_Fir_reg_r46_;
-  Rsh_Fir_reg_c41_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args97, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c41_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args97);
   // c42 = `&&`(c38, c41)
   SEXP Rsh_Fir_array_args98[2];
   Rsh_Fir_array_args98[0] = Rsh_Fir_reg_c38_;
   Rsh_Fir_array_args98[1] = Rsh_Fir_reg_c41_;
-  Rsh_Fir_reg_c42_ = Rsh_Fir_call_builtin(83, CCP, RHO, 2, Rsh_Fir_array_args98, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c42_ = Rsh_Fir_call_builtin(83, RHO, 2, Rsh_Fir_array_args98);
   // goto L24(c42)
   // L24(c42)
   Rsh_Fir_reg_c40_ = Rsh_Fir_reg_c42_;
@@ -2125,21 +2047,21 @@ L115_:;
   //   checkMissing(zero1);
   //   return zero1;
   // }
-  Rsh_Fir_reg_p13_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_5, CCP, RHO);
+  Rsh_Fir_reg_p13_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_5, 0, NULL, CCP, RHO);
   // p14 = prom<V +>{
   //   n8 = ld n;
   //   n9 = force? n8;
   //   checkMissing(n9);
   //   return n9;
   // }
-  Rsh_Fir_reg_p14_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_6, CCP, RHO);
+  Rsh_Fir_reg_p14_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_6, 0, NULL, CCP, RHO);
   // p15 = prom<V +>{
   //   np4 = ld np;
   //   np5 = force? np4;
   //   checkMissing(np5);
   //   return np5;
   // }
-  Rsh_Fir_reg_p15_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_7, CCP, RHO);
+  Rsh_Fir_reg_p15_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_7, 0, NULL, CCP, RHO);
   // r50 = dyn matrix(p13, p14, p15)
   SEXP Rsh_Fir_array_args102[3];
   Rsh_Fir_array_args102[0] = Rsh_Fir_reg_p13_;
@@ -2183,21 +2105,21 @@ L117_:;
   //   checkMissing(zero3);
   //   return zero3;
   // }
-  Rsh_Fir_reg_p16_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_8, CCP, RHO);
+  Rsh_Fir_reg_p16_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_8, 0, NULL, CCP, RHO);
   // p17 = prom<V +>{
   //   np6 = ld np;
   //   np7 = force? np6;
   //   checkMissing(np7);
   //   return np7;
   // }
-  Rsh_Fir_reg_p17_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_9, CCP, RHO);
+  Rsh_Fir_reg_p17_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_9, 0, NULL, CCP, RHO);
   // p20 = prom<V +>{
   //   p18 = ld p;
   //   p19 = force? p18;
   //   checkMissing(p19);
   //   return p19;
   // }
-  Rsh_Fir_reg_p20_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_10, CCP, RHO);
+  Rsh_Fir_reg_p20_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_10, 0, NULL, CCP, RHO);
   // r54 = dyn matrix1(p16, p17, p20)
   SEXP Rsh_Fir_array_args106[3];
   Rsh_Fir_array_args106[0] = Rsh_Fir_reg_p16_;
@@ -2266,21 +2188,21 @@ L121_:;
   //   checkMissing(zero5);
   //   return zero5;
   // }
-  Rsh_Fir_reg_p21_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_11, CCP, RHO);
+  Rsh_Fir_reg_p21_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_11, 0, NULL, CCP, RHO);
   // p22 = prom<V +>{
   //   n10 = ld n;
   //   n11 = force? n10;
   //   checkMissing(n11);
   //   return n11;
   // }
-  Rsh_Fir_reg_p22_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_12, CCP, RHO);
+  Rsh_Fir_reg_p22_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_12, 0, NULL, CCP, RHO);
   // p23 = prom<V +>{
   //   n12 = ld n;
   //   n13 = force? n12;
   //   checkMissing(n13);
   //   return n13;
   // }
-  Rsh_Fir_reg_p23_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_13, CCP, RHO);
+  Rsh_Fir_reg_p23_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_13, 0, NULL, CCP, RHO);
   // r58 = dyn matrix2(p21, p22, p23)
   SEXP Rsh_Fir_array_args111[3];
   Rsh_Fir_array_args111[0] = Rsh_Fir_reg_p21_;
@@ -2324,21 +2246,21 @@ L123_:;
   //   checkMissing(zero7);
   //   return zero7;
   // }
-  Rsh_Fir_reg_p24_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_14, CCP, RHO);
+  Rsh_Fir_reg_p24_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_14, 0, NULL, CCP, RHO);
   // p27 = prom<V +>{
   //   p25 = ld p;
   //   p26 = force? p25;
   //   checkMissing(p26);
   //   return p26;
   // }
-  Rsh_Fir_reg_p27_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_15, CCP, RHO);
+  Rsh_Fir_reg_p27_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_15, 0, NULL, CCP, RHO);
   // p30 = prom<V +>{
   //   p28 = ld p;
   //   p29 = force? p28;
   //   checkMissing(p29);
   //   return p29;
   // }
-  Rsh_Fir_reg_p30_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_16, CCP, RHO);
+  Rsh_Fir_reg_p30_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_16, 0, NULL, CCP, RHO);
   // r62 = dyn matrix3(p24, p27, p30)
   SEXP Rsh_Fir_array_args115[3];
   Rsh_Fir_array_args115[0] = Rsh_Fir_reg_p24_;
@@ -2427,7 +2349,7 @@ L128_:;
   //   checkMissing(zero9);
   //   return zero9;
   // }
-  Rsh_Fir_reg_p33_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_17, CCP, RHO);
+  Rsh_Fir_reg_p33_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_17, 0, NULL, CCP, RHO);
   // r64 = dyn matrix4(p33, 1, 1)
   SEXP Rsh_Fir_array_args119[3];
   Rsh_Fir_array_args119[0] = Rsh_Fir_reg_p33_;
@@ -2471,7 +2393,7 @@ L130_:;
   //   checkMissing(zero11);
   //   return zero11;
   // }
-  Rsh_Fir_reg_p34_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_18, CCP, RHO);
+  Rsh_Fir_reg_p34_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_18, 0, NULL, CCP, RHO);
   // r66 = dyn matrix5(p34, 1, 1)
   SEXP Rsh_Fir_array_args121[3];
   Rsh_Fir_array_args121[0] = Rsh_Fir_reg_p34_;
@@ -2537,7 +2459,7 @@ L134_:;
   // c45 = `is.complex`(x18)
   SEXP Rsh_Fir_array_args124[1];
   Rsh_Fir_array_args124[0] = Rsh_Fir_reg_x18_;
-  Rsh_Fir_reg_c45_ = Rsh_Fir_call_builtin(388, CCP, RHO, 1, Rsh_Fir_array_args124, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c45_ = Rsh_Fir_call_builtin(388, RHO, 1, Rsh_Fir_array_args124);
   // goto L28(c45)
   // L28(c45)
   Rsh_Fir_reg_r68_ = Rsh_Fir_reg_c45_;
@@ -2648,7 +2570,7 @@ L140_:;
   //   r71 = dyn base11(<sym n>, <sym p>);
   //   goto L0(r71);
   // }
-  Rsh_Fir_reg_p37_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_19, CCP, RHO);
+  Rsh_Fir_reg_p37_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_19, 0, NULL, CCP, RHO);
   // r75 = dyn double(p37)
   SEXP Rsh_Fir_array_args134[1];
   Rsh_Fir_array_args134[0] = Rsh_Fir_reg_p37_;
@@ -2826,7 +2748,7 @@ L150_:;
   //   r79 = dyn base13(<sym n>, <sym p>);
   //   goto L0(r79);
   // }
-  Rsh_Fir_reg_p40_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_20, CCP, RHO);
+  Rsh_Fir_reg_p40_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1888930683_20, 0, NULL, CCP, RHO);
   // r83 = dyn double1(p40)
   SEXP Rsh_Fir_array_args146[1];
   Rsh_Fir_array_args146[0] = Rsh_Fir_reg_p40_;
@@ -2935,7 +2857,7 @@ L155_:;
   // c47 = `is.object`(res1)
   SEXP Rsh_Fir_array_args151[1];
   Rsh_Fir_array_args151[0] = Rsh_Fir_reg_res1_;
-  Rsh_Fir_reg_c47_ = Rsh_Fir_call_builtin(397, CCP, RHO, 1, Rsh_Fir_array_args151, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c47_ = Rsh_Fir_call_builtin(397, RHO, 1, Rsh_Fir_array_args151);
   // if c47 then L156() else L157(res1)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c47_)) {
   // L156()
@@ -3037,7 +2959,7 @@ L161_:;
   // c48 = `as.logical`(nu6)
   SEXP Rsh_Fir_array_args158[1];
   Rsh_Fir_array_args158[0] = Rsh_Fir_reg_nu6_;
-  Rsh_Fir_reg_c48_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args158, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c48_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args158);
   // if c48 then L162() else L34()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c48_)) {
   // L162()
@@ -3072,7 +2994,7 @@ L164_:;
   // c49 = `as.logical`(nv6)
   SEXP Rsh_Fir_array_args160[1];
   Rsh_Fir_array_args160[0] = Rsh_Fir_reg_nv6_;
-  Rsh_Fir_reg_c49_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args160, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c49_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args160);
   // if c49 then L165() else L36()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c49_)) {
   // L165()
@@ -3121,7 +3043,7 @@ L168_:;
   // c51 = `as.logical`(nu8)
   SEXP Rsh_Fir_array_args162[1];
   Rsh_Fir_array_args162[0] = Rsh_Fir_reg_nu8_;
-  Rsh_Fir_reg_c51_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args162, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c51_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args162);
   // if c51 then L169() else L38(c51)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c51_)) {
   // L169()
@@ -3180,16 +3102,16 @@ L171_:;
   SEXP Rsh_Fir_array_args165[2];
   Rsh_Fir_array_args165[0] = Rsh_Fir_reg_nu10_;
   Rsh_Fir_array_args165[1] = Rsh_Fir_reg_nu12_;
-  Rsh_Fir_reg_r91_ = Rsh_Fir_call_builtin(76, CCP, RHO, 2, Rsh_Fir_array_args165, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r91_ = Rsh_Fir_call_builtin(76, RHO, 2, Rsh_Fir_array_args165);
   // c54 = `as.logical`(r91)
   SEXP Rsh_Fir_array_args166[1];
   Rsh_Fir_array_args166[0] = Rsh_Fir_reg_r91_;
-  Rsh_Fir_reg_c54_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args166, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c54_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args166);
   // c55 = `&&`(c51, c54)
   SEXP Rsh_Fir_array_args167[2];
   Rsh_Fir_array_args167[0] = Rsh_Fir_reg_c51_;
   Rsh_Fir_array_args167[1] = Rsh_Fir_reg_c54_;
-  Rsh_Fir_reg_c55_ = Rsh_Fir_call_builtin(83, CCP, RHO, 2, Rsh_Fir_array_args167, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c55_ = Rsh_Fir_call_builtin(83, RHO, 2, Rsh_Fir_array_args167);
   // goto L38(c55)
   // L38(c55)
   Rsh_Fir_reg_c53_ = Rsh_Fir_reg_c55_;
@@ -3219,7 +3141,7 @@ L174_:;
   // c58 = `is.object`(res14)
   SEXP Rsh_Fir_array_args169[1];
   Rsh_Fir_array_args169[0] = Rsh_Fir_reg_res14_;
-  Rsh_Fir_reg_c58_ = Rsh_Fir_call_builtin(397, CCP, RHO, 1, Rsh_Fir_array_args169, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c58_ = Rsh_Fir_call_builtin(397, RHO, 1, Rsh_Fir_array_args169);
   // if c58 then L176() else L177(res14)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c58_)) {
   // L176()
@@ -3234,7 +3156,7 @@ L175_:;
   // c59 = `is.object`(dx3)
   SEXP Rsh_Fir_array_args170[1];
   Rsh_Fir_array_args170[0] = Rsh_Fir_reg_dx3_;
-  Rsh_Fir_reg_c59_ = Rsh_Fir_call_builtin(397, CCP, RHO, 1, Rsh_Fir_array_args170, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c59_ = Rsh_Fir_call_builtin(397, RHO, 1, Rsh_Fir_array_args170);
   // if c59 then L179() else L180(dx3)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c59_)) {
   // L179()
@@ -3270,7 +3192,7 @@ L177_:;
   SEXP Rsh_Fir_array_args173[2];
   Rsh_Fir_array_args173[0] = Rsh_Fir_reg_res16_;
   Rsh_Fir_array_args173[1] = Rsh_const(CCP, 37);
-  Rsh_Fir_reg_r92_ = Rsh_Fir_call_builtin(17, CCP, RHO, 2, Rsh_Fir_array_args173, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r92_ = Rsh_Fir_call_builtin(17, RHO, 2, Rsh_Fir_array_args173);
   // goto L175(r92)
   // L175(r92)
   Rsh_Fir_reg_dx3_ = Rsh_Fir_reg_r92_;
@@ -3489,7 +3411,7 @@ L191_:;
   Rsh_Fir_array_args187[0] = Rsh_Fir_reg_l2_;
   Rsh_Fir_array_args187[1] = Rsh_const(CCP, 37);
   Rsh_Fir_array_args187[2] = Rsh_Fir_reg_dx7_;
-  Rsh_Fir_reg_r100_ = Rsh_Fir_call_builtin(21, CCP, RHO, 3, Rsh_Fir_array_args187, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r100_ = Rsh_Fir_call_builtin(21, RHO, 3, Rsh_Fir_array_args187);
   // goto L189(dx15, r100)
   // L189(dx15, r100)
   Rsh_Fir_reg_dx18_ = Rsh_Fir_reg_dx15_;
@@ -3524,7 +3446,7 @@ L194_:;
   // c61 = `as.logical`(nv8)
   SEXP Rsh_Fir_array_args190[1];
   Rsh_Fir_array_args190[0] = Rsh_Fir_reg_nv8_;
-  Rsh_Fir_reg_c61_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args190, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c61_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args190);
   // if c61 then L195() else L44(c61)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c61_)) {
   // L195()
@@ -3583,16 +3505,16 @@ L197_:;
   SEXP Rsh_Fir_array_args193[2];
   Rsh_Fir_array_args193[0] = Rsh_Fir_reg_nv10_;
   Rsh_Fir_array_args193[1] = Rsh_Fir_reg_nv12_;
-  Rsh_Fir_reg_r101_ = Rsh_Fir_call_builtin(76, CCP, RHO, 2, Rsh_Fir_array_args193, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r101_ = Rsh_Fir_call_builtin(76, RHO, 2, Rsh_Fir_array_args193);
   // c64 = `as.logical`(r101)
   SEXP Rsh_Fir_array_args194[1];
   Rsh_Fir_array_args194[0] = Rsh_Fir_reg_r101_;
-  Rsh_Fir_reg_c64_ = Rsh_Fir_call_builtin(324, CCP, RHO, 1, Rsh_Fir_array_args194, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c64_ = Rsh_Fir_call_builtin(324, RHO, 1, Rsh_Fir_array_args194);
   // c65 = `&&`(c61, c64)
   SEXP Rsh_Fir_array_args195[2];
   Rsh_Fir_array_args195[0] = Rsh_Fir_reg_c61_;
   Rsh_Fir_array_args195[1] = Rsh_Fir_reg_c64_;
-  Rsh_Fir_reg_c65_ = Rsh_Fir_call_builtin(83, CCP, RHO, 2, Rsh_Fir_array_args195, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c65_ = Rsh_Fir_call_builtin(83, RHO, 2, Rsh_Fir_array_args195);
   // goto L44(c65)
   // L44(c65)
   Rsh_Fir_reg_c63_ = Rsh_Fir_reg_c65_;
@@ -3622,7 +3544,7 @@ L200_:;
   // c68 = `is.object`(res18)
   SEXP Rsh_Fir_array_args197[1];
   Rsh_Fir_array_args197[0] = Rsh_Fir_reg_res18_;
-  Rsh_Fir_reg_c68_ = Rsh_Fir_call_builtin(397, CCP, RHO, 1, Rsh_Fir_array_args197, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c68_ = Rsh_Fir_call_builtin(397, RHO, 1, Rsh_Fir_array_args197);
   // if c68 then L202() else L203(res18)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c68_)) {
   // L202()
@@ -3637,7 +3559,7 @@ L201_:;
   // c69 = `is.object`(dx22)
   SEXP Rsh_Fir_array_args198[1];
   Rsh_Fir_array_args198[0] = Rsh_Fir_reg_dx22_;
-  Rsh_Fir_reg_c69_ = Rsh_Fir_call_builtin(397, CCP, RHO, 1, Rsh_Fir_array_args198, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_c69_ = Rsh_Fir_call_builtin(397, RHO, 1, Rsh_Fir_array_args198);
   // if c69 then L205() else L206(dx22)
   if (Rsh_Fir_is_true(Rsh_Fir_reg_c69_)) {
   // L205()
@@ -3673,7 +3595,7 @@ L203_:;
   SEXP Rsh_Fir_array_args201[2];
   Rsh_Fir_array_args201[0] = Rsh_Fir_reg_res20_;
   Rsh_Fir_array_args201[1] = Rsh_const(CCP, 38);
-  Rsh_Fir_reg_r102_ = Rsh_Fir_call_builtin(17, CCP, RHO, 2, Rsh_Fir_array_args201, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r102_ = Rsh_Fir_call_builtin(17, RHO, 2, Rsh_Fir_array_args201);
   // goto L201(r102)
   // L201(r102)
   Rsh_Fir_reg_dx22_ = Rsh_Fir_reg_r102_;
@@ -3892,7 +3814,7 @@ L217_:;
   Rsh_Fir_array_args215[0] = Rsh_Fir_reg_l5_;
   Rsh_Fir_array_args215[1] = Rsh_const(CCP, 38);
   Rsh_Fir_array_args215[2] = Rsh_Fir_reg_dx26_;
-  Rsh_Fir_reg_r110_ = Rsh_Fir_call_builtin(21, CCP, RHO, 3, Rsh_Fir_array_args215, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r110_ = Rsh_Fir_call_builtin(21, RHO, 3, Rsh_Fir_array_args215);
   // goto L215(dx34, r110)
   // L215(dx34, r110)
   Rsh_Fir_reg_dx37_ = Rsh_Fir_reg_dx34_;
@@ -3930,7 +3852,22 @@ L220_:;
   // return res22
   return Rsh_Fir_reg_res22_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r1;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_n;
+  SEXP Rsh_Fir_reg_n1_;
+  SEXP Rsh_Fir_reg_p;
+  SEXP Rsh_Fir_reg_p1_;
+  SEXP Rsh_Fir_reg_min;
+  SEXP Rsh_Fir_reg_r2_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // sym = ldf min
   Rsh_Fir_reg_sym = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 2), RHO);
   // base = ldf min in base
@@ -3999,7 +3936,22 @@ L2_:;
   Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r1;
   goto L0_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_1(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_sym1_;
+  SEXP Rsh_Fir_reg_base1_;
+  SEXP Rsh_Fir_reg_guard1_;
+  SEXP Rsh_Fir_reg_r4_;
+  SEXP Rsh_Fir_reg_r5_;
+  SEXP Rsh_Fir_reg_n2_;
+  SEXP Rsh_Fir_reg_n3_;
+  SEXP Rsh_Fir_reg_p3_;
+  SEXP Rsh_Fir_reg_p4_;
+  SEXP Rsh_Fir_reg_min1_;
+  SEXP Rsh_Fir_reg_r6_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // sym1 = ldf min
   Rsh_Fir_reg_sym1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 2), RHO);
   // base1 = ldf min in base
@@ -4068,7 +4020,13 @@ L2_:;
   Rsh_Fir_reg_r5_ = Rsh_Fir_reg_r4_;
   goto L0_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_2(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_x9_;
+  SEXP Rsh_Fir_reg_x10_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // x9 = ld x
   Rsh_Fir_reg_x9_ = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
   // x10 = force? x9
@@ -4080,7 +4038,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_2(SEXP CCP, SEXP RHO) {
   // return x10
   return Rsh_Fir_reg_x10_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_3(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_3(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_x11_;
+  SEXP Rsh_Fir_reg_x12_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // x11 = ld x
   Rsh_Fir_reg_x11_ = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
   // x12 = force? x11
@@ -4092,7 +4056,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_3(SEXP CCP, SEXP RHO) {
   // return x12
   return Rsh_Fir_reg_x12_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_4(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_4(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_x13_;
+  SEXP Rsh_Fir_reg_x14_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // x13 = ld x
   Rsh_Fir_reg_x13_ = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
   // x14 = force? x13
@@ -4104,7 +4074,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_4(SEXP CCP, SEXP RHO) {
   // return x14
   return Rsh_Fir_reg_x14_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_5(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_5(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_zero;
+  SEXP Rsh_Fir_reg_zero1_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // zero = ld zero
   Rsh_Fir_reg_zero = Rsh_Fir_load(Rsh_const(CCP, 12), RHO);
   // zero1 = force? zero
@@ -4116,7 +4092,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_5(SEXP CCP, SEXP RHO) {
   // return zero1
   return Rsh_Fir_reg_zero1_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_6(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_6(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_n8_;
+  SEXP Rsh_Fir_reg_n9_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // n8 = ld n
   Rsh_Fir_reg_n8_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // n9 = force? n8
@@ -4128,7 +4110,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_6(SEXP CCP, SEXP RHO) {
   // return n9
   return Rsh_Fir_reg_n9_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_7(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_7(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_np4_;
+  SEXP Rsh_Fir_reg_np5_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // np4 = ld np
   Rsh_Fir_reg_np4_ = Rsh_Fir_load(Rsh_const(CCP, 16), RHO);
   // np5 = force? np4
@@ -4140,7 +4128,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_7(SEXP CCP, SEXP RHO) {
   // return np5
   return Rsh_Fir_reg_np5_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_8(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_8(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_zero2_;
+  SEXP Rsh_Fir_reg_zero3_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // zero2 = ld zero
   Rsh_Fir_reg_zero2_ = Rsh_Fir_load(Rsh_const(CCP, 12), RHO);
   // zero3 = force? zero2
@@ -4152,7 +4146,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_8(SEXP CCP, SEXP RHO) {
   // return zero3
   return Rsh_Fir_reg_zero3_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_9(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_9(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_np6_;
+  SEXP Rsh_Fir_reg_np7_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // np6 = ld np
   Rsh_Fir_reg_np6_ = Rsh_Fir_load(Rsh_const(CCP, 16), RHO);
   // np7 = force? np6
@@ -4164,7 +4164,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_9(SEXP CCP, SEXP RHO) {
   // return np7
   return Rsh_Fir_reg_np7_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_10(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_10(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_p18_;
+  SEXP Rsh_Fir_reg_p19_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // p18 = ld p
   Rsh_Fir_reg_p18_ = Rsh_Fir_load(Rsh_const(CCP, 4), RHO);
   // p19 = force? p18
@@ -4176,7 +4182,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_10(SEXP CCP, SEXP RHO) {
   // return p19
   return Rsh_Fir_reg_p19_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_11(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_11(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_zero4_;
+  SEXP Rsh_Fir_reg_zero5_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // zero4 = ld zero
   Rsh_Fir_reg_zero4_ = Rsh_Fir_load(Rsh_const(CCP, 12), RHO);
   // zero5 = force? zero4
@@ -4188,7 +4200,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_11(SEXP CCP, SEXP RHO) {
   // return zero5
   return Rsh_Fir_reg_zero5_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_12(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_12(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_n10_;
+  SEXP Rsh_Fir_reg_n11_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // n10 = ld n
   Rsh_Fir_reg_n10_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // n11 = force? n10
@@ -4200,7 +4218,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_12(SEXP CCP, SEXP RHO) {
   // return n11
   return Rsh_Fir_reg_n11_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_13(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_13(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_n12_;
+  SEXP Rsh_Fir_reg_n13_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // n12 = ld n
   Rsh_Fir_reg_n12_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // n13 = force? n12
@@ -4212,7 +4236,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_13(SEXP CCP, SEXP RHO) {
   // return n13
   return Rsh_Fir_reg_n13_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_14(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_14(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_zero6_;
+  SEXP Rsh_Fir_reg_zero7_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // zero6 = ld zero
   Rsh_Fir_reg_zero6_ = Rsh_Fir_load(Rsh_const(CCP, 12), RHO);
   // zero7 = force? zero6
@@ -4224,7 +4254,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_14(SEXP CCP, SEXP RHO) {
   // return zero7
   return Rsh_Fir_reg_zero7_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_15(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_15(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_p25_;
+  SEXP Rsh_Fir_reg_p26_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // p25 = ld p
   Rsh_Fir_reg_p25_ = Rsh_Fir_load(Rsh_const(CCP, 4), RHO);
   // p26 = force? p25
@@ -4236,7 +4272,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_15(SEXP CCP, SEXP RHO) {
   // return p26
   return Rsh_Fir_reg_p26_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_16(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_16(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_p28_;
+  SEXP Rsh_Fir_reg_p29_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // p28 = ld p
   Rsh_Fir_reg_p28_ = Rsh_Fir_load(Rsh_const(CCP, 4), RHO);
   // p29 = force? p28
@@ -4248,7 +4290,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_16(SEXP CCP, SEXP RHO) {
   // return p29
   return Rsh_Fir_reg_p29_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_17(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_17(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_zero8_;
+  SEXP Rsh_Fir_reg_zero9_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // zero8 = ld zero
   Rsh_Fir_reg_zero8_ = Rsh_Fir_load(Rsh_const(CCP, 12), RHO);
   // zero9 = force? zero8
@@ -4260,7 +4308,13 @@ SEXP Rsh_Fir_user_promise_inner1888930683_17(SEXP CCP, SEXP RHO) {
   // return zero9
   return Rsh_Fir_reg_zero9_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_18(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_18(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_zero10_;
+  SEXP Rsh_Fir_reg_zero11_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // zero10 = ld zero
   Rsh_Fir_reg_zero10_ = Rsh_Fir_load(Rsh_const(CCP, 12), RHO);
   // zero11 = force? zero10
@@ -4272,7 +4326,22 @@ SEXP Rsh_Fir_user_promise_inner1888930683_18(SEXP CCP, SEXP RHO) {
   // return zero11
   return Rsh_Fir_reg_zero11_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_19(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_19(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_sym11_;
+  SEXP Rsh_Fir_reg_base11_;
+  SEXP Rsh_Fir_reg_guard11_;
+  SEXP Rsh_Fir_reg_r71_;
+  SEXP Rsh_Fir_reg_r72_;
+  SEXP Rsh_Fir_reg_n16_;
+  SEXP Rsh_Fir_reg_n17_;
+  SEXP Rsh_Fir_reg_p35_;
+  SEXP Rsh_Fir_reg_p36_;
+  SEXP Rsh_Fir_reg_min3_;
+  SEXP Rsh_Fir_reg_r73_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // sym11 = ldf min
   Rsh_Fir_reg_sym11_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 2), RHO);
   // base11 = ldf min in base
@@ -4341,7 +4410,22 @@ L2_:;
   Rsh_Fir_reg_r72_ = Rsh_Fir_reg_r71_;
   goto L0_;
 }
-SEXP Rsh_Fir_user_promise_inner1888930683_20(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1888930683_20(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_sym13_;
+  SEXP Rsh_Fir_reg_base13_;
+  SEXP Rsh_Fir_reg_guard13_;
+  SEXP Rsh_Fir_reg_r79_;
+  SEXP Rsh_Fir_reg_r80_;
+  SEXP Rsh_Fir_reg_n18_;
+  SEXP Rsh_Fir_reg_n19_;
+  SEXP Rsh_Fir_reg_p38_;
+  SEXP Rsh_Fir_reg_p39_;
+  SEXP Rsh_Fir_reg_min4_;
+  SEXP Rsh_Fir_reg_r81_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1888930683/0: expected 0, got %d", NCAPTURES);
+
   // sym13 = ldf min
   Rsh_Fir_reg_sym13_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 2), RHO);
   // base13 = ldf min in base

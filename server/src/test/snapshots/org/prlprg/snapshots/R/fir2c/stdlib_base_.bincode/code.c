@@ -102,16 +102,26 @@ L0_:;
     goto L6_;
   }
 
+L1_:;
+  // st b = r5
+  Rsh_Fir_store(Rsh_const(CCP, 3), Rsh_Fir_reg_r5_, RHO);
+  (void)(Rsh_Fir_reg_r5_);
+  // _bincode = ldf `.bincode`
+  Rsh_Fir_reg__bincode = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
+  // check L8() else D2()
+  // L8()
+  goto L8_;
+
 L2_:;
   // c = ldf c in base
   Rsh_Fir_reg_c = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
   // r3 = dyn c(0.0, 0.01, 0.5, 0.99, 1.0)
   SEXP Rsh_Fir_array_args2[5];
-  Rsh_Fir_array_args2[0] = Rsh_const(CCP, 3);
-  Rsh_Fir_array_args2[1] = Rsh_const(CCP, 4);
-  Rsh_Fir_array_args2[2] = Rsh_const(CCP, 5);
-  Rsh_Fir_array_args2[3] = Rsh_const(CCP, 6);
-  Rsh_Fir_array_args2[4] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_args2[0] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_args2[1] = Rsh_const(CCP, 5);
+  Rsh_Fir_array_args2[2] = Rsh_const(CCP, 6);
+  Rsh_Fir_array_args2[3] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_args2[4] = Rsh_const(CCP, 8);
   SEXP Rsh_Fir_array_arg_names[5];
   Rsh_Fir_array_arg_names[0] = R_MissingArg;
   Rsh_Fir_array_arg_names[1] = R_MissingArg;
@@ -126,11 +136,11 @@ L2_:;
 L3_:;
   // r1 = dyn base(0.0, 0.01, 0.5, 0.99, 1.0)
   SEXP Rsh_Fir_array_args3[5];
-  Rsh_Fir_array_args3[0] = Rsh_const(CCP, 3);
-  Rsh_Fir_array_args3[1] = Rsh_const(CCP, 4);
-  Rsh_Fir_array_args3[2] = Rsh_const(CCP, 5);
-  Rsh_Fir_array_args3[3] = Rsh_const(CCP, 6);
-  Rsh_Fir_array_args3[4] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_args3[0] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_args3[1] = Rsh_const(CCP, 5);
+  Rsh_Fir_array_args3[2] = Rsh_const(CCP, 6);
+  Rsh_Fir_array_args3[3] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_args3[4] = Rsh_const(CCP, 8);
   SEXP Rsh_Fir_array_arg_names1[5];
   Rsh_Fir_array_arg_names1[0] = R_MissingArg;
   Rsh_Fir_array_arg_names1[1] = R_MissingArg;
@@ -150,16 +160,6 @@ D0_:;
   Rsh_Fir_deopt(11, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
   return R_NilValue;
 
-L1_:;
-  // st b = r5
-  Rsh_Fir_store(Rsh_const(CCP, 8), Rsh_Fir_reg_r5_, RHO);
-  (void)(Rsh_Fir_reg_r5_);
-  // _bincode = ldf `.bincode`
-  Rsh_Fir_reg__bincode = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
-  // check L8() else D2()
-  // L8()
-  goto L8_;
-
 L4_:;
   // goto L0(r3)
   // L0(r3)
@@ -171,10 +171,10 @@ L5_:;
   Rsh_Fir_reg_c1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
   // r6 = dyn c1(0.0, 0.0, 1.0, 1.0)
   SEXP Rsh_Fir_array_args4[4];
-  Rsh_Fir_array_args4[0] = Rsh_const(CCP, 3);
-  Rsh_Fir_array_args4[1] = Rsh_const(CCP, 3);
-  Rsh_Fir_array_args4[2] = Rsh_const(CCP, 7);
-  Rsh_Fir_array_args4[3] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_args4[0] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_args4[1] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_args4[2] = Rsh_const(CCP, 8);
+  Rsh_Fir_array_args4[3] = Rsh_const(CCP, 8);
   SEXP Rsh_Fir_array_arg_names2[4];
   Rsh_Fir_array_arg_names2[0] = R_MissingArg;
   Rsh_Fir_array_arg_names2[1] = R_MissingArg;
@@ -188,10 +188,10 @@ L5_:;
 L6_:;
   // r4 = dyn base1(0.0, 0.0, 1.0, 1.0)
   SEXP Rsh_Fir_array_args5[4];
-  Rsh_Fir_array_args5[0] = Rsh_const(CCP, 3);
-  Rsh_Fir_array_args5[1] = Rsh_const(CCP, 3);
-  Rsh_Fir_array_args5[2] = Rsh_const(CCP, 7);
-  Rsh_Fir_array_args5[3] = Rsh_const(CCP, 7);
+  Rsh_Fir_array_args5[0] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_args5[1] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_args5[2] = Rsh_const(CCP, 8);
+  Rsh_Fir_array_args5[3] = Rsh_const(CCP, 8);
   SEXP Rsh_Fir_array_arg_names3[4];
   Rsh_Fir_array_arg_names3[0] = R_MissingArg;
   Rsh_Fir_array_arg_names3[1] = R_MissingArg;
@@ -210,16 +210,16 @@ D1_:;
   Rsh_Fir_deopt(20, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
   return R_NilValue;
 
-D2_:;
-  // deopt 23 []
-  Rsh_Fir_deopt(23, 0, NULL, CCP, RHO);
-  return R_NilValue;
-
 L7_:;
   // goto L1(r6)
   // L1(r6)
   Rsh_Fir_reg_r5_ = Rsh_Fir_reg_r6_;
   goto L1_;
+
+D2_:;
+  // deopt 23 []
+  Rsh_Fir_deopt(23, 0, NULL, CCP, RHO);
+  return R_NilValue;
 
 L8_:;
   // p = prom<V +>{
@@ -438,7 +438,7 @@ SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // b = ld b
-  Rsh_Fir_reg_b = Rsh_Fir_load(Rsh_const(CCP, 8), RHO);
+  Rsh_Fir_reg_b = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // b1 = force? b
   Rsh_Fir_reg_b1_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_b);
   // checkMissing(b1)
@@ -474,7 +474,7 @@ SEXP Rsh_Fir_user_promise_main3(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // b2 = ld b
-  Rsh_Fir_reg_b2_ = Rsh_Fir_load(Rsh_const(CCP, 8), RHO);
+  Rsh_Fir_reg_b2_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // b3 = force? b2
   Rsh_Fir_reg_b3_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_b2_);
   // checkMissing(b3)
@@ -510,7 +510,7 @@ SEXP Rsh_Fir_user_promise_main5(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // b4 = ld b
-  Rsh_Fir_reg_b4_ = Rsh_Fir_load(Rsh_const(CCP, 8), RHO);
+  Rsh_Fir_reg_b4_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // b5 = force? b4
   Rsh_Fir_reg_b5_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_b4_);
   // checkMissing(b5)
@@ -546,7 +546,7 @@ SEXP Rsh_Fir_user_promise_main7(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // b6 = ld b
-  Rsh_Fir_reg_b6_ = Rsh_Fir_load(Rsh_const(CCP, 8), RHO);
+  Rsh_Fir_reg_b6_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // b7 = force? b6
   Rsh_Fir_reg_b7_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_b6_);
   // checkMissing(b7)

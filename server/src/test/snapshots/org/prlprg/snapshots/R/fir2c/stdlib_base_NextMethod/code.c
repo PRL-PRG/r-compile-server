@@ -13,8 +13,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -24,8 +24,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st NextMethod = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -42,21 +42,21 @@ SEXP Rsh_Fir_user_version_inner3110809430_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 3) Rsh_error("FIŘ arity mismatch for inner3110809430/0: expected 3, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_generic;  // generic
-  SEXP Rsh_Fir_reg_object;  // object
-  SEXP Rsh_Fir_reg_ddd;  // ddd
-  SEXP Rsh_Fir_reg_generic_isMissing;  // generic_isMissing
-  SEXP Rsh_Fir_reg_generic_orDefault;  // generic_orDefault
-  SEXP Rsh_Fir_reg_object_isMissing;  // object_isMissing
-  SEXP Rsh_Fir_reg_object_orDefault;  // object_orDefault
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r1;  // r
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg__Internal;  // _Internal
-  SEXP Rsh_Fir_reg_r2_;  // r2
+  // Declare locals
+  SEXP Rsh_Fir_reg_generic;
+  SEXP Rsh_Fir_reg_object;
+  SEXP Rsh_Fir_reg_ddd;
+  SEXP Rsh_Fir_reg_generic_isMissing;
+  SEXP Rsh_Fir_reg_generic_orDefault;
+  SEXP Rsh_Fir_reg_object_isMissing;
+  SEXP Rsh_Fir_reg_object_orDefault;
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r1;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg__Internal;
+  SEXP Rsh_Fir_reg_r2_;
 
   // Bind parameters
   Rsh_Fir_reg_generic = PARAMS[0];

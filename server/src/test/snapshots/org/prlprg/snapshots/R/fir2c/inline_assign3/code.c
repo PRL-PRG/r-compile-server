@@ -1,11 +1,11 @@
 #include <runtime.h>
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
-SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_main3(SEXP CCP, SEXP RHO);
-SEXP Rsh_Fir_user_promise_main4(SEXP CCP, SEXP RHO);
+SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_main3(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_promise_main4(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -16,35 +16,25 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_v;  // v
-  SEXP Rsh_Fir_reg_v1_;  // v1
-  SEXP Rsh_Fir_reg_l;  // l
-  SEXP Rsh_Fir_reg_h;  // h
-  SEXP Rsh_Fir_reg_k;  // k
-  SEXP Rsh_Fir_reg_k1_;  // k1
-  SEXP Rsh_Fir_reg_p;  // p
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_g;  // g
-  SEXP Rsh_Fir_reg_j;  // j
-  SEXP Rsh_Fir_reg_j1_;  // j1
-  SEXP Rsh_Fir_reg_p1_;  // p1
-  SEXP Rsh_Fir_reg_r3_;  // r3
-  SEXP Rsh_Fir_reg_f__;  // f__
-  SEXP Rsh_Fir_reg_i;  // i
-  SEXP Rsh_Fir_reg_i1_;  // i1
-  SEXP Rsh_Fir_reg_p2_;  // p2
-  SEXP Rsh_Fir_reg_r5_;  // r5
-  SEXP Rsh_Fir_reg_g__;  // g__
-  SEXP Rsh_Fir_reg_j2_;  // j2
-  SEXP Rsh_Fir_reg_j3_;  // j3
-  SEXP Rsh_Fir_reg_p3_;  // p3
-  SEXP Rsh_Fir_reg_r7_;  // r7
-  SEXP Rsh_Fir_reg_h__;  // h__
-  SEXP Rsh_Fir_reg_k2_;  // k2
-  SEXP Rsh_Fir_reg_k3_;  // k3
-  SEXP Rsh_Fir_reg_p4_;  // p4
-  SEXP Rsh_Fir_reg_r9_;  // r9
+  // Declare locals
+  SEXP Rsh_Fir_reg_v;
+  SEXP Rsh_Fir_reg_v1_;
+  SEXP Rsh_Fir_reg_l;
+  SEXP Rsh_Fir_reg_h;
+  SEXP Rsh_Fir_reg_p;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_g;
+  SEXP Rsh_Fir_reg_p1_;
+  SEXP Rsh_Fir_reg_r3_;
+  SEXP Rsh_Fir_reg_f__;
+  SEXP Rsh_Fir_reg_p2_;
+  SEXP Rsh_Fir_reg_r5_;
+  SEXP Rsh_Fir_reg_g__;
+  SEXP Rsh_Fir_reg_p3_;
+  SEXP Rsh_Fir_reg_r7_;
+  SEXP Rsh_Fir_reg_h__;
+  SEXP Rsh_Fir_reg_p4_;
+  SEXP Rsh_Fir_reg_r9_;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -93,7 +83,7 @@ L1_:;
   //   checkMissing(k1);
   //   return k1;
   // }
-  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main, CCP, RHO);
+  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main, 0, NULL, CCP, RHO);
   // r1 = dyn h(v1, NULL, p)
   SEXP Rsh_Fir_array_args2[3];
   Rsh_Fir_array_args2[0] = Rsh_Fir_reg_v1_;
@@ -142,7 +132,7 @@ L3_:;
   //   checkMissing(j1);
   //   return j1;
   // }
-  Rsh_Fir_reg_p1_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main1, CCP, RHO);
+  Rsh_Fir_reg_p1_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main1, 0, NULL, CCP, RHO);
   // r3 = dyn g(v1, NULL, p1)
   SEXP Rsh_Fir_array_args4[3];
   Rsh_Fir_array_args4[0] = Rsh_Fir_reg_v1_;
@@ -193,7 +183,7 @@ L5_:;
   //   checkMissing(i1);
   //   return i1;
   // }
-  Rsh_Fir_reg_p2_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main2, CCP, RHO);
+  Rsh_Fir_reg_p2_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main2, 0, NULL, CCP, RHO);
   // r5 = dyn f__(r3, NULL, p2, v1)
   SEXP Rsh_Fir_array_args6[4];
   Rsh_Fir_array_args6[0] = Rsh_Fir_reg_r3_;
@@ -244,7 +234,7 @@ L7_:;
   //   checkMissing(j3);
   //   return j3;
   // }
-  Rsh_Fir_reg_p3_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main3, CCP, RHO);
+  Rsh_Fir_reg_p3_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main3, 0, NULL, CCP, RHO);
   // r7 = dyn g__(r1, NULL, p3, r5)
   SEXP Rsh_Fir_array_args8[4];
   Rsh_Fir_array_args8[0] = Rsh_Fir_reg_r1_;
@@ -293,7 +283,7 @@ L9_:;
   //   checkMissing(k3);
   //   return k3;
   // }
-  Rsh_Fir_reg_p4_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main4, CCP, RHO);
+  Rsh_Fir_reg_p4_ = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_main4, 0, NULL, CCP, RHO);
   // r9 = dyn h__(l, NULL, p4, r7)
   SEXP Rsh_Fir_array_args10[4];
   Rsh_Fir_array_args10[0] = Rsh_Fir_reg_l;
@@ -322,15 +312,21 @@ L10_:;
   // st x = r9
   Rsh_Fir_store(Rsh_const(CCP, 1), Rsh_Fir_reg_r9_, RHO);
   (void)(Rsh_Fir_reg_r9_);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
   // return v1
   return Rsh_Fir_reg_v1_;
 }
-SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_k;
+  SEXP Rsh_Fir_reg_k1_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
+
   // k = ld k
   Rsh_Fir_reg_k = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // k1 = force? k
@@ -342,7 +338,13 @@ SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO) {
   // return k1
   return Rsh_Fir_reg_k1_;
 }
-SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_j;
+  SEXP Rsh_Fir_reg_j1_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
+
   // j = ld j
   Rsh_Fir_reg_j = Rsh_Fir_load(Rsh_const(CCP, 6), RHO);
   // j1 = force? j
@@ -354,7 +356,13 @@ SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO) {
   // return j1
   return Rsh_Fir_reg_j1_;
 }
-SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_i;
+  SEXP Rsh_Fir_reg_i1_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
+
   // i = ld i
   Rsh_Fir_reg_i = Rsh_Fir_load(Rsh_const(CCP, 8), RHO);
   // i1 = force? i
@@ -366,7 +374,13 @@ SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO) {
   // return i1
   return Rsh_Fir_reg_i1_;
 }
-SEXP Rsh_Fir_user_promise_main3(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_main3(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_j2_;
+  SEXP Rsh_Fir_reg_j3_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
+
   // j2 = ld j
   Rsh_Fir_reg_j2_ = Rsh_Fir_load(Rsh_const(CCP, 6), RHO);
   // j3 = force? j2
@@ -378,7 +392,13 @@ SEXP Rsh_Fir_user_promise_main3(SEXP CCP, SEXP RHO) {
   // return j3
   return Rsh_Fir_reg_j3_;
 }
-SEXP Rsh_Fir_user_promise_main4(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_main4(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_k2_;
+  SEXP Rsh_Fir_reg_k3_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
+
   // k2 = ld k
   Rsh_Fir_reg_k2_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // k3 = force? k2

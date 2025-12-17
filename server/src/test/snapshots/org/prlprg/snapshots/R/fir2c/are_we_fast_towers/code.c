@@ -143,6 +143,13 @@ SEXP Rsh_Fir_user_version_inner3069788994_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
   // L2()
   goto L2_;
 
+L0_:;
+  // towers = ldf towers
+  Rsh_Fir_reg_towers1 = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
+  // check L6() else D1()
+  // L6()
+  goto L6_;
+
 D0_:;
   // deopt 0 [n1]
   SEXP Rsh_Fir_array_deopt_stack1[1];
@@ -174,13 +181,6 @@ L2_:;
   // L0()
     goto L0_;
   }
-
-L0_:;
-  // towers = ldf towers
-  Rsh_Fir_reg_towers1 = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
-  // check L6() else D1()
-  // L6()
-  goto L6_;
 
 L3_:;
   // popenv

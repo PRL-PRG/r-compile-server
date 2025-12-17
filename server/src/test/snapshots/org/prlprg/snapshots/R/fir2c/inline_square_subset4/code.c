@@ -45,6 +45,20 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // L2()
   goto L2_;
 
+L0_:;
+  // x4 = ld x
+  Rsh_Fir_reg_x4_ = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
+  // check L8() else D3()
+  // L8()
+  goto L8_;
+
+L1_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return dx3
+  return Rsh_Fir_reg_dx3_;
+
 D0_:;
   // deopt 1 []
   Rsh_Fir_deopt(1, 0, NULL, CCP, RHO);
@@ -64,8 +78,8 @@ L2_:;
   Rsh_Fir_array_args[0] = Rsh_Fir_reg_p;
   Rsh_Fir_array_args[1] = Rsh_Fir_reg_p1_;
   SEXP Rsh_Fir_array_arg_names[2];
-  Rsh_Fir_array_arg_names[0] = Rsh_const(CCP, 3);
-  Rsh_Fir_array_arg_names[1] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_arg_names[0] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_arg_names[1] = Rsh_const(CCP, 5);
   Rsh_Fir_reg_r2_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_data_frame, 2, Rsh_Fir_array_args, Rsh_Fir_array_arg_names, CCP, RHO);
   // check L3() else D1()
   // L3()
@@ -80,10 +94,10 @@ D1_:;
 
 L3_:;
   // st x = r2
-  Rsh_Fir_store(Rsh_const(CCP, 5), Rsh_Fir_reg_r2_, RHO);
+  Rsh_Fir_store(Rsh_const(CCP, 1), Rsh_Fir_reg_r2_, RHO);
   (void)(Rsh_Fir_reg_r2_);
   // x = ld x
-  Rsh_Fir_reg_x = Rsh_Fir_load(Rsh_const(CCP, 5), RHO);
+  Rsh_Fir_reg_x = Rsh_Fir_load(Rsh_const(CCP, 1), RHO);
   // check L4() else D2()
   // L4()
   goto L4_;
@@ -114,13 +128,6 @@ L4_:;
   // L6()
     goto L6_;
   }
-
-L0_:;
-  // x4 = ld x
-  Rsh_Fir_reg_x4_ = Rsh_Fir_load(Rsh_const(CCP, 5), RHO);
-  // check L8() else D3()
-  // L8()
-  goto L8_;
 
 L5_:;
   // dr = tryDispatchBuiltin.1("[", x1)
@@ -158,13 +165,6 @@ L6_:;
   // L0()
   goto L0_;
 
-D3_:;
-  // deopt 15 [x4]
-  SEXP Rsh_Fir_array_deopt_stack2[1];
-  Rsh_Fir_array_deopt_stack2[0] = Rsh_Fir_reg_x4_;
-  Rsh_Fir_deopt(15, 1, Rsh_Fir_array_deopt_stack2, CCP, RHO);
-  return R_NilValue;
-
 L7_:;
   // dx = getTryDispatchBuiltinValue(dr)
   SEXP Rsh_Fir_array_args6[1];
@@ -173,6 +173,13 @@ L7_:;
   // goto L0()
   // L0()
   goto L0_;
+
+D3_:;
+  // deopt 15 [x4]
+  SEXP Rsh_Fir_array_deopt_stack2[1];
+  Rsh_Fir_array_deopt_stack2[0] = Rsh_Fir_reg_x4_;
+  Rsh_Fir_deopt(15, 1, Rsh_Fir_array_deopt_stack2, CCP, RHO);
+  return R_NilValue;
 
 L8_:;
   // x5 = force? x4
@@ -193,13 +200,6 @@ L8_:;
   // L10()
     goto L10_;
   }
-
-L1_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return dx3
-  return Rsh_Fir_reg_dx3_;
 
 L9_:;
   // dr2 = tryDispatchBuiltin.1("[[", x5)
@@ -252,13 +252,13 @@ SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **C
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // return <int 1, 2, 3>
-  return Rsh_const(CCP, 1);
+  return Rsh_const(CCP, 2);
 }
 SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
   if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for main/0: expected 0, got %d", NCAPTURES);
 
   // return <int 4, 5, 6>
-  return Rsh_const(CCP, 2);
+  return Rsh_const(CCP, 3);
 }
 SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
   return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);

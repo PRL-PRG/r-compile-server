@@ -60,6 +60,13 @@ L0_:;
   // L5()
   goto L5_;
 
+L1_:;
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return dx1
+  return Rsh_Fir_reg_dx1_;
+
 L2_:;
   // c = ldf c in base
   Rsh_Fir_reg_c = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 0), RHO);
@@ -100,18 +107,18 @@ D0_:;
   Rsh_Fir_deopt(6, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
   return R_NilValue;
 
+L4_:;
+  // goto L0(r2)
+  // L0(r2)
+  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r2_;
+  goto L0_;
+
 D1_:;
   // deopt 8 [a]
   SEXP Rsh_Fir_array_deopt_stack1[1];
   Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_a;
   Rsh_Fir_deopt(8, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
   return R_NilValue;
-
-L4_:;
-  // goto L0(r2)
-  // L0(r2)
-  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r2_;
-  goto L0_;
 
 L5_:;
   // a1 = force? a
@@ -132,13 +139,6 @@ L5_:;
   // L7()
     goto L7_;
   }
-
-L1_:;
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return dx1
-  return Rsh_Fir_reg_dx1_;
 
 L6_:;
   // dr = tryDispatchBuiltin.1("[[", a1)

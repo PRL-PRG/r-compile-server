@@ -11,15 +11,15 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_l;  // l
-  SEXP Rsh_Fir_reg_f__;  // f__
-  SEXP Rsh_Fir_reg_r;  // r
-  SEXP Rsh_Fir_reg_l1_;  // l1
-  SEXP Rsh_Fir_reg___;  // __
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_r2_;  // r2
-  SEXP Rsh_Fir_reg_r3_;  // r3
+  // Declare locals
+  SEXP Rsh_Fir_reg_l;
+  SEXP Rsh_Fir_reg_f__;
+  SEXP Rsh_Fir_reg_r;
+  SEXP Rsh_Fir_reg_l1_;
+  SEXP Rsh_Fir_reg___;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_r2_;
+  SEXP Rsh_Fir_reg_r3_;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -141,8 +141,8 @@ L4_:;
   // st x = r3
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r3_, RHO);
   (void)(Rsh_Fir_reg_r3_);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);

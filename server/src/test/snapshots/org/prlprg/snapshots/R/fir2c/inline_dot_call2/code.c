@@ -11,16 +11,16 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r;  // r
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_x;  // x
-  SEXP Rsh_Fir_reg_x1_;  // x1
-  SEXP Rsh_Fir_reg_vargs;  // vargs
-  SEXP Rsh_Fir_reg_r2_;  // r2
+  // Declare locals
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_x;
+  SEXP Rsh_Fir_reg_x1_;
+  SEXP Rsh_Fir_reg_vargs;
+  SEXP Rsh_Fir_reg_r2_;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -108,7 +108,7 @@ L3_:;
   Rsh_Fir_array_args3[0] = Rsh_const(CCP, 3);
   Rsh_Fir_array_args3[1] = Rsh_Fir_reg_vargs;
   Rsh_Fir_array_args3[2] = Rsh_const(CCP, 6);
-  Rsh_Fir_reg_r2_ = Rsh_Fir_call_builtin(438, CCP, RHO, 3, Rsh_Fir_array_args3, Rsh_Fir_param_types_empty());
+  Rsh_Fir_reg_r2_ = Rsh_Fir_call_builtin(438, RHO, 3, Rsh_Fir_array_args3);
   // goto L0(r2)
   // L0(r2)
   Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r2_;

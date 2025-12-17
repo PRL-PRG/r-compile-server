@@ -13,8 +13,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -24,8 +24,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `.__H__.rbind` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -42,13 +42,13 @@ SEXP Rsh_Fir_user_version_inner1385503804_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 2) Rsh_error("FIŘ arity mismatch for inner1385503804/0: expected 2, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_ddd;  // ddd
-  SEXP Rsh_Fir_reg_deparse_level;  // deparse_level
-  SEXP Rsh_Fir_reg_deparse_level_isMissing;  // deparse_level_isMissing
-  SEXP Rsh_Fir_reg_deparse_level_orDefault;  // deparse_level_orDefault
-  SEXP Rsh_Fir_reg__Defunct;  // _Defunct
-  SEXP Rsh_Fir_reg_r1;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_ddd;
+  SEXP Rsh_Fir_reg_deparse_level;
+  SEXP Rsh_Fir_reg_deparse_level_isMissing;
+  SEXP Rsh_Fir_reg_deparse_level_orDefault;
+  SEXP Rsh_Fir_reg__Defunct;
+  SEXP Rsh_Fir_reg_r1;
 
   // Bind parameters
   Rsh_Fir_reg_ddd = PARAMS[0];

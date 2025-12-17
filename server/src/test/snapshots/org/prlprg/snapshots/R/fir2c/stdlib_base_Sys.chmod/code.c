@@ -3,7 +3,7 @@ SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PAR
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_function_inner1661399015_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_inner1661399015_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
-SEXP Rsh_Fir_user_promise_inner1661399015_(SEXP CCP, SEXP RHO);
+SEXP Rsh_Fir_user_promise_inner1661399015_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -14,8 +14,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
 
   if (NPARAMS != 0) Rsh_error("FIŘ arity mismatch for main/0: expected 0, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_r;  // r
+  // Declare locals
+  SEXP Rsh_Fir_reg_r;
 
   // mkenv
   Rsh_Fir_push_env(&RHO);
@@ -25,8 +25,8 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // st `Sys.chmod` = r
   Rsh_Fir_store(Rsh_const(CCP, 0), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
-  // invisible.0()
-  (void)(Rsh_Fir_intrinsic_invisible_v0(CCP, RHO, 0, NULL));
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
@@ -43,30 +43,28 @@ SEXP Rsh_Fir_user_version_inner1661399015_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
 
   if (NPARAMS != 3) Rsh_error("FIŘ arity mismatch for inner1661399015/0: expected 3, got %d", NPARAMS);
 
-  // Local declarations
-  SEXP Rsh_Fir_reg_paths;  // paths
-  SEXP Rsh_Fir_reg_mode;  // mode
-  SEXP Rsh_Fir_reg_use_umask;  // use_umask
-  SEXP Rsh_Fir_reg_mode_isMissing;  // mode_isMissing
-  SEXP Rsh_Fir_reg_mode_orDefault;  // mode_orDefault
-  SEXP Rsh_Fir_reg_use_umask_isMissing;  // use_umask_isMissing
-  SEXP Rsh_Fir_reg_use_umask_orDefault;  // use_umask_orDefault
-  SEXP Rsh_Fir_reg_sym;  // sym
-  SEXP Rsh_Fir_reg_base;  // base
-  SEXP Rsh_Fir_reg_guard;  // guard
-  SEXP Rsh_Fir_reg_r1;  // r
-  SEXP Rsh_Fir_reg_r1_;  // r1
-  SEXP Rsh_Fir_reg_paths1_;  // paths1
-  SEXP Rsh_Fir_reg_paths2_;  // paths2
-  SEXP Rsh_Fir_reg_as_octmode;  // as_octmode
-  SEXP Rsh_Fir_reg_mode1_;  // mode1
-  SEXP Rsh_Fir_reg_mode2_;  // mode2
-  SEXP Rsh_Fir_reg_p;  // p
-  SEXP Rsh_Fir_reg_r3_;  // r3
-  SEXP Rsh_Fir_reg_use_umask1_;  // use_umask1
-  SEXP Rsh_Fir_reg_use_umask2_;  // use_umask2
-  SEXP Rsh_Fir_reg_Sys_chmod;  // Sys_chmod
-  SEXP Rsh_Fir_reg_r4_;  // r4
+  // Declare locals
+  SEXP Rsh_Fir_reg_paths;
+  SEXP Rsh_Fir_reg_mode;
+  SEXP Rsh_Fir_reg_use_umask;
+  SEXP Rsh_Fir_reg_mode_isMissing;
+  SEXP Rsh_Fir_reg_mode_orDefault;
+  SEXP Rsh_Fir_reg_use_umask_isMissing;
+  SEXP Rsh_Fir_reg_use_umask_orDefault;
+  SEXP Rsh_Fir_reg_sym;
+  SEXP Rsh_Fir_reg_base;
+  SEXP Rsh_Fir_reg_guard;
+  SEXP Rsh_Fir_reg_r1;
+  SEXP Rsh_Fir_reg_r1_;
+  SEXP Rsh_Fir_reg_paths1_;
+  SEXP Rsh_Fir_reg_paths2_;
+  SEXP Rsh_Fir_reg_as_octmode;
+  SEXP Rsh_Fir_reg_p;
+  SEXP Rsh_Fir_reg_r3_;
+  SEXP Rsh_Fir_reg_use_umask1_;
+  SEXP Rsh_Fir_reg_use_umask2_;
+  SEXP Rsh_Fir_reg_Sys_chmod;
+  SEXP Rsh_Fir_reg_r4_;
 
   // Bind parameters
   Rsh_Fir_reg_paths = PARAMS[0];
@@ -193,7 +191,7 @@ L6_:;
   //   checkMissing(mode2);
   //   return mode2;
   // }
-  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1661399015_, CCP, RHO);
+  Rsh_Fir_reg_p = Rsh_Fir_make_promise(&Rsh_Fir_user_promise_inner1661399015_, 0, NULL, CCP, RHO);
   // r3 = dyn as_octmode(p)
   SEXP Rsh_Fir_array_args6[1];
   Rsh_Fir_array_args6[0] = Rsh_Fir_reg_p;
@@ -261,7 +259,13 @@ L9_:;
   Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r4_;
   goto L2_;
 }
-SEXP Rsh_Fir_user_promise_inner1661399015_(SEXP CCP, SEXP RHO) {
+SEXP Rsh_Fir_user_promise_inner1661399015_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES) {
+  // Declare locals
+  SEXP Rsh_Fir_reg_mode1_;
+  SEXP Rsh_Fir_reg_mode2_;
+
+  if (NCAPTURES != 0) Rsh_error("FIŘ capture arity mismatch for inner1661399015/0: expected 0, got %d", NCAPTURES);
+
   // mode1 = ld mode
   Rsh_Fir_reg_mode1_ = Rsh_Fir_load(Rsh_const(CCP, 3), RHO);
   // mode2 = force? mode1
