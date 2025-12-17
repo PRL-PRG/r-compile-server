@@ -79,9 +79,9 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 
 /// Compiles FIŘ modules into C translation units.
-public final class Module2CCompiler {
+public final class Fir2CCompiler {
   public static FirCompiledModule compile(Module module, RSession rSession, Option... options) {
-    return new Module2CCompiler(module, rSession, ImmutableSet.copyOf(options)).run();
+    return new Fir2CCompiler(module, rSession, ImmutableSet.copyOf(options)).run();
   }
 
   static final String VAR_ENV = "RHO";
@@ -106,7 +106,7 @@ public final class Module2CCompiler {
   // State
   private final IdentifierMangler mangler = new IdentifierMangler();
 
-  private Module2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
+  private Fir2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
     this.module = module;
     this.rSession = rSession;
     this.options = options;
@@ -371,7 +371,8 @@ public final class Module2CCompiler {
       }
 
       emitArityCheck();
-      emitParameterBinding();
+      emitLocalDeclarations();
+      emitParameterBindings();
       new CfgEmitter(Objects.requireNonNull(abstraction.cfg()), cFunction);
     }
 
@@ -393,13 +394,32 @@ public final class Module2CCompiler {
               VAR_NPARAMS);
     }
 
-    private void emitParameterBinding() {
+    private void emitLocalDeclarations() {
+      if (registerNames.isEmpty()) {
+        return;
+      }
+
       var sec = cFunction.add();
 
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        sec.comment("Local declarations");
+      }
+
+      for (var entry : registerNames.entrySet()) {
+        var register = entry.getKey();
+        var cName = entry.getValue();
+
+        sec.stmt("SEXP %s;  // %s", cName, register.name());
+      }
+    }
+
+    private void emitParameterBindings() {
       var parameters = abstraction.parameters();
       if (parameters.isEmpty()) {
         return;
       }
+
+      var sec = cFunction.add();
 
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         sec.comment("Bind parameters");
@@ -408,7 +428,7 @@ public final class Module2CCompiler {
       for (var i = 0; i < parameters.size(); i++) {
         var param = parameters.get(i);
         var name = registerName(param.variable());
-        sec.stmt("SEXP %s = %s[%d];", name, VAR_SEXP_PARAMS, i);
+        sec.stmt("%s = %s[%d];", name, VAR_SEXP_PARAMS, i);
       }
     }
 
@@ -513,7 +533,7 @@ public final class Module2CCompiler {
           if (statement.assignee() == null) {
             cCode.stmt("(void)(%s);", expr);
           } else {
-            cCode.stmt("SEXP %s = %s;", registerName(statement.assignee()), expr);
+            cCode.stmt("%s = %s;", registerName(statement.assignee()), expr);
           }
         }
 
@@ -731,7 +751,7 @@ public final class Module2CCompiler {
             var dest = registerName(phi);
             var value = emitArgument(arg);
 
-            cCode.stmt(indentLevel, "SEXP %s = %s;", dest, value);
+            cCode.stmt(indentLevel, "%s = %s;", dest, value);
           }
 
           cCode.stmt(indentLevel, "goto %s;", labelName(target.bb()));

@@ -1,6 +1,7 @@
 package org.prlprg.fir2c;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.Map;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Function;
@@ -48,7 +49,11 @@ public record FirCompiledModule(
   /// Metadata describing the C entry point for a particular FIŘ [Abstraction].
   public record FirCompiledVersionIndex(String cFunctionName) {
     private static final ImmutableMap<String, String> BUILTINS_WITH_EXPLICIT_VERSIONS =
-        ImmutableMap.of("+", "add");
+        ImmutableMap.ofEntries(
+            Map.entry("+", "add"),
+            Map.entry("<", "lt"),
+            Map.entry("==", "eq"),
+            Map.entry("missing", "missing"));
 
     public static FirCompiledVersionIndex builtin(Function function, Abstraction version) {
       var name = function.name().name();

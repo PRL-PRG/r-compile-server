@@ -791,7 +791,7 @@ DEFINE_INTRINSIC(tryDispatchBuiltin, 1) {
 }
 
 DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0) {
-  return FALSE;
+  return R_FalseValue;
 }
 
 DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0) {
@@ -801,4 +801,32 @@ DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0) {
 
 DEFINE_OVERRIDDEN_BUILTIN(add, 1) {
   return Rf_ScalarInteger(Rf_asInteger(args[0]) + Rf_asInteger(args[1]));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(add, 2) {
+  return Rf_ScalarReal(Rf_asReal(args[0]) + Rf_asReal(args[1]));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(lt, 1) {
+  return Rf_ScalarLogical(Rf_asInteger(args[0]) < Rf_asInteger(args[1]));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(eq, 1) {
+  return Rf_ScalarLogical(Rf_asInteger(args[0]) == Rf_asInteger(args[1]));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(eq, 2) {
+  return Rf_ScalarLogical(Rf_asReal(args[0]) == Rf_asReal(args[1]));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(eq, 3) {
+  return Rf_ScalarLogical(Rf_asChar(STRING_ELT(args[0], 0)) == Rf_asChar(STRING_ELT(args[1], 0)));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(eq, 4) {
+  return Rf_ScalarLogical(args[0] == args[1]);
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(missing, 0) {
+  return args[0] == R_MissingArg ? R_TrueValue : R_FalseValue;
 }

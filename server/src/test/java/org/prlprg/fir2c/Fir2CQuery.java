@@ -1,7 +1,7 @@
 package org.prlprg.fir2c;
 
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.prlprg.fir2c.Module2CCompiler.compile;
+import static org.prlprg.fir2c.Fir2CCompiler.compile;
 
 import javax.annotation.Nullable;
 import junit.framework.AssertionFailedError;
