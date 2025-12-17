@@ -7,10 +7,10 @@ fun checkMissing(r) {
 fun toForSeq(r) {
   (reg r:V) -+> V { ... }
 }
-fun invisible() {
+fun setInvisible() {
   () --> V { ... }
 }
-fun visible() {
+fun setVisible() {
   () --> V { ... }
 }
 fun tryDispatchBuiltin(name, target, rhs) {

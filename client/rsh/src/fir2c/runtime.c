@@ -734,8 +734,8 @@ NORET void Rsh_error(const char *fmt, ...) {
 DEFINE_DISPATCH_INTRINSIC_BODY(checkFun)
 DEFINE_DISPATCH_INTRINSIC_BODY(checkMissing)
 DEFINE_DISPATCH_INTRINSIC_BODY(toForSeq)
-DEFINE_DISPATCH_INTRINSIC_BODY(invisible)
-DEFINE_DISPATCH_INTRINSIC_BODY(visible)
+DEFINE_DISPATCH_INTRINSIC_BODY(setInvisible)
+DEFINE_DISPATCH_INTRINSIC_BODY(setVisible)
 DEFINE_DISPATCH_INTRINSIC_BODY(tryDispatchBuiltin)
 DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinDispatched)
 DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinValue)
@@ -766,12 +766,12 @@ DEFINE_INTRINSIC(toForSeq, 0) {
   return args[0];
 }
 
-DEFINE_INTRINSIC(invisible, 0) {
+DEFINE_INTRINSIC(setInvisible, 0) {
   R_Visible = FALSE;
   return R_NilValue;
 }
 
-DEFINE_INTRINSIC(visible, 0) {
+DEFINE_INTRINSIC(setVisible, 0) {
   R_Visible = TRUE;
   return R_NilValue;
 }

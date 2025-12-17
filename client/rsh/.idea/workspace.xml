@@ -22,7 +22,10 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2fir/BC2CFGCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2fir/BC2CFGCompiler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/GlobalModules.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir/GlobalModules.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/session/GNURSession.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/session/GNURSession.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/resources/org/prlprg/fir/intrinsics.fir" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/resources/org/prlprg/fir/intrinsics.fir" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -97,7 +100,7 @@
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "preferences.pluginManager",
+    "settings.editor.selected.configurable": "preferences.keymap",
     "sweep.chatMode": "Agent",
     "to.speed.mode.migration.done": "true",
     "vue.rearranger.settings.migration": "true"
@@ -393,7 +396,7 @@
       <workItem from="1765969168366" duration="229000" />
       <workItem from="1765969418828" duration="97000" />
       <workItem from="1765969533657" duration="1023000" />
-      <workItem from="1765970664827" duration="2842000" />
+      <workItem from="1765970664827" duration="3500000" />
     </task>
     <servers />
   </component>

@@ -2,7 +2,6 @@ package org.prlprg.session;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
@@ -330,11 +329,12 @@ public class GNURSession implements RSession {
   }
 
   /// Get all builtins, including specials and "internal" (?) builtins.
-  public static Iterable<String> getAllBuiltins() {
-    return Iterables.concat(
-        readNamesFromRds(BUILTINS_SYMBOLS_RDS_FILE),
-        readNamesFromRds(SPECIALS_SYMBOLS_RDS_FILE),
-        readNamesFromRds(BUILTINS_INTERNAL_SYMBOLS_RDS_FILE));
+  public static ImmutableSet<String> getAllBuiltins() {
+    return ImmutableSet.<String>builder()
+        .addAll(readNamesFromRds(BUILTINS_SYMBOLS_RDS_FILE))
+        .addAll(readNamesFromRds(SPECIALS_SYMBOLS_RDS_FILE))
+        .addAll(readNamesFromRds(BUILTINS_INTERNAL_SYMBOLS_RDS_FILE))
+        .build();
   }
 
   private static ImmutableSet<String> readNamesFromRds(String fileName) {
