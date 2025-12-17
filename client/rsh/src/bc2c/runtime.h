@@ -3133,7 +3133,6 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
           break;
         }
       }
-      printf("which=%d\n", which);
       return INTEGER(coffsets)[which];
     }
   } else {
