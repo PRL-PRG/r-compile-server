@@ -32,7 +32,7 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
 
   @Override
   public InterpretOutput compute(Example example, SnapshotStore store) {
-    var module = store.query(example, FirQuery.INSTANCE);
+    var module = store.load(example, FirQuery.INSTANCE);
 
     return new TestInterpreter(module).call(functionName, arguments);
   }

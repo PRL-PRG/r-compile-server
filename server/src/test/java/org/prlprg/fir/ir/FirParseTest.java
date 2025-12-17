@@ -29,7 +29,7 @@ public class FirParseTest {
   @FirExampleTest
   @Order(2)
   void testRoundTrip(Example example, SnapshotStore store) {
-    var module = store.query(example, FirQuery.INSTANCE);
+    var module = store.load(example, FirQuery.INSTANCE);
     var print = module.toString();
 
     System.err.println(print);

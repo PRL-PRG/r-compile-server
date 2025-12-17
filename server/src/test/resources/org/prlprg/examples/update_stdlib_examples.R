@@ -1,4 +1,4 @@
-#! Rscript
+#! ../../../../../../../external/R/bin/Rscript
 # Script to regenerate example in `./R` starting with `stdlib_`, from various packages.
 # The example defines the function, then runs any example code in its documentation.
 
@@ -32,6 +32,9 @@ for (pkg in c("base", "tools", "utils", "graphics", "methods", "stats")) {
 
     # Process function
     examples <- db_examples[match(name, db_names)][[1]]
+    if (!grepl("\\donttest\{", examples, fixed = TRUE)) {
+      examples <- NULL
+    }
     filename <- file.path("R", paste0("stdlib_", pkg, "_", sub("[\\/:\n]", "_", name), ".R"))
     content <- paste0(
       "#? stdlib\n",

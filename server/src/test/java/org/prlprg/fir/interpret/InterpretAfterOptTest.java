@@ -21,7 +21,7 @@ public record InterpretAfterOptTest(Optimization optimization) {
   /// Call the interpreter once on an optimization without feedback, check output.
   @FirExampleTest
   void test(Example example, SnapshotStore store) {
-    var module = store.query(example, new OptimizedFirQuery(optimization));
+    var module = store.load(example, new OptimizedFirQuery(optimization));
     var interpreter = new TestInterpreter(module);
 
     store.verify(example, InterpretQuery.MAIN, interpreter.call("main"));
@@ -31,7 +31,7 @@ public record InterpretAfterOptTest(Optimization optimization) {
   /// same.
   @FirExampleTest
   void testRepeat(Example example, SnapshotStore store) {
-    var module = store.query(example, FirQuery.INSTANCE);
+    var module = store.load(example, FirQuery.INSTANCE);
     var interpreter = new TestInterpreter(module);
 
     // Warmup
@@ -50,7 +50,7 @@ public record InterpretAfterOptTest(Optimization optimization) {
   /// causing deopts. Check that output is the same.
   @FirExampleTest(option = "deopt")
   void testDeopt(Example example, SnapshotStore store) {
-    var module = store.query(example, FirQuery.INSTANCE);
+    var module = store.load(example, FirQuery.INSTANCE);
     var interpreter = new TestInterpreter(module);
 
     // Warmup

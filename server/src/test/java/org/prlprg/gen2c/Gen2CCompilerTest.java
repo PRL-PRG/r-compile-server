@@ -23,7 +23,7 @@ public interface Gen2CCompilerTest {
   @Order(2)
   default void testEval(Example example, SnapshotStore store) {
     var R = GNUR.instance();
-    var modulePath = store.queryPath(example, moduleQuery());
+    var modulePath = store.loadPath(example, moduleQuery());
 
     var output = eval(modulePath, R);
 
