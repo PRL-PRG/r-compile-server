@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     'src/test/resources/org/prlprg/snapshots/R/bc2c/for4/code.so'
+relocations:     []
+...

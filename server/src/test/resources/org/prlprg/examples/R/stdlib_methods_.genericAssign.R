@@ -1,6 +1,10 @@
 #? stdlib
-`.genericAssign` <- function (f, fdef, methods, where, deflt) 
+`.GenericAssign` <- function (name, fdef, where) 
 {
-    ev <- environment(fdef)
-    assign(".Methods", methods, ev)
+    assign(name, fdef, where)
+    .cacheGeneric(name, fdef)
+    methods <- fdef@default
+    assignMethodsMetaData(name, methods, fdef, where)
+    .assignMethodsTableMetaData(name, fdef, where)
+    name
 }

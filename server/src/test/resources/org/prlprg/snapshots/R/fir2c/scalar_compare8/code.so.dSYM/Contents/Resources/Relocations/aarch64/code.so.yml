@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     'src/test/resources/org/prlprg/snapshots/R/fir2c/scalar_compare8/code.so'
+relocations:     []
+...
