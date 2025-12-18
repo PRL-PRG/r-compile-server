@@ -9,15 +9,12 @@ if (length(args) > 0) {
 library(rsh)
 
 dyn.load("code.so")
-cp <- readRDS("constants.RDS")
+env <- readRDS("bindings.RDS")
 
-# FIXME: try global env
-env <- new.env()
-env$.Rsh_constants <- cp
 parent.env(env) <- globalenv()
 
 invisible(.Call("Rsh_initialize_runtime"))
-source("bindings.R", local = env)
+env$main()
 pc <- .Call("Rsh_pc_get")
 
 dyn.unload("code.so")

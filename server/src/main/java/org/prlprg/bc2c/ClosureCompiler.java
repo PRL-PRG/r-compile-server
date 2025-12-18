@@ -264,7 +264,7 @@ class ClosureCompiler {
     var cpConst = createExtraConstant(compiledClosure.constantPool());
     return builder
         .fun("Rsh_MakeProm2")
-        .args("&" + compiledClosure.name(), constantSXP(cpConst))
+        .args("&" + compiledClosure.cName(), constantSXP(cpConst))
         .compileStmt();
   }
 
@@ -322,7 +322,7 @@ class ClosureCompiler {
     if (cls.get(1) instanceof BCodeSXP closureBody) {
       var compiledClosure = module.compileClosure(closureBody.bc(), name);
       var ccp = createExtraConstant(compiledClosure.constantPool());
-      return builder.addArgs("&" + compiledClosure.name(), constantSXP(ccp)).compileStmt();
+      return builder.addArgs("&" + compiledClosure.cName(), constantSXP(ccp)).compileStmt();
     } else {
       throw new UnsupportedOperationException("Unsupported body: " + body);
     }

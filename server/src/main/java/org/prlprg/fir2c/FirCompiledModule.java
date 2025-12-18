@@ -2,6 +2,8 @@ package org.prlprg.fir2c;
 
 import com.google.common.collect.ImmutableMap;
 import java.util.Map;
+import java.util.Objects;
+import javax.annotation.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Function;
@@ -9,8 +11,6 @@ import org.prlprg.gen2c.CUnit;
 import org.prlprg.gen2c.CompiledClosure;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.session.RSession;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Streams;
 
@@ -38,20 +38,15 @@ public record FirCompiledModule(
                     e -> e.getKey().name().name(),
                     e ->
                         new CompiledClosure(
-                            e.getKey().parameterNames().stream()
-                                .map(
-                                    paramName ->
-                                        new TaggedElem(paramName.name(), SEXPs.MISSING_ARG))
-                                .collect(SEXPs.toList()),
-                            SEXPs.EMPTY_ENV,
-                            ((FirCompiledDispatchIndex.Regular) e.getValue()).cFunctionFromRName,
-                            constantPool))),
-        constantPool);
+                            Objects.requireNonNull(
+                                ((FirCompiledDispatchIndex.Regular) e.getValue())
+                                    .cFunctionFromRName),
+                            constantPool))));
   }
 
   /// Metadata describing the C entry point for a particular FIŘ [Function]'s dispatch.
   public sealed interface FirCompiledDispatchIndex {
-    record Regular(String cFunctionName, String cFunctionFromRName)
+    record Regular(String cFunctionName, @Nullable String cFunctionFromRName)
         implements FirCompiledDispatchIndex {}
 
     record Builtin(int builtinIndex) implements FirCompiledDispatchIndex {}
@@ -67,7 +62,7 @@ public record FirCompiledModule(
 
     static FirCompiledDispatchIndex intrinsic(Function function) {
       var name = function.name().name();
-      return new FirCompiledDispatchIndex.Regular("Rsh_Fir_intrinsic_" + name);
+      return new FirCompiledDispatchIndex.Regular("Rsh_Fir_intrinsic_" + name, null);
     }
   }
 

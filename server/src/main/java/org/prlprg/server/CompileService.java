@@ -202,7 +202,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var module = BC2CCompiler.compile(name, bc, false);
+          var module = BC2CCompiler.compile(bc, name, false);
           var closure = Objects.requireNonNull(module.bindings().get(name));
           var input = File.createTempFile("cfile", ".c");
           Files.write(module.cCode().getBytes(StandardCharsets.UTF_8), input);
@@ -214,9 +214,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
               .compile();
 
           var res = Files.asByteSource(output).read();
+          var serializedConstantPool = RDSWriter.writeByteString(closure.constantPool());
 
           ccCached =
-              new NativeClosure(ByteString.copyFrom(res), closure.cName(), closure.constantPool());
+              new NativeClosure(ByteString.copyFrom(res), closure.cName(), serializedConstantPool);
 
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);
