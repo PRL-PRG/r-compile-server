@@ -423,6 +423,10 @@ public final class SEXPs {
         parameters, body, environment, attributes == null ? Attributes.NONE : attributes);
   }
 
+  public static LangSXP lang(SymOrLangSXP fun) {
+    return lang(fun, NULL);
+  }
+
   public static LangSXP lang(SymOrLangSXP fun, SEXP... args) {
     return lang(fun, list(args));
   }
