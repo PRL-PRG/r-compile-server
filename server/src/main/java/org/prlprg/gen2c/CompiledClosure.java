@@ -10,10 +10,17 @@ import org.prlprg.sexp.VecSXP;
 
 public record CompiledClosure(ListSXP formals, EnvSXP enclos, String cName, VecSXP constantPool) {
   public static CompiledClosure fromSexp(CloSXP sexp) {
-    return new CompiledClosure(sexp.parameters(), sexp.env(), ((StrSXP)((LangSXP) sexp.body()).arg(1)).get(0), (VecSXP) ((LangSXP) sexp.body()).arg(3));
+    return new CompiledClosure(
+        sexp.parameters(),
+        sexp.env(),
+        ((StrSXP) ((LangSXP) sexp.body()).arg(1)).get(0),
+        (VecSXP) ((LangSXP) sexp.body()).arg(3));
   }
 
   public CloSXP asSexp() {
-    return SEXPs.closure(formals, SEXPs.lang(SEXPs.symbol(".Call"), SEXPs.string(cName), enclos, constantPool), enclos);
+    return SEXPs.closure(
+        formals,
+        SEXPs.lang(SEXPs.symbol(".Call"), SEXPs.string(cName), enclos, constantPool),
+        enclos);
   }
 }

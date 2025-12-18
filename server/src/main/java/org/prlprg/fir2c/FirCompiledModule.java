@@ -1,7 +1,6 @@
 package org.prlprg.fir2c;
 
 import com.google.common.collect.ImmutableMap;
-import java.util.Formatter;
 import java.util.Map;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
@@ -10,12 +9,10 @@ import org.prlprg.gen2c.CUnit;
 import org.prlprg.gen2c.CompiledClosure;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.session.RSession;
-import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Streams;
-import org.prlprg.util.Strings;
 
 /// Result of translating a FIŘ module.
 ///
@@ -36,22 +33,26 @@ public record FirCompiledModule(
     return new CompiledModule(
         cUnit.toString(),
         compiledFunctionDispatches.entrySet().stream()
-            .collect(Streams.toImmutableMap(
-                e -> e.getKey().name().name(),
-                e -> new CompiledClosure(
-                    e.getKey().parameterNames().stream().map(paramName -> new TaggedElem(paramName.name(), SEXPs.MISSING_ARG)).collect(SEXPs.toList()),
-                    SEXPs.EMPTY_ENV,
-                    ((FirCompiledDispatchIndex.Regular) e.getValue()).cFunctionFromRName,
-                    constantPool
-                )
-            )),
-        constantPool
-    );
+            .collect(
+                Streams.toImmutableMap(
+                    e -> e.getKey().name().name(),
+                    e ->
+                        new CompiledClosure(
+                            e.getKey().parameterNames().stream()
+                                .map(
+                                    paramName ->
+                                        new TaggedElem(paramName.name(), SEXPs.MISSING_ARG))
+                                .collect(SEXPs.toList()),
+                            SEXPs.EMPTY_ENV,
+                            ((FirCompiledDispatchIndex.Regular) e.getValue()).cFunctionFromRName,
+                            constantPool))),
+        constantPool);
   }
 
   /// Metadata describing the C entry point for a particular FIŘ [Function]'s dispatch.
   public sealed interface FirCompiledDispatchIndex {
-    record Regular(String cFunctionName, String cFunctionFromRName) implements FirCompiledDispatchIndex {}
+    record Regular(String cFunctionName, String cFunctionFromRName)
+        implements FirCompiledDispatchIndex {}
 
     record Builtin(int builtinIndex) implements FirCompiledDispatchIndex {}
 

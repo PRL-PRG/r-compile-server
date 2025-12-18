@@ -1,15 +1,11 @@
 package org.prlprg.fir2c;
 
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.prlprg.fir2c.Fir2CCompiler.compile;
 
 import javax.annotation.Nullable;
-import junit.framework.AssertionFailedError;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.FirQuery;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.Optimization;
-import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;

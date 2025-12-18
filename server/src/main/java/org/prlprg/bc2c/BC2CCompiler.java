@@ -1,7 +1,6 @@
 package org.prlprg.bc2c;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.prlprg.bc.*;
 import org.prlprg.gen2c.CompiledClosure;
 import org.prlprg.gen2c.CompiledModule;
@@ -24,7 +23,8 @@ public class BC2CCompiler {
     this.closureSexp = closureSexp;
 
     if (!(closureSexp.body() instanceof BCodeSXP bcSxp)) {
-      throw new IllegalArgumentException("Closure passed to `BC2CCompiler` must have bytecode body, got:\n" + closureSexp);
+      throw new IllegalArgumentException(
+          "Closure passed to `BC2CCompiler` must have bytecode body, got:\n" + closureSexp);
     }
     bc = bcSxp.bc();
   }
@@ -32,7 +32,14 @@ public class BC2CCompiler {
   public CompiledModule finish() {
     var compiledClosure = module.compileClosure(bc, closureName);
 
-    var bindingsOfJustClosure = ImmutableMap.of(closureName, new CompiledClosure(closureSexp.parameters(), closureSexp.env(), compiledClosure.name(), compiledClosure.constantPool()));
+    var bindingsOfJustClosure =
+        ImmutableMap.of(
+            closureName,
+            new CompiledClosure(
+                closureSexp.parameters(),
+                closureSexp.env(),
+                compiledClosure.name(),
+                compiledClosure.constantPool()));
     return new CompiledModule(
         module.cUnit().toString(), bindingsOfJustClosure, compiledClosure.constantPool());
   }

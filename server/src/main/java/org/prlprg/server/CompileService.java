@@ -219,8 +219,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           var cName = Objects.requireNonNull(module.bindings().get(name)).cName();
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
 
-          ccCached =
-              new NativeClosure(ByteString.copyFrom(res), cName, serializedConstantPool);
+          ccCached = new NativeClosure(ByteString.copyFrom(res), cName, serializedConstantPool);
 
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);
