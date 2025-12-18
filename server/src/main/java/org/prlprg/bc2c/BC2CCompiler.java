@@ -14,8 +14,8 @@ public class BC2CCompiler {
   private final String closureName;
   private final CloSXP closureSexp;
 
-  public BC2CCompiler(String closureName, CloSXP closureSexp, boolean compilePromises) {
-    this.module = new BC2CModule(compilePromises);
+  public static CompiledModule compile(String name, Bc bc, boolean compilePromises) {
+    module = new BC2CModule(compilePromises);
     // We can have other closures to compile in the same Bc
     // We will need to generate a unique name for each
     // This is the main (entry) name

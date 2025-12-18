@@ -11,6 +11,8 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /** An R "list" element which consists of an optional string tag (name) and SEXP value. */
 public record TaggedElem(String tag, SEXP value) {
+  public static final TaggedElem DOTS = new TaggedElem(SEXPs.DOTS_SYMBOL);
+
   /** Create a {@link TaggedElem} with an optional (if non-empty) tag and value. */
   public TaggedElem {
     Objects.requireNonNull(tag, "Pass the empty string for no tag");

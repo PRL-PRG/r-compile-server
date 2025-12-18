@@ -202,10 +202,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          // TODO: Send full closure (or at least also formals) to compile server
-          var bcCloSxp = SEXPs.closure(SEXPs.NULL, SEXPs.bcode(bc), SEXPs.EMPTY_ENV);
-          var bc2cCompiler = new BC2CCompiler(name, bcCloSxp, false);
-          var module = bc2cCompiler.finish();
+          var module = BC2CCompiler.compile(name, bc, false);
+          var closure = Objects.requireNonNull(module.bindings().get(name));
           var input = File.createTempFile("cfile", ".c");
           Files.write(module.cCode().getBytes(StandardCharsets.UTF_8), input);
           var output = File.createTempFile("ofile", ".o");
@@ -216,10 +214,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
               .compile();
 
           var res = Files.asByteSource(output).read();
-          var cName = Objects.requireNonNull(module.bindings().get(name)).cName();
-          var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
 
-          ccCached = new NativeClosure(ByteString.copyFrom(res), cName, serializedConstantPool);
+          ccCached =
+              new NativeClosure(ByteString.copyFrom(res), closure.cName(), closure.constantPool());
 
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);

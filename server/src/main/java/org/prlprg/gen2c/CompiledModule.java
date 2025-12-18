@@ -5,11 +5,9 @@ import java.util.Map.Entry;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.UserEnvSXP;
-import org.prlprg.sexp.VecSXP;
 import org.prlprg.util.Streams;
 
-public record CompiledModule(
-    String cCode, ImmutableMap<String, CompiledClosure> bindings, VecSXP constantPool) {
+public record CompiledModule(String cCode, ImmutableMap<String, CompiledClosure> bindings) {
   public static ImmutableMap<String, CompiledClosure> bindingsFromSexp(EnvSXP sexp) {
     return sexp.bindings().stream()
         .collect(
