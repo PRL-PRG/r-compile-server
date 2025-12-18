@@ -1,0 +1,25 @@
+package org.prlprg.gen2c;
+
+import com.google.common.collect.ImmutableMap;
+import java.util.Map.Entry;
+import org.prlprg.sexp.CloSXP;
+import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.Streams;
+
+public record CompiledModule(String cCode, ImmutableMap<String, CompiledClosure> bindings, VecSXP constantPool) {
+  public static ImmutableMap<String, CompiledClosure> bindingsFromSexp(EnvSXP sexp) {
+    return sexp.bindings().stream()
+        .collect(Streams.toImmutableMap(Entry::getKey, e -> CompiledClosure.fromSexp((CloSXP) e.getValue())));
+  }
+
+  public EnvSXP bindingsAsSexp() {
+    var bindingsEnv = new UserEnvSXP();
+    for (var entry : bindings.entrySet()) {
+      bindingsEnv.set(entry.getKey(), entry.getValue().asSexp());
+    }
+    return bindingsEnv;
+  }
+}

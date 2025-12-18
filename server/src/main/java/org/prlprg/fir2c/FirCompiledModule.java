@@ -7,7 +7,8 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.gen2c.CUnit;
-import org.prlprg.bc2c.DirectCompiledModule;
+import org.prlprg.gen2c.CompiledClosure;
+import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
@@ -31,24 +32,26 @@ public record FirCompiledModule(
     ImmutableMap<Abstraction, FirCompiledVersionIndex> compiledVersions,
     ImmutableMap<Promise, FirCompiledPromiseIndex> compiledPromises,
     VecSXP constantPool) {
-  public String rCodeForBindings() {
-    var sb = new StringBuilder();
-    var f = new Formatter(sb);
-
-    for (var entry : compiledFunctionDispatches.entrySet()) {
-      var fn = entry.getKey();
-      if (!(entry.getValue() instanceof FirCompiledDispatchIndex.Regular(var cFunctionName))) continue;
-
-      f.format("%s <- function(%s) .Call('%s', .Rsh_constants, %s)\n", fn.name(), Strings.join(", ", fn.parameterNames()), cFunctionName, Strings.join(", ", fn.parameterNames()));
-      sb.append("\n");
-    }
-
-    return sb.toString();
+  public CompiledModule toGeneric() {
+    return new CompiledModule(
+        cUnit.toString(),
+        compiledFunctionDispatches.entrySet().stream()
+            .collect(Streams.toImmutableMap(
+                e -> e.getKey().name().name(),
+                e -> new CompiledClosure(
+                    e.getKey().parameterNames().stream().map(paramName -> new TaggedElem(paramName.name(), SEXPs.MISSING_ARG)).collect(SEXPs.toList()),
+                    SEXPs.EMPTY_ENV,
+                    ((FirCompiledDispatchIndex.Regular) e.getValue()).cFunctionFromRName,
+                    constantPool
+                )
+            )),
+        constantPool
+    );
   }
 
   /// Metadata describing the C entry point for a particular FIŘ [Function]'s dispatch.
   public sealed interface FirCompiledDispatchIndex {
-    record Regular(String cFunctionName) implements FirCompiledDispatchIndex {}
+    record Regular(String cFunctionName, String cFunctionFromRName) implements FirCompiledDispatchIndex {}
 
     record Builtin(int builtinIndex) implements FirCompiledDispatchIndex {}
 

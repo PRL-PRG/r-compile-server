@@ -3,8 +3,10 @@ package org.prlprg.bc2c;
 import org.prlprg.bc.BCQuery;
 import org.prlprg.bc.Bc;
 import org.prlprg.examples.Example;
+import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 
@@ -19,17 +21,17 @@ public class BC2CQuery implements CompiledModuleQuery {
   }
 
   @Override
-  public DirectCompiledModule compute(Example example, SnapshotStore store) {
+  public CompiledModule compute(Example example, SnapshotStore store) {
     var compilePromises = example.hasOption(name(), "compilePromises");
     var bc = store.load(example, BCQuery.INSTANCE);
 
     return compile(bc, compilePromises);
   }
 
-  private static DirectCompiledModule compile(Bc bc, boolean compilePromises) {
-    var name = "f_" + (bc.hashCode() < 0 ? "n" + -bc.hashCode() : bc.hashCode());
+  private static CompiledModule compile(Bc bc, boolean compilePromises) {
+    var bcCloSxp = SEXPs.closure(SEXPs.NULL, SEXPs.bcode(bc), SEXPs.EMPTY_ENV);
     try {
-      return new BC2CCompiler(bc, name, compilePromises).finish();
+      return new BC2CCompiler("main", bcCloSxp, compilePromises).finish();
     } catch (UnsupportedBcInstrException e) {
       throw new SkipQueryException(e);
     }

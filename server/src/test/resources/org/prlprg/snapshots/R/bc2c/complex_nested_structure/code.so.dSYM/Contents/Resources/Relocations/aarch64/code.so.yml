@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     'src/test/resources/org/prlprg/snapshots/R/bc2c/complex_nested_structure/code.so'
+relocations:     []
+...

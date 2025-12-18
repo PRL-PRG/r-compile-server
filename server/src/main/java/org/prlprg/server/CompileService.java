@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -201,7 +202,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var bc2cCompiler = new BC2CCompiler(bc, name, false);
+          // TODO: Send full closure (or at least also formals) to compile server
+          var bcCloSxp = SEXPs.closure(SEXPs.NULL, SEXPs.bcode(bc), SEXPs.EMPTY_ENV);
+          var bc2cCompiler = new BC2CCompiler(name, bcCloSxp, false);
           var module = bc2cCompiler.finish();
           var input = File.createTempFile("cfile", ".c");
           Files.write(module.cCode().getBytes(StandardCharsets.UTF_8), input);
@@ -213,11 +216,11 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
               .compile();
 
           var res = Files.asByteSource(output).read();
+          var cName = Objects.requireNonNull(module.bindings().get(name)).cName();
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
 
           ccCached =
-              new NativeClosure(
-                  ByteString.copyFrom(res), module.entryFunName(), serializedConstantPool);
+              new NativeClosure(ByteString.copyFrom(res), cName, serializedConstantPool);
 
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);
