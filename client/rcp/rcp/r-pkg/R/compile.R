@@ -41,6 +41,6 @@ rcp_jit_disable <- function() {
 #' @param package Character string naming the package to compile
 #' @return A list with counts of successfully compiled and failed functions
 #' @export
-rcp_cmppackage <- function(package) {
-  .Call(C_rcp_cmppackage, package)
+rcp_cmppkg <- function(package) {
+  .Call(C_rcp_cmppkg, package)
 }

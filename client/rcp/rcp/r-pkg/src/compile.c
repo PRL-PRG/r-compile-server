@@ -1572,7 +1572,7 @@ static SEXP C_rcp_override_cmpfun(SEXP cmpfun)
     DEBUG_PRINT("cmpfun hooked\n");
 }
 
-SEXP C_rcp_cmppackage(SEXP package_name)
+SEXP C_rcp_cmppkg(SEXP package_name)
 {
     if (TYPEOF(package_name) != STRSXP || LENGTH(package_name) != 1)
         error("Package name must be a single character string.");
