@@ -22,7 +22,7 @@ SEXP Rsh_Fir_user_function_inner69251918_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP 
 SEXP Rsh_Fir_user_version_inner69251918_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
   // FIR main dynamic dispatch from R ([])
-  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  if (TYPEOF(PARAMS_LIST) != VECSXP) { Rf_PrintValue(PARAMS_LIST); Rsh_error("FIŘ expected a list for params"); }
   int NPARAMS = Rf_length(PARAMS_LIST);
   SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
   return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
@@ -100,7 +100,7 @@ L1_:;
 }
 SEXP Rsh_Fir_user_function_from_R_inner4266987626_(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
   // FIR inner4266987626 dynamic dispatch from R ([n])
-  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  if (TYPEOF(PARAMS_LIST) != VECSXP) { Rf_PrintValue(PARAMS_LIST); Rsh_error("FIŘ expected a list for params"); }
   int NPARAMS = Rf_length(PARAMS_LIST);
   SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
   return Rsh_Fir_user_function_inner4266987626_(CCP, RHO, NPARAMS, PARAMS, NULL);
@@ -282,7 +282,7 @@ SEXP Rsh_Fir_user_promise_inner4266987626_1(SEXP CCP, SEXP RHO, int NCAPTURES, S
 }
 SEXP Rsh_Fir_user_function_from_R_inner139384502_(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
   // FIR inner139384502 dynamic dispatch from R ([board, row, n])
-  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  if (TYPEOF(PARAMS_LIST) != VECSXP) { Rf_PrintValue(PARAMS_LIST); Rsh_error("FIŘ expected a list for params"); }
   int NPARAMS = Rf_length(PARAMS_LIST);
   SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
   return Rsh_Fir_user_function_inner139384502_(CCP, RHO, NPARAMS, PARAMS, NULL);
@@ -982,7 +982,7 @@ SEXP Rsh_Fir_user_promise_inner139384502_6(SEXP CCP, SEXP RHO, int NCAPTURES, SE
 }
 SEXP Rsh_Fir_user_function_from_R_inner69251918_(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
   // FIR inner69251918 dynamic dispatch from R ([board, row, col, n])
-  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  if (TYPEOF(PARAMS_LIST) != VECSXP) { Rf_PrintValue(PARAMS_LIST); Rsh_error("FIŘ expected a list for params"); }
   int NPARAMS = Rf_length(PARAMS_LIST);
   SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
   return Rsh_Fir_user_function_inner69251918_(CCP, RHO, NPARAMS, PARAMS, NULL);

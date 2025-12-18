@@ -30,7 +30,7 @@ public class SnapshotStore {
   /// Finally, `query` is saved to disk, *only unless*:
   /// - `example` has the option `dontSaveSnapshots`
   /// - OR [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)] fails, and
-  ///   [TestConfig#ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS] is unset.
+  ///   [TestConfig#IGNORE_SNAPSHOTS] is unset.
   /// If other checks (e.g. [Query#verifyExtra(Example, SnapshotStore)]) fail, they are reported
   /// (this call raises an exception) but the snapshot is still saved for debugging.
   public <T> void verify(Example example, Query<T> query) {
@@ -59,7 +59,7 @@ public class SnapshotStore {
       var shouldSaveToDisk =
           !example.hasOption("", "dontSaveSnapshots")
               && (regresses[0] == RegressionStatus.NO
-                  || TestConfig.ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS);
+                  || TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches());
       if (shouldSaveToDisk) {
         saveToDisk(actual, example, query);
       }
@@ -91,11 +91,10 @@ public class SnapshotStore {
         oracle = query.oracle(example, this);
         saveToMemory(oracle, true, example, query);
       }
-      query.verifyEqual(oracle, actual, example, this);
 
       query.verifyExtra(actual, example, this);
-
       verifyNoRegression(example, query, actual, regresses);
+      query.verifyEqual(oracle, actual, example, this);
     } catch (Exception | Error e) {
       if (context != null) {
         e.addSuppressed(new RuntimeException("Context: " + context));
@@ -107,7 +106,7 @@ public class SnapshotStore {
   private <T> void verifyNoRegression(
       Example example, Query<T> query, T actual, RegressionStatus[] regresses) {
     if (!example.hasOption("", "dontSaveSnapshots")
-        && !TestConfig.ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS) {
+        && !TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches()) {
       T oldFromDisk;
       try {
         oldFromDisk = loadFromDisk(example, query);
@@ -215,6 +214,10 @@ public class SnapshotStore {
   }
 
   private <T> @Nullable T loadFromDisk(Example example, Query<T> query) {
+    if (TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches()) {
+      return null;
+    }
+
     var path = snapshotPath(example, query);
     if (!Files.exists(path)) {
       return null;
@@ -223,23 +226,13 @@ public class SnapshotStore {
     try {
       return query.deserialize(path, example, this);
     } catch (Exception e) {
-      if (TestConfig.ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS) {
-        System.err.println(
-            "Failed to load "
-                + query.name()
-                + " snapshot for "
-                + path
-                + "\nSuppressing because of `ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS`");
-        return null;
-      } else {
-        throw new RuntimeException(
-            "Failed to load "
-                + query.name()
-                + " snapshot for "
-                + path
-                + "\nYou may need to delete it or run with `ALWAYS_ALLOW_SNAPSHOT_DEVIATIONS`",
-            e);
-      }
+      throw new RuntimeException(
+          "Failed to load "
+              + query.name()
+              + " snapshot for "
+              + path
+              + "\nYou may need to delete it or run with `IGNORE_SNAPSHOTS`",
+          e);
     }
   }
 

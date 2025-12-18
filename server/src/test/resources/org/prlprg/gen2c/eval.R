@@ -14,7 +14,7 @@ env <- readRDS("bindings.RDS")
 parent.env(env) <- globalenv()
 
 invisible(.Call("Rsh_initialize_runtime"))
-env$main()
+res <- env$main()
 pc <- .Call("Rsh_pc_get")
 
 dyn.unload("code.so")

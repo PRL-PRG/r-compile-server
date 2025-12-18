@@ -18,7 +18,7 @@ public record CompiledModule(String cCode, ImmutableMap<String, CompiledClosure>
   public EnvSXP bindingsAsSexp() {
     var bindingsEnv = new UserEnvSXP();
     for (var entry : bindings.entrySet()) {
-      bindingsEnv.set(entry.getKey(), entry.getValue().asSexp());
+      bindingsEnv.set(entry.getKey(), entry.getValue().asSexp(bindingsEnv));
     }
     return bindingsEnv;
   }

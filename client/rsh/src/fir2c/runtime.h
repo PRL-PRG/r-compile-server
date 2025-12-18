@@ -90,7 +90,6 @@ void Rsh_Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args);
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
                           SEXP const *names, SEXP env);
-SEXP Rsh_Fir_call_from_R(SEXP calleeName, SEXP args, SEXP pool, SEXP env);
 int Rsh_Fir_is_true(SEXP value);
 void Rsh_Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP pool,
                    SEXP env);
