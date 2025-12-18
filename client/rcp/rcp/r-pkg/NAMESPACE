@@ -1,6 +1,5 @@
 useDynLib(rcp, .registration = TRUE, .fixes = "C_")
 export(rcp_cmpfun)
-export(rcp_tryCmpfun)
 export(is_compiled)
 export(rcp_jit_disable)
 export(rcp_jit_enable)
