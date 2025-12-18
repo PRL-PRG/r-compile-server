@@ -3,7 +3,6 @@ package org.prlprg.gen2c;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map.Entry;
 import org.prlprg.examples.Example;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
@@ -15,7 +14,6 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.Streams;
 import org.prlprg.util.cc.CCompilationException;
 
 public interface CompiledModuleQuery extends Query<CompiledModule> {
@@ -31,8 +29,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
 
     var code = Files.readString(cPath);
     var data = (VecSXP) RDSReader.readFile(R.getSession(), rdsPath.toFile());
-    var constantPool = (VecSXP)data.get(0);
-    var bindings = CompiledModule.bindingsFromSexp((EnvSXP)data.get(1));
+    var constantPool = (VecSXP) data.get(0);
+    var bindings = CompiledModule.bindingsFromSexp((EnvSXP) data.get(1));
 
     return new CompiledModule(code, bindings, constantPool);
   }

@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     'src/test/resources/org/prlprg/snapshots/R/bc2c/break_in_outer_loop/code.so'
-relocations:     []
-...
