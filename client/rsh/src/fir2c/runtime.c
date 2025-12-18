@@ -247,8 +247,7 @@ static int Rsh_Fir_value_matches(SEXP value, Rsh_Fir_Type const *type) {
   }
   case RSH_FIR_KIND_CLOSURE:
     return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP ||
-           TYPEOF(value) == SPECIALSXP ||
-           Rsh_Fir_is_compiled_closure(value, NULL);
+           TYPEOF(value) == SPECIALSXP;
   case RSH_FIR_KIND_DOTS:
     return TYPEOF(value) == DOTSXP;
   case RSH_FIR_KIND_PROMISE:
@@ -671,13 +670,6 @@ SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args) {
 
 SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
                           SEXP const *names, SEXP env) {
-  // Fastcase if we know it's a wrapped FIR closure
-  Rsh_Fir_ClosureInfo *info = NULL;
-  if (Rsh_Fir_is_compiled_closure(callee, &info)) {
-    return info->dispatch(info->pool, info->env, argc, args,
-                          Rsh_Fir_param_types_empty());
-  }
-
   int protect_count = 0;
   SEXP arglist = Rsh_Fir_build_arglist(argc, args, names, &protect_count);
   SEXP call = PROTECT(Rf_lcons(callee, arglist));

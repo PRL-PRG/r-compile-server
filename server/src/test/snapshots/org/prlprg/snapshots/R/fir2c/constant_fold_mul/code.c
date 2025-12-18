@@ -1,6 +1,14 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -19,7 +27,4 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   (void)(R_NilValue);
   // return 24.0
   return Rsh_const(CCP, 0);
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

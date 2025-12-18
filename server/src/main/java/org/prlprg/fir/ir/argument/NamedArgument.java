@@ -36,7 +36,10 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
   private static NamedArgument parse(Parser p) {
     var s = p.scanner();
 
-    if (s.nextCharSatisfies(Characters::isIdentifierStart)) {
+    if (s.nextCharSatisfies(Characters::isIdentifierStart)
+        && !s.nextCharsAre("TRUE")
+        && !s.nextCharsAre("FALSE")
+        && !s.nextCharsAre("NA_")) {
       // We don't have lookahead, so we must handle this case where we could parsed a name,
       // or the start of a `use` argument, or a register argument.
       var nameOrUseOrRegister = s.readIdentifierOrKeyword();

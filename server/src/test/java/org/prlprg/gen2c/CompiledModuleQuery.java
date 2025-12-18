@@ -10,8 +10,6 @@ import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.cc.CCompilationException;
@@ -25,28 +23,27 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     var R = GNUR.instance();
 
     var cPath = path.resolve("code.c");
-    var rdsPath = path.resolve("data.rds");
+    var bindingsPath = path.resolve("bindings.RDS");
 
     var code = Files.readString(cPath);
-    var data = (VecSXP) RDSReader.readFile(R.getSession(), rdsPath.toFile());
-    var constantPool = (VecSXP) data.get(0);
-    var bindings = CompiledModule.bindingsFromSexp((EnvSXP) data.get(1));
+    var bindingsSexp = RDSReader.readFile(R.getSession(), bindingsPath.toFile());
+    var bindings = CompiledModule.bindingsFromSexp((EnvSXP) bindingsSexp);
 
-    return new CompiledModule(code, bindings, constantPool);
+    return new CompiledModule(code, bindings);
   }
 
   @Override
   default void serialize(CompiledModule data, Path path, Example example, SnapshotStore store)
       throws IOException {
     var cPath = path.resolve("code.c");
-    var rdsPath = path.resolve("data.RDS");
+    var bindingsPath = path.resolve("bindings.RDS");
 
     if (!Files.exists(path)) {
       Files.createDirectory(path);
     }
 
     Files.writeString(cPath, data.cCode());
-    RDSWriter.writeFile(rdsPath.toFile(), SEXPs.vec(data.bindingsAsSexp(), data.constantPool()));
+    RDSWriter.writeFile(bindingsPath.toFile(), data.bindingsAsSexp());
 
     // Compile for both `EvalQuery` and easier debugging outside of tests.
     var soPath = path.resolve("code.so");

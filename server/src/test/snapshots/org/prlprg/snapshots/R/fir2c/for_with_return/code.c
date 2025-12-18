@@ -1,8 +1,17 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
+SEXP Rsh_Fir_user_function_from_R_inner2708337952_(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_inner2708337952_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_inner2708337952_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -39,7 +48,7 @@ D0_:;
 
 L0_:;
   // r1 = dyn f()
-  Rsh_Fir_reg_r1_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_f, 0, NULL, NULL, CCP, RHO);
+  Rsh_Fir_reg_r1_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_f, 0, NULL, NULL, RHO);
   // check L1() else D1()
   // L1()
   goto L1_;
@@ -57,6 +66,13 @@ L1_:;
   (void)(R_NilValue);
   // return r1
   return Rsh_Fir_reg_r1_;
+}
+SEXP Rsh_Fir_user_function_from_R_inner2708337952_(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR inner2708337952 dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_inner2708337952_(CCP, RHO, NPARAMS, PARAMS, NULL);
 }
 SEXP Rsh_Fir_user_function_inner2708337952_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR inner2708337952 dynamic dispatch ([])
@@ -156,7 +172,4 @@ L3_:;
   (void)(R_NilValue);
   // return i6
   return Rsh_Fir_reg_i6_;
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

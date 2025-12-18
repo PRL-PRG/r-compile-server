@@ -1,6 +1,14 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -29,15 +37,6 @@ SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *
   // L1()
   goto L1_;
 
-L0_:;
-  // setInvisible.0()
-  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return NULL
-  return Rsh_const(CCP, 2);
-
 D0_:;
   // deopt 3 [x]
   SEXP Rsh_Fir_array_deopt_stack[1];
@@ -55,7 +54,7 @@ L1_:;
   // r = `>`(x1, 0.0)
   SEXP Rsh_Fir_array_args1[2];
   Rsh_Fir_array_args1[0] = Rsh_Fir_reg_x1_;
-  Rsh_Fir_array_args1[1] = Rsh_const(CCP, 3);
+  Rsh_Fir_array_args1[1] = Rsh_const(CCP, 2);
   Rsh_Fir_reg_r = Rsh_Fir_call_builtin(79, RHO, 2, Rsh_Fir_array_args1);
   // c = `as.logical`(r)
   SEXP Rsh_Fir_array_args2[1];
@@ -70,13 +69,19 @@ L1_:;
     goto L0_;
   }
 
+L0_:;
+  // setInvisible.0()
+  (void)(Rsh_Fir_intrinsic_setInvisible_v0(CCP, RHO, 0, NULL));
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return NULL
+  return Rsh_const(CCP, 3);
+
 L2_:;
   // popenv
   Rsh_Fir_pop_env(&RHO);
   (void)(R_NilValue);
   // return 3.0
   return Rsh_const(CCP, 4);
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

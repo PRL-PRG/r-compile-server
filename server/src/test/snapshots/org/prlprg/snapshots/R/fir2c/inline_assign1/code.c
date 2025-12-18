@@ -1,9 +1,17 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -73,7 +81,7 @@ L0_:;
   Rsh_Fir_array_arg_names[1] = R_MissingArg;
   Rsh_Fir_array_arg_names[2] = R_MissingArg;
   Rsh_Fir_array_arg_names[3] = R_MissingArg;
-  Rsh_Fir_reg_r1_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_____, 4, Rsh_Fir_array_args1, Rsh_Fir_array_arg_names, CCP, RHO);
+  Rsh_Fir_reg_r1_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_____, 4, Rsh_Fir_array_args1, Rsh_Fir_array_arg_names, RHO);
   // check L1() else D1()
   // L1()
   goto L1_;
@@ -126,7 +134,7 @@ L2_:;
   Rsh_Fir_array_arg_names1[1] = R_MissingArg;
   Rsh_Fir_array_arg_names1[2] = R_MissingArg;
   Rsh_Fir_array_arg_names1[3] = R_MissingArg;
-  Rsh_Fir_reg_r3_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg______, 4, Rsh_Fir_array_args3, Rsh_Fir_array_arg_names1, CCP, RHO);
+  Rsh_Fir_reg_r3_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg______, 4, Rsh_Fir_array_args3, Rsh_Fir_array_arg_names1, RHO);
   // check L3() else D3()
   // L3()
   goto L3_;
@@ -179,7 +187,7 @@ L4_:;
   Rsh_Fir_array_arg_names2[1] = R_MissingArg;
   Rsh_Fir_array_arg_names2[2] = R_MissingArg;
   Rsh_Fir_array_arg_names2[3] = R_MissingArg;
-  Rsh_Fir_reg_r5_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg______1_, 4, Rsh_Fir_array_args5, Rsh_Fir_array_arg_names2, CCP, RHO);
+  Rsh_Fir_reg_r5_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg______1_, 4, Rsh_Fir_array_args5, Rsh_Fir_array_arg_names2, RHO);
   // check L5() else D5()
   // L5()
   goto L5_;
@@ -257,7 +265,4 @@ SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args4, Rsh_Fir_param_types_empty()));
   // return b5
   return Rsh_Fir_reg_b5_;
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

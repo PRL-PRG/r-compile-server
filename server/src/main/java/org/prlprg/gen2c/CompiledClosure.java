@@ -10,7 +10,7 @@ import org.prlprg.sexp.VecSXP;
 public record CompiledClosure(String cName, VecSXP constantPool) {
   public static CompiledClosure fromSexp(CloSXP sexp) {
     return new CompiledClosure(
-        ((StrSXP) ((LangSXP) sexp.body()).arg(1)).get(0), (VecSXP) ((LangSXP) sexp.body()).arg(2));
+        ((StrSXP) ((LangSXP) sexp.body()).arg(0)).get(0), (VecSXP) ((LangSXP) sexp.body()).arg(1));
   }
 
   public CloSXP asSexp() {

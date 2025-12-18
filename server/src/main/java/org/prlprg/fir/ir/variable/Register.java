@@ -11,7 +11,11 @@ public final class Register implements Variable {
   /// Returns a [Register] which resembles `name` but syntactically valid.
   public static Register resemblance(String name) {
     var base = name.equals("...") ? "ddd" : name.replaceAll("[^a-zA-Z0-9_]", "_");
-    if ((base.charAt(0) >= '0' && base.charAt(0) <= '9') || base.equals("_")) {
+    if ((base.charAt(0) >= '0' && base.charAt(0) <= '9')
+        || base.equals("_")
+        || base.startsWith("TRUE")
+        || base.startsWith("FALSE")
+        || base.startsWith("NA_")) {
       base = "_" + base;
     }
     return Variable.register(base);
@@ -20,6 +24,9 @@ public final class Register implements Variable {
   private final String name;
 
   Register(String name) {
+    if (name.startsWith("TRUE") || name.startsWith("FALSE") || name.startsWith("NA_")) {
+      throw new IllegalArgumentException("Illegal register name: " + name);
+    }
     this.name = name;
   }
 

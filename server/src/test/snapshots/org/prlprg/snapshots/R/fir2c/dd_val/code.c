@@ -1,8 +1,16 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -66,7 +74,7 @@ L0_:;
   Rsh_Fir_array_args1[0] = Rsh_Fir_reg_p;
   SEXP Rsh_Fir_array_arg_names[1];
   Rsh_Fir_array_arg_names[0] = Rsh_const(CCP, 2);
-  Rsh_Fir_reg_r4_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_new_env, 1, Rsh_Fir_array_args1, Rsh_Fir_array_arg_names, CCP, RHO);
+  Rsh_Fir_reg_r4_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_new_env, 1, Rsh_Fir_array_args1, Rsh_Fir_array_arg_names, RHO);
   // check L1() else D1()
   // L1()
   goto L1_;
@@ -143,6 +151,11 @@ L4_:;
   Rsh_Fir_reg_dx1_ = Rsh_Fir_reg_r9_;
   goto L2_;
 
+D2_:;
+  // deopt 12 []
+  Rsh_Fir_deopt(12, 0, NULL, CCP, RHO);
+  return R_NilValue;
+
 L5_:;
   // dx = getTryDispatchBuiltinValue(dr)
   SEXP Rsh_Fir_array_args6[1];
@@ -152,11 +165,6 @@ L5_:;
   // L2(dx)
   Rsh_Fir_reg_dx1_ = Rsh_Fir_reg_dx;
   goto L2_;
-
-D2_:;
-  // deopt 12 []
-  Rsh_Fir_deopt(12, 0, NULL, CCP, RHO);
-  return R_NilValue;
 
 L6_:;
   // p1 = prom<V +>{
@@ -175,7 +183,7 @@ L6_:;
   Rsh_Fir_array_arg_names1[0] = R_MissingArg;
   Rsh_Fir_array_arg_names1[1] = Rsh_const(CCP, 10);
   Rsh_Fir_array_arg_names1[2] = Rsh_const(CCP, 11);
-  Rsh_Fir_reg_r11_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_get, 3, Rsh_Fir_array_args8, Rsh_Fir_array_arg_names1, CCP, RHO);
+  Rsh_Fir_reg_r11_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_get, 3, Rsh_Fir_array_args8, Rsh_Fir_array_arg_names1, RHO);
   // check L7() else D3()
   // L7()
   goto L7_;
@@ -232,7 +240,7 @@ L1_:;
   // emptyenv = ldf emptyenv in base
   Rsh_Fir_reg_emptyenv = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 1), RHO);
   // r2 = dyn emptyenv()
-  Rsh_Fir_reg_r2_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_emptyenv, 0, NULL, NULL, CCP, RHO);
+  Rsh_Fir_reg_r2_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_emptyenv, 0, NULL, NULL, RHO);
   // goto L0(r2)
   // L0(r2)
   Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r2_;
@@ -240,7 +248,7 @@ L1_:;
 
 L2_:;
   // r = dyn base()
-  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 0, NULL, NULL, CCP, RHO);
+  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 0, NULL, NULL, RHO);
   // goto L0(r)
   // L0(r)
   Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r;
@@ -263,7 +271,4 @@ SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args7, Rsh_Fir_param_types_empty()));
   // return e1
   return Rsh_Fir_reg_e1_;
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

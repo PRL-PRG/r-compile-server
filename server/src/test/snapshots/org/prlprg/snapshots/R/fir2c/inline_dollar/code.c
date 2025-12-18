@@ -1,6 +1,14 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -120,31 +128,16 @@ L0_:;
   // L8()
   goto L8_;
 
-L1_:;
-  // list1 = ldf list in base
-  Rsh_Fir_reg_list1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 0), RHO);
-  // r5 = dyn list1(1.0, r3)
-  SEXP Rsh_Fir_array_args1[2];
-  Rsh_Fir_array_args1[0] = Rsh_const(CCP, 2);
-  Rsh_Fir_array_args1[1] = Rsh_Fir_reg_r3_;
-  SEXP Rsh_Fir_array_arg_names[2];
-  Rsh_Fir_array_arg_names[0] = R_MissingArg;
-  Rsh_Fir_array_arg_names[1] = R_MissingArg;
-  Rsh_Fir_reg_r5_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_list1_, 2, Rsh_Fir_array_args1, Rsh_Fir_array_arg_names, CCP, RHO);
-  // check L7() else D1()
-  // L7()
-  goto L7_;
-
 L2_:;
   // sym1 = ldf list
   Rsh_Fir_reg_sym1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
   // base1 = ldf list in base
   Rsh_Fir_reg_base1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 0), RHO);
   // guard1 = `==`.4(sym1, base1)
-  SEXP Rsh_Fir_array_args2[2];
-  Rsh_Fir_array_args2[0] = Rsh_Fir_reg_sym1_;
-  Rsh_Fir_array_args2[1] = Rsh_Fir_reg_base1_;
-  Rsh_Fir_reg_guard1_ = Rsh_Fir_builtin_eq_v4(CCP, RHO, 2, Rsh_Fir_array_args2);
+  SEXP Rsh_Fir_array_args1[2];
+  Rsh_Fir_array_args1[0] = Rsh_Fir_reg_sym1_;
+  Rsh_Fir_array_args1[1] = Rsh_Fir_reg_base1_;
+  Rsh_Fir_reg_guard1_ = Rsh_Fir_builtin_eq_v4(CCP, RHO, 2, Rsh_Fir_array_args1);
   // if guard1 then L4() else L5()
   if (Rsh_Fir_is_true(Rsh_Fir_reg_guard1_)) {
   // L4()
@@ -156,17 +149,39 @@ L2_:;
 
 L3_:;
   // r = dyn base[a, b](1.0, <lang list(c=2.0)>)
-  SEXP Rsh_Fir_array_args3[2];
-  Rsh_Fir_array_args3[0] = Rsh_const(CCP, 2);
-  Rsh_Fir_array_args3[1] = Rsh_const(CCP, 3);
-  SEXP Rsh_Fir_array_arg_names1[2];
-  Rsh_Fir_array_arg_names1[0] = Rsh_const(CCP, 4);
-  Rsh_Fir_array_arg_names1[1] = Rsh_const(CCP, 5);
-  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 2, Rsh_Fir_array_args3, Rsh_Fir_array_arg_names1, CCP, RHO);
+  SEXP Rsh_Fir_array_args2[2];
+  Rsh_Fir_array_args2[0] = Rsh_const(CCP, 2);
+  Rsh_Fir_array_args2[1] = Rsh_const(CCP, 3);
+  SEXP Rsh_Fir_array_arg_names[2];
+  Rsh_Fir_array_arg_names[0] = Rsh_const(CCP, 4);
+  Rsh_Fir_array_arg_names[1] = Rsh_const(CCP, 5);
+  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 2, Rsh_Fir_array_args2, Rsh_Fir_array_arg_names, RHO);
   // goto L0(r)
   // L0(r)
   Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r;
   goto L0_;
+
+D2_:;
+  // deopt 14 [xs]
+  SEXP Rsh_Fir_array_deopt_stack[1];
+  Rsh_Fir_array_deopt_stack[0] = Rsh_Fir_reg_xs;
+  Rsh_Fir_deopt(14, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
+  return R_NilValue;
+
+L1_:;
+  // list1 = ldf list in base
+  Rsh_Fir_reg_list1_ = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Base, Rsh_const(CCP, 0), RHO);
+  // r5 = dyn list1(1.0, r3)
+  SEXP Rsh_Fir_array_args3[2];
+  Rsh_Fir_array_args3[0] = Rsh_const(CCP, 2);
+  Rsh_Fir_array_args3[1] = Rsh_Fir_reg_r3_;
+  SEXP Rsh_Fir_array_arg_names1[2];
+  Rsh_Fir_array_arg_names1[0] = R_MissingArg;
+  Rsh_Fir_array_arg_names1[1] = R_MissingArg;
+  Rsh_Fir_reg_r5_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_list1_, 2, Rsh_Fir_array_args3, Rsh_Fir_array_arg_names1, RHO);
+  // check L7() else D1()
+  // L7()
+  goto L7_;
 
 L4_:;
   // list = ldf list in base
@@ -176,7 +191,7 @@ L4_:;
   Rsh_Fir_array_args4[0] = Rsh_const(CCP, 6);
   SEXP Rsh_Fir_array_arg_names2[1];
   Rsh_Fir_array_arg_names2[0] = R_MissingArg;
-  Rsh_Fir_reg_r4_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_list, 1, Rsh_Fir_array_args4, Rsh_Fir_array_arg_names2, CCP, RHO);
+  Rsh_Fir_reg_r4_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_list, 1, Rsh_Fir_array_args4, Rsh_Fir_array_arg_names2, RHO);
   // check L6() else D0()
   // L6()
   goto L6_;
@@ -187,44 +202,11 @@ L5_:;
   Rsh_Fir_array_args5[0] = Rsh_const(CCP, 6);
   SEXP Rsh_Fir_array_arg_names3[1];
   Rsh_Fir_array_arg_names3[0] = Rsh_const(CCP, 7);
-  Rsh_Fir_reg_r2_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base1_, 1, Rsh_Fir_array_args5, Rsh_Fir_array_arg_names3, CCP, RHO);
+  Rsh_Fir_reg_r2_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base1_, 1, Rsh_Fir_array_args5, Rsh_Fir_array_arg_names3, RHO);
   // goto L1(r2)
   // L1(r2)
   Rsh_Fir_reg_r3_ = Rsh_Fir_reg_r2_;
   goto L1_;
-
-D0_:;
-  // deopt 9 [r4]
-  SEXP Rsh_Fir_array_deopt_stack[1];
-  Rsh_Fir_array_deopt_stack[0] = Rsh_Fir_reg_r4_;
-  Rsh_Fir_deopt(9, 1, Rsh_Fir_array_deopt_stack, CCP, RHO);
-  return R_NilValue;
-
-L6_:;
-  // goto L1(r4)
-  // L1(r4)
-  Rsh_Fir_reg_r3_ = Rsh_Fir_reg_r4_;
-  goto L1_;
-
-D1_:;
-  // deopt 12 [r5]
-  SEXP Rsh_Fir_array_deopt_stack1[1];
-  Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_r5_;
-  Rsh_Fir_deopt(12, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
-  return R_NilValue;
-
-L7_:;
-  // goto L0(r5)
-  // L0(r5)
-  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r5_;
-  goto L0_;
-
-D2_:;
-  // deopt 14 [xs]
-  SEXP Rsh_Fir_array_deopt_stack2[1];
-  Rsh_Fir_array_deopt_stack2[0] = Rsh_Fir_reg_xs;
-  Rsh_Fir_deopt(14, 1, Rsh_Fir_array_deopt_stack2, CCP, RHO);
-  return R_NilValue;
 
 L8_:;
   // xs1 = force? xs
@@ -246,6 +228,32 @@ L8_:;
     Rsh_Fir_reg_xs3_ = Rsh_Fir_reg_xs1_;
     goto L11_;
   }
+
+D0_:;
+  // deopt 9 [r4]
+  SEXP Rsh_Fir_array_deopt_stack1[1];
+  Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_r4_;
+  Rsh_Fir_deopt(9, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
+  return R_NilValue;
+
+D1_:;
+  // deopt 12 [r5]
+  SEXP Rsh_Fir_array_deopt_stack2[1];
+  Rsh_Fir_array_deopt_stack2[0] = Rsh_Fir_reg_r5_;
+  Rsh_Fir_deopt(12, 1, Rsh_Fir_array_deopt_stack2, CCP, RHO);
+  return R_NilValue;
+
+L6_:;
+  // goto L1(r4)
+  // L1(r4)
+  Rsh_Fir_reg_r3_ = Rsh_Fir_reg_r4_;
+  goto L1_;
+
+L7_:;
+  // goto L0(r5)
+  // L0(r5)
+  Rsh_Fir_reg_r1_ = Rsh_Fir_reg_r5_;
+  goto L0_;
 
 L9_:;
   // xs4 = ld xs
@@ -284,6 +292,13 @@ L11_:;
   // L9()
   goto L9_;
 
+D3_:;
+  // deopt 17 [xs4]
+  SEXP Rsh_Fir_array_deopt_stack3[1];
+  Rsh_Fir_array_deopt_stack3[0] = Rsh_Fir_reg_xs4_;
+  Rsh_Fir_deopt(17, 1, Rsh_Fir_array_deopt_stack3, CCP, RHO);
+  return R_NilValue;
+
 L12_:;
   // dx = getTryDispatchBuiltinValue(dr)
   SEXP Rsh_Fir_array_args11[1];
@@ -292,13 +307,6 @@ L12_:;
   // goto L9()
   // L9()
   goto L9_;
-
-D3_:;
-  // deopt 17 [xs4]
-  SEXP Rsh_Fir_array_deopt_stack3[1];
-  Rsh_Fir_array_deopt_stack3[0] = Rsh_Fir_reg_xs4_;
-  Rsh_Fir_deopt(17, 1, Rsh_Fir_array_deopt_stack3, CCP, RHO);
-  return R_NilValue;
 
 L13_:;
   // xs5 = force? xs4
@@ -358,6 +366,13 @@ L16_:;
   // L14()
   goto L14_;
 
+D4_:;
+  // deopt 20 [xs8]
+  SEXP Rsh_Fir_array_deopt_stack4[1];
+  Rsh_Fir_array_deopt_stack4[0] = Rsh_Fir_reg_xs8_;
+  Rsh_Fir_deopt(20, 1, Rsh_Fir_array_deopt_stack4, CCP, RHO);
+  return R_NilValue;
+
 L17_:;
   // dx2 = getTryDispatchBuiltinValue(dr2)
   SEXP Rsh_Fir_array_args17[1];
@@ -366,13 +381,6 @@ L17_:;
   // goto L14()
   // L14()
   goto L14_;
-
-D4_:;
-  // deopt 20 [xs8]
-  SEXP Rsh_Fir_array_deopt_stack4[1];
-  Rsh_Fir_array_deopt_stack4[0] = Rsh_Fir_reg_xs8_;
-  Rsh_Fir_deopt(20, 1, Rsh_Fir_array_deopt_stack4, CCP, RHO);
-  return R_NilValue;
 
 L18_:;
   // xs9 = force? xs8
@@ -488,6 +496,13 @@ L25_:;
   // L23()
   goto L23_;
 
+D5_:;
+  // deopt 24 [xs12]
+  SEXP Rsh_Fir_array_deopt_stack5[1];
+  Rsh_Fir_array_deopt_stack5[0] = Rsh_Fir_reg_xs12_;
+  Rsh_Fir_deopt(24, 1, Rsh_Fir_array_deopt_stack5, CCP, RHO);
+  return R_NilValue;
+
 L26_:;
   // dx8 = getTryDispatchBuiltinValue(dr6)
   SEXP Rsh_Fir_array_args28[1];
@@ -496,13 +511,6 @@ L26_:;
   // goto L23()
   // L23()
   goto L23_;
-
-D5_:;
-  // deopt 24 [xs12]
-  SEXP Rsh_Fir_array_deopt_stack5[1];
-  Rsh_Fir_array_deopt_stack5[0] = Rsh_Fir_reg_xs12_;
-  Rsh_Fir_deopt(24, 1, Rsh_Fir_array_deopt_stack5, CCP, RHO);
-  return R_NilValue;
 
 L27_:;
   // xs13 = force? xs12
@@ -618,6 +626,13 @@ L34_:;
   // L32()
   goto L32_;
 
+D6_:;
+  // deopt 28 [xs16]
+  SEXP Rsh_Fir_array_deopt_stack6[1];
+  Rsh_Fir_array_deopt_stack6[0] = Rsh_Fir_reg_xs16_;
+  Rsh_Fir_deopt(28, 1, Rsh_Fir_array_deopt_stack6, CCP, RHO);
+  return R_NilValue;
+
 L35_:;
   // dx14 = getTryDispatchBuiltinValue(dr10)
   SEXP Rsh_Fir_array_args39[1];
@@ -626,13 +641,6 @@ L35_:;
   // goto L32()
   // L32()
   goto L32_;
-
-D6_:;
-  // deopt 28 [xs16]
-  SEXP Rsh_Fir_array_deopt_stack6[1];
-  Rsh_Fir_array_deopt_stack6[0] = Rsh_Fir_reg_xs16_;
-  Rsh_Fir_deopt(28, 1, Rsh_Fir_array_deopt_stack6, CCP, RHO);
-  return R_NilValue;
 
 L36_:;
   // xs17 = force? xs16
@@ -758,7 +766,4 @@ L44_:;
   // L41(dx20)
   Rsh_Fir_reg_dx21_ = Rsh_Fir_reg_dx20_;
   goto L41_;
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

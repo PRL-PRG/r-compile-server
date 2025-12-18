@@ -2,6 +2,7 @@ package org.prlprg.bc2c;
 
 import org.prlprg.bc.Bc;
 import org.prlprg.gen2c.CUnit;
+import org.prlprg.gen2c.CompiledClosure;
 
 class BC2CModule {
   private final CUnit cUnit = new CUnit();

@@ -1,6 +1,14 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -100,6 +108,13 @@ D0_:;
   Rsh_Fir_deopt(5, 2, Rsh_Fir_array_deopt_stack, CCP, RHO);
   return R_NilValue;
 
+D2_:;
+  // deopt 13 [s3]
+  SEXP Rsh_Fir_array_deopt_stack1[1];
+  Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_s3_;
+  Rsh_Fir_deopt(13, 1, Rsh_Fir_array_deopt_stack1, CCP, RHO);
+  return R_NilValue;
+
 L3_:;
   // s2 = force? s1
   Rsh_Fir_reg_s2_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_s1_);
@@ -113,27 +128,40 @@ L3_:;
   // L4()
   goto L4_;
 
+L5_:;
+  // s4 = force? s3
+  Rsh_Fir_reg_s4_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_s3_);
+  // checkMissing(s4)
+  SEXP Rsh_Fir_array_args6[1];
+  Rsh_Fir_array_args6[0] = Rsh_Fir_reg_s4_;
+  (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args6, Rsh_Fir_param_types_empty()));
+  // popenv
+  Rsh_Fir_pop_env(&RHO);
+  (void)(R_NilValue);
+  // return s4
+  return Rsh_Fir_reg_s4_;
+
 D1_:;
   // deopt 6 [i2, s2, i5]
-  SEXP Rsh_Fir_array_deopt_stack1[3];
-  Rsh_Fir_array_deopt_stack1[0] = Rsh_Fir_reg_i2_;
-  Rsh_Fir_array_deopt_stack1[1] = Rsh_Fir_reg_s2_;
-  Rsh_Fir_array_deopt_stack1[2] = Rsh_Fir_reg_i5_;
-  Rsh_Fir_deopt(6, 3, Rsh_Fir_array_deopt_stack1, CCP, RHO);
+  SEXP Rsh_Fir_array_deopt_stack2[3];
+  Rsh_Fir_array_deopt_stack2[0] = Rsh_Fir_reg_i2_;
+  Rsh_Fir_array_deopt_stack2[1] = Rsh_Fir_reg_s2_;
+  Rsh_Fir_array_deopt_stack2[2] = Rsh_Fir_reg_i5_;
+  Rsh_Fir_deopt(6, 3, Rsh_Fir_array_deopt_stack2, CCP, RHO);
   return R_NilValue;
 
 L4_:;
   // i6 = force? i5
   Rsh_Fir_reg_i6_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_i5_);
   // checkMissing(i6)
-  SEXP Rsh_Fir_array_args6[1];
-  Rsh_Fir_array_args6[0] = Rsh_Fir_reg_i6_;
-  (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args6, Rsh_Fir_param_types_empty()));
+  SEXP Rsh_Fir_array_args7[1];
+  Rsh_Fir_array_args7[0] = Rsh_Fir_reg_i6_;
+  (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args7, Rsh_Fir_param_types_empty()));
   // r = `+`(s2, i6)
-  SEXP Rsh_Fir_array_args7[2];
-  Rsh_Fir_array_args7[0] = Rsh_Fir_reg_s2_;
-  Rsh_Fir_array_args7[1] = Rsh_Fir_reg_i6_;
-  Rsh_Fir_reg_r = Rsh_Fir_call_builtin(66, RHO, 2, Rsh_Fir_array_args7);
+  SEXP Rsh_Fir_array_args8[2];
+  Rsh_Fir_array_args8[0] = Rsh_Fir_reg_s2_;
+  Rsh_Fir_array_args8[1] = Rsh_Fir_reg_i6_;
+  Rsh_Fir_reg_r = Rsh_Fir_call_builtin(66, RHO, 2, Rsh_Fir_array_args8);
   // st s = r
   Rsh_Fir_store(Rsh_const(CCP, 1), Rsh_Fir_reg_r, RHO);
   (void)(Rsh_Fir_reg_r);
@@ -141,27 +169,4 @@ L4_:;
   // L0(i2)
   Rsh_Fir_reg_i1_ = Rsh_Fir_reg_i2_;
   goto L0_;
-
-D2_:;
-  // deopt 13 [s3]
-  SEXP Rsh_Fir_array_deopt_stack2[1];
-  Rsh_Fir_array_deopt_stack2[0] = Rsh_Fir_reg_s3_;
-  Rsh_Fir_deopt(13, 1, Rsh_Fir_array_deopt_stack2, CCP, RHO);
-  return R_NilValue;
-
-L5_:;
-  // s4 = force? s3
-  Rsh_Fir_reg_s4_ = Rsh_Fir_maybe_force(Rsh_Fir_reg_s3_);
-  // checkMissing(s4)
-  SEXP Rsh_Fir_array_args8[1];
-  Rsh_Fir_array_args8[0] = Rsh_Fir_reg_s4_;
-  (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args8, Rsh_Fir_param_types_empty()));
-  // popenv
-  Rsh_Fir_pop_env(&RHO);
-  (void)(R_NilValue);
-  // return s4
-  return Rsh_Fir_reg_s4_;
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

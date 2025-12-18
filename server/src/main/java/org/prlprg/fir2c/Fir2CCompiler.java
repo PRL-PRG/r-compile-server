@@ -91,6 +91,7 @@ public final class Fir2CCompiler {
 
   static final String VAR_ENV = "RHO";
   static final String VAR_POOL = "CCP";
+  static final String VAR_SEXP_PARAMS_LIST = "PARAMS_LIST";
   static final String VAR_NPARAMS = "NPARAMS";
   static final String VAR_SEXP_PARAMS = "PARAMS";
   static final String VAR_SEXP_PARAM_TYPES = "PARAM_TYPES";
@@ -140,7 +141,9 @@ public final class Fir2CCompiler {
   private void compileNames() {
     for (var function : module.localFunctions()) {
       var dispatchCName = dispatchCFunctionName(function);
-      compiledFunctionDispatches.put(function, new FirCompiledDispatchIndex.Regular(dispatchCName));
+      var dispatchFromRName = dispatchCFunctionFromRName(function);
+      compiledFunctionDispatches.put(
+          function, new FirCompiledDispatchIndex.Regular(dispatchCName, dispatchFromRName));
 
       for (var versionIndex : function.versionIndices()) {
         var version = function.version(versionIndex);
@@ -155,6 +158,10 @@ public final class Fir2CCompiler {
     return mangler.unique("Rsh_Fir_user_function_%s", function.name().name());
   }
 
+  private String dispatchCFunctionFromRName(Function function) {
+    return mangler.unique("Rsh_Fir_user_function_from_R_%s", function.name().name());
+  }
+
   private String versionCFunctionName(Function function, int versionIndex) {
     return mangler.unique("Rsh_Fir_user_version_%s_v%d", function.name().name(), versionIndex);
   }
@@ -164,6 +171,7 @@ public final class Fir2CCompiler {
   // region compile definitions
   private void compileDefinitions() {
     for (var function : module.localFunctions()) {
+      compileDispatchFromRFunction(function);
       compileDispatchFunction(function);
 
       for (var versionIndex : function.versionIndices()) {
@@ -185,6 +193,37 @@ public final class Fir2CCompiler {
     }
   }
 
+  private void compileDispatchFromRFunction(Function function) {
+    var index = compiledFunctionDispatches.get(function);
+    assert index instanceof FirCompiledDispatchIndex.Regular
+        : "Can't compile " + function.name() + " because it's a builtin (index = " + index + ")";
+    var cName =
+        Objects.requireNonNull(((FirCompiledDispatchIndex.Regular) index).cFunctionFromRName());
+    var nativeDispatchCName = ((FirCompiledDispatchIndex.Regular) index).cFunctionName();
+
+    var cFunction = cUnit.addFunction("SEXP", cName, dispatchFromRCFunctionParameters);
+    var cBody = cFunction.add();
+
+    // Inlined the code to emit here because it's small
+    if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+      cBody.comment(
+          "FIR %s dynamic dispatch from R (%s)", function.name().name(), function.parameterNames());
+    }
+
+    if (options.contains(Option.CHECK_ARITY)) {
+      cBody.stmt(
+          "if (!TYPEOF(%s) == VECSXP) Rsh_error(\"FIŘ expected a list for params\");",
+          VAR_SEXP_PARAMS_LIST);
+    }
+
+    cBody.stmt("int %s = Rf_length(%s);", VAR_NPARAMS, VAR_SEXP_PARAMS_LIST);
+    cBody.stmt("SEXP const *%s = STDVEC_DATAPTR(%s);", VAR_SEXP_PARAMS, VAR_SEXP_PARAMS_LIST);
+
+    cBody.stmt(
+        "return %s(%s, %s, %s, %s, NULL);",
+        nativeDispatchCName, VAR_POOL, VAR_ENV, VAR_NPARAMS, VAR_SEXP_PARAMS);
+  }
+
   private void compileDispatchFunction(Function function) {
     var index = compiledFunctionDispatches.get(function);
     assert index instanceof FirCompiledDispatchIndex.Regular
@@ -194,6 +233,12 @@ public final class Fir2CCompiler {
     var cFunction = cUnit.addFunction("SEXP", cName, dispatchCFunctionParameters);
     new DispatchEmitter(function, cFunction);
   }
+
+  private static final List<String> dispatchFromRCFunctionParameters =
+      List.of(
+          "SEXP %s".formatted(VAR_POOL),
+          "SEXP %s".formatted(VAR_ENV),
+          "SEXP %s".formatted(VAR_SEXP_PARAMS_LIST));
 
   private static final List<String> dispatchCFunctionParameters =
       List.of(
@@ -237,7 +282,7 @@ public final class Fir2CCompiler {
   // region lookup
   private String dispatchPtrName(Function function) {
     if (!(compiledFunctionDispatch(function)
-        instanceof FirCompiledDispatchIndex.Regular(var cFunctionName))) {
+        instanceof FirCompiledDispatchIndex.Regular(var cFunctionName, var _))) {
       throw new UnsupportedOperationException(
           "Can't get dispatch function pointer of "
               + function.name()
@@ -729,7 +774,7 @@ public final class Fir2CCompiler {
               var paramTypes =
                   signature == null ? "Rsh_Fir_param_types_empty()" : emitSignature(signature);
               yield switch (dispatch) {
-                case FirCompiledDispatchIndex.Regular(var cFunctionName) ->
+                case FirCompiledDispatchIndex.Regular(var cFunctionName, var _) ->
                     "%s(%s, %s, %d, %s, %s)"
                         .formatted(
                             cFunctionName,

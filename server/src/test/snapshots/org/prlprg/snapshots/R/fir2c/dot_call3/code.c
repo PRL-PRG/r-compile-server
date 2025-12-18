@@ -1,4 +1,5 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
@@ -6,6 +7,13 @@ SEXP Rsh_Fir_user_promise_main1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
 SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_promise_main3(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_promise_main4(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -51,7 +59,7 @@ L0_:;
   SEXP Rsh_Fir_array_arg_names[2];
   Rsh_Fir_array_arg_names[0] = R_MissingArg;
   Rsh_Fir_array_arg_names[1] = R_MissingArg;
-  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg___, 2, Rsh_Fir_array_args, Rsh_Fir_array_arg_names, CCP, RHO);
+  Rsh_Fir_reg_r = Rsh_Fir_call_dynamic(Rsh_Fir_reg___, 2, Rsh_Fir_array_args, Rsh_Fir_array_arg_names, RHO);
   // check L1() else D1()
   // L1()
   goto L1_;
@@ -118,7 +126,7 @@ L1_:;
   Rsh_Fir_array_arg_names5[1] = Rsh_const(CCP, 15);
   Rsh_Fir_array_arg_names5[2] = Rsh_const(CCP, 16);
   Rsh_Fir_array_arg_names5[3] = Rsh_const(CCP, 17);
-  Rsh_Fir_reg_r13_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_r1_, 4, Rsh_Fir_array_args9, Rsh_Fir_array_arg_names5, CCP, RHO);
+  Rsh_Fir_reg_r13_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_r1_, 4, Rsh_Fir_array_args9, Rsh_Fir_array_arg_names5, RHO);
   // check L2() else D2()
   // L2()
   goto L2_;
@@ -183,7 +191,7 @@ L3_:;
   Rsh_Fir_array_arg_names6[14] = R_MissingArg;
   Rsh_Fir_array_arg_names6[15] = R_MissingArg;
   Rsh_Fir_array_arg_names6[16] = R_MissingArg;
-  Rsh_Fir_reg_r14_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_manyargs, 17, Rsh_Fir_array_args10, Rsh_Fir_array_arg_names6, CCP, RHO);
+  Rsh_Fir_reg_r14_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_manyargs, 17, Rsh_Fir_array_args10, Rsh_Fir_array_arg_names6, RHO);
   // check L4() else D4()
   // L4()
   goto L4_;
@@ -246,7 +254,7 @@ SEXP Rsh_Fir_user_promise_main(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **C
   SEXP Rsh_Fir_array_arg_names4[2];
   Rsh_Fir_array_arg_names4[0] = R_MissingArg;
   Rsh_Fir_array_arg_names4[1] = R_MissingArg;
-  Rsh_Fir_reg_r10_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_setNames, 2, Rsh_Fir_array_args7, Rsh_Fir_array_arg_names4, CCP, RHO);
+  Rsh_Fir_reg_r10_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_setNames, 2, Rsh_Fir_array_args7, Rsh_Fir_array_arg_names4, RHO);
   // return r10
   return Rsh_Fir_reg_r10_;
 }
@@ -294,7 +302,7 @@ L1_:;
   SEXP Rsh_Fir_array_arg_names1[2];
   Rsh_Fir_array_arg_names1[0] = R_MissingArg;
   Rsh_Fir_array_arg_names1[1] = R_MissingArg;
-  Rsh_Fir_reg_r4_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_rep, 2, Rsh_Fir_array_args3, Rsh_Fir_array_arg_names1, CCP, RHO);
+  Rsh_Fir_reg_r4_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_rep, 2, Rsh_Fir_array_args3, Rsh_Fir_array_arg_names1, RHO);
   // goto L0(r4)
   // L0(r4)
   Rsh_Fir_reg_r3_ = Rsh_Fir_reg_r4_;
@@ -308,7 +316,7 @@ L2_:;
   SEXP Rsh_Fir_array_arg_names2[2];
   Rsh_Fir_array_arg_names2[0] = R_MissingArg;
   Rsh_Fir_array_arg_names2[1] = R_MissingArg;
-  Rsh_Fir_reg_r2_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 2, Rsh_Fir_array_args4, Rsh_Fir_array_arg_names2, CCP, RHO);
+  Rsh_Fir_reg_r2_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_base, 2, Rsh_Fir_array_args4, Rsh_Fir_array_arg_names2, RHO);
   // goto L0(r2)
   // L0(r2)
   Rsh_Fir_reg_r3_ = Rsh_Fir_reg_r2_;
@@ -336,7 +344,7 @@ SEXP Rsh_Fir_user_promise_main2(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   SEXP Rsh_Fir_array_arg_names3[2];
   Rsh_Fir_array_arg_names3[0] = R_MissingArg;
   Rsh_Fir_array_arg_names3[1] = R_MissingArg;
-  Rsh_Fir_reg_r8_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_paste0_, 2, Rsh_Fir_array_args6, Rsh_Fir_array_arg_names3, CCP, RHO);
+  Rsh_Fir_reg_r8_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_paste0_, 2, Rsh_Fir_array_args6, Rsh_Fir_array_arg_names3, RHO);
   // return r8
   return Rsh_Fir_reg_r8_;
 }
@@ -371,7 +379,4 @@ SEXP Rsh_Fir_user_promise_main4(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **
   (void)(Rsh_Fir_intrinsic_checkMissing(CCP, RHO, 1, Rsh_Fir_array_args8, Rsh_Fir_param_types_empty()));
   // return src1
   return Rsh_Fir_reg_src1_;
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }

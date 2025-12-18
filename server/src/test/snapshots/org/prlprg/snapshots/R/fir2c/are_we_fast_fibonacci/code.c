@@ -1,10 +1,19 @@
 #include <runtime.h>
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_main_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
+SEXP Rsh_Fir_user_function_from_R_inner4266987626_(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST);
 SEXP Rsh_Fir_user_function_inner4266987626_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES);
 SEXP Rsh_Fir_user_version_inner4266987626_v0_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS);
 SEXP Rsh_Fir_user_promise_inner4266987626_(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
 SEXP Rsh_Fir_user_promise_inner4266987626_1(SEXP CCP, SEXP RHO, int NCAPTURES, SEXP const **CAPTURES);
+SEXP Rsh_Fir_user_function_from_R_main(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR main dynamic dispatch from R ([])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_main(CCP, RHO, NPARAMS, PARAMS, NULL);
+}
 SEXP Rsh_Fir_user_function_main(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR main dynamic dispatch ([])
 
@@ -45,7 +54,7 @@ L0_:;
   Rsh_Fir_array_args[0] = Rsh_const(CCP, 1);
   SEXP Rsh_Fir_array_arg_names[1];
   Rsh_Fir_array_arg_names[0] = R_MissingArg;
-  Rsh_Fir_reg_r1_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_fibonacci, 1, Rsh_Fir_array_args, Rsh_Fir_array_arg_names, CCP, RHO);
+  Rsh_Fir_reg_r1_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_fibonacci, 1, Rsh_Fir_array_args, Rsh_Fir_array_arg_names, RHO);
   // check L1() else D1()
   // L1()
   goto L1_;
@@ -63,6 +72,13 @@ L1_:;
   (void)(R_NilValue);
   // return r1
   return Rsh_Fir_reg_r1_;
+}
+SEXP Rsh_Fir_user_function_from_R_inner4266987626_(SEXP CCP, SEXP RHO, SEXP PARAMS_LIST) {
+  // FIR inner4266987626 dynamic dispatch from R ([n])
+  if (!TYPEOF(PARAMS_LIST) == VECSXP) Rsh_error("FIŘ expected a list for params");
+  int NPARAMS = Rf_length(PARAMS_LIST);
+  SEXP const *PARAMS = STDVEC_DATAPTR(PARAMS_LIST);
+  return Rsh_Fir_user_function_inner4266987626_(CCP, RHO, NPARAMS, PARAMS, NULL);
 }
 SEXP Rsh_Fir_user_function_inner4266987626_(SEXP CCP, SEXP RHO, int NPARAMS, SEXP const *PARAMS, Rsh_Fir_Type const *PARAM_TYPES) {
   // FIR inner4266987626 dynamic dispatch ([n])
@@ -105,13 +121,6 @@ SEXP Rsh_Fir_user_version_inner4266987626_v0_(SEXP CCP, SEXP RHO, int NPARAMS, S
   // L2()
   goto L2_;
 
-L0_:;
-  // fibonacci = ldf fibonacci
-  Rsh_Fir_reg_fibonacci1 = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
-  // check L7() else D2()
-  // L7()
-  goto L7_;
-
 D0_:;
   // deopt 0 [n1]
   SEXP Rsh_Fir_array_deopt_stack1[1];
@@ -144,6 +153,13 @@ L2_:;
     goto L0_;
   }
 
+L0_:;
+  // fibonacci = ldf fibonacci
+  Rsh_Fir_reg_fibonacci1 = Rsh_Fir_load_fun(Rsh_Fir_LoadFun_Local, Rsh_const(CCP, 0), RHO);
+  // check L7() else D2()
+  // L7()
+  goto L7_;
+
 L3_:;
   // n3 = ld n
   Rsh_Fir_reg_n3_ = Rsh_Fir_load(Rsh_const(CCP, 2), RHO);
@@ -156,6 +172,11 @@ D1_:;
   SEXP Rsh_Fir_array_deopt_stack2[1];
   Rsh_Fir_array_deopt_stack2[0] = Rsh_Fir_reg_n3_;
   Rsh_Fir_deopt(4, 1, Rsh_Fir_array_deopt_stack2, CCP, RHO);
+  return R_NilValue;
+
+D2_:;
+  // deopt 10 []
+  Rsh_Fir_deopt(10, 0, NULL, CCP, RHO);
   return R_NilValue;
 
 L4_:;
@@ -171,11 +192,6 @@ L4_:;
   // return n4
   return Rsh_Fir_reg_n4_;
 
-D2_:;
-  // deopt 10 []
-  Rsh_Fir_deopt(10, 0, NULL, CCP, RHO);
-  return R_NilValue;
-
 L7_:;
   // p = prom<V +>{
   //   n5 = ld n;
@@ -190,7 +206,7 @@ L7_:;
   Rsh_Fir_array_args7[0] = Rsh_Fir_reg_p;
   SEXP Rsh_Fir_array_arg_names1[1];
   Rsh_Fir_array_arg_names1[0] = R_MissingArg;
-  Rsh_Fir_reg_r5_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_fibonacci1, 1, Rsh_Fir_array_args7, Rsh_Fir_array_arg_names1, CCP, RHO);
+  Rsh_Fir_reg_r5_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_fibonacci1, 1, Rsh_Fir_array_args7, Rsh_Fir_array_arg_names1, RHO);
   // check L8() else D3()
   // L8()
   goto L8_;
@@ -230,7 +246,7 @@ L9_:;
   Rsh_Fir_array_args10[0] = Rsh_Fir_reg_p1_;
   SEXP Rsh_Fir_array_arg_names2[1];
   Rsh_Fir_array_arg_names2[0] = R_MissingArg;
-  Rsh_Fir_reg_r8_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_fibonacci1_, 1, Rsh_Fir_array_args10, Rsh_Fir_array_arg_names2, CCP, RHO);
+  Rsh_Fir_reg_r8_ = Rsh_Fir_call_dynamic(Rsh_Fir_reg_fibonacci1_, 1, Rsh_Fir_array_args10, Rsh_Fir_array_arg_names2, RHO);
   // check L10() else D5()
   // L10()
   goto L10_;
@@ -302,7 +318,4 @@ SEXP Rsh_Fir_user_promise_inner4266987626_1(SEXP CCP, SEXP RHO, int NCAPTURES, S
   Rsh_Fir_reg_r6_ = Rsh_Fir_call_builtin(67, RHO, 2, Rsh_Fir_array_args9);
   // return r6
   return Rsh_Fir_reg_r6_;
-}
-SEXP Rsh_Fir_snapshot_entrypoint(SEXP RHO, SEXP CCP) {
-  return Rsh_Fir_user_function_main(CCP, RHO, 0, NULL, NULL);
 }
