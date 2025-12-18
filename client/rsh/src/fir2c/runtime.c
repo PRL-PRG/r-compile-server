@@ -678,14 +678,6 @@ SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
   return result;
 }
 
-SEXP Rsh_Fir_call_from_R(SEXP calleeName, SEXP args, SEXP pool, SEXP env) {
-  const char *name = CHAR(STRING_ELT(calleeName, 0));
-
-
-
-  return result;
-}
-
 int Rsh_Fir_is_true(SEXP value) {
   int logical = Rf_asLogical(value);
   if (logical == NA_LOGICAL) {

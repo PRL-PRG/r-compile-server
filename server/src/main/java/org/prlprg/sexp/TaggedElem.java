@@ -11,7 +11,8 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /** An R "list" element which consists of an optional string tag (name) and SEXP value. */
 public record TaggedElem(String tag, SEXP value) {
-  public static final TaggedElem DOTS = new TaggedElem(SEXPs.DOTS_SYMBOL);
+  public static final TaggedElem DOTS_FORMAL = new TaggedElem("...", SEXPs.MISSING_ARG);
+  public static final TaggedElem DOTS_ARGUMENT = new TaggedElem(SEXPs.DOTS_SYMBOL);
 
   /** Create a {@link TaggedElem} with an optional (if non-empty) tag and value. */
   public TaggedElem {

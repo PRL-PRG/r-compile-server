@@ -212,8 +212,8 @@ public final class Fir2CCompiler {
 
     if (options.contains(Option.CHECK_ARITY)) {
       cBody.stmt(
-          "if (!TYPEOF(%s) == VECSXP) Rsh_error(\"FIŘ expected a list for params\");",
-          VAR_SEXP_PARAMS_LIST);
+          "if (TYPEOF(%s) != VECSXP) { Rf_PrintValue(%s); Rsh_error(\"FIŘ expected a list for params\"); }",
+          VAR_SEXP_PARAMS_LIST, VAR_SEXP_PARAMS_LIST);
     }
 
     cBody.stmt("int %s = Rf_length(%s);", VAR_NPARAMS, VAR_SEXP_PARAMS_LIST);
