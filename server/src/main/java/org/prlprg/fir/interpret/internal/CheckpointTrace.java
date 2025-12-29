@@ -4,7 +4,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /// Computed and records an [InternalInterpreter]'s state at deoptimization point when reaching each
 /// [`Checkpoint` instruction][org.prlprg.fir.ir.instruction.Checkpoint].

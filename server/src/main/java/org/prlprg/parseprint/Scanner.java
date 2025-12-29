@@ -12,7 +12,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.util.Characters;
 import org.prlprg.util.Strings;
 import org.prlprg.util.ThrowingSupplier;

@@ -19,7 +19,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
 import java.util.stream.Gatherer;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public class Streams {
   /// Keeps yielding elements by calling `supplier` until it returns `null`.

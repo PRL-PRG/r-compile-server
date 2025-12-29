@@ -1,7 +1,7 @@
 package org.prlprg.fir.check;
 
 import com.google.common.collect.Iterables;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;

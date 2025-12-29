@@ -1,7 +1,7 @@
 package org.prlprg.util;
 
 import java.util.Iterator;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /** Call a function to generate the next elements, stop when said function returns {@code null}. */
 public class UntilNullIterator<T> implements Iterator<T> {

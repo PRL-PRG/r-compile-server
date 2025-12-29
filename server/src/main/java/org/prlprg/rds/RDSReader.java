@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
 import com.google.protobuf.ByteString;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,7 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.*;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
@@ -533,7 +532,6 @@ public class RDSReader implements Closeable {
     return SEXPs.string(strings.build(), attributes);
   }
 
-  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private UserEnvSXP readEnv() throws IOException {
     var item = new UserEnvSXP();
     refTable.add(item);

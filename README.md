@@ -67,18 +67,13 @@ If you have a different issue than the above, [report it on GitHub](https://gith
 
 In this project, all values are considered non-null unless specified as `@Nullable`.
 
-To enforce this, every package must have a `package-info.json` with the following code:
+To enforce this, every package must have a `package-info.java` with the following code:
 
 ```java
-@ParametersAreNonnullByDefault
-@FieldsAreNonNullByDefault
-@ReturnTypesAreNonNullByDefault
+@NullMarked
 package org.prlprg.<package-name>;
 
-import org.prlprg.util.FieldsAreNonNullByDefault;
-import org.prlprg.util.ReturnTypesAreNonNullByDefault;
-
-import javax.annotation.ParametersAreNonnullByDefault;
+import org.jspecify.annotations.NullMarked;
 ```
 
-In IntelliJ you can simply copy `package-info.json` from any package into the new one and it will automatically change the package path.
+In IntelliJ you can simply copy `package-info.java` from any package into the new one and it will automatically change the package path.

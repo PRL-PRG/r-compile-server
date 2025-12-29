@@ -25,7 +25,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.util.Classes;
 import org.prlprg.util.Files;
 import org.prlprg.util.InvalidAnnotationError;

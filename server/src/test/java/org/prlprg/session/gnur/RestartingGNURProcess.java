@@ -1,6 +1,6 @@
 package org.prlprg.session.gnur;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.session.RSession;
 import org.prlprg.session.TestRSession;
 import org.prlprg.sexp.EnvSXP;

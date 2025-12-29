@@ -3,7 +3,7 @@ package org.prlprg.fir.ir.cfg.cursor;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
 
 import com.google.common.collect.ImmutableList;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Goto;

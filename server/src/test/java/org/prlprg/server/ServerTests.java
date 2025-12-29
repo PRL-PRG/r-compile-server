@@ -10,7 +10,7 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import java.io.IOException;
 import java.time.Duration;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +24,7 @@ public class ServerTests {
 
   private @Nullable Server server;
   private @Nullable ManagedChannel channel;
-  private @Nullable CompileServiceGrpc.CompileServiceBlockingStub blockingStub;
+  private CompileServiceGrpc.@Nullable CompileServiceBlockingStub blockingStub;
 
   @BeforeEach
   public void setupServer() throws IOException {

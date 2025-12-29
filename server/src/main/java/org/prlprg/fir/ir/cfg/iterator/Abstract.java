@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.cfg.BB;
 
 /// Abstract iterator over a [CFG](org.prlprg.fir.ir.cfg.CFG)'s basic blocks.

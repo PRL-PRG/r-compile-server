@@ -2,7 +2,7 @@ package org.prlprg.fir.interpret.internal;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;

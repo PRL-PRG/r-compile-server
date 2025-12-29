@@ -2,7 +2,7 @@ package org.prlprg.fir.ir.phi;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;

@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.server.Messages;
@@ -115,7 +115,7 @@ public class GNURSession implements RSession {
 
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
-    @Nullable var pkgDir = resolvePaths(name);
+    var pkgDir = resolvePaths(name);
     if (pkgDir == null) {
       installPackage(name);
       pkgDir = resolvePaths(name);

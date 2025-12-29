@@ -7,7 +7,7 @@ import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.List;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgReachability;

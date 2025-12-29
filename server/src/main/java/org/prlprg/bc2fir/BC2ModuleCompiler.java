@@ -1,6 +1,6 @@
 package org.prlprg.bc2fir;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.CloSXP;
