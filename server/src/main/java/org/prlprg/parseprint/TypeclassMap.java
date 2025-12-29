@@ -13,7 +13,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.util.Classes;
 import org.prlprg.util.InvalidAnnotationError;
 import org.prlprg.util.Pair;

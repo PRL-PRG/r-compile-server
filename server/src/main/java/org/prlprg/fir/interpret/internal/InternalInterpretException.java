@@ -3,7 +3,7 @@ package org.prlprg.fir.interpret.internal;
 import static org.prlprg.fir.interpret.internal.PrintStack.printStack;
 
 import java.util.List;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.GlobalEnvSXP;

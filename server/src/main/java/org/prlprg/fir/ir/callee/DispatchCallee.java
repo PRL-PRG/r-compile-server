@@ -1,6 +1,6 @@
 package org.prlprg.fir.ir.callee;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.parseprint.PrintMethod;

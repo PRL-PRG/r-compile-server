@@ -1,6 +1,6 @@
 package org.prlprg.fir.check;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.module.Function;
 

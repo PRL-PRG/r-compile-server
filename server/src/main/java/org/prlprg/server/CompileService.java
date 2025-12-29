@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;

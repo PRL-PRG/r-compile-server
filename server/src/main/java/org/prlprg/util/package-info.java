@@ -1,7 +1,5 @@
 /** Misc stuff which could go in any package. */
-@ParametersAreNonnullByDefault
-@FieldsAreNonNullByDefault
-@ReturnTypesAreNonNullByDefault
+@NullMarked
 package org.prlprg.util;
 
-import javax.annotation.ParametersAreNonnullByDefault;
+import org.jspecify.annotations.NullMarked;

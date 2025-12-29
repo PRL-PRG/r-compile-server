@@ -1,6 +1,6 @@
 package org.prlprg.bc2fir;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 

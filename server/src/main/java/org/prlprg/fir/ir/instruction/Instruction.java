@@ -1,7 +1,7 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.Comments;

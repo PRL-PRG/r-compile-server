@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.EnvSXP;

@@ -4,7 +4,7 @@ import static org.prlprg.sexp.ArgumentMatcher.matchArgumentNames;
 
 import com.google.common.collect.ImmutableList;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;

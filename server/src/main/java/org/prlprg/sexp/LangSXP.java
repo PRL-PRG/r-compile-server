@@ -2,7 +2,7 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;

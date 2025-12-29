@@ -5,7 +5,7 @@ import static org.prlprg.fir.opt.Cleanup.removingJumpArgument;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;

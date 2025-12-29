@@ -7,7 +7,7 @@ import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public class Strings {
   @SafeVarargs

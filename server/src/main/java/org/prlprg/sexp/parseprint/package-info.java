@@ -4,11 +4,7 @@
  * SEXPPrintOptions} and {@link org.prlprg.sexp.parseprint.SEXPParseContext SEXPParseContext} that
  * can be used to customize said parsing/printing.
  */
-@ParametersAreNonnullByDefault
-@FieldsAreNonNullByDefault
-@ReturnTypesAreNonNullByDefault
+@NullMarked
 package org.prlprg.sexp.parseprint;
 
-import javax.annotation.ParametersAreNonnullByDefault;
-import org.prlprg.util.FieldsAreNonNullByDefault;
-import org.prlprg.util.ReturnTypesAreNonNullByDefault;
+import org.jspecify.annotations.NullMarked;

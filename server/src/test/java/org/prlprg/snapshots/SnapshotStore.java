@@ -2,7 +2,7 @@ package org.prlprg.snapshots;
 
 import java.nio.file.Path;
 import java.util.HashMap;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.opentest4j.TestAbortedException;
 import org.prlprg.TestConfig;
 import org.prlprg.examples.Example;

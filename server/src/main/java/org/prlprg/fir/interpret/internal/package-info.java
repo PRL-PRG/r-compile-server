@@ -1,9 +1,5 @@
 /// Evaluate FIŘ programs by providing definitions.
-@ParametersAreNonnullByDefault
-@FieldsAreNonNullByDefault
-@ReturnTypesAreNonNullByDefault
+@NullMarked
 package org.prlprg.fir.interpret.internal;
 
-import javax.annotation.ParametersAreNonnullByDefault;
-import org.prlprg.util.FieldsAreNonNullByDefault;
-import org.prlprg.util.ReturnTypesAreNonNullByDefault;
+import org.jspecify.annotations.NullMarked;

@@ -1,6 +1,6 @@
 package org.prlprg.fir.interpret;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.SEXP;

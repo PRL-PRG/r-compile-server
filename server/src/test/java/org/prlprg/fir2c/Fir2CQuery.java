@@ -2,7 +2,7 @@ package org.prlprg.fir2c;
 
 import static org.prlprg.fir2c.Fir2CCompiler.compile;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.opt.Optimization;

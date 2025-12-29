@@ -2,7 +2,7 @@ package org.prlprg.fir.ir.type;
 
 import java.util.Objects;
 import java.util.logging.Logger;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.type.Kind.AnyValue;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;

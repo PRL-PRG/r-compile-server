@@ -1,6 +1,5 @@
 package org.prlprg.parseprint;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -27,5 +26,4 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
-@SuppressFBWarnings("UPM_UNCALLED_PRIVATE_METHOD")
 public @interface PrintMethod {}
