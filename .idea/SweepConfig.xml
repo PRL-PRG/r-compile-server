@@ -63,5 +63,6 @@
         </entry>
       </map>
     </option>
+    <option name="noEntitiesCache" value="true" />
   </component>
 </project>
