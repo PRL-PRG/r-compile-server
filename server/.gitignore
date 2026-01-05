@@ -1,5 +1,4 @@
-src/test/snapshots/**/*.fail*
-src/test/snapshots/**/*.so*
+src/test/snapshots
 !src/test/resources/**/*.log
 .config.properties
 
