@@ -1,5 +1,5 @@
 # Set these env vars for macOS
-# Also need a custom ~/R/Makevars which uses clang, -std=c++17, and includes/links homebrew
+# Also need a custom ~/.R/Makevars which uses clang, -std=c++17, and includes/links homebrew
 # LLVM_DIR = /opt/homebrew/Cellar/llvm@17/17.0.6
 # LLVM_CONFIG = $(LLVM_DIR)/bin/llvm-config
 LLVM_DIR ?= /opt/llvm

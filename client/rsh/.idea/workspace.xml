@@ -19,14 +19,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/../../.idea/SweepConfig.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../../.idea/SweepConfig.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../.idea/r-compile-server.iml" beforeDir="false" afterPath="$PROJECT_DIR$/../../.idea/r-compile-server.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/../../AGENTS.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../external/R-debug" beforeDir="false" afterPath="$PROJECT_DIR$/../../external/R-debug" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../external/R-debug/configure" beforeDir="false" afterPath="$PROJECT_DIR$/../../external/R-debug/configure" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../external/R-debug/tools/ltmain.sh" beforeDir="false" afterPath="$PROJECT_DIR$/../../external/R-debug/tools/ltmain.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../external/R-debug/tools/missing" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/R/rsh.R" beforeDir="false" afterPath="$PROJECT_DIR$/R/rsh.R" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/Makevars" beforeDir="false" afterPath="$PROJECT_DIR$/src/Makevars" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/gen2c/eval.R" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/gen2c/eval.R" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/add/bindings.RDS" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/add/code.c" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/add2/bindings.RDS" beforeDir="false" />
@@ -45,190 +43,6 @@
       <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/are_we_fast_permute/code.c" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/are_we_fast_queens/bindings.RDS" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/are_we_fast_queens/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/are_we_fast_sieve/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/are_we_fast_sieve/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/are_we_fast_towers/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/are_we_fast_towers/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/arith_builtins/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/arith_builtins/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/arith_builtins2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/arith_builtins2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/break_in_inner_loop/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/break_in_inner_loop/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/break_in_outer_loop/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/break_in_outer_loop/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/builtins_inlining/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/builtins_inlining/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/builtins_inlining2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/builtins_inlining2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/builtins_inlining3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/builtins_inlining3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/call/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/call/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/closure/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/closure/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/colon/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/colon/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/complex_assign/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/complex_assign/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/complex_nested_structure/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/complex_nested_structure/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_add/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_add/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_add2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_add2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_c/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_c/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_c2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_c2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_mul/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_mul/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_mul2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_mul2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_named_c/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/constant_fold_named_c/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dd_val/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dd_val/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dd_val2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dd_val2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/deopt_branch_feedback/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/deopt_branch_feedback/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/deopt_cumulative_prefix/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/deopt_cumulative_prefix/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/deopt_simple_array_for/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/deopt_simple_array_for/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subassign/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subassign/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subassign2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subassign2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subassign3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subassign3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subset/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subset/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subset2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dflt_subset2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dispatch_operations/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dispatch_operations/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/do_dots/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/do_dots/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dollar/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dollar/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dollar2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dollar2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dollar_gets/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dollar_gets/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dot_call/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dot_call/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dot_call2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dot_call2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dot_call3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/dot_call3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/empty_block/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/empty_block/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/empty_list/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/empty_list/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for4/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for4/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for5/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for5/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for6/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for6/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for7/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for7/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for_with_return/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/for_with_return/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/function_inlining/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/function_inlining/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/function_left_paren_inlining/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/function_left_paren_inlining/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/function_left_paren_inlining2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/function_left_paren_inlining2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/get_int_builtin/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/get_int_builtin/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/getter_calls/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/getter_calls/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/getter_calls2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/getter_calls2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/getter_calls3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/getter_calls3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else4/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/if_else4/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics4/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics4/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics5/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_arithmetics5/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_assign1/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_assign1/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_assign2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_assign2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_assign3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_assign3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_builtins_internal/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_builtins_internal/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_builtins_internal2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_builtins_internal2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dollar/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dollar/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dollar_assign/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dollar_assign/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dot_call/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dot_call/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dot_call2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_dot_call2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_for/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_for/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_for2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_for2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_identical/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_identical/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_int_generating_sequences/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_int_generating_sequences/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_is_xyz/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_is_xyz/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_local/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_local/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and3/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and_or/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and_or/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and_or2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_and_or2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_or/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_or/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_or2/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_or2/code.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_or3/bindings.RDS" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/snapshots/org/prlprg/snapshots/R/fir2c/inline_logical_or3/code.c" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -284,33 +98,33 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.RadMigrateCodeStyle": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "dev.sweep.assistant.data.RecentlyUsedFiles": "src/fir2c/runtime.c;src/fir2c/runtime.h",
-    "git-widget-placeholder": "fir",
-    "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "/Users/jakobeha/Documents/grad/research/r-compile-server/client/rsh",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "preferences.pluginManager",
-    "sweep.chatMode": "Agent",
-    "to.speed.mode.migration.done": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.RadMigrateCodeStyle&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;dev.sweep.assistant.data.RecentlyUsedFiles&quot;: &quot;src/fir2c/runtime.c;src/fir2c/runtime.h&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;fir&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/jakobeha/Documents/grad/research/r-compile-server/client/rsh&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;sweep.chatMode&quot;: &quot;Agent&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration default="true" type="tests" factoryName="Autodetect">
       <option name="ENV_FILES" value="" />
@@ -570,6 +384,9 @@
       <workItem from="1766063556900" duration="99000" />
       <workItem from="1766066114145" duration="76000" />
       <workItem from="1766066215502" duration="393000" />
+      <workItem from="1766069995954" duration="61000" />
+      <workItem from="1767612099326" duration="99000" />
+      <workItem from="1767612213643" duration="3066000" />
     </task>
     <servers />
   </component>
