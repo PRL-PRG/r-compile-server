@@ -28,12 +28,13 @@ public sealed interface Instruction permits Statement, Jump {
   @ParseMethod
   private static Instruction parse(Parser p, ParseContext _ctx) {
     var s = p.scanner();
-    if (s.nextCharsAre("check ")
-        || s.nextCharsAre("deopt ")
-        || s.nextCharsAre("if ")
-        || s.nextCharsAre("goto ")
-        || s.nextCharsAre("return ")
-        || s.nextCharsAre("unreachable")) {
+    if ((s.nextCharsAre("check ") && !s.nextCharsAre("check ="))
+        || (s.nextCharsAre("deopt ") && !s.nextCharsAre("deopt ="))
+        || (s.nextCharsAre("if ") && !s.nextCharsAre("if ="))
+        || (s.nextCharsAre("goto ") && !s.nextCharsAre("goto ="))
+        || (s.nextCharsAre("return ") && !s.nextCharsAre("return ="))
+        || (s.nextCharsAre("unreachable ") && !s.nextCharsAre("unreachable ="))
+        || s.nextCharsAre("unreachable;")) {
       return p.parse(Jump.class);
     } else {
       return p.parse(Statement.class);

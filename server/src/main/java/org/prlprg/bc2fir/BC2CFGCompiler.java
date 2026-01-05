@@ -239,6 +239,7 @@ public class BC2CFGCompiler {
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
+  private boolean mayBeUnreachable = false;
   private final CFGCursor cursor;
   private int numDeopts = 0;
   private final List<Argument> stack = new ArrayList<>();
@@ -442,35 +443,25 @@ public class BC2CFGCompiler {
   // region compile instructions
   private void addBcInstrIrInstrs(BcInstr instr) {
     switch (instr) {
-      case BcInstr.Return() -> {
+      case BcInstr.Return(), ReturnJmp() -> {
         var retVal = pop();
         assertStackForReturn();
-
-        // For whatever reason, this is necessary to keep the stack balanced.
-        push(new Constant(SEXPs.NULL));
 
         if (!cfg.isPromise()) {
           insert(new PopEnv());
         }
         insert(_ -> new Return(retVal));
+        mayBeUnreachable = true;
       }
       case BcInstr.Goto(var label) -> {
         var bb = bbAt(label);
-
-        // For whatever reason, this is necessary to keep the stack balanced.
-        // This is probably an inlined `Return`.
-        if (!cursor.bb().isEntry()
-            && cursor.bb().predecessors().isEmpty()
-            && bc.code().get(bcPos - 1) instanceof BcInstr.Goto) {
-          push(new Constant(SEXPs.NULL));
-        }
-
         insert(_ -> goto_(bb));
+        mayBeUnreachable = true;
       }
       case BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
         var cond = pop();
-        var condCasted = insertAndReturn("c", builtin("as.logical", cond));
+        var condCasted = insertAndReturn("c", builtin("as.logical", 1, cond));
         insert(next -> branch(condCasted, next, bb));
       }
       case Pop() -> pop();
@@ -503,6 +494,8 @@ public class BC2CFGCompiler {
         // `StartLoopCntxt`, so a label should exist here.
         var bodyBb = bbAfterCurrent();
         var endBb = bbAt(end);
+
+        ensurePhiInputsForStack(endBb);
 
         pushWhileOrRepeatLoop(bodyBb, endBb);
       }
@@ -851,23 +844,23 @@ public class BC2CFGCompiler {
       case MatSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 4);
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert("c", builtin("as.logical", pop()));
+        pushInsert("c", builtin("as.logical", 1, pop()));
         var cond = top();
         insert(next -> branch(cond, next, shortCircuitBb));
       }
       case And2nd(var _) -> {
-        pushInsert("c", builtin("as.logical", pop()));
+        pushInsert("c", builtin("as.logical", 1, pop()));
         pushInsert("c", mkBinop("&&"));
         insert(this::goto_);
       }
       case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert("c", builtin("as.logical", pop()));
+        pushInsert("c", builtin("as.logical", 1, pop()));
         var cond = top();
         insert(next -> branch(cond, shortCircuitBb, next));
       }
       case Or2nd(var _) -> {
-        pushInsert("c", builtin("as.logical", pop()));
+        pushInsert("c", builtin("as.logical", 1, pop()));
         pushInsert("c", mkBinop("||"));
         insert(this::goto_);
       }
@@ -923,16 +916,6 @@ public class BC2CFGCompiler {
         var value2 = top();
         push(value);
         push(value2);
-      }
-      case ReturnJmp() -> {
-        var retVal = pop();
-        assertStackForReturn();
-        // ???: non-local return?
-        // ???: Do we need to push `NULL` like in `BcInstr.Return`?
-        if (!cfg.isPromise()) {
-          insert(new PopEnv());
-        }
-        insert(_ -> new Return(retVal));
       }
       case Switch(var _, var namesIdx, var chrLabelsIdx, var numLabelsIdx) -> {
         var names = namesIdx == null ? null : get(namesIdx);
@@ -999,8 +982,10 @@ public class BC2CFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
+              var asString = insertAndReturn("i", new Cast(value, Type.STRING));
               var cond =
-                  insertAndReturn("c", builtin("==", 3, value, new Constant(SEXPs.string(name))));
+                  insertAndReturn(
+                      "c", builtin("==", 3, asString, new Constant(SEXPs.string(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -1017,11 +1002,7 @@ public class BC2CFGCompiler {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var dotsList =
-              insertAndReturn(
-                  "i_ddd",
-                  new MkVector(new Kind.Dots(), ImmutableList.of(new NamedArgument(value))));
-          var asInteger = insertAndReturn("i", builtin("as.integer", dotsList));
+          var asInteger = insertAndReturn("i", builtin("as.integer", 1, value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
@@ -1401,18 +1382,28 @@ public class BC2CFGCompiler {
       var numParameters = bb.phiParameters().size();
       var numArguments = stack.size();
       if (numParameters != numArguments) {
-        throw fail(
-            "BB stack mismatch: "
-                + bb.label()
-                + " has "
-                + numParameters
-                + " phis but we have "
-                + numArguments
-                + " arguments");
+        if (mayBeUnreachable && numParameters == numArguments + 1) {
+          // This happens when the bytecode compiler compiles `break` or `next`.
+          // It inserts a goto instead of pushing a value, making the stack imbalanced,
+          // but the imbalance is never an issue because it's only in unreachable code.
+          stack.add(new Constant(SEXPs.NULL));
+        } else if (mayBeUnreachable && numParameters == numArguments - 1) {
+          // Something similar happens in `repeat({ if (x) next() else y })`.
+          stack.removeLast();
+        } else {
+          throw fail(
+              "BB stack mismatch: "
+                  + bb.label()
+                  + " has "
+                  + numParameters
+                  + " phis but we have "
+                  + numArguments
+                  + " arguments");
+        }
       }
 
       // Union phi types
-      for (var i = 0; i < numParameters; i++) {
+      for (var i = 0; i < Math.min(numParameters, numArguments); i++) {
         var phi = bb.phiParameters().get(i);
         var arg = stack.get(i);
 
@@ -1568,6 +1559,11 @@ public class BC2CFGCompiler {
   /// The bytecode is stack-based and IR is SSA-form, see [#push(Argument)] for more
   /// explanation.
   private Argument pop() {
+    if (stack.isEmpty() && mayBeUnreachable) {
+      // See `ensurePhiInputsForStack` comment.
+      return new Constant(SEXPs.NULL);
+    }
+
     require(!stack.isEmpty(), () -> "node stack underflow");
     return stack.removeLast();
   }

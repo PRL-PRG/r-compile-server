@@ -99,7 +99,7 @@ public final class NilSXP implements ListSXP, DotsListSXP {
   }
 
   @Override
-  public ListSXP fromIndex(int fromIndex) {
+  public NilSXP fromIndex(int fromIndex) {
     if (fromIndex == 0) {
       return this;
     } else {

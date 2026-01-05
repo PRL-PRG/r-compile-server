@@ -179,6 +179,8 @@ public class SnapshotStore {
     T computed;
     try {
       computed = query.oracle(example, this);
+    } catch (SkipQueryException e) {
+      throw new SkipQueryException(query.name(), e);
     } catch (Exception | Error e) {
       throw new MissingSnapshotException(query.name(), e);
     }

@@ -137,7 +137,7 @@ abstract class Config {
     return value != null ? Boolean.parseBoolean(value) : defaultValue;
   }
 
-  private @Nullable String get(String name) {
+  protected @Nullable String get(String name) {
     var fromEnv = System.getenv(name);
     if (fromEnv != null) {
       return fromEnv;

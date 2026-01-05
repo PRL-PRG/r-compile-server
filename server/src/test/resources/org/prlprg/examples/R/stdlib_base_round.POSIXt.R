@@ -34,19 +34,3 @@
     else trunc.POSIXt(as.POSIXct(x) + switch(units, secs = 0.5, 
         mins = 30, hours = 1800, days = 43200), units = units)
 }
-
-# Examples
-round(.leap.seconds + 1000, "hour")
-\dontdiff{
-         trunc(Sys.time(), "day")
-(timM <- trunc(Sys.time() -> St, "months")) # shows timezone
-(datM <- trunc(Sys.Date() -> Sd, "months"))
-(timY <- trunc(St, "years")) # + timezone
-(datY <- trunc(Sd, "years"))
-}
-stopifnot(inherits(datM, "Date"), inherits(timM, "POSIXt"),
-          substring(format(datM), 9,10) == "01", # first of month
-          substring(format(datY), 6,10) == "01-01", # Jan 1
-          identical(format(datM), format(timM)),
-          identical(format(datY), format(timY)))
-

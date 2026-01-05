@@ -1,28 +1,24 @@
 package org.prlprg.gen2c;
 
-import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.LangSXP;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
-import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.VecSXP;
 
 public record CompiledClosure(String cName, VecSXP constantPool) {
-  public static CompiledClosure fromSexp(CloSXP sexp) {
-    return new CompiledClosure(
-        ((StrSXP) ((LangSXP) sexp.body()).arg(0)).get(0), (VecSXP) ((LangSXP) sexp.body()).arg(1));
+  public static CompiledClosure fromSexp(SEXP sexp) {
+    if (!(sexp instanceof VecSXP s)
+        || s.size() != 2
+        || !(s.get(0) instanceof StrSXP cName)
+        || cName.size() != 1
+        || !(s.get(1) instanceof VecSXP constantPool)) {
+      throw new IllegalArgumentException(
+          "Expected VecSXP of length 2 with first element StrSXP of length 1 and second element VecSXP");
+    }
+    return new CompiledClosure(cName.get(0), constantPool);
   }
 
-  public CloSXP asSexp(EnvSXP enclos) {
-    return SEXPs.closure(
-        SEXPs.list(TaggedElem.DOTS_FORMAL),
-        SEXPs.lang(
-            SEXPs.symbol(".Call"),
-            SEXPs.string(cName),
-            constantPool,
-            enclos,
-            SEXPs.lang(SEXPs.symbol("list"), TaggedElem.DOTS_ARGUMENT)),
-        enclos);
+  public SEXP asSexp() {
+    return SEXPs.vec(SEXPs.string(cName), constantPool);
   }
 }

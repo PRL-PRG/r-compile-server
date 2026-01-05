@@ -9,14 +9,9 @@ if (length(args) > 0) {
 library(rsh)
 
 dyn.load("code.so")
-env <- readRDS("bindings.RDS")
-
-sapply(ls(env), function(x) get(x, envir = env))
-
-parent.env(env) <- globalenv()
 
 invisible(.Call("Rsh_initialize_runtime"))
-res <- env$main()
+res <- .Call("Rsh_eval_main")
 pc <- .Call("Rsh_pc_get")
 
 dyn.unload("code.so")

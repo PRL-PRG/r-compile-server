@@ -57,7 +57,7 @@ public class BCQuery implements Query<Bc> {
 
     var bodySexp = impl.run(R, "function() { " + example.text() + " }", optimizationLevel);
     if (!(bodySexp instanceof BCodeSXP bcSxp)) {
-      throw new SkipQueryException();
+      throw new SkipQueryException(name());
     }
     return bcSxp.bc();
   }

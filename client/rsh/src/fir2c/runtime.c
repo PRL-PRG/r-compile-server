@@ -300,23 +300,15 @@ SEXP Rsh_Fir_load(SEXP symbol, SEXP env) {
   return value;
 }
 
-static SEXP Rsh_Fir_find_fun(SEXP symbol, SEXP env) {
-  SEXP fun = Rf_findFun(symbol, env);
-  if (fun == R_UnboundValue) {
-    Rf_error("Unbound function");
-  }
-  return fun;
-}
-
 SEXP Rsh_Fir_load_fun(int env_selector, SEXP symbol, SEXP env) {
   Rsh_Fir_assert_symbol(symbol, "load_fun");
   switch (env_selector) {
   case Rsh_Fir_LoadFun_Local:
-    return Rsh_Fir_find_fun(symbol, env);
+    return Rf_findFun(symbol, env);
   case Rsh_Fir_LoadFun_Global:
-    return Rsh_Fir_find_fun(symbol, R_GlobalEnv);
+    return Rf_findFun(symbol, R_GlobalEnv);
   case Rsh_Fir_LoadFun_Base:
-    return Rsh_Fir_find_fun(symbol, R_BaseEnv);
+    return Rf_findFun(symbol, R_BaseEnv);
   default:
     Rf_error("Invalid environment selector for load_fun");
   }
@@ -815,4 +807,16 @@ DEFINE_OVERRIDDEN_BUILTIN(eq, 4) {
 
 DEFINE_OVERRIDDEN_BUILTIN(missing, 0) {
   return args[0] == R_MissingArg ? R_TrueValue : R_FalseValue;
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(asInteger, 1) {
+  return Rf_ScalarInteger(Rf_asInteger(args[0]));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(asLogical, 1) {
+  return Rf_ScalarLogical(Rf_asLogical(args[0]));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(asCharacter, 1) {
+  return Rf_ScalarString(Rf_asChar(args[0]));
 }

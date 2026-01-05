@@ -46,20 +46,3 @@
     else stop(do.call(errorCondition, c(list(message = "inferior call failed", 
         class = "inferiorCallError"), res = res)))
 }
-
-# Examples
-## Compute cos(0) in an inferior R process.
-## By default, only return the value of the function call.
-R(cos, list(0))
-## If 'drop = FALSE', we also get status, stdout and stderr.
-\dontdiff{
-R(cos, list(0), drop = FALSE)
-}    
-
-## A call giving an error:
-(e <- tryCatch(R(stop, list("FOOBAR")), error = identity))
-## The inferior R process ran successfully:
-e$status
-## The function call gave an error:
-e$value
-

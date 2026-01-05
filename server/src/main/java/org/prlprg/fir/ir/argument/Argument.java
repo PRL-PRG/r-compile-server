@@ -23,6 +23,7 @@ public sealed interface Argument permits Constant, Read, Use {
         || s.nextCharsAre("FALSE")
         || s.nextCharsAre("NA_")
         || s.nextCharSatisfies(Character::isDigit)
+        || s.nextCharIs('+')
         || s.nextCharIs('-')
         || s.nextCharIs('\"')
         || s.nextCharIs('<')) {
