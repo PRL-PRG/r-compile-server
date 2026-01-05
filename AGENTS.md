@@ -44,9 +44,13 @@ Written in Java 24. Uses Maven.
 - Assume non-null by default. Explicitly annotate with `@Nullable` (from `org.jspecify.annotations`) when necessary.
 - Annotate immutable collections with `@Unmodifiable` (from `org.jetbrains.annotations`), and readonly views of collections with `@UnmodifiableView` (from `org.jetbrains.annotations`)
 - Use maintained dependencies, not deprecated or superseded ones (though dependencies should also be reliable).
-- Use context7 to find the latest documentation for the Java Standard Library (OpenJDK, `/websites/devdocs_io_openjdk`) and dependencies.
 
 The code is Google style, use `spotless` to reformat. Use the Jetbrains MCP server to lint.
+
+#### Project-specific conventions
+
+- The compiler must be non-deterministic. In particular, prefer `LinkedHashSet`/`LinkedHashMap` over `HashSet`/`HashMap`, only using the non-linked variants if they are never iterated on.
+- If the user asks to write tests and the implementation is buggy, fix the implementation and test that the bug is fixed.
 
 ### Dependencies
 
@@ -114,3 +118,10 @@ At `./external/R` (release version) and `./external/R-debug` (debug version).
 At `./tools`.
 
 Tools that are automatically invoked by Makefiles and other code. Don't invoke directly.
+
+---
+
+## MCP Servers
+
+- **Context7**: use it to find the latest documentation for the Java Standard Library (OpenJDK, `/websites/devdocs_io_openjdk`) and dependencies (e.g. Google Guava)
+- **Jetbrains MCP**: use it to rename symbols, look up signature/documentation, and list file problems

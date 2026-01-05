@@ -1,8 +1,8 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
-import org.jspecify.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Expression;

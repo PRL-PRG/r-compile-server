@@ -1,7 +1,7 @@
 package org.prlprg.fir.ir.argument;
 
-import org.jspecify.annotations.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;

@@ -11,6 +11,8 @@ library(rsh)
 dyn.load("code.so")
 env <- readRDS("bindings.RDS")
 
+sapply(ls(env), function(x) get(x, envir = env))
+
 parent.env(env) <- globalenv()
 
 invisible(.Call("Rsh_initialize_runtime"))
