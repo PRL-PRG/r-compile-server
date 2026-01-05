@@ -380,13 +380,18 @@ fun length(x) {
   (reg x:V) --> I { ... }
 }
 
-fun `as.logical`(x) {
-  (reg x:*) -+> L { ... }
+fun `as.integer`(x, `...`) {
+  (reg x:*, reg ddd:dots) -+> I { ... }
+  (reg x:V) --> I { ... }
+}
+
+fun `as.logical`(x, `...`) {
+  (reg x:*, reg ddd:dots) -+> L { ... }
   (reg x:V) --> L { ... }
 }
 
-fun `as.character`(x) {
-  (reg x:*) -+> S { ... }
+fun `as.character`(x, `...`) {
+  (reg x:*, reg ddd:dots) -+> S { ... }
   (reg x:V) --> S { ... }
 }
 

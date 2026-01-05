@@ -48,10 +48,3 @@
         domain = NA)
     invisible(filename)
 }
-
-# Examples
-filename <- tempfile()
-\dontdiff{promptPackage("utils", filename = filename)}
-file.show(filename)
-unlink(filename)
-

@@ -5,12 +5,3 @@
     names(res) <- names
     res
 }
-
-# Examples
-fa <- file.access(dir("."))
-\dontdiff{
-table(fa) # count successes & failures
-
-
-}
-

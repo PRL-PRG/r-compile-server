@@ -31,7 +31,7 @@ public class BC2CQuery implements CompiledModuleQuery {
     try {
       return BC2CCompiler.compile(bc, "main", compilePromises);
     } catch (UnsupportedBcInstrException e) {
-      throw new SkipQueryException(e);
+      throw new SkipQueryException("bc2c", e);
     }
   }
 }

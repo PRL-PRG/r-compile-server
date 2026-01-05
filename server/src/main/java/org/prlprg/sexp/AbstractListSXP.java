@@ -50,6 +50,8 @@ public sealed interface AbstractListSXP extends ListOrVectorSXP<TaggedElem>
   default SEXP value(int i) {
     return get(i).value();
   }
+
+  AbstractListSXP fromIndex(int fromIndex);
 }
 
 abstract sealed class AbstractListSXPImpl permits ListSXPImpl, DotsListSXPImpl {

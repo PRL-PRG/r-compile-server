@@ -73,7 +73,10 @@ public record FirCompiledModule(
             Map.entry("+", "add"),
             Map.entry("<", "lt"),
             Map.entry("==", "eq"),
-            Map.entry("missing", "missing"));
+            Map.entry("missing", "missing"),
+            Map.entry("as.integer", "as_integer"),
+            Map.entry("as.logical", "as_logical"),
+            Map.entry("as.character", "as_character"));
 
     public static FirCompiledVersionIndex builtin(Function function, Abstraction version) {
       var name = function.name().name();

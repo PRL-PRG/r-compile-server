@@ -136,7 +136,8 @@ public class RDSReader implements Closeable {
             case NIL -> SEXPs.NULL;
             case SYM -> readSymbol();
             case CLO -> readClosure(flags);
-            case LIST -> readList(flags);
+            case LIST -> readList(flags, SEXPType.LIST);
+            case DOT -> readList(flags, SEXPType.DOT);
             case INT -> readInts(flags);
             case REAL -> readReals(flags);
             case LGL -> readLogicals(flags);
@@ -618,20 +619,27 @@ public class RDSReader implements Closeable {
     return SEXPs.integer(data, attributes);
   }
 
-  private ListSXP readList(Flags flags) throws IOException {
+  private AbstractListSXP readList(Flags flags, SEXPType listType) throws IOException {
+    var listTypeDesc = listType.name().toLowerCase();
+
     var data = ImmutableList.<TaggedElem>builder();
     Attributes attributes = null;
 
     while (!flags.getType().isSexp(SEXPType.NIL)) {
-      if (!flags.getType().isSexp(SEXPType.LIST)) {
-        throw new RDSException("Expected list (reading in the middle or at the end of a list)");
+      if (!flags.getType().isSexp(listType)) {
+        throw new RDSException(
+            "Expected "
+                + listTypeDesc
+                + " (reading in the middle or at the end of a "
+                + listTypeDesc
+                + ")");
       }
       if (attributes == null) {
         attributes = readAttributes(flags);
       } else {
         var discard = readAttributes(flags);
         if (!discard.isEmpty()) {
-          throw new RDSException("Unexpected attributes in the middle of a list");
+          throw new RDSException("Unexpected attributes in the middle of a " + listTypeDesc);
         }
       }
 
@@ -643,7 +651,11 @@ public class RDSReader implements Closeable {
     }
 
     // TODO: add the attributes here?
-    return SEXPs.list(data.build());
+    return switch (listType) {
+      case LIST -> SEXPs.list(data.build());
+      case DOT -> SEXPs.dots(data.build());
+      default -> throw new IllegalArgumentException("Unhandled list type: " + listType);
+    };
   }
 
   private CloSXP readClosure(Flags flags) throws IOException {

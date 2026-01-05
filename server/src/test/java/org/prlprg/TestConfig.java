@@ -14,7 +14,10 @@ public class TestConfig extends Config {
   ///
   /// This is **unset** by default.
   public static final Pattern IGNORE_SNAPSHOTS =
-      Pattern.compile(INSTANCE.get("IGNORE_SNAPSHOTS", "$^"));
+      Pattern.compile(
+          INSTANCE.get("IGNORE_SNAPSHOTS") == "true"
+              ? ".*"
+              : INSTANCE.get("IGNORE_SNAPSHOTS", "$^"));
 
   /// A regex. If set, filters tested examples according to the regular expression (on path).
   public static final Pattern EXAMPLE_FILTER =

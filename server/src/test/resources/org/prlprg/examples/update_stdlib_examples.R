@@ -32,7 +32,7 @@ for (pkg in c("base", "tools", "utils", "graphics", "methods", "stats")) {
 
     # Process function
     examples <- db_examples[match(name, db_names)][[1]]
-    if (length(examples) == 0 || grepl("\\donttest{", examples, fixed = TRUE)) {
+    if (length(examples) == 0 || grepl("\\\\dont\\w+\\{", examples)) {
       examples <- NULL
     }
     filename <- file.path("R", paste0("stdlib_", pkg, "_", sub("[\\/:\n]", "_", name), ".R"))
