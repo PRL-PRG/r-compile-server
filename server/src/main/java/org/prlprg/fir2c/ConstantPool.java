@@ -14,7 +14,7 @@ final class ConstantPool {
     return indices.computeIfAbsent(sexp, _ -> indices.size());
   }
 
-  public VecSXP asVecSxp() {
+  public VecSXP toSexp() {
     return SEXPs.vec(indices.keySet().toArray(SEXP[]::new));
   }
 }

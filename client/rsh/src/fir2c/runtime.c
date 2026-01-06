@@ -5,79 +5,58 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct Rsh_Fir_ClosureInfo {
-  Rsh_Fir_DispatchFn dispatch;
+typedef struct Fir_ClosureInfo {
+  Fir_DispatchFn dispatch;
   SEXP env;
   SEXP pool;
-} Rsh_Fir_ClosureInfo;
+} Fir_ClosureInfo;
 
-typedef struct Rsh_Fir_PromiseInfo {
-  Rsh_Fir_PromiseFn evaluate;
+typedef struct Fir_PromiseInfo {
+  Fir_PromiseFn evaluate;
   SEXP env;
   SEXP pool;
   int ncaptures;
   SEXP const **captures;
   int forced;
   SEXP value;
-} Rsh_Fir_PromiseInfo;
+} Fir_PromiseInfo;
 
-static Rsh_Fir_Kind const KIND_ANY = {.tag = RSH_FIR_KIND_ANY};
-static Rsh_Fir_Kind const KIND_ANY_VALUE = {.tag = RSH_FIR_KIND_ANY_VALUE};
-static Rsh_Fir_Kind const KIND_CLOSURE = {.tag = RSH_FIR_KIND_CLOSURE};
-static Rsh_Fir_Kind const KIND_DOTS = {.tag = RSH_FIR_KIND_DOTS};
+Fir_Kind Fir_kind_any = {.tag = FIR_KIND_ANY};
+Fir_Kind Fir_kind_anyValue = {.tag = FIR_KIND_ANY_VALUE};
+Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
+Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
 
-Rsh_Fir_Kind const *Rsh_Fir_kind_any = &KIND_ANY;
-Rsh_Fir_Kind const *Rsh_Fir_kind_anyValue = &KIND_ANY_VALUE;
-Rsh_Fir_Kind const *Rsh_Fir_kind_closure = &KIND_CLOSURE;
-Rsh_Fir_Kind const *Rsh_Fir_kind_dots = &KIND_DOTS;
-
-static Rsh_Fir_Kind const PRIMITIVE_SCALAR_KINDS[4] = {
-    {.tag = RSH_FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_LOGICAL}},
-    {.tag = RSH_FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_INTEGER}},
-    {.tag = RSH_FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_REAL}},
-    {.tag = RSH_FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_STRING}},
+static Fir_Kind const PRIMITIVE_SCALAR_KINDS[4] = {
+    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
+    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
+    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
+    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
 
-static Rsh_Fir_Kind const PRIMITIVE_VECTOR_KINDS[4] = {
-    {.tag = RSH_FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_LOGICAL}},
-    {.tag = RSH_FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_INTEGER}},
-    {.tag = RSH_FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_REAL}},
-    {.tag = RSH_FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = RSH_FIR_PRIMITIVE_STRING}},
+static Fir_Kind const PRIMITIVE_VECTOR_KINDS[4] = {
+    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
+    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
+    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
+    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
 
-typedef struct PromiseKindNode {
-  Rsh_Fir_Kind kind;
-  Rsh_Fir_Type const *value_type;
-  int reflect;
-  struct PromiseKindNode *next;
-} PromiseKindNode;
+static SEXP Fir_ClosureTag = NULL;
+static SEXP Fir_PromiseTag = NULL;
 
-static PromiseKindNode *PROMISE_KIND_CACHE = NULL;
-
-typedef struct TypeNode {
-  Rsh_Fir_Type type;
-  struct TypeNode *next;
-} TypeNode;
-
-static TypeNode *TYPE_CACHE = NULL;
-
-static SEXP Rsh_Fir_ClosureTag = NULL;
-static SEXP Rsh_Fir_PromiseTag = NULL;
-
-static void Rsh_Fir_init_tags(void) {
-  if (!Rsh_Fir_ClosureTag) {
-    Rsh_Fir_ClosureTag = Rf_install("Rsh_Fir_Closure");
+static void Fir_init_tags(void) {
+  if (!Fir_ClosureTag) {
+    Fir_ClosureTag = Rf_install("Fir_Closure");
   }
-  if (!Rsh_Fir_PromiseTag) {
-    Rsh_Fir_PromiseTag = Rf_install("Rsh_Fir_Promise");
+  if (!Fir_PromiseTag) {
+    Fir_PromiseTag = Rf_install("Fir_Promise");
   }
 }
 
-static void Rsh_Fir_closure_finalizer(SEXP ext) {
+static void Fir_closure_finalizer(SEXP ext) {
   if (TYPEOF(ext) != EXTPTRSXP) {
     return;
   }
-  Rsh_Fir_ClosureInfo *info = R_ExternalPtrAddr(ext);
+  Fir_ClosureInfo *info = R_ExternalPtrAddr(ext);
   if (!info) {
     return;
   }
@@ -91,11 +70,11 @@ static void Rsh_Fir_closure_finalizer(SEXP ext) {
   R_ClearExternalPtr(ext);
 }
 
-static void Rsh_Fir_promise_finalizer(SEXP ext) {
+static void Fir_promise_finalizer(SEXP ext) {
   if (TYPEOF(ext) != EXTPTRSXP) {
     return;
   }
-  Rsh_Fir_PromiseInfo *info = R_ExternalPtrAddr(ext);
+  Fir_PromiseInfo *info = R_ExternalPtrAddr(ext);
   if (!info) {
     return;
   }
@@ -113,78 +92,47 @@ static void Rsh_Fir_promise_finalizer(SEXP ext) {
   R_ClearExternalPtr(ext);
 }
 
-Rsh_Fir_Kind const *Rsh_Fir_kind_primitiveScalar(int primitive_kind) {
+Fir_Kind Fir_kind_primitiveScalar(int primitive_kind) {
   if (primitive_kind < 0 || primitive_kind >= 4) {
     Rf_error("Invalid primitive scalar kind index %d", primitive_kind);
   }
-  return &PRIMITIVE_SCALAR_KINDS[primitive_kind];
+  return PRIMITIVE_SCALAR_KINDS[primitive_kind];
 }
 
-Rsh_Fir_Kind const *Rsh_Fir_kind_primitiveVector(int primitive_kind) {
+Fir_Kind Fir_kind_primitiveVector(int primitive_kind) {
   if (primitive_kind < 0 || primitive_kind >= 4) {
     Rf_error("Invalid primitive vector kind index %d", primitive_kind);
   }
-  return &PRIMITIVE_VECTOR_KINDS[primitive_kind];
+  return PRIMITIVE_VECTOR_KINDS[primitive_kind];
 }
 
-Rsh_Fir_Kind const *Rsh_Fir_kind_promise(Rsh_Fir_Type const *value_type,
-                                         bool reflect) {
-  PromiseKindNode *node = PROMISE_KIND_CACHE;
-  while (node) {
-    if (node->value_type == value_type && node->reflect == (int)reflect) {
-      return &node->kind;
-    }
-    node = node->next;
-  }
-  node = (PromiseKindNode *)calloc(1, sizeof(PromiseKindNode));
-  node->kind.tag = RSH_FIR_KIND_PROMISE;
-  node->kind.as.promise.value_type = value_type;
-  node->kind.as.promise.reflect = reflect ? 1 : 0;
-  node->value_type = value_type;
-  node->reflect = reflect ? 1 : 0;
-  node->next = PROMISE_KIND_CACHE;
-  PROMISE_KIND_CACHE = node;
-  return &node->kind;
+Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect) {
+  return (Fir_Kind){.tag = FIR_KIND_PROMISE, .as.promise.value_type = value_type, .as.promise.reflect = reflect};
 }
 
-Rsh_Fir_Type const *Rsh_Fir_type(Rsh_Fir_Kind const *kind, int ownership,
-                                 bool definite) {
-  TypeNode *node = TYPE_CACHE;
-  while (node) {
-    if (node->type.kind == kind && node->type.ownership == ownership &&
-        node->type.definite == (int)definite) {
-      return &node->type;
-    }
-    node = node->next;
-  }
-  node = (TypeNode *)calloc(1, sizeof(TypeNode));
-  node->type.kind = kind;
-  node->type.ownership = ownership;
-  node->type.definite = definite ? 1 : 0;
-  node->next = TYPE_CACHE;
-  TYPE_CACHE = node;
-  return &node->type;
+Fir_Type Fir_type(Fir_Kind kind, int ownership, bool definite) {
+  return (Fir_Type){.kind = kind, .ownership = ownership, .definite = definite};
 }
 
-Rsh_Fir_Type const *Rsh_Fir_param_types_empty(void) {
-  return NULL;
+Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types) {
+  return (Fir_Signature){.return_type = return_type, .param_count = param_count, .param_types = param_types};
 }
 
-static void Rsh_Fir_assert_symbol(SEXP sym, const char *what) {
+static void Fir_assert_symbol(SEXP sym, const char *what) {
   if (TYPEOF(sym) != SYMSXP) {
     Rf_error("Expected a symbol for %s", what);
   }
 }
 
-static int Rsh_Fir_is_compiled_closure(SEXP value,
-                                       Rsh_Fir_ClosureInfo **info) {
+static int Fir_is_compiled_closure(SEXP value,
+                                       Fir_ClosureInfo **info) {
   if (TYPEOF(value) != EXTPTRSXP) {
     return 0;
   }
-  if (R_ExternalPtrTag(value) != Rsh_Fir_ClosureTag) {
+  if (R_ExternalPtrTag(value) != Fir_ClosureTag) {
     return 0;
   }
-  Rsh_Fir_ClosureInfo *ptr = R_ExternalPtrAddr(value);
+  Fir_ClosureInfo *ptr = R_ExternalPtrAddr(value);
   if (!ptr) {
     return 0;
   }
@@ -194,15 +142,14 @@ static int Rsh_Fir_is_compiled_closure(SEXP value,
   return 1;
 }
 
-static int Rsh_Fir_is_compiled_promise(SEXP value,
-                                       Rsh_Fir_PromiseInfo **info) {
+static int Fir_is_compiled_promise(SEXP value, Fir_PromiseInfo **info) {
   if (TYPEOF(value) != EXTPTRSXP) {
     return 0;
   }
-  if (R_ExternalPtrTag(value) != Rsh_Fir_PromiseTag) {
+  if (R_ExternalPtrTag(value) != Fir_PromiseTag) {
     return 0;
   }
-  Rsh_Fir_PromiseInfo *ptr = R_ExternalPtrAddr(value);
+  Fir_PromiseInfo *ptr = R_ExternalPtrAddr(value);
   if (!ptr) {
     return 0;
   }
@@ -212,84 +159,84 @@ static int Rsh_Fir_is_compiled_promise(SEXP value,
   return 1;
 }
 
-static int Rsh_Fir_value_matches(SEXP value, Rsh_Fir_Type const *type) {
-  if (!type || !type->kind) {
-    return 1;
+static bool Fir_value_matches(SEXP value, Fir_Type type) {
+  if (!type || !type.kind) {
+    return true;
   }
-  switch (type->kind->tag) {
-  case RSH_FIR_KIND_ANY:
-  case RSH_FIR_KIND_ANY_VALUE:
-    return 1;
-  case RSH_FIR_KIND_PRIMITIVE_SCALAR: {
-    SEXPTYPE expected =
-        type->kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_LOGICAL
-            ? LGLSXP
-        : type->kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_INTEGER
-            ? INTSXP
-        : type->kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_REAL
-            ? REALSXP
-            : STRSXP;
+  switch (type.kind.tag) {
+  case FIR_KIND_ANY:
+  case FIR_KIND_ANY_VALUE:
+    return true;
+  case FIR_KIND_PRIMITIVE_SCALAR: {
+    SEXPTYPE expected
+        = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+        : STRSXP;
     if (TYPEOF(value) != expected) {
-      return 0;
+      return false;
     }
     return Rf_length(value) == 1;
   }
-  case RSH_FIR_KIND_PRIMITIVE_VECTOR: {
-    SEXPTYPE expected =
-        type->kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_LOGICAL
-            ? LGLSXP
-        : type->kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_INTEGER
-            ? INTSXP
-        : type->kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_REAL
-            ? REALSXP
-            : STRSXP;
+  case FIR_KIND_PRIMITIVE_VECTOR: {
+    SEXPTYPE expected
+        = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+        : STRSXP;
     return TYPEOF(value) == expected;
   }
-  case RSH_FIR_KIND_CLOSURE:
+  case FIR_KIND_CLOSURE:
     return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP ||
            TYPEOF(value) == SPECIALSXP;
-  case RSH_FIR_KIND_DOTS:
+  case FIR_KIND_DOTS:
     return TYPEOF(value) == DOTSXP;
-  case RSH_FIR_KIND_PROMISE:
-    if (Rsh_Fir_is_compiled_promise(value, NULL)) {
-      return 1;
+  case FIR_KIND_PROMISE:
+    Fir_PromiseInfo *info;
+    if (Fir_is_compiled_promise(value, &info)) {
+      // TODO: check inner promise type via `info`.
+      return true;
     }
-    return TYPEOF(value) == PROMSXP;
+    if (TYPEOF(value) == PROMSXP) {
+      // GNU-R promise. We have no information on the inner type,
+      // besides that it's never another promise.
+      return type.kind.as.promise.value_type->kind.tag == FIR_KIND_ANY_VALUE;
+    }
   }
-  return 0;
+  return false;
 }
 
-SEXP Rsh_Fir_cast(SEXP value, Rsh_Fir_Type const *type) {
-  if (!Rsh_Fir_value_matches(value, type)) {
+SEXP Fir_cast(SEXP value, Fir_Type type) {
+  if (!Fir_value_matches(value, type)) {
     Rf_error("Value does not match expected FIŘ type");
   }
   return value;
 }
 
-SEXP Rsh_Fir_make_closure(Rsh_Fir_DispatchFn dispatch, SEXP env, SEXP pool) {
+SEXP Fir_mkClosure(Fir_DispatchFn dispatch, SEXP pool, SEXP env) {
   if (!dispatch) {
     Rf_error("Cannot create closure without dispatch function");
   }
   if (TYPEOF(env) != ENVSXP) {
     Rf_error("Closure environment must be ENVSXP");
   }
-  Rsh_Fir_init_tags();
-  Rsh_Fir_ClosureInfo *info = calloc(1, sizeof(Rsh_Fir_ClosureInfo));
+  Fir_init_tags();
+  Fir_ClosureInfo *info = calloc(1, sizeof(Fir_ClosureInfo));
   info->dispatch = dispatch;
   info->env = env;
   info->pool = pool;
   R_PreserveObject(env);
   R_PreserveObject(pool);
-  SEXP ext = PROTECT(R_MakeExternalPtr(info, Rsh_Fir_ClosureTag, R_NilValue));
-  R_RegisterCFinalizerEx(ext, Rsh_Fir_closure_finalizer, FALSE);
+  SEXP ext = PROTECT(R_MakeExternalPtr(info, Fir_ClosureTag, R_NilValue));
+  R_RegisterCFinalizerEx(ext, Fir_closure_finalizer, FALSE);
   UNPROTECT(1);
   return ext;
 }
 
-SEXP Rsh_Fir_dup(SEXP value) { return Rf_duplicate(value); }
+SEXP Fir_dup(SEXP value) { return Rf_duplicate(value); }
 
-SEXP Rsh_Fir_load(SEXP symbol, SEXP env) {
-  Rsh_Fir_assert_symbol(symbol, "load");
+SEXP Fir_load(SEXP symbol, SEXP env) {
+  Fir_assert_symbol(symbol, "load");
   if (TYPEOF(env) != ENVSXP) {
     Rf_error("Environment expected for load");
   }
@@ -300,29 +247,29 @@ SEXP Rsh_Fir_load(SEXP symbol, SEXP env) {
   return value;
 }
 
-SEXP Rsh_Fir_load_fun(int env_selector, SEXP symbol, SEXP env) {
-  Rsh_Fir_assert_symbol(symbol, "load_fun");
+SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env) {
+  Fir_assert_symbol(symbol, "load_fun");
   switch (env_selector) {
-  case Rsh_Fir_LoadFun_Local:
+  case Fir_LoadFun_Local:
     return Rf_findFun(symbol, env);
-  case Rsh_Fir_LoadFun_Global:
+  case Fir_LoadFun_Global:
     return Rf_findFun(symbol, R_GlobalEnv);
-  case Rsh_Fir_LoadFun_Base:
+  case Fir_LoadFun_Base:
     return Rf_findFun(symbol, R_BaseEnv);
   default:
     Rf_error("Invalid environment selector for load_fun");
   }
 }
 
-void Rsh_Fir_store(SEXP symbol, SEXP value, SEXP env) {
-  Rsh_Fir_assert_symbol(symbol, "store");
+void Fir_store(SEXP symbol, SEXP value, SEXP env) {
+  Fir_assert_symbol(symbol, "store");
   if (TYPEOF(env) != ENVSXP) {
     Rf_error("Environment expected for store");
   }
   Rf_defineVar(symbol, value, env);
 }
 
-void Rsh_Fir_push_env(SEXP *env_ptr) {
+void Fir_push_env(SEXP *env_ptr) {
   if (!env_ptr || !*env_ptr || TYPEOF(*env_ptr) != ENVSXP) {
     Rf_error("push_env requires a pointer to an environment");
   }
@@ -330,7 +277,7 @@ void Rsh_Fir_push_env(SEXP *env_ptr) {
   *env_ptr = new_env;
 }
 
-void Rsh_Fir_pop_env(SEXP *env_ptr) {
+void Fir_pop_env(SEXP *env_ptr) {
   if (!env_ptr || !*env_ptr || TYPEOF(*env_ptr) != ENVSXP) {
     Rf_error("pop_env requires a pointer to an environment");
   }
@@ -341,7 +288,7 @@ void Rsh_Fir_pop_env(SEXP *env_ptr) {
   *env_ptr = parent;
 }
 
-static SEXP Rsh_Fir_make_names(int count, SEXP const *names) {
+static SEXP Fir_make_names(int count, SEXP const *names) {
   SEXP result = PROTECT(Rf_allocVector(STRSXP, count));
   for (int i = 0; i < count; ++i) {
     SEXP name = names[i];
@@ -363,21 +310,17 @@ static SEXP Rsh_Fir_make_names(int count, SEXP const *names) {
   return result;
 }
 
-SEXP Rsh_Fir_mk_vector(Rsh_Fir_Kind const *kind, int count, SEXP const *values,
-                       SEXP const *names) {
+SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names) {
   if (!kind) {
     Rf_error("mk_vector requires a kind");
   }
-  switch (kind->tag) {
-  case RSH_FIR_KIND_PRIMITIVE_VECTOR: {
-    SEXPTYPE type =
-        kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_LOGICAL
-            ? LGLSXP
-        : kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_INTEGER
-            ? INTSXP
-        : kind->as.primitive.primitive == RSH_FIR_PRIMITIVE_REAL
-            ? REALSXP
-            : STRSXP;
+  switch (kind.tag) {
+  case FIR_KIND_PRIMITIVE_VECTOR: {
+    SEXPTYPE type
+        = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+        : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+        : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+        : STRSXP;
     SEXP vec = PROTECT(Rf_allocVector(type, count));
     for (int i = 0; i < count; ++i) {
       SEXP element = values ? values[i] : R_NilValue;
@@ -402,7 +345,7 @@ SEXP Rsh_Fir_mk_vector(Rsh_Fir_Kind const *kind, int count, SEXP const *values,
       }
     }
     if (names) {
-      SEXP nm = PROTECT(Rsh_Fir_make_names(count, names));
+      SEXP nm = PROTECT(Fir_make_names(count, names));
       if (nm != R_NilValue) {
         Rf_setAttrib(vec, R_NamesSymbol, nm);
       }
@@ -411,7 +354,7 @@ SEXP Rsh_Fir_mk_vector(Rsh_Fir_Kind const *kind, int count, SEXP const *values,
     UNPROTECT(1);
     return vec;
   }
-  case RSH_FIR_KIND_DOTS: {
+  case FIR_KIND_DOTS: {
     SEXP result = R_NilValue;
     int protect_count = 0;
     for (int i = count - 1; i >= 0; --i) {
@@ -437,21 +380,21 @@ SEXP Rsh_Fir_mk_vector(Rsh_Fir_Kind const *kind, int count, SEXP const *values,
   }
 }
 
-static void Rsh_Fir_check_promise_env(Rsh_Fir_PromiseInfo const *info) {
+static void Fir_check_promise_env(Fir_PromiseInfo const *info) {
   if (!info->env || TYPEOF(info->env) != ENVSXP) {
     Rf_error("Internal promise without environment");
   }
 }
 
-SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, int ncaptures, SEXP const **captures, SEXP pool, SEXP env) {
+SEXP Fir_make_promise(Fir_PromiseFn fn, int ncaptures, SEXP const **captures, SEXP pool, SEXP env) {
   if (!fn) {
     Rf_error("Cannot create promise without function");
   }
   if (TYPEOF(env) != ENVSXP) {
     Rf_error("Promise environment must be ENVSXP");
   }
-  Rsh_Fir_init_tags();
-  Rsh_Fir_PromiseInfo *info = calloc(1, sizeof(Rsh_Fir_PromiseInfo));
+  Fir_init_tags();
+  Fir_PromiseInfo *info = calloc(1, sizeof(Fir_PromiseInfo));
   info->evaluate = fn;
   info->env = env;
   info->pool = pool;
@@ -462,16 +405,16 @@ SEXP Rsh_Fir_make_promise(Rsh_Fir_PromiseFn fn, int ncaptures, SEXP const **capt
   info->value = R_NilValue;
   R_PreserveObject(env);
   R_PreserveObject(pool);
-  SEXP ext = PROTECT(R_MakeExternalPtr(info, Rsh_Fir_PromiseTag, R_NilValue));
-  R_RegisterCFinalizerEx(ext, Rsh_Fir_promise_finalizer, FALSE);
+  SEXP ext = PROTECT(R_MakeExternalPtr(info, Fir_PromiseTag, R_NilValue));
+  R_RegisterCFinalizerEx(ext, Fir_promise_finalizer, FALSE);
   UNPROTECT(1);
   return ext;
 }
 
-SEXP Rsh_Fir_force(SEXP value) {
-  Rsh_Fir_PromiseInfo *info = NULL;
-  if (Rsh_Fir_is_compiled_promise(value, &info)) {
-    Rsh_Fir_check_promise_env(info);
+SEXP Fir_force(SEXP value) {
+  Fir_PromiseInfo *info = NULL;
+  if (Fir_is_compiled_promise(value, &info)) {
+    Fir_check_promise_env(info);
     if (!info->forced) {
       SEXP result = info->evaluate(info->pool, info->env, info->ncaptures, info->captures);
       R_PreserveObject(result);
@@ -489,18 +432,18 @@ SEXP Rsh_Fir_force(SEXP value) {
   return PRVALUE(value);
 }
 
-SEXP Rsh_Fir_maybe_force(SEXP value) {
-  if (Rsh_Fir_is_compiled_promise(value, NULL) || TYPEOF(value) == PROMSXP) {
-    return Rsh_Fir_force(value);
+SEXP Fir_maybe_force(SEXP value) {
+  if (Fir_is_compiled_promise(value, NULL) || TYPEOF(value) == PROMSXP) {
+    return Fir_force(value);
   }
   return value;
 }
 
-SEXP Rsh_Fir_reflective_load(SEXP promise, SEXP symbol) {
-  Rsh_Fir_assert_symbol(symbol, "reflective_load symbol");
-  Rsh_Fir_PromiseInfo *info = NULL;
-  if (Rsh_Fir_is_compiled_promise(promise, &info)) {
-    Rsh_Fir_check_promise_env(info);
+SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
+  Fir_assert_symbol(symbol, "reflective_load symbol");
+  Fir_PromiseInfo *info = NULL;
+  if (Fir_is_compiled_promise(promise, &info)) {
+    Fir_check_promise_env(info);
     SEXP value = Rf_findVarInFrame(info->env, symbol);
     if (value == R_UnboundValue) {
       Rf_error("Variable not bound in promise environment");
@@ -518,11 +461,11 @@ SEXP Rsh_Fir_reflective_load(SEXP promise, SEXP symbol) {
   return value;
 }
 
-SEXP Rsh_Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
-  Rsh_Fir_assert_symbol(symbol, "reflective_store symbol");
-  Rsh_Fir_PromiseInfo *info = NULL;
-  if (Rsh_Fir_is_compiled_promise(promise, &info)) {
-    Rsh_Fir_check_promise_env(info);
+SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
+  Fir_assert_symbol(symbol, "reflective_store symbol");
+  Fir_PromiseInfo *info = NULL;
+  if (Fir_is_compiled_promise(promise, &info)) {
+    Fir_check_promise_env(info);
     Rf_defineVar(symbol, value, info->env);
     return value;
   }
@@ -533,7 +476,7 @@ SEXP Rsh_Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
   return value;
 }
 
-SEXP Rsh_Fir_subscript_read(SEXP vector, SEXP index) {
+SEXP Fir_subscript_read(SEXP vector, SEXP index) {
   int idx = Rf_asInteger(index);
   if (idx == NA_INTEGER) {
     Rf_error("Subscript index cannot be NA");
@@ -557,7 +500,7 @@ SEXP Rsh_Fir_subscript_read(SEXP vector, SEXP index) {
   }
 }
 
-SEXP Rsh_Fir_subscript_write(SEXP vector, SEXP index, SEXP value) {
+SEXP Fir_subscript_write(SEXP vector, SEXP index, SEXP value) {
   int idx = Rf_asInteger(index);
   if (idx == NA_INTEGER) {
     Rf_error("Subscript index cannot be NA");
@@ -590,8 +533,8 @@ SEXP Rsh_Fir_subscript_write(SEXP vector, SEXP index, SEXP value) {
   return value;
 }
 
-SEXP Rsh_Fir_super_load(SEXP symbol, SEXP env) {
-  Rsh_Fir_assert_symbol(symbol, "super_load");
+SEXP Fir_super_load(SEXP symbol, SEXP env) {
+  Fir_assert_symbol(symbol, "super_load");
   if (TYPEOF(env) != ENVSXP) {
     Rf_error("super_load requires an environment");
   }
@@ -606,8 +549,8 @@ SEXP Rsh_Fir_super_load(SEXP symbol, SEXP env) {
   Rf_error("super_load could not locate variable in parents");
 }
 
-void Rsh_Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
-  Rsh_Fir_assert_symbol(symbol, "super_store");
+void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
+  Fir_assert_symbol(symbol, "super_store");
   if (TYPEOF(env) != ENVSXP) {
     Rf_error("super_store requires an environment");
   }
@@ -623,7 +566,7 @@ void Rsh_Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
   Rf_error("super_store could not locate variable in parents");
 }
 
-static SEXP Rsh_Fir_build_arglist(int argc, SEXP const *args,
+static SEXP Fir_build_arglist(int argc, SEXP const *args,
                                   SEXP const *names, int *protect_count) {
   SEXP list = R_NilValue;
   for (int i = argc - 1; i >= 0; --i) {
@@ -645,7 +588,7 @@ static SEXP Rsh_Fir_build_arglist(int argc, SEXP const *args,
   return list;
 }
 
-SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args) {
+SEXP Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args) {
   FUNTAB fun = R_FunTab[bltIdx];
   if (fun.arity != -1 && fun.arity != argc) {
     Rf_error("Builtin %s called with incorrect number of arguments: expected %d, got %d",
@@ -653,24 +596,24 @@ SEXP Rsh_Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args) {
   }
 
   int protect_count = 0;
-  SEXP arglist = Rsh_Fir_build_arglist(argc, args, NULL, &protect_count);
+  SEXP arglist = Fir_build_arglist(argc, args, NULL, &protect_count);
   SEXP op = R_Primitive(fun.name);
   SEXP result = fun.cfun(R_NilValue, op, arglist, RHO);
   UNPROTECT(protect_count);
   return result;
 }
 
-SEXP Rsh_Fir_call_dynamic(SEXP callee, int argc, SEXP const *args,
-                          SEXP const *names, SEXP env) {
+SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP const *args,
+                          SEXP const *names) {
   int protect_count = 0;
-  SEXP arglist = Rsh_Fir_build_arglist(argc, args, names, &protect_count);
+  SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
   SEXP call = PROTECT(Rf_lcons(callee, arglist));
   SEXP result = Rf_eval(call, env);
   UNPROTECT(protect_count + 1);
   return result;
 }
 
-int Rsh_Fir_is_true(SEXP value) {
+int Fir_is_true(SEXP value) {
   int logical = Rf_asLogical(value);
   if (logical == NA_LOGICAL) {
     Rf_error("Condition evaluated to NA");
@@ -678,7 +621,7 @@ int Rsh_Fir_is_true(SEXP value) {
   return logical != 0;
 }
 
-void Rsh_Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP pool,
+void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP pool,
                    SEXP env) {
   (void)stack_size;
   (void)stack_values;
@@ -687,33 +630,26 @@ void Rsh_Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP pool,
   Rf_error("FIŘ deoptimization triggered at pc=%d (unsupported)", pc);
 }
 
-int Rsh_Fir_assume_constant(SEXP value, SEXP constant) {
+int Fir_assume_constant(SEXP value, SEXP constant) {
   return R_compute_identical(value, constant, 0);
 }
 
-int Rsh_Fir_assume_function(SEXP value, Rsh_Fir_DispatchFn dispatch) {
-  Rsh_Fir_ClosureInfo *info = NULL;
-  if (!Rsh_Fir_is_compiled_closure(value, &info)) {
+int Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
+  Fir_ClosureInfo *info = NULL;
+  if (!Fir_is_compiled_closure(value, &info)) {
     return 0;
   }
   return info->dispatch == dispatch;
 }
 
-int Rsh_Fir_assume_type(SEXP value, Rsh_Fir_Type const *type) {
-  return Rsh_Fir_value_matches(value, type);
-}
-
-NORET void Rsh_error(const char *fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  Rf_error(fmt, args);
-  va_end(args);
+int Fir_assume_type(SEXP value, Fir_Type type) {
+  return Fir_value_matches(value, type);
 }
 
 
 #define DEFINE_DISPATCH_INTRINSIC_BODY(X)\
   DEFINE_DISPATCH_INTRINSIC(X) {\
-    return Rsh_Fir_intrinsic_ ## X ## _v0(CCP, RHO, nparams, args);\
+    return Fir_intrinsic_ ## X ## _v0(CCP, RHO, nparams, args);\
   }
 
 DEFINE_DISPATCH_INTRINSIC_BODY(checkFun)

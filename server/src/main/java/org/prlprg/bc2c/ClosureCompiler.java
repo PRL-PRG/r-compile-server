@@ -14,8 +14,7 @@ import org.prlprg.bc.BcInstr;
 import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.BcOp;
 import org.prlprg.bc.ConstPool;
-import org.prlprg.gen2c.CCode;
-import org.prlprg.gen2c.CFunction;
+import org.prlprg.gen2c.*;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
@@ -55,6 +54,7 @@ class ClosureCompiler {
   protected CFunction fun;
   protected CCode prologue;
   protected CCode body;
+  protected List<CompiledItem> nested = new ArrayList<>();
 
   public ClosureCompiler(BC2CModule module, String name, Bc bc) {
     this.bc = bc;
@@ -64,7 +64,8 @@ class ClosureCompiler {
         module
             .cUnit()
             .addFunction(
-                "SEXP", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP)));
+                "SEXP", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP))
+            );
     this.prologue = fun.add();
     this.body = fun.add();
     this.extraConstPoolIdx = bc.consts().size() + 1;
@@ -78,7 +79,7 @@ class ClosureCompiler {
     this.debug = debug;
   }
 
-  public VecSXP compile() {
+  public CompiledItem compile() {
     beforeCompile();
 
     var code = bc.code();
@@ -95,7 +96,8 @@ class ClosureCompiler {
 
     afterCompile();
 
-    return SEXPs.vec(constants());
+    var constantPool = SEXPs.vec(constants());
+    return new CompiledItem(fun, constantPool, nested);
   }
 
   private int stackSpace() {
@@ -260,11 +262,12 @@ class ClosureCompiler {
   }
 
   private String compileMakePromise(InstrCallBuilder builder, BCodeSXP bc) {
-    var compiledClosure = module.compilePromise(bc.bc(), name);
-    var cpConst = createExtraConstant(compiledClosure.constantPool());
+    var compiledPromiseClosure = module.compilePromise(bc.bc(), name);
+    var cpConst = createExtraConstant(compiledPromiseClosure.constantPool());
+    nested.add(compiledPromiseClosure);
     return builder
         .fun("Rsh_MakeProm2")
-        .args("&" + compiledClosure.cName(), constantSXP(cpConst))
+        .args("&" + compiledPromiseClosure.cName(), constantSXP(cpConst))
         .compileStmt();
   }
 
@@ -320,9 +323,10 @@ class ClosureCompiler {
     var cls = bc.consts().get(idx);
 
     if (cls.get(1) instanceof BCodeSXP closureBody) {
-      var compiledClosure = module.compileClosure(closureBody.bc(), name);
-      var ccp = createExtraConstant(compiledClosure.constantPool());
-      return builder.addArgs("&" + compiledClosure.cName(), constantSXP(ccp)).compileStmt();
+      var compiledInnerClosure = module.compileClosure(closureBody.bc(), name);
+      var ccp = createExtraConstant(compiledInnerClosure.constantPool());
+      nested.add(compiledInnerClosure);
+      return builder.addArgs("&" + compiledInnerClosure.cName(), constantSXP(ccp)).compileStmt();
     } else {
       throw new UnsupportedOperationException("Unsupported body: " + body);
     }
