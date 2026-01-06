@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.type;
 
 import com.google.common.collect.ImmutableList;
+import java.util.stream.*;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;

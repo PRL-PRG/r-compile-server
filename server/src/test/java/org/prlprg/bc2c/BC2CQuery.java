@@ -3,7 +3,6 @@ package org.prlprg.bc2c;
 import org.prlprg.bc.BCQuery;
 import org.prlprg.bc.Bc;
 import org.prlprg.examples.Example;
-import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.snapshots.SkipQueryException;

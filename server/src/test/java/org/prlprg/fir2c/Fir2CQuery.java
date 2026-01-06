@@ -6,7 +6,6 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.opt.Optimization;
-import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.GNUR;

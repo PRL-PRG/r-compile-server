@@ -1,16 +1,27 @@
 package org.prlprg.gen2c;
 
 import com.google.common.collect.ImmutableList;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class CFunction {
+  private final CUnit unit;
+
   private final CFunctionSignature signature;
   private final List<CCode> sections = new ArrayList<>();
 
-  CFunction(String returnType, String name, List<String> parameters) {
+  CFunction(CUnit unit, String returnType, String name, List<String> parameters) {
+    this.unit = unit;
     signature = new CFunctionSignature(returnType, name, ImmutableList.copyOf(parameters));
+  }
+
+  public CUnit unit() {
+    return unit;
+  }
+
+  public String name() {
+    return signature.name();
   }
 
   public CCode add() {
@@ -44,5 +55,17 @@ public final class CFunction {
       }
     }
     pw.println("}");
+  }
+
+  /// Print only this function's definition.
+  ///
+  /// Mainly useful for IDE inspection. When sending data to the compile client,
+  /// use `unit.toString(List.of(this, newDependencies...))` (already-existing dependencies will
+  /// be forward-declared).
+  @Override
+  public String toString() {
+    var w = new StringWriter();
+    writeDefinition(new PrintWriter(w));
+    return w.toString();
   }
 }

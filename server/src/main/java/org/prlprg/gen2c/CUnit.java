@@ -3,8 +3,7 @@ package org.prlprg.gen2c;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /// C translation unit i.e. source file
 public class CUnit {
@@ -21,13 +20,29 @@ public class CUnit {
   }
 
   public CFunction addFunction(String returnType, String name, List<String> parameters) {
-    var fun = new CFunction(returnType, name, parameters);
+    var fun = new CFunction(this, returnType, name, parameters);
     functions.add(fun);
     return fun;
   }
 
+  public String toString() {
+    return toString(functions);
+  }
+
+  /// Only print the bodies of `functions`. Other functions are still forward-declared.
+  public String toString(Collection<CFunction> functions) {
+    var w = new StringWriter();
+    writeTo(new PrintWriter(w), functions);
+    return w.toString();
+  }
+
   public void writeTo(Writer w) {
-    var pw = new PrintWriter(w);
+    writeTo(w, functions);
+  }
+
+  /// Only print the bodies of `functions`. Other functions are still forward-declared.
+  public void writeTo(Writer w, Collection<CFunction> functions) {
+    var pw = w instanceof PrintWriter pw1 ? pw1 : new PrintWriter(w);
 
     includes.forEach(x -> pw.format("#include <%s>", x));
     if (!includes.isEmpty()) {
@@ -37,13 +52,7 @@ public class CUnit {
     if (!externFunctions.isEmpty()) {
       pw.println();
     }
-    functions.forEach(x -> x.writeForwardDeclaration(pw));
+    this.functions.forEach(x -> x.writeForwardDeclaration(pw));
     functions.forEach(x -> x.writeDefinition(pw));
-  }
-
-  public String toString() {
-    var w = new StringWriter();
-    writeTo(new PrintWriter(w));
-    return w.toString();
   }
 }

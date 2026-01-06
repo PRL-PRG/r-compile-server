@@ -1,17 +1,11 @@
 package org.prlprg.fir2c;
 
 import static org.prlprg.fir.GlobalModules.BUILTINS;
-import static org.prlprg.fir.GlobalModules.INTRINSICS;
+import static org.prlprg.gen2c.EscapeForC.escapeForC;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import com.google.common.collect.*;
+import java.util.*;
+import java.util.stream.*;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -69,34 +63,21 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
-import org.prlprg.fir.ir.variable.NamedVariable;
-import org.prlprg.fir.ir.variable.OptionalNamedVariable;
-import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir2c.FirCompiledModule.FirCompiledDispatchIndex;
-import org.prlprg.fir2c.FirCompiledModule.FirCompiledPromiseIndex;
-import org.prlprg.fir2c.FirCompiledModule.FirCompiledVersionIndex;
-import org.prlprg.gen2c.CCode;
-import org.prlprg.gen2c.CFunction;
-import org.prlprg.gen2c.CUnit;
+import org.prlprg.fir.ir.variable.*;
+import org.prlprg.gen2c.*;
 import org.prlprg.session.RSession;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.*;
 import org.prlprg.util.Lists;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Fir2CCompiler {
-  public static FirCompiledModule compile(Module module, RSession rSession, Option... options) {
+  public static CompiledModule compile(Module module, RSession rSession, Option... options) {
     return new Fir2CCompiler(module, rSession, ImmutableSet.copyOf(options)).run();
   }
 
   static final String VAR_ENV = "RHO";
   static final String VAR_POOL = "CCP";
-  static final String VAR_SEXP_PARAMS_LIST = "PARAMS_LIST";
-  static final String VAR_NPARAMS = "NPARAMS";
-  static final String VAR_SEXP_PARAMS = "PARAMS";
-  static final String VAR_SEXP_PARAM_TYPES = "PARAM_TYPES";
-  static final String VAR_NCAPTURES = "NCAPTURES";
-  static final String VAR_SEXP_CAPTURES = "CAPTURES";
+  static final String VAR_SIGNATURE = "SIGNATURE";
 
   // Input
   private final Module module;
@@ -105,14 +86,12 @@ public final class Fir2CCompiler {
 
   // Output
   private final CUnit cUnit = new CUnit();
-  private final Map<Function, FirCompiledDispatchIndex> compiledFunctionDispatches =
-      new LinkedHashMap<>();
-  private final Map<Abstraction, FirCompiledVersionIndex> compiledVersions = new LinkedHashMap<>();
-  private final Map<Promise, FirCompiledPromiseIndex> compiledPromises = new LinkedHashMap<>();
-  private final ConstantPool constantPool = new ConstantPool();
+  private final Map<Function, CompiledItem> compiledFunctions = new LinkedHashMap<>();
+  private final Map<Abstraction, CompiledItem> compiledVersions = new LinkedHashMap<>();
+  private final Map<Promise, CompiledItem> compiledPromises = new LinkedHashMap<>();
 
   // State
-  private final IdentifierMangler mangler = new IdentifierMangler();
+  private int tempTypeDisambiguator = 0;
 
   private Fir2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
     this.module = module;
@@ -120,251 +99,40 @@ public final class Fir2CCompiler {
     this.options = options;
   }
 
-  private FirCompiledModule run() {
+  private CompiledModule run() {
     cUnit.addInclude("runtime.h");
 
-    // Add mangled names first, because some may be forward-referenced
-    compileNames();
-
-    // Now compile C parameters and bodies. `CModule` handles forward declarations
     compileDefinitions();
 
-    return new FirCompiledModule(
-        cUnit,
-        ImmutableMap.copyOf(compiledFunctionDispatches),
+    return new CompiledModule(
+        ImmutableMap.copyOf(compiledFunctions),
         ImmutableMap.copyOf(compiledVersions),
-        ImmutableMap.copyOf(compiledPromises),
-        constantPool.asVecSxp());
+        ImmutableMap.copyOf(compiledPromises));
   }
 
-  // region compile names
-  private void compileNames() {
-    for (var function : module.localFunctions()) {
-      var dispatchCName = dispatchCFunctionName(function);
-      var dispatchFromRName = dispatchCFunctionFromRName(function);
-      compiledFunctionDispatches.put(
-          function, new FirCompiledDispatchIndex.Regular(dispatchCName, dispatchFromRName));
-
-      for (var versionIndex : function.versionIndices()) {
-        var version = function.version(versionIndex);
-
-        var versionCName = versionCFunctionName(function, versionIndex);
-        compiledVersions.put(version, new FirCompiledVersionIndex(versionCName));
-      }
-    }
-  }
-
-  private String dispatchCFunctionName(Function function) {
-    return mangler.unique("Rsh_Fir_user_function_%s", function.name().name());
-  }
-
-  private String dispatchCFunctionFromRName(Function function) {
-    return mangler.unique("Rsh_Fir_user_function_from_R_%s", function.name().name());
-  }
-
-  private String versionCFunctionName(Function function, int versionIndex) {
-    return mangler.unique("Rsh_Fir_user_version_%s_v%d", function.name().name(), versionIndex);
-  }
-
-  // endregion compile names
-
-  // region compile definitions
   private void compileDefinitions() {
-    for (var function : module.localFunctions()) {
-      compileDispatchFromRFunction(function);
-      compileDispatchFunction(function);
-
-      for (var versionIndex : function.versionIndices()) {
-        var version = function.version(versionIndex);
-
-        compileVersionFunction(function, versionIndex, version);
+    var localFunctions = nestedDag(module);
+    for (var function : localFunctions) {
+      for (var version : function.versions()) {
+        compileVersionFunction(function, version);
       }
+
+      compileDispatchFunction(function);
     }
   }
 
-  private void compileVersionFunction(Function function, int versionIndex, Abstraction version) {
-    var cName = compiledVersions.get(version).cFunctionName();
-
+  private void compileVersionFunction(Function function, Abstraction version) {
     if (version.isStub()) {
-      cUnit.addExternFunction("SEXP", cName, versionCFunctionParameters);
+      VersionEmitter.forwardDeclareStub(cUnit, function, version);
     } else {
-      var cFunction = cUnit.addFunction("SEXP", cName, versionCFunctionParameters);
-      new VersionEmitter(function, versionIndex, version, cFunction);
+      var compiled = new VersionEmitter(function, version).run();
+      compiledVersions.put(version, compiled);
     }
-  }
-
-  private void compileDispatchFromRFunction(Function function) {
-    var index = compiledFunctionDispatches.get(function);
-    assert index instanceof FirCompiledDispatchIndex.Regular
-        : "Can't compile " + function.name() + " because it's a builtin (index = " + index + ")";
-    var cName =
-        Objects.requireNonNull(((FirCompiledDispatchIndex.Regular) index).cFunctionFromRName());
-    var nativeDispatchCName = ((FirCompiledDispatchIndex.Regular) index).cFunctionName();
-
-    var cFunction = cUnit.addFunction("SEXP", cName, dispatchFromRCFunctionParameters);
-    var cBody = cFunction.add();
-
-    // Inlined the code to emit here because it's small
-    if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-      cBody.comment(
-          "FIR %s dynamic dispatch from R (%s)", function.name().name(), function.parameterNames());
-    }
-
-    if (options.contains(Option.CHECK_ARITY)) {
-      cBody.stmt(
-          "if (TYPEOF(%s) != VECSXP) { Rf_PrintValue(%s); Rsh_error(\"FIŘ expected a list for params\"); }",
-          VAR_SEXP_PARAMS_LIST, VAR_SEXP_PARAMS_LIST);
-    }
-
-    cBody.stmt("int %s = Rf_length(%s);", VAR_NPARAMS, VAR_SEXP_PARAMS_LIST);
-    cBody.stmt("SEXP const *%s = STDVEC_DATAPTR(%s);", VAR_SEXP_PARAMS, VAR_SEXP_PARAMS_LIST);
-
-    cBody.stmt(
-        "return %s(%s, %s, %s, %s, NULL);",
-        nativeDispatchCName, VAR_POOL, VAR_ENV, VAR_NPARAMS, VAR_SEXP_PARAMS);
   }
 
   private void compileDispatchFunction(Function function) {
-    var index = compiledFunctionDispatches.get(function);
-    assert index instanceof FirCompiledDispatchIndex.Regular
-        : "Can't compile " + function.name() + " because it's a builtin (index = " + index + ")";
-    var cName = ((FirCompiledDispatchIndex.Regular) index).cFunctionName();
-
-    var cFunction = cUnit.addFunction("SEXP", cName, dispatchCFunctionParameters);
-    new DispatchEmitter(function, cFunction);
-  }
-
-  private static final List<String> dispatchFromRCFunctionParameters =
-      List.of(
-          "SEXP %s".formatted(VAR_POOL),
-          "SEXP %s".formatted(VAR_ENV),
-          "SEXP %s".formatted(VAR_SEXP_PARAMS_LIST));
-
-  private static final List<String> dispatchCFunctionParameters =
-      List.of(
-          "SEXP %s".formatted(VAR_POOL),
-          "SEXP %s".formatted(VAR_ENV),
-          "int %s".formatted(VAR_NPARAMS),
-          "SEXP const *%s".formatted(VAR_SEXP_PARAMS),
-          "Rsh_Fir_Type const *%s".formatted(VAR_SEXP_PARAM_TYPES));
-
-  // TODO: Elide env if possible, and store each parameter as a C parameter instead of putting
-  //  them in `VAR_SEXP_PARAMS`
-  private static final List<String> versionCFunctionParameters =
-      List.of(
-          "SEXP %s".formatted(VAR_POOL),
-          "SEXP %s".formatted(VAR_ENV),
-          "int %s".formatted(VAR_NPARAMS),
-          "SEXP const *%s".formatted(VAR_SEXP_PARAMS));
-
-  // TODO: Elide env if possible
-  private static final List<String> promiseCFunctionParameters =
-      List.of(
-          "SEXP %s".formatted(VAR_POOL),
-          "SEXP %s".formatted(VAR_ENV),
-          "int %s".formatted(VAR_NCAPTURES),
-          "SEXP const **%s".formatted(VAR_SEXP_CAPTURES));
-
-  // endregion compile definitions
-
-  // region interned
-  private String nvSymbolRef(NamedVariable nv) {
-    return constantRef(SEXPs.symbol(nv.name()));
-  }
-
-  private String constantRef(SEXP sexp) {
-    var idx = constantPool.intern(sexp);
-    return "Rsh_const(%s, %d)".formatted(VAR_POOL, idx);
-  }
-
-  // endregion interned
-
-  // region lookup
-  private String dispatchPtrName(Function function) {
-    if (!(compiledFunctionDispatch(function)
-        instanceof FirCompiledDispatchIndex.Regular(var cFunctionName, var _))) {
-      throw new UnsupportedOperationException(
-          "Can't get dispatch function pointer of "
-              + function.name()
-              + " because it's a builtin, so it doesn't dispatch like FIŘ functions");
-    }
-    return cFunctionName;
-  }
-
-  private FirCompiledDispatchIndex compiledFunctionDispatch(Function function) {
-    if (compiledFunctionDispatches.containsKey(function)) {
-      return compiledFunctionDispatches.get(function);
-    }
-    if (function.owner() == BUILTINS) {
-      return FirCompiledDispatchIndex.builtin(function, rSession);
-    }
-    if (function.owner() == INTRINSICS) {
-      return FirCompiledDispatchIndex.intrinsic(function);
-    }
-    throw new IllegalStateException("Missing compiled dispatch for " + function.name());
-  }
-
-  private FirCompiledVersionIndex compiledVersion(Function function, Abstraction version) {
-    if (compiledVersions.containsKey(version)) {
-      return compiledVersions.get(version);
-    }
-    if (version.module() == BUILTINS) {
-      return FirCompiledVersionIndex.builtin(function, version);
-    }
-    if (version.module() == INTRINSICS) {
-      return FirCompiledVersionIndex.intrinsic(function, version);
-    }
-    throw new IllegalStateException(
-        "Missing compiled version for " + function.name() + '/' + function.indexOf(version));
-  }
-
-  // endregion lookup
-
-  // region misc utils
-  private static String sanitizeString(String value) {
-    return value.replace("\"", "\\\"");
-  }
-
-  private record Array(int size, String pointer) {}
-
-  private record ArrayAndNames(Array values, String names) {}
-
-  // endregion misc utils
-
-  /// Emits C for a [Function]'s dynamic-dispatch function.
-  private final class DispatchEmitter {
-    // Input
-    private final Function function;
-
-    // Output
-    private final CFunction cFunction;
-
-    DispatchEmitter(Function function, CFunction cFunction) {
-      this.function = function;
-      this.cFunction = cFunction;
-
-      emit();
-    }
-
-    // region emit
-    private void emit() {
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cFunction
-            .add()
-            .comment(
-                "FIR %s dynamic dispatch (%s)", function.name().name(), function.parameterNames());
-      }
-
-      // TODO: Actually dispatch based on argument types.
-      var baselineIndex = compiledVersion(function, function.baseline());
-      cFunction
-          .add()
-          .stmt(
-              "return %s(%s, %s, %s, %s);",
-              baselineIndex.cFunctionName(), VAR_POOL, VAR_ENV, VAR_NPARAMS, VAR_SEXP_PARAMS);
-    }
-
-    // endregion emit
+    var compiled = new DispatchEmitter(function).run();
+    compiledFunctions.put(function, compiled);
   }
 
   /// Emits C for a single [Abstraction].
@@ -377,49 +145,47 @@ public final class Fir2CCompiler {
   private final class VersionEmitter {
     // Input
     private final Function function;
-    private final int versionIndex;
-    private final Abstraction abstraction;
+    private final Abstraction version;
 
     // Output
     private final CFunction cFunction;
 
     // State
-    private final Map<Register, String> registerNames = new LinkedHashMap<>();
     private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
     private final Map<CFG, Set<Register>> captures = new LinkedHashMap<>();
 
-    VersionEmitter(
-        Function function, int versionIndex, Abstraction abstraction, CFunction cFunction) {
-      if (abstraction.isStub()) {
+    static void forwardDeclareStub(CUnit cUnit, Function function, Abstraction version) {
+      if (!version.isStub()) {
         throw new IllegalArgumentException(
-            "FirVersionEmitter doesn't handle stubs:\n" + abstraction);
+            "Call new FirVersionEmitter(...).run() for non-stub:\n" + version);
+      }
+
+      var cName = versionCName(function, version);
+      cUnit.addExternFunction(versionCReturn(version), cName, versionCParams(version));
+    }
+
+    VersionEmitter(
+        Function function, Abstraction version) {
+      if (version.isStub()) {
+        throw new IllegalArgumentException(
+            "Call FirVersionEmitter.stub(...) for stub:\n" + version);
       }
 
       this.function = function;
-      this.versionIndex = versionIndex;
-      this.abstraction = abstraction;
-      this.cFunction = cFunction;
+      this.version = version;
+
+      var cName = versionCName(function, version);
+      cFunction = cUnit.addFunction(versionCReturn(version), cName, versionCParams(version));
 
       prepare();
-      emit();
     }
 
-    // region prepare
     private void prepare() {
-      // Compute register names
-      abstraction
-          .streamRegisterBindings()
-          .forEach(
-              binding -> {
-                var register = (Register) binding.variable();
-                registerNames.put(register, mangler.unique("Rsh_Fir_reg_%s", register.name()));
-              });
-
       // Compute local and captured registers
-      abstraction.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
-      abstraction.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
-      var defUses = new DefUses(abstraction);
-      abstraction
+      version.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
+      version.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
+      var defUses = new DefUses(version);
+      version
           .streamRegisterBindings()
           .forEach(
               binding -> {
@@ -427,7 +193,7 @@ public final class Fir2CCompiler {
 
                 CFG defCfg;
                 if (binding instanceof Parameter) {
-                  defCfg = abstraction.cfg();
+                  defCfg = version.cfg();
                 } else {
                   var def = defUses.definition(register);
                   if (def == null) {
@@ -450,72 +216,16 @@ public final class Fir2CCompiler {
               });
     }
 
-    // endregion prepare
-
-    // region emit
-    private void emit() {
+    private CompiledItem run() {
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         cFunction
             .add()
             .comment(
                 "FIR %s version %d (%s)",
-                function.name().name(), versionIndex, abstraction.signature());
+                function.name().name(), function.indexOf(version), version.signature());
       }
 
-      emitArityCheck();
-      new CfgEmitter(Objects.requireNonNull(abstraction.cfg()), cFunction);
-    }
-
-    private void emitArityCheck() {
-      if (!options.contains(Option.CHECK_ARITY)) {
-        return;
-      }
-
-      var expected = abstraction.parameters().size();
-      cFunction
-          .add()
-          .stmt(
-              "if (%s != %d) Rsh_error(\"FIŘ arity mismatch for %s/%d: expected %d, got %%d\", %s);",
-              VAR_NPARAMS,
-              expected,
-              sanitizeString(function.name().name()),
-              versionIndex,
-              expected,
-              VAR_NPARAMS);
-    }
-
-    // endregion emit
-
-    // region interned
-
-    private String promiseName(Promise promise) {
-      return ensurePromiseCompiled(promise).cFunctionName();
-    }
-
-    private String registerName(Register register) {
-      var name = registerNames.get(register);
-      if (name == null) {
-        throw new IllegalArgumentException("Unknown (not declared) register: " + register);
-      }
-      return name;
-    }
-
-    // endregion interned
-
-    private FirCompiledPromiseIndex ensurePromiseCompiled(Promise promise) {
-      var existing = compiledPromises.get(promise);
-      if (existing != null) {
-        return existing;
-      }
-
-      var cName = mangler.unique("Rsh_Fir_user_promise_%s", function.name().name());
-      var index = new FirCompiledPromiseIndex(cName);
-      compiledPromises.put(promise, index);
-
-      var promiseFunction = cUnit.addFunction("SEXP", cName, promiseCFunctionParameters);
-      new CfgEmitter(promise.code(), promiseFunction);
-
-      return index;
+      return new CfgEmitter(Objects.requireNonNull(version.cfg()), cFunction).run();
     }
 
     final class CfgEmitter {
@@ -524,45 +234,25 @@ public final class Fir2CCompiler {
 
       // Output
       private final CFunction cFunction;
+      private final ConstantPool constantPool = new ConstantPool();
+      private final List<CompiledItem> nested = new ArrayList<>();
 
       // State
-      private final Map<BB, String> labelNames = new LinkedHashMap<>();
-      private final IdentifierMangler bbMangler = new IdentifierMangler();
+      private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
 
       CfgEmitter(CFG cfg, CFunction cFunction) {
         this.cfg = cfg;
         this.cFunction = cFunction;
-
-        prepare();
-        emit();
       }
 
-      // region prepare
-      private void prepare() {
-        // Add label names
-        for (var bb : cfg.bbs()) {
-          if (!bb.isEntry()) {
-            labelNames.put(bb, bbMangler.unique("%s", bb.label()));
-          }
-        }
-      }
-
-      // endregion prepare
-
-      // region emit
-      private void emit() {
+      CompiledItem run() {
         emitLocalDeclarations();
-        if (cfg.isPromise()) {
-          emitCaptureArityCheck();
-          emitCaptureBindings();
-        } else {
-          assert captures.get(cfg).isEmpty();
-          emitParameterBindings();
-        }
 
         for (var bb : cfg.bbs()) {
-          new BBEmitter(bb, cFunction.add());
+          new BBEmitter(bb, cFunction.add()).run();
         }
+
+        return new CompiledItem(cFunction, constantPool.toSexp(), nested);
       }
 
       private void emitLocalDeclarations() {
@@ -578,86 +268,29 @@ public final class Fir2CCompiler {
         }
 
         for (var register : localRegisters) {
-          var cName = registerName(register);
+          var cName = registerCName(register);
           sec.stmt("SEXP %s;", cName);
         }
       }
 
-      private void emitCaptureArityCheck() {
-        if (!options.contains(Option.CHECK_ARITY)) {
-          return;
-        }
-
-        var expected = Objects.requireNonNull(captures.get(cfg)).size();
-        cFunction
-            .add()
-            .stmt(
-                "if (%s != %d) Rsh_error(\"FIŘ capture arity mismatch for %s/%d: expected %d, got %%d\", %s);",
-                VAR_NCAPTURES,
-                expected,
-                sanitizeString(function.name().name()),
-                versionIndex,
-                expected,
-                VAR_NCAPTURES);
-      }
-
-      private void emitCaptureBindings() {
-        var capturedRegisters = Objects.requireNonNull(captures.get(cfg));
-        if (capturedRegisters.isEmpty()) {
-          return;
-        }
-
-        var sec = cFunction.add();
-
-        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-          sec.comment("Declare and bind captures");
-        }
-
-        var capturedRegistersIter = capturedRegisters.iterator();
-        for (var i = 0; i < capturedRegisters.size(); i++) {
-          var capture = capturedRegistersIter.next();
-          var name = registerName(capture);
-          sec.stmt("SEXP %s = %s[%d];", name, VAR_SEXP_CAPTURES, i);
-        }
-      }
-
-      private void emitParameterBindings() {
-        var parameters = abstraction.parameters();
-        if (parameters.isEmpty()) {
-          return;
-        }
-
-        var sec = cFunction.add();
-
-        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-          sec.comment("Bind parameters");
-        }
-
-        for (var i = 0; i < parameters.size(); i++) {
-          var param = parameters.get(i);
-          var name = registerName(param.variable());
-          sec.stmt("%s = %s[%d];", name, VAR_SEXP_PARAMS, i);
-        }
-      }
-
       final class BBEmitter {
-
+        // Input
         private final BB bb;
+
+        // Output
         private final CCode cCode;
 
         BBEmitter(BB bb, CCode cCode) {
           this.bb = bb;
           this.cCode = cCode;
-
-          emit();
         }
 
-        private void emit() {
+        private void run() {
           if (!bb.isEntry()) {
             // ';' is necessary,
             // otherwise if the next statement is a declaration (e.g. `SEXP x`),
             // the C syntax is invalid.
-            cCode.label("%s:;", labelName(bb));
+            cCode.label("%s:;", labelCName(bb));
           }
           for (var statement : bb.statements()) {
             emitStatement(statement);
@@ -686,81 +319,98 @@ public final class Fir2CCompiler {
             case AssumeType(var target, var _) -> emitArgument(target);
             case Call call -> emitCall(call);
             case Cast(var target, var type) ->
-                "Rsh_Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(type));
-            case Closure closure ->
-                "Rsh_Fir_make_closure(&%s, %s, %s)"
-                    .formatted(dispatchPtrName(closure.code()), VAR_ENV, VAR_POOL);
-            case Dup(var value) -> "Rsh_Fir_dup(%s)".formatted(emitArgument(value));
-            case Force(var value) -> "Rsh_Fir_force(%s)".formatted(emitArgument(value));
+                "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
+            case Closure closure -> {
+              var compiled = compiledFunctions.get(closure.code());
+              assert compiled != null : "should've been compiled first (or should've thrown if that wasn't possible) because we compile in the order of `nestedDag`";
+              nested.add(compiled);
+
+              assert compiled.cName().equals(functionCName(closure.code()));
+              var cName = compiled.cName();
+              var pool = constantRef(compiled.constantPool());
+              yield "Fir_mkClosure(&%s, %s, %s)".formatted(cName, pool, VAR_ENV);
+            }
+            case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
+            case Force(var value) -> "Fir_force(%s)".formatted(emitArgument(value));
             case Load(var variable) ->
-                "Rsh_Fir_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
+                "Fir_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
             case LoadFun(var variable, var env) -> {
               var envSelector =
                   switch (env) {
-                    case LoadFun.Env.LOCAL -> "Rsh_Fir_LoadFun_Local";
-                    case LoadFun.Env.GLOBAL -> "Rsh_Fir_LoadFun_Global";
-                    case LoadFun.Env.BASE -> "Rsh_Fir_LoadFun_Base";
+                    case LoadFun.Env.LOCAL -> "Fir_LoadFun_Local";
+                    case LoadFun.Env.GLOBAL -> "Fir_LoadFun_Global";
+                    case LoadFun.Env.BASE -> "Fir_LoadFun_Base";
                   };
-              yield "Rsh_Fir_load_fun(%s, %s, %s)"
+              yield "Fir_load_fun(%s, %s, %s)"
                   .formatted(envSelector, nvSymbolRef(variable), VAR_ENV);
             }
-            case MaybeForce(var value) -> "Rsh_Fir_maybe_force(%s)".formatted(emitArgument(value));
+            case MaybeForce(var value) -> "Fir_maybe_force(%s)".formatted(emitArgument(value));
             case MkEnv() -> {
-              cCode.stmt("Rsh_Fir_push_env(&%s);", VAR_ENV);
+              cCode.stmt("Fir_push_env(&%s);", VAR_ENV);
               yield "R_NilValue";
             }
             case MkVector(var kind, var elements) -> {
               var namedArrays = emitNamedArgumentArrays(elements);
-              yield "Rsh_Fir_mk_vector(%s, %d, %s, %s)"
+              yield "Fir_mk_vector(%s, %d, %s, %s)"
                   .formatted(
-                      emitKind(kind),
+                      emitKind(cCode, kind),
                       namedArrays.values().size(),
                       namedArrays.values().pointer(),
                       namedArrays.names());
             }
             case Placeholder() -> {
-              cCode.stmt("Rsh_error(\"FIŘ placeholder reached\");");
+              cCode.stmt("Rf_error(\"FIŘ placeholder reached\");");
               yield "R_NilValue";
             }
             case PopEnv() -> {
-              cCode.stmt("Rsh_Fir_pop_env(&%s);", VAR_ENV);
+              cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
               yield "R_NilValue";
             }
             case Promise promise -> {
-              var cName = promiseName(promise);
+              var cName = promiseCName(promise);
+              var cParams = promiseCParams(promise);
+              var cReturn = promiseCReturn(promise);
+              var promiseFunction = cUnit.addFunction(cReturn, cName, cParams);
 
-              var capturedRegs = Objects.requireNonNull(captures.get(promise.code()));
+              var compiled = new CfgEmitter(promise.code(), promiseFunction).run();
+              compiledPromises.put(promise, compiled);
+              nested.add(compiled);
+
+              var pool = constantRef(compiled.constantPool());
+
+              var captures = Objects.requireNonNull(VersionEmitter.this.captures.get(promise.code()));
               var capturesArray =
                   emitArray(
                       "captures",
-                      capturedRegs.stream().map(reg -> "&" + registerPlace(reg)).toList());
+                      "SEXP",
+                      captures.stream().map(reg -> "&" + registerPlace(reg)).toList());
 
-              yield "Rsh_Fir_make_promise(&%s, %d, %s, %s, %s)"
+              yield "Fir_make_promise(&%s, %d, %s, %s, %s)"
                   .formatted(
-                      cName, capturesArray.size(), capturesArray.pointer(), VAR_POOL, VAR_ENV);
+                      cName, capturesArray.size(), capturesArray.pointer(), pool, VAR_ENV);
             }
             case ReflectiveLoad(var promArg, var variable) ->
-                "Rsh_Fir_reflective_load(%s, %s)"
+                "Fir_reflective_load(%s, %s)"
                     .formatted(emitArgument(promArg), nvSymbolRef(variable));
             case ReflectiveStore(var promArg, var variable, var value) ->
-                "Rsh_Fir_reflective_store(%s, %s, %s)"
+                "Fir_reflective_store(%s, %s, %s)"
                     .formatted(emitArgument(promArg), nvSymbolRef(variable), emitArgument(value));
             case Store(var variable, var value) -> {
               var arg = emitArgument(value);
-              cCode.stmt("Rsh_Fir_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
+              cCode.stmt("Fir_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
               yield arg;
             }
             case SubscriptRead(var vector, var index) ->
-                "Rsh_Fir_subscript_read(%s, %s)"
+                "Fir_subscript_read(%s, %s)"
                     .formatted(emitArgument(vector), emitArgument(index));
             case SubscriptWrite(var vector, var index, var value) ->
-                "Rsh_Fir_subscript_write(%s, %s, %s)"
+                "Fir_subscript_write(%s, %s, %s)"
                     .formatted(emitArgument(vector), emitArgument(index), emitArgument(value));
             case SuperLoad(var variable) ->
-                "Rsh_Fir_super_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
+                "Fir_super_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
             case SuperStore(var variable, var value) -> {
               var arg = emitArgument(value);
-              cCode.stmt("Rsh_Fir_super_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
+              cCode.stmt("Fir_super_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
               yield arg;
             }
           };
@@ -770,43 +420,45 @@ public final class Fir2CCompiler {
           var arguments = emitArgumentArray("args", call.callArguments());
           return switch (call.callee()) {
             case DispatchCallee(var calleeFun, var signature) -> {
-              var dispatch = compiledFunctionDispatch(calleeFun);
-              var paramTypes =
-                  signature == null ? "Rsh_Fir_param_types_empty()" : emitSignature(signature);
-              yield switch (dispatch) {
-                case FirCompiledDispatchIndex.Regular(var cFunctionName, var _) ->
-                    "%s(%s, %s, %d, %s, %s)"
-                        .formatted(
-                            cFunctionName,
-                            VAR_POOL,
-                            VAR_ENV,
-                            arguments.size(),
-                            arguments.pointer(),
-                            paramTypes);
-                case FirCompiledDispatchIndex.Builtin(var builtinIndex) ->
-                    "Rsh_Fir_call_builtin(%d, %s, %d, %s)"
-                        .formatted(builtinIndex, VAR_ENV, arguments.size(), arguments.pointer());
-              };
+              if (calleeFun.owner() == BUILTINS) {
+                var builtinIndex = rSession.RFunTab().indexOf(calleeFun.name().name());
+                yield "Fir_call_builtin(%d, %s, %d, %s)"
+                    .formatted(builtinIndex, VAR_ENV, arguments.size(), arguments.pointer());
+              }
+
+              // The baseline's signature is the default
+              if (signature == null) {
+                signature = calleeFun.baseline().signature();
+              }
+
+              var cName = functionCName(calleeFun);
+              var cSignature = emitSignature(signature);
+              // TODO: pool?
+              yield "%s(%s, %s%s)"
+                  .formatted(
+                      cName,
+                      VAR_ENV,
+                      cSignature,
+                      arguments.splice());
             }
             case StaticCallee(var calleeFunction, var calleeVersion) -> {
-              var compiled = compiledVersion(calleeFunction, calleeVersion);
-              yield "%s(%s, %s, %d, %s)"
+              var cName = versionCName(calleeFunction, calleeVersion);
+              yield "%s(%s, %s%s)"
                   .formatted(
-                      compiled.cFunctionName(),
+                      cName,
                       VAR_POOL,
                       VAR_ENV,
-                      arguments.size(),
-                      arguments.pointer());
+                      arguments.splice());
             }
             case DynamicCallee(var actualCallee, var argumentNames) -> {
               var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
-              yield "Rsh_Fir_call_dynamic(%s, %d, %s, %s, %s)"
+              yield "Fir_call_dynamic(%s, %s, %d, %s, %s)"
                   .formatted(
                       emitArgument(actualCallee),
+                      VAR_ENV,
                       arguments.size(),
                       arguments.pointer(),
-                      names.pointer(),
-                      VAR_ENV);
+                      names.pointer());
             }
           };
         }
@@ -820,11 +472,11 @@ public final class Fir2CCompiler {
             case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
             case Goto(var _, var target) -> emitJumpTo(1, target);
             case Unreachable(var _) -> {
-              cCode.stmt("Rsh_error(\"FIŘ unreachable reached\");");
+              cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
               cCode.stmt("return R_NilValue;");
             }
             case If(var _, var condition, var ifTrue, var ifFalse) -> {
-              cCode.stmt("if (Rsh_Fir_is_true(%s)) {", emitArgument(condition));
+              cCode.stmt("if (Fir_is_true(%s)) {", emitArgument(condition));
               emitJumpTo(2, ifTrue);
               cCode.stmt("} else {");
               emitJumpTo(2, ifFalse);
@@ -842,7 +494,7 @@ public final class Fir2CCompiler {
             case Deopt(var _, var pc, var stack) -> {
               var stackArgs = emitArgumentArray("deopt_stack", stack);
               cCode.stmt(
-                  "Rsh_Fir_deopt(%d, %d, %s, %s, %s);",
+                  "Fir_deopt(%d, %d, %s, %s, %s);",
                   pc, stackArgs.size(), stackArgs.pointer(), VAR_POOL, VAR_ENV);
               cCode.stmt("return R_NilValue;");
             }
@@ -867,13 +519,13 @@ public final class Fir2CCompiler {
 
           return switch (assume) {
             case AssumeConstant(var target, var constant) ->
-                "Rsh_Fir_assume_constant(%s, %s)"
+                "Fir_assume_constant(%s, %s)"
                     .formatted(emitArgument(target), constantRef(constant.sexp()));
             case AssumeFunction a ->
-                "Rsh_Fir_assume_function(%s, &%s)"
-                    .formatted(emitArgument(a.target()), dispatchPtrName(a.function()));
+                "Fir_assume_function(%s, &%s)"
+                    .formatted(emitArgument(a.target()), functionCName(a.function()));
             case AssumeType(var target, var type) ->
-                "Rsh_Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
+                "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
           };
         }
 
@@ -899,24 +551,21 @@ public final class Fir2CCompiler {
             cCode.stmt(indentLevel, "%s = %s;", dest, value);
           }
 
-          cCode.stmt(indentLevel, "goto %s;", labelName(target.bb()));
+          cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));
+        }
+
+        private String emitSignature(Signature signature) {
+          var returnType = emitType(cCode, signature.returnType());
+          var paramTypes = emitArray("param_types", "Fir_Type", Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
+          return "Fir_signature(%s, %d, %s)"
+              .formatted(
+                  returnType,
+                  paramTypes.size(),
+                  paramTypes.pointer());
         }
 
         private Array emitArgumentArray(String baseName, List<Argument> arguments) {
-          return emitArray(baseName, Lists.mapLazy(arguments, this::emitArgument));
-        }
-
-        private Array emitArray(String baseName, List<String> arguments) {
-          if (arguments.isEmpty()) {
-            return new Array(0, "NULL");
-          }
-
-          var arrayName = mangler.unique("Rsh_Fir_array_%s", baseName);
-          cCode.stmt("SEXP %s[%d];", arrayName, arguments.size());
-          for (var i = 0; i < arguments.size(); i++) {
-            cCode.stmt("%s[%d] = %s;", arrayName, i, arguments.get(i));
-          }
-          return new Array(arguments.size(), arrayName);
+          return emitArray(baseName, "SEXP", Lists.mapLazy(arguments, this::emitArgument));
         }
 
         private ArrayAndNames emitNamedArgumentArrays(List<NamedArgument> namedArguments) {
@@ -937,64 +586,27 @@ public final class Fir2CCompiler {
 
         private Array emitOptionalNameArray(
             String baseName, List<OptionalNamedVariable> names, int size) {
-          if (size == 0) {
+          var arguments = IntStream.range(0, size).mapToObj(i -> {
+            var name = i < names.size() ? names.get(i).orNull() : null;
+            return name == null ? "R_MissingArg" : nvSymbolRef(name);
+          }).toList();
+          return emitArray(baseName, "SEXP", arguments);
+        }
+
+        private Array emitArray(String baseName, String elemCType, List<String> arguments) {
+          if (arguments.isEmpty()) {
             return new Array(0, "NULL");
           }
 
-          var arrayName = mangler.unique("Rsh_Fir_array_%s", baseName);
-          cCode.stmt("SEXP %s[%d];", arrayName, size);
-          for (var i = 0; i < size; i++) {
-            var name = i < names.size() ? names.get(i).orNull() : null;
-            var expr = name == null ? "R_MissingArg" : nvSymbolRef(name);
-            cCode.stmt("%s[%d] = %s;", arrayName, i, expr);
+          var disambiguator = tempArrayDisambiguators.getOrDefault(baseName, 0);
+          var arrayName = "t_%s_%d".formatted(baseName, disambiguator);
+          tempArrayDisambiguators.put(baseName, disambiguator + 1);
+
+          cCode.stmt("%s %s[%d];", elemCType, arrayName, arguments.size());
+          for (var i = 0; i < arguments.size(); i++) {
+            cCode.stmt("%s[%d] = %s;", arrayName, i, arguments.get(i));
           }
-          return new Array(size, arrayName);
-        }
-
-        private String emitSignature(Signature signature) {
-          return "/* TODO emitSignature(%s) */ NULL".formatted(signature);
-        }
-
-        private String emitType(Type type) {
-          var comment =
-              options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(type) : "";
-          return "%sRsh_Fir_type(%s, %s, %s)"
-              .formatted(
-                  comment,
-                  emitKind(type.kind()),
-                  emitOwnership(type.ownership()),
-                  emitConcreteness(type.concreteness()));
-        }
-
-        private String emitKind(Kind kind) {
-          return switch (kind) {
-            case Kind.Any() -> "Rsh_Fir_kind_any";
-            case Kind.AnyValue() -> "Rsh_Fir_kind_anyValue";
-            case Kind.PrimitiveScalar(var primitiveKind) ->
-                "Rsh_Fir_kind_primitiveScalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
-            case Kind.PrimitiveVector(var primitiveKind) ->
-                "Rsh_Fir_kind_primitiveVector(%s)".formatted(emitPrimitiveKind(primitiveKind));
-            case Kind.Closure() -> "Rsh_Fir_kind_closure";
-            case Kind.Dots() -> "Rsh_Fir_kind_dots";
-            case Kind.Promise(var valueType, var fx) ->
-                "Rsh_Fir_kind_promise(%s, %s)".formatted(emitType(valueType), emitEffects(fx));
-          };
-        }
-
-        private String emitPrimitiveKind(PrimitiveKind primitiveKind) {
-          return Integer.toString(primitiveKind.ordinal());
-        }
-
-        private String emitOwnership(Ownership ownership) {
-          return Integer.toString(ownership.ordinal());
-        }
-
-        private String emitConcreteness(Concreteness concreteness) {
-          return Boolean.toString(concreteness == Concreteness.DEFINITE);
-        }
-
-        private String emitEffects(Effects fx) {
-          return Boolean.toString(fx.reflect());
+          return new Array(arguments.size(), arrayName);
         }
 
         private String emitArgument(Argument argument) {
@@ -1006,28 +618,340 @@ public final class Fir2CCompiler {
         }
       }
 
-      // endregion emit
-
-      // region interned
-      private String labelName(BB bb) {
-        if (bb.isEntry()) {
-          throw new IllegalArgumentException("Can't refer to the entry BB");
-        }
-        var name = labelNames.get(bb);
-        if (name == null) {
-          throw new IllegalArgumentException("Unknown (not in CFG) BB: " + bb);
-        }
-        return name;
-      }
-
+      // region misc
       private String registerPlace(Register register) {
-        var name = registerName(register);
+        var name = registerCName(register);
         if (Objects.requireNonNull(captures.get(cfg)).contains(register)) {
           name = "*" + name;
         }
         return name;
       }
-      // endregion interned
+
+      private String nvSymbolRef(NamedVariable nv) {
+        return constantRef(SEXPs.symbol(nv.name()));
+      }
+
+      private String constantRef(SEXP sexp) {
+        var idx = constantPool.intern(sexp);
+        return "Rsh_const(%s, %d)".formatted(VAR_POOL, idx);
+      }
+      // endregion misc
+    }
+
+    private List<String> promiseCParams(Promise promise) {
+      var captures = Objects.requireNonNull(this.captures.get(promise.code()));
+      return Fir2CCompiler.promiseCParams(captures);
     }
   }
+
+  /// Emits C for a [Function]'s dynamic-dispatch function.
+  private final class DispatchEmitter {
+    // Input
+    private final Function function;
+
+    // Output
+    private final CFunction cFunction;
+
+    DispatchEmitter(Function function) {
+      this.function = function;
+
+      var cName = functionCName(function);
+      var cParams = List.of(
+          "SEXP %s".formatted(VAR_POOL),
+          "SEXP %s".formatted(VAR_ENV),
+          "Fir_Signature %s".formatted(VAR_SIGNATURE),
+          "...");
+      var cReturn = "SEXP";
+      cFunction = cUnit.addFunction(cReturn, cName, cParams);
+    }
+
+    private CompiledItem run() {
+      var versions = function.versionsSorted();
+      int i;
+      Iterator<Abstraction> versionIter;
+      Abstraction version;
+
+      CCode cCode;
+
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode = cFunction.add();
+        cCode.comment(
+            "FIR %s dynamic dispatch (%s)", function.name().name(), function.parameterNames());
+        for (
+            i = 0, versionIter = versions.iterator(), version = versionIter.next();
+            i < versions.size();
+            i++, version = versionIter.next()
+        ) {
+          cCode.comment("%d. %s", i, version.signature());
+        }
+      }
+
+      cCode = cFunction.add();
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment("Setup");
+      }
+      cCode.stmt("bool incompatible[%d];", versions.size());
+      cCode.stmt("va_list args;");
+      cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
+
+      cCode = cFunction.add();
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment("Filter by argument count");
+      }
+      for (
+          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+          i < versions.size();
+          i++, version = versionIter.next()
+      ) {
+        cCode.stmt("incompatible[%d] = %s.param_count == %d;", i, VAR_SIGNATURE, version.parameters().size());
+      }
+
+      cCode = cFunction.add();
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment("Filter by static return type");
+      }
+      for (
+          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+          i < versions.size();
+          i++, version = versionIter.next()
+      ) {
+        var typeEmit = emitType(cCode, version.returnType());
+        cCode.stmt(2, "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type);", i, i, typeEmit, VAR_SIGNATURE);
+      }
+      cCode.stmt("}");
+
+
+      // TODO: Don't check parts of the static type that are known at runtime,
+      //  then filter by runtime type. Currently we ignore the runtime type.
+      cCode = cFunction.add();
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment("Filter by arguments' static types");
+      }
+      cCode.stmt("for (int i = 0; i < %s.param_count; ++i) {", VAR_SIGNATURE);
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment(2, "Filter by argument %d's static type", i);
+      }
+      cCode.stmt(2, "Fir_Type arg_type = %s.param_types[i];", VAR_SIGNATURE);
+      for (
+          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+          i < versions.size();
+          i++, version = versionIter.next()
+      ) {
+        var typeEmit = emitType(cCode, version.parameters().get(i).type());
+        cCode.stmt(2, "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(arg_type, %s);", i, i, typeEmit);
+      }
+      cCode.stmt("}");
+
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode = cFunction.add();
+        cCode.comment("Filter by arguments' runtime type");
+        cCode.comment("TODO. Currently we check the full static type, so it's sound, but not optimal");
+      }
+
+      cCode = cFunction.add();
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment("Call first compatible version");
+      }
+      cCode.stmt("SEXP out;");
+      for (
+          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+          i < versions.size();
+          i++, version = versionIter.next()
+      ) {
+        var ifHead = i == 0 ? "if" : "else if";
+        var baselineName = versionCName(function, version);
+
+        cCode.stmt("%s (!incompatible[%d])", ifHead, i);
+        // Reuse the active `va_list`.
+        // When we implement checking runtime types, we must move the `va_list` back after.
+        cCode.stmt(2, "out = %s(%s, %s, args);", baselineName, VAR_POOL, VAR_ENV);
+      }
+      cCode.stmt("else");
+      cCode.stmt(2, "Rf_error(\"No versions compatible with the given arguments for %s\");", sanitizeString(function.name().name()));
+      cCode.stmt("va_end(args);");
+      cCode.stmt("return out;");
+
+      var nested = versions.stream().filter(v -> !v.isStub()).map(v -> Objects.requireNonNull(compiledVersions.get(v))).toList();
+      return new CompiledItem(cFunction, SEXPs.vec(), nested);
+    }
+  }
+
+  // region emit types
+  private String emitType(CCode cCode, Type type) {
+    var comment =
+        options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(type) : "";
+    return "%sFir_type(%s, %s, %s)"
+        .formatted(
+            comment,
+            emitKind(cCode, type.kind()),
+            emitOwnership(type.ownership()),
+            emitConcreteness(type.concreteness()));
+  }
+
+  private String emitKind(CCode cCode, Kind kind) {
+    return switch (kind) {
+      case Kind.Any() -> "Fir_kind_any";
+      case Kind.AnyValue() -> "Fir_kind_anyValue";
+      case Kind.PrimitiveScalar(var primitiveKind) ->
+          "Fir_kind_primitiveScalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
+      case Kind.PrimitiveVector(var primitiveKind) ->
+          "Fir_kind_primitiveVector(%s)".formatted(emitPrimitiveKind(primitiveKind));
+      case Kind.Closure() -> "Fir_kind_closure";
+      case Kind.Dots() -> "Fir_kind_dots";
+      case Kind.Promise(var valueType, var fx) -> {
+        var tempTypeName = "t_type_%d".formatted(tempTypeDisambiguator++);
+
+        cCode.stmt("Fir_Type %s = %s", tempTypeName, emitType(cCode, valueType));
+        yield "Fir_kind_promise(&%s, %s)".formatted(tempTypeName, emitEffects(fx));
+      }
+    };
+  }
+
+  private static String emitPrimitiveKind(PrimitiveKind primitiveKind) {
+    return Integer.toString(primitiveKind.ordinal());
+  }
+
+  private static String emitOwnership(Ownership ownership) {
+    return Integer.toString(ownership.ordinal());
+  }
+
+  private static String emitConcreteness(Concreteness concreteness) {
+    return Boolean.toString(concreteness == Concreteness.DEFINITE);
+  }
+
+  private static String emitEffects(Effects fx) {
+    return Boolean.toString(fx.reflect());
+  }
+  // endregion emit types
+
+  // region misc
+  /// Reconstruct DAG of nested functions.
+  /// This is hacky: it relies on an invariant that exists in R but not FIŘ:
+  /// the closure provided to a `clos` instruction never references the closure containing it,
+  /// either directly or transitively via other `clos` instructions.
+  /// Thus it can return `UnsupportedOperationException` for custom FIŘ modules.
+  private static Collection<Function> nestedDag(Module module) {
+    // Compute direct dependencies (into `depTree`)
+    var depTree = new LinkedHashMap<Function, Set<Function>>(module.localFunctions().size());
+    for (var f : module.localFunctions()) {
+      var intransitiveDeps = f
+          .versions()
+          .stream()
+          .flatMap(Abstraction::streamCfgs)
+          .flatMap(cfg -> cfg.bbs().stream())
+          .flatMap(bb -> bb.statements().stream())
+          .map(Statement::expression)
+          .filter(e -> e instanceof Closure)
+          .map(e -> (Closure) e)
+          .map(Closure::code)
+          .collect(Collectors.toCollection(LinkedHashSet::new));
+      depTree.put(f, intransitiveDeps);
+    }
+
+    // Compute transitive dependencies (reuse `depTree`)
+    var progress = true;
+    while (progress) {
+      progress = false;
+
+      for (var e : depTree.entrySet()) {
+        var fun = e.getKey();
+        var deps = e.getValue();
+
+        for (var dep : deps) {
+          if (dep == fun) {
+            throw new UnsupportedOperationException("Function " + fun.name() + " transitively references itself via `clos`\nWe don't support compiling these because they aren't generated from R");
+          }
+
+          var subDeps = depTree.get(dep);
+          if (subDeps != null && deps.addAll(subDeps)) {
+            progress = true;
+          }
+        }
+      }
+    }
+
+    // Convert tree into DAG
+    var dag = new LinkedHashSet<Function>(module.localFunctions().size());
+    var remaining = new LinkedHashSet<>(module.localFunctions());
+    while (!remaining.isEmpty()) {
+      for (var entry : depTree.entrySet()) {
+        var fun = entry.getKey();
+        var deps = entry.getValue();
+
+        if (dag.contains(fun)) {
+          continue;
+        }
+
+        if (!Sets.intersection(remaining, deps).isEmpty()) {
+          continue;
+        }
+
+        dag.add(fun);
+        remaining.remove(fun);
+      }
+    }
+    return dag;
+  }
+
+  private static String functionCName(Function function) {
+    return "Fir_fun_" + escapeForC(function.name().name());
+  }
+
+  private static String versionCName(Function function, Abstraction version) {
+    return "Fir_ver_" + escapeForC(function.name().name()) + "_v" + function.indexOf(version);
+  }
+
+  private static String promiseCName(Promise promise) {
+    return "Fir_prom_" + Integer.toHexString(promise.hashCode());
+  }
+
+  private static List<String> versionCParams(Abstraction version) {
+    return Stream.concat(
+        Stream.of("SEXP %s".formatted(VAR_POOL), "SEXP %s".formatted(VAR_ENV)),
+        version.parameters().stream().map(p -> "SEXP %s".formatted(registerCName(p.variable())))).toList();
+  }
+
+  private static List<String> promiseCParams(Collection<Register> captures) {
+    return Stream.concat(
+        Stream.of("SEXP %s".formatted(VAR_POOL), "SEXP %s".formatted(VAR_ENV)),
+        captures.stream().map(capture -> "SEXP const*%s".formatted(registerCName(capture)))).toList();
+  }
+
+  private static String versionCReturn(Abstraction ignored) {
+    return "SEXP";
+  }
+
+  private static String promiseCReturn(Promise ignored) {
+    return "SEXP";
+  }
+
+  private static String registerCName(Register register) {
+    return "r_" + register.name();
+  }
+
+  private static String labelCName(BB bb) {
+    if (bb.isEntry()) {
+      throw new IllegalArgumentException("Can't refer to the entry BB");
+    }
+    return "l_" + bb.label();
+  }
+
+
+  private static String sanitizeString(String value) {
+    return value.replace("\"", "\\\"");
+  }
+
+  private record Array(int size, String pointer) {
+    String splice() {
+      var sb = new StringBuilder();
+      for (var i = 0; i < size; i++) {
+        sb.append(", ");
+        sb.append("%s[%d]");
+      }
+      return sb.toString();
+    }
+  }
+
+  private record ArrayAndNames(Array values, String names) {}
+  // endregion misc
 }

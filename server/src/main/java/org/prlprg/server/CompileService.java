@@ -5,12 +5,10 @@ import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -202,10 +200,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var module = BC2CCompiler.compile(bc, name, false);
-          var closure = Objects.requireNonNull(module.bindings().get(name));
+          var closure = BC2CCompiler.compile(bc, name, false);
           var input = File.createTempFile("cfile", ".c");
-          Files.write(module.cCode().getBytes(StandardCharsets.UTF_8), input);
+          closure.writeNewCUnitTo(new FileWriter(input, StandardCharsets.UTF_8));
           var output = File.createTempFile("ofile", ".o");
 
           RshCompiler.getInstance(ccOpt, RuntimeVariant.DIRECT_BC2C)

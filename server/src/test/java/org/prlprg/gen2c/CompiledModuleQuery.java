@@ -1,9 +1,12 @@
 package org.prlprg.gen2c;
 
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
+import org.prlprg.fir.ir.variable.*;
+import org.prlprg.fir2c.*;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
@@ -20,16 +23,7 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   @Override
   default CompiledModule deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    var R = GNUR.instance();
-
-    var cPath = path.resolve("code.c");
-    var bindingsPath = path.resolve("bindings.RDS");
-
-    var code = Files.readString(cPath);
-    var bindingsSexp = RDSReader.readFile(R.getSession(), bindingsPath.toFile());
-    var bindings = CompiledModule.bindingsFromSexp((EnvSXP) bindingsSexp);
-
-    return new CompiledModule(code, bindings);
+    throw new UnsupportedEncodingException("Compiled modules aren't checked via snapshot, and only their on-disk path is used by dependents");
   }
 
   @Override
@@ -42,8 +36,18 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
       Files.createDirectory(path);
     }
 
-    Files.writeString(cPath, data.cCode());
-    RDSWriter.writeFile(bindingsPath.toFile(), data.bindingsAsSexp());
+    var mainFun = data.input().localFunction(Variable.named("main"));
+    if (mainFun == null) {
+      throw new IllegalArgumentException("Module doesn't have a main function");
+    }
+    var mainCFun = data.functions().get(mainFun);
+    if (mainCFun == null) {
+      throw new IllegalArgumentException("Compiled module doesn't have a main function");
+    }
+    var entryCFun = entrypoint(mainCFun);
+
+    entryCFun.writeNewCUnitTo(new FileWriter(cPath.toFile(), StandardCharsets.UTF_8));
+    RDSWriter.writeFile(bindingsPath.toFile(), mainCFun.constantPool());
 
     // Compile for both `EvalQuery` and easier debugging outside of tests.
     var soPath = path.resolve("code.so");

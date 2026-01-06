@@ -741,8 +741,7 @@ public class BC2CFGCompiler {
         // This causes snapshots to fail if we change how SEXPs are printed.
         // We just need to update them because the generated names are different.
         // `String#hashCode` is stable, so it shouldn't fail otherwise.
-        var generatedName =
-            "inner" + ((long) cloSxp.toString().hashCode() + (long) Integer.MAX_VALUE);
+        var generatedName = "f" + Integer.toHexString(cloSxp.toString().hashCode());
 
         // Since we generate the name from a hash of the closure's body, we may have a name
         // conflict, but it's only with an identical closure we've already compiled.
