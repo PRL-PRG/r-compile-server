@@ -2991,8 +2991,7 @@ static INLINE Rboolean Rsh_BaseGuard(Value *stack, SEXP expr, SEXP rho) {
   SEXP sym = CAR(expr);
   if (Rf_findFun(sym, rho) != SymbolValue(sym)) {
     // function redefined -- bail out to R interpreter
-    PUSH_VAL(1);
-    SET_SXP_VAL(GET_VAL(1), Rf_eval(expr, rho));
+    SET_SXP_VAL(GET_VAL(-1), Rf_eval(expr, rho));
     return TRUE;
   } else {
     return FALSE;

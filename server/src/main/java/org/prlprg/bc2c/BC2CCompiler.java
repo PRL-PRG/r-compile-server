@@ -322,6 +322,7 @@ class ClosureCompiler {
             yield builder.args("&" + VAR_LOOP_CTX + "[" + idx + "]").compileStmt();
           }
           case BcInstr.Switch sw -> compileSwitch(builder, sw);
+          case BcInstr.BaseGuard bg -> compileBaseGuard(builder, bg);
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(l));
@@ -333,6 +334,27 @@ class ClosureCompiler {
 
     body.line(code);
     updateBranchStackState(instr);
+  }
+
+  private String compileBaseGuard(InstrCallBuilder builder, BcInstr.BaseGuard bg) {
+    // The BaseGuard instruction either jumps to the label in the case the builtin was not
+    // overridden
+    // or runs the builtin in the interpreter and pushes the value on the stack
+    // For the latter case, we create a new value on the stack which shall be popped
+    // if the base guard did not jump.
+    stack.push();
+    var code =
+        """
+                PUSH_VAL(1);
+                if (%s) {
+                  goto %s;
+                } else {
+                  POP_VAL(1);
+                }
+                """
+            .formatted(builder.compile(), label(bg.label().orElseThrow()));
+    stack.pop();
+    return code;
   }
 
   private void updateBranchStackState(BcInstr instr) {

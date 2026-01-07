@@ -931,6 +931,7 @@ public class BC2CCompilerTest {
 
   @Test
   public void testLoopContextsBreak(BC2CSnapshot snapshot) {
+    snapshot.setClean(false);
     snapshot.verify(
         """
                         x <- 0
@@ -1077,14 +1078,14 @@ public class BC2CCompilerTest {
     snapshot.setBCOptimizationLevel(2);
     snapshot.verify(
         """
-                f <- function() sin(0)
-                f()
-                """,
+                      f <- function() sin(0)
+                      f()
+                      """,
         returns(0.0));
     snapshot.verify(
         """
-                sin <- function(x) 42
                 f <- function() sin(0)
+                eval(quote(sin <- function(x) 42))
                 f()
                 """,
         returns(42.0));
