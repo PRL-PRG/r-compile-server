@@ -7,8 +7,10 @@ BEAR := $(shell command -v bear 2> /dev/null)
 BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)
 RSH_HOME = $(BASE_DIR)/client/rsh
 R_HOME ?= $(BASE_DIR)/external/R
-R := $(R_HOME)/bin/R --slave --no-restore
-LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
+R := $(R_HOME)/bin/R
+R_NON_INTERACTIVE := $(R) --slave --no-restore
+LLVM_PRELOAD := LD_PRELOAD=$(LLVM_LIB)
+LLVM_R := $(LLVM_PRELOAD) $(R_NON_INTERACTIVE)
 
 CRAN_MIRROR ?= https://cloud.r-project.org
 PKG_INSTALL_TASKS ?= 4
@@ -34,7 +36,7 @@ install:
 .PHONY: setup
 .ONESHELL:
 setup:
-	$(R) <<-'EOF'
+	$(R_NON_INTERACTIVE) <<-'EOF'
 	d <- read.dcf("$(RSH_HOME)/DESCRIPTION");
 	pkgs <- strsplit(gsub("\n", " ", d[1,"Suggests"]), ",\\s*")[[1]];
 	pkgs <- gsub(" \\(.*\\)", "", pkgs);
@@ -43,6 +45,14 @@ setup:
 	  install.packages(to_install, Ncpus=$(PKG_INSTALL_TASKS), repos="$(CRAN_MIRROR)")
 	}
 	EOF
+
+.PHONY: run
+run:
+	$(LLVM_PRELOAD) $(R)
+
+.PHONY: debug
+debug:
+	$(LLVM_PRELOAD) $(R) -d gdb
 
 .PHONY: compile_commands.json
 compile_commands.json:
@@ -107,7 +117,7 @@ benchmark:
 		if [ $$failed -gt 0 ]; then \
 			echo "$(TXT_BOLD)Failed tests:$(TXT_RED)$$failed_tests$(TXT_NORM)"; \
 		fi
-		$(R) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
+		$(R_NON_INTERACTIVE) -f $(BENCH_DIR)/benchmark.R --args save $(BENCH_OUT_DIR)/benchmarks.csv $(BENCH_OUT_DIR)
 
 .PHONY: benchmark-baseline
 benchmark-baseline:

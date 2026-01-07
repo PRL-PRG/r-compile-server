@@ -7,6 +7,12 @@
 #include <setjmp.h>
 #define RSH
 
+#ifdef __cplusplus
+#define TO_RBOOL(x) ((x) ? TRUE : FALSE)
+#else
+#define TO_RBOOL(x) (x)
+#endif
+
 // MAKE SURE Rinternals.h is not listed!
 #include "runtime_internals.h"
 #include <assert.h>
@@ -2963,7 +2969,7 @@ static Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
                                    SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
-  return sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;
+  return TO_RBOOL(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
 }
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
@@ -3062,7 +3068,7 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
       which = n - 1;
       for (i = 0; i < n - 1; i++) {
         if (Rf_pmatch(STRING_ELT(value, 0), STRING_ELT(names, i),
-                      1 /* exact */)) {
+                      TO_RBOOL(1) /* exact */)) {
           which = i;
           break;
         }
@@ -3089,11 +3095,12 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
 
 static INLINE int Rsh_Switch(Value *v, SEXP call, SEXP names, SEXP coffsets,
                              SEXP ioffsets) {
-  return Rsh_do_switch(v, call, names, coffsets, ioffsets, names == R_NilValue,
-                       TYPEOF(names) == STRSXP, LENGTH(names),
-                       TYPEOF(ioffsets) == INTSXP, LENGTH(ioffsets),
-                       TYPEOF(coffsets) == INTSXP,
-                       LENGTH(coffsets) == LENGTH(names));
+  return Rsh_do_switch(v, call, names, coffsets, ioffsets,
+                       TO_RBOOL(names == R_NilValue),
+                       TO_RBOOL(TYPEOF(names) == STRSXP), LENGTH(names),
+                       TO_RBOOL(TYPEOF(ioffsets) == INTSXP), LENGTH(ioffsets),
+                       TO_RBOOL(TYPEOF(coffsets) == INTSXP),
+                       TO_RBOOL(LENGTH(coffsets) == LENGTH(names)));
 }
 
 #endif // RUNTIME_H

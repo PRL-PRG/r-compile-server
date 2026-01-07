@@ -161,7 +161,6 @@ SEXP compile(SEXP closure, SEXP options) {
     auto c_cp = rsh::deserialize(compiled_fun.constants());
     body =
         PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
-    // PROTECT(create_wrapper_body(closure, (Rsh_closure)fun_ptr, c_cp)); // P1
   } else if (opts.tier == protocol::Tier::BASELINE) {
     body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2
     if (TYPEOF(body) != BCODESXP) {
@@ -203,30 +202,7 @@ SEXP compile(SEXP closure, SEXP options) {
 }
 
 SEXP is_compiled(SEXP closure) {
-  if (TYPEOF(closure) != CLOSXP) {
-    Rf_error("Expected a closure");
-  }
-
-  SEXP body = BODY(closure);
-  if (TYPEOF(body) != BCODESXP) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  SEXP cp = BCODE_CONSTS(body);
-  if (XLENGTH(cp) != 6) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  if (TYPEOF(VECTOR_ELT(cp, 3)) != EXTPTRSXP) {
-    // TODO: check if the pointer is a valid function, i.e. ORC knows about it
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  if (TYPEOF(VECTOR_ELT(cp, 4)) != VECSXP) {
-    return Rf_ScalarLogical(FALSE);
-  }
-
-  return Rf_ScalarLogical(TRUE);
+  return Rf_ScalarLogical(Rsh_is_closure(closure));
 }
 
 #define RSH_PACKAGE_NAME "rsh"

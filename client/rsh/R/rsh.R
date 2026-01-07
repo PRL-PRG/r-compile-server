@@ -116,7 +116,9 @@ rsh_cmpfun <- function(f, options) {
   }
 
   # FIXME: this does not work, we need to find the closure in the an environment
-  options$name <- as.character(substitute(f))
+  if (is.null(options$name)) {
+    options$name <- as.character(substitute(f))
+  }
   options$inplace <- FALSE
 
   rsh_compile(f, options)
@@ -151,4 +153,92 @@ rsh_total_size <- function() {
 #' @export
 rsh_clear_cache <- function() {
   .Call(C_clear_cache)
+}
+
+#' Compile all functions in a given package or environment
+#'
+#' Compiles all functions from the given package or environment
+#'
+#' @param package either a character string specifying the package name or an environment
+#' @param ... additional arguments passed to rsh_cmpfun
+#' @param quiet logical; if FALSE, shows progress for each function
+#' @return invisibly returns a list with compilation statistics
+#' @export
+rsh_cmppkg <- function(package, ..., quiet = FALSE) {
+  if (is.character(package)) {
+    if (length(package) != 1) {
+      stop("package must be a character string of length 1")
+    }
+
+    if (!quiet) {
+      cat("Compiling package:", package, "\n")
+    }
+
+    tryCatch({
+      pkg_ns <- loadNamespace(package)
+    }, error = function(e) {
+      stop("Failed to load namespace for package '", package, "': ", e$message)
+    })
+  } else if (is.environment(package)) {
+    pkg_ns <- package
+  } else {
+    stop("package must be either a character string or an environment")
+  }
+
+  all_names <- ls(pkg_ns, all.names = TRUE)
+
+  func_names <- character(0)
+  for (name in all_names) {
+    obj <- get(name, envir = pkg_ns, inherits = FALSE)
+    if (is.function(obj)) {
+      func_names <- c(func_names, name)
+    }
+  }
+
+  total_functions <- length(func_names)
+  compiled_functions <- 0
+
+  if (total_functions == 0) {
+    return(invisible(list(compiled = 0, total = 0)))
+  }
+
+  compiled_env <- new.env()
+
+  for (func_name in func_names) {
+    func <- get(func_name, envir = pkg_ns, inherits = FALSE)
+
+    tryCatch({
+      compiled_func <- rsh_cmpfun(func, list(name = func_name, ...))
+
+      assign(func_name, compiled_func, envir = compiled_env)
+      compiled_functions <- compiled_functions + 1
+
+      if (!quiet) {
+        cat("- ", func_name, " OK\n", sep = "")
+      }
+    }, error = function(e) {
+      if (!quiet) {
+        cat("- ", func_name, " Err (", e$message, ")\n", sep = "")
+      }
+    })
+  }
+
+  for (func_name in ls(compiled_env, all.names = TRUE)) {
+    tryCatch({
+      unlockBinding(func_name, pkg_ns)
+      assign(func_name, get(func_name, envir = compiled_env), envir = pkg_ns)
+      lockBinding(func_name, pkg_ns)
+    }, error = function(e) {
+      if (!quiet) {
+        cat("Warning: Failed to replace function '", func_name, "': ", e$message, "\n", sep = "")
+      }
+    })
+  }
+
+  # Print statistics
+  if (!quiet) {
+    cat("Compilation complete: ", compiled_functions, "/", total_functions, " functions\n", sep = "")
+  }
+
+  invisible(list(compiled = compiled_functions, total = total_functions))
 }
