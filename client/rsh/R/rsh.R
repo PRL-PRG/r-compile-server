@@ -93,7 +93,8 @@ rsh_compile <- function(f, options) {
     options$cache <- TRUE
   }
 
-  invisible(.Call(C_compile, f, options))
+  result <- .Call(C_compile, f, options)
+  invisible(result)
 }
 
 #' Compile given closure
@@ -121,7 +122,8 @@ rsh_cmpfun <- function(f, options) {
   }
   options$inplace <- FALSE
 
-  rsh_compile(f, options)
+  result <- rsh_compile(f, options)
+  result$closure
 }
 
 #' Check if the closure is natively compiled
@@ -160,11 +162,12 @@ rsh_clear_cache <- function() {
 #' Compiles all functions from the given package or environment
 #'
 #' @param package either a character string specifying the package name or an environment
+#' @param output_dir optional character string; if provided, saves intermediate files (.o and .RDS) to this directory
 #' @param ... additional arguments passed to rsh_cmpfun
 #' @param quiet logical; if FALSE, shows progress for each function
 #' @return invisibly returns a list with compilation statistics
 #' @export
-rsh_cmppkg <- function(package, ..., quiet = FALSE) {
+rsh_cmppkg <- function(package, output_dir = NULL, ..., quiet = FALSE) {
   if (is.character(package)) {
     if (length(package) != 1) {
       stop("package must be a character string of length 1")
@@ -181,8 +184,24 @@ rsh_cmppkg <- function(package, ..., quiet = FALSE) {
     })
   } else if (is.environment(package)) {
     pkg_ns <- package
+    if (!quiet) {
+      cat("Compiling environment\n")
+    }
   } else {
     stop("package must be either a character string or an environment")
+  }
+
+  # Validate and create output directory if provided
+  if (!is.null(output_dir)) {
+    if (!is.character(output_dir) || length(output_dir) != 1) {
+      stop("output_dir must be a character string of length 1")
+    }
+    if (!dir.exists(output_dir)) {
+      if (!quiet) {
+        cat("Creating output directory:", output_dir, "\n")
+      }
+      dir.create(output_dir, recursive = TRUE)
+    }
   }
 
   all_names <- ls(pkg_ns, all.names = TRUE)
@@ -208,14 +227,38 @@ rsh_cmppkg <- function(package, ..., quiet = FALSE) {
     func <- get(func_name, envir = pkg_ns, inherits = FALSE)
 
     tryCatch({
-      compiled_func <- rsh_cmpfun(func, list(name = func_name, ...))
+      # Compile with output_dir option if provided
+      if (!is.null(output_dir)) {
+        result <- .Call(C_compile, func, list(name = func_name, output_dir = output_dir, inplace = FALSE, ...))
+        compiled_func <- result$closure
+        info <- result$info
+
+        if (!quiet) {
+          message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
+          if (info$constants_size > 0) {
+            message <- paste0(message, ", constants: ", info$constants_size, " bytes")
+          }
+          if (!is.null(info$object_file)) {
+            message <- paste0(message, ", saved: ", basename(info$object_file), ", ", basename(info$constants_file))
+          }
+          cat(message, ")\n", sep = "")
+        }
+      } else {
+        result <- .Call(C_compile, func, list(name = func_name, inplace = FALSE, ...))
+        compiled_func <- result$closure
+        info <- result$info
+
+        if (!quiet) {
+          message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
+          if (info$constants_size > 0) {
+            message <- paste0(message, ", constants: ", info$constants_size, " bytes")
+          }
+          cat(message, ")\n", sep = "")
+        }
+      }
 
       assign(func_name, compiled_func, envir = compiled_env)
       compiled_functions <- compiled_functions + 1
-
-      if (!quiet) {
-        cat("- ", func_name, " OK\n", sep = "")
-      }
     }, error = function(e) {
       if (!quiet) {
         cat("- ", func_name, " Err (", e$message, ")\n", sep = "")

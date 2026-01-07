@@ -35,13 +35,33 @@ message CompileRequest {
   optional Context context = 7;
   optional Environment environment = 8;//The values of all the bindings that statically appear in the function
   bool no_cache = 9;//If true, the server will not cache the result
+  bool debug = 10;//If true, the code will be compiled with -O0 -g
+}
+
+message CompileSuccess {
+  bytes code = 1;
+  bytes constants = 2;
+  Tier tier = 3;
+  uint64 hash = 4;
+  optional SourceCodeData source_code_data = 5;
+}
+
+message CompileFailure {
+  string command = 1;
+  string compiler_output = 2;
+  string source_code = 3;
+}
+
+message SourceCodeData {
+  string source_code = 1;
+  string temp_file_name = 2;
 }
 
 message CompileResponse {
-  uint64 hash = 1;
-  Tier tier = 2;
-  optional bytes code = 3;
-  optional bytes constants = 4;
+  oneof result {
+    CompileSuccess success = 1;
+    CompileFailure failure = 2;
+  }
 }
 
 
