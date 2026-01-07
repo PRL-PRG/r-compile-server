@@ -18,6 +18,7 @@ extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
 #include "rcp_common.h"
+#include "rcp_bc_info.h"
 #include "runtime_internals.h"
 #include "stencils/stencils.h"
 
@@ -494,16 +495,16 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     memcpy(&dst[hole->offset], &ptr, hole->size);
 }
 
-static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *r_constpool)
+static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms, const SEXP *r_constpool)
 {
     const Stencil* stencil_set = stencils[opcode];
     // For speciailized stencils
     switch(opcode)
     {
-        case MATH1_OP:
+        case MATH1_BCOP:
             return &stencil_set[imms[1]];
         break;
-        case LDCONST_OP:
+        case LDCONST_BCOP:
         {
             SEXP constant = r_constpool[imms[0]];
             if (constant->sxpinfo.scalar && ATTRIB(constant) == R_NilValue)
@@ -528,7 +529,7 @@ static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *
         }
         break;
 #ifdef STEPFOR_SPECIALIZE
-        case STEPFOR_OP:
+        case STEPFOR_BCOP:
         {
             // Fake StepFor stencil to allocate correct memory size
             static Hole res_hole = {
@@ -545,7 +546,7 @@ static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *
         break;
 #endif
 #ifdef SWITCH_SPECIALIZE
-        case SWITCH_OP:
+        case SWITCH_BCOP:
         {
             SEXP names = r_constpool[imms[1]];
             SEXP ioffsets = r_constpool[imms[2]];
@@ -579,55 +580,55 @@ static const Stencil *get_stencil(R_OPCODE opcode, const int *imms, const SEXP *
     return NULL;
 }
 
-static int jump_target(R_OPCODE opcode, const int *imms) {
+static int jump_target(RCP_BC_OPCODES opcode, const int *imms) {
   int res = 0;
   switch (opcode) {
-  case (GOTO_OP):
-  case (STEPFOR_OP):
+  case (GOTO_BCOP):
+  case (STEPFOR_BCOP):
     res = imms[0];
     break;
-  case (BRIFNOT_OP):
-  case (STARTSUBSET_OP):
-  case (STARTSUBSET2_OP):
-  case (AND1ST_OP):
-  case (OR1ST_OP):
-  case (STARTSUBSET_N_OP):
-  case (STARTSUBASSIGN_N_OP):
-  case (STARTSUBSET2_N_OP):
-  case (STARTSUBASSIGN2_N_OP):
-  case (BASEGUARD_OP):
-  case (STARTLOOPCNTXT_OP):
+  case (BRIFNOT_BCOP):
+  case (STARTSUBSET_BCOP):
+  case (STARTSUBSET2_BCOP):
+  case (AND1ST_BCOP):
+  case (OR1ST_BCOP):
+  case (STARTSUBSET_N_BCOP):
+  case (STARTSUBASSIGN_N_BCOP):
+  case (STARTSUBSET2_N_BCOP):
+  case (STARTSUBASSIGN2_N_BCOP):
+  case (BASEGUARD_BCOP):
+  case (STARTLOOPCNTXT_BCOP):
     res = imms[1];
     break;
-  case (STARTFOR_OP):
+  case (STARTFOR_BCOP):
     res = imms[2];
     break;
   }
   return res - 1;
 }
 
-static int can_fallthrough_from_opcode(R_OPCODE opcode) {
+static int can_fallthrough_from_opcode(RCP_BC_OPCODES opcode) {
   switch (opcode) {
-  case (RETURN_OP):
-  case (GOTO_OP):
-  case (STARTFOR_OP):
-  case (SWITCH_OP):
-  case (DOTSERR_OP):
+  case (RETURN_BCOP):
+  case (GOTO_BCOP):
+  case (STARTFOR_BCOP):
+  case (SWITCH_BCOP):
+  case (DOTSERR_BCOP):
     return 0; // Always jumps
   default:
     return 1; // Can fallthrough
   }
 }
 
-static int unlikely_to_jump(R_OPCODE opcode) {
+static int unlikely_to_jump(RCP_BC_OPCODES opcode) {
   switch (opcode) {
-  case (STARTSUBSET_OP):
-  case (STARTSUBSET2_OP):
-  case (STARTSUBSET_N_OP):
-  case (STARTSUBASSIGN_N_OP):
-  case (STARTSUBSET2_N_OP):
-  case (STARTSUBASSIGN2_N_OP):
-  case (BASEGUARD_OP):
+  case (STARTSUBSET_BCOP):
+  case (STARTSUBSET2_BCOP):
+  case (STARTSUBSET_N_BCOP):
+  case (STARTSUBASSIGN_N_BCOP):
+  case (STARTSUBSET2_N_BCOP):
+  case (STARTSUBASSIGN2_N_BCOP):
+  case (BASEGUARD_BCOP):
     // These instructions are very unlikely to jump (mostly just in the case of errors)
     return 1; // Unlikely to jump
   default:
@@ -635,13 +636,13 @@ static int unlikely_to_jump(R_OPCODE opcode) {
   }
 }
 
-static int8_t stack_effect(R_OPCODE opcode, int* imms) {
-  int8_t res = STACK_EFFECT[opcode];
+static int8_t stack_effect(RCP_BC_OPCODES opcode, int* imms) {
+  int8_t res = RCP_BC_STACK_EFFECT[opcode];
   switch (opcode) {
-  case (SUBSET_N_OP):
-  case (SUBSET2_N_OP):
-  case (SUBASSIGN_N_OP):
-  case (SUBASSIGN2_N_OP):
+  case (SUBSET_N_BCOP):
+  case (SUBSET2_N_BCOP):
+  case (SUBASSIGN_N_BCOP):
+  case (SUBASSIGN2_N_BCOP):
     res -= imms[1];
   }
   return res;
@@ -667,7 +668,7 @@ static void fill_stack_depth(int bytecode[], BasicBlockStackInfo* bb_stack)
     bb_stack->stack_depth_max = INT_MIN;
     bb_stack->stack_depth_end = 0;
     bb_stack->visited = 0;
-    for (int i = bb_stack->bb->bytecode_start; i <= bb_stack->bb->bytecode_end; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = bb_stack->bb->bytecode_start; i <= bb_stack->bb->bytecode_end; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
     {
         bb_stack->stack_depth_end += stack_effect(bytecode[i], &bytecode[i + 1]);
         if (bb_stack->stack_depth_end > bb_stack->stack_depth_max)
@@ -694,10 +695,10 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, 
     }
     int i = bb->bytecode_end;
 
-    R_OPCODE opcode = bytecode[i];
+    RCP_BC_OPCODES opcode = bytecode[i];
     int* imms = &bytecode[i + 1];
 
-    if (opcode == SWITCH_OP)
+    if (opcode == SWITCH_BCOP)
     {
         SEXP ioffsets_sexp = constpool[imms[2]];
         int* ioffsets = INTEGER(ioffsets_sexp);
@@ -726,7 +727,7 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock* bb, 
     else
     {
         int jmp_target = jump_target(opcode, &bytecode[i + 1]);
-        int fallthrough_target = can_fallthrough_from_opcode(opcode)? (i + imms_cnt[opcode] + 1) : -1;
+        int fallthrough_target = can_fallthrough_from_opcode(opcode)? (i + RCP_BC_ARG_CNT[opcode] + 1) : -1;
 
         bb->next_blocks = (BasicBlock **)S_alloc((fallthrough_target != -1) + (jmp_target != -1), sizeof(BasicBlock *));
 
@@ -751,12 +752,12 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
     
     block_lookup[0].next_blocks = NULL; // First instruction is always a block start
         
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
     {
-        R_OPCODE opcode = bytecode[i];
+        RCP_BC_OPCODES opcode = bytecode[i];
         int* imms = &bytecode[i + 1];
 
-        if (opcode == SWITCH_OP)
+        if (opcode == SWITCH_BCOP)
         {
             const SEXP ioffsets = constpool[imms[2]];
             for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
@@ -777,14 +778,14 @@ static BasicBlock* build_basic_blocks(int bytecode[], int bytecode_size, SEXP *c
                 block_lookup[jmp_target].next_blocks = NULL;
             
                 //if (can_fallthrough_from_opcode(opcode))
-                block_lookup[i + imms_cnt[opcode] + 1].next_blocks = NULL;
+                block_lookup[i + RCP_BC_ARG_CNT[opcode] + 1].next_blocks = NULL;
             }
         }
 
     }
     
     int j = 0, old_i = 0;
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
     {
         if(block_lookup[i].next_blocks == NULL)
         {
@@ -873,7 +874,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     int count_opcodes = 0;
     uint8_t can_fallthrough = 0; // Whether the previous instruction can fallthrough to the next one. First instruction is always jumped at from shim.
 
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
     {
         int jmp_target;
         int alignment_labels;
@@ -922,12 +923,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         can_fallthrough = can_fallthrough_from_opcode(bytecode[i]);
     }
 
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
         DEBUG_PRINT("Instruction %d (%s) alignment: %d\n", i, OPCODES_NAMES[bytecode[i]], bytecode_alignment[i]);
 
     int loopcntxts_size = 0;
     // First pass to calculate the sizes
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
     {
         const int *imms = &bytecode[i + 1];
         const Stencil *stencil = get_stencil(bytecode[i], imms, constpool);
@@ -937,10 +938,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         
         switch(bytecode[i])
         {
-        case STARTFOR_OP:
+        case STARTFOR_BCOP:
             for_count++;
             break;
-        case ENDLOOPCNTXT_OP:
+        case ENDLOOPCNTXT_BCOP:
             used_loopcntxt[i] = loopcntxts_size++;
             break;
         }
@@ -992,9 +993,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     DEBUG_PRINT("Loop rcntxts used in this closure: %d\n", loopcntxts_size);
 
     // Fill in LOOPCNTXT lookup table
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
     {
-        if (bytecode[i] == STARTLOOPCNTXT_OP)
+        if (bytecode[i] == STARTLOOPCNTXT_BCOP)
             used_loopcntxt[i] = used_loopcntxt[bytecode[i + 2] - 1];
     }
 
@@ -1086,7 +1087,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         switch (opcode)
         {
 #ifdef STEPFOR_SPECIALIZE
-        case STARTFOR_OP:
+        case STARTFOR_BCOP:
         {
             StepFor_specialized *stepfor_mem;
 
@@ -1109,16 +1110,16 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
             for (size_t a = 0; a < stepfor_variant_count; a++)
                 for (size_t j = 0; j < STEPFOR_OP_stencils[a].holes_size; ++j)
-                    patch(stepfor_mem->src[a], stepfor_mem->dst, bc_pos, &STEPFOR_OP_stencils[a], &STEPFOR_OP_stencils[a].holes[j], j, &bytecode[stepfor_bc + 1], stepfor_bc + imms_cnt[bytecode[stepfor_bc]] + 1, NULL, &ctx);
+                    patch(stepfor_mem->src[a], stepfor_mem->dst, bc_pos, &STEPFOR_OP_stencils[a], &STEPFOR_OP_stencils[a].holes[j], j, &bytecode[stepfor_bc + 1], stepfor_bc + RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1, NULL, &ctx);
 
             smc_variants = stepfor_mem;
         }
         break;
-        case STEPFOR_OP:
+        case STEPFOR_BCOP:
             // Stepfor was already handled during startfor
             continue;
 #endif
-        case SWITCH_OP:
+        case SWITCH_BCOP:
         {
             SEXP ioffsets_sexp = constpool[opargs[2]];
             int* ioffsets = INTEGER(ioffsets_sexp);
@@ -1149,7 +1150,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         // Patch the holes
         for (size_t j = 0; j < stencil->holes_size; ++j)
-            patch(inst_start[bc_pos], inst_start[bc_pos], bc_pos, stencil, &stencil->holes[j], j, opargs, bc_pos + imms_cnt[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+            patch(inst_start[bc_pos], inst_start[bc_pos], bc_pos, stencil, &stencil->holes[j], j, opargs, bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, smc_variants, &ctx);
     }
 
 #ifdef DEBUG_MODE
@@ -1272,12 +1273,12 @@ static void bytecode_info(const int *bytecode, int bytecode_size, const SEXP *co
     for (int i = 0; i < bytecode_size; ++i)
     {
         DEBUG_PRINT("%d:\tOpcode: %d = %s\n", i, bytecode[i], OPCODES_NAMES[bytecode[i]]);
-        for (size_t j = 0; j < imms_cnt[bytecode[i]]; j++)
+        for (size_t j = 0; j < RCP_BC_ARG_CNT[bytecode[i]]; j++)
         {
             DEBUG_PRINT("\tIMM: %d\n", bytecode[i + 1 + j]);
         }
         instructions++;
-        i += imms_cnt[bytecode[i]];
+        i += RCP_BC_ARG_CNT[bytecode[i]];
     }
 
     DEBUG_PRINT("Instructions in bytecode: %d\n", instructions);
@@ -1304,12 +1305,12 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
     int consts_size = LENGTH(bcode_consts);
 
     // First compile all closures recursively, depth first
-    for (int i = 0; i < bytecode_size; i += imms_cnt[bytecode[i]] + 1)
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
     {
         int opcode = bytecode[i];
         int *opargs = &bytecode[i + 1];
 
-        if(opcode == MAKECLOSURE_OP)
+        if(opcode == MAKECLOSURE_BCOP)
         {
             SEXP fb = consts[opargs[0]];
             SEXP body = VECTOR_ELT(fb, 1);

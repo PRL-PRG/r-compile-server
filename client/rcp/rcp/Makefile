@@ -73,8 +73,10 @@ $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
 	ln -sfn $(EXTRACTED_DIR) $(ROOT_DIR)/r-pkg/src/stencils
 	ln -s $(RSH_HOME)/src/bc2c/runtime_internals.h $(ROOT_DIR)/r-pkg/src/runtime_internals.h
 	ln -s $(ROOT_DIR)/rcp_common.h $(ROOT_DIR)/r-pkg/src/rcp_common.h
+	ln -s $(ROOT_DIR)/rcp_bc_info.h $(ROOT_DIR)/r-pkg/src/rcp_bc_info.h
 	cd $(BUILD_DIR) && $(R_HOME)/bin/R CMD build ../r-pkg
 	rm -f $(ROOT_DIR)/r-pkg/src/rcp_common.h
+	rm -f $(ROOT_DIR)/r-pkg/src/rcp_bc_info.h
 	rm -f $(ROOT_DIR)/r-pkg/src/runtime_internals.h
 	rm -f $(ROOT_DIR)/r-pkg/src/stencils
 

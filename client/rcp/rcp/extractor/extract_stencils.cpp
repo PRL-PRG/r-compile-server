@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <bfd.h>
 #include "../rcp_common.h"
+#include "../rcp_bc_info.h"
 
 #include <fstream>
 #include <iostream>
@@ -794,7 +795,7 @@ int main(int argc, char **argv)
   for (auto& current : stencils.stencils_opcodes)
     sort_stencil_set(current);
 
-  prepare_stepfor(stencils.stencils_opcodes[STEPFOR_OP]);
+  prepare_stepfor(stencils.stencils_opcodes[STEPFOR_BCOP]);
 
   export_to_files(stencils);
 
