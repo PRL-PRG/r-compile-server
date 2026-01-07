@@ -136,7 +136,7 @@ extern const void* const _RCP_LOOPCNTXT;
 
 extern const void* const _RCP_EXECUTABLE[];
 #define GETEXECUTABLE() (const void* const)&_RCP_EXECUTABLE
-#define GOTO_VAL(i) { STENCIL_ATTRIBUTES SEXP (*call)() = (const void* const)(((uint8_t*)GETEXECUTABLE()) + i); return call(); } 
+#define GOTO_VAL(i) { STENCIL_ATTRIBUTES SEXP (*call)(Value* stack, rcpEval_locals* locals) = (const void* const)(((uint8_t*)GETEXECUTABLE()) + i); return call(stack, locals); } 
 
 /**************************************************************************/
 
