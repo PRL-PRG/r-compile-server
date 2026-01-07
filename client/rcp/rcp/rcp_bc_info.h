@@ -360,7 +360,7 @@ static int8_t RCP_BC_STACK_EFFECT[] __attribute__((unused)) = {
 /*GETVAR_MISSOK.OP*/ 1,
 /*DDVAL_MISSOK.OP*/ 1,
 /*VISIBLE.OP*/ 0,
-/*SETVAR2.OP*/ 1,
+/*SETVAR2.OP*/ 0,
 /*STARTASSIGN2.OP*/ 3,
 /*ENDASSIGN2.OP*/ -2,
 /*SETTER_CALL.OP*/ -4,
