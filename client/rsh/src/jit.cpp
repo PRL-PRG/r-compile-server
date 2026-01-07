@@ -106,4 +106,24 @@ void JIT::remove(const char *name) {
   }
   // orc->getMainJITDylib().dump(llvm::outs());
 }
+
+bool JIT::symbol_exists(const char *name) {
+  auto v = orc->lookupLinkerMangled(name);
+  if (auto err = v.takeError()) {
+    // Symbol doesn't exist, consume the error and return false
+    llvm::consumeError(std::move(err));
+    return false;
+  }
+  return true;
+}
+
+void JIT::replace_object(const char *name, std::string const &vec) {
+  // Check if symbol already exists and remove it
+  if (symbol_exists(name)) {
+    remove(name);
+  }
+
+  // Add the new object
+  add_object(vec);
+}
 } // namespace rsh

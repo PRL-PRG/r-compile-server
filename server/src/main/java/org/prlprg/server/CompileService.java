@@ -75,6 +75,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     }
     var bcOpt = request.hasBcOpt() ? request.getBcOpt() : 2;
     var ccOpt = request.hasCcOpt() ? request.getCcOpt() : 2;
+      var debug = request.getDebug();
     Messages.Context context = request.getContext(); // null if not provided
 
     logger.info(
@@ -88,6 +89,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             + (request.hasBcOpt() ? bcOpt : "default 2")
             + " and native optimization level "
             + (request.hasCcOpt() ? ccOpt : "default 2")
+                + " debug mode "
+                + debug
             + " Serialized size = "
             + request.getSerializedSize());
 
@@ -97,8 +100,6 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
     // Compile the code and build response
     Messages.CompileResponse.Builder response = Messages.CompileResponse.newBuilder();
-    response.setTier(tier);
-    response.setHash(function.getHash());
 
     // Cache requests
     @Nullable NativeClosure ccCached = null;
@@ -112,8 +113,16 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         ccCached = nativeCache.get(nativeKey);
         if (ccCached != null) {
           logger.info("Found " + function.getName() + " in native cache. No recompilation.");
-          response.setCode(ccCached.code());
-          response.setConstants(ccCached.constantPool());
+            Messages.CompileSuccess.Builder successBuilder = Messages.CompileSuccess.newBuilder();
+            successBuilder.setCode(ccCached.code());
+            successBuilder.setConstants(ccCached.constantPool());
+            successBuilder.setTier(tier);
+            successBuilder.setHash(function.getHash());
+            response.setSuccess(successBuilder.build());
+            // Send the response and return early
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+            return;
         }
       }
 
@@ -121,9 +130,17 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
       if (tier.equals((Messages.Tier.BASELINE)) || ccCached == null) {
         bcCached = bcCache.get(bcKey);
-        if (bcCached != null) {
+          if (bcCached != null && tier.equals(Messages.Tier.BASELINE)) {
           logger.info("Found " + function.getName() + " in bytecode cache. No recompilation.");
-          response.setCode(bcCached.second());
+              Messages.CompileSuccess.Builder successBuilder = Messages.CompileSuccess.newBuilder();
+              successBuilder.setCode(bcCached.second());
+              successBuilder.setTier(tier);
+              successBuilder.setHash(function.getHash());
+              response.setSuccess(successBuilder.build());
+              // Send the response and return early
+              responseObserver.onNext(response.build());
+              responseObserver.onCompleted();
+              return;
         }
       }
     }
@@ -136,10 +153,14 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     if (!function.hasBody()) {
       logger.info(
           "No body sent with the request for function " + function.getName() + ". Cannot compile.");
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription("No body sent with the request for function " + function.getName())
-              .asRuntimeException());
+        Messages.CompileFailure.Builder failureBuilder = Messages.CompileFailure.newBuilder();
+        failureBuilder.setCommand("compile");
+        failureBuilder.setCompilerOutput("No body sent with the request for function " + function.getName());
+        failureBuilder.setSourceCode("");
+        response.setFailure(failureBuilder.build());
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
+        return;
       // TODO: send a request to the client to get the body
     } else {
       if ((tier.equals(Messages.Tier.BASELINE) && bcCached == null)
@@ -157,33 +178,48 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             logger.warning(
                 "Empty bytecode for function "
                     + function.getName()
-                    + ". Not caching and returning the original body.");
-            // We will keep the code field empty
+                        + ". Not caching and returning failure.");
+              Messages.CompileFailure.Builder failureBuilder = Messages.CompileFailure.newBuilder();
+              failureBuilder.setCommand("bytecode compile");
+              failureBuilder.setCompilerOutput("Empty bytecode for function " + function.getName());
+              failureBuilder.setSourceCode(function.getBody().toStringUtf8());
+              response.setFailure(failureBuilder.build());
+              responseObserver.onNext(response.build());
+              responseObserver.onCompleted();
+              return;
           } else {
-            assert bc != null;
             bc = bcRes.get();
             if (!request.getNoCache()) { // We do not cache if the client does not want to
               serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
-              response.setCode(serializedBc);
               bcCached = Pair.of(bc, serializedBc); // potentially used for the native
               // compilation also
               // Add it to the cache
               bcCache.put(bcKey, bcCached);
+            } else {
+                serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
+            }
+
+              // If this is BASELINE tier, we're done after bytecode compilation
+              if (tier.equals(Messages.Tier.BASELINE)) {
+                  Messages.CompileSuccess.Builder successBuilder = Messages.CompileSuccess.newBuilder();
+                  successBuilder.setCode(serializedBc);
+                  successBuilder.setTier(tier);
+                  successBuilder.setHash(function.getHash());
+                  response.setSuccess(successBuilder.build());
+                  responseObserver.onNext(response.build());
+                  responseObserver.onCompleted();
+                  return;
             }
           }
         } catch (Exception e) {
-          // See
-          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errorhandling/DetailErrorSample.java
-          // We could have more details using that:
-          // https://github.com/grpc/grpc-java/blob/master/examples/src/main/java/io/grpc/examples/errordetails/ErrorDetailsExample.java
-          responseObserver.onError(
-              Status.INTERNAL
-                  .withDescription(
-                      "Cannot bytecode compile function "
-                          + function.getName()
-                          + " ; "
-                          + e.getMessage())
-                  .asRuntimeException());
+            Messages.CompileFailure.Builder failureBuilder = Messages.CompileFailure.newBuilder();
+            failureBuilder.setCommand("bytecode compile");
+            failureBuilder.setCompilerOutput("Cannot bytecode compile function " + function.getName() + " ; " + e.getMessage());
+            failureBuilder.setSourceCode(function.getBody().toStringUtf8());
+            response.setFailure(failureBuilder.build());
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+            return;
         }
       }
       if (tier.equals(Messages.Tier.OPTIMIZED) && ccCached == null) { // OPTIMIZED tier => native
@@ -208,10 +244,13 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           module.file().writeTo(f);
           var output = File.createTempFile("ofile", ".o");
 
-          RshCompiler.getInstance(ccOpt)
+            var compiler = RshCompiler.getInstance(debug ? 0 : ccOpt)
               .createBuilder(input.getPath(), output.getPath())
-              .flag("-c")
-              .compile();
+                    .flag("-c");
+            if (debug) {
+                compiler.flag("-g");
+            }
+            compiler.compile();
 
           var res = Files.asByteSource(output).read();
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
@@ -223,25 +262,34 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);
           }
-          response.setCode(ccCached.code());
-          response.setConstants(ccCached.constantPool());
+            // Create success response
+            Messages.CompileSuccess.Builder successBuilder = Messages.CompileSuccess.newBuilder();
+            successBuilder.setCode(ccCached.code());
+            successBuilder.setConstants(ccCached.constantPool());
+            successBuilder.setTier(tier);
+            successBuilder.setHash(function.getHash());
+            
+            if (debug) {
+                var code = Messages.SourceCodeData.newBuilder().setSourceCode(org.prlprg.util.Files.readString(input.toPath())).setTempFileName(input.getAbsolutePath()).build();
+                successBuilder.setSourceCodeData(code);
+            }
+
+            response.setSuccess(successBuilder.build());
         } catch (Exception e) {
           var msg = e.getMessage();
-          responseObserver.onError(
-              Status.INTERNAL
-                  .withDescription(
-                      "Cannot native compile function "
-                          + function.getName()
-                          + " ; "
-                          // we truncate the message, as it can get quite big with compilation
-                          // errors, and anyway, gRPC has a max header size of 8KB
-                          + msg.substring(0, Math.min(msg.length(), 7000)))
-                  .asRuntimeException());
+            Messages.CompileFailure.Builder failureBuilder = Messages.CompileFailure.newBuilder();
+            failureBuilder.setCommand("native compile");
+            failureBuilder.setCompilerOutput("Cannot native compile function " + function.getName() + " ; " + msg);
+            failureBuilder.setSourceCode(function.getBody().toStringUtf8());
+            response.setFailure(failureBuilder.build());
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+            return;
         }
       }
     }
 
-    // Send the response
+      // Send the response (for successful compilations that didn't return early)
     var res = response.build();
     responseObserver.onNext(res);
     logger.info("Response size : " + res.getSerializedSize());

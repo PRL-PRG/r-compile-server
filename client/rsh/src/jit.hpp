@@ -21,6 +21,8 @@ public:
   void add_object(std::string const &vec);
   void *lookup(const char *name);
   void remove(const char *name);
+  bool symbol_exists(const char *name);
+  void replace_object(const char *name, std::string const &vec);
 };
 
 extern JIT *GJIT;

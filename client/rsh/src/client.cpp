@@ -72,6 +72,7 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
   request.mutable_function()->set_name(options.name);
   request.set_cc_opt(options.cc_opt);
   request.set_no_cache(!options.cache);
+  request.set_debug(options.debug);
   request.mutable_function()->set_body(rds_closure.data(), rds_closure.size());
 
   // We replace the body of a function with its compiled version so it would not
@@ -95,6 +96,7 @@ Client::remote_compile(std::vector<uint8_t> const &rds_closure,
   } else {
     Rprintf("Received response, with serialized size %d\n",
             response.GetCachedSize());
+
     return response;
   }
 }

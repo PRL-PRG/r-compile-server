@@ -66,12 +66,18 @@ extern ClearCacheRequestDefaultTypeInternal _ClearCacheRequest_default_instance_
 class ClearCacheResponse;
 struct ClearCacheResponseDefaultTypeInternal;
 extern ClearCacheResponseDefaultTypeInternal _ClearCacheResponse_default_instance_;
+class CompileFailure;
+struct CompileFailureDefaultTypeInternal;
+extern CompileFailureDefaultTypeInternal _CompileFailure_default_instance_;
 class CompileRequest;
 struct CompileRequestDefaultTypeInternal;
 extern CompileRequestDefaultTypeInternal _CompileRequest_default_instance_;
 class CompileResponse;
 struct CompileResponseDefaultTypeInternal;
 extern CompileResponseDefaultTypeInternal _CompileResponse_default_instance_;
+class CompileSuccess;
+struct CompileSuccessDefaultTypeInternal;
+extern CompileSuccessDefaultTypeInternal _CompileSuccess_default_instance_;
 class Context;
 struct ContextDefaultTypeInternal;
 extern ContextDefaultTypeInternal _Context_default_instance_;
@@ -111,6 +117,9 @@ extern PackageRequestDefaultTypeInternal _PackageRequest_default_instance_;
 class PackageSource;
 struct PackageSourceDefaultTypeInternal;
 extern PackageSourceDefaultTypeInternal _PackageSource_default_instance_;
+class SourceCodeData;
+struct SourceCodeDataDefaultTypeInternal;
+extern SourceCodeDataDefaultTypeInternal _SourceCodeData_default_instance_;
 class TestFeedback;
 struct TestFeedbackDefaultTypeInternal;
 extern TestFeedbackDefaultTypeInternal _TestFeedback_default_instance_;
@@ -146,8 +155,10 @@ template<> ::rsh::protocol::CallContext* Arena::CreateMaybeMessage<::rsh::protoc
 template<> ::rsh::protocol::CallFeedback* Arena::CreateMaybeMessage<::rsh::protocol::CallFeedback>(Arena*);
 template<> ::rsh::protocol::ClearCacheRequest* Arena::CreateMaybeMessage<::rsh::protocol::ClearCacheRequest>(Arena*);
 template<> ::rsh::protocol::ClearCacheResponse* Arena::CreateMaybeMessage<::rsh::protocol::ClearCacheResponse>(Arena*);
+template<> ::rsh::protocol::CompileFailure* Arena::CreateMaybeMessage<::rsh::protocol::CompileFailure>(Arena*);
 template<> ::rsh::protocol::CompileRequest* Arena::CreateMaybeMessage<::rsh::protocol::CompileRequest>(Arena*);
 template<> ::rsh::protocol::CompileResponse* Arena::CreateMaybeMessage<::rsh::protocol::CompileResponse>(Arena*);
+template<> ::rsh::protocol::CompileSuccess* Arena::CreateMaybeMessage<::rsh::protocol::CompileSuccess>(Arena*);
 template<> ::rsh::protocol::Context* Arena::CreateMaybeMessage<::rsh::protocol::Context>(Arena*);
 template<> ::rsh::protocol::ContextRequest* Arena::CreateMaybeMessage<::rsh::protocol::ContextRequest>(Arena*);
 template<> ::rsh::protocol::Empty* Arena::CreateMaybeMessage<::rsh::protocol::Empty>(Arena*);
@@ -161,6 +172,7 @@ template<> ::rsh::protocol::InitResponse* Arena::CreateMaybeMessage<::rsh::proto
 template<> ::rsh::protocol::Package* Arena::CreateMaybeMessage<::rsh::protocol::Package>(Arena*);
 template<> ::rsh::protocol::PackageRequest* Arena::CreateMaybeMessage<::rsh::protocol::PackageRequest>(Arena*);
 template<> ::rsh::protocol::PackageSource* Arena::CreateMaybeMessage<::rsh::protocol::PackageSource>(Arena*);
+template<> ::rsh::protocol::SourceCodeData* Arena::CreateMaybeMessage<::rsh::protocol::SourceCodeData>(Arena*);
 template<> ::rsh::protocol::TestFeedback* Arena::CreateMaybeMessage<::rsh::protocol::TestFeedback>(Arena*);
 template<> ::rsh::protocol::TypeFeedback* Arena::CreateMaybeMessage<::rsh::protocol::TypeFeedback>(Arena*);
 template<> ::rsh::protocol::TypeFeedback_Feedback* Arena::CreateMaybeMessage<::rsh::protocol::TypeFeedback_Feedback>(Arena*);
@@ -889,6 +901,7 @@ class CompileRequest final :
     kCcOptFieldNumber = 5,
     kBcOptFieldNumber = 6,
     kNoCacheFieldNumber = 9,
+    kDebugFieldNumber = 10,
   };
   // .rsh.protocol.Function function = 2;
   bool has_function() const;
@@ -992,6 +1005,15 @@ class CompileRequest final :
   void _internal_set_no_cache(bool value);
   public:
 
+  // bool debug = 10;
+  void clear_debug();
+  bool debug() const;
+  void set_debug(bool value);
+  private:
+  bool _internal_debug() const;
+  void _internal_set_debug(bool value);
+  public:
+
   // @@protoc_insertion_point(class_scope:rsh.protocol.CompileRequest)
  private:
   class _Internal;
@@ -1009,6 +1031,573 @@ class CompileRequest final :
     int32_t cc_opt_;
     int32_t bc_opt_;
     bool no_cache_;
+    bool debug_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_messages_2eproto;
+};
+// -------------------------------------------------------------------
+
+class CompileSuccess final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CompileSuccess) */ {
+ public:
+  inline CompileSuccess() : CompileSuccess(nullptr) {}
+  ~CompileSuccess() override;
+  explicit PROTOBUF_CONSTEXPR CompileSuccess(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  CompileSuccess(const CompileSuccess& from);
+  CompileSuccess(CompileSuccess&& from) noexcept
+    : CompileSuccess() {
+    *this = ::std::move(from);
+  }
+
+  inline CompileSuccess& operator=(const CompileSuccess& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline CompileSuccess& operator=(CompileSuccess&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const CompileSuccess& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const CompileSuccess* internal_default_instance() {
+    return reinterpret_cast<const CompileSuccess*>(
+               &_CompileSuccess_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    4;
+
+  friend void swap(CompileSuccess& a, CompileSuccess& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(CompileSuccess* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(CompileSuccess* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  CompileSuccess* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<CompileSuccess>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const CompileSuccess& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const CompileSuccess& from) {
+    CompileSuccess::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(CompileSuccess* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.protocol.CompileSuccess";
+  }
+  protected:
+  explicit CompileSuccess(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kCodeFieldNumber = 1,
+    kConstantsFieldNumber = 2,
+    kSourceCodeDataFieldNumber = 5,
+    kHashFieldNumber = 4,
+    kTierFieldNumber = 3,
+  };
+  // bytes code = 1;
+  void clear_code();
+  const std::string& code() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_code(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_code();
+  PROTOBUF_NODISCARD std::string* release_code();
+  void set_allocated_code(std::string* code);
+  private:
+  const std::string& _internal_code() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_code(const std::string& value);
+  std::string* _internal_mutable_code();
+  public:
+
+  // bytes constants = 2;
+  void clear_constants();
+  const std::string& constants() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_constants(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_constants();
+  PROTOBUF_NODISCARD std::string* release_constants();
+  void set_allocated_constants(std::string* constants);
+  private:
+  const std::string& _internal_constants() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_constants(const std::string& value);
+  std::string* _internal_mutable_constants();
+  public:
+
+  // optional .rsh.protocol.SourceCodeData source_code_data = 5;
+  bool has_source_code_data() const;
+  private:
+  bool _internal_has_source_code_data() const;
+  public:
+  void clear_source_code_data();
+  const ::rsh::protocol::SourceCodeData& source_code_data() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::SourceCodeData* release_source_code_data();
+  ::rsh::protocol::SourceCodeData* mutable_source_code_data();
+  void set_allocated_source_code_data(::rsh::protocol::SourceCodeData* source_code_data);
+  private:
+  const ::rsh::protocol::SourceCodeData& _internal_source_code_data() const;
+  ::rsh::protocol::SourceCodeData* _internal_mutable_source_code_data();
+  public:
+  void unsafe_arena_set_allocated_source_code_data(
+      ::rsh::protocol::SourceCodeData* source_code_data);
+  ::rsh::protocol::SourceCodeData* unsafe_arena_release_source_code_data();
+
+  // uint64 hash = 4;
+  void clear_hash();
+  uint64_t hash() const;
+  void set_hash(uint64_t value);
+  private:
+  uint64_t _internal_hash() const;
+  void _internal_set_hash(uint64_t value);
+  public:
+
+  // .rsh.protocol.Tier tier = 3;
+  void clear_tier();
+  ::rsh::protocol::Tier tier() const;
+  void set_tier(::rsh::protocol::Tier value);
+  private:
+  ::rsh::protocol::Tier _internal_tier() const;
+  void _internal_set_tier(::rsh::protocol::Tier value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:rsh.protocol.CompileSuccess)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr code_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constants_;
+    ::rsh::protocol::SourceCodeData* source_code_data_;
+    uint64_t hash_;
+    int tier_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_messages_2eproto;
+};
+// -------------------------------------------------------------------
+
+class CompileFailure final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CompileFailure) */ {
+ public:
+  inline CompileFailure() : CompileFailure(nullptr) {}
+  ~CompileFailure() override;
+  explicit PROTOBUF_CONSTEXPR CompileFailure(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  CompileFailure(const CompileFailure& from);
+  CompileFailure(CompileFailure&& from) noexcept
+    : CompileFailure() {
+    *this = ::std::move(from);
+  }
+
+  inline CompileFailure& operator=(const CompileFailure& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline CompileFailure& operator=(CompileFailure&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const CompileFailure& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const CompileFailure* internal_default_instance() {
+    return reinterpret_cast<const CompileFailure*>(
+               &_CompileFailure_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    5;
+
+  friend void swap(CompileFailure& a, CompileFailure& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(CompileFailure* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(CompileFailure* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  CompileFailure* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<CompileFailure>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const CompileFailure& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const CompileFailure& from) {
+    CompileFailure::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(CompileFailure* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.protocol.CompileFailure";
+  }
+  protected:
+  explicit CompileFailure(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kCommandFieldNumber = 1,
+    kCompilerOutputFieldNumber = 2,
+    kSourceCodeFieldNumber = 3,
+  };
+  // string command = 1;
+  void clear_command();
+  const std::string& command() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_command(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_command();
+  PROTOBUF_NODISCARD std::string* release_command();
+  void set_allocated_command(std::string* command);
+  private:
+  const std::string& _internal_command() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_command(const std::string& value);
+  std::string* _internal_mutable_command();
+  public:
+
+  // string compiler_output = 2;
+  void clear_compiler_output();
+  const std::string& compiler_output() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_compiler_output(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_compiler_output();
+  PROTOBUF_NODISCARD std::string* release_compiler_output();
+  void set_allocated_compiler_output(std::string* compiler_output);
+  private:
+  const std::string& _internal_compiler_output() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_compiler_output(const std::string& value);
+  std::string* _internal_mutable_compiler_output();
+  public:
+
+  // string source_code = 3;
+  void clear_source_code();
+  const std::string& source_code() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_source_code(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_source_code();
+  PROTOBUF_NODISCARD std::string* release_source_code();
+  void set_allocated_source_code(std::string* source_code);
+  private:
+  const std::string& _internal_source_code() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_source_code(const std::string& value);
+  std::string* _internal_mutable_source_code();
+  public:
+
+  // @@protoc_insertion_point(class_scope:rsh.protocol.CompileFailure)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr command_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr compiler_output_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr source_code_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_messages_2eproto;
+};
+// -------------------------------------------------------------------
+
+class SourceCodeData final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.SourceCodeData) */ {
+ public:
+  inline SourceCodeData() : SourceCodeData(nullptr) {}
+  ~SourceCodeData() override;
+  explicit PROTOBUF_CONSTEXPR SourceCodeData(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  SourceCodeData(const SourceCodeData& from);
+  SourceCodeData(SourceCodeData&& from) noexcept
+    : SourceCodeData() {
+    *this = ::std::move(from);
+  }
+
+  inline SourceCodeData& operator=(const SourceCodeData& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline SourceCodeData& operator=(SourceCodeData&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const SourceCodeData& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const SourceCodeData* internal_default_instance() {
+    return reinterpret_cast<const SourceCodeData*>(
+               &_SourceCodeData_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    6;
+
+  friend void swap(SourceCodeData& a, SourceCodeData& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(SourceCodeData* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(SourceCodeData* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  SourceCodeData* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<SourceCodeData>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const SourceCodeData& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const SourceCodeData& from) {
+    SourceCodeData::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(SourceCodeData* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.protocol.SourceCodeData";
+  }
+  protected:
+  explicit SourceCodeData(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kSourceCodeFieldNumber = 1,
+    kTempFileNameFieldNumber = 2,
+  };
+  // string source_code = 1;
+  void clear_source_code();
+  const std::string& source_code() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_source_code(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_source_code();
+  PROTOBUF_NODISCARD std::string* release_source_code();
+  void set_allocated_source_code(std::string* source_code);
+  private:
+  const std::string& _internal_source_code() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_source_code(const std::string& value);
+  std::string* _internal_mutable_source_code();
+  public:
+
+  // string temp_file_name = 2;
+  void clear_temp_file_name();
+  const std::string& temp_file_name() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_temp_file_name(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_temp_file_name();
+  PROTOBUF_NODISCARD std::string* release_temp_file_name();
+  void set_allocated_temp_file_name(std::string* temp_file_name);
+  private:
+  const std::string& _internal_temp_file_name() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_temp_file_name(const std::string& value);
+  std::string* _internal_mutable_temp_file_name();
+  public:
+
+  // @@protoc_insertion_point(class_scope:rsh.protocol.SourceCodeData)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr source_code_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr temp_file_name_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_messages_2eproto;
@@ -1058,12 +1647,18 @@ class CompileResponse final :
   static const CompileResponse& default_instance() {
     return *internal_default_instance();
   }
+  enum ResultCase {
+    kSuccess = 1,
+    kFailure = 2,
+    RESULT_NOT_SET = 0,
+  };
+
   static inline const CompileResponse* internal_default_instance() {
     return reinterpret_cast<const CompileResponse*>(
                &_CompileResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    4;
+    7;
 
   friend void swap(CompileResponse& a, CompileResponse& b) {
     a.Swap(&b);
@@ -1136,79 +1731,69 @@ class CompileResponse final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kCodeFieldNumber = 3,
-    kConstantsFieldNumber = 4,
-    kHashFieldNumber = 1,
-    kTierFieldNumber = 2,
+    kSuccessFieldNumber = 1,
+    kFailureFieldNumber = 2,
   };
-  // optional bytes code = 3;
-  bool has_code() const;
+  // .rsh.protocol.CompileSuccess success = 1;
+  bool has_success() const;
   private:
-  bool _internal_has_code() const;
+  bool _internal_has_success() const;
   public:
-  void clear_code();
-  const std::string& code() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_code(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_code();
-  PROTOBUF_NODISCARD std::string* release_code();
-  void set_allocated_code(std::string* code);
+  void clear_success();
+  const ::rsh::protocol::CompileSuccess& success() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::CompileSuccess* release_success();
+  ::rsh::protocol::CompileSuccess* mutable_success();
+  void set_allocated_success(::rsh::protocol::CompileSuccess* success);
   private:
-  const std::string& _internal_code() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_code(const std::string& value);
-  std::string* _internal_mutable_code();
+  const ::rsh::protocol::CompileSuccess& _internal_success() const;
+  ::rsh::protocol::CompileSuccess* _internal_mutable_success();
   public:
+  void unsafe_arena_set_allocated_success(
+      ::rsh::protocol::CompileSuccess* success);
+  ::rsh::protocol::CompileSuccess* unsafe_arena_release_success();
 
-  // optional bytes constants = 4;
-  bool has_constants() const;
+  // .rsh.protocol.CompileFailure failure = 2;
+  bool has_failure() const;
   private:
-  bool _internal_has_constants() const;
+  bool _internal_has_failure() const;
   public:
-  void clear_constants();
-  const std::string& constants() const;
-  template <typename ArgT0 = const std::string&, typename... ArgT>
-  void set_constants(ArgT0&& arg0, ArgT... args);
-  std::string* mutable_constants();
-  PROTOBUF_NODISCARD std::string* release_constants();
-  void set_allocated_constants(std::string* constants);
+  void clear_failure();
+  const ::rsh::protocol::CompileFailure& failure() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::CompileFailure* release_failure();
+  ::rsh::protocol::CompileFailure* mutable_failure();
+  void set_allocated_failure(::rsh::protocol::CompileFailure* failure);
   private:
-  const std::string& _internal_constants() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_constants(const std::string& value);
-  std::string* _internal_mutable_constants();
+  const ::rsh::protocol::CompileFailure& _internal_failure() const;
+  ::rsh::protocol::CompileFailure* _internal_mutable_failure();
   public:
+  void unsafe_arena_set_allocated_failure(
+      ::rsh::protocol::CompileFailure* failure);
+  ::rsh::protocol::CompileFailure* unsafe_arena_release_failure();
 
-  // uint64 hash = 1;
-  void clear_hash();
-  uint64_t hash() const;
-  void set_hash(uint64_t value);
-  private:
-  uint64_t _internal_hash() const;
-  void _internal_set_hash(uint64_t value);
-  public:
-
-  // .rsh.protocol.Tier tier = 2;
-  void clear_tier();
-  ::rsh::protocol::Tier tier() const;
-  void set_tier(::rsh::protocol::Tier value);
-  private:
-  ::rsh::protocol::Tier _internal_tier() const;
-  void _internal_set_tier(::rsh::protocol::Tier value);
-  public:
-
+  void clear_result();
+  ResultCase result_case() const;
   // @@protoc_insertion_point(class_scope:rsh.protocol.CompileResponse)
  private:
   class _Internal;
+  void set_has_success();
+  void set_has_failure();
+
+  inline bool has_result() const;
+  inline void clear_has_result();
 
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
+    union ResultUnion {
+      constexpr ResultUnion() : _constinit_{} {}
+        ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized _constinit_;
+      ::rsh::protocol::CompileSuccess* success_;
+      ::rsh::protocol::CompileFailure* failure_;
+    } result_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr code_;
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constants_;
-    uint64_t hash_;
-    int tier_;
+    uint32_t _oneof_case_[1];
+
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_messages_2eproto;
@@ -1263,7 +1848,7 @@ class Function final :
                &_Function_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    5;
+    8;
 
   friend void swap(Function& a, Function& b) {
     a.Swap(&b);
@@ -1459,7 +2044,7 @@ class FunctionRequest final :
                &_FunctionRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    6;
+    9;
 
   friend void swap(FunctionRequest& a, FunctionRequest& b) {
     a.Swap(&b);
@@ -1633,7 +2218,7 @@ class Environment final :
                &_Environment_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    8;
+    11;
 
   friend void swap(Environment& a, Environment& b) {
     a.Swap(&b);
@@ -1796,7 +2381,7 @@ class ValueRequest final :
                &_ValueRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    9;
+    12;
 
   friend void swap(ValueRequest& a, ValueRequest& b) {
     a.Swap(&b);
@@ -1958,7 +2543,7 @@ class Value final :
                &_Value_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    10;
+    13;
 
   friend void swap(Value& a, Value& b) {
     a.Swap(&b);
@@ -2122,7 +2707,7 @@ class Values final :
                &_Values_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    11;
+    14;
 
   friend void swap(Values& a, Values& b) {
     a.Swap(&b);
@@ -2278,7 +2863,7 @@ class Empty final :
                &_Empty_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    12;
+    15;
 
   friend void swap(Empty& a, Empty& b) {
     a.Swap(&b);
@@ -2397,7 +2982,7 @@ class ClearCacheRequest final :
                &_ClearCacheRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    16;
 
   friend void swap(ClearCacheRequest& a, ClearCacheRequest& b) {
     a.Swap(&b);
@@ -2558,7 +3143,7 @@ class ClearCacheResponse final :
                &_ClearCacheResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    17;
 
   friend void swap(ClearCacheResponse& a, ClearCacheResponse& b) {
     a.Swap(&b);
@@ -2677,7 +3262,7 @@ class CallContext final :
                &_CallContext_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    15;
+    18;
 
   friend void swap(CallContext& a, CallContext& b) {
     a.Swap(&b);
@@ -2858,7 +3443,7 @@ class ArgumentContext final :
                &_ArgumentContext_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    16;
+    19;
 
   friend void swap(ArgumentContext& a, ArgumentContext& b) {
     a.Swap(&b);
@@ -3044,7 +3629,7 @@ class Context final :
                &_Context_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    17;
+    20;
 
   friend void swap(Context& a, Context& b) {
     a.Swap(&b);
@@ -3221,7 +3806,7 @@ class ContextRequest final :
                &_ContextRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    18;
+    21;
 
   friend void swap(ContextRequest& a, ContextRequest& b) {
     a.Swap(&b);
@@ -3378,7 +3963,7 @@ class TestFeedback final :
                &_TestFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    19;
+    22;
 
   friend void swap(TestFeedback& a, TestFeedback& b) {
     a.Swap(&b);
@@ -3526,7 +4111,7 @@ class CallFeedback final :
                &_CallFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    20;
+    23;
 
   friend void swap(CallFeedback& a, CallFeedback& b) {
     a.Swap(&b);
@@ -3685,7 +4270,7 @@ class ValueFeedback final :
                &_ValueFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    21;
+    24;
 
   friend void swap(ValueFeedback& a, ValueFeedback& b) {
     a.Swap(&b);
@@ -3884,7 +4469,7 @@ class TypeFeedback_Feedback final :
                &_TypeFeedback_Feedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    22;
+    25;
 
   friend void swap(TypeFeedback_Feedback& a, TypeFeedback_Feedback& b) {
     a.Swap(&b);
@@ -4119,7 +4704,7 @@ class TypeFeedback final :
                &_TypeFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    27;
 
   friend void swap(TypeFeedback& a, TypeFeedback& b) {
     a.Swap(&b);
@@ -4283,7 +4868,7 @@ class FeedbackRequest final :
                &_FeedbackRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    28;
 
   friend void swap(FeedbackRequest& a, FeedbackRequest& b) {
     a.Swap(&b);
@@ -4446,7 +5031,7 @@ class PackageSource final :
                &_PackageSource_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    26;
+    29;
 
   friend void swap(PackageSource& a, PackageSource& b) {
     a.Swap(&b);
@@ -4636,7 +5221,7 @@ class Package final :
                &_Package_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    27;
+    30;
 
   friend void swap(Package& a, Package& b) {
     a.Swap(&b);
@@ -4855,7 +5440,7 @@ class PackageRequest final :
                &_PackageRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    28;
+    31;
 
   friend void swap(PackageRequest& a, PackageRequest& b) {
     a.Swap(&b);
@@ -5715,108 +6300,70 @@ inline void CompileRequest::set_no_cache(bool value) {
   // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.no_cache)
 }
 
+// bool debug = 10;
+inline void CompileRequest::clear_debug() {
+  _impl_.debug_ = false;
+}
+inline bool CompileRequest::_internal_debug() const {
+  return _impl_.debug_;
+}
+inline bool CompileRequest::debug() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileRequest.debug)
+  return _internal_debug();
+}
+inline void CompileRequest::_internal_set_debug(bool value) {
+  
+  _impl_.debug_ = value;
+}
+inline void CompileRequest::set_debug(bool value) {
+  _internal_set_debug(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileRequest.debug)
+}
+
 // -------------------------------------------------------------------
 
-// CompileResponse
+// CompileSuccess
 
-// uint64 hash = 1;
-inline void CompileResponse::clear_hash() {
-  _impl_.hash_ = uint64_t{0u};
-}
-inline uint64_t CompileResponse::_internal_hash() const {
-  return _impl_.hash_;
-}
-inline uint64_t CompileResponse::hash() const {
-  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.hash)
-  return _internal_hash();
-}
-inline void CompileResponse::_internal_set_hash(uint64_t value) {
-  
-  _impl_.hash_ = value;
-}
-inline void CompileResponse::set_hash(uint64_t value) {
-  _internal_set_hash(value);
-  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.hash)
-}
-
-// .rsh.protocol.Tier tier = 2;
-inline void CompileResponse::clear_tier() {
-  _impl_.tier_ = 0;
-}
-inline ::rsh::protocol::Tier CompileResponse::_internal_tier() const {
-  return static_cast< ::rsh::protocol::Tier >(_impl_.tier_);
-}
-inline ::rsh::protocol::Tier CompileResponse::tier() const {
-  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.tier)
-  return _internal_tier();
-}
-inline void CompileResponse::_internal_set_tier(::rsh::protocol::Tier value) {
-  
-  _impl_.tier_ = value;
-}
-inline void CompileResponse::set_tier(::rsh::protocol::Tier value) {
-  _internal_set_tier(value);
-  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.tier)
-}
-
-// optional bytes code = 3;
-inline bool CompileResponse::_internal_has_code() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
-  return value;
-}
-inline bool CompileResponse::has_code() const {
-  return _internal_has_code();
-}
-inline void CompileResponse::clear_code() {
+// bytes code = 1;
+inline void CompileSuccess::clear_code() {
   _impl_.code_.ClearToEmpty();
-  _impl_._has_bits_[0] &= ~0x00000001u;
 }
-inline const std::string& CompileResponse::code() const {
-  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.code)
+inline const std::string& CompileSuccess::code() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileSuccess.code)
   return _internal_code();
 }
 template <typename ArgT0, typename... ArgT>
 inline PROTOBUF_ALWAYS_INLINE
-void CompileResponse::set_code(ArgT0&& arg0, ArgT... args) {
- _impl_._has_bits_[0] |= 0x00000001u;
+void CompileSuccess::set_code(ArgT0&& arg0, ArgT... args) {
+ 
  _impl_.code_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.code)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileSuccess.code)
 }
-inline std::string* CompileResponse::mutable_code() {
+inline std::string* CompileSuccess::mutable_code() {
   std::string* _s = _internal_mutable_code();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.code)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileSuccess.code)
   return _s;
 }
-inline const std::string& CompileResponse::_internal_code() const {
+inline const std::string& CompileSuccess::_internal_code() const {
   return _impl_.code_.Get();
 }
-inline void CompileResponse::_internal_set_code(const std::string& value) {
-  _impl_._has_bits_[0] |= 0x00000001u;
+inline void CompileSuccess::_internal_set_code(const std::string& value) {
+  
   _impl_.code_.Set(value, GetArenaForAllocation());
 }
-inline std::string* CompileResponse::_internal_mutable_code() {
-  _impl_._has_bits_[0] |= 0x00000001u;
+inline std::string* CompileSuccess::_internal_mutable_code() {
+  
   return _impl_.code_.Mutable(GetArenaForAllocation());
 }
-inline std::string* CompileResponse::release_code() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.code)
-  if (!_internal_has_code()) {
-    return nullptr;
-  }
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  auto* p = _impl_.code_.Release();
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.code_.IsDefault()) {
-    _impl_.code_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  return p;
+inline std::string* CompileSuccess::release_code() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileSuccess.code)
+  return _impl_.code_.Release();
 }
-inline void CompileResponse::set_allocated_code(std::string* code) {
+inline void CompileSuccess::set_allocated_code(std::string* code) {
   if (code != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000001u;
+    
   } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
+    
   }
   _impl_.code_.SetAllocated(code, GetArenaForAllocation());
 #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
@@ -5824,67 +6371,49 @@ inline void CompileResponse::set_allocated_code(std::string* code) {
     _impl_.code_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.code)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileSuccess.code)
 }
 
-// optional bytes constants = 4;
-inline bool CompileResponse::_internal_has_constants() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
-  return value;
-}
-inline bool CompileResponse::has_constants() const {
-  return _internal_has_constants();
-}
-inline void CompileResponse::clear_constants() {
+// bytes constants = 2;
+inline void CompileSuccess::clear_constants() {
   _impl_.constants_.ClearToEmpty();
-  _impl_._has_bits_[0] &= ~0x00000002u;
 }
-inline const std::string& CompileResponse::constants() const {
-  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.constants)
+inline const std::string& CompileSuccess::constants() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileSuccess.constants)
   return _internal_constants();
 }
 template <typename ArgT0, typename... ArgT>
 inline PROTOBUF_ALWAYS_INLINE
-void CompileResponse::set_constants(ArgT0&& arg0, ArgT... args) {
- _impl_._has_bits_[0] |= 0x00000002u;
+void CompileSuccess::set_constants(ArgT0&& arg0, ArgT... args) {
+ 
  _impl_.constants_.SetBytes(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:rsh.protocol.CompileResponse.constants)
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileSuccess.constants)
 }
-inline std::string* CompileResponse::mutable_constants() {
+inline std::string* CompileSuccess::mutable_constants() {
   std::string* _s = _internal_mutable_constants();
-  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.constants)
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileSuccess.constants)
   return _s;
 }
-inline const std::string& CompileResponse::_internal_constants() const {
+inline const std::string& CompileSuccess::_internal_constants() const {
   return _impl_.constants_.Get();
 }
-inline void CompileResponse::_internal_set_constants(const std::string& value) {
-  _impl_._has_bits_[0] |= 0x00000002u;
+inline void CompileSuccess::_internal_set_constants(const std::string& value) {
+  
   _impl_.constants_.Set(value, GetArenaForAllocation());
 }
-inline std::string* CompileResponse::_internal_mutable_constants() {
-  _impl_._has_bits_[0] |= 0x00000002u;
+inline std::string* CompileSuccess::_internal_mutable_constants() {
+  
   return _impl_.constants_.Mutable(GetArenaForAllocation());
 }
-inline std::string* CompileResponse::release_constants() {
-  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.constants)
-  if (!_internal_has_constants()) {
-    return nullptr;
-  }
-  _impl_._has_bits_[0] &= ~0x00000002u;
-  auto* p = _impl_.constants_.Release();
-#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  if (_impl_.constants_.IsDefault()) {
-    _impl_.constants_.Set("", GetArenaForAllocation());
-  }
-#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  return p;
+inline std::string* CompileSuccess::release_constants() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileSuccess.constants)
+  return _impl_.constants_.Release();
 }
-inline void CompileResponse::set_allocated_constants(std::string* constants) {
+inline void CompileSuccess::set_allocated_constants(std::string* constants) {
   if (constants != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000002u;
+    
   } else {
-    _impl_._has_bits_[0] &= ~0x00000002u;
+    
   }
   _impl_.constants_.SetAllocated(constants, GetArenaForAllocation());
 #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
@@ -5892,9 +6421,558 @@ inline void CompileResponse::set_allocated_constants(std::string* constants) {
     _impl_.constants_.Set("", GetArenaForAllocation());
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileResponse.constants)
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileSuccess.constants)
 }
 
+// .rsh.protocol.Tier tier = 3;
+inline void CompileSuccess::clear_tier() {
+  _impl_.tier_ = 0;
+}
+inline ::rsh::protocol::Tier CompileSuccess::_internal_tier() const {
+  return static_cast< ::rsh::protocol::Tier >(_impl_.tier_);
+}
+inline ::rsh::protocol::Tier CompileSuccess::tier() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileSuccess.tier)
+  return _internal_tier();
+}
+inline void CompileSuccess::_internal_set_tier(::rsh::protocol::Tier value) {
+  
+  _impl_.tier_ = value;
+}
+inline void CompileSuccess::set_tier(::rsh::protocol::Tier value) {
+  _internal_set_tier(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileSuccess.tier)
+}
+
+// uint64 hash = 4;
+inline void CompileSuccess::clear_hash() {
+  _impl_.hash_ = uint64_t{0u};
+}
+inline uint64_t CompileSuccess::_internal_hash() const {
+  return _impl_.hash_;
+}
+inline uint64_t CompileSuccess::hash() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileSuccess.hash)
+  return _internal_hash();
+}
+inline void CompileSuccess::_internal_set_hash(uint64_t value) {
+  
+  _impl_.hash_ = value;
+}
+inline void CompileSuccess::set_hash(uint64_t value) {
+  _internal_set_hash(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileSuccess.hash)
+}
+
+// optional .rsh.protocol.SourceCodeData source_code_data = 5;
+inline bool CompileSuccess::_internal_has_source_code_data() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.source_code_data_ != nullptr);
+  return value;
+}
+inline bool CompileSuccess::has_source_code_data() const {
+  return _internal_has_source_code_data();
+}
+inline void CompileSuccess::clear_source_code_data() {
+  if (_impl_.source_code_data_ != nullptr) _impl_.source_code_data_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::rsh::protocol::SourceCodeData& CompileSuccess::_internal_source_code_data() const {
+  const ::rsh::protocol::SourceCodeData* p = _impl_.source_code_data_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::SourceCodeData&>(
+      ::rsh::protocol::_SourceCodeData_default_instance_);
+}
+inline const ::rsh::protocol::SourceCodeData& CompileSuccess::source_code_data() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileSuccess.source_code_data)
+  return _internal_source_code_data();
+}
+inline void CompileSuccess::unsafe_arena_set_allocated_source_code_data(
+    ::rsh::protocol::SourceCodeData* source_code_data) {
+  if (GetArenaForAllocation() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.source_code_data_);
+  }
+  _impl_.source_code_data_ = source_code_data;
+  if (source_code_data) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.CompileSuccess.source_code_data)
+}
+inline ::rsh::protocol::SourceCodeData* CompileSuccess::release_source_code_data() {
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::rsh::protocol::SourceCodeData* temp = _impl_.source_code_data_;
+  _impl_.source_code_data_ = nullptr;
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
+  temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  if (GetArenaForAllocation() == nullptr) { delete old; }
+#else  // PROTOBUF_FORCE_COPY_IN_RELEASE
+  if (GetArenaForAllocation() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
+  return temp;
+}
+inline ::rsh::protocol::SourceCodeData* CompileSuccess::unsafe_arena_release_source_code_data() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileSuccess.source_code_data)
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::rsh::protocol::SourceCodeData* temp = _impl_.source_code_data_;
+  _impl_.source_code_data_ = nullptr;
+  return temp;
+}
+inline ::rsh::protocol::SourceCodeData* CompileSuccess::_internal_mutable_source_code_data() {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  if (_impl_.source_code_data_ == nullptr) {
+    auto* p = CreateMaybeMessage<::rsh::protocol::SourceCodeData>(GetArenaForAllocation());
+    _impl_.source_code_data_ = p;
+  }
+  return _impl_.source_code_data_;
+}
+inline ::rsh::protocol::SourceCodeData* CompileSuccess::mutable_source_code_data() {
+  ::rsh::protocol::SourceCodeData* _msg = _internal_mutable_source_code_data();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileSuccess.source_code_data)
+  return _msg;
+}
+inline void CompileSuccess::set_allocated_source_code_data(::rsh::protocol::SourceCodeData* source_code_data) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  if (message_arena == nullptr) {
+    delete _impl_.source_code_data_;
+  }
+  if (source_code_data) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(source_code_data);
+    if (message_arena != submessage_arena) {
+      source_code_data = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, source_code_data, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  _impl_.source_code_data_ = source_code_data;
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileSuccess.source_code_data)
+}
+
+// -------------------------------------------------------------------
+
+// CompileFailure
+
+// string command = 1;
+inline void CompileFailure::clear_command() {
+  _impl_.command_.ClearToEmpty();
+}
+inline const std::string& CompileFailure::command() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileFailure.command)
+  return _internal_command();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void CompileFailure::set_command(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.command_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileFailure.command)
+}
+inline std::string* CompileFailure::mutable_command() {
+  std::string* _s = _internal_mutable_command();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileFailure.command)
+  return _s;
+}
+inline const std::string& CompileFailure::_internal_command() const {
+  return _impl_.command_.Get();
+}
+inline void CompileFailure::_internal_set_command(const std::string& value) {
+  
+  _impl_.command_.Set(value, GetArenaForAllocation());
+}
+inline std::string* CompileFailure::_internal_mutable_command() {
+  
+  return _impl_.command_.Mutable(GetArenaForAllocation());
+}
+inline std::string* CompileFailure::release_command() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileFailure.command)
+  return _impl_.command_.Release();
+}
+inline void CompileFailure::set_allocated_command(std::string* command) {
+  if (command != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.command_.SetAllocated(command, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.command_.IsDefault()) {
+    _impl_.command_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileFailure.command)
+}
+
+// string compiler_output = 2;
+inline void CompileFailure::clear_compiler_output() {
+  _impl_.compiler_output_.ClearToEmpty();
+}
+inline const std::string& CompileFailure::compiler_output() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileFailure.compiler_output)
+  return _internal_compiler_output();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void CompileFailure::set_compiler_output(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.compiler_output_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileFailure.compiler_output)
+}
+inline std::string* CompileFailure::mutable_compiler_output() {
+  std::string* _s = _internal_mutable_compiler_output();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileFailure.compiler_output)
+  return _s;
+}
+inline const std::string& CompileFailure::_internal_compiler_output() const {
+  return _impl_.compiler_output_.Get();
+}
+inline void CompileFailure::_internal_set_compiler_output(const std::string& value) {
+  
+  _impl_.compiler_output_.Set(value, GetArenaForAllocation());
+}
+inline std::string* CompileFailure::_internal_mutable_compiler_output() {
+  
+  return _impl_.compiler_output_.Mutable(GetArenaForAllocation());
+}
+inline std::string* CompileFailure::release_compiler_output() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileFailure.compiler_output)
+  return _impl_.compiler_output_.Release();
+}
+inline void CompileFailure::set_allocated_compiler_output(std::string* compiler_output) {
+  if (compiler_output != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.compiler_output_.SetAllocated(compiler_output, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.compiler_output_.IsDefault()) {
+    _impl_.compiler_output_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileFailure.compiler_output)
+}
+
+// string source_code = 3;
+inline void CompileFailure::clear_source_code() {
+  _impl_.source_code_.ClearToEmpty();
+}
+inline const std::string& CompileFailure::source_code() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileFailure.source_code)
+  return _internal_source_code();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void CompileFailure::set_source_code(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.source_code_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileFailure.source_code)
+}
+inline std::string* CompileFailure::mutable_source_code() {
+  std::string* _s = _internal_mutable_source_code();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileFailure.source_code)
+  return _s;
+}
+inline const std::string& CompileFailure::_internal_source_code() const {
+  return _impl_.source_code_.Get();
+}
+inline void CompileFailure::_internal_set_source_code(const std::string& value) {
+  
+  _impl_.source_code_.Set(value, GetArenaForAllocation());
+}
+inline std::string* CompileFailure::_internal_mutable_source_code() {
+  
+  return _impl_.source_code_.Mutable(GetArenaForAllocation());
+}
+inline std::string* CompileFailure::release_source_code() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileFailure.source_code)
+  return _impl_.source_code_.Release();
+}
+inline void CompileFailure::set_allocated_source_code(std::string* source_code) {
+  if (source_code != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.source_code_.SetAllocated(source_code, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.source_code_.IsDefault()) {
+    _impl_.source_code_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileFailure.source_code)
+}
+
+// -------------------------------------------------------------------
+
+// SourceCodeData
+
+// string source_code = 1;
+inline void SourceCodeData::clear_source_code() {
+  _impl_.source_code_.ClearToEmpty();
+}
+inline const std::string& SourceCodeData::source_code() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.SourceCodeData.source_code)
+  return _internal_source_code();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void SourceCodeData::set_source_code(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.source_code_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:rsh.protocol.SourceCodeData.source_code)
+}
+inline std::string* SourceCodeData::mutable_source_code() {
+  std::string* _s = _internal_mutable_source_code();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.SourceCodeData.source_code)
+  return _s;
+}
+inline const std::string& SourceCodeData::_internal_source_code() const {
+  return _impl_.source_code_.Get();
+}
+inline void SourceCodeData::_internal_set_source_code(const std::string& value) {
+  
+  _impl_.source_code_.Set(value, GetArenaForAllocation());
+}
+inline std::string* SourceCodeData::_internal_mutable_source_code() {
+  
+  return _impl_.source_code_.Mutable(GetArenaForAllocation());
+}
+inline std::string* SourceCodeData::release_source_code() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.SourceCodeData.source_code)
+  return _impl_.source_code_.Release();
+}
+inline void SourceCodeData::set_allocated_source_code(std::string* source_code) {
+  if (source_code != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.source_code_.SetAllocated(source_code, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.source_code_.IsDefault()) {
+    _impl_.source_code_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.SourceCodeData.source_code)
+}
+
+// string temp_file_name = 2;
+inline void SourceCodeData::clear_temp_file_name() {
+  _impl_.temp_file_name_.ClearToEmpty();
+}
+inline const std::string& SourceCodeData::temp_file_name() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.SourceCodeData.temp_file_name)
+  return _internal_temp_file_name();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void SourceCodeData::set_temp_file_name(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.temp_file_name_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:rsh.protocol.SourceCodeData.temp_file_name)
+}
+inline std::string* SourceCodeData::mutable_temp_file_name() {
+  std::string* _s = _internal_mutable_temp_file_name();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.SourceCodeData.temp_file_name)
+  return _s;
+}
+inline const std::string& SourceCodeData::_internal_temp_file_name() const {
+  return _impl_.temp_file_name_.Get();
+}
+inline void SourceCodeData::_internal_set_temp_file_name(const std::string& value) {
+  
+  _impl_.temp_file_name_.Set(value, GetArenaForAllocation());
+}
+inline std::string* SourceCodeData::_internal_mutable_temp_file_name() {
+  
+  return _impl_.temp_file_name_.Mutable(GetArenaForAllocation());
+}
+inline std::string* SourceCodeData::release_temp_file_name() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.SourceCodeData.temp_file_name)
+  return _impl_.temp_file_name_.Release();
+}
+inline void SourceCodeData::set_allocated_temp_file_name(std::string* temp_file_name) {
+  if (temp_file_name != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.temp_file_name_.SetAllocated(temp_file_name, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.temp_file_name_.IsDefault()) {
+    _impl_.temp_file_name_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.SourceCodeData.temp_file_name)
+}
+
+// -------------------------------------------------------------------
+
+// CompileResponse
+
+// .rsh.protocol.CompileSuccess success = 1;
+inline bool CompileResponse::_internal_has_success() const {
+  return result_case() == kSuccess;
+}
+inline bool CompileResponse::has_success() const {
+  return _internal_has_success();
+}
+inline void CompileResponse::set_has_success() {
+  _impl_._oneof_case_[0] = kSuccess;
+}
+inline void CompileResponse::clear_success() {
+  if (_internal_has_success()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.result_.success_;
+    }
+    clear_has_result();
+  }
+}
+inline ::rsh::protocol::CompileSuccess* CompileResponse::release_success() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.success)
+  if (_internal_has_success()) {
+    clear_has_result();
+    ::rsh::protocol::CompileSuccess* temp = _impl_.result_.success_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.result_.success_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::rsh::protocol::CompileSuccess& CompileResponse::_internal_success() const {
+  return _internal_has_success()
+      ? *_impl_.result_.success_
+      : reinterpret_cast< ::rsh::protocol::CompileSuccess&>(::rsh::protocol::_CompileSuccess_default_instance_);
+}
+inline const ::rsh::protocol::CompileSuccess& CompileResponse::success() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.success)
+  return _internal_success();
+}
+inline ::rsh::protocol::CompileSuccess* CompileResponse::unsafe_arena_release_success() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.protocol.CompileResponse.success)
+  if (_internal_has_success()) {
+    clear_has_result();
+    ::rsh::protocol::CompileSuccess* temp = _impl_.result_.success_;
+    _impl_.result_.success_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void CompileResponse::unsafe_arena_set_allocated_success(::rsh::protocol::CompileSuccess* success) {
+  clear_result();
+  if (success) {
+    set_has_success();
+    _impl_.result_.success_ = success;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.CompileResponse.success)
+}
+inline ::rsh::protocol::CompileSuccess* CompileResponse::_internal_mutable_success() {
+  if (!_internal_has_success()) {
+    clear_result();
+    set_has_success();
+    _impl_.result_.success_ = CreateMaybeMessage< ::rsh::protocol::CompileSuccess >(GetArenaForAllocation());
+  }
+  return _impl_.result_.success_;
+}
+inline ::rsh::protocol::CompileSuccess* CompileResponse::mutable_success() {
+  ::rsh::protocol::CompileSuccess* _msg = _internal_mutable_success();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.success)
+  return _msg;
+}
+
+// .rsh.protocol.CompileFailure failure = 2;
+inline bool CompileResponse::_internal_has_failure() const {
+  return result_case() == kFailure;
+}
+inline bool CompileResponse::has_failure() const {
+  return _internal_has_failure();
+}
+inline void CompileResponse::set_has_failure() {
+  _impl_._oneof_case_[0] = kFailure;
+}
+inline void CompileResponse::clear_failure() {
+  if (_internal_has_failure()) {
+    if (GetArenaForAllocation() == nullptr) {
+      delete _impl_.result_.failure_;
+    }
+    clear_has_result();
+  }
+}
+inline ::rsh::protocol::CompileFailure* CompileResponse::release_failure() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileResponse.failure)
+  if (_internal_has_failure()) {
+    clear_has_result();
+    ::rsh::protocol::CompileFailure* temp = _impl_.result_.failure_;
+    if (GetArenaForAllocation() != nullptr) {
+      temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+    }
+    _impl_.result_.failure_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline const ::rsh::protocol::CompileFailure& CompileResponse::_internal_failure() const {
+  return _internal_has_failure()
+      ? *_impl_.result_.failure_
+      : reinterpret_cast< ::rsh::protocol::CompileFailure&>(::rsh::protocol::_CompileFailure_default_instance_);
+}
+inline const ::rsh::protocol::CompileFailure& CompileResponse::failure() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileResponse.failure)
+  return _internal_failure();
+}
+inline ::rsh::protocol::CompileFailure* CompileResponse::unsafe_arena_release_failure() {
+  // @@protoc_insertion_point(field_unsafe_arena_release:rsh.protocol.CompileResponse.failure)
+  if (_internal_has_failure()) {
+    clear_has_result();
+    ::rsh::protocol::CompileFailure* temp = _impl_.result_.failure_;
+    _impl_.result_.failure_ = nullptr;
+    return temp;
+  } else {
+    return nullptr;
+  }
+}
+inline void CompileResponse::unsafe_arena_set_allocated_failure(::rsh::protocol::CompileFailure* failure) {
+  clear_result();
+  if (failure) {
+    set_has_failure();
+    _impl_.result_.failure_ = failure;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.CompileResponse.failure)
+}
+inline ::rsh::protocol::CompileFailure* CompileResponse::_internal_mutable_failure() {
+  if (!_internal_has_failure()) {
+    clear_result();
+    set_has_failure();
+    _impl_.result_.failure_ = CreateMaybeMessage< ::rsh::protocol::CompileFailure >(GetArenaForAllocation());
+  }
+  return _impl_.result_.failure_;
+}
+inline ::rsh::protocol::CompileFailure* CompileResponse::mutable_failure() {
+  ::rsh::protocol::CompileFailure* _msg = _internal_mutable_failure();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileResponse.failure)
+  return _msg;
+}
+
+inline bool CompileResponse::has_result() const {
+  return result_case() != RESULT_NOT_SET;
+}
+inline void CompileResponse::clear_has_result() {
+  _impl_._oneof_case_[0] = RESULT_NOT_SET;
+}
+inline CompileResponse::ResultCase CompileResponse::result_case() const {
+  return CompileResponse::ResultCase(_impl_._oneof_case_[0]);
+}
 // -------------------------------------------------------------------
 
 // Function
@@ -7759,6 +8837,12 @@ inline void PackageRequest::set_hash(uint64_t value) {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

@@ -4,6 +4,7 @@
 #include "messages.pb.h"
 #include "rsh.hpp"
 #include <string>
+#include <optional>
 
 namespace rsh {
 
@@ -13,7 +14,9 @@ struct CompilerOptions {
   int cc_opt = 3;
   bool inplace;
   bool cache = true;
+  bool debug = false;
   protocol::Tier tier = protocol::Tier::OPTIMIZED;
+  std::optional<std::string> output_dir;
 
   static CompilerOptions from_list(SEXP listsxp);
 };
