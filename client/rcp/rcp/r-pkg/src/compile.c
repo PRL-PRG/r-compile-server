@@ -490,7 +490,7 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
     if (!fits_in(ptr, hole->size))
         error("Offset to a value does not fit into required patch hole (%p does not fit into %hu bytes). Relocation type: %d. Stencil: %s. Hole: %d. Try to set memory model to large.\n", (void *)ptr, hole->size, hole->kind, stencil->name, hole_id);
     if (ptr == 0)
-        error("Zero integer passed as an argument to BC instruction. Relocation type: %d. Stencil: %s. Hole: %d. ", hole->kind, stencil->name, hole_id);
+        warning("Zero integer passed as an argument to BC instruction. Relocation type: %d. Stencil: %s. Hole: %d. ", hole->kind, stencil->name, hole_id);
 
     memcpy(&dst[hole->offset], &ptr, hole->size);
 }
@@ -1140,6 +1140,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             }
         }
         break;
+        case DOTCALL_BCOP:
+            opargs[1] += 1; // Adjust to avoid zero (cannot patch zero with copy-and-patch). Needs to be set accordingly in stencils!
+            break;
         default:
             break;
         }
@@ -1409,6 +1412,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     clock_gettime(CLOCK_MONOTONIC, &start);
     CompilationStats stats = {0, 0};
 
+    DEBUG_PRINT("Compiling to bytecode...\n");
     SEXP compiled = compile_to_bc(f, options);
     #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
     UNPROTECT(1); // options
@@ -1416,6 +1420,8 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
     if(TYPEOF(BODY(compiled)) != BCODESXP)
         error("The BC compiler could not compile this function.");
+
+    DEBUG_PRINT("Bytecode compilation finished.\n");
 
     PROTECT(compiled);
 
@@ -1452,7 +1458,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
         UNPROTECT(2); // stats_vec, names
     } else {
-        fprintf(stderr,
+        DEBUG_PRINT(
             "Data size:\t%.0f B\n"
             "Executable size:\t%zu B\n"
             "Opcodes count:\t%zu\n"
@@ -1463,7 +1469,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
             (double)(stats.executable_size) / stats.count_opcodes
         );
 
-        fprintf(stderr, "Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
+        DEBUG_PRINT("Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
     }
 
     return compiled;
