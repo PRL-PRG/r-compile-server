@@ -7,12 +7,9 @@ import java.nio.file.Path;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.variable.*;
 import org.prlprg.fir2c.*;
-import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
-import org.prlprg.session.gnur.GNUR;
-import org.prlprg.sexp.EnvSXP;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.cc.CCompilationException;
@@ -23,7 +20,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   @Override
   default CompiledModule deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
-    throw new UnsupportedEncodingException("Compiled modules aren't checked via snapshot, and only their on-disk path is used by dependents");
+    throw new UnsupportedEncodingException(
+        "Compiled modules aren't checked via snapshot, and only their on-disk path is used by dependents");
   }
 
   @Override

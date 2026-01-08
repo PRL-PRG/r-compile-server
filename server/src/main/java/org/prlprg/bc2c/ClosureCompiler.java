@@ -54,7 +54,7 @@ class ClosureCompiler {
   protected CFunction fun;
   protected CCode prologue;
   protected CCode body;
-  protected List<CompiledItem> nested = new ArrayList<>();
+  protected List<CodeAndData> nested = new ArrayList<>();
 
   public ClosureCompiler(BC2CModule module, String name, Bc bc) {
     this.bc = bc;
@@ -64,8 +64,7 @@ class ClosureCompiler {
         module
             .cUnit()
             .addFunction(
-                "SEXP", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP))
-            );
+                "SEXP", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP)));
     this.prologue = fun.add();
     this.body = fun.add();
     this.extraConstPoolIdx = bc.consts().size() + 1;
@@ -79,7 +78,7 @@ class ClosureCompiler {
     this.debug = debug;
   }
 
-  public CompiledItem compile() {
+  public CodeAndData compile() {
     beforeCompile();
 
     var code = bc.code();
@@ -97,7 +96,7 @@ class ClosureCompiler {
     afterCompile();
 
     var constantPool = SEXPs.vec(constants());
-    return new CompiledItem(fun, constantPool, nested);
+    return new CodeAndData(fun, constantPool, nested);
   }
 
   private int stackSpace() {

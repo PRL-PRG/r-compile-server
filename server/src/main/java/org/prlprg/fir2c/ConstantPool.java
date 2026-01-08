@@ -6,7 +6,7 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.VecSXP;
 
-/// Constants used by a [CModule].
+/// Closure constant pool builder.
 final class ConstantPool {
   private final Map<SEXP, Integer> indices = new LinkedHashMap<>();
 
