@@ -165,54 +165,61 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   (ATTRIB(vec) == R_NilValue ||                                                \
    (TAG(ATTRIB(vec)) == R_DimSymbol && CDR(ATTRIB(vec)) == R_NilValue))
 
+#define DO_FAST_VECELT_THIN(/* SEXP */ vec, /* R_xlen_t */ i,                  \
+                            /* Rboolean */ subset2, /* Value* */ res)          \
+  do {                                                                         \
+    if ((TYPEOF(vec) == REALSXP || TYPEOF(vec) == INTSXP ||                    \
+         TYPEOF(vec) == LGLSXP) &&                                             \
+        i >= 0 && XLENGTH(vec) > i) {                                          \
+      switch (TYPEOF(vec)) {                                                   \
+      case REALSXP:                                                            \
+        SET_DBL_VAL(res, REAL_ELT(vec, i));                                    \
+        return;                                                                \
+      case INTSXP:                                                             \
+        SET_INT_VAL(res, INTEGER_ELT(vec, i));                                 \
+        return;                                                                \
+      case LGLSXP:                                                             \
+        SET_LGL_VAL(res, LOGICAL_ELT(vec, i));                                 \
+        return;                                                                \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 #define DO_FAST_VECELT(/* SEXP */ vec, /* R_xlen_t */ i,                       \
                        /* Rboolean */ subset2, /* Value* */ res)               \
   do {                                                                         \
-    switch (TYPEOF(vec)) {                                                     \
-    case REALSXP:                                                              \
-      if (i < 0 || XLENGTH(vec) <= i) {                                        \
-        break;                                                                 \
+    if ((TYPEOF(vec) == REALSXP || TYPEOF(vec) == INTSXP ||                    \
+         TYPEOF(vec) == LGLSXP || TYPEOF(vec) == CPLXSXP ||                    \
+         TYPEOF(vec) == RAWSXP || TYPEOF(vec) == VECSXP) &&                    \
+        i >= 0 && XLENGTH(vec) > i) {                                          \
+      switch (TYPEOF(vec)) {                                                   \
+      case REALSXP:                                                            \
+        SET_DBL_VAL(res, REAL_ELT(vec, i));                                    \
+        return;                                                                \
+      case INTSXP:                                                             \
+        SET_INT_VAL(res, INTEGER_ELT(vec, i));                                 \
+        return;                                                                \
+      case LGLSXP:                                                             \
+        SET_LGL_VAL(res, LOGICAL_ELT(vec, i));                                 \
+        return;                                                                \
+      case CPLXSXP:                                                            \
+        SET_SXP_VAL(res, Rf_ScalarComplex(COMPLEX_ELT(vec, i)));               \
+        return;                                                                \
+      case RAWSXP:                                                             \
+        SET_SXP_VAL(res, Rf_ScalarRaw(RAW(vec)[i]));                           \
+        return;                                                                \
+      case VECSXP:                                                             \
+        SEXP elt = VECTOR_ELT(vec, i);                                         \
+        RAISE_NAMED(elt, NAMED(vec));                                          \
+        if (subset2) {                                                         \
+          SET_SXP_VAL(res, elt);                                               \
+        } else {                                                               \
+          SEXP v = Rf_allocVector(VECSXP, 1);                                  \
+          SET_VECTOR_ELT(v, 0, elt);                                           \
+          SET_SXP_VAL(res, v);                                                 \
+        }                                                                      \
+        return;                                                                \
       }                                                                        \
-      SET_DBL_VAL(res, REAL_ELT(vec, i));                                      \
-      return;                                                                  \
-    case INTSXP:                                                               \
-      if (i < 0 || XLENGTH(vec) <= i) {                                        \
-        break;                                                                 \
-      }                                                                        \
-      SET_INT_VAL(res, INTEGER_ELT(vec, i));                                   \
-      return;                                                                  \
-    case LGLSXP:                                                               \
-      if (i < 0 || XLENGTH(vec) <= i) {                                        \
-        break;                                                                 \
-      }                                                                        \
-      SET_LGL_VAL(res, LOGICAL_ELT(vec, i));                                   \
-      return;                                                                  \
-    case CPLXSXP:                                                              \
-      if (i < 0 || XLENGTH(vec) <= i) {                                        \
-        break;                                                                 \
-      }                                                                        \
-      SET_SXP_VAL(res, Rf_ScalarComplex(COMPLEX_ELT(vec, i)));                 \
-      return;                                                                  \
-    case RAWSXP:                                                               \
-      if (i < 0 || XLENGTH(vec) <= i) {                                        \
-        break;                                                                 \
-      }                                                                        \
-      SET_SXP_VAL(res, Rf_ScalarRaw(RAW(vec)[i]));                             \
-      return;                                                                  \
-    case VECSXP:                                                               \
-      if (i < 0 || XLENGTH(vec) <= i) {                                        \
-        break;                                                                 \
-      }                                                                        \
-      SEXP elt = VECTOR_ELT(vec, i);                                           \
-      RAISE_NAMED(elt, NAMED(vec));                                            \
-      if (subset2) {                                                           \
-        SET_SXP_VAL(res, elt);                                                 \
-      } else {                                                                 \
-        SEXP v = Rf_allocVector(VECSXP, 1);                                    \
-        SET_VECTOR_ELT(v, 0, elt);                                             \
-        SET_SXP_VAL(res, v);                                                   \
-      }                                                                        \
-      return;                                                                  \
     }                                                                          \
   } while (0)
 

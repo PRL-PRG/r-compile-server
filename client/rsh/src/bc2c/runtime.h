@@ -1714,22 +1714,31 @@ static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch(const char *generic,
 #define Rsh_VecSubset(stack, call, rho) Rsh_vec_subset(stack, call, FALSE, rho)
 #define Rsh_VecSubset2(stack, call, rho) Rsh_vec_subset(stack, call, TRUE, rho)
 
-static INLINE void Rsh_vec_subset(Value *stack, SEXP call, Rboolean subset2,
-                                  SEXP rho) {
-  Value *r1 = GET_VAL(-2);
-  Value r0 = *GET_VAL(-1);
-  SEXP vec = val_as_sexp(*r1);
-  Value i = r0;
-  R_xlen_t index = as_index(i) - 1;
+// Need to benchmark which is faster (defined or not)
+#define RSH_ENABLE_SUBSET_INT_PATH
+static INLINE void Rsh_do_vec_subset(Value *stack, SEXP call, Rboolean subset2,
+                                     SEXP rho) {
+  Value *sx = GET_VAL(-2);
+  Value *si = GET_VAL(-1);
+  SEXP vec = val_as_sexp(*sx);
 
-  if (subset2 || FAST_VECELT_OK(vec)) {
-    DO_FAST_VECELT(vec, index, subset2, r1);
+#if defined(RSH_ENABLE_SUBSET_INT_PATH)
+  // fastest path for simple integer index
+  if (VAL_TAG(*si) == INTSXP && (subset2 || FAST_VECELT_OK(vec))) {
+    R_xlen_t i = VAL_INT(*si) - 1;
+    DO_FAST_VECELT_THIN(vec, i, subset2, sx);
+  }
+#endif
+  // fast path for all datatypes
+  R_xlen_t i = as_index(*si) - 1;
+  if ((subset2 || FAST_VECELT_OK(vec))) {
+    DO_FAST_VECELT(vec, i, subset2, sx);
   }
 
   // slow path!
   RSH_PC_INC(slow_subset);
   SEXP args;
-  args = CONS_NR(val_as_sexp(i), R_NilValue);
+  args = CONS_NR(val_as_sexp(*si), R_NilValue);
   args = CONS_NR(vec, args);
   PROTECT(args);
 
@@ -1742,14 +1751,20 @@ static INLINE void Rsh_vec_subset(Value *stack, SEXP call, Rboolean subset2,
 
   UNPROTECT(1);
 
-  SET_VAL(r1, value);
+  SET_VAL(sx, value);
+}
+
+static INLINE void Rsh_vec_subset(Value *stack, SEXP call, Rboolean subset2,
+                                  SEXP rho) {
+  Rsh_do_vec_subset(stack, call, subset2, rho);
+  R_Visible = TRUE;
 }
 
 #define Rsh_MatSubset(stack, call, rho) Rsh_mat_subset(stack, call, FALSE, rho)
 #define Rsh_MatSubset2(stack, call, rho) Rsh_mat_subset(stack, call, TRUE, rho)
 
-static INLINE void Rsh_mat_subset(Value *stack, SEXP call, Rboolean subset2,
-                                  SEXP rho) {
+static INLINE void Rsh_do_mat_subset(Value *stack, SEXP call, Rboolean subset2,
+                                     SEXP rho) {
   Value *sx = GET_VAL(-3);
   Value si = *GET_VAL(-2);
   Value sj = *GET_VAL(-1);
@@ -1790,6 +1805,12 @@ static INLINE void Rsh_mat_subset(Value *stack, SEXP call, Rboolean subset2,
   }
   UNPROTECT(1);
   SET_VAL(sx, value);
+}
+
+static INLINE void Rsh_mat_subset(Value *stack, SEXP call, Rboolean subset2,
+                                  SEXP rho) {
+  Rsh_do_mat_subset(stack, call, subset2, rho);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_StartAssign(Value *stack, SEXP symbol, BCell *cell,
@@ -2279,9 +2300,9 @@ static INLINE void Rsh_dflt_subset(CCODE fun, SEXP symbol, Value *stack,
 }
 
 #define Rsh_SubsetN(stack, n, call, rho)                                       \
-  Rsh_do_subset_n(stack, n, call, FALSE, rho)
+  Rsh_subset_n(stack, n, call, FALSE, rho)
 #define Rsh_Subset2N(stack, n, call, rho)                                      \
-  Rsh_do_subset_n(stack, n, call, TRUE, rho)
+  Rsh_subset_n(stack, n, call, TRUE, rho)
 
 static INLINE void Rsh_do_subset_n(Value *stack, int rank, SEXP call,
                                    Rboolean subset2, SEXP rho) {
@@ -2315,6 +2336,12 @@ static INLINE void Rsh_do_subset_n(Value *stack, int rank, SEXP call,
   UNPROTECT(1);
 
   SET_VAL(sx, value);
+}
+
+static INLINE void Rsh_subset_n(Value *stack, int rank, SEXP call,
+                                Rboolean subset2, SEXP rho) {
+  Rsh_do_subset_n(stack, rank, call, subset2, rho);
+  R_Visible = TRUE;
 }
 
 #define Rsh_SubassignN(stack, n, call, rho)                                    \
@@ -2656,7 +2683,7 @@ static INLINE void Rsh_SeqAlong(Value *stack, SEXP call, SEXP rho) {
     }
   }
 
-  assert(Rsh_SeqAlongSym == Rf_install("seq_along"));
+  assert(Rsh_SeqAlongOp == R_Primitive("seq_along"));
   DO_BUILTIN1(do_seq_along, call, Rsh_SeqAlongOp, s, rho, v);
 }
 
@@ -2676,7 +2703,7 @@ static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
     return;
   }
 
-  assert(Rsh_SeqLenSym == Rf_install("seq_len"));
+  assert(Rsh_SeqLenOp == R_Primitive("seq_len"));
   DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenOp, val_as_sexp(*v), rho, v);
 }
 
