@@ -1,18 +1,23 @@
 package org.prlprg.gen2c;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.Writer;
+import com.google.common.base.*;
+import java.io.*;
+import java.nio.file.*;
 import java.util.*;
 
 /// C translation unit i.e. source file
 public class CUnit {
   private final List<String> includes = new ArrayList<>();
+  private final List<CStaticVariable> staticVariables = new ArrayList<>();
   private final List<CExternFunction> externFunctions = new ArrayList<>();
   private final List<CFunction> functions = new ArrayList<>();
 
   public void addInclude(String include) {
     includes.add(include);
+  }
+
+  public void addStaticVariable(String type, String name) {
+    staticVariables.add(new CStaticVariable(type, name));
   }
 
   public void addExternFunction(String returnType, String name, List<String> parameters) {
@@ -25,23 +30,15 @@ public class CUnit {
     return fun;
   }
 
+  /// Print the module.
+  @Override
   public String toString() {
-    return toString(functions);
-  }
-
-  /// Only print the bodies of `functions`. Other functions are still forward-declared.
-  public String toString(Collection<CFunction> functions) {
     var w = new StringWriter();
-    writeTo(new PrintWriter(w), functions);
+    writeTo(new PrintWriter(w));
     return w.toString();
   }
 
   public void writeTo(Writer w) {
-    writeTo(w, functions);
-  }
-
-  /// Only print the bodies of `functions`. Other functions are still forward-declared.
-  public void writeTo(Writer w, Collection<CFunction> functions) {
     var pw = w instanceof PrintWriter pw1 ? pw1 : new PrintWriter(w);
 
     includes.forEach(x -> pw.format("#include <%s>", x));

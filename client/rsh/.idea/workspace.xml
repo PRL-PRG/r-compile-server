@@ -19,10 +19,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CStaticEmbed.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/gen2c/eval.R" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/resources/org/prlprg/gen2c/eval.R" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2fir/BC2ModuleCompiler.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/ConstantPool.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/ConstantPool.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CUnit.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CUnit.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CompiledItem.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CompiledItem.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -367,6 +370,8 @@
       <workItem from="1766069995954" duration="61000" />
       <workItem from="1767612099326" duration="99000" />
       <workItem from="1767612213643" duration="5683000" />
+      <workItem from="1767874618356" duration="27000" />
+      <workItem from="1767874660950" duration="1820000" />
     </task>
     <servers />
   </component>

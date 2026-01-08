@@ -71,30 +71,33 @@ import org.prlprg.util.Lists;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Fir2CCompiler {
-  public static CompiledModule compile(Module module, RSession rSession, Option... options) {
-    return new Fir2CCompiler(module, rSession, ImmutableSet.copyOf(options)).run();
+  /// Return a C file and constant pools for `function` and its children.
+  public static CompiledModule compile(Function function, RSession rSession, Option... options) {
+    return new Fir2CCompiler(function, rSession, ImmutableSet.copyOf(options)).run();
   }
 
-  static final String VAR_ENV = "RHO";
-  static final String VAR_POOL = "CCP";
-  static final String VAR_SIGNATURE = "SIGNATURE";
+  static final String VAR_ENV = "env";
+  static final String VAR_POOL = "pool";
+  static final String VAR_SIGNATURE = "signature";
 
   // Input
+  private final Function mainFunction;
   private final Module module;
   private final RSession rSession;
   private final ImmutableSet<Option> options;
 
   // Output
   private final CUnit cUnit = new CUnit();
-  private final Map<Function, CompiledItem> compiledFunctions = new LinkedHashMap<>();
-  private final Map<Abstraction, CompiledItem> compiledVersions = new LinkedHashMap<>();
-  private final Map<Promise, CompiledItem> compiledPromises = new LinkedHashMap<>();
+  private final Map<Function, CodeAndData> compiledFunctions = new LinkedHashMap<>();
+  private final Map<Abstraction, CodeAndData> compiledVersions = new LinkedHashMap<>();
+  private final Map<Promise, CodeAndData> compiledPromises = new LinkedHashMap<>();
 
   // State
   private int tempTypeDisambiguator = 0;
 
-  private Fir2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
-    this.module = module;
+  private Fir2CCompiler(Function mainFunction, RSession rSession, ImmutableSet<Option> options) {
+    this.mainFunction = mainFunction;
+    module = mainFunction.owner();
     this.rSession = rSession;
     this.options = options;
   }
@@ -105,13 +108,14 @@ public final class Fir2CCompiler {
     compileDefinitions();
 
     return new CompiledModule(
+        module,
         ImmutableMap.copyOf(compiledFunctions),
         ImmutableMap.copyOf(compiledVersions),
         ImmutableMap.copyOf(compiledPromises));
   }
 
   private void compileDefinitions() {
-    var localFunctions = nestedDag(module);
+    var localFunctions = hierarchyDag(mainFunction);
     for (var function : localFunctions) {
       for (var version : function.versions()) {
         compileVersionFunction(function, version);
@@ -164,8 +168,7 @@ public final class Fir2CCompiler {
       cUnit.addExternFunction(versionCReturn(version), cName, versionCParams(version));
     }
 
-    VersionEmitter(
-        Function function, Abstraction version) {
+    VersionEmitter(Function function, Abstraction version) {
       if (version.isStub()) {
         throw new IllegalArgumentException(
             "Call FirVersionEmitter.stub(...) for stub:\n" + version);
@@ -216,7 +219,7 @@ public final class Fir2CCompiler {
               });
     }
 
-    private CompiledItem run() {
+    private CodeAndData run() {
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         cFunction
             .add()
@@ -235,7 +238,7 @@ public final class Fir2CCompiler {
       // Output
       private final CFunction cFunction;
       private final ConstantPool constantPool = new ConstantPool();
-      private final List<CompiledItem> nested = new ArrayList<>();
+      private final List<CodeAndData> nested = new ArrayList<>();
 
       // State
       private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
@@ -245,14 +248,22 @@ public final class Fir2CCompiler {
         this.cFunction = cFunction;
       }
 
-      CompiledItem run() {
+      CodeAndData run() {
+        emitConstantPoolAlias();
+
         emitLocalDeclarations();
 
         for (var bb : cfg.bbs()) {
           new BBEmitter(bb, cFunction.add()).run();
         }
 
-        return new CompiledItem(cFunction, constantPool.toSexp(), nested);
+        return new CodeAndData(cFunction, constantPool.toSexp(), nested);
+      }
+
+      private void emitConstantPoolAlias() {
+        cFunction
+            .add()
+            .stmt("SEXP *%s = (SEXP *)STDVEC_DATAPTR(%s_constants);", VAR_POOL, cFunction.name());
       }
 
       private void emitLocalDeclarations() {
@@ -322,7 +333,8 @@ public final class Fir2CCompiler {
                 "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
             case Closure closure -> {
               var compiled = compiledFunctions.get(closure.code());
-              assert compiled != null : "should've been compiled first (or should've thrown if that wasn't possible) because we compile in the order of `nestedDag`";
+              assert compiled != null
+                  : "should've been compiled first (or should've thrown if that wasn't possible) because we compile in the order of `nestedDag`";
               nested.add(compiled);
 
               assert compiled.cName().equals(functionCName(closure.code()));
@@ -332,8 +344,7 @@ public final class Fir2CCompiler {
             }
             case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
             case Force(var value) -> "Fir_force(%s)".formatted(emitArgument(value));
-            case Load(var variable) ->
-                "Fir_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
+            case Load(var variable) -> "Fir_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
             case LoadFun(var variable, var env) -> {
               var envSelector =
                   switch (env) {
@@ -378,7 +389,8 @@ public final class Fir2CCompiler {
 
               var pool = constantRef(compiled.constantPool());
 
-              var captures = Objects.requireNonNull(VersionEmitter.this.captures.get(promise.code()));
+              var captures =
+                  Objects.requireNonNull(VersionEmitter.this.captures.get(promise.code()));
               var capturesArray =
                   emitArray(
                       "captures",
@@ -386,8 +398,7 @@ public final class Fir2CCompiler {
                       captures.stream().map(reg -> "&" + registerPlace(reg)).toList());
 
               yield "Fir_make_promise(&%s, %d, %s, %s, %s)"
-                  .formatted(
-                      cName, capturesArray.size(), capturesArray.pointer(), pool, VAR_ENV);
+                  .formatted(cName, capturesArray.size(), capturesArray.pointer(), pool, VAR_ENV);
             }
             case ReflectiveLoad(var promArg, var variable) ->
                 "Fir_reflective_load(%s, %s)"
@@ -401,8 +412,7 @@ public final class Fir2CCompiler {
               yield arg;
             }
             case SubscriptRead(var vector, var index) ->
-                "Fir_subscript_read(%s, %s)"
-                    .formatted(emitArgument(vector), emitArgument(index));
+                "Fir_subscript_read(%s, %s)".formatted(emitArgument(vector), emitArgument(index));
             case SubscriptWrite(var vector, var index, var value) ->
                 "Fir_subscript_write(%s, %s, %s)"
                     .formatted(emitArgument(vector), emitArgument(index), emitArgument(value));
@@ -434,21 +444,11 @@ public final class Fir2CCompiler {
               var cName = functionCName(calleeFun);
               var cSignature = emitSignature(signature);
               // TODO: pool?
-              yield "%s(%s, %s%s)"
-                  .formatted(
-                      cName,
-                      VAR_ENV,
-                      cSignature,
-                      arguments.splice());
+              yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments.splice());
             }
             case StaticCallee(var calleeFunction, var calleeVersion) -> {
               var cName = versionCName(calleeFunction, calleeVersion);
-              yield "%s(%s, %s%s)"
-                  .formatted(
-                      cName,
-                      VAR_POOL,
-                      VAR_ENV,
-                      arguments.splice());
+              yield "%s(%s%s)".formatted(cName, VAR_ENV, arguments.splice());
             }
             case DynamicCallee(var actualCallee, var argumentNames) -> {
               var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
@@ -494,8 +494,7 @@ public final class Fir2CCompiler {
             case Deopt(var _, var pc, var stack) -> {
               var stackArgs = emitArgumentArray("deopt_stack", stack);
               cCode.stmt(
-                  "Fir_deopt(%d, %d, %s, %s, %s);",
-                  pc, stackArgs.size(), stackArgs.pointer(), VAR_POOL, VAR_ENV);
+                  "Fir_deopt(%d, %d, %s, %s);", pc, stackArgs.size(), stackArgs.pointer(), VAR_ENV);
               cCode.stmt("return R_NilValue;");
             }
           }
@@ -556,12 +555,13 @@ public final class Fir2CCompiler {
 
         private String emitSignature(Signature signature) {
           var returnType = emitType(cCode, signature.returnType());
-          var paramTypes = emitArray("param_types", "Fir_Type", Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
+          var paramTypes =
+              emitArray(
+                  "param_types",
+                  "Fir_Type",
+                  Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
           return "Fir_signature(%s, %d, %s)"
-              .formatted(
-                  returnType,
-                  paramTypes.size(),
-                  paramTypes.pointer());
+              .formatted(returnType, paramTypes.size(), paramTypes.pointer());
         }
 
         private Array emitArgumentArray(String baseName, List<Argument> arguments) {
@@ -586,10 +586,14 @@ public final class Fir2CCompiler {
 
         private Array emitOptionalNameArray(
             String baseName, List<OptionalNamedVariable> names, int size) {
-          var arguments = IntStream.range(0, size).mapToObj(i -> {
-            var name = i < names.size() ? names.get(i).orNull() : null;
-            return name == null ? "R_MissingArg" : nvSymbolRef(name);
-          }).toList();
+          var arguments =
+              IntStream.range(0, size)
+                  .mapToObj(
+                      i -> {
+                        var name = i < names.size() ? names.get(i).orNull() : null;
+                        return name == null ? "R_MissingArg" : nvSymbolRef(name);
+                      })
+                  .toList();
           return emitArray(baseName, "SEXP", arguments);
         }
 
@@ -633,7 +637,7 @@ public final class Fir2CCompiler {
 
       private String constantRef(SEXP sexp) {
         var idx = constantPool.intern(sexp);
-        return "Rsh_const(%s, %d)".formatted(VAR_POOL, idx);
+        return "%s[%d]".formatted(VAR_POOL, idx);
       }
       // endregion misc
     }
@@ -656,16 +660,13 @@ public final class Fir2CCompiler {
       this.function = function;
 
       var cName = functionCName(function);
-      var cParams = List.of(
-          "SEXP %s".formatted(VAR_POOL),
-          "SEXP %s".formatted(VAR_ENV),
-          "Fir_Signature %s".formatted(VAR_SIGNATURE),
-          "...");
+      var cParams =
+          List.of("SEXP %s".formatted(VAR_ENV), "Fir_Signature %s".formatted(VAR_SIGNATURE), "...");
       var cReturn = "SEXP";
       cFunction = cUnit.addFunction(cReturn, cName, cParams);
     }
 
-    private CompiledItem run() {
+    private CodeAndData run() {
       var versions = function.versionsSorted();
       int i;
       Iterator<Abstraction> versionIter;
@@ -677,11 +678,9 @@ public final class Fir2CCompiler {
         cCode = cFunction.add();
         cCode.comment(
             "FIR %s dynamic dispatch (%s)", function.name().name(), function.parameterNames());
-        for (
-            i = 0, versionIter = versions.iterator(), version = versionIter.next();
+        for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
             i < versions.size();
-            i++, version = versionIter.next()
-        ) {
+            i++, version = versionIter.next()) {
           cCode.comment("%d. %s", i, version.signature());
         }
       }
@@ -698,28 +697,31 @@ public final class Fir2CCompiler {
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         cCode.comment("Filter by argument count");
       }
-      for (
-          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
           i < versions.size();
-          i++, version = versionIter.next()
-      ) {
-        cCode.stmt("incompatible[%d] = %s.param_count == %d;", i, VAR_SIGNATURE, version.parameters().size());
+          i++, version = versionIter.next()) {
+        cCode.stmt(
+            "incompatible[%d] = %s.param_count == %d;",
+            i, VAR_SIGNATURE, version.parameters().size());
       }
 
       cCode = cFunction.add();
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         cCode.comment("Filter by static return type");
       }
-      for (
-          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
           i < versions.size();
-          i++, version = versionIter.next()
-      ) {
+          i++, version = versionIter.next()) {
         var typeEmit = emitType(cCode, version.returnType());
-        cCode.stmt(2, "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type);", i, i, typeEmit, VAR_SIGNATURE);
+        cCode.stmt(
+            2,
+            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type);",
+            i,
+            i,
+            typeEmit,
+            VAR_SIGNATURE);
       }
       cCode.stmt("}");
-
 
       // TODO: Don't check parts of the static type that are known at runtime,
       //  then filter by runtime type. Currently we ignore the runtime type.
@@ -732,20 +734,24 @@ public final class Fir2CCompiler {
         cCode.comment(2, "Filter by argument %d's static type", i);
       }
       cCode.stmt(2, "Fir_Type arg_type = %s.param_types[i];", VAR_SIGNATURE);
-      for (
-          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
           i < versions.size();
-          i++, version = versionIter.next()
-      ) {
+          i++, version = versionIter.next()) {
         var typeEmit = emitType(cCode, version.parameters().get(i).type());
-        cCode.stmt(2, "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(arg_type, %s);", i, i, typeEmit);
+        cCode.stmt(
+            2,
+            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(arg_type, %s);",
+            i,
+            i,
+            typeEmit);
       }
       cCode.stmt("}");
 
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         cCode = cFunction.add();
         cCode.comment("Filter by arguments' runtime type");
-        cCode.comment("TODO. Currently we check the full static type, so it's sound, but not optimal");
+        cCode.comment(
+            "TODO. Currently we check the full static type, so it's sound, but not optimal");
       }
 
       cCode = cFunction.add();
@@ -753,33 +759,37 @@ public final class Fir2CCompiler {
         cCode.comment("Call first compatible version");
       }
       cCode.stmt("SEXP out;");
-      for (
-          i = 0, versionIter = versions.iterator(), version = versionIter.next();
+      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
           i < versions.size();
-          i++, version = versionIter.next()
-      ) {
+          i++, version = versionIter.next()) {
         var ifHead = i == 0 ? "if" : "else if";
         var baselineName = versionCName(function, version);
 
         cCode.stmt("%s (!incompatible[%d])", ifHead, i);
         // Reuse the active `va_list`.
         // When we implement checking runtime types, we must move the `va_list` back after.
-        cCode.stmt(2, "out = %s(%s, %s, args);", baselineName, VAR_POOL, VAR_ENV);
+        cCode.stmt(2, "out = %s(%s, args);", baselineName, VAR_ENV);
       }
       cCode.stmt("else");
-      cCode.stmt(2, "Rf_error(\"No versions compatible with the given arguments for %s\");", sanitizeString(function.name().name()));
+      cCode.stmt(
+          2,
+          "Rf_error(\"No versions compatible with the given arguments for %s\");",
+          sanitizeString(function.name().name()));
       cCode.stmt("va_end(args);");
       cCode.stmt("return out;");
 
-      var nested = versions.stream().filter(v -> !v.isStub()).map(v -> Objects.requireNonNull(compiledVersions.get(v))).toList();
-      return new CompiledItem(cFunction, SEXPs.vec(), nested);
+      var nested =
+          versions.stream()
+              .filter(v -> !v.isStub())
+              .map(v -> Objects.requireNonNull(compiledVersions.get(v)))
+              .toList();
+      return new CodeAndData(cFunction, SEXPs.vec(), nested);
     }
   }
 
   // region emit types
   private String emitType(CCode cCode, Type type) {
-    var comment =
-        options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(type) : "";
+    var comment = options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(type) : "";
     return "%sFir_type(%s, %s, %s)"
         .formatted(
             comment,
@@ -822,74 +832,42 @@ public final class Fir2CCompiler {
   private static String emitEffects(Effects fx) {
     return Boolean.toString(fx.reflect());
   }
+
   // endregion emit types
 
   // region misc
-  /// Reconstruct DAG of nested functions.
-  /// This is hacky: it relies on an invariant that exists in R but not FIŘ:
-  /// the closure provided to a `clos` instruction never references the closure containing it,
-  /// either directly or transitively via other `clos` instructions.
-  /// Thus it can return `UnsupportedOperationException` for custom FIŘ modules.
-  private static Collection<Function> nestedDag(Module module) {
-    // Compute direct dependencies (into `depTree`)
-    var depTree = new LinkedHashMap<Function, Set<Function>>(module.localFunctions().size());
-    for (var f : module.localFunctions()) {
-      var intransitiveDeps = f
-          .versions()
-          .stream()
-          .flatMap(Abstraction::streamCfgs)
-          .flatMap(cfg -> cfg.bbs().stream())
-          .flatMap(bb -> bb.statements().stream())
-          .map(Statement::expression)
-          .filter(e -> e instanceof Closure)
-          .map(e -> (Closure) e)
-          .map(Closure::code)
-          .collect(Collectors.toCollection(LinkedHashSet::new));
-      depTree.put(f, intransitiveDeps);
-    }
+  /// Generate DAG of function and its children.
+  ///
+  /// A "child" is a function referenced by a `clos` instruction. No transitive `clos` relations
+  /// is an invariant that exists in R but not FIŘ, and so this won't work for some custom FIŘ
+  /// modules.
+  ///
+  /// @throws UnsupportedOperationException If the function transitively references itself via
+  // `clos`.
+  private static Collection<Function> hierarchyDag(Function function) {
+    var dag = new LinkedHashSet<Function>();
+    var worklist = new LinkedHashSet<>(List.of(function));
 
-    // Compute transitive dependencies (reuse `depTree`)
-    var progress = true;
-    while (progress) {
-      progress = false;
+    while (!worklist.isEmpty()) {
+      var current = worklist.removeLast();
 
-      for (var e : depTree.entrySet()) {
-        var fun = e.getKey();
-        var deps = e.getValue();
-
-        for (var dep : deps) {
-          if (dep == fun) {
-            throw new UnsupportedOperationException("Function " + fun.name() + " transitively references itself via `clos`\nWe don't support compiling these because they aren't generated from R");
-          }
-
-          var subDeps = depTree.get(dep);
-          if (subDeps != null && deps.addAll(subDeps)) {
-            progress = true;
-          }
-        }
+      if (!dag.add(current)) {
+        throw new UnsupportedOperationException(
+            "Function transitively references itself via `clos`");
       }
+
+      var next =
+          current.versions().stream()
+              .flatMap(Abstraction::streamCfgs)
+              .flatMap(cfg -> cfg.bbs().stream())
+              .flatMap(bb -> bb.statements().stream())
+              .map(Statement::expression)
+              .filter(e -> e instanceof Closure)
+              .map(e -> (Closure) e)
+              .map(Closure::code);
+      next.forEach(worklist::add);
     }
 
-    // Convert tree into DAG
-    var dag = new LinkedHashSet<Function>(module.localFunctions().size());
-    var remaining = new LinkedHashSet<>(module.localFunctions());
-    while (!remaining.isEmpty()) {
-      for (var entry : depTree.entrySet()) {
-        var fun = entry.getKey();
-        var deps = entry.getValue();
-
-        if (dag.contains(fun)) {
-          continue;
-        }
-
-        if (!Sets.intersection(remaining, deps).isEmpty()) {
-          continue;
-        }
-
-        dag.add(fun);
-        remaining.remove(fun);
-      }
-    }
     return dag;
   }
 
@@ -907,14 +885,17 @@ public final class Fir2CCompiler {
 
   private static List<String> versionCParams(Abstraction version) {
     return Stream.concat(
-        Stream.of("SEXP %s".formatted(VAR_POOL), "SEXP %s".formatted(VAR_ENV)),
-        version.parameters().stream().map(p -> "SEXP %s".formatted(registerCName(p.variable())))).toList();
+            Stream.of("SEXP %s".formatted(VAR_ENV)),
+            version.parameters().stream()
+                .map(p -> "SEXP %s".formatted(registerCName(p.variable()))))
+        .toList();
   }
 
   private static List<String> promiseCParams(Collection<Register> captures) {
     return Stream.concat(
-        Stream.of("SEXP %s".formatted(VAR_POOL), "SEXP %s".formatted(VAR_ENV)),
-        captures.stream().map(capture -> "SEXP const*%s".formatted(registerCName(capture)))).toList();
+            Stream.of("SEXP %s".formatted(VAR_ENV)),
+            captures.stream().map(capture -> "SEXP const*%s".formatted(registerCName(capture))))
+        .toList();
   }
 
   private static String versionCReturn(Abstraction ignored) {
@@ -935,7 +916,6 @@ public final class Fir2CCompiler {
     }
     return "l_" + bb.label();
   }
-
 
   private static String sanitizeString(String value) {
     return value.replace("\"", "\\\"");
