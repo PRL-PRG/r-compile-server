@@ -1286,7 +1286,7 @@ static void bytecode_info(const int *bytecode, int bytecode_size, const SEXP *co
     DEBUG_PRINT("Instructions in bytecode: %d\n", instructions);
 }
 
-static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
+static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
 {
     SEXP bcode_code = BCODE_CODE(bcode);
     SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -1306,33 +1306,36 @@ static SEXP copy_patch_bc(SEXP bcode, CompilationStats *stats)
     SEXP *consts = DATAPTR(bcode_consts);
     int consts_size = LENGTH(bcode_consts);
 
-    // First compile all closures recursively, depth first
-    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+    if(recursive)
     {
-        int opcode = bytecode[i];
-        int *opargs = &bytecode[i + 1];
-
-        if(opcode == MAKECLOSURE_BCOP)
+        // First compile all closures recursively, depth first
+        for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
         {
-            SEXP fb = consts[opargs[0]];
-            SEXP body = VECTOR_ELT(fb, 1);
+            int opcode = bytecode[i];
+            int *opargs = &bytecode[i + 1];
 
-            if (TYPEOF(body) == BCODESXP)
+            if(opcode == MAKECLOSURE_BCOP)
             {
-                DEBUG_PRINT("**********\nCompiling closure\n");
-                // constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); // Should not be needed, constpool is ours
-                SEXP res = copy_patch_bc(body, stats);
-                SET_VECTOR_ELT(fb, 1, res);
+                SEXP fb = consts[opargs[0]];
+                SEXP body = VECTOR_ELT(fb, 1);
+
+                if (TYPEOF(body) == BCODESXP)
+                {
+                    DEBUG_PRINT("**********\nCompiling closure\n");
+                    // constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); // Should not be needed, constpool is ours
+                    SEXP res = copy_patch_bc(body, recursive, stats);
+                    SET_VECTOR_ELT(fb, 1, res);
+                }
+                else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
+                {
+                    DEBUG_PRINT("Using precompiled closure\n");
+                }
+                else
+                {
+                    error("Invalid closure type: %d\n", TYPEOF(body));
+                }
+                DEBUG_PRINT("**********\nClosure compiled\n");
             }
-            else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
-            {
-                DEBUG_PRINT("Using precompiled closure\n");
-            }
-            else
-            {
-                error("Invalid closure type: %d\n", TYPEOF(body));
-            }
-            DEBUG_PRINT("**********\nClosure compiled\n");
         }
     }
 
@@ -1425,7 +1428,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     PROTECT(compiled);
 
     clock_gettime(CLOCK_MONOTONIC, &mid);
-    SEXP ptr = copy_patch_bc(BODY(compiled), &stats);
+    SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats);
     SET_BODY(compiled, ptr);
     clock_gettime(CLOCK_MONOTONIC, &end);
     UNPROTECT(1); // compiled
