@@ -1617,24 +1617,36 @@ SEXP C_rcp_cmppkg(SEXP package_name)
     int compiled_count = 0;
     int failed_count = 0;
     
+#ifdef CMPPKG_WAITALL
+    // Allocate arrays to store compiled functions and their symbols
+    SEXP *compiled_functions = (SEXP *)R_alloc(n_objects, sizeof(SEXP));
+    SEXP *function_symbols = (SEXP *)R_alloc(n_objects, sizeof(SEXP));
+#endif
     fprintf(stderr, "Compiling functions from package '%s'...\n", pkg);
     
-    // Iterate through all objects
+    // First pass: compile all functions
     for (int i = 0; i < n_objects; i++) {
+#ifdef CMPPKG_WAITALL
+        compiled_functions[i] = R_NilValue;
+        function_symbols[i] = R_NilValue;
+#endif
+
         fprintf(stderr, "  Compiling:  %s\n", CHAR(STRING_ELT(obj_names, i)));
         SEXP name_sym = Rf_install(CHAR(STRING_ELT(obj_names, i)));
         PROTECT(name_sym);
         SEXP obj = Rf_findVarInFrame(pkg_namespace, name_sym);
 
-        if (obj == R_UnboundValue)
+        if (obj == R_UnboundValue) {
+            UNPROTECT_SAFE(name_sym);
             continue;
+        }
 
         if (TYPEOF(obj) == PROMSXP) {
             obj = Rf_eval(name_sym, pkg_namespace);
         }
         
         // Check if it's a function
-        if (TYPEOF(obj) != CLOSXP){
+        if (TYPEOF(obj) != CLOSXP) {
             UNPROTECT_SAFE(name_sym);
             continue;
         }
@@ -1667,17 +1679,34 @@ SEXP C_rcp_cmppkg(SEXP package_name)
             continue;
         }
         
-        // Replace the function in-place in the namespace
+        // Store the compiled function and symbol
         PROTECT(compiled);
+#ifdef CMPPKG_WAITALL
+        compiled_functions[i] = compiled;
+        function_symbols[i] = name_sym;
+#else
         R_unLockBinding(name_sym, pkg_namespace);
         Rf_defineVar(name_sym, compiled, pkg_namespace);
         R_LockBinding(name_sym, pkg_namespace);
         UNPROTECT_SAFE(compiled);
         UNPROTECT_SAFE(name_sym);
-        
+#endif
         compiled_count++;
     }
 
+#ifdef CMPPKG_WAITALL
+    // Second pass: replace all compiled functions in the namespace
+    fprintf(stderr, "Replacing functions in package namespace...\n");
+    for (int i = 0; i < n_objects; i++) {
+        if (compiled_functions[i] != R_NilValue && function_symbols[i] != R_NilValue) {
+            R_unLockBinding(function_symbols[i], pkg_namespace);
+            Rf_defineVar(function_symbols[i], compiled_functions[i], pkg_namespace);
+            R_LockBinding(function_symbols[i], pkg_namespace);
+            UNPROTECT_SAFE(compiled_functions[i]);
+            UNPROTECT_SAFE(function_symbols[i]);
+        }
+    }
+#endif
     UNPROTECT_SAFE(obj_names);
     UNPROTECT_SAFE(pkg_namespace);
     
