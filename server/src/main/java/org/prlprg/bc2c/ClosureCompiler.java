@@ -54,7 +54,7 @@ class ClosureCompiler {
   protected CFunction fun;
   protected CCode prologue;
   protected CCode body;
-  protected List<CodeAndData> nested = new ArrayList<>();
+  protected List<CompiledModule> nested = new ArrayList<>();
 
   public ClosureCompiler(BC2CModule module, String name, Bc bc) {
     this.bc = bc;
@@ -78,7 +78,7 @@ class ClosureCompiler {
     this.debug = debug;
   }
 
-  public CodeAndData compile() {
+  public CompiledModule compile() {
     beforeCompile();
 
     var code = bc.code();
@@ -96,7 +96,7 @@ class ClosureCompiler {
     afterCompile();
 
     var constantPool = SEXPs.vec(constants());
-    return new CodeAndData(fun, constantPool, nested);
+    return new CompiledModule(fun, constantPool, nested);
   }
 
   private int stackSpace() {

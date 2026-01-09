@@ -442,15 +442,11 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
           assert(0);
         }
       } else {
-        // FIXME: the same code is in the eval.c - make it work with RCP
-        SEXP c_cp = R_ExternalPtrProtected(body);
-        assert(TYPEOF(c_cp) == VECSXP);
-
         // seems like unnecesary complicated casting, but otherwise C complains
         // cf. https://stackoverflow.com/a/19487645
         Rsh_closure fun;
         *(void **)(&fun) = R_ExternalPtrAddr(body);
-        value = fun(newrho, c_cp);
+        value = fun(newrho);
       }
 
       UNPROTECT(1); // newrho

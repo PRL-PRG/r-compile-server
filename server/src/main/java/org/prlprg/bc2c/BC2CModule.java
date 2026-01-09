@@ -2,7 +2,7 @@ package org.prlprg.bc2c;
 
 import org.prlprg.bc.Bc;
 import org.prlprg.gen2c.CUnit;
-import org.prlprg.gen2c.CodeAndData;
+import org.prlprg.gen2c.CompiledModule;
 
 class BC2CModule {
   private final CUnit cUnit = new CUnit();
@@ -19,14 +19,14 @@ class BC2CModule {
     return cUnit;
   }
 
-  CodeAndData compileClosure(Bc bc, String baseName) {
+  CompiledModule compileClosure(Bc bc, String baseName) {
     var name = baseName + "_" + funId++;
     var compiler = new ClosureCompiler(this, name, bc);
     compiler.setCompilePromises(compilePromises);
     return compiler.compile();
   }
 
-  CodeAndData compilePromise(Bc bc, String baseName) {
+  CompiledModule compilePromise(Bc bc, String baseName) {
     var name = baseName + "_P_" + funId++;
     var compiler = new ClosureCompiler(this, name, bc);
     compiler.setCompilePromises(compilePromises);

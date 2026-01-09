@@ -4,7 +4,7 @@ import org.prlprg.bc.*;
 import org.prlprg.gen2c.*;
 
 public class BC2CCompiler {
-  public static CodeAndData compile(Bc bc, String name, boolean compilePromises) {
+  public static CompiledModule compile(Bc bc, String name, boolean compilePromises) {
     var module = new BC2CModule(compilePromises);
     return module.compileClosure(bc, name);
   }
