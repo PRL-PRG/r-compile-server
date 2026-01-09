@@ -45,11 +45,22 @@ public class CUnit {
     if (!includes.isEmpty()) {
       pw.println();
     }
+
     externFunctions.forEach(x -> x.writeTo(pw));
     if (!externFunctions.isEmpty()) {
       pw.println();
     }
-    this.functions.forEach(x -> x.writeForwardDeclaration(pw));
+
+    functions.forEach(x -> x.writeForwardDeclaration(pw));
+    if (!functions.isEmpty()) {
+      pw.println();
+    }
+
+    staticVariables.forEach(x -> x.writeTo(pw));
+    if (!staticVariables.isEmpty()) {
+      pw.println();
+    }
+
     functions.forEach(x -> x.writeDefinition(pw));
   }
 }

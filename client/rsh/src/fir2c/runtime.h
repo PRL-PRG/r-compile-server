@@ -54,9 +54,9 @@ typedef struct Fir_Signature {
   Fir_Type const *param_types;
 } Fir_Signature;
 
-typedef SEXP (*Fir_DispatchFn)(SEXP pool, SEXP env, Fir_Signature signature, ...);
-typedef SEXP (*Fir_VersionFn)(SEXP pool, ...);
-typedef SEXP (*Fir_PromiseFn)(SEXP pool, ...);
+typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
+typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
+typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP const **captures);
 
 extern Fir_Kind Fir_kind_any;
 extern Fir_Kind Fir_kind_anyValue;
@@ -71,18 +71,20 @@ Fir_Type Fir_type(Fir_Kind kind, int ownership, bool definite);
 
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types);
 
+SEXP Fir_mk_closure(Rsh_closure dispatchFromR, Fir_DispatchFn dispatch, SEXP formals, SEXP cp,
+                    SEXP env);
+SEXP Fir_mk_promise(Rsh_closure evalFromR, Fir_PromiseFn eval, Fir_Type value_type,
+                    SEXP const **captures, SEXP cp, SEXP env);
+
 SEXP Fir_cast(SEXP value, Fir_Type type);
-SEXP Fir_mkClosure(Fir_DispatchFn dispatch, SEXP pool, SEXP env);
 SEXP Fir_dup(SEXP value);
-SEXP Fir_force(SEXP value);
-SEXP Fir_maybe_force(SEXP value);
+SEXP Fir_force(SEXP promise);
+SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env);
 void Fir_push_env(SEXP *env);
 void Fir_pop_env(SEXP *env);
-SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values,
-                       SEXP const *names);
-SEXP Fir_make_promise(Fir_PromiseFn fn, int ncaptures, SEXP const **captures, SEXP pool, SEXP env);
+SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);
 void Fir_store(SEXP symbol, SEXP value, SEXP env);
@@ -90,23 +92,20 @@ SEXP Fir_subscript_read(SEXP vector, SEXP index);
 SEXP Fir_subscript_write(SEXP vector, SEXP index, SEXP value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
-SEXP Fir_call_builtin(int bltIdx, SEXP RHO, int argc, SEXP const *args);
-SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP const *args,
-                          SEXP const *names);
-int Fir_is_true(SEXP value);
-void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP pool,
-                   SEXP env);
-int Fir_assume_constant(SEXP value, SEXP constant);
-int Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
-int Fir_assume_type(SEXP value, Fir_Type type);
+SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP const *args);
+SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP const *args, SEXP const *names);
+bool Fir_is_true(SEXP value);
+void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
+bool Fir_assume_constant(SEXP value, SEXP constant);
+bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
+bool Fir_assume_type(SEXP value, Fir_Type type);
 
 #define Fir_LoadFun_Local 0
 #define Fir_LoadFun_Global 1
 #define Fir_LoadFun_Base 2
 
 #define DEFINE_DISPATCH_INTRINSIC(X)\
-  SEXP Fir_intrinsic_ ## X(SEXP CCP, SEXP RHO, int nparams, SEXP const *args,\
-                                      Fir_Type param_types)
+  SEXP Fir_intrinsic_ ## X(SEXP env, Fir_Signature signature, ...)
 
 DEFINE_DISPATCH_INTRINSIC(checkFun);
 DEFINE_DISPATCH_INTRINSIC(checkMissing);
@@ -117,8 +116,8 @@ DEFINE_DISPATCH_INTRINSIC(tryDispatchBuiltin);
 DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinDispatched);
 DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinValue);
 
-#define DEFINE_INTRINSIC(X, n)\
-  SEXP Fir_intrinsic_ ## X ## _v ## n(SEXP CCP, SEXP RHO, int nparams, SEXP const *args)
+#define DEFINE_INTRINSIC(X, n, ...)\
+  SEXP Fir_intrinsic_ ## X ## _v ## n(SEXP env, __VA_ARGS__)
 DEFINE_INTRINSIC(checkFun, 0);
 DEFINE_INTRINSIC(checkMissing, 0);
 DEFINE_INTRINSIC(toForSeq, 0);
@@ -130,7 +129,7 @@ DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0);
 DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0);
 
 #define DEFINE_OVERRIDDEN_BUILTIN(X, n)\
-  SEXP Fir_builtin_ ## X ## _v ## n(SEXP CCP, SEXP RHO, int nparams, SEXP const *args)
+  SEXP Fir_builtin_ ## X ## _v ## n(SEXP CCP, SEXP env, int nparams, SEXP const *args)
 DEFINE_OVERRIDDEN_BUILTIN(add, 1);
 DEFINE_OVERRIDDEN_BUILTIN(add, 2);
 DEFINE_OVERRIDDEN_BUILTIN(lt, 1);

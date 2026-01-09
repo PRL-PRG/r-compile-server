@@ -73,717 +73,812 @@ import org.prlprg.util.Lists;
 public final class Fir2CCompiler {
   /// Return a C file and constant pools for `function` and its children.
   public static CompiledModule compile(Function function, RSession rSession, Option... options) {
-    return new Fir2CCompiler(function, rSession, ImmutableSet.copyOf(options)).run();
+    return new Fir2CCompiler(function.owner(), rSession, ImmutableSet.copyOf(options)).run(function);
   }
 
   static final String VAR_ENV = "env";
+  static final String VAR_CAPTURES = "captures";
   static final String VAR_POOL = "pool";
   static final String VAR_SIGNATURE = "signature";
 
   // Input
-  private final Function mainFunction;
   private final Module module;
   private final RSession rSession;
   private final ImmutableSet<Option> options;
 
   // Output
   private final CUnit cUnit = new CUnit();
-  private final Map<Function, CodeAndData> compiledFunctions = new LinkedHashMap<>();
-  private final Map<Abstraction, CodeAndData> compiledVersions = new LinkedHashMap<>();
-  private final Map<Promise, CodeAndData> compiledPromises = new LinkedHashMap<>();
+  private final Set<Function> referencedFunctions = new HashSet<>();
+  private final Set<Abstraction> referencedVersions = new HashSet<>();
+  private final Set<Function> compiledFunctions = new HashSet<>();
+  private final Set<Promise> compiledPromises = new HashSet<>();
 
   // State
   private int tempTypeDisambiguator = 0;
 
-  private Fir2CCompiler(Function mainFunction, RSession rSession, ImmutableSet<Option> options) {
-    this.mainFunction = mainFunction;
-    module = mainFunction.owner();
+  private Fir2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
+    this.module = module;
     this.rSession = rSession;
     this.options = options;
   }
 
-  private CompiledModule run() {
+  private CompiledModule run(Function mainFunction) {
     cUnit.addInclude("runtime.h");
 
-    compileDefinitions();
+    var constants = new FunctionEmitter(mainFunction).run();
 
-    return new CompiledModule(
-        module,
-        ImmutableMap.copyOf(compiledFunctions),
-        ImmutableMap.copyOf(compiledVersions),
-        ImmutableMap.copyOf(compiledPromises));
+    return new CompiledModule(cUnit, constants);
   }
 
-  private void compileDefinitions() {
-    var localFunctions = hierarchyDag(mainFunction);
-    for (var function : localFunctions) {
-      for (var version : function.versions()) {
-        compileVersionFunction(function, version);
-      }
-
-      compileDispatchFunction(function);
-    }
-  }
-
-  private void compileVersionFunction(Function function, Abstraction version) {
-    if (version.isStub()) {
-      VersionEmitter.forwardDeclareStub(cUnit, function, version);
-    } else {
-      var compiled = new VersionEmitter(function, version).run();
-      compiledVersions.put(version, compiled);
-    }
-  }
-
-  private void compileDispatchFunction(Function function) {
-    var compiled = new DispatchEmitter(function).run();
-    compiledFunctions.put(function, compiled);
-  }
-
-  /// Emits C for a single [Abstraction].
-  ///
-  /// The implementation keeps the translation extremely simple for now:
-  /// - Registers are represented as local `SEXP` variables initialised to `R_NilValue`.
-  /// - Arguments arrive as `SEXP const *PARAMS` with accompanying `int NPARAMS`.
-  /// - Only a small subset of statements/jumps are lowered; the architecture is arranged so that
-  ///   support can grow instruction-by-instruction.
-  private final class VersionEmitter {
+  /// Emits C for every version and the dispatch of a function.
+  private final class FunctionEmitter {
     // Input
     private final Function function;
-    private final Abstraction version;
-
-    // Output
-    private final CFunction cFunction;
-
-    // State
-    private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
-    private final Map<CFG, Set<Register>> captures = new LinkedHashMap<>();
-
-    static void forwardDeclareStub(CUnit cUnit, Function function, Abstraction version) {
-      if (!version.isStub()) {
-        throw new IllegalArgumentException(
-            "Call new FirVersionEmitter(...).run() for non-stub:\n" + version);
-      }
-
-      var cName = versionCName(function, version);
-      cUnit.addExternFunction(versionCReturn(version), cName, versionCParams(version));
-    }
-
-    VersionEmitter(Function function, Abstraction version) {
-      if (version.isStub()) {
-        throw new IllegalArgumentException(
-            "Call FirVersionEmitter.stub(...) for stub:\n" + version);
-      }
-
+    
+    FunctionEmitter(Function function) {
       this.function = function;
-      this.version = version;
-
-      var cName = versionCName(function, version);
-      cFunction = cUnit.addFunction(versionCReturn(version), cName, versionCParams(version));
-
-      prepare();
     }
 
-    private void prepare() {
-      // Compute local and captured registers
-      version.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
-      version.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
-      var defUses = new DefUses(version);
-      version
-          .streamRegisterBindings()
-          .forEach(
-              binding -> {
-                var register = (Register) binding.variable();
-
-                CFG defCfg;
-                if (binding instanceof Parameter) {
-                  defCfg = version.cfg();
-                } else {
-                  var def = defUses.definition(register);
-                  if (def == null) {
-                    // Malformed CFG
-                    return;
-                  }
-
-                  defCfg = def.inInnermostCfg().cfg();
-                }
-
-                locals.get(defCfg).add(register);
-
-                for (var use : defUses.uses(register)) {
-                  var useCfg = use.inInnermostCfg().cfg();
-
-                  if (useCfg != defCfg) {
-                    captures.get(useCfg).add(register);
-                  }
-                }
-              });
-    }
-
-    private CodeAndData run() {
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cFunction
-            .add()
-            .comment(
-                "FIR %s version %d (%s)",
-                function.name().name(), function.indexOf(version), version.signature());
+    VecSXP run() {
+      if (compiledFunctions.add(function)) {
+        throw new UnsupportedOperationException("Function recursively contains itself: " + function.name() + "\n" + module);
       }
 
-      return new CfgEmitter(Objects.requireNonNull(version.cfg()), cFunction).run();
+      emitInit();
+
+      emitDispatchFromR();
+
+      emitDispatch();
+
+      var constants = ImmutableList.<SEXP>builderWithExpectedSize(function.versions().size());
+      emitVersions(constants);
+
+      return SEXPs.vec(constants.build());
     }
 
-    final class CfgEmitter {
-      // Input
-      private final CFG cfg;
+    private void emitInit() {
+      var cName = functionDispatchCName(function);
+      var cFunction = cUnit.addFunction(INIT_C_RETURN, cName, INIT_C_PARAMS);
+      var cCode = cFunction.add();
 
-      // Output
-      private final CFunction cFunction;
-      private final ConstantPool constantPool = new ConstantPool();
-      private final List<CodeAndData> nested = new ArrayList<>();
-
-      // State
-      private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
-
-      CfgEmitter(CFG cfg, CFunction cFunction) {
-        this.cfg = cfg;
-        this.cFunction = cFunction;
-      }
-
-      CodeAndData run() {
-        emitConstantPoolAlias();
-
-        emitLocalDeclarations();
-
-        for (var bb : cfg.bbs()) {
-          new BBEmitter(bb, cFunction.add()).run();
+      for (var version : function.versions()) {
+        if (!version.isStub()) {
+          cCode.stmt("%s(%s[%d]);", versionInitCName(function, version), VAR_POOL, function.indexOf(version));
         }
-
-        return new CodeAndData(cFunction, constantPool.toSexp(), nested);
       }
+    }
 
-      private void emitConstantPoolAlias() {
-        cFunction
-            .add()
-            .stmt("SEXP *%s = (SEXP *)STDVEC_DATAPTR(%s_constants);", VAR_POOL, cFunction.name());
-      }
+    private void emitDispatchFromR() {
+      var cName = functionFromRCName(function);
+      var cFunction = cUnit.addFunction(FROM_R_C_RETURN, cName, FROM_R_C_PARAMS);
 
-      private void emitLocalDeclarations() {
-        var localRegisters = Objects.requireNonNull(locals.get(cfg));
-        if (localRegisters.isEmpty()) {
-          return;
-        }
+      var cCode = cFunction.add();
+      cCode.stmt("Rf_error(\"TODO\");");
+    }
 
-        var sec = cFunction.add();
+    private void emitDispatch() {
+        var cName = functionDispatchCName(function);
+        var cFunction = cUnit.addFunction(DISPATCH_C_RETURN, cName, DISPATCH_C_PARAMS);
+
+        var versions = function.versionsSorted();
+        int i;
+        Iterator<Abstraction> versionIter;
+        Abstraction version;
+
+        CCode cCode;
 
         if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-          sec.comment("Declare locals");
-        }
-
-        for (var register : localRegisters) {
-          var cName = registerCName(register);
-          sec.stmt("SEXP %s;", cName);
-        }
-      }
-
-      final class BBEmitter {
-        // Input
-        private final BB bb;
-
-        // Output
-        private final CCode cCode;
-
-        BBEmitter(BB bb, CCode cCode) {
-          this.bb = bb;
-          this.cCode = cCode;
-        }
-
-        private void run() {
-          if (!bb.isEntry()) {
-            // ';' is necessary,
-            // otherwise if the next statement is a declaration (e.g. `SEXP x`),
-            // the C syntax is invalid.
-            cCode.label("%s:;", labelCName(bb));
-          }
-          for (var statement : bb.statements()) {
-            emitStatement(statement);
-          }
-          emitJump(bb.jump());
-        }
-
-        private void emitStatement(Statement statement) {
-          if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-            cCode.comment("%s", statement);
-          }
-
-          var expr = emitExpression(statement.expression());
-
-          if (statement.assignee() == null) {
-            cCode.stmt("(void)(%s);", expr);
-          } else {
-            cCode.stmt("%s = %s;", registerPlace(statement.assignee()), expr);
+          cCode = cFunction.add();
+          cCode.comment(
+              "FIR %s dynamic dispatch (%s)", function.name().name(),
+              function.parameterNames());
+          for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
+              i < versions.size();
+              i++, version = versionIter.next()) {
+            cCode.comment("%d. %s", i, version.signature());
           }
         }
 
-        private String emitExpression(Expression expression) {
-          return switch (expression) {
-            case Aea(var arg) -> emitArgument(arg);
-            case AssumeConstant(var _, var _), AssumeFunction _ -> "R_NilValue";
-            case AssumeType(var target, var _) -> emitArgument(target);
-            case Call call -> emitCall(call);
-            case Cast(var target, var type) ->
-                "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
-            case Closure closure -> {
-              var compiled = compiledFunctions.get(closure.code());
-              assert compiled != null
-                  : "should've been compiled first (or should've thrown if that wasn't possible) because we compile in the order of `nestedDag`";
-              nested.add(compiled);
-
-              assert compiled.cName().equals(functionCName(closure.code()));
-              var cName = compiled.cName();
-              var pool = constantRef(compiled.constantPool());
-              yield "Fir_mkClosure(&%s, %s, %s)".formatted(cName, pool, VAR_ENV);
-            }
-            case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
-            case Force(var value) -> "Fir_force(%s)".formatted(emitArgument(value));
-            case Load(var variable) -> "Fir_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
-            case LoadFun(var variable, var env) -> {
-              var envSelector =
-                  switch (env) {
-                    case LoadFun.Env.LOCAL -> "Fir_LoadFun_Local";
-                    case LoadFun.Env.GLOBAL -> "Fir_LoadFun_Global";
-                    case LoadFun.Env.BASE -> "Fir_LoadFun_Base";
-                  };
-              yield "Fir_load_fun(%s, %s, %s)"
-                  .formatted(envSelector, nvSymbolRef(variable), VAR_ENV);
-            }
-            case MaybeForce(var value) -> "Fir_maybe_force(%s)".formatted(emitArgument(value));
-            case MkEnv() -> {
-              cCode.stmt("Fir_push_env(&%s);", VAR_ENV);
-              yield "R_NilValue";
-            }
-            case MkVector(var kind, var elements) -> {
-              var namedArrays = emitNamedArgumentArrays(elements);
-              yield "Fir_mk_vector(%s, %d, %s, %s)"
-                  .formatted(
-                      emitKind(cCode, kind),
-                      namedArrays.values().size(),
-                      namedArrays.values().pointer(),
-                      namedArrays.names());
-            }
-            case Placeholder() -> {
-              cCode.stmt("Rf_error(\"FIŘ placeholder reached\");");
-              yield "R_NilValue";
-            }
-            case PopEnv() -> {
-              cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
-              yield "R_NilValue";
-            }
-            case Promise promise -> {
-              var cName = promiseCName(promise);
-              var cParams = promiseCParams(promise);
-              var cReturn = promiseCReturn(promise);
-              var promiseFunction = cUnit.addFunction(cReturn, cName, cParams);
-
-              var compiled = new CfgEmitter(promise.code(), promiseFunction).run();
-              compiledPromises.put(promise, compiled);
-              nested.add(compiled);
-
-              var pool = constantRef(compiled.constantPool());
-
-              var captures =
-                  Objects.requireNonNull(VersionEmitter.this.captures.get(promise.code()));
-              var capturesArray =
-                  emitArray(
-                      "captures",
-                      "SEXP",
-                      captures.stream().map(reg -> "&" + registerPlace(reg)).toList());
-
-              yield "Fir_make_promise(&%s, %d, %s, %s, %s)"
-                  .formatted(cName, capturesArray.size(), capturesArray.pointer(), pool, VAR_ENV);
-            }
-            case ReflectiveLoad(var promArg, var variable) ->
-                "Fir_reflective_load(%s, %s)"
-                    .formatted(emitArgument(promArg), nvSymbolRef(variable));
-            case ReflectiveStore(var promArg, var variable, var value) ->
-                "Fir_reflective_store(%s, %s, %s)"
-                    .formatted(emitArgument(promArg), nvSymbolRef(variable), emitArgument(value));
-            case Store(var variable, var value) -> {
-              var arg = emitArgument(value);
-              cCode.stmt("Fir_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
-              yield arg;
-            }
-            case SubscriptRead(var vector, var index) ->
-                "Fir_subscript_read(%s, %s)".formatted(emitArgument(vector), emitArgument(index));
-            case SubscriptWrite(var vector, var index, var value) ->
-                "Fir_subscript_write(%s, %s, %s)"
-                    .formatted(emitArgument(vector), emitArgument(index), emitArgument(value));
-            case SuperLoad(var variable) ->
-                "Fir_super_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
-            case SuperStore(var variable, var value) -> {
-              var arg = emitArgument(value);
-              cCode.stmt("Fir_super_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
-              yield arg;
-            }
-          };
-        }
-
-        private String emitCall(Call call) {
-          var arguments = emitArgumentArray("args", call.callArguments());
-          return switch (call.callee()) {
-            case DispatchCallee(var calleeFun, var signature) -> {
-              if (calleeFun.owner() == BUILTINS) {
-                var builtinIndex = rSession.RFunTab().indexOf(calleeFun.name().name());
-                yield "Fir_call_builtin(%d, %s, %d, %s)"
-                    .formatted(builtinIndex, VAR_ENV, arguments.size(), arguments.pointer());
-              }
-
-              // The baseline's signature is the default
-              if (signature == null) {
-                signature = calleeFun.baseline().signature();
-              }
-
-              var cName = functionCName(calleeFun);
-              var cSignature = emitSignature(signature);
-              // TODO: pool?
-              yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments.splice());
-            }
-            case StaticCallee(var calleeFunction, var calleeVersion) -> {
-              var cName = versionCName(calleeFunction, calleeVersion);
-              yield "%s(%s%s)".formatted(cName, VAR_ENV, arguments.splice());
-            }
-            case DynamicCallee(var actualCallee, var argumentNames) -> {
-              var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
-              yield "Fir_call_dynamic(%s, %s, %d, %s, %s)"
-                  .formatted(
-                      emitArgument(actualCallee),
-                      VAR_ENV,
-                      arguments.size(),
-                      arguments.pointer(),
-                      names.pointer());
-            }
-          };
-        }
-
-        private void emitJump(Jump jump) {
-          if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-            cCode.comment("%s", jump);
-          }
-
-          switch (jump) {
-            case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
-            case Goto(var _, var target) -> emitJumpTo(1, target);
-            case Unreachable(var _) -> {
-              cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
-              cCode.stmt("return R_NilValue;");
-            }
-            case If(var _, var condition, var ifTrue, var ifFalse) -> {
-              cCode.stmt("if (Fir_is_true(%s)) {", emitArgument(condition));
-              emitJumpTo(2, ifTrue);
-              cCode.stmt("} else {");
-              emitJumpTo(2, ifFalse);
-              cCode.stmt("}");
-            }
-            case Checkpoint(var _, var success, var deopt) -> {
-              for (var assume : assumptionsFor(success)) {
-                var condition = emitAssumptionCondition(assume);
-                cCode.stmt("if (!(%s)) {", condition);
-                emitJumpTo(2, deopt);
-                cCode.stmt("}");
-              }
-              emitJumpTo(1, success);
-            }
-            case Deopt(var _, var pc, var stack) -> {
-              var stackArgs = emitArgumentArray("deopt_stack", stack);
-              cCode.stmt(
-                  "Fir_deopt(%d, %d, %s, %s);", pc, stackArgs.size(), stackArgs.pointer(), VAR_ENV);
-              cCode.stmt("return R_NilValue;");
-            }
-          }
-        }
-
-        private List<Assume> assumptionsFor(Target target) {
-          var assumptions = new ArrayList<Assume>();
-          for (var statement : target.bb().statements()) {
-            if (!(statement.expression() instanceof Assume assume)) {
-              break;
-            }
-            assumptions.add(assume);
-          }
-          return assumptions;
-        }
-
-        private String emitAssumptionCondition(Assume assume) {
-          if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-            cCode.comment("Assume: %s", assume);
-          }
-
-          return switch (assume) {
-            case AssumeConstant(var target, var constant) ->
-                "Fir_assume_constant(%s, %s)"
-                    .formatted(emitArgument(target), constantRef(constant.sexp()));
-            case AssumeFunction a ->
-                "Fir_assume_function(%s, &%s)"
-                    .formatted(emitArgument(a.target()), functionCName(a.function()));
-            case AssumeType(var target, var type) ->
-                "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
-          };
-        }
-
-        private void emitJumpTo(int indentLevel, Target target) {
-          var parameters = target.bb().phiParameters();
-          var phiArgs = target.phiArgs();
-          if (parameters.size() != phiArgs.size()) {
-            throw new IllegalStateException(
-                "Phi parameter/argument count mismatch for " + target.bb().label());
-          }
-
-          if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-            cCode.comment("%s", target);
-          }
-
-          for (var i = 0; i < parameters.size(); i++) {
-            var phi = parameters.get(i);
-            var arg = phiArgs.get(i);
-
-            var dest = registerPlace(phi);
-            var value = emitArgument(arg);
-
-            cCode.stmt(indentLevel, "%s = %s;", dest, value);
-          }
-
-          cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));
-        }
-
-        private String emitSignature(Signature signature) {
-          var returnType = emitType(cCode, signature.returnType());
-          var paramTypes =
-              emitArray(
-                  "param_types",
-                  "Fir_Type",
-                  Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
-          return "Fir_signature(%s, %d, %s)"
-              .formatted(returnType, paramTypes.size(), paramTypes.pointer());
-        }
-
-        private Array emitArgumentArray(String baseName, List<Argument> arguments) {
-          return emitArray(baseName, "SEXP", Lists.mapLazy(arguments, this::emitArgument));
-        }
-
-        private ArrayAndNames emitNamedArgumentArrays(List<NamedArgument> namedArguments) {
-          var values = new ArrayList<Argument>(namedArguments.size());
-          var names = new ArrayList<OptionalNamedVariable>(namedArguments.size());
-          var hasNames = false;
-          for (var element : namedArguments) {
-            values.add(element.argument());
-            names.add(OptionalNamedVariable.ofNullable(element.name()));
-            if (element.name() != null) {
-              hasNames = true;
-            }
-          }
-          var valueArray = emitArgumentArray("vector_values", values);
-          var nameArray = emitOptionalNameArray("vector_names", names, names.size());
-          return new ArrayAndNames(valueArray, hasNames ? nameArray.pointer() : "NULL");
-        }
-
-        private Array emitOptionalNameArray(
-            String baseName, List<OptionalNamedVariable> names, int size) {
-          var arguments =
-              IntStream.range(0, size)
-                  .mapToObj(
-                      i -> {
-                        var name = i < names.size() ? names.get(i).orNull() : null;
-                        return name == null ? "R_MissingArg" : nvSymbolRef(name);
-                      })
-                  .toList();
-          return emitArray(baseName, "SEXP", arguments);
-        }
-
-        private Array emitArray(String baseName, String elemCType, List<String> arguments) {
-          if (arguments.isEmpty()) {
-            return new Array(0, "NULL");
-          }
-
-          var disambiguator = tempArrayDisambiguators.getOrDefault(baseName, 0);
-          var arrayName = "t_%s_%d".formatted(baseName, disambiguator);
-          tempArrayDisambiguators.put(baseName, disambiguator + 1);
-
-          cCode.stmt("%s %s[%d];", elemCType, arrayName, arguments.size());
-          for (var i = 0; i < arguments.size(); i++) {
-            cCode.stmt("%s[%d] = %s;", arrayName, i, arguments.get(i));
-          }
-          return new Array(arguments.size(), arrayName);
-        }
-
-        private String emitArgument(Argument argument) {
-          return switch (argument) {
-            case Constant(var constant) -> constantRef(constant);
-            case Read(var variable) -> registerPlace(variable);
-            case Use(var variable) -> registerPlace(variable);
-          };
-        }
-      }
-
-      // region misc
-      private String registerPlace(Register register) {
-        var name = registerCName(register);
-        if (Objects.requireNonNull(captures.get(cfg)).contains(register)) {
-          name = "*" + name;
-        }
-        return name;
-      }
-
-      private String nvSymbolRef(NamedVariable nv) {
-        return constantRef(SEXPs.symbol(nv.name()));
-      }
-
-      private String constantRef(SEXP sexp) {
-        var idx = constantPool.intern(sexp);
-        return "%s[%d]".formatted(VAR_POOL, idx);
-      }
-      // endregion misc
-    }
-
-    private List<String> promiseCParams(Promise promise) {
-      var captures = Objects.requireNonNull(this.captures.get(promise.code()));
-      return Fir2CCompiler.promiseCParams(captures);
-    }
-  }
-
-  /// Emits C for a [Function]'s dynamic-dispatch function.
-  private final class DispatchEmitter {
-    // Input
-    private final Function function;
-
-    // Output
-    private final CFunction cFunction;
-
-    DispatchEmitter(Function function) {
-      this.function = function;
-
-      var cName = functionCName(function);
-      var cParams =
-          List.of("SEXP %s".formatted(VAR_ENV), "Fir_Signature %s".formatted(VAR_SIGNATURE), "...");
-      var cReturn = "SEXP";
-      cFunction = cUnit.addFunction(cReturn, cName, cParams);
-    }
-
-    private CodeAndData run() {
-      var versions = function.versionsSorted();
-      int i;
-      Iterator<Abstraction> versionIter;
-      Abstraction version;
-
-      CCode cCode;
-
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         cCode = cFunction.add();
-        cCode.comment(
-            "FIR %s dynamic dispatch (%s)", function.name().name(), function.parameterNames());
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          cCode.comment("Setup");
+        }
+        cCode.stmt("bool incompatible[%d];", versions.size());
+        cCode.stmt("va_list args;");
+        cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
+
+        cCode = cFunction.add();
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          cCode.comment("Filter by argument count");
+        }
         for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
             i < versions.size();
             i++, version = versionIter.next()) {
-          cCode.comment("%d. %s", i, version.signature());
+          cCode.stmt(
+              "incompatible[%d] = %s.param_count == %d;",
+              i, VAR_SIGNATURE, version.parameters().size());
         }
-      }
 
-      cCode = cFunction.add();
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment("Setup");
-      }
-      cCode.stmt("bool incompatible[%d];", versions.size());
-      cCode.stmt("va_list args;");
-      cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
-
-      cCode = cFunction.add();
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment("Filter by argument count");
-      }
-      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
-          i < versions.size();
-          i++, version = versionIter.next()) {
-        cCode.stmt(
-            "incompatible[%d] = %s.param_count == %d;",
-            i, VAR_SIGNATURE, version.parameters().size());
-      }
-
-      cCode = cFunction.add();
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment("Filter by static return type");
-      }
-      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
-          i < versions.size();
-          i++, version = versionIter.next()) {
-        var typeEmit = emitType(cCode, version.returnType());
-        cCode.stmt(
-            2,
-            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type);",
-            i,
-            i,
-            typeEmit,
-            VAR_SIGNATURE);
-      }
-      cCode.stmt("}");
-
-      // TODO: Don't check parts of the static type that are known at runtime,
-      //  then filter by runtime type. Currently we ignore the runtime type.
-      cCode = cFunction.add();
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment("Filter by arguments' static types");
-      }
-      cCode.stmt("for (int i = 0; i < %s.param_count; ++i) {", VAR_SIGNATURE);
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment(2, "Filter by argument %d's static type", i);
-      }
-      cCode.stmt(2, "Fir_Type arg_type = %s.param_types[i];", VAR_SIGNATURE);
-      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
-          i < versions.size();
-          i++, version = versionIter.next()) {
-        var typeEmit = emitType(cCode, version.parameters().get(i).type());
-        cCode.stmt(
-            2,
-            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(arg_type, %s);",
-            i,
-            i,
-            typeEmit);
-      }
-      cCode.stmt("}");
-
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
         cCode = cFunction.add();
-        cCode.comment("Filter by arguments' runtime type");
-        cCode.comment(
-            "TODO. Currently we check the full static type, so it's sound, but not optimal");
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          cCode.comment("Filter by static return type");
+        }
+        for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
+            i < versions.size();
+            i++, version = versionIter.next()) {
+          var typeEmit = emitType(cCode, version.returnType());
+          cCode.stmt(
+              2,
+              "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type);",
+              i,
+              i,
+              typeEmit,
+              VAR_SIGNATURE);
+        }
+        cCode.stmt("}");
+
+        // TODO: Don't check parts of the static type that are known at runtime,
+        //  then filter by runtime type. Currently we ignore the runtime type.
+        cCode = cFunction.add();
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          cCode.comment("Filter by arguments' static types");
+        }
+        cCode.stmt("for (int i = 0; i < %s.param_count; ++i) {", VAR_SIGNATURE);
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          cCode.comment(2, "Filter by argument %d's static type", i);
+        }
+        cCode.stmt(2, "Fir_Type arg_type = %s.param_types[i];", VAR_SIGNATURE);
+        for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
+            i < versions.size();
+            i++, version = versionIter.next()) {
+          var typeEmit = emitType(cCode, version.parameters().get(i).type());
+          cCode.stmt(
+              2,
+              "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(arg_type, %s);",
+              i,
+              i,
+              typeEmit);
+        }
+        cCode.stmt("}");
+
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          cCode = cFunction.add();
+          cCode.comment("Filter by arguments' runtime type");
+          cCode.comment(
+              "TODO. Currently we check the full static type, so it's sound, but not optimal");
+        }
+
+        cCode = cFunction.add();
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          cCode.comment("Call first compatible version");
+        }
+        cCode.stmt("SEXP out;");
+        for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
+            i < versions.size();
+            i++, version = versionIter.next()) {
+          var ifHead = i == 0 ? "if" : "else if";
+          var baselineName = versionCallCName(function, version);
+
+          cCode.stmt("%s (!incompatible[%d])", ifHead, i);
+          // Reuse the active `va_list`.
+          // When we implement checking runtime types, we must move the `va_list` back after.
+          cCode.stmt(2, "out = %s(%s, args);", baselineName, VAR_ENV);
+        }
+        cCode.stmt("else");
+        cCode.stmt(
+            2,
+            "Rf_error(\"No versions compatible with the given arguments for %s\");",
+            sanitizeString(function.name().name()));
+        cCode.stmt("va_end(args);");
+        cCode.stmt("return out;");
       }
 
-      cCode = cFunction.add();
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment("Call first compatible version");
+    private void emitVersions(ImmutableList.Builder<SEXP> constants) {
+      for (var version : function.versions()) {
+        SEXP versionConstants;
+        if (version.isStub()) {
+          VersionEmitter.forwardDeclareStub(cUnit, function, version);
+          versionConstants = SEXPs.NULL;
+        } else {
+          versionConstants = new VersionEmitter(version).run();
+        }
+        constants.add(versionConstants);
       }
-      cCode.stmt("SEXP out;");
-      for (i = 0, versionIter = versions.iterator(), version = versionIter.next();
-          i < versions.size();
-          i++, version = versionIter.next()) {
-        var ifHead = i == 0 ? "if" : "else if";
-        var baselineName = versionCName(function, version);
+    }
 
-        cCode.stmt("%s (!incompatible[%d])", ifHead, i);
-        // Reuse the active `va_list`.
-        // When we implement checking runtime types, we must move the `va_list` back after.
-        cCode.stmt(2, "out = %s(%s, args);", baselineName, VAR_ENV);
+    /// Emits C for a single version.
+    private final class VersionEmitter {
+      // Input
+      private final Abstraction version;
+
+      // State
+      private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
+      private final Map<CFG, Set<Register>> captures = new LinkedHashMap<>();
+
+      static void forwardDeclareStub(CUnit cUnit, Function function, Abstraction version) {
+        if (!version.isStub()) {
+          throw new IllegalArgumentException(
+              "Call new FirVersionEmitter(...).run() for non-stub:\n" + version);
+        }
+
+        var cName = versionCallCName(function, version);
+        var cParams = versionCallCParams(version);
+        cUnit.addExternFunction(CALL_C_RETURN, cName, cParams);
       }
-      cCode.stmt("else");
-      cCode.stmt(
-          2,
-          "Rf_error(\"No versions compatible with the given arguments for %s\");",
-          sanitizeString(function.name().name()));
-      cCode.stmt("va_end(args);");
-      cCode.stmt("return out;");
 
-      var nested =
-          versions.stream()
-              .filter(v -> !v.isStub())
-              .map(v -> Objects.requireNonNull(compiledVersions.get(v)))
-              .toList();
-      return new CodeAndData(cFunction, SEXPs.vec(), nested);
+      VersionEmitter(Abstraction version) {
+        if (version.isStub()) {
+          throw new IllegalArgumentException(
+              "Call FirVersionEmitter.stub(...) for stub:\n" + version);
+        }
+
+        this.version = version;
+
+        prepare();
+      }
+
+      private void prepare() {
+        // Compute local and captured registers
+        version.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
+        version.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
+        var defUses = new DefUses(version);
+        version
+            .streamRegisterBindings()
+            .forEach(
+                binding -> {
+                  var register = (Register) binding.variable();
+
+                  CFG defCfg;
+                  if (binding instanceof Parameter) {
+                    defCfg = version.cfg();
+                  } else {
+                    var def = defUses.definition(register);
+                    if (def == null) {
+                      // Malformed CFG
+                      return;
+                    }
+
+                    defCfg = def.inInnermostCfg().cfg();
+                  }
+
+                  locals.get(defCfg).add(register);
+
+                  for (var use : defUses.uses(register)) {
+                    var useCfg = use.inInnermostCfg().cfg();
+
+                    if (useCfg != defCfg) {
+                      captures.get(useCfg).add(register);
+                    }
+                  }
+                });
+      }
+
+      VecSXP run() {
+        var constantsCName = versionConstantsCName(function, version);
+
+        var initCName = versionInitCName(function, version);
+        var initCFunction = cUnit.addFunction(INIT_C_RETURN, initCName, INIT_C_PARAMS);
+
+        var cName = versionCallCName(function, version);
+        var cParams = versionCallCParams(version);
+        var cFunction = cUnit.addFunction(CALL_C_RETURN, cName, cParams);
+
+        if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+          initCFunction
+              .add()
+              .comment(
+                  "FIR %s version %d (%s) init",
+                  function.name().name(), function.indexOf(version), version.signature());
+          cFunction
+              .add()
+              .comment(
+                  "FIR %s version %d (%s)",
+                  function.name().name(), function.indexOf(version), version.signature());
+        }
+
+
+        return new CfgEmitter(Objects.requireNonNull(version.cfg()), constantsCName, initCFunction, cFunction).run();
+      }
+
+      final class CfgEmitter {
+        // Input
+        private final CFG cfg;
+
+        // Output
+        private final String constantsCName;
+        private final CFunction initCFunction;
+        private final CFunction cFunction;
+        private final ConstantPool constantPool = new ConstantPool();
+
+        // State
+        private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
+
+        CfgEmitter(CFG cfg, String constantsCName, CFunction initCFunction, CFunction cFunction) {
+          this.cfg = cfg;
+          this.constantsCName = constantsCName;
+          this.initCFunction = initCFunction;
+          this.cFunction = cFunction;
+        }
+
+        VecSXP run() {
+          emitConstants();
+
+          beginEmitInit();
+
+          emitConstantPoolAlias();
+
+          emitLocalDeclarations();
+
+          for (var bb : cfg.bbs()) {
+            new BBEmitter(bb, cFunction.add()).run();
+          }
+
+          return constantPool.toSexp();
+        }
+
+        private void emitConstants() {
+          cUnit.addStaticVariable(CONSTANTS_C_TYPE, constantsCName);
+        }
+
+        /// Code will be appended when nested closures and promises are visited.
+        private void beginEmitInit() {
+          var cCode = initCFunction.add();
+
+          if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+            cCode.comment("Assign constant pool global variable");
+          }
+
+          cCode.stmt("%s = %s", constantsCName, VAR_POOL);
+        }
+
+        private void emitConstantPoolAlias() {
+          cFunction
+              .add()
+              .stmt("SEXP *%s = (SEXP *)STDVEC_DATAPTR(%s_constants);", VAR_POOL, versionConstantsCName(function, version));
+        }
+
+        private void emitLocalDeclarations() {
+          var localRegisters = Objects.requireNonNull(locals.get(cfg));
+          if (localRegisters.isEmpty()) {
+            return;
+          }
+
+          var sec = cFunction.add();
+
+          if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+            sec.comment("Declare locals");
+          }
+
+          for (var register : localRegisters) {
+            var cName = registerCName(register);
+            sec.stmt("SEXP %s;", cName);
+          }
+        }
+
+        final class BBEmitter {
+          // Input
+          private final BB bb;
+
+          // Output
+          private final CCode cCode;
+
+          BBEmitter(BB bb, CCode cCode) {
+            this.bb = bb;
+            this.cCode = cCode;
+          }
+
+          void run() {
+            if (!bb.isEntry()) {
+              // ';' is necessary,
+              // otherwise if the next statement is a declaration (e.g. `SEXP x`),
+              // the C syntax is invalid.
+              cCode.label("%s:;", labelCName(bb));
+            }
+
+            for (var statement : bb.statements()) {
+              emitStatement(statement);
+            }
+
+            emitJump(bb.jump());
+          }
+
+          private void emitStatement(Statement statement) {
+            if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+              cCode.comment("%s", statement);
+            }
+
+            var expr = emitExpression(statement.expression());
+
+            if (statement.assignee() == null) {
+              cCode.stmt("(void)(%s);", expr);
+            } else {
+              cCode.stmt("%s = %s;", registerPlace(statement.assignee()), expr);
+            }
+          }
+
+          private String emitExpression(Expression expression) {
+            return switch (expression) {
+              case Closure closure -> {
+                var function = closure.code();
+
+                var fromRCName = functionFromRCName(function);
+                var dispatchCName = functionDispatchCName(function);
+
+                var formalsSxp = function.parameterNames().stream().map(nv -> new TaggedElem(nv.name(), SEXPs.MISSING_ARG)).collect(SEXPs.toList());
+                var formals = constantRef(formalsSxp);
+
+                var cpSxp = new FunctionEmitter(function).run();
+                var cp = constantRef(cpSxp);
+
+                var initCCode = initCFunction.add();
+                if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+                  initCCode.comment("Init child %s", function.name());
+                }
+                initCCode.stmt("%s(%s);", functionInitCName(function), cp);
+
+                yield "Fir_mk_closure(%s, %s, %s, %s, %s)".formatted(fromRCName, dispatchCName, formals, cp, VAR_ENV);
+              }
+              case Promise promise -> {
+                var initCName = promiseInitCName(promise);
+                var fromRCName = promiseFromRCName(promise);
+                var evalCName = promiseEvalCName(promise);
+                
+                var valueType = emitType(cCode, promise.valueType());
+
+                var captureSet =
+                    Objects.requireNonNull(VersionEmitter.this.captures.get(promise.code()));
+                var captureArray =
+                    emitArray(
+                        "captures",
+                        "SEXP",
+                        captureSet.stream().map(reg -> "&" + registerPlace(reg)).toList());
+                var captures = captureArray.pointer();
+
+                // TODO: Extract into method and replace with `var cp = emitPromise(promise);`
+                //  the function can compute `initCName`,  `fromRCName`, and `evalCName` itself.
+                // ---
+                if (!compiledPromises.add(promise)) {
+                  throw new IllegalStateException("promise already compiled: " + promise);
+                }
+
+                var constantsCName = promiseConstantsCName(promise);
+
+                var initCFunction = cUnit.addFunction(INIT_C_RETURN, initCName, INIT_C_PARAMS);
+
+                var fromRCFunction = cUnit.addFunction(FROM_R_C_RETURN, fromRCName, FROM_R_C_PARAMS);
+                
+                var cName = promiseEvalCName(promise);
+                var callCFunction = cUnit.addFunction(CALL_C_RETURN, cName, PROMISE_CALL_C_PARAMS);
+
+                if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+                  initCFunction.add().comment("Init child promise of %s version %s in BB %s", function.name(), function.indexOf(version), bb.label());
+                  callCFunction.add().comment("Eval child promise of %s version %s in BB %s", function.name(), function.indexOf(version), bb.label());
+                }
+
+                fromRCFunction.add().stmt("Rf_error(\"TODO\");");
+
+                // Emit capture bindings
+                var callCCode = callCFunction.add();
+                if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+                  callCCode.comment("Bind captures");
+                }
+                var iter = captureSet.iterator();
+                for (var i = 0; i < captureSet.size(); i++) {
+                  var captureName = registerCName(iter.next());
+                  callCCode.stmt("SEXP *%s = %s[%d];", captureName, VAR_CAPTURES, i);
+                }
+
+                var cpSxp = new CfgEmitter(promise.code(), constantsCName, initCFunction, callCFunction).run();
+                // ---
+                var cp = constantRef(cpSxp);
+
+                var initCCode = CfgEmitter.this.initCFunction.add();
+                if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+                  initCCode.comment("Init child promise of %s version %s in BB %s", function.name(), function.indexOf(version), bb.label());
+                }
+                initCCode.stmt("%s(%s);", initCName, cp);
+
+                yield "Fir_mk_promise(%s, %s, %s, %s, %s, %s)"
+                    .formatted(fromRCName, evalCName, valueType, captures, cp, VAR_ENV);
+              }
+              case Aea(var arg) -> emitArgument(arg);
+              case AssumeConstant(var _, var _), AssumeFunction _ -> "R_NilValue";
+              case AssumeType(var target, var _) -> emitArgument(target);
+              case Call call -> emitCall(call);
+              case Cast(var target, var type) ->
+                  "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
+              case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
+              case Force(var value) -> "Fir_force(%s)".formatted(emitArgument(value));
+              case Load(var variable) ->
+                  "Fir_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
+              case LoadFun(var variable, var env) -> {
+                var envSelector =
+                    switch (env) {
+                      case LoadFun.Env.LOCAL -> "Fir_LoadFun_Local";
+                      case LoadFun.Env.GLOBAL -> "Fir_LoadFun_Global";
+                      case LoadFun.Env.BASE -> "Fir_LoadFun_Base";
+                    };
+                yield "Fir_load_fun(%s, %s, %s)"
+                    .formatted(envSelector, nvSymbolRef(variable), VAR_ENV);
+              }
+              case MaybeForce(var value) ->
+                  "Fir_maybe_force(%s)".formatted(emitArgument(value));
+              case MkEnv() -> {
+                cCode.stmt("Fir_push_env(&%s);", VAR_ENV);
+                yield "R_NilValue";
+              }
+              case MkVector(var kind, var elements) -> {
+                var namedArrays = emitNamedArgumentArrays(elements);
+                yield "Fir_mk_vector(%s, %d, %s, %s)"
+                    .formatted(
+                        emitKind(cCode, kind),
+                        namedArrays.values().size(),
+                        namedArrays.values().pointer(),
+                        namedArrays.names());
+              }
+              case Placeholder() -> {
+                cCode.stmt("Rf_error(\"FIŘ placeholder reached\");");
+                yield "R_NilValue";
+              }
+              case PopEnv() -> {
+                cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
+                yield "R_NilValue";
+              }
+              case ReflectiveLoad(var promArg, var variable) -> "Fir_reflective_load(%s, %s)"
+                  .formatted(emitArgument(promArg), nvSymbolRef(variable));
+              case ReflectiveStore(var promArg, var variable, var value) ->
+                  "Fir_reflective_store(%s, %s, %s)"
+                      .formatted(emitArgument(promArg), nvSymbolRef(variable),
+                          emitArgument(value));
+              case Store(var variable, var value) -> {
+                var arg = emitArgument(value);
+                cCode.stmt("Fir_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
+                yield arg;
+              }
+              case SubscriptRead(var vector, var index) ->
+                  "Fir_subscript_read(%s, %s)".formatted(emitArgument(vector),
+                      emitArgument(index));
+              case SubscriptWrite(var vector, var index, var value) ->
+                  "Fir_subscript_write(%s, %s, %s)"
+                      .formatted(emitArgument(vector), emitArgument(index),
+                          emitArgument(value));
+              case SuperLoad(var variable) ->
+                  "Fir_super_load(%s, %s)".formatted(nvSymbolRef(variable), VAR_ENV);
+              case SuperStore(var variable, var value) -> {
+                var arg = emitArgument(value);
+                cCode.stmt("Fir_super_store(%s, %s, %s);", nvSymbolRef(variable), arg, VAR_ENV);
+                yield arg;
+              }
+            };
+          }
+
+          private String emitCall(Call call) {
+            var arguments = emitArgumentArray("args", call.callArguments());
+            return switch (call.callee()) {
+              case DispatchCallee(var calleeFun, var signature) -> {
+                if (calleeFun.owner() == BUILTINS) {
+                  var builtinIndex = rSession.RFunTab().indexOf(calleeFun.name().name());
+                  yield "Fir_call_builtin(%d, %s, %d, %s)"
+                      .formatted(builtinIndex, VAR_ENV, arguments.size(), arguments.pointer());
+                }
+
+                var cName = functionDispatchCName(calleeFun);
+
+                // Declare extern for referenced (previously-compiled) function if necessary.
+                if (referencedFunctions.add(calleeFun)) {
+                  cUnit.addExternFunction(DISPATCH_C_RETURN, cName, DISPATCH_C_PARAMS);
+                }
+
+                // The baseline's signature is the default
+                if (signature == null) {
+                  signature = calleeFun.baseline().signature();
+                }
+                var cSignature = emitSignature(signature);
+
+                yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments.splice());
+              }
+              case StaticCallee(var calleeFunction, var calleeVersion) -> {
+                var cName = versionCallCName(calleeFunction, calleeVersion);
+
+                // Declare extern for referenced (previously-compiled) function if necessary.
+                if (referencedVersions.add(calleeVersion)) {
+                  var cParams = versionCallCParams(calleeVersion);
+                  cUnit.addExternFunction(CALL_C_RETURN, cName, cParams);
+                }
+
+                yield "%s(%s%s)".formatted(cName, VAR_ENV, arguments.splice());
+              }
+              case DynamicCallee(var actualCallee, var argumentNames) -> {
+                var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
+                yield "Fir_call_dynamic(%s, %s, %d, %s, %s)"
+                    .formatted(
+                        emitArgument(actualCallee),
+                        VAR_ENV,
+                        arguments.size(),
+                        arguments.pointer(),
+                        names.pointer());
+              }
+            };
+          }
+
+          private void emitJump(Jump jump) {
+            if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+              cCode.comment("%s", jump);
+            }
+
+            switch (jump) {
+              case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
+              case Goto(var _, var target) -> emitJumpTo(1, target);
+              case Unreachable(var _) -> {
+                cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
+                cCode.stmt("return R_NilValue;");
+              }
+              case If(var _, var condition, var ifTrue, var ifFalse) -> {
+                cCode.stmt("if (Fir_is_true(%s)) {", emitArgument(condition));
+                emitJumpTo(2, ifTrue);
+                cCode.stmt("} else {");
+                emitJumpTo(2, ifFalse);
+                cCode.stmt("}");
+              }
+              case Checkpoint(var _, var success, var deopt) -> {
+                for (var assume : assumptionsFor(success)) {
+                  var condition = emitAssumptionCondition(assume);
+                  cCode.stmt("if (!(%s)) {", condition);
+                  emitJumpTo(2, deopt);
+                  cCode.stmt("}");
+                }
+                emitJumpTo(1, success);
+              }
+              case Deopt(var _, var pc, var stack) -> {
+                var stackArgs = emitArgumentArray("deopt_stack", stack);
+                cCode.stmt(
+                    "Fir_deopt(%d, %d, %s, %s);", pc, stackArgs.size(), stackArgs.pointer(),
+                    VAR_ENV);
+                cCode.stmt("return R_NilValue;");
+              }
+            }
+          }
+
+          private List<Assume> assumptionsFor(Target target) {
+            var assumptions = new ArrayList<Assume>();
+            for (var statement : target.bb().statements()) {
+              if (!(statement.expression() instanceof Assume assume)) {
+                break;
+              }
+              assumptions.add(assume);
+            }
+            return assumptions;
+          }
+
+          private String emitAssumptionCondition(Assume assume) {
+            if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+              cCode.comment("Assume: %s", assume);
+            }
+
+            return switch (assume) {
+              case AssumeConstant(var target, var constant) -> "Fir_assume_constant(%s, %s)"
+                  .formatted(emitArgument(target), constantRef(constant.sexp()));
+              case AssumeFunction a -> "Fir_assume_function(%s, &%s)"
+                  .formatted(emitArgument(a.target()), functionDispatchCName(a.function()));
+              case AssumeType(var target, var type) ->
+                  "Fir_assume_type(%s, %s)".formatted(emitArgument(target),
+                      emitType(cCode, type));
+            };
+          }
+
+          private void emitJumpTo(int indentLevel, Target target) {
+            var parameters = target.bb().phiParameters();
+            var phiArgs = target.phiArgs();
+            if (parameters.size() != phiArgs.size()) {
+              throw new IllegalStateException(
+                  "Phi parameter/argument count mismatch for " + target.bb().label());
+            }
+
+            if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+              cCode.comment("%s", target);
+            }
+
+            for (var i = 0; i < parameters.size(); i++) {
+              var phi = parameters.get(i);
+              var arg = phiArgs.get(i);
+
+              var dest = registerPlace(phi);
+              var value = emitArgument(arg);
+
+              cCode.stmt(indentLevel, "%s = %s;", dest, value);
+            }
+
+            cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));
+          }
+
+          private String emitSignature(Signature signature) {
+            var returnType = emitType(cCode, signature.returnType());
+            var paramTypes =
+                emitArray(
+                    "param_types",
+                    "Fir_Type",
+                    Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
+            return "Fir_signature(%s, %d, %s)"
+                .formatted(returnType, paramTypes.size(), paramTypes.pointer());
+          }
+
+          private Array emitArgumentArray(String baseName, List<Argument> arguments) {
+            return emitArray(baseName, "SEXP", Lists.mapLazy(arguments, this::emitArgument));
+          }
+
+          private ArrayAndNames emitNamedArgumentArrays(List<NamedArgument> namedArguments) {
+            var values = new ArrayList<Argument>(namedArguments.size());
+            var names = new ArrayList<OptionalNamedVariable>(namedArguments.size());
+            var hasNames = false;
+            for (var element : namedArguments) {
+              values.add(element.argument());
+              names.add(OptionalNamedVariable.ofNullable(element.name()));
+              if (element.name() != null) {
+                hasNames = true;
+              }
+            }
+            var valueArray = emitArgumentArray("vector_values", values);
+            var nameArray = emitOptionalNameArray("vector_names", names, names.size());
+            return new ArrayAndNames(valueArray, hasNames ? nameArray.pointer() : "NULL");
+          }
+
+          private Array emitOptionalNameArray(
+              String baseName, List<OptionalNamedVariable> names, int size) {
+            var arguments =
+                IntStream.range(0, size)
+                    .mapToObj(
+                        i -> {
+                          var name = i < names.size() ? names.get(i).orNull() : null;
+                          return name == null ? "R_MissingArg" : nvSymbolRef(name);
+                        })
+                    .toList();
+            return emitArray(baseName, "SEXP", arguments);
+          }
+
+          private Array emitArray(String baseName, String elemCType, List<String> arguments) {
+            if (arguments.isEmpty()) {
+              return new Array(0, "NULL");
+            }
+
+            var disambiguator = tempArrayDisambiguators.getOrDefault(baseName, 0);
+            var arrayName = "t_%s_%d".formatted(baseName, disambiguator);
+            tempArrayDisambiguators.put(baseName, disambiguator + 1);
+
+            cCode.stmt("%s %s[%d];", elemCType, arrayName, arguments.size());
+            for (var i = 0; i < arguments.size(); i++) {
+              cCode.stmt("%s[%d] = %s;", arrayName, i, arguments.get(i));
+            }
+            return new Array(arguments.size(), arrayName);
+          }
+
+          private String emitArgument(Argument argument) {
+            return switch (argument) {
+              case Constant(var constant) -> constantRef(constant);
+              case Read(var variable) -> registerPlace(variable);
+              case Use(var variable) -> registerPlace(variable);
+            };
+          }
+        }
+
+        // region misc
+        private String registerPlace(Register register) {
+          var name = registerCName(register);
+          if (Objects.requireNonNull(captures.get(cfg)).contains(register)) {
+            name = "*" + name;
+          }
+          return name;
+        }
+
+        private String nvSymbolRef(NamedVariable nv) {
+          return constantRef(SEXPs.symbol(nv.name()));
+        }
+
+        private String constantRef(SEXP sexp) {
+          var idx = constantPool.intern(sexp);
+          return "%s[%d]".formatted(VAR_POOL, idx);
+        }
+        // endregion misc
+      }
     }
   }
 
@@ -836,54 +931,62 @@ public final class Fir2CCompiler {
   // endregion emit types
 
   // region misc
-  /// Generate DAG of function and its children.
-  ///
-  /// A "child" is a function referenced by a `clos` instruction. No transitive `clos` relations
-  /// is an invariant that exists in R but not FIŘ, and so this won't work for some custom FIŘ
-  /// modules.
-  ///
-  /// @throws UnsupportedOperationException If the function transitively references itself via
-  // `clos`.
-  private static Collection<Function> hierarchyDag(Function function) {
-    var dag = new LinkedHashSet<Function>();
-    var worklist = new LinkedHashSet<>(List.of(function));
-
-    while (!worklist.isEmpty()) {
-      var current = worklist.removeLast();
-
-      if (!dag.add(current)) {
-        throw new UnsupportedOperationException(
-            "Function transitively references itself via `clos`");
-      }
-
-      var next =
-          current.versions().stream()
-              .flatMap(Abstraction::streamCfgs)
-              .flatMap(cfg -> cfg.bbs().stream())
-              .flatMap(bb -> bb.statements().stream())
-              .map(Statement::expression)
-              .filter(e -> e instanceof Closure)
-              .map(e -> (Closure) e)
-              .map(Closure::code);
-      next.forEach(worklist::add);
-    }
-
-    return dag;
+  private static String functionFromRCName(Function function) {
+    return "Fir_fun_from_r_" + escapeForC(function.name().name());
   }
 
-  private static String functionCName(Function function) {
-    return "Fir_fun_" + escapeForC(function.name().name());
+  private static String functionInitCName(Function function) {
+    return "Fir_fun_init_" + escapeForC(function.name().name());
   }
 
-  private static String versionCName(Function function, Abstraction version) {
-    return "Fir_ver_" + escapeForC(function.name().name()) + "_v" + function.indexOf(version);
+  private static String functionDispatchCName(Function function) {
+    return "Fir_fun_dispatch_" + escapeForC(function.name().name());
   }
 
-  private static String promiseCName(Promise promise) {
-    return "Fir_prom_" + Integer.toHexString(promise.hashCode());
+  private static String versionConstantsCName(Function function, Abstraction version) {
+    return "Fir_ver_constants_" + escapeForC(function.name().name()) + "_v" + function.indexOf(version);
   }
 
-  private static List<String> versionCParams(Abstraction version) {
+  private static String versionInitCName(Function function, Abstraction version) {
+    return "Fir_ver_init_" + escapeForC(function.name().name()) + "_v" + function.indexOf(version);
+  }
+
+  private static String versionCallCName(Function function, Abstraction version) {
+    return "Fir_ver_call_" + escapeForC(function.name().name()) + "_v" + function.indexOf(version);
+  }
+
+  private static String promiseConstantsCName(Promise promise) {
+    return "Fir_prom_constants_" + Integer.toHexString(promise.hashCode());
+  }
+
+  private static String promiseInitCName(Promise promise) {
+    return "Fir_prom_init_" + Integer.toHexString(promise.hashCode());
+  }
+
+  private static String promiseFromRCName(Promise promise) {
+    return "Fir_prom_from_r_" + Integer.toHexString(promise.hashCode());
+  }
+
+  private static String promiseEvalCName(Promise promise) {
+    return "Fir_prom_eval_" + Integer.toHexString(promise.hashCode());
+  }
+
+  private static final String CONSTANTS_C_TYPE = "SEXP";
+
+  private static final List<String> FROM_R_C_PARAMS = List.of("SEXP %s".formatted(VAR_ENV));
+
+  private static final String FROM_R_C_RETURN = "SEXP";
+
+  private static final List<String> DISPATCH_C_PARAMS = List.of("SEXP %s".formatted(VAR_ENV), "Fir_Signature %s".formatted(VAR_SIGNATURE),
+      "...");
+
+  private static final String DISPATCH_C_RETURN = "SEXP";
+
+  private static final List<String> INIT_C_PARAMS = List.of("SEXP %s".formatted(VAR_POOL));
+
+  private static final String INIT_C_RETURN = "void";
+
+  private static List<String> versionCallCParams(Abstraction version) {
     return Stream.concat(
             Stream.of("SEXP %s".formatted(VAR_ENV)),
             version.parameters().stream()
@@ -891,20 +994,9 @@ public final class Fir2CCompiler {
         .toList();
   }
 
-  private static List<String> promiseCParams(Collection<Register> captures) {
-    return Stream.concat(
-            Stream.of("SEXP %s".formatted(VAR_ENV)),
-            captures.stream().map(capture -> "SEXP const*%s".formatted(registerCName(capture))))
-        .toList();
-  }
+  private static final String CALL_C_RETURN = "SEXP";
 
-  private static String versionCReturn(Abstraction ignored) {
-    return "SEXP";
-  }
-
-  private static String promiseCReturn(Promise ignored) {
-    return "SEXP";
-  }
+  private static final List<String> PROMISE_CALL_C_PARAMS = List.of("SEXP %s".formatted(VAR_ENV), "SEXP const **%s".formatted(VAR_CAPTURES));
 
   private static String registerCName(Register register) {
     return "r_" + register.name();
