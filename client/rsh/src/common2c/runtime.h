@@ -580,7 +580,8 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
 // CONSTANTS
 
 // FIXME: use the SCALAR_ macros
-#define Rsh_const(env, idx) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)]
+#define Rsh_const(pool, idx) ((SEXP *)STDVEC_DATAPTR((pool)))[(idx)]
+#define Rsh_set_const(pool, idx, value) ((SEXP *)STDVEC_DATAPTR((pool)))[(idx)] = (value)
 
 // CLOSURE REPRESENTATION
 // ----------------------

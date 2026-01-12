@@ -34,18 +34,8 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
       Files.createDirectory(path);
     }
 
-    var mainFun = data.input().localFunction(Variable.named("main"));
-    if (mainFun == null) {
-      throw new IllegalArgumentException("Module doesn't have a main function");
-    }
-    var mainCFun = data.functions().get(mainFun);
-    if (mainCFun == null) {
-      throw new IllegalArgumentException("Compiled module doesn't have a main function");
-    }
-    var entryCFun = entrypoint(mainCFun);
-
-    entryCFun.writeNewCUnitTo(new FileWriter(cPath.toFile(), StandardCharsets.UTF_8));
-    RDSWriter.writeFile(bindingsPath.toFile(), mainCFun.constantPool());
+    data.code().writeTo(cPath);
+    RDSWriter.writeFile(bindingsPath.toFile(), data.constantPool());
 
     // Compile for both `EvalQuery` and easier debugging outside of tests.
     var soPath = path.resolve("code.so");

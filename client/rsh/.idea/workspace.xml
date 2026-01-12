@@ -19,13 +19,29 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CStaticEmbed.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/CompiledItem.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CExternGlobalVariable.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../.idea/SweepConfig.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../../.idea/SweepConfig.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2fir/BC2ModuleCompiler.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bc2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/bc2c/runtime.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/common2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/common2c/runtime.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/compiler.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../external/R" beforeDir="false" afterPath="$PROJECT_DIR$/../../external/R" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../external/R-debug" beforeDir="false" afterPath="$PROJECT_DIR$/../../external/R-debug" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CCompiler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CModule.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CModule.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/ClosureCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/ClosureCompiler.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/ConstantPool.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/ConstantPool.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CCode.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CCode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CStaticVariable.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CGlobalVariable.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CUnit.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CUnit.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CompiledItem.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CompiledItem.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/server/CompileService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/server/CompileService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2c/BC2CQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2c/BC2CQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/CompiledModuleQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/CompiledModuleQuery.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -109,109 +125,6 @@
   }
 }</component>
   <component name="RunManager">
-    <configuration default="true" type="tests" factoryName="Autodetect">
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="" />
-      <option name="RUN_TOOL" value="" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="Doctests">
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="" />
-      <option name="RUN_TOOL" value="" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="CLASS_NAME" value="" />
-      <option name="METHOD_NAME" value="" />
-      <option name="FOLDER_NAME" value="" />
-      <option name="TEST_TYPE" value="TEST_SCRIPT" />
-      <option name="PATTERN" value="" />
-      <option name="USE_PATTERN" value="false" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="Nosetests">
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="" />
-      <option name="RUN_TOOL" value="" />
-      <option name="_new_regexPattern" value="&quot;&quot;" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="Twisted Trial">
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="" />
-      <option name="RUN_TOOL" value="" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="Unittests">
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="" />
-      <option name="RUN_TOOL" value="" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="tests" factoryName="py.test">
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <module name="" />
-      <option name="RUN_TOOL" value="" />
-      <option name="_new_keywords" value="&quot;&quot;" />
-      <option name="_new_parameters" value="&quot;&quot;" />
-      <option name="_new_additionalArguments" value="&quot;&quot;" />
-      <option name="_new_target" value="&quot;&quot;" />
-      <option name="_new_targetType" value="&quot;PATH&quot;" />
-      <method v="2" />
-    </configuration>
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -263,6 +176,42 @@
       <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
+    <configuration default="true" type="tests" factoryName="Autodetect">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Doctests">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <method v="2" />
+    </configuration>
     <configuration default="true" type="tests" factoryName="Doctests">
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -300,7 +249,56 @@
       <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
+    <configuration default="true" type="tests" factoryName="Nosetests">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_regexPattern" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
     <configuration default="true" type="tests" factoryName="Twisted Trial">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Twisted Trial">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Unittests">
       <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -350,6 +348,24 @@
       <option name="_new_targetType" value="&quot;PATH&quot;" />
       <method v="2" />
     </configuration>
+    <configuration default="true" type="tests" factoryName="py.test">
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -372,6 +388,8 @@
       <workItem from="1767612213643" duration="5683000" />
       <workItem from="1767874618356" duration="27000" />
       <workItem from="1767874660950" duration="1820000" />
+      <workItem from="1768213861405" duration="3087000" />
+      <workItem from="1768221674033" duration="6224000" />
     </task>
     <servers />
   </component>

@@ -54,7 +54,6 @@ class ClosureCompiler {
   protected CFunction fun;
   protected CCode prologue;
   protected CCode body;
-  protected List<CompiledModule> nested = new ArrayList<>();
 
   public ClosureCompiler(BC2CModule module, String name, Bc bc) {
     this.bc = bc;
@@ -78,7 +77,7 @@ class ClosureCompiler {
     this.debug = debug;
   }
 
-  public CompiledModule compile() {
+  public VecSXP compile() {
     beforeCompile();
 
     var code = bc.code();
@@ -95,8 +94,7 @@ class ClosureCompiler {
 
     afterCompile();
 
-    var constantPool = SEXPs.vec(constants());
-    return new CompiledModule(fun, constantPool, nested);
+    return SEXPs.vec(constants());
   }
 
   private int stackSpace() {
@@ -263,7 +261,6 @@ class ClosureCompiler {
   private String compileMakePromise(InstrCallBuilder builder, BCodeSXP bc) {
     var compiledPromiseClosure = module.compilePromise(bc.bc(), name);
     var cpConst = createExtraConstant(compiledPromiseClosure.constantPool());
-    nested.add(compiledPromiseClosure);
     return builder
         .fun("Rsh_MakeProm2")
         .args("&" + compiledPromiseClosure.cName(), constantSXP(cpConst))
@@ -324,10 +321,9 @@ class ClosureCompiler {
     if (cls.get(1) instanceof BCodeSXP closureBody) {
       var compiledInnerClosure = module.compileClosure(closureBody.bc(), name);
       var ccp = createExtraConstant(compiledInnerClosure.constantPool());
-      nested.add(compiledInnerClosure);
       return builder.addArgs("&" + compiledInnerClosure.cName(), constantSXP(ccp)).compileStmt();
     } else {
-      throw new UnsupportedOperationException("Unsupported body: " + body);
+      throw new UnsupportedOperationException("Unsupported body: " + cls.get(1));
     }
   }
 

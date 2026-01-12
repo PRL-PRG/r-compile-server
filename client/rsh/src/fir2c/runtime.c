@@ -5,16 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct Fir_ClosureData {
-  Fir_DispatchFn dispatch;
-} Fir_ClosureData;
-
-typedef struct Fir_PromiseData {
-  Fir_PromiseFn eval;
-  Fir_Type value_type;
-  SEXP const **captures;
-} Fir_PromiseData;
-
 Fir_Kind Fir_kind_any = {.tag = FIR_KIND_ANY};
 Fir_Kind Fir_kind_anyValue = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
@@ -66,29 +56,31 @@ static void Fir_assert_symbol(SEXP sym, const char *what) {
   }
 }
 
-static bool Fir_is_compiled_closure(SEXP value, Fir_ClosureData **data) {
+static bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
   if (TYPEOF(value) != CLOSXP) {
     return false;
   }
   SEXP body = BODY(value);
-  if (TYPEOF(body) != EXTPTRSXP || !RSH_IS_CLOSURE_BODY(body)) {
+  if (TYPEOF(body) != EXTPTRSXP || !IS_RSH_CODE(body)) {
     return false;
   }
-  SEXP cp = R_ExternalPtrProt(body);
-  *data = (Fir_ClosureData*)RAW0(VECTOR_ELT(cp, 0));
+  SEXP cp = R_ExternalPtrProtected(body);
+  *data = (Fir_FunctionData*)RAW0(Rsh_const(cp, 0));
   return true;
 }
 
-static bool Fir_is_compiled_promise(SEXP value, Fir_PromiseData **data) {
+static bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data) {
   if (TYPEOF(value) != PROMSXP) {
     return false;
   }
   SEXP body = PREXPR(value);
-  if (TYPEOF(body) != EXTPTRSXP || !RSH_IS_CLOSURE_BODY(body)) {
+  if (TYPEOF(body) != EXTPTRSXP || !IS_RSH_CODE(body)) {
     return false;
   }
-  SEXP cp = R_ExternalPtrProt(body);
-  *data = (Fir_PromiseData*)RAW0(VECTOR_ELT(cp, 0));
+  SEXP data = R_ExternalPtrProtected(body);
+  SEXP cp = CAR0(data);
+  *global_data = (Fir_PromiseGlobalData*)RAW0(Rsh_const(cp, 0));
+  *local_data = (Fir_PromiseLocalData*)RAW0(CDR(data));
   return true;
 }
 
@@ -133,48 +125,47 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
   return false;
 }
 
-static bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
+bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
   return Fir_kind_is_subtype(this_type.kind, other_type.kind)
       && this_type.ownership == other_type.ownership
       && (this_type.definite || !other_type.definite);
 }
 
-static bool Fir_value_matches(SEXP value, Fir_Type type) {
-  if (!type || !type.kind) {
-    return true;
-  }
-  switch (type.kind.tag) {
+bool Fir_value_matches(SEXP value, Fir_Type type) {
+  switch (type.kind.tag)
+  {
   case FIR_KIND_ANY:
   case FIR_KIND_ANY_VALUE:
     return true;
   case FIR_KIND_PRIMITIVE_SCALAR: {
-    SEXPTYPE expected
-        = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
-        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
-        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
-        : STRSXP;
-    if (TYPEOF(value) != expected) {
-      return false;
-    }
-    return Rf_length(value) == 1;
+      SEXPTYPE expected
+          = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+          : STRSXP;
+      if (TYPEOF(value) != expected) {
+        return false;
+      }
+      return Rf_length(value) == 1;
   }
   case FIR_KIND_PRIMITIVE_VECTOR: {
-    SEXPTYPE expected
-        = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
-        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
-        : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
-        : STRSXP;
-    return TYPEOF(value) == expected;
+      SEXPTYPE expected
+          = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+          : STRSXP;
+      return TYPEOF(value) == expected;
   }
   case FIR_KIND_CLOSURE:
     return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP ||
            TYPEOF(value) == SPECIALSXP;
   case FIR_KIND_DOTS:
     return TYPEOF(value) == DOTSXP;
-  case FIR_KIND_PROMISE:
-    Fir_PromiseData *data;
-    if (Fir_is_compiled_promise(value, &data)) {
-      return Fir_is_subtype(data->value_type, type);
+  case FIR_KIND_PROMISE: {
+    Fir_PromiseGlobalData *global_data;
+    Fir_PromiseLocalData *local_data;
+    if (Fir_is_compiled_promise(value, &global_data, &local_data)) {
+      return Fir_is_subtype(global_data->value_type, type);
     }
     if (TYPEOF(value) == PROMSXP) {
       // GNU-R promise. We have no information on the inner type,
@@ -182,35 +173,28 @@ static bool Fir_value_matches(SEXP value, Fir_Type type) {
       return type.kind.as.promise.value_type->kind.tag == FIR_KIND_ANY_VALUE;
     }
   }
+  }
   return false;
 }
 
-SEXP Fir_mk_closure(Rsh_closure dispatchFromR, Fir_DispatchFn dispatch, SEXP formals, SEXP cp,
-                    SEXP env) {
-  SEXP data_sexp = NEW_RAW(sizeof(Fir_ClosureData));
-  SET_VECTOR_ELT(data_sexp, 0, cp);
-
-  Fir_ClosureData *data = (Fir_ClosureData*)RAW0(data_sexp);
-  *data = (Fir_ClosureData){.dispatch = dispatch};
-
-  SEXP ext = PROTECT(R_MakeExternalPtr((void *)dispatchFromR, Rsh_ClosureBodyTag, cp));
+SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
+  SEXP ext = PROTECT(R_MakeExternalPtr((void *)dispatchFromR, Rsh_CodeTag, cp));
   SEXP closure = PROTECT(Rf_mkCLOSXP(formals, ext, env));
   UNPROTECT(2); // body + closure
 
   return closure;
 }
 
-SEXP Fir_mk_promise(Rsh_closure evalFromR, Fir_PromiseFn eval, Fir_Type value_type,
-                    SEXP const **captures, SEXP cp, SEXP env) {
-  SEXP data_sexp = NEW_RAW(sizeof(Fir_PromiseData));
-  SET_VECTOR_ELT(data_sexp, 0, cp);
+SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env) {
+  SEXP local_data_sexp = PROTECT(Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData)));
+  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData*)RAW0(local_data_sexp);
+  *local_data = (Fir_PromiseLocalData){.captures = captures};
 
-  Fir_PromiseData *data = (Fir_PromiseData*)RAW0(data_sexp);
-  *data = (Fir_PromiseData){.eval = eval, .value_type = value_type, .captures = captures};
+  SEXP data = PROTECT(Rf_cons(cp, local_data_sexp));
 
-  SEXP ext = PROTECT(R_MakeExternalPtr((void *)evalFromR, Rsh_ClosureBodyTag, cp));
+  SEXP ext = PROTECT(R_MakeExternalPtr((void *)evalFromR, Rsh_CodeTag, data));
   SEXP promise = PROTECT(Rf_mkPROMISE(ext, env));
-  UNPROTECT(2); // ext + promise
+  UNPROTECT(3); // local_data_sexp + data + ext + promise
 
   return promise;
 }
@@ -300,9 +284,6 @@ static SEXP Fir_make_names(int count, SEXP const *names) {
 }
 
 SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names) {
-  if (!kind) {
-    Rf_error("mk_vector requires a kind");
-  }
   switch (kind.tag) {
   case FIR_KIND_PRIMITIVE_VECTOR: {
     SEXPTYPE type
@@ -375,9 +356,10 @@ SEXP Fir_force(SEXP promise) {
   }
 
   if (!PROMISE_IS_EVALUATED(promise)) {
-    Fir_PromiseData *data;
-    if (Fir_is_compiled_promise(promise, &data)) {
-      data->eval(PRENV(promise), data->captures);
+    Fir_PromiseGlobalData *global_data;
+    Fir_PromiseLocalData *local_data;
+    if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
+      global_data->eval(PRENV(promise), local_data->captures);
     } else {
       forcePromise(promise);
     }
@@ -583,7 +565,7 @@ bool Fir_assume_constant(SEXP value, SEXP constant) {
 }
 
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
-  Fir_ClosureData *data = NULL;
+  Fir_FunctionData *data = NULL;
   if (!Fir_is_compiled_closure(value, &data)) {
     return false;
   }
@@ -599,7 +581,7 @@ bool Fir_assume_type(SEXP value, Fir_Type type) {
   DEFINE_DISPATCH_INTRINSIC(X) {\
     va_list args;\
     va_start(args, signature);\
-    SEXP result = Fir_intrinsic_ ## X ## _v0(env, signature, args);\
+    SEXP result = ((Fir_VersionFn) Fir_intrinsic_ ## X ## _v0)(env, args);\
     va_end(args);\
     return result;\
   }

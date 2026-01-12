@@ -58,6 +58,19 @@ typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
 typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
 typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP const **captures);
 
+typedef struct Fir_FunctionData {
+  Fir_DispatchFn dispatch;
+} Fir_FunctionData;
+
+typedef struct Fir_PromiseGlobalData {
+  Fir_PromiseFn eval;
+  Fir_Type value_type;
+} Fir_PromiseGlobalData;
+
+typedef struct Fir_PromiseLocalData {
+  SEXP const **captures;
+} Fir_PromiseLocalData;
+
 extern Fir_Kind Fir_kind_any;
 extern Fir_Kind Fir_kind_anyValue;
 extern Fir_Kind Fir_kind_closure;
@@ -68,13 +81,13 @@ Fir_Kind Fir_kind_primitiveVector(int primitive_kind);
 Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect);
 
 Fir_Type Fir_type(Fir_Kind kind, int ownership, bool definite);
+bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type);
+bool Fir_value_matches(SEXP value, Fir_Type type);
 
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types);
 
-SEXP Fir_mk_closure(Rsh_closure dispatchFromR, Fir_DispatchFn dispatch, SEXP formals, SEXP cp,
-                    SEXP env);
-SEXP Fir_mk_promise(Rsh_closure evalFromR, Fir_PromiseFn eval, Fir_Type value_type,
-                    SEXP const **captures, SEXP cp, SEXP env);
+SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
+SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env);
 
 SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
@@ -117,30 +130,30 @@ DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinDispatched);
 DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinValue);
 
 #define DEFINE_INTRINSIC(X, n, ...)\
-  SEXP Fir_intrinsic_ ## X ## _v ## n(SEXP env, __VA_ARGS__)
-DEFINE_INTRINSIC(checkFun, 0);
-DEFINE_INTRINSIC(checkMissing, 0);
-DEFINE_INTRINSIC(toForSeq, 0);
+  SEXP Fir_intrinsic_ ## X ## _v ## n(SEXP env, ##__VA_ARGS__)
+DEFINE_INTRINSIC(checkFun, 0, SEXP value);
+DEFINE_INTRINSIC(checkMissing, 0, SEXP value);
+DEFINE_INTRINSIC(toForSeq, 0, SEXP value);
 DEFINE_INTRINSIC(setInvisible, 0);
 DEFINE_INTRINSIC(setVisible, 0);
-DEFINE_INTRINSIC(tryDispatchBuiltin, 0);
-DEFINE_INTRINSIC(tryDispatchBuiltin, 1);
-DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0);
-DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0);
+DEFINE_INTRINSIC(tryDispatchBuiltin, 0, SEXP funName, SEXP target, SEXP rhs);
+DEFINE_INTRINSIC(tryDispatchBuiltin, 1, SEXP funName, SEXP target);
+DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0, SEXP dispatchResult);
+DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0, SEXP dispatchResult);
 
-#define DEFINE_OVERRIDDEN_BUILTIN(X, n)\
-  SEXP Fir_builtin_ ## X ## _v ## n(SEXP CCP, SEXP env, int nparams, SEXP const *args)
-DEFINE_OVERRIDDEN_BUILTIN(add, 1);
-DEFINE_OVERRIDDEN_BUILTIN(add, 2);
-DEFINE_OVERRIDDEN_BUILTIN(lt, 1);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 1);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 2);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 3);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 4);
-DEFINE_OVERRIDDEN_BUILTIN(missing, 0);
-DEFINE_OVERRIDDEN_BUILTIN(asInteger, 1);
-DEFINE_OVERRIDDEN_BUILTIN(asLogical, 1);
-DEFINE_OVERRIDDEN_BUILTIN(asCharacter, 1);
+#define DEFINE_OVERRIDDEN_BUILTIN(X, n, ...)\
+  SEXP Fir_builtin_ ## X ## _v ## n(SEXP CCP, SEXP env, ##__VA_ARGS__)
+DEFINE_OVERRIDDEN_BUILTIN(add, 1, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(add, 2, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(lt, 1, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(eq, 1, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(eq, 2, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(eq, 3, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(eq, 4, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(missing, 0, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(asInteger, 1, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(asLogical, 1, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(asCharacter, 1, SEXP value);
 
 #ifdef __cplusplus
 }

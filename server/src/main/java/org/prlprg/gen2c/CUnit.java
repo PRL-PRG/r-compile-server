@@ -1,23 +1,28 @@
 package org.prlprg.gen2c;
 
-import com.google.common.base.*;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
 /// C translation unit i.e. source file
 public class CUnit {
   private final List<String> includes = new ArrayList<>();
-  private final List<CStaticVariable> staticVariables = new ArrayList<>();
+  private final List<CExternGlobalVariable> externGlobalVariables = new ArrayList<>();
   private final List<CExternFunction> externFunctions = new ArrayList<>();
+  private final List<CGlobalVariable> globalVariables = new ArrayList<>();
   private final List<CFunction> functions = new ArrayList<>();
 
   public void addInclude(String include) {
     includes.add(include);
   }
 
-  public void addStaticVariable(String type, String name) {
-    staticVariables.add(new CStaticVariable(type, name));
+  public void addExternGlobalVariable(String type, String name) {
+    externGlobalVariables.add(new CExternGlobalVariable(type, name));
+  }
+
+  public void addGlobalVariable(String type, String name) {
+    globalVariables.add(new CGlobalVariable(type, name));
   }
 
   public void addExternFunction(String returnType, String name, List<String> parameters) {
@@ -38,11 +43,20 @@ public class CUnit {
     return w.toString();
   }
 
-  public void writeTo(Writer w) {
-    var pw = w instanceof PrintWriter pw1 ? pw1 : new PrintWriter(w);
+  public void writeTo(Path path) throws IOException {
+    try (var w = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
+      writeTo(new PrintWriter(w));
+    }
+  }
 
+  public void writeTo(PrintWriter pw) {
     includes.forEach(x -> pw.format("#include <%s>", x));
     if (!includes.isEmpty()) {
+      pw.println();
+    }
+
+    externGlobalVariables.forEach(x -> x.writeTo(pw));
+    if (!externGlobalVariables.isEmpty()) {
       pw.println();
     }
 
@@ -51,13 +65,13 @@ public class CUnit {
       pw.println();
     }
 
-    functions.forEach(x -> x.writeForwardDeclaration(pw));
-    if (!functions.isEmpty()) {
+    globalVariables.forEach(x -> x.writeTo(pw));
+    if (!globalVariables.isEmpty()) {
       pw.println();
     }
 
-    staticVariables.forEach(x -> x.writeTo(pw));
-    if (!staticVariables.isEmpty()) {
+    functions.forEach(x -> x.writeForwardDeclaration(pw));
+    if (!functions.isEmpty()) {
       pw.println();
     }
 
