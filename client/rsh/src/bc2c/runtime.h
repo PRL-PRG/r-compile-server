@@ -321,6 +321,8 @@ JIT_DECL SEXP LOG_OP; // FIXME: Is this needed? Log primitive is already defined
                       // in RSH_R_SYMBOLS
 #endif
 
+#define ISQSXP 9999
+
 // Accessors
 
 #ifdef ASSERTS
@@ -332,7 +334,11 @@ JIT_DECL SEXP LOG_OP; // FIXME: Is this needed? Log primitive is already defined
 #endif
 
 static INLINE int VAL_INT(Value v) {
-  RSH_CHK_VAL_TYPE(v, INTSXP);
+#ifdef ASSERTS
+  if ((v).tag != INTSXP && (v).tag != LGLSXP) {
+    Rf_error("Expected unboxed: INTSXP or LGLSXP, got: %d", v.tag);
+  }
+#endif
   return (v).u.ival;
 }
 
@@ -343,7 +349,7 @@ static INLINE double VAL_DBL(Value v) {
 
 static INLINE SEXP VAL_SXP(Value v) {
 #ifdef ASSERTS
-  if ((v).tag != 0) {
+  if ((v).tag != 0 && (v).tag != ISQSXP) {
     Rf_error("Expected a SEXP, got unboxed: %d", (v).tag);
   }
 #endif
@@ -418,8 +424,6 @@ static INLINE SEXP VAL_SXP(Value v) {
 
 #define SET_VAL_N(n, value) SET_VAL(GET_VAL((n)), (value))
 #define SET_SXP_VAL_N(n, value) SET_SXP_VAL(GET_VAL((n)), (value))
-
-#define ISQSXP 9999
 
 #define VAL_TAG(v) ((v).tag)
 
@@ -2473,9 +2477,11 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
   } else if (VAL_IS_ISQ(*seq)) {
     isq = TRUE;
     seq_sxp = VAL_SXP(*seq);
+    assert(!Rf_inherits(seq_sxp, "factor"));
   } else {
     seq_sxp = val_as_sexp(*seq);
     SET_SXP_VAL(seq, seq_sxp);
+    assert(!Rf_inherits(seq_sxp, "factor"));
   }
 
   // FIXME: BCPROT?
@@ -2710,7 +2716,8 @@ static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
 #define RSH_IS_TEST(v, p)                                                      \
   do {                                                                         \
     Value *__v__ = v;                                                          \
-    SET_LGL_VAL(__v__, p(val_as_sexp(*__v__)));                                \
+    int __res__ = p(val_as_sexp(*__v__));                                      \
+    SET_LGL_VAL(__v__, __res__);                                               \
   } while (0)
 
 #define RSH_IS_TYPE(v, t)                                                      \
@@ -2718,8 +2725,9 @@ static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
     Value *__v__ = v;                                                          \
     int __tag__ = VAL_TAG(*__v__);                                             \
     int __type__ = (t);                                                        \
-    SET_LGL_VAL(__v__, __tag__ == 0 ? (TYPEOF(VAL_SXP(*__v__)) == __type__)    \
-                                    : __tag__ == __type__);                    \
+    int __res__ = (__tag__ == 0 ? (TYPEOF(VAL_SXP(*__v__)) == __type__)        \
+                                : __tag__ == __type__);                        \
+    SET_LGL_VAL(__v__, __res__);                                               \
   } while (0)
 
 static INLINE void Rsh_IsNull(Value *stack) {
@@ -2766,7 +2774,8 @@ static INLINE void Rsh_IsInteger(Value *stack) {
   Value *v = GET_VAL(-1);
   switch (VAL_TAG(*v)) {
   case INTSXP:
-  case ISQSXP:
+  case ISQSXP: // TODO: should ISQSXP be here? Not present in eval.c
+    assert(!Rf_inherits(VAL_SXP(*v), "factor"));
     SET_LGL_VAL(v, TRUE);
     break;
   case 0: // some SEXP
@@ -2777,6 +2786,7 @@ static INLINE void Rsh_IsInteger(Value *stack) {
   }
   default:
     SET_LGL_VAL(v, FALSE);
+    break;
   }
 }
 
