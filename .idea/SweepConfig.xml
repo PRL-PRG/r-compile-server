@@ -55,7 +55,7 @@
             <BYOKProviderConfig>
               <option name="eligibleModels">
                 <list>
-                  <option value="z-ai/glm-4.6" />
+                  <option value="z-ai/glm-4.7" />
                 </list>
               </option>
             </BYOKProviderConfig>

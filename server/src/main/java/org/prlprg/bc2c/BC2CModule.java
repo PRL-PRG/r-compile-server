@@ -2,7 +2,6 @@ package org.prlprg.bc2c;
 
 import org.prlprg.bc.Bc;
 import org.prlprg.gen2c.CUnit;
-import org.prlprg.gen2c.CompiledModule;
 
 class BC2CModule {
   private final CUnit cUnit = new CUnit();
@@ -19,18 +18,27 @@ class BC2CModule {
     return cUnit;
   }
 
-  CompiledModule compileClosure(Bc bc, String baseName) {
-    var name = baseName + "_" + funId++;
+  CompiledItem compileClosure(Bc bc, String baseName) {
+    var name = funId == 0 ? baseName : baseName + "_" + funId;
+    funId++;
+
     var compiler = new ClosureCompiler(this, name, bc);
     compiler.setCompilePromises(compilePromises);
-    return compiler.compile();
+
+    var constants = compiler.compile();
+
+    return new CompiledItem(name, constants);
   }
 
-  CompiledModule compilePromise(Bc bc, String baseName) {
+  CompiledItem compilePromise(Bc bc, String baseName) {
     var name = baseName + "_P_" + funId++;
+
     var compiler = new ClosureCompiler(this, name, bc);
     compiler.setCompilePromises(compilePromises);
     // compiler.setUseCells(false);
-    return compiler.compile();
+
+    var constants = compiler.compile();
+
+    return new CompiledItem(name, constants);
   }
 }

@@ -22,7 +22,8 @@ public final class CCode {
   }
 
   public void comment(int indent, @PrintFormat String format, Object... args) {
-    stmt(indent, "// " + format, args);
+    var lineStart = "  ".repeat(indent) + "// ";
+    body.add((lineStart + format).formatted(args).replace("\n", "\n" + lineStart));
   }
 
   public void comment(@PrintFormat String format, Object... args) {

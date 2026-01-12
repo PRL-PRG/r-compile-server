@@ -1,11 +1,14 @@
 package org.prlprg.fir2c;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.prlprg.fir2c.Fir2CCompiler.compile;
 
 import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.FirQuery;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.Optimization;
+import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.GNUR;
@@ -23,12 +26,13 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {
     var R = GNUR.instance();
+
     var firModule = store.load(example, FirQuery.INSTANCE);
 
-    var firCompiledModule =
-        compile(firModule, R.getSession(), Option.CHECK_ARITY, Option.EMIT_DEBUG_COMMENTS);
+    var firMainFn = firModule.localFunction(Variable.named("main"));
+    assertNotNull(firMainFn, "FIR module missing main function");
 
-    return firCompiledModule.toGeneric();
+    return compile(firMainFn, R.getSession(), Option.EMIT_DEBUG_COMMENTS);
   }
 
   @Override

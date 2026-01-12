@@ -6,7 +6,6 @@ import io.grpc.Status;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Optional;
@@ -200,21 +199,20 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var closure = BC2CCompiler.compile(bc, name, false);
-          var input = File.createTempFile("cfile", ".c");
-          closure.writeNewCUnitTo(new FileWriter(input, StandardCharsets.UTF_8));
-          var output = File.createTempFile("ofile", ".o");
+          var module = BC2CCompiler.compile(bc, name, false);
+          var inputFile = File.createTempFile("cfile", ".c");
+          module.code().writeTo(inputFile.toPath());
+          var outputFile = File.createTempFile("ofile", ".o");
 
           RshCompiler.getInstance(ccOpt, RuntimeVariant.DIRECT_BC2C)
-              .createBuilder(input.toPath(), output.toPath())
+              .createBuilder(inputFile.toPath(), outputFile.toPath())
               .flag("-c")
               .compile();
 
-          var res = Files.asByteSource(output).read();
-          var serializedConstantPool = RDSWriter.writeByteString(closure.constantPool());
+          var res = Files.asByteSource(outputFile).read();
+          var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
 
-          ccCached =
-              new NativeClosure(ByteString.copyFrom(res), closure.cName(), serializedConstantPool);
+          ccCached = new NativeClosure(ByteString.copyFrom(res), name, serializedConstantPool);
 
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);
