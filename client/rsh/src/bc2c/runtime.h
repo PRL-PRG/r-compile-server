@@ -2733,41 +2733,49 @@ static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
 static INLINE void Rsh_IsNull(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TYPE(v, NILSXP);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsObject(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TEST(v, isObject);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsNumeric(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TEST(v, isNumericOnly);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsLogical(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TYPE(v, LGLSXP);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsDouble(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TYPE(v, REALSXP);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsComplex(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TYPE(v, CPLXSXP);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsCharacter(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TYPE(v, STRSXP);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsSymbol(Value *stack) {
   Value *v = GET_VAL(-1);
   RSH_IS_TYPE(v, SYMSXP);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_IsInteger(Value *stack) {
@@ -2788,6 +2796,7 @@ static INLINE void Rsh_IsInteger(Value *stack) {
     SET_LGL_VAL(v, FALSE);
     break;
   }
+  R_Visible = TRUE;
 }
 
 static INLINE void fixup_scalar_logical(Value *v, SEXP call, const char *arg,
