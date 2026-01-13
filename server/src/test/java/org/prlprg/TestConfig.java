@@ -1,5 +1,6 @@
 package org.prlprg;
 
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /// Environment variables to configure tests.
@@ -15,7 +16,7 @@ public class TestConfig extends Config {
   /// This is **unset** by default.
   public static final Pattern IGNORE_SNAPSHOTS =
       Pattern.compile(
-          INSTANCE.get("IGNORE_SNAPSHOTS") == "true"
+          Objects.equals(INSTANCE.get("IGNORE_SNAPSHOTS"), "true")
               ? ".*"
               : INSTANCE.get("IGNORE_SNAPSHOTS", "$^"));
 

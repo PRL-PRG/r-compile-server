@@ -86,7 +86,7 @@ public class SnapshotStore {
       @Nullable String context,
       RegressionStatus[] regresses) {
     try {
-      var oracle = loadFromMemory(true, example, query);
+      T oracle = loadFromMemory(true, example, query);
       if (oracle == null) {
         oracle = query.oracle(example, this);
         saveToMemory(oracle, true, example, query);
@@ -144,13 +144,13 @@ public class SnapshotStore {
   /// @throws MissingSnapshotException if no snapshot exists and computation failed
   public <T> T load(Example example, Query<T> query) {
     // Try to load from memory
-    var inMemory = loadFromMemory(false, example, query);
+    T inMemory = loadFromMemory(false, example, query);
     if (inMemory != null) {
       return inMemory;
     }
 
     // Try to load from disk. If so, save to memory
-    var onDisk = loadFromDisk(example, query);
+    T onDisk = loadFromDisk(example, query);
     if (onDisk != null) {
       saveToMemory(onDisk, false, example, query);
       return onDisk;
@@ -168,10 +168,17 @@ public class SnapshotStore {
     if (example.hasOption("", "dontSaveSnapshots")) {
       throw new TestAbortedException("Example has no snapshot");
     }
+
     var path = snapshotPath(example, query);
+
+    if (TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches() && Files.exists(path)) {
+      Files.deleteRecursively(path);
+    }
+
     if (!Files.exists(path)) {
       computeAndSave(example, query);
     }
+
     return path;
   }
 
@@ -245,6 +252,11 @@ public class SnapshotStore {
     try {
       query.serialize(snapshot, path, example, this);
     } catch (Exception e) {
+      // Ensure future loads don't fail because of partially-saved data
+      if (Files.exists(path)) {
+        Files.deleteRecursively(path);
+      }
+
       throw new RuntimeException("Failed to save " + query.name() + " snapshot for " + path, e);
     }
   }

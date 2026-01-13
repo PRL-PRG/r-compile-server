@@ -39,15 +39,15 @@ Fir_Kind Fir_kind_primitiveVector(int primitive_kind) {
 }
 
 Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect) {
-  return (Fir_Kind){.tag = FIR_KIND_PROMISE, .as.promise.value_type = value_type, .as.promise.reflect = reflect};
+  return (Fir_Kind) {.tag = FIR_KIND_PROMISE, .as.promise.value_type = value_type, .as.promise.reflect = reflect};
 }
 
 Fir_Type Fir_type(Fir_Kind kind, int ownership, bool definite) {
-  return (Fir_Type){.kind = kind, .ownership = ownership, .definite = definite};
+  return (Fir_Type) {.kind = kind, .ownership = ownership, .definite = definite};
 }
 
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types) {
-  return (Fir_Signature){.return_type = return_type, .param_count = param_count, .param_types = param_types};
+  return (Fir_Signature) {.return_type = return_type, .param_count = param_count, .param_types = param_types};
 }
 
 static void Fir_assert_symbol(SEXP sym, const char *what) {
@@ -65,7 +65,7 @@ static bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
     return false;
   }
   SEXP cp = R_ExternalPtrProtected(body);
-  *data = (Fir_FunctionData*)RAW0(Rsh_const(cp, 0));
+  *data = (Fir_FunctionData*) STDVEC_DATAPTR(Rsh_const(cp, 0));
   return true;
 }
 
@@ -79,8 +79,8 @@ static bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_d
   }
   SEXP data = R_ExternalPtrProtected(body);
   SEXP cp = CAR0(data);
-  *global_data = (Fir_PromiseGlobalData*)RAW0(Rsh_const(cp, 0));
-  *local_data = (Fir_PromiseLocalData*)RAW0(CDR(data));
+  *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Rsh_const(cp, 0));
+  *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(data));
   return true;
 }
 
@@ -187,8 +187,8 @@ SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
 
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env) {
   SEXP local_data_sexp = PROTECT(Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData)));
-  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData*)RAW0(local_data_sexp);
-  *local_data = (Fir_PromiseLocalData){.captures = captures};
+  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(local_data_sexp);
+  *local_data = (Fir_PromiseLocalData) {.captures = captures};
 
   SEXP data = PROTECT(Rf_cons(cp, local_data_sexp));
 
@@ -577,11 +577,19 @@ bool Fir_assume_type(SEXP value, Fir_Type type) {
   return Fir_value_matches(value, type);
 }
 
+void Fir_debug(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+  fprintf(stderr, "\n");
+}
+
 #define DEFINE_DISPATCH_INTRINSIC_BODY(X)\
   DEFINE_DISPATCH_INTRINSIC(X) {\
     va_list args;\
     va_start(args, signature);\
-    SEXP result = ((Fir_VersionFn) Fir_intrinsic_ ## X ## _v0)(env, args);\
+    SEXP result = ((Fir_VersionFn) Fir_ver_call_ ## X ## _v0)(env, args);\
     va_end(args);\
     return result;\
   }
@@ -643,31 +651,38 @@ DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0, SEXP dispatchResult) {
   Rf_error("unimplemented. Dispatch intrinsics will probably be removed and we'll prevent compiling this complex bytecode");
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(add, 1, SEXP a, SEXP b) {
+// +
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b) {
   return Rf_ScalarInteger(Rf_asInteger(a) + Rf_asInteger(b));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(add, 2, SEXP a, SEXP b) {
+// +
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) + Rf_asReal(b));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(lt, 1, SEXP a, SEXP b) {
+// <=
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) < Rf_asInteger(b));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(eq, 1, SEXP a, SEXP b) {
+// ==
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) == Rf_asInteger(b));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(eq, 2, SEXP a, SEXP b) {
+// ==
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asReal(a) == Rf_asReal(b));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(eq, 3, SEXP a, SEXP b) {
+// ==
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asChar(STRING_ELT(a, 0)) == Rf_asChar(STRING_ELT(b, 0)));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(eq, 4, SEXP a, SEXP b) {
+// ==
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b) {
   return Rf_ScalarLogical(a == b);
 }
 
@@ -675,14 +690,17 @@ DEFINE_OVERRIDDEN_BUILTIN(missing, 0, SEXP value) {
   return value == R_MissingArg ? R_TrueValue : R_FalseValue;
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(asInteger, 1, SEXP value) {
+// as.integer
+DEFINE_OVERRIDDEN_BUILTIN(as_u2einteger, 1, SEXP value) {
   return Rf_ScalarInteger(Rf_asInteger(value));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(asLogical, 1, SEXP value) {
+// as.logical
+DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, 1, SEXP value) {
   return Rf_ScalarLogical(Rf_asLogical(value));
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(asCharacter, 1, SEXP value) {
+// as.character
+DEFINE_OVERRIDDEN_BUILTIN(as_u2echaracter, 1, SEXP value) {
   return Rf_ScalarString(Rf_asChar(value));
 }

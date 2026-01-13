@@ -32,7 +32,7 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
     var firMainFn = firModule.localFunction(Variable.named("main"));
     assertNotNull(firMainFn, "FIR module missing main function");
 
-    return compile(firMainFn, R.getSession(), Option.EMIT_DEBUG_COMMENTS);
+    return compile(firMainFn, R.getSession(), Option.EMIT_DEBUG_COMMENTS, Option.EMIT_DEBUG_PRINTS);
   }
 
   @Override

@@ -12,6 +12,7 @@ public class CUnit {
   private final List<CExternFunction> externFunctions = new ArrayList<>();
   private final List<CGlobalVariable> globalVariables = new ArrayList<>();
   private final List<CFunction> functions = new ArrayList<>();
+  private final StringBuilder extra = new StringBuilder();
 
   public void addInclude(String include) {
     includes.add(include);
@@ -33,6 +34,10 @@ public class CUnit {
     var fun = new CFunction(this, returnType, name, parameters);
     functions.add(fun);
     return fun;
+  }
+
+  public void addExtra(String extra) {
+    this.extra.append(extra);
   }
 
   /// Print the module.
@@ -76,5 +81,14 @@ public class CUnit {
     }
 
     functions.forEach(x -> x.writeDefinition(pw));
+    if (!functions.isEmpty()) {
+      pw.println();
+    }
+
+    pw.print(extra);
+    if (!extra.isEmpty()) {
+      // Trailing newline
+      pw.println();
+    }
   }
 }

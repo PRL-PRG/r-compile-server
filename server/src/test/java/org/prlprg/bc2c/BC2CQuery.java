@@ -1,5 +1,6 @@
 package org.prlprg.bc2c;
 
+import java.util.List;
 import org.prlprg.bc.BCQuery;
 import org.prlprg.bc.Bc;
 import org.prlprg.examples.Example;
@@ -29,7 +30,15 @@ public class BC2CQuery implements CompiledModuleQuery {
 
   private static CompiledModule compile(Bc bc, boolean compilePromises) {
     try {
-      return BC2CCompiler.compile(bc, "main", compilePromises);
+      // Use the same conventions as FIŘ, so both can be tested the same way:
+      // give the compiled closure the same C name and define an (empty) initializer
+
+      var module = BC2CCompiler.compile(bc, "Fir_fun_from_r_main", compilePromises);
+
+      var initStub = module.code().addFunction("SEXP", "Fir_fun_init_main", List.of("SEXP cp"));
+      initStub.add().stmt("return R_NilValue;");
+
+      return module;
     } catch (UnsupportedBcInstrException e) {
       throw new SkipQueryException("bc2c", e);
     }
