@@ -160,6 +160,7 @@ testb:
 clean:
 	@echo "Cleaning up..."
 	@rm -f $(ROOT_DIR)/r-pkg/src/rcp_common.h
+	@rm -f $(ROOT_DIR)/r-pkg/src/rcp_bc_info.h
 	@rm -f $(ROOT_DIR)/r-pkg/src/runtime_internals.h
 	@rm -f $(ROOT_DIR)/r-pkg/src/stencils
 	@rm -fr $(BUILD_DIR)
