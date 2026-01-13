@@ -2567,6 +2567,8 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
                                                SEXP rho, int type) {
   SEXP seq = VAL_SXP(*seq_val);
 
+  assert(type == ISQSXP || info->len == Rf_xlength(seq));
+
   R_xlen_t i = ++(info->idx);
 
   if (i >= info->len) {
