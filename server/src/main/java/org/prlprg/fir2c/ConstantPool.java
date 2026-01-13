@@ -27,8 +27,8 @@ final class ConstantPool {
   /// If `obj` hasn't already been "interned" this way, add a NULL value to the pool, and call
   /// `patch` with its index. `patch` should add code that will modify the index at runtime with
   /// the SEXP encoded (at runtime) in `obj`.
-  public void internPatched(Object obj, Consumer<Integer> patch) {
-    patchedIndices.computeIfAbsent(
+  public int internPatched(Object obj, Consumer<Integer> patch) {
+    return patchedIndices.computeIfAbsent(
         obj,
         _ -> {
           patch.accept(data.size());

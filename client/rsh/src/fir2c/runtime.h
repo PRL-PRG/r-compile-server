@@ -113,12 +113,25 @@ bool Fir_assume_constant(SEXP value, SEXP constant);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_type(SEXP value, Fir_Type type);
 
+void Fir_debug(const char* fmt, ...);
+
 #define Fir_LoadFun_Local 0
 #define Fir_LoadFun_Global 1
 #define Fir_LoadFun_Base 2
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+
 #define DEFINE_DISPATCH_INTRINSIC(X)\
-  SEXP Fir_intrinsic_ ## X(SEXP env, Fir_Signature signature, ...)
+  SEXP Fir_fun_dispatch_ ## X(SEXP env, Fir_Signature signature, ...)
+
+#define DEFINE_INTRINSIC(X, n, ...)\
+  SEXP Fir_ver_call_ ## X ## _v ## n(SEXP env, ##__VA_ARGS__)
+
+#define DEFINE_OVERRIDDEN_BUILTIN(X, n, ...)\
+  SEXP Fir_ver_call_ ## X ## _v ## n(SEXP env, ##__VA_ARGS__)
+
+#pragma clang diagnostic pop
 
 DEFINE_DISPATCH_INTRINSIC(checkFun);
 DEFINE_DISPATCH_INTRINSIC(checkMissing);
@@ -129,8 +142,6 @@ DEFINE_DISPATCH_INTRINSIC(tryDispatchBuiltin);
 DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinDispatched);
 DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinValue);
 
-#define DEFINE_INTRINSIC(X, n, ...)\
-  SEXP Fir_intrinsic_ ## X ## _v ## n(SEXP env, ##__VA_ARGS__)
 DEFINE_INTRINSIC(checkFun, 0, SEXP value);
 DEFINE_INTRINSIC(checkMissing, 0, SEXP value);
 DEFINE_INTRINSIC(toForSeq, 0, SEXP value);
@@ -141,19 +152,17 @@ DEFINE_INTRINSIC(tryDispatchBuiltin, 1, SEXP funName, SEXP target);
 DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0, SEXP dispatchResult);
 DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0, SEXP dispatchResult);
 
-#define DEFINE_OVERRIDDEN_BUILTIN(X, n, ...)\
-  SEXP Fir_builtin_ ## X ## _v ## n(SEXP CCP, SEXP env, ##__VA_ARGS__)
-DEFINE_OVERRIDDEN_BUILTIN(add, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(add, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(lt, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(eq, 4, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b);  // +
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b);  // +
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b);  // <=
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b);  // ==
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b);  // ==
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b);  // ==
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(missing, 0, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(asInteger, 1, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(asLogical, 1, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(asCharacter, 1, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(as_u2einteger, 1, SEXP value);  // as.integer
+DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, 1, SEXP value);  // as.logical
+DEFINE_OVERRIDDEN_BUILTIN(as_u2echaracter, 1, SEXP value);  // as.character
 
 #ifdef __cplusplus
 }
