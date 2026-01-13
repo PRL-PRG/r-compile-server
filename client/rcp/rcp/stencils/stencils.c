@@ -240,12 +240,20 @@ RCP_OP(STARTFOR,
 #undef X
 
 #ifdef STEPFOR_SPECIALIZE
+
+static __attribute__((noinline))
+Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho) {
+  return Rsh_StepFor(stack, cell, rho);
+}
+
 #define X(a, b)                                                                \
   static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(                \
       Value *stack, BCell *cell, SEXP rho) {                                   \
-    return Rsh_DoStepFor(GET_VAL(-3),                                          \
-                         (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2))),           \
-                         GET_VAL(-1), cell, rho, b);                           \
+    RshLoopInfo *__info__ = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2)));        \
+    /* If the loop was changed (in a recursive call) */                        \
+    if (__builtin_expect(__info__->type != b, FALSE))                          \
+      return RCP_STEPFOR_Fallback(stack, cell, rho);                           \
+    return Rsh_DoStepFor(GET_VAL(-3), __info__, GET_VAL(-1), cell, rho, b);    \
   }
 X_STEPFOR_TYPES
 #undef X
