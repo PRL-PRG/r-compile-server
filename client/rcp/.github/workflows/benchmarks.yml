@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: benchmarks
+  cancel-in-progress: false
+
 jobs:
   build-images:
     name: Images
