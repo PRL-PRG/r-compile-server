@@ -2677,8 +2677,8 @@ static INLINE void Rsh_Colon(Value *stack, SEXP call, SEXP rho) {
         rn2 == (int)rn2) {
       ISQ_NEW(rn1, rn2, res);
       R_Visible = TRUE;
+      return;
     }
-    return;
   }
 
   // slow path!
