@@ -1072,8 +1072,6 @@ static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
   INIT_CALL_FRAME(args_head, args_tail);
 }
 
-#define Rsh_CallBuiltin Rsh_Call
-
 #define Rsh_PushArg(stack)                                                     \
   do {                                                                         \
     Value *__s__ = (stack);                                                    \
@@ -1206,6 +1204,32 @@ static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
   default:
     Rf_error("bad function");
   }
+
+  SET_VAL_N(-3, value);
+}
+
+static INLINE void Rsh_CallBuiltin(Value *stack, SEXP call, SEXP rho) {
+  // stack:
+  //  fun
+  //  args_head
+  //  args_tail
+  //  -> top
+  SEXP fun = VAL_SXP(*GET_VAL(-3));
+  SEXP args = Rsh_builtin_call_args(VAL_SXP(*GET_VAL(-2)));
+  int flag;
+  // const void *vmax = vmaxget(); // Needed only for profiling
+  if (TYPEOF(fun) != BUILTINSXP)
+    error("not a BUILTIN function");
+  flag = PRIMPRINT(fun);
+  R_Visible = (Rboolean)(flag != 1);
+  SEXP value;
+  // Profiling not supported in Rsh, skipping the profiling branch
+  // TODO support profiling?
+  value = PRIMFUN(fun)(call, fun, args, rho);
+  if (flag < 2) {
+    R_Visible = (Rboolean)(flag != 1);
+  }
+  // vmaxset(vmax); // Needed only for profiling
 
   SET_VAL_N(-3, value);
 }
