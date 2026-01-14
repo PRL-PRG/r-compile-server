@@ -113,7 +113,8 @@ bool Fir_assume_constant(SEXP value, SEXP constant);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_type(SEXP value, Fir_Type type);
 
-void Fir_debug(const char* fmt, ...);
+void Fir_dbg_comment(const char* comment);
+void Fir_dbg_sexp(const char* name, SEXP value);
 
 #define Fir_LoadFun_Local 0
 #define Fir_LoadFun_Global 1
@@ -154,6 +155,7 @@ DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0, SEXP dispatchResult);
 
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b);  // +
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b);  // +
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b);  // <
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b);  // <=
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b);  // ==

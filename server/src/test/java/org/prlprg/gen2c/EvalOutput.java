@@ -1,6 +1,7 @@
 package org.prlprg.gen2c;
 
 import java.util.Objects;
+import java.util.regex.Pattern;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
@@ -20,13 +21,17 @@ public record EvalOutput(
       return false;
     }
     return Objects.equals(returnValue, that.returnValue)
-        && Objects.equals(outputLog, that.outputLog);
+        && Objects.equals(behaviorOutputLog(), that.behaviorOutputLog());
   }
 
   /// Ignore `pc` in comparison
   @Override
   public int hashCode() {
-    return Objects.hash(outputLog, returnValue);
+    return Objects.hash(returnValue, behaviorOutputLog());
+  }
+
+  public String behaviorOutputLog() {
+    return Pattern.compile("(\\n|^)[>*+#].*$", Pattern.MULTILINE).matcher(outputLog).replaceAll("");
   }
 
   @Override
