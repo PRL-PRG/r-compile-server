@@ -51,6 +51,7 @@ import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
+import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -190,15 +191,15 @@ public final class Fir2CCompiler {
     }
 
     private void beginEmitInit() {
-      annotateDebug(initCFunction.add(), "FIŘ %s init", function.name());
+      debugComment(initCFunction.add(), "## Init %s", function.name());
 
       var cCode = initCFunction.add();
-      annotateDebug(cCode, "Assign constant pool global variable");
+      debugComment(cCode, "# Assign constant pool global variable");
       var constantsCName = functionConstantsCName(function);
       cCode.stmt("%s = %s;", constantsCName, VAR_POOL);
 
       cCode = initCFunction.add();
-      annotateDebug(cCode, "Add `Fir_FunctionData`");
+      debugComment(cCode, "# Add `Fir_FunctionData`");
       cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt("*data = (Fir_FunctionData) {.dispatch = %s};", functionDispatchCName(function));
@@ -214,17 +215,22 @@ public final class Fir2CCompiler {
       var cName = functionFromRCName(function);
       var cFunction = cUnit.addFunction(FROM_R_C_RETURN, cName, FROM_R_C_PARAMS);
 
-      annotateDebug(cFunction.add(), "FIŘ %s dispatch from R", function.name());
+      CCode cCode;
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS) || options.contains(Option.EMIT_DEBUG_PRINTS)) {
+        cCode = cFunction.add();
+
+        debugComment(cCode, "## Dispatch-from-R %s", function.name());
+      }
 
       if (!function.parameterNames().isEmpty()) {
         emitConstantPoolAlias(cFunction);
       }
 
       // TODO: Dispatch optimized version when possible
-      annotateDebug(cFunction.add(), "TODO: Dispatch optimized version when possible");
+      debugComment(cFunction.add(), "# TODO: Dispatch optimized version when possible");
 
-      var cCode = cFunction.add();
-      annotateDebug(cCode, "Dispatch baseline");
+      cCode = cFunction.add();
+      debugComment(cCode, "# Dispatch baseline");
       var baseline = function.baseline();
       var baselineCName = versionCallCName(function, baseline);
       if (baseline.parameters().size() != function.parameterNames().size()) {
@@ -254,22 +260,24 @@ public final class Fir2CCompiler {
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)
           || options.contains(Option.EMIT_DEBUG_PRINTS)) {
         cCode = cFunction.add();
-        annotateDebug(cCode, "FIŘ %s dispatch", function.name());
+
+        debugComment(cCode, "## Dispatch %s", function.name());
+
         for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
           version = versionIter.next();
 
-          annotateDebug(cCode, "%d. %s", i, version.signature());
+          debugComment(cCode, "# %d. %s", i, version.signature());
         }
       }
 
       cCode = cFunction.add();
-      annotateDebug(cCode, "Setup");
+      debugComment(cCode, "# Setup");
       cCode.stmt("bool incompatible[%d];", versions.size());
       cCode.stmt("va_list args;");
       cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
 
       cCode = cFunction.add();
-      annotateDebug(cCode, "Filter by argument count");
+      debugComment(cCode, "# Filter by argument count");
       for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
@@ -279,7 +287,7 @@ public final class Fir2CCompiler {
       }
 
       cCode = cFunction.add();
-      annotateDebug(cCode, "Filter by static return type");
+      debugComment(cCode, "# Filter by static return type");
       for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
@@ -296,7 +304,7 @@ public final class Fir2CCompiler {
       // TODO: Don't check parts of the static type that are known at runtime,
       //  then filter by runtime type. Currently we ignore the runtime type.
       cCode = cFunction.add();
-      annotateDebug(cCode, "Filter by arguments' static types");
+      debugComment(cCode, "# Filter by arguments' static types");
       for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
@@ -312,13 +320,13 @@ public final class Fir2CCompiler {
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)
           || options.contains(Option.EMIT_DEBUG_PRINTS)) {
         cCode = cFunction.add();
-        annotateDebug(cCode, "Filter by arguments' runtime type");
-        annotateDebug(
-            cCode, "TODO. Currently we check the full static type, so it's sound, but not optimal");
+        debugComment(cCode, "# Filter by arguments' runtime type");
+        debugComment(
+            cCode, "# TODO. Currently we check the full static type, so it's sound, but not optimal");
       }
 
       cCode = cFunction.add();
-      annotateDebug(cCode, "Call first compatible version");
+      debugComment(cCode, "# Call first compatible version");
       cCode.stmt("SEXP out;");
       for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
@@ -342,6 +350,9 @@ public final class Fir2CCompiler {
     }
 
     private void emitVersions() {
+      var initCCode = initCFunction.add();
+      debugComment(initCCode, "# Init versions");
+
       for (var version : function.versions()) {
         if (version.isStub()) {
           VersionEmitter.forwardDeclareStub(cUnit, function, version);
@@ -349,8 +360,6 @@ public final class Fir2CCompiler {
           var cpSxp = new VersionEmitter(version).run();
           var cp = constantRef(fnPool, cpSxp);
 
-          var initCCode = initCFunction.add();
-          annotateDebug(initCCode, "Init version %s", function.indexOf(version));
           var versionInitCName = versionInitCName(function, version);
           initCCode.stmt("%s(%s);", versionInitCName, cp);
         }
@@ -441,18 +450,27 @@ public final class Fir2CCompiler {
 
         if (options.contains(Option.EMIT_DEBUG_COMMENTS)
             || options.contains(Option.EMIT_DEBUG_PRINTS)) {
-          annotateDebug(
+          debugComment(
               initCFunction.add(),
-              "FIŘ %s version %d (%s) init",
+              "## Init %s version %d (%s)",
               function.name().name(),
               function.indexOf(version),
               version.signature());
-          annotateDebug(
-              cFunction.add(),
-              "FIŘ %s version %d (%s)",
+
+          var cCode = cFunction.add();
+          debugComment(
+              cCode,
+              "## Call %s version %d (%s)",
               function.name().name(),
               function.indexOf(version),
               version.signature());
+
+          // Debug-print SEXP parameters
+          if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
+            for (var param : version.parameters()) {
+              debugValue(cCode, param.variable().name(), registerCName(param.variable()));
+            }
+          }
         }
 
         return new CfgEmitter(
@@ -506,7 +524,7 @@ public final class Fir2CCompiler {
 
         private void beginEmitInit() {
           var cCode = initCFunction.add();
-          annotateDebug(cCode, "Create `Fir_PromiseData`");
+          debugComment(cCode, "# Create `Fir_PromiseData`");
           cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_PromiseGlobalData));");
           var idx = pool.internSpace();
           cCode.stmt("Rsh_set_const(data_sexp, %d, %s);", idx, constantsCName);
@@ -533,11 +551,12 @@ public final class Fir2CCompiler {
           var captureSet = Objects.requireNonNull(captures.get(promise.code()));
 
           var cCode = evalCFunction.add();
-          annotateDebug(cCode, "Bind captures");
+          debugComment(cCode, "# Bind captures");
           var iter = captureSet.iterator();
           for (var i = 0; i < captureSet.size(); i++) {
             var captureName = registerCName(iter.next());
             cCode.stmt("SEXP *%s = %s[%d];", captureName, VAR_CAPTURES, i);
+            debugValue(cCode, captureName, "*%s".formatted(captureName));
           }
         }
       }
@@ -594,7 +613,7 @@ public final class Fir2CCompiler {
         private void beginEmitInit() {
           var cCode = initCFunction.add();
 
-          annotateDebug(cCode, "Assign constant pool global variable");
+          debugComment(cCode, "# Assign constant pool global variable");
 
           cCode.stmt("%s = %s;", constantsCName, VAR_POOL);
         }
@@ -604,7 +623,7 @@ public final class Fir2CCompiler {
         }
 
         private void emitConstantPoolAlias() {
-          cFunction.add().stmt("SEXP %s = %s;", VAR_POOL, versionConstantsCName(function, version));
+          cFunction.add().stmt("SEXP %s = %s;", VAR_POOL, constantsCName);
         }
 
         private void emitLocalDeclarations() {
@@ -615,7 +634,7 @@ public final class Fir2CCompiler {
 
           var sec = cFunction.add();
 
-          annotateDebug(sec, "Declare locals");
+          debugComment(sec, "# Declare locals");
 
           for (var register : localRegisters) {
             var cName = registerCName(register);
@@ -651,7 +670,7 @@ public final class Fir2CCompiler {
           }
 
           private void emitStatement(Statement statement) {
-            annotateDebug(cCode, "> %s", statement.toString().replace("\n", "\n+ "));
+            debugInstr(cCode, statement);
 
             var expr = emitExpression(statement.expression());
 
@@ -659,6 +678,7 @@ public final class Fir2CCompiler {
               cCode.stmt("(void)(%s);", expr);
             } else {
               cCode.stmt("%s = %s;", registerPlace(statement.assignee()), expr);
+              debugValue(cCode, statement.assignee().name(), expr);
             }
           }
 
@@ -686,8 +706,8 @@ public final class Fir2CCompiler {
 
                             // Protect function's already-initialized constant pool
                             var initCCode = initCFunction.add();
-                            annotateDebug(
-                                initCCode, "Protect already-init nested %s", function.name());
+                            debugComment(
+                                initCCode, "# Protect already-init nested %s", function.name());
                             initCCode.stmt(
                                 "Rsh_set_const(%s, %d, %s);", VAR_POOL, idx, constantsCName);
                           });
@@ -702,7 +722,7 @@ public final class Fir2CCompiler {
 
                   // Call the function's initializer with the stored constant pool
                   var initCCode = initCFunction.add();
-                  annotateDebug(initCCode, "Init nested %s", function.name());
+                  debugComment(initCCode, "# Init nested %s", function.name());
                   initCCode.stmt("%s(%s);", functionInitCName(function), cp);
                 }
 
@@ -721,21 +741,21 @@ public final class Fir2CCompiler {
                     cUnit.addFunction(PROMISE_EVAL_C_RETURN, evalCName, PROMISE_EVAL_C_PARAMS);
                 if (options.contains(Option.EMIT_DEBUG_COMMENTS)
                     || options.contains(Option.EMIT_DEBUG_PRINTS)) {
-                  annotateDebug(
+                  debugComment(
                       promiseInitCFunction.add(),
-                      "FIŘ %s version %s promise in BB %s init",
+                      "## Init %s version %s promise in BB %s",
                       function.name(),
                       function.indexOf(version),
                       bb.label());
-                  annotateDebug(
+                  debugComment(
                       promiseFromRCFunction.add(),
-                      "FIŘ %s version %s promise in BB %s eval from R",
+                      "## Eval-from-R %s version %s promise in BB %s",
                       function.name(),
                       function.indexOf(version),
                       bb.label());
-                  annotateDebug(
+                  debugComment(
                       promiseEvalCFunction.add(),
-                      "FIŘ %s version %s promise in BB %s eval",
+                      "## Eval %s version %s promise in BB %s",
                       function.name(),
                       function.indexOf(version),
                       bb.label());
@@ -751,9 +771,9 @@ public final class Fir2CCompiler {
                 var cp = constantRef(pool, cpSxp);
 
                 var initCCode = initCFunction.add();
-                annotateDebug(
+                debugComment(
                     initCCode,
-                    "Init child promise of %s version %s in BB %s",
+                    "# Init %s version %s promise in BB %s",
                     function.name(),
                     function.indexOf(version),
                     bb.label());
@@ -857,7 +877,7 @@ public final class Fir2CCompiler {
                         var constantsCName = functionConstantsCName(calleeFun);
 
                         var initCCode = initCFunction.add();
-                        annotateDebug(initCCode, "Protect constants for %s", calleeFun.name());
+                        debugComment(initCCode, "# Protect constants of %s", calleeFun.name());
                         initCCode.stmt(
                             "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
                       });
@@ -888,9 +908,9 @@ public final class Fir2CCompiler {
                         var constantsCName = versionConstantsCName(calleeFunction, calleeVersion);
 
                         var initCCode = initCFunction.add();
-                        annotateDebug(
+                        debugComment(
                             initCCode,
-                            "Protect constants for %s version %s",
+                            "# Protect constants of %s version %s",
                             calleeFunction.name(),
                             calleeFunction.indexOf(calleeVersion));
                         initCCode.stmt(
@@ -923,7 +943,7 @@ public final class Fir2CCompiler {
           }
 
           private void emitJump(Jump jump) {
-            annotateDebug(cCode, "> %s", jump);
+            debugInstr(cCode, jump);
 
             switch (jump) {
               case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
@@ -970,7 +990,8 @@ public final class Fir2CCompiler {
           }
 
           private String emitAssumptionCondition(Assume assume) {
-            annotateDebug(cCode, "? %s", assume);
+            debugComment(cCode, "? %s", assume);
+            debugArgs(cCode, assume.arguments());
 
             return switch (assume) {
               case AssumeConstant(var target, var constant) ->
@@ -992,7 +1013,7 @@ public final class Fir2CCompiler {
                   "Phi parameter/argument count mismatch for " + target.bb().label());
             }
 
-            annotateDebug(cCode, "<%s>", target);
+            debugComment(cCode, "# <%s>", target);
 
             for (var i = 0; i < parameters.size(); i++) {
               var phi = parameters.get(i);
@@ -1083,6 +1104,24 @@ public final class Fir2CCompiler {
               case Use(var variable) -> registerPlace(variable);
             };
           }
+
+          // region misc
+          private void debugInstr(CCode cCode, Instruction instr) {
+            debugComment(cCode, "> %s", instr.toString().replace("\n", "\n+ "));
+            if (!(instr instanceof Statement s && s.expression() instanceof Promise)) {
+              debugArgs(cCode, instr.arguments());
+            }
+          }
+
+          private void debugArgs(CCode cCode, Collection<Argument> arguments) {
+            if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
+              for (var arg : arguments) {
+                var argEmit = emitArgument(arg);
+                debugValue(cCode, arg.toString(), argEmit);
+              }
+            }
+          }
+          // endregion misc
         }
 
         // region misc
@@ -1260,13 +1299,17 @@ public final class Fir2CCompiler {
     return "Rsh_const(%s, %d)".formatted(VAR_POOL, pool.intern(sexp));
   }
 
-  private void annotateDebug(CCode cCode, @PrintFormat String fmt, Object... args) {
+  private void debugComment(CCode cCode, @PrintFormat String fmt, Object... args) {
     if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
       cCode.comment(fmt, args);
     }
     if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
-      cCode.stmt("Fir_debug(\"%%s\", \"%s\");", sanitizeString(fmt.formatted(args)));
+      cCode.stmt("Fir_dbg_comment(\"%s\");", sanitizeString(fmt.formatted(args)));
     }
+  }
+
+  private void debugValue(CCode cCode, String name, String var) {
+    cCode.stmt("Fir_dbg_sexp(\"%s\", %s);", sanitizeString(name), var);
   }
 
   private static String sanitizeString(String value) {

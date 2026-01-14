@@ -27,6 +27,7 @@
 #define isObject(s) (OBJECT(s) != 0)
 #define Rf_isLogical(s) (TYPEOF(s) == LGLSXP)
 #define isNumericOnly(x) (Rf_isNumeric(x) && !Rf_isLogical(x))
+#define PRIMNAME(x)	(R_FunTab[(x)->u.primsxp.offset].name)
 
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */

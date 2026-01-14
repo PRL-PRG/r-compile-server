@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "print_sexp.h"
 
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
@@ -577,11 +578,13 @@ bool Fir_assume_type(SEXP value, Fir_Type type) {
   return Fir_value_matches(value, type);
 }
 
-void Fir_debug(const char* fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  vfprintf(stderr, fmt, args);
-  va_end(args);
+void Fir_dbg_comment(const char* comment) {
+  fprintf(stderr, "%s\n", comment);
+}
+
+void Fir_dbg_sexp(const char* name, SEXP value) {
+  fprintf(stderr, "* %s = ", name);
+  Fir_printSexp(value);
   fprintf(stderr, "\n");
 }
 
@@ -661,9 +664,14 @@ DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) + Rf_asReal(b));
 }
 
+// <
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b) {
+  return Rf_ScalarLogical(Rf_asInteger(a) < Rf_asInteger(b));
+}
+
 // <=
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b) {
-  return Rf_ScalarLogical(Rf_asInteger(a) < Rf_asInteger(b));
+  return Rf_ScalarLogical(Rf_asInteger(a) <= Rf_asInteger(b));
 }
 
 // ==
