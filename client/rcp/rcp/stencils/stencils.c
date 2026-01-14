@@ -12,19 +12,28 @@
 
 #include "../rcp_bc_info.h"
 
-#define CONST_RUNTIME_VAR(symbol) (const SEXP const)(&_RCP_CRUNTIME0_##symbol)
+#define CONST_RUNTIME_VAR(symbol, type) ((type const)(void* const)(&_RCP_CRUNTIME0_##symbol))
 
 extern const void* const _RCP_CRUNTIME0_R_NilValue[];
-#define R_NilValue CONST_RUNTIME_VAR(R_NilValue)
+#define R_NilValue CONST_RUNTIME_VAR(R_NilValue, SEXP)
+
+extern const void* const _RCP_CRUNTIME0_R_UnboundValue[];
+#define R_UnboundValue CONST_RUNTIME_VAR(R_UnboundValue, SEXP)
+
+extern const void* const _RCP_CRUNTIME0_R_MissingArg[];
+#define R_MissingArg CONST_RUNTIME_VAR(R_MissingArg, SEXP)
 
 extern const void* const _RCP_CRUNTIME0_R_TrueValue[];
-#define R_TrueValue CONST_RUNTIME_VAR(R_TrueValue)
+#define R_TrueValue CONST_RUNTIME_VAR(R_TrueValue, SEXP)
 
 extern const void* const _RCP_CRUNTIME0_R_FalseValue[];
-#define R_FalseValue CONST_RUNTIME_VAR(R_FalseValue)
+#define R_FalseValue CONST_RUNTIME_VAR(R_FalseValue, SEXP)
 
 extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
-#define R_LogicalNAValue CONST_RUNTIME_VAR(R_LogicalNAValue)
+#define R_LogicalNAValue CONST_RUNTIME_VAR(R_LogicalNAValue, SEXP)
+
+extern const void* const _RCP_CRUNTIME0_R_DotsSymbol[];
+#define R_DotsSymbol CONST_RUNTIME_VAR(R_DotsSymbol, SEXP)
 
 //#define NO_STACK_OVERFLOW_CHECK
 #include <runtime.h>
