@@ -861,6 +861,8 @@ static ALWAYS_INLINE void Rsh_get_ddval(Value *res, SEXP symbol, BCell *cell,
                                         Rboolean keepmiss, SEXP rho) {
   RSH_PC_INC(getvar);
 
+  R_Visible = TRUE;
+
   assert(cell != NULL);
 
   switch (BCELL_TAG(*cell)) {
@@ -882,6 +884,8 @@ static ALWAYS_INLINE void Rsh_get_ddval(Value *res, SEXP symbol, BCell *cell,
 static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
                                       Rboolean keepmiss, SEXP rho) {
   RSH_PC_INC(getvar);
+
+  R_Visible = TRUE;
 
   SEXP value;
 
@@ -1087,9 +1091,18 @@ static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
 #define Rsh_PushTrueArg(stack) Rsh_PushConstArg(stack, R_TrueValue)
 #define Rsh_PushFalseArg(stack) Rsh_PushConstArg(stack, R_FalseValue)
 
-#define Rsh_LdTrue(stack) SET_LGL_VAL(GET_VAL_EX(stack, -1), TRUE)
-#define Rsh_LdFalse(stack) SET_LGL_VAL(GET_VAL_EX(stack, -1), FALSE)
-#define Rsh_LdNull(stack) SET_SXP_VAL(GET_VAL_EX(stack, -1), R_NilValue)
+static INLINE void Rsh_LdTrue(Value *stack) {
+  R_Visible = TRUE;
+  SET_LGL_VAL(GET_VAL_EX(stack, -1), TRUE);
+}
+static INLINE void Rsh_LdFalse(Value *stack) {
+  R_Visible = TRUE;
+  SET_LGL_VAL(GET_VAL_EX(stack, -1), FALSE);
+}
+static INLINE void Rsh_LdNull(Value *stack) {
+  R_Visible = TRUE;
+  SET_SXP_VAL(GET_VAL_EX(stack, -1), R_NilValue);
+}
 
 #define Rsh_LdConstInt(stack, s)                                               \
   do {                                                                         \
@@ -1225,7 +1238,6 @@ static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
 
 #define DO_ARITH(op, a, b, r)                                                  \
   do {                                                                         \
-    R_Visible = TRUE;                                                          \
     switch (op) {                                                              \
     case ADD_OP:                                                               \
       *(r) = (a) + (b);                                                        \
@@ -1248,7 +1260,6 @@ static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
 // Sets r to LGL_TO_VAL(a op b)
 #define DO_RELOP(op, a, b, r)                                                  \
   do {                                                                         \
-    R_Visible = TRUE;                                                          \
     int __res__;                                                               \
     switch (op) {                                                              \
     case EQ_OP:                                                                \
@@ -1294,10 +1305,12 @@ static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
     if (VAL_IS_DBL(rhs)) {
       DO_ARITH(op, lhs_dbl, VAL_DBL(rhs), &res_dbl);
       SET_DBL_VAL(res, res_dbl);
+      R_Visible = TRUE;
       return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_ARITH(op, lhs_dbl, VAL_INT(rhs), &res_dbl);
       SET_DBL_VAL(res, res_dbl);
+      R_Visible = TRUE;
       return;
     }
   }
@@ -1308,16 +1321,19 @@ static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
     if (VAL_IS_DBL(rhs)) {
       DO_ARITH(op, lhs_int, VAL_DBL(rhs), &res_dbl);
       SET_DBL_VAL(res, res_dbl);
+      R_Visible = TRUE;
       return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       if (op == DIV_OP || op == EXPT_OP) {
         DO_ARITH(op, (double)lhs_int, (double)VAL_INT(rhs), &res_dbl);
         SET_DBL_VAL(res, res_dbl);
+        R_Visible = TRUE;
         return;
       } else {
         int res_int = 0;
         DO_ARITH(op, lhs_int, VAL_INT(rhs), &res_int);
         SET_INT_VAL(res, res_int);
+        R_Visible = TRUE;
         return;
       }
     }
@@ -1326,6 +1342,7 @@ static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
   // Slow path!
   RSH_PC_INC(slow_arith);
   DO_BINARY_BUILTIN(arith2, call, r_op, r_op_sym, lhs, rhs, rho, res);
+  R_Visible = TRUE;
 }
 
 #define X(a, b, c)                                                             \
@@ -1347,9 +1364,11 @@ static ALWAYS_INLINE void Rsh_relop(Value *stack, SEXP call, RshRelOp op,
     double lhs_dbl = VAL_DBL(lhs);
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
       DO_RELOP(op, lhs_dbl, VAL_DBL(rhs), res);
+      R_Visible = TRUE;
       return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_RELOP(op, lhs_dbl, VAL_INT(rhs), res);
+      R_Visible = TRUE;
       return;
     }
   }
@@ -1359,9 +1378,11 @@ static ALWAYS_INLINE void Rsh_relop(Value *stack, SEXP call, RshRelOp op,
 
     if (VAL_IS_DBL_NOT_NAN(rhs)) {
       DO_RELOP(op, lhs_int, VAL_DBL(rhs), res);
+      R_Visible = TRUE;
       return;
     } else if (VAL_IS_INT_NOT_NA(rhs)) {
       DO_RELOP(op, lhs_int, VAL_INT(rhs), res);
+      R_Visible = TRUE;
       return;
     }
   }
@@ -1369,6 +1390,7 @@ static ALWAYS_INLINE void Rsh_relop(Value *stack, SEXP call, RshRelOp op,
   // Slow path!
   RSH_PC_INC(slow_relop);
   DO_BINARY_BUILTIN(relop, call, r_op, r_op_sym, lhs, rhs, rho, res);
+  R_Visible = TRUE;
 }
 
 #define X(a, b, c)                                                             \
@@ -1389,7 +1411,6 @@ X_REL_OPS
     assert(TYPEOF((op)) == BUILTINSXP);                                        \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
     SET_VAL(res, __res_sxp__);                                                 \
-    R_Visible = TRUE;                                                          \
   } while (0)
 
 // calls R builtin function do_* with 2 arguments
@@ -1403,7 +1424,6 @@ X_REL_OPS
     assert(TYPEOF((op)) == BUILTINSXP);                                        \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
     SET_VAL(res, __res_sxp__);                                                 \
-    R_Visible = TRUE;                                                          \
   } while (0)
 
 static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho,
@@ -1424,7 +1444,6 @@ static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho,
     }
 
     SET_DBL_VAL(res, d);
-    R_Visible = TRUE;
   } else if (VAL_IS_INT_NOT_NA(arg)) {
     double d = (double)VAL_INT(arg);
     d = op == SQRT_OP ? sqrt(d) : exp(d);
@@ -1434,12 +1453,12 @@ static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho,
     }
 
     SET_DBL_VAL(res, d);
-    R_Visible = TRUE;
   } else {
     // Slow path!
     RSH_PC_INC(slow_math1);
     DO_BUILTIN1(do_math1, call, r_op, val_as_sexp(arg), rho, res);
   }
+  R_Visible = TRUE;
 }
 
 #define X(a, b, c)                                                             \
@@ -1490,11 +1509,14 @@ static INLINE void Rsh_Not(Value *stack, SEXP call, SEXP rho) {
   Value arg = *GET_VAL(-1);
   Value *res = GET_VAL(-1);
 
+  R_Visible = TRUE;
+
   if (VAL_IS_LGL_NOT_NA(arg) || VAL_IS_INT_NOT_NA(arg)) {
     SET_LGL_VAL(res, !VAL_INT(arg));
   } else {
     // Slow path!
     DO_BUILTIN1(do_logic, call, NOT_OP, val_as_sexp(arg), rho, res);
+    assert(R_Visible == TRUE);
   }
 }
 
@@ -1506,6 +1528,7 @@ static INLINE void Rsh_logic(Value *stack, SEXP call, RshLogic2Op op, SEXP rho,
   // TODO: not optimized
   // Slow path!
   DO_BUILTIN2(do_logic, call, r_op, lhs, rhs, rho, res);
+  R_Visible = TRUE;
 }
 
 #define X(a, b, c)                                                             \
@@ -2683,6 +2706,7 @@ static INLINE void Rsh_Colon(Value *stack, SEXP call, SEXP rho) {
 
   // slow path!
   DO_BUILTIN2(do_colon, call, Rsh_ColonOp, from, to, rho, res);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_SeqAlong(Value *stack, SEXP call, SEXP rho) {
@@ -2699,6 +2723,7 @@ static INLINE void Rsh_SeqAlong(Value *stack, SEXP call, SEXP rho) {
 
   assert(Rsh_SeqAlongOp == R_Primitive("seq_along"));
   DO_BUILTIN1(do_seq_along, call, Rsh_SeqAlongOp, s, rho, v);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
@@ -2719,6 +2744,7 @@ static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
 
   assert(Rsh_SeqLenOp == R_Primitive("seq_len"));
   DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenOp, val_as_sexp(*v), rho, v);
+  R_Visible = TRUE;
 }
 
 #define RSH_IS_TEST(v, p)                                                      \
@@ -2839,7 +2865,6 @@ static INLINE void Rsh_And2nd(Value *stack, SEXP call) {
   Value v = *GET_VAL(-1);
   // r1 is the result of Rsh_And1St
   fixup_scalar_logical(&v, call, "'y'", "&&");
-  R_Visible = TRUE;
   // Note: ‘NA’ is a valid logical object.  Where a component of ‘x’ or ‘y’
   //       is ‘NA’, the result will be ‘NA’ if the outcome is ambiguous.  In
   //       other words ‘NA & TRUE’ evaluates to ‘NA’, but ‘NA & FALSE’
@@ -2869,7 +2894,6 @@ static INLINE void Rsh_Or2nd(Value *stack, SEXP call) {
   Value v = *GET_VAL(-1);
   // r1 is the result of Rsh_And1St
   fixup_scalar_logical(&v, call, "'y'", "||");
-  R_Visible = TRUE;
   // The first argument is FALSE or NA.
   // If the second argument is not FALSE then its value is the result.
   // If the second argument is FALSE, then the first argument's value is the
@@ -2892,17 +2916,18 @@ static INLINE void Rsh_Log(Value *stack, SEXP call, SEXP rho) {
         Rf_warningcall(call, R_MSG_NA);
       }
     }
-    R_Visible = TRUE;
     SET_DBL_VAL(val, r);
+    R_Visible = TRUE;
     return;
   }
 
   // slow path
+  RSH_PC_INC(slow_math1);
+
   SEXP args = CONS_NR(val_as_sexp(*val), R_NilValue);
   SET_SXP_VAL(val, args); // to protect
-  R_Visible = TRUE;
   SET_SXP_VAL(val, do_log_builtin(call, LOG_OP, args, rho));
-  RSH_PC_INC(slow_math1);
+  R_Visible = TRUE;
 }
 
 static INLINE void Rsh_LogBase(Value *stack, SEXP call, SEXP rho) {
@@ -2929,12 +2954,13 @@ static INLINE void Rsh_LogBase(Value *stack, SEXP call, SEXP rho) {
   }
 
   // slow path
+  RSH_PC_INC(slow_math1);
+
   SEXP args = CONS_NR(val_as_sexp(base), R_NilValue);
   args = CONS_NR(val_as_sexp(val), args);
   SET_SXP_VAL(res, args); // to protect
-  R_Visible = TRUE;
   SET_SXP_VAL(res, do_log_builtin(call, LOG_OP, args, rho));
-  RSH_PC_INC(slow_math1);
+  R_Visible = TRUE;
 }
 
 static INLINE Rsh_Math1Fun Rsh_get_math1_fun(int i, SEXP call, SEXP r_op_sym) {
