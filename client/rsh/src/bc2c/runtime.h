@@ -7,6 +7,12 @@
 #include <setjmp.h>
 #define RSH
 
+#define R_NaN (NAN)
+#define R_PosInf (INFINITY)
+#define R_NegInf (-INFINITY)
+// #define R_NaReal (R_ValueOfNA())
+#define R_NaInt (INT_MIN)
+
 // MAKE SURE Rinternals.h is not listed!
 #include "runtime_internals.h"
 #include <assert.h>
