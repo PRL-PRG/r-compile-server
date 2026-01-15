@@ -227,15 +227,30 @@ rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
       if (!quiet) {
         message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
         message <- paste0(message, ", constants: ", info$constants_size, " bytes")
+        message <- paste0(message, ", time: ", round(info$compile_time_ms, 2), " ms")
+
+        # Server-side metrics
+        if (!is.na(info$bytecode_instructions)) {
+          message <- paste0(message, ", bc_instrs: ", info$bytecode_instructions)
+        }
+        if (!is.na(info$bytecode_compile_time_ms) && info$bytecode_compile_time_ms > 0) {
+          message <- paste0(message, ", bc_time: ", round(info$bytecode_compile_time_ms, 2), " ms")
+        }
+        if (!is.na(info$c_compile_time_ms) && info$c_compile_time_ms > 0) {
+          message <- paste0(message, ", c_time: ", round(info$c_compile_time_ms, 2), " ms")
+        }
+        if (!is.na(info$native_compile_time_ms) && info$native_compile_time_ms > 0) {
+          message <- paste0(message, ", native_time: ", round(info$native_compile_time_ms, 2), " ms")
+        }
 
         if (!is.na(info$object_file)) {
           message <- paste0(message, ", saved: ", info$object_file, ", ", info$constants_file)
         }
-        
+
         if (!is.na(info$source_file)) {
           message <- paste0(message, ", ", info$source_file)
         }
-        
+
         cat(message, ")\n", sep = "")
       }
 

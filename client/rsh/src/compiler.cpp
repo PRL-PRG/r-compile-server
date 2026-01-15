@@ -7,6 +7,7 @@
 #include "rsh.hpp"
 #include "serialize.hpp"
 #include "util.hpp"
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -138,7 +139,8 @@ std::string genSymbol(uint64_t hash, int index) {
 }
 
 SEXP create_compile_info(CompilerOptions const &opts,
-                         protocol::CompileSuccess const &compiled_fun) {
+                         protocol::CompileSuccess const &compiled_fun,
+                         double compile_time_ms) {
   fs::path debug_dir;
   fs::path o_file;
   fs::path c_file;
@@ -184,8 +186,8 @@ SEXP create_compile_info(CompilerOptions const &opts,
     }
   }
 
-  SEXP info = PROTECT(Rf_allocVector(VECSXP, 5));
-  SEXP info_names = PROTECT(Rf_allocVector(STRSXP, 5));
+  SEXP info = PROTECT(Rf_allocVector(VECSXP, 10));
+  SEXP info_names = PROTECT(Rf_allocVector(STRSXP, 10));
 
   SET_STRING_ELT(info_names, 0, Rf_mkChar("binary_size"));
   SET_VECTOR_ELT(info, 0, Rf_ScalarInteger(compiled_fun.code().size()));
@@ -205,6 +207,30 @@ SEXP create_compile_info(CompilerOptions const &opts,
   SET_VECTOR_ELT(info, 4,
                  c_file.empty() ? Rf_ScalarString(NA_STRING)
                                 : Rf_mkString(c_file.c_str()));
+  SET_STRING_ELT(info_names, 5, Rf_mkChar("compile_time_ms"));
+  SET_VECTOR_ELT(info, 5, Rf_ScalarReal(compile_time_ms));
+
+  // Server-side metrics
+  if (compiled_fun.has_metrics()) {
+    const auto &metrics = compiled_fun.metrics();
+    SET_STRING_ELT(info_names, 6, Rf_mkChar("bytecode_instructions"));
+    SET_VECTOR_ELT(info, 6, Rf_ScalarInteger(metrics.bytecode_instructions()));
+    SET_STRING_ELT(info_names, 7, Rf_mkChar("bytecode_compile_time_ms"));
+    SET_VECTOR_ELT(info, 7, Rf_ScalarReal(metrics.bytecode_compile_time_ms()));
+    SET_STRING_ELT(info_names, 8, Rf_mkChar("c_compile_time_ms"));
+    SET_VECTOR_ELT(info, 8, Rf_ScalarReal(metrics.c_compile_time_ms()));
+    SET_STRING_ELT(info_names, 9, Rf_mkChar("native_compile_time_ms"));
+    SET_VECTOR_ELT(info, 9, Rf_ScalarReal(metrics.native_compile_time_ms()));
+  } else {
+    SET_STRING_ELT(info_names, 6, Rf_mkChar("bytecode_instructions"));
+    SET_VECTOR_ELT(info, 6, Rf_ScalarInteger(NA_INTEGER));
+    SET_STRING_ELT(info_names, 7, Rf_mkChar("bytecode_compile_time_ms"));
+    SET_VECTOR_ELT(info, 7, Rf_ScalarReal(NA_REAL));
+    SET_STRING_ELT(info_names, 8, Rf_mkChar("c_compile_time_ms"));
+    SET_VECTOR_ELT(info, 8, Rf_ScalarReal(NA_REAL));
+    SET_STRING_ELT(info_names, 9, Rf_mkChar("native_compile_time_ms"));
+    SET_VECTOR_ELT(info, 9, Rf_ScalarReal(NA_REAL));
+  }
 
   Rf_setAttrib(info, R_NamesSymbol, info_names);
   UNPROTECT(2); // info_names, info (caller must PROTECT return value)
@@ -219,7 +245,11 @@ SEXP compile(SEXP closure, SEXP options) {
 
   auto opts = CompilerOptions::from_list(options);
 
+  auto start_time = std::chrono::steady_clock::now();
   auto response = compile_closure(closure, opts);
+  auto end_time = std::chrono::steady_clock::now();
+  double compile_time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
   if (std::string *error = std::get_if<std::string>(&response)) {
     Rf_error("Request failed: %s", error->c_str());
     return closure;
@@ -294,7 +324,7 @@ SEXP compile(SEXP closure, SEXP options) {
   // Return list with closure and info
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 2));
   SEXP result_names = PROTECT(Rf_allocVector(STRSXP, 2));
-  SEXP info = PROTECT(create_compile_info(opts, compiled_fun));
+  SEXP info = PROTECT(create_compile_info(opts, compiled_fun, compile_time_ms));
 
   SET_STRING_ELT(result_names, 0, Rf_mkChar("closure"));
   SET_VECTOR_ELT(result, 0, closure);

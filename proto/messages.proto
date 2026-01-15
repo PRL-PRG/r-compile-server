@@ -44,6 +44,14 @@ message CompileSuccess {
   Tier tier = 3;
   uint64 hash = 4;
   optional SourceCodeData source_code_data = 5;
+  optional CompileMetrics metrics = 6;
+}
+
+message CompileMetrics {
+  int32 bytecode_instructions = 1;
+  double bytecode_compile_time_ms = 2;
+  double c_compile_time_ms = 3;
+  double native_compile_time_ms = 4;
 }
 
 message CompileFailure {

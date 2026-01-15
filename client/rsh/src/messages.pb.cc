@@ -92,6 +92,7 @@ PROTOBUF_CONSTEXPR CompileSuccess::CompileSuccess(
   , /*decltype(_impl_.code_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.constants_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.source_code_data_)*/nullptr
+  , /*decltype(_impl_.metrics_)*/nullptr
   , /*decltype(_impl_.hash_)*/uint64_t{0u}
   , /*decltype(_impl_.tier_)*/0} {}
 struct CompileSuccessDefaultTypeInternal {
@@ -103,6 +104,22 @@ struct CompileSuccessDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 CompileSuccessDefaultTypeInternal _CompileSuccess_default_instance_;
+PROTOBUF_CONSTEXPR CompileMetrics::CompileMetrics(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.bytecode_compile_time_ms_)*/0
+  , /*decltype(_impl_.c_compile_time_ms_)*/0
+  , /*decltype(_impl_.native_compile_time_ms_)*/0
+  , /*decltype(_impl_.bytecode_instructions_)*/0
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct CompileMetricsDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR CompileMetricsDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~CompileMetricsDefaultTypeInternal() {}
+  union {
+    CompileMetrics _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 CompileMetricsDefaultTypeInternal _CompileMetrics_default_instance_;
 PROTOBUF_CONSTEXPR CompileFailure::CompileFailure(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.command_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
@@ -479,7 +496,7 @@ struct PackageRequestDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 PackageRequestDefaultTypeInternal _PackageRequest_default_instance_;
 }  // namespace protocol
 }  // namespace rsh
-static ::_pb::Metadata file_level_metadata_messages_2eproto[32];
+static ::_pb::Metadata file_level_metadata_messages_2eproto[33];
 static const ::_pb::EnumDescriptor* file_level_enum_descriptors_messages_2eproto[3];
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_messages_2eproto = nullptr;
 
@@ -542,11 +559,23 @@ const uint32_t TableStruct_messages_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileSuccess, _impl_.tier_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileSuccess, _impl_.hash_),
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileSuccess, _impl_.source_code_data_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileSuccess, _impl_.metrics_),
   ~0u,
   ~0u,
   ~0u,
   ~0u,
   0,
+  1,
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileMetrics, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileMetrics, _impl_.bytecode_instructions_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileMetrics, _impl_.bytecode_compile_time_ms_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileMetrics, _impl_.c_compile_time_ms_),
+  PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileMetrics, _impl_.native_compile_time_ms_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::rsh::protocol::CompileFailure, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -787,34 +816,35 @@ static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protode
   { 9, -1, -1, sizeof(::rsh::protocol::InitRequest)},
   { 19, -1, -1, sizeof(::rsh::protocol::InitResponse)},
   { 25, 39, -1, sizeof(::rsh::protocol::CompileRequest)},
-  { 47, 58, -1, sizeof(::rsh::protocol::CompileSuccess)},
-  { 63, -1, -1, sizeof(::rsh::protocol::CompileFailure)},
-  { 72, -1, -1, sizeof(::rsh::protocol::SourceCodeData)},
-  { 80, -1, -1, sizeof(::rsh::protocol::CompileResponse)},
-  { 89, 99, -1, sizeof(::rsh::protocol::Function)},
-  { 103, -1, -1, sizeof(::rsh::protocol::FunctionRequest)},
-  { 110, 118, -1, sizeof(::rsh::protocol::Environment_ValuesEntry_DoNotUse)},
-  { 120, -1, -1, sizeof(::rsh::protocol::Environment)},
-  { 127, -1, -1, sizeof(::rsh::protocol::ValueRequest)},
-  { 134, -1, -1, sizeof(::rsh::protocol::Value)},
-  { 142, -1, -1, sizeof(::rsh::protocol::Values)},
-  { 149, -1, -1, sizeof(::rsh::protocol::Empty)},
-  { 155, -1, -1, sizeof(::rsh::protocol::ClearCacheRequest)},
-  { 162, -1, -1, sizeof(::rsh::protocol::ClearCacheResponse)},
-  { 168, -1, -1, sizeof(::rsh::protocol::CallContext)},
-  { 178, 188, -1, sizeof(::rsh::protocol::ArgumentContext)},
-  { 192, -1, -1, sizeof(::rsh::protocol::Context)},
-  { 200, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
-  { 207, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
-  { 214, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
-  { 222, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
-  { 233, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
-  { 243, 251, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
-  { 253, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
-  { 260, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
-  { 267, -1, -1, sizeof(::rsh::protocol::PackageSource)},
-  { 276, 286, -1, sizeof(::rsh::protocol::Package)},
-  { 290, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
+  { 47, 59, -1, sizeof(::rsh::protocol::CompileSuccess)},
+  { 65, -1, -1, sizeof(::rsh::protocol::CompileMetrics)},
+  { 75, -1, -1, sizeof(::rsh::protocol::CompileFailure)},
+  { 84, -1, -1, sizeof(::rsh::protocol::SourceCodeData)},
+  { 92, -1, -1, sizeof(::rsh::protocol::CompileResponse)},
+  { 101, 111, -1, sizeof(::rsh::protocol::Function)},
+  { 115, -1, -1, sizeof(::rsh::protocol::FunctionRequest)},
+  { 122, 130, -1, sizeof(::rsh::protocol::Environment_ValuesEntry_DoNotUse)},
+  { 132, -1, -1, sizeof(::rsh::protocol::Environment)},
+  { 139, -1, -1, sizeof(::rsh::protocol::ValueRequest)},
+  { 146, -1, -1, sizeof(::rsh::protocol::Value)},
+  { 154, -1, -1, sizeof(::rsh::protocol::Values)},
+  { 161, -1, -1, sizeof(::rsh::protocol::Empty)},
+  { 167, -1, -1, sizeof(::rsh::protocol::ClearCacheRequest)},
+  { 174, -1, -1, sizeof(::rsh::protocol::ClearCacheResponse)},
+  { 180, -1, -1, sizeof(::rsh::protocol::CallContext)},
+  { 190, 200, -1, sizeof(::rsh::protocol::ArgumentContext)},
+  { 204, -1, -1, sizeof(::rsh::protocol::Context)},
+  { 212, -1, -1, sizeof(::rsh::protocol::ContextRequest)},
+  { 219, -1, -1, sizeof(::rsh::protocol::TestFeedback)},
+  { 226, -1, -1, sizeof(::rsh::protocol::CallFeedback)},
+  { 234, -1, -1, sizeof(::rsh::protocol::ValueFeedback)},
+  { 245, -1, -1, sizeof(::rsh::protocol::TypeFeedback_Feedback)},
+  { 255, 263, -1, sizeof(::rsh::protocol::TypeFeedback_TypesEntry_DoNotUse)},
+  { 265, -1, -1, sizeof(::rsh::protocol::TypeFeedback)},
+  { 272, -1, -1, sizeof(::rsh::protocol::FeedbackRequest)},
+  { 279, -1, -1, sizeof(::rsh::protocol::PackageSource)},
+  { 288, 298, -1, sizeof(::rsh::protocol::Package)},
+  { 302, -1, -1, sizeof(::rsh::protocol::PackageRequest)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -823,6 +853,7 @@ static const ::_pb::Message* const file_default_instances[] = {
   &::rsh::protocol::_InitResponse_default_instance_._instance,
   &::rsh::protocol::_CompileRequest_default_instance_._instance,
   &::rsh::protocol::_CompileSuccess_default_instance_._instance,
+  &::rsh::protocol::_CompileMetrics_default_instance_._instance,
   &::rsh::protocol::_CompileFailure_default_instance_._instance,
   &::rsh::protocol::_SourceCodeData_default_instance_._instance,
   &::rsh::protocol::_CompileResponse_default_instance_._instance,
@@ -867,72 +898,77 @@ const char descriptor_table_protodef_messages_2eproto[] PROTOBUF_SECTION_VARIABL
   "onment\030\010 \001(\0132\031.rsh.protocol.EnvironmentH"
   "\004\210\001\001\022\020\n\010no_cache\030\t \001(\010\022\r\n\005debug\030\n \001(\010B\007\n"
   "\005_tierB\t\n\007_cc_optB\t\n\007_bc_optB\n\n\010_context"
-  "B\016\n\014_environment\"\263\001\n\016CompileSuccess\022\014\n\004c"
+  "B\016\n\014_environment\"\363\001\n\016CompileSuccess\022\014\n\004c"
   "ode\030\001 \001(\014\022\021\n\tconstants\030\002 \001(\014\022 \n\004tier\030\003 \001"
   "(\0162\022.rsh.protocol.Tier\022\014\n\004hash\030\004 \001(\004\022;\n\020"
   "source_code_data\030\005 \001(\0132\034.rsh.protocol.So"
-  "urceCodeDataH\000\210\001\001B\023\n\021_source_code_data\"O"
-  "\n\016CompileFailure\022\017\n\007command\030\001 \001(\t\022\027\n\017com"
-  "piler_output\030\002 \001(\t\022\023\n\013source_code\030\003 \001(\t\""
-  "=\n\016SourceCodeData\022\023\n\013source_code\030\001 \001(\t\022\026"
-  "\n\016temp_file_name\030\002 \001(\t\"}\n\017CompileRespons"
-  "e\022/\n\007success\030\001 \001(\0132\034.rsh.protocol.Compil"
-  "eSuccessH\000\022/\n\007failure\030\002 \001(\0132\034.rsh.protoc"
-  "ol.CompileFailureH\000B\010\n\006result\"X\n\010Functio"
-  "n\022\024\n\014package_hash\030\001 \001(\004\022\014\n\004name\030\002 \001(\t\022\014\n"
-  "\004hash\030\003 \001(\004\022\021\n\004body\030\004 \001(\014H\000\210\001\001B\007\n\005_body\""
-  "\037\n\017FunctionRequest\022\014\n\004hash\030\001 \001(\004\"s\n\013Envi"
-  "ronment\0225\n\006values\030\001 \003(\0132%.rsh.protocol.E"
-  "nvironment.ValuesEntry\032-\n\013ValuesEntry\022\013\n"
-  "\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\004:\0028\001\"\034\n\014ValueRe"
-  "quest\022\014\n\004hash\030\001 \003(\004\"$\n\005Value\022\014\n\004hash\030\001 \001"
-  "(\004\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006values\030\001 "
-  "\003(\0132\023.rsh.protocol.Value\"\007\n\005Empty\"#\n\021Cle"
-  "arCacheRequest\022\016\n\006hashes\030\001 \003(\004\"\024\n\022ClearC"
-  "acheResponse\"\206\001\n\013CallContext\022\037\n\027args_sta"
-  "tically_matched\030\001 \001(\010\022\036\n\026correct_number_"
-  "of_args\030\002 \001(\010\022\035\n\025correct_order_of_args\030\003"
-  " \001(\010\022\027\n\017no_missing_args\030\004 \001(\010\"t\n\017Argumen"
-  "tContext\022\r\n\005eager\030\001 \001(\010\022\022\n\nreflection\030\002 "
-  "\001(\010\022\016\n\006object\030\003 \001(\010\022%\n\004type\030\004 \001(\0162\022.rsh."
-  "protocol.TypeH\000\210\001\001B\007\n\005_type\"s\n\007Context\022/"
-  "\n\014call_context\030\001 \001(\0132\031.rsh.protocol.Call"
-  "Context\0227\n\020argument_context\030\002 \003(\0132\035.rsh."
-  "protocol.ArgumentContext\":\n\016ContextReque"
-  "st\022(\n\010function\030\001 \001(\0132\026.rsh.protocol.Func"
-  "tion\"\?\n\014TestFeedback\022/\n\014test_lattice\030\001 \001"
-  "(\0162\031.rsh.protocol.TestLattice\"4\n\014CallFee"
-  "dback\022\017\n\007n_calls\030\001 \001(\003\022\023\n\013callee_hash\030\002 "
-  "\001(\004\"v\n\rValueFeedback\022\016\n\006scalar\030\001 \001(\010\022\016\n\006"
-  "object\030\002 \001(\010\022\033\n\023accessed_attributes\030\003 \001("
-  "\010\022\024\n\014vectorizable\030\004 \001(\010\022\022\n\nis_promise\030\005 "
-  "\001(\010\"\321\002\n\014TypeFeedback\0224\n\005types\030\002 \003(\0132%.rs"
-  "h.protocol.TypeFeedback.TypesEntry\032\267\001\n\010F"
-  "eedback\0223\n\rtest_feedback\030\001 \001(\0132\032.rsh.pro"
-  "tocol.TestFeedbackH\000\0223\n\rcall_feedback\030\002 "
-  "\001(\0132\032.rsh.protocol.CallFeedbackH\000\0225\n\016val"
-  "ue_feedback\030\003 \001(\0132\033.rsh.protocol.ValueFe"
-  "edbackH\000B\n\n\010feedback\032Q\n\nTypesEntry\022\013\n\003ke"
-  "y\030\001 \001(\003\0222\n\005value\030\002 \001(\0132#.rsh.protocol.Ty"
-  "peFeedback.Feedback:\0028\001\";\n\017FeedbackReque"
-  "st\022(\n\010function\030\001 \001(\0132\026.rsh.protocol.Func"
-  "tion\"C\n\rPackageSource\022\022\n\010r_mirror\030\002 \001(\tH"
-  "\000\022\024\n\ngithub_url\030\003 \001(\tH\000B\010\n\006source\"\225\001\n\007Pa"
-  "ckage\022\014\n\004name\030\001 \001(\t\022&\n\007version\030\002 \001(\0132\025.r"
-  "sh.protocol.Version\022\027\n\017function_hashes\030\004"
-  " \003(\004\0220\n\006source\030\005 \001(\0132\033.rsh.protocol.Pack"
-  "ageSourceH\000\210\001\001B\t\n\007_source\"\036\n\016PackageRequ"
-  "est\022\014\n\004hash\030\001 \001(\004*#\n\004Tier\022\014\n\010BASELINE\020\000\022"
-  "\r\n\tOPTIMIZED\020\001*@\n\013TestLattice\022\010\n\004BOTH\020\000\022"
-  "\r\n\tONLY_TRUE\020\001\022\016\n\nONLY_FALSE\020\002\022\010\n\004NONE\020\003"
-  "*&\n\004Type\022\007\n\003ANY\020\000\022\013\n\007INTEGER\020\001\022\010\n\004REAL\020\002"
-  "B\023\n\021org.prlprg.serverb\006proto3"
+  "urceCodeDataH\000\210\001\001\0222\n\007metrics\030\006 \001(\0132\034.rsh"
+  ".protocol.CompileMetricsH\001\210\001\001B\023\n\021_source"
+  "_code_dataB\n\n\010_metrics\"\214\001\n\016CompileMetric"
+  "s\022\035\n\025bytecode_instructions\030\001 \001(\005\022 \n\030byte"
+  "code_compile_time_ms\030\002 \001(\001\022\031\n\021c_compile_"
+  "time_ms\030\003 \001(\001\022\036\n\026native_compile_time_ms\030"
+  "\004 \001(\001\"O\n\016CompileFailure\022\017\n\007command\030\001 \001(\t"
+  "\022\027\n\017compiler_output\030\002 \001(\t\022\023\n\013source_code"
+  "\030\003 \001(\t\"=\n\016SourceCodeData\022\023\n\013source_code\030"
+  "\001 \001(\t\022\026\n\016temp_file_name\030\002 \001(\t\"}\n\017Compile"
+  "Response\022/\n\007success\030\001 \001(\0132\034.rsh.protocol"
+  ".CompileSuccessH\000\022/\n\007failure\030\002 \001(\0132\034.rsh"
+  ".protocol.CompileFailureH\000B\010\n\006result\"X\n\010"
+  "Function\022\024\n\014package_hash\030\001 \001(\004\022\014\n\004name\030\002"
+  " \001(\t\022\014\n\004hash\030\003 \001(\004\022\021\n\004body\030\004 \001(\014H\000\210\001\001B\007\n"
+  "\005_body\"\037\n\017FunctionRequest\022\014\n\004hash\030\001 \001(\004\""
+  "s\n\013Environment\0225\n\006values\030\001 \003(\0132%.rsh.pro"
+  "tocol.Environment.ValuesEntry\032-\n\013ValuesE"
+  "ntry\022\013\n\003key\030\001 \001(\t\022\r\n\005value\030\002 \001(\004:\0028\001\"\034\n\014"
+  "ValueRequest\022\014\n\004hash\030\001 \003(\004\"$\n\005Value\022\014\n\004h"
+  "ash\030\001 \001(\004\022\r\n\005value\030\002 \001(\014\"-\n\006Values\022#\n\006va"
+  "lues\030\001 \003(\0132\023.rsh.protocol.Value\"\007\n\005Empty"
+  "\"#\n\021ClearCacheRequest\022\016\n\006hashes\030\001 \003(\004\"\024\n"
+  "\022ClearCacheResponse\"\206\001\n\013CallContext\022\037\n\027a"
+  "rgs_statically_matched\030\001 \001(\010\022\036\n\026correct_"
+  "number_of_args\030\002 \001(\010\022\035\n\025correct_order_of"
+  "_args\030\003 \001(\010\022\027\n\017no_missing_args\030\004 \001(\010\"t\n\017"
+  "ArgumentContext\022\r\n\005eager\030\001 \001(\010\022\022\n\nreflec"
+  "tion\030\002 \001(\010\022\016\n\006object\030\003 \001(\010\022%\n\004type\030\004 \001(\016"
+  "2\022.rsh.protocol.TypeH\000\210\001\001B\007\n\005_type\"s\n\007Co"
+  "ntext\022/\n\014call_context\030\001 \001(\0132\031.rsh.protoc"
+  "ol.CallContext\0227\n\020argument_context\030\002 \003(\013"
+  "2\035.rsh.protocol.ArgumentContext\":\n\016Conte"
+  "xtRequest\022(\n\010function\030\001 \001(\0132\026.rsh.protoc"
+  "ol.Function\"\?\n\014TestFeedback\022/\n\014test_latt"
+  "ice\030\001 \001(\0162\031.rsh.protocol.TestLattice\"4\n\014"
+  "CallFeedback\022\017\n\007n_calls\030\001 \001(\003\022\023\n\013callee_"
+  "hash\030\002 \001(\004\"v\n\rValueFeedback\022\016\n\006scalar\030\001 "
+  "\001(\010\022\016\n\006object\030\002 \001(\010\022\033\n\023accessed_attribut"
+  "es\030\003 \001(\010\022\024\n\014vectorizable\030\004 \001(\010\022\022\n\nis_pro"
+  "mise\030\005 \001(\010\"\321\002\n\014TypeFeedback\0224\n\005types\030\002 \003"
+  "(\0132%.rsh.protocol.TypeFeedback.TypesEntr"
+  "y\032\267\001\n\010Feedback\0223\n\rtest_feedback\030\001 \001(\0132\032."
+  "rsh.protocol.TestFeedbackH\000\0223\n\rcall_feed"
+  "back\030\002 \001(\0132\032.rsh.protocol.CallFeedbackH\000"
+  "\0225\n\016value_feedback\030\003 \001(\0132\033.rsh.protocol."
+  "ValueFeedbackH\000B\n\n\010feedback\032Q\n\nTypesEntr"
+  "y\022\013\n\003key\030\001 \001(\003\0222\n\005value\030\002 \001(\0132#.rsh.prot"
+  "ocol.TypeFeedback.Feedback:\0028\001\";\n\017Feedba"
+  "ckRequest\022(\n\010function\030\001 \001(\0132\026.rsh.protoc"
+  "ol.Function\"C\n\rPackageSource\022\022\n\010r_mirror"
+  "\030\002 \001(\tH\000\022\024\n\ngithub_url\030\003 \001(\tH\000B\010\n\006source"
+  "\"\225\001\n\007Package\022\014\n\004name\030\001 \001(\t\022&\n\007version\030\002 "
+  "\001(\0132\025.rsh.protocol.Version\022\027\n\017function_h"
+  "ashes\030\004 \003(\004\0220\n\006source\030\005 \001(\0132\033.rsh.protoc"
+  "ol.PackageSourceH\000\210\001\001B\t\n\007_source\"\036\n\016Pack"
+  "ageRequest\022\014\n\004hash\030\001 \001(\004*#\n\004Tier\022\014\n\010BASE"
+  "LINE\020\000\022\r\n\tOPTIMIZED\020\001*@\n\013TestLattice\022\010\n\004"
+  "BOTH\020\000\022\r\n\tONLY_TRUE\020\001\022\016\n\nONLY_FALSE\020\002\022\010\n"
+  "\004NONE\020\003*&\n\004Type\022\007\n\003ANY\020\000\022\013\n\007INTEGER\020\001\022\010\n"
+  "\004REAL\020\002B\023\n\021org.prlprg.serverb\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_messages_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_messages_2eproto = {
-    false, false, 2949, descriptor_table_protodef_messages_2eproto,
+    false, false, 3156, descriptor_table_protodef_messages_2eproto,
     "messages.proto",
-    &descriptor_table_messages_2eproto_once, nullptr, 0, 32,
+    &descriptor_table_messages_2eproto_once, nullptr, 0, 33,
     schemas, file_default_instances, TableStruct_messages_2eproto::offsets,
     file_level_metadata_messages_2eproto, file_level_enum_descriptors_messages_2eproto,
     file_level_service_descriptors_messages_2eproto,
@@ -2048,11 +2084,19 @@ class CompileSuccess::_Internal {
   static void set_has_source_code_data(HasBits* has_bits) {
     (*has_bits)[0] |= 1u;
   }
+  static const ::rsh::protocol::CompileMetrics& metrics(const CompileSuccess* msg);
+  static void set_has_metrics(HasBits* has_bits) {
+    (*has_bits)[0] |= 2u;
+  }
 };
 
 const ::rsh::protocol::SourceCodeData&
 CompileSuccess::_Internal::source_code_data(const CompileSuccess* msg) {
   return *msg->_impl_.source_code_data_;
+}
+const ::rsh::protocol::CompileMetrics&
+CompileSuccess::_Internal::metrics(const CompileSuccess* msg) {
+  return *msg->_impl_.metrics_;
 }
 CompileSuccess::CompileSuccess(::PROTOBUF_NAMESPACE_ID::Arena* arena,
                          bool is_message_owned)
@@ -2069,6 +2113,7 @@ CompileSuccess::CompileSuccess(const CompileSuccess& from)
     , decltype(_impl_.code_){}
     , decltype(_impl_.constants_){}
     , decltype(_impl_.source_code_data_){nullptr}
+    , decltype(_impl_.metrics_){nullptr}
     , decltype(_impl_.hash_){}
     , decltype(_impl_.tier_){}};
 
@@ -2092,6 +2137,9 @@ CompileSuccess::CompileSuccess(const CompileSuccess& from)
   if (from._internal_has_source_code_data()) {
     _this->_impl_.source_code_data_ = new ::rsh::protocol::SourceCodeData(*from._impl_.source_code_data_);
   }
+  if (from._internal_has_metrics()) {
+    _this->_impl_.metrics_ = new ::rsh::protocol::CompileMetrics(*from._impl_.metrics_);
+  }
   ::memcpy(&_impl_.hash_, &from._impl_.hash_,
     static_cast<size_t>(reinterpret_cast<char*>(&_impl_.tier_) -
     reinterpret_cast<char*>(&_impl_.hash_)) + sizeof(_impl_.tier_));
@@ -2108,6 +2156,7 @@ inline void CompileSuccess::SharedCtor(
     , decltype(_impl_.code_){}
     , decltype(_impl_.constants_){}
     , decltype(_impl_.source_code_data_){nullptr}
+    , decltype(_impl_.metrics_){nullptr}
     , decltype(_impl_.hash_){uint64_t{0u}}
     , decltype(_impl_.tier_){0}
   };
@@ -2135,6 +2184,7 @@ inline void CompileSuccess::SharedDtor() {
   _impl_.code_.Destroy();
   _impl_.constants_.Destroy();
   if (this != internal_default_instance()) delete _impl_.source_code_data_;
+  if (this != internal_default_instance()) delete _impl_.metrics_;
 }
 
 void CompileSuccess::SetCachedSize(int size) const {
@@ -2150,9 +2200,15 @@ void CompileSuccess::Clear() {
   _impl_.code_.ClearToEmpty();
   _impl_.constants_.ClearToEmpty();
   cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x00000001u) {
-    GOOGLE_DCHECK(_impl_.source_code_data_ != nullptr);
-    _impl_.source_code_data_->Clear();
+  if (cached_has_bits & 0x00000003u) {
+    if (cached_has_bits & 0x00000001u) {
+      GOOGLE_DCHECK(_impl_.source_code_data_ != nullptr);
+      _impl_.source_code_data_->Clear();
+    }
+    if (cached_has_bits & 0x00000002u) {
+      GOOGLE_DCHECK(_impl_.metrics_ != nullptr);
+      _impl_.metrics_->Clear();
+    }
   }
   ::memset(&_impl_.hash_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&_impl_.tier_) -
@@ -2207,6 +2263,14 @@ const char* CompileSuccess::_InternalParse(const char* ptr, ::_pbi::ParseContext
       case 5:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 42)) {
           ptr = ctx->ParseMessage(_internal_mutable_source_code_data(), ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // optional .rsh.protocol.CompileMetrics metrics = 6;
+      case 6:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 50)) {
+          ptr = ctx->ParseMessage(_internal_mutable_metrics(), ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
@@ -2273,6 +2337,13 @@ uint8_t* CompileSuccess::_InternalSerialize(
         _Internal::source_code_data(this).GetCachedSize(), target, stream);
   }
 
+  // optional .rsh.protocol.CompileMetrics metrics = 6;
+  if (_internal_has_metrics()) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(6, _Internal::metrics(this),
+        _Internal::metrics(this).GetCachedSize(), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -2303,14 +2374,23 @@ size_t CompileSuccess::ByteSizeLong() const {
         this->_internal_constants());
   }
 
-  // optional .rsh.protocol.SourceCodeData source_code_data = 5;
   cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x00000001u) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
-        *_impl_.source_code_data_);
-  }
+  if (cached_has_bits & 0x00000003u) {
+    // optional .rsh.protocol.SourceCodeData source_code_data = 5;
+    if (cached_has_bits & 0x00000001u) {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.source_code_data_);
+    }
 
+    // optional .rsh.protocol.CompileMetrics metrics = 6;
+    if (cached_has_bits & 0x00000002u) {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.metrics_);
+    }
+
+  }
   // uint64 hash = 4;
   if (this->_internal_hash() != 0) {
     total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(this->_internal_hash());
@@ -2346,9 +2426,16 @@ void CompileSuccess::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const :
   if (!from._internal_constants().empty()) {
     _this->_internal_set_constants(from._internal_constants());
   }
-  if (from._internal_has_source_code_data()) {
-    _this->_internal_mutable_source_code_data()->::rsh::protocol::SourceCodeData::MergeFrom(
-        from._internal_source_code_data());
+  cached_has_bits = from._impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000003u) {
+    if (cached_has_bits & 0x00000001u) {
+      _this->_internal_mutable_source_code_data()->::rsh::protocol::SourceCodeData::MergeFrom(
+          from._internal_source_code_data());
+    }
+    if (cached_has_bits & 0x00000002u) {
+      _this->_internal_mutable_metrics()->::rsh::protocol::CompileMetrics::MergeFrom(
+          from._internal_metrics());
+    }
   }
   if (from._internal_hash() != 0) {
     _this->_internal_set_hash(from._internal_hash());
@@ -2396,6 +2483,301 @@ void CompileSuccess::InternalSwap(CompileSuccess* other) {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
       file_level_metadata_messages_2eproto[4]);
+}
+
+// ===================================================================
+
+class CompileMetrics::_Internal {
+ public:
+};
+
+CompileMetrics::CompileMetrics(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:rsh.protocol.CompileMetrics)
+}
+CompileMetrics::CompileMetrics(const CompileMetrics& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  CompileMetrics* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.bytecode_compile_time_ms_){}
+    , decltype(_impl_.c_compile_time_ms_){}
+    , decltype(_impl_.native_compile_time_ms_){}
+    , decltype(_impl_.bytecode_instructions_){}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::memcpy(&_impl_.bytecode_compile_time_ms_, &from._impl_.bytecode_compile_time_ms_,
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.bytecode_instructions_) -
+    reinterpret_cast<char*>(&_impl_.bytecode_compile_time_ms_)) + sizeof(_impl_.bytecode_instructions_));
+  // @@protoc_insertion_point(copy_constructor:rsh.protocol.CompileMetrics)
+}
+
+inline void CompileMetrics::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.bytecode_compile_time_ms_){0}
+    , decltype(_impl_.c_compile_time_ms_){0}
+    , decltype(_impl_.native_compile_time_ms_){0}
+    , decltype(_impl_.bytecode_instructions_){0}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+}
+
+CompileMetrics::~CompileMetrics() {
+  // @@protoc_insertion_point(destructor:rsh.protocol.CompileMetrics)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void CompileMetrics::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+}
+
+void CompileMetrics::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void CompileMetrics::Clear() {
+// @@protoc_insertion_point(message_clear_start:rsh.protocol.CompileMetrics)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  ::memset(&_impl_.bytecode_compile_time_ms_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&_impl_.bytecode_instructions_) -
+      reinterpret_cast<char*>(&_impl_.bytecode_compile_time_ms_)) + sizeof(_impl_.bytecode_instructions_));
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* CompileMetrics::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // int32 bytecode_instructions = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 8)) {
+          _impl_.bytecode_instructions_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // double bytecode_compile_time_ms = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 17)) {
+          _impl_.bytecode_compile_time_ms_ = ::PROTOBUF_NAMESPACE_ID::internal::UnalignedLoad<double>(ptr);
+          ptr += sizeof(double);
+        } else
+          goto handle_unusual;
+        continue;
+      // double c_compile_time_ms = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 25)) {
+          _impl_.c_compile_time_ms_ = ::PROTOBUF_NAMESPACE_ID::internal::UnalignedLoad<double>(ptr);
+          ptr += sizeof(double);
+        } else
+          goto handle_unusual;
+        continue;
+      // double native_compile_time_ms = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 33)) {
+          _impl_.native_compile_time_ms_ = ::PROTOBUF_NAMESPACE_ID::internal::UnalignedLoad<double>(ptr);
+          ptr += sizeof(double);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* CompileMetrics::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:rsh.protocol.CompileMetrics)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // int32 bytecode_instructions = 1;
+  if (this->_internal_bytecode_instructions() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteInt32ToArray(1, this->_internal_bytecode_instructions(), target);
+  }
+
+  // double bytecode_compile_time_ms = 2;
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_bytecode_compile_time_ms = this->_internal_bytecode_compile_time_ms();
+  uint64_t raw_bytecode_compile_time_ms;
+  memcpy(&raw_bytecode_compile_time_ms, &tmp_bytecode_compile_time_ms, sizeof(tmp_bytecode_compile_time_ms));
+  if (raw_bytecode_compile_time_ms != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteDoubleToArray(2, this->_internal_bytecode_compile_time_ms(), target);
+  }
+
+  // double c_compile_time_ms = 3;
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_c_compile_time_ms = this->_internal_c_compile_time_ms();
+  uint64_t raw_c_compile_time_ms;
+  memcpy(&raw_c_compile_time_ms, &tmp_c_compile_time_ms, sizeof(tmp_c_compile_time_ms));
+  if (raw_c_compile_time_ms != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteDoubleToArray(3, this->_internal_c_compile_time_ms(), target);
+  }
+
+  // double native_compile_time_ms = 4;
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_native_compile_time_ms = this->_internal_native_compile_time_ms();
+  uint64_t raw_native_compile_time_ms;
+  memcpy(&raw_native_compile_time_ms, &tmp_native_compile_time_ms, sizeof(tmp_native_compile_time_ms));
+  if (raw_native_compile_time_ms != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteDoubleToArray(4, this->_internal_native_compile_time_ms(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:rsh.protocol.CompileMetrics)
+  return target;
+}
+
+size_t CompileMetrics::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:rsh.protocol.CompileMetrics)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // double bytecode_compile_time_ms = 2;
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_bytecode_compile_time_ms = this->_internal_bytecode_compile_time_ms();
+  uint64_t raw_bytecode_compile_time_ms;
+  memcpy(&raw_bytecode_compile_time_ms, &tmp_bytecode_compile_time_ms, sizeof(tmp_bytecode_compile_time_ms));
+  if (raw_bytecode_compile_time_ms != 0) {
+    total_size += 1 + 8;
+  }
+
+  // double c_compile_time_ms = 3;
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_c_compile_time_ms = this->_internal_c_compile_time_ms();
+  uint64_t raw_c_compile_time_ms;
+  memcpy(&raw_c_compile_time_ms, &tmp_c_compile_time_ms, sizeof(tmp_c_compile_time_ms));
+  if (raw_c_compile_time_ms != 0) {
+    total_size += 1 + 8;
+  }
+
+  // double native_compile_time_ms = 4;
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_native_compile_time_ms = this->_internal_native_compile_time_ms();
+  uint64_t raw_native_compile_time_ms;
+  memcpy(&raw_native_compile_time_ms, &tmp_native_compile_time_ms, sizeof(tmp_native_compile_time_ms));
+  if (raw_native_compile_time_ms != 0) {
+    total_size += 1 + 8;
+  }
+
+  // int32 bytecode_instructions = 1;
+  if (this->_internal_bytecode_instructions() != 0) {
+    total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(this->_internal_bytecode_instructions());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData CompileMetrics::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    CompileMetrics::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*CompileMetrics::GetClassData() const { return &_class_data_; }
+
+
+void CompileMetrics::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<CompileMetrics*>(&to_msg);
+  auto& from = static_cast<const CompileMetrics&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:rsh.protocol.CompileMetrics)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_bytecode_compile_time_ms = from._internal_bytecode_compile_time_ms();
+  uint64_t raw_bytecode_compile_time_ms;
+  memcpy(&raw_bytecode_compile_time_ms, &tmp_bytecode_compile_time_ms, sizeof(tmp_bytecode_compile_time_ms));
+  if (raw_bytecode_compile_time_ms != 0) {
+    _this->_internal_set_bytecode_compile_time_ms(from._internal_bytecode_compile_time_ms());
+  }
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_c_compile_time_ms = from._internal_c_compile_time_ms();
+  uint64_t raw_c_compile_time_ms;
+  memcpy(&raw_c_compile_time_ms, &tmp_c_compile_time_ms, sizeof(tmp_c_compile_time_ms));
+  if (raw_c_compile_time_ms != 0) {
+    _this->_internal_set_c_compile_time_ms(from._internal_c_compile_time_ms());
+  }
+  static_assert(sizeof(uint64_t) == sizeof(double), "Code assumes uint64_t and double are the same size.");
+  double tmp_native_compile_time_ms = from._internal_native_compile_time_ms();
+  uint64_t raw_native_compile_time_ms;
+  memcpy(&raw_native_compile_time_ms, &tmp_native_compile_time_ms, sizeof(tmp_native_compile_time_ms));
+  if (raw_native_compile_time_ms != 0) {
+    _this->_internal_set_native_compile_time_ms(from._internal_native_compile_time_ms());
+  }
+  if (from._internal_bytecode_instructions() != 0) {
+    _this->_internal_set_bytecode_instructions(from._internal_bytecode_instructions());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void CompileMetrics::CopyFrom(const CompileMetrics& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:rsh.protocol.CompileMetrics)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool CompileMetrics::IsInitialized() const {
+  return true;
+}
+
+void CompileMetrics::InternalSwap(CompileMetrics* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(CompileMetrics, _impl_.bytecode_instructions_)
+      + sizeof(CompileMetrics::_impl_.bytecode_instructions_)
+      - PROTOBUF_FIELD_OFFSET(CompileMetrics, _impl_.bytecode_compile_time_ms_)>(
+          reinterpret_cast<char*>(&_impl_.bytecode_compile_time_ms_),
+          reinterpret_cast<char*>(&other->_impl_.bytecode_compile_time_ms_));
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata CompileMetrics::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
+      file_level_metadata_messages_2eproto[5]);
 }
 
 // ===================================================================
@@ -2698,7 +3080,7 @@ void CompileFailure::InternalSwap(CompileFailure* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata CompileFailure::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[5]);
+      file_level_metadata_messages_2eproto[6]);
 }
 
 // ===================================================================
@@ -2951,7 +3333,7 @@ void SourceCodeData::InternalSwap(SourceCodeData* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata SourceCodeData::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[6]);
+      file_level_metadata_messages_2eproto[7]);
 }
 
 // ===================================================================
@@ -3256,7 +3638,7 @@ void CompileResponse::InternalSwap(CompileResponse* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata CompileResponse::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[7]);
+      file_level_metadata_messages_2eproto[8]);
 }
 
 // ===================================================================
@@ -3578,7 +3960,7 @@ void Function::InternalSwap(Function* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Function::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[8]);
+      file_level_metadata_messages_2eproto[9]);
 }
 
 // ===================================================================
@@ -3756,7 +4138,7 @@ void FunctionRequest::InternalSwap(FunctionRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata FunctionRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[9]);
+      file_level_metadata_messages_2eproto[10]);
 }
 
 // ===================================================================
@@ -3770,7 +4152,7 @@ void Environment_ValuesEntry_DoNotUse::MergeFrom(const Environment_ValuesEntry_D
 ::PROTOBUF_NAMESPACE_ID::Metadata Environment_ValuesEntry_DoNotUse::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[10]);
+      file_level_metadata_messages_2eproto[11]);
 }
 
 // ===================================================================
@@ -3985,7 +4367,7 @@ void Environment::InternalSwap(Environment* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Environment::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[11]);
+      file_level_metadata_messages_2eproto[12]);
 }
 
 // ===================================================================
@@ -4178,7 +4560,7 @@ void ValueRequest::InternalSwap(ValueRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ValueRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[12]);
+      file_level_metadata_messages_2eproto[13]);
 }
 
 // ===================================================================
@@ -4403,7 +4785,7 @@ void Value::InternalSwap(Value* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Value::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[13]);
+      file_level_metadata_messages_2eproto[14]);
 }
 
 // ===================================================================
@@ -4588,7 +4970,7 @@ void Values::InternalSwap(Values* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Values::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[14]);
+      file_level_metadata_messages_2eproto[15]);
 }
 
 // ===================================================================
@@ -4628,7 +5010,7 @@ const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*Empty::GetClassData() const { 
 ::PROTOBUF_NAMESPACE_ID::Metadata Empty::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[15]);
+      file_level_metadata_messages_2eproto[16]);
 }
 
 // ===================================================================
@@ -4821,7 +5203,7 @@ void ClearCacheRequest::InternalSwap(ClearCacheRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ClearCacheRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[16]);
+      file_level_metadata_messages_2eproto[17]);
 }
 
 // ===================================================================
@@ -4861,7 +5243,7 @@ const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ClearCacheResponse::GetClassDa
 ::PROTOBUF_NAMESPACE_ID::Metadata ClearCacheResponse::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[17]);
+      file_level_metadata_messages_2eproto[18]);
 }
 
 // ===================================================================
@@ -5120,7 +5502,7 @@ void CallContext::InternalSwap(CallContext* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata CallContext::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[18]);
+      file_level_metadata_messages_2eproto[19]);
 }
 
 // ===================================================================
@@ -5394,7 +5776,7 @@ void ArgumentContext::InternalSwap(ArgumentContext* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ArgumentContext::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[19]);
+      file_level_metadata_messages_2eproto[20]);
 }
 
 // ===================================================================
@@ -5621,7 +6003,7 @@ void Context::InternalSwap(Context* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Context::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[20]);
+      file_level_metadata_messages_2eproto[21]);
 }
 
 // ===================================================================
@@ -5814,7 +6196,7 @@ void ContextRequest::InternalSwap(ContextRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ContextRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[21]);
+      file_level_metadata_messages_2eproto[22]);
 }
 
 // ===================================================================
@@ -5995,7 +6377,7 @@ void TestFeedback::InternalSwap(TestFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata TestFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[22]);
+      file_level_metadata_messages_2eproto[23]);
 }
 
 // ===================================================================
@@ -6206,7 +6588,7 @@ void CallFeedback::InternalSwap(CallFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata CallFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[23]);
+      file_level_metadata_messages_2eproto[24]);
 }
 
 // ===================================================================
@@ -6489,7 +6871,7 @@ void ValueFeedback::InternalSwap(ValueFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ValueFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[24]);
+      file_level_metadata_messages_2eproto[25]);
 }
 
 // ===================================================================
@@ -6852,7 +7234,7 @@ void TypeFeedback_Feedback::InternalSwap(TypeFeedback_Feedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata TypeFeedback_Feedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[25]);
+      file_level_metadata_messages_2eproto[26]);
 }
 
 // ===================================================================
@@ -6866,7 +7248,7 @@ void TypeFeedback_TypesEntry_DoNotUse::MergeFrom(const TypeFeedback_TypesEntry_D
 ::PROTOBUF_NAMESPACE_ID::Metadata TypeFeedback_TypesEntry_DoNotUse::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[26]);
+      file_level_metadata_messages_2eproto[27]);
 }
 
 // ===================================================================
@@ -7072,7 +7454,7 @@ void TypeFeedback::InternalSwap(TypeFeedback* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata TypeFeedback::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[27]);
+      file_level_metadata_messages_2eproto[28]);
 }
 
 // ===================================================================
@@ -7265,7 +7647,7 @@ void FeedbackRequest::InternalSwap(FeedbackRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata FeedbackRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[28]);
+      file_level_metadata_messages_2eproto[29]);
 }
 
 // ===================================================================
@@ -7532,7 +7914,7 @@ void PackageSource::InternalSwap(PackageSource* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PackageSource::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[29]);
+      file_level_metadata_messages_2eproto[30]);
 }
 
 // ===================================================================
@@ -7877,7 +8259,7 @@ void Package::InternalSwap(Package* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata Package::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[30]);
+      file_level_metadata_messages_2eproto[31]);
 }
 
 // ===================================================================
@@ -8055,7 +8437,7 @@ void PackageRequest::InternalSwap(PackageRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata PackageRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_messages_2eproto_getter, &descriptor_table_messages_2eproto_once,
-      file_level_metadata_messages_2eproto[31]);
+      file_level_metadata_messages_2eproto[32]);
 }
 
 // @@protoc_insertion_point(namespace_scope)
@@ -8081,6 +8463,10 @@ Arena::CreateMaybeMessage< ::rsh::protocol::CompileRequest >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::rsh::protocol::CompileSuccess*
 Arena::CreateMaybeMessage< ::rsh::protocol::CompileSuccess >(Arena* arena) {
   return Arena::CreateMessageInternal< ::rsh::protocol::CompileSuccess >(arena);
+}
+template<> PROTOBUF_NOINLINE ::rsh::protocol::CompileMetrics*
+Arena::CreateMaybeMessage< ::rsh::protocol::CompileMetrics >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::rsh::protocol::CompileMetrics >(arena);
 }
 template<> PROTOBUF_NOINLINE ::rsh::protocol::CompileFailure*
 Arena::CreateMaybeMessage< ::rsh::protocol::CompileFailure >(Arena* arena) {

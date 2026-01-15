@@ -43,7 +43,7 @@ stopifnot(dir.create(output_dir, recursive = TRUE))
 
 test_env2 <- create_env()
 
-result_with_files <- rsh_cmppkg(test_env2, options = list(output_dir = output_dir), quiet = FALSE)
+result_with_files <- rsh_cmppkg(test_env2, options = list(output_dir = output_dir, cache = FALSE), quiet = FALSE)
 
 expect_true(is_compiled(test_env2$add))
 expect_true(is_compiled(test_env2$fac))
