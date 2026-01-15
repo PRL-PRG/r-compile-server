@@ -3,6 +3,7 @@
 #include "R_ext/Print.h"
 #include "Rinternals.h"
 #include "client.hpp"
+#include "messages.pb.h"
 #include "rsh.hpp"
 #include "serialize.hpp"
 #include "util.hpp"
@@ -136,40 +137,8 @@ std::string genSymbol(uint64_t hash, int index) {
   return "gen_" + std::to_string(hash) + "_" + std::to_string(index);
 }
 
-SEXP compile(SEXP closure, SEXP options) {
-  if (TYPEOF(options) != VECSXP) {
-    Rf_error("Expected a list of compiler options");
-  }
-
-  auto opts = CompilerOptions::from_list(options);
-
-  auto response = compile_closure(closure, opts);
-  if (std::string *error = std::get_if<std::string>(&response)) {
-    Rf_error("Request failed: %s", error->c_str());
-    return closure;
-  }
-
-  auto compiler_response = std::get<protocol::CompileResponse>(response);
-
-  if (compiler_response.has_failure()) {
-    const auto &failure = compiler_response.failure();
-    fs::path source_code_path;
-
-    if (!failure.source_code().empty()) {
-      if (write_to_temp(failure.source_code(), source_code_path)) {
-        Rf_warning("Unable to save source code of a failed compilation");
-      }
-    }
-
-    Rf_error("Compilation failed\nCommand:%s\nError:%s%s",
-             failure.command().c_str(), failure.compiler_output().c_str(),
-             source_code_path.c_str());
-
-    return closure;
-  }
-
-  auto compiled_fun = compiler_response.success();
-
+SEXP create_compile_info(CompilerOptions const &opts,
+                         protocol::CompileSuccess const &compiled_fun) {
   fs::path debug_dir;
   fs::path o_file;
   fs::path c_file;
@@ -185,11 +154,6 @@ SEXP compile(SEXP closure, SEXP options) {
                    ec.message().c_str());
         debug_dir = "";
       }
-    }
-  } else if (compiled_fun.has_source_code_data() && opts.debug) {
-    if (auto err = create_temp_dir(debug_dir)) {
-      Rf_warning("Failed to create temporary debug directory: %s",
-                 err->c_str());
     }
   }
 
@@ -220,39 +184,6 @@ SEXP compile(SEXP closure, SEXP options) {
     }
   }
 
-  // If the code is empty, we keep the SEXP
-  if (compiled_fun.code().empty()) {
-    Rf_warning("Empty body returned for function %s. Most likely because of "
-               "browser in the body",
-               opts.name.c_str());
-    return closure;
-  }
-
-  SEXP body = nullptr;
-  SEXP c_cp = nullptr;
-  void *fun_ptr = nullptr;
-  SEXP fun_ptr_sxp = nullptr;
-
-  std::string name = genSymbol(compiled_fun.hash(), 0);
-
-  if (opts.tier == protocol::Tier::OPTIMIZED) {
-    fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
-
-    // FIXME: update the finalizer
-    // R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
-
-    auto c_cp = PROTECT(rsh::deserialize(compiled_fun.constants()));
-    body = R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp);
-    UNPROTECT(1); // c_cp
-    PROTECT(body);
-  } else if (opts.tier == protocol::Tier::BASELINE) {
-    body = PROTECT(rsh::deserialize(compiled_fun.code()));
-    if (TYPEOF(body) != BCODESXP) {
-      Rf_warning("Function %s was not compiled into bytecode (got back %s)",
-                 opts.name.c_str(), Rf_type2char(TYPEOF(body)));
-    }
-  }
-
   SEXP info = PROTECT(Rf_allocVector(VECSXP, 5));
   SEXP info_names = PROTECT(Rf_allocVector(STRSXP, 5));
 
@@ -276,13 +207,85 @@ SEXP compile(SEXP closure, SEXP options) {
                                 : Rf_mkString(c_file.c_str()));
 
   Rf_setAttrib(info, R_NamesSymbol, info_names);
-  UNPROTECT(1); // info_names
+  UNPROTECT(2); // info_names, info (caller must PROTECT return value)
+
+  return info;
+}
+
+SEXP compile(SEXP closure, SEXP options) {
+  if (TYPEOF(options) != VECSXP) {
+    Rf_error("Expected a list of compiler options");
+  }
+
+  auto opts = CompilerOptions::from_list(options);
+
+  auto response = compile_closure(closure, opts);
+  if (std::string *error = std::get_if<std::string>(&response)) {
+    Rf_error("Request failed: %s", error->c_str());
+    return closure;
+  }
+
+  auto compiler_response = std::get<protocol::CompileResponse>(response);
+  if (compiler_response.has_failure()) {
+    const auto &failure = compiler_response.failure();
+    fs::path source_code_path;
+
+    if (!failure.source_code().empty()) {
+      if (write_to_temp(failure.source_code(), source_code_path)) {
+        Rf_warning("Unable to save source code of a failed compilation");
+      }
+    }
+
+    Rf_error("Compilation failed\nCommand:%s\nError:%s%s",
+             failure.command().c_str(), failure.compiler_output().c_str(),
+             source_code_path.c_str());
+
+    return closure;
+  }
+
+  auto compiled_fun = compiler_response.success();
+
+  // If the code is empty, we keep the SEXP
+  if (compiled_fun.code().empty()) {
+    Rf_warning("Empty body returned for function %s. Most likely because of "
+               "browser in the body",
+               opts.name.c_str());
+    return closure;
+  }
+
+  SEXP body = nullptr;
+
+  std::string name = genSymbol(compiled_fun.hash(), 0);
+
+  // create closure body
+  if (opts.tier == protocol::Tier::OPTIMIZED) {
+    void *fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
+    SEXP c_cp = PROTECT(rsh::deserialize(compiled_fun.constants()));
+
+    body = R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp);
+
+    // FIXME: update the finalizer
+    // R_RegisterCFinalizerEx(body, &jit_fun_destructor, FALSE);
+
+    UNPROTECT(1); // c_cp
+    PROTECT(body);
+  } else if (opts.tier == protocol::Tier::BASELINE) {
+
+    body = PROTECT(rsh::deserialize(compiled_fun.code()));
+
+    if (TYPEOF(body) != BCODESXP) {
+      Rf_warning("Function %s was not compiled into bytecode (got back %s)",
+                 opts.name.c_str(), Rf_type2char(TYPEOF(body)));
+    }
+  }
 
   if (opts.inplace) {
     SET_BODY(closure, body);
   } else {
     closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
   }
+
+  UNPROTECT(1); // body
   PROTECT(closure);
 
   // FIXME: add logging primitive
@@ -291,6 +294,7 @@ SEXP compile(SEXP closure, SEXP options) {
   // Return list with closure and info
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 2));
   SEXP result_names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SEXP info = PROTECT(create_compile_info(opts, compiled_fun));
 
   SET_STRING_ELT(result_names, 0, Rf_mkChar("closure"));
   SET_VECTOR_ELT(result, 0, closure);
@@ -299,9 +303,7 @@ SEXP compile(SEXP closure, SEXP options) {
   SET_VECTOR_ELT(result, 1, info);
 
   Rf_setAttrib(result, R_NamesSymbol, result_names);
-  UNPROTECT(1); // result_names
-
-  UNPROTECT(4); // result, closure, info, body
+  UNPROTECT(4); // info, result_names, result, closure
 
   return result;
 }

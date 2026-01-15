@@ -228,11 +228,11 @@ rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
         message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
         message <- paste0(message, ", constants: ", info$constants_size, " bytes")
 
-        if (!is.null(info$object_file)) {
+        if (!is.na(info$object_file)) {
           message <- paste0(message, ", saved: ", info$object_file, ", ", info$constants_file)
         }
         
-        if (!is.null(info$source_file)) {
+        if (!is.na(info$source_file)) {
           message <- paste0(message, ", ", info$source_file)
         }
         

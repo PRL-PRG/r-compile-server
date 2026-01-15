@@ -3,23 +3,30 @@ options(error = function() {
   quit(status = 1, save = "no")
 })
 
-expect_false <- function(expr) {
+expect_false <- function(expr, msg=paste("Expected false for", deparse(subsitutute(expr)))) {
   expr <- force(expr)
-  stopifnot(!expr)
+  if (expr) {
+    stop(msg)
+  }
 }
 
-expect_true <- function(expr) {
+expect_true <- function(expr, msg=paste("Expected false for", deparse(subsitutute(expr)))) {
   expr <- force(expr)
-  stopifnot(expr)
+  if (!expr) {
+    stop(msg)
+  }
 }
 
-expect_equals <- function(a, b) {
+expect_equals <- function(a, b, msg=paste("Expected", deparse(subsitutute(a)), "to be the same as", deparse(subsitutute(b)))) {
   a <- force(a)
   b <- force(b)
-  stopifnot(identical(a, b))
+  if (!identical(a, b)) {
+    stop(msg)
+  }
 }
 
 # effectivelly preventing the functions from RSH compilation
+# FIXME: this is broken, we need a way to flag a function from being compiled
 for (x in ls()) {
   f <- get(x)
   if (is.function(f)) {

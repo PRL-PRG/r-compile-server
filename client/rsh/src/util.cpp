@@ -135,13 +135,20 @@ std::optional<std::string> create_temp_file(fs::path &path) noexcept {
 }
 
 std::optional<std::string> create_temp_dir(fs::path &path) noexcept {
+  // If path already exists as a directory, use it as-is
+  if (!path.empty() && fs::is_directory(path)) {
+    return {};
+  }
+
   fs::path name;
   if (auto err = create_temp_file(name)) {
     return err;
   }
 
   try {
+    fs::remove(name);
     fs::create_directories(name);
+    path = name;
     return {};
   } catch (const std::exception &e) {
     return e.what();

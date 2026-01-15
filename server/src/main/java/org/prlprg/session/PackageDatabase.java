@@ -294,12 +294,12 @@ public class PackageDatabase {
       }
     }
 
-    var notClos =
-        objects.entrySet().stream()
-            .filter(e -> !(e.getValue() instanceof CloSXP))
-            .map(e -> e.getKey() + ":" + e.getValue().type())
-            .toList();
-    LOGGER.info("Not Closures: " + notClos);
+//    var notClos =
+//        objects.entrySet().stream()
+//            .filter(e -> !(e.getValue() instanceof CloSXP))
+//            .map(e -> e.getKey() + ":" + e.getValue().type())
+//            .toList();
+//    LOGGER.info("Not Closures: " + notClos);
 
     // Remove the persist environments
     objects.keySet().removeAll(tmpEnvs.keySet());

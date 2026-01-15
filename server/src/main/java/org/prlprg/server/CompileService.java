@@ -27,7 +27,6 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
-import org.prlprg.util.Triple;
 
 class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
@@ -36,12 +35,17 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
   // Cache for byte-code, only for functions. We keep the already serialized code in the cache
   // not the Bc (or BcCodeSXP)
-  // Key is (hash, optimisationLevel)
-  private final HashMap<Pair<Long, Integer>, Pair<Bc, ByteString>> bcCache = new HashMap<>();
+  // Key is (hash, bcOpt, body)
+  private record BcCacheKey(long hash, int bcOpt, ByteString body) {
+  }
+
+    private final HashMap<BcCacheKey, Pair<Bc, ByteString>> bcCache = new HashMap<>();
   // Cache for native code.
-  // Key is (hash, bcOpt, ccOpt)
-  private final HashMap<Triple<Long, Integer, Integer>, NativeClosure> nativeCache =
-      new HashMap<>();
+  // Key is (hash, bcOpt, ccOpt, body, debug)
+  private record NativeCacheKey(long hash, int bcOpt, int ccOpt, ByteString body, boolean debug) {
+  }
+
+    private final HashMap<NativeCacheKey, NativeClosure> nativeCache = new HashMap<>();
 
   private static String genSymbol(Messages.Function function) {
     // the hash is uint64 (unsigned ) but java does not have unsigned numbers and store it as a long
@@ -58,12 +62,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             boolean debug,
             boolean noCache) {
 
-        Triple<Long, Integer, Integer> nativeKey() {
-            return Triple.of(function.getHash(), bcOpt, ccOpt);
+        NativeCacheKey nativeKey() {
+            return new NativeCacheKey(function.getHash(), bcOpt, ccOpt, function.getBody(), debug);
         }
 
-        Pair<Long, Integer> bcKey() {
-            return Pair.of(function.getHash(), bcOpt);
+        BcCacheKey bcKey() {
+            return new BcCacheKey(function.getHash(), bcOpt, function.getBody());
         }
     }
 
@@ -128,7 +132,14 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             var ccCached = nativeCache.get(params.nativeKey());
             if (ccCached != null) {
                 logger.info("Found " + params.function.getName() + " in native cache. No recompilation.");
-                return new CompileResult(ccCached.code(), ccCached.constantPool(), null);
+                Messages.SourceCodeData sourceCodeData = null;
+                if (params.debug && ccCached.sourceCode() != null) {
+                    sourceCodeData =
+                            Messages.SourceCodeData.newBuilder()
+                                    .setSourceCode(ccCached.sourceCode())
+                                    .build();
+                }
+                return new CompileResult(ccCached.code(), ccCached.constantPool(), sourceCodeData);
             }
         }
 
@@ -223,8 +234,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
             var code = ByteString.copyFrom(Files.asByteSource(output).read());
             var constantPool = RDSWriter.writeByteString(module.constantPool());
+            var sourceCode = org.prlprg.util.Files.readString(input.toPath());
 
-            var nativeClosure = new NativeClosure(code, module.topLevelFunName(), constantPool);
+            var nativeClosure = new NativeClosure(module.topLevelFunName(), code, constantPool, sourceCode);
             if (!params.noCache) {
                 nativeCache.put(params.nativeKey(), nativeClosure);
             }
@@ -233,7 +245,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             if (params.debug) {
                 sourceCodeData =
                         Messages.SourceCodeData.newBuilder()
-                                .setSourceCode(org.prlprg.util.Files.readString(input.toPath()))
+                                .setSourceCode(sourceCode)
                                 .setTempFileName(input.getAbsolutePath())
                                 .build();
             }
@@ -304,7 +316,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
       var params = parseRequest(request);
       logger.info(
-              "Received request to compile function: ");
+              "Received request to compile function: " + params.function.getName());
 
       try {
           var result = compileFunction(params);
@@ -372,8 +384,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     } else {
       for (var hash : hashes) {
         logger.info("Clearing cache entry for hash " + hash);
-        bcCache.entrySet().removeIf(entry -> entry.getKey().first().equals(hash));
-        nativeCache.entrySet().removeIf(entry -> entry.getKey().first().equals(hash));
+          bcCache.entrySet().removeIf(entry -> entry.getKey().hash() == hash);
+          nativeCache.entrySet().removeIf(entry -> entry.getKey().hash() == hash);
       }
     }
     responseObserver.onNext(Messages.ClearCacheResponse.newBuilder().build());
