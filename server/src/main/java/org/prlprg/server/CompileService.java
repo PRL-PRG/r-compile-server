@@ -29,7 +29,7 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
 
 class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
-  private static final Logger logger = Logger.getLogger(CompileServer.class.getName());
+    private static final Logger logger = Logger.getLogger(CompileService.class.getName());
 
   private @Nullable GNURSession session = null;
 
@@ -54,21 +54,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     return "gen_" + Long.toUnsignedString(function.getHash());
   }
 
-    private record CompileParams(
-            Messages.Function function,
-            Messages.Tier tier,
-            int bcOpt,
-            int ccOpt,
-            boolean debug,
-            boolean noCache) {
+    private static NativeCacheKey nativeKey(Messages.CompileRequest request) {
+        return new NativeCacheKey(request.getFunction().getHash(), request.getBcOpt(), request.getCcOpt(), request.getFunction().getBody(), request.getDebug());
+    }
 
-        NativeCacheKey nativeKey() {
-            return new NativeCacheKey(function.getHash(), bcOpt, ccOpt, function.getBody(), debug);
-        }
-
-        BcCacheKey bcKey() {
-            return new BcCacheKey(function.getHash(), bcOpt, function.getBody());
-        }
+    private static BcCacheKey bcKey(Messages.CompileRequest request) {
+        return new BcCacheKey(request.getFunction().getHash(), request.getBcOpt(), request.getFunction().getBody());
     }
 
     private record CompileResult(
@@ -89,38 +80,25 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         }
     }
 
-    private CompileParams parseRequest(Messages.CompileRequest request) {
-        var tier = request.getTier();
-        if (tier == Messages.Tier.UNRECOGNIZED) {
-            tier = Messages.Tier.OPTIMIZED;
-        }
-        return new CompileParams(
-                request.getFunction(),
-                tier,
-                request.hasBcOpt() ? request.getBcOpt() : 2,
-                request.hasCcOpt() ? request.getCcOpt() : 2,
-                request.getDebug(),
-                request.getNoCache());
-    }
-
-    private CompileResult compileFunction(CompileParams params) throws CompileException, IOException {
-        if (!params.function.hasBody()) {
+    private CompileResult compileFunction(Messages.CompileRequest params) throws CompileException, IOException {
+        if (!params.getFunction().hasBody()) {
             throw new CompileException(
                     "compile",
-                    "No body sent with the request for function " + params.function.getName(),
+                    "No body sent with the request for function " + params.getFunction().getName(),
                     "");
         }
 
         // Try cache lookup first
-        if (!params.noCache) {
+        if (!params.getNoCache()) {
             var cached = lookupCache(params);
             if (cached != null) {
+                logger.info("Found " + params.getFunction().getName() + " in native cache. No recompilation.");
                 return cached;
             }
         }
 
         // Compile based on tier
-        if (params.tier.equals(Messages.Tier.BASELINE)) {
+        if (params.getTier().equals(Messages.Tier.BASELINE)) {
             return compileToBaseline(params);
         } else {
             return compileToOptimized(params);
@@ -128,13 +106,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     }
 
 
-    private @Nullable CompileResult lookupCache(CompileParams params) {
-        if (params.tier.equals(Messages.Tier.OPTIMIZED)) {
-            var ccCached = nativeCache.get(params.nativeKey());
+    private @Nullable CompileResult lookupCache(Messages.CompileRequest params) {
+        if (params.getTier().equals(Messages.Tier.OPTIMIZED)) {
+            var ccCached = nativeCache.get(nativeKey(params));
             if (ccCached != null) {
-                logger.info("Found " + params.function.getName() + " in native cache. No recompilation.");
                 Messages.SourceCodeData sourceCodeData = null;
-                if (params.debug && ccCached.sourceCode() != null) {
+                if (params.getDebug() && ccCached.sourceCode() != null) {
                     sourceCodeData =
                             Messages.SourceCodeData.newBuilder()
                                     .setSourceCode(ccCached.sourceCode())
@@ -144,10 +121,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             }
         }
 
-        if (params.tier.equals(Messages.Tier.BASELINE)) {
-            var bcCached = bcCache.get(params.bcKey());
+        if (params.getTier().equals(Messages.Tier.BASELINE)) {
+            var bcCached = bcCache.get(bcKey(params));
             if (bcCached != null) {
-                logger.info("Found " + params.function.getName() + " in bytecode cache. No recompilation.");
+                logger.info("Found " + params.getFunction().getName() + " in bytecode cache. No recompilation.");
                 return new CompileResult(bcCached.second(), null, null, null);
             }
         }
@@ -155,7 +132,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         return null;
     }
 
-    private CompileResult compileToBaseline(CompileParams params) throws CompileException, IOException {
+    private CompileResult compileToBaseline(Messages.CompileRequest params) throws CompileException, IOException {
         long bcStart = System.nanoTime();
         var bc = compileBytecode(params);
         long bcEnd = System.nanoTime();
@@ -163,8 +140,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
 
         var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
 
-        if (!params.noCache) {
-            bcCache.put(params.bcKey(), Pair.of(bc, serializedBc));
+        if (!params.getNoCache()) {
+            bcCache.put(bcKey(params), Pair.of(bc, serializedBc));
         }
 
         var metrics = Messages.CompileMetrics.newBuilder()
@@ -175,20 +152,20 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         return new CompileResult(serializedBc, null, null, metrics);
     }
 
-    private Bc compileBytecode(CompileParams params) throws CompileException {
+    private Bc compileBytecode(Messages.CompileRequest params) throws CompileException {
         logger.info(
                 "Compile function "
-                        + params.function.getName()
+                        + params.getFunction().getName()
                         + " to bytecode with optimisation level "
-                        + params.bcOpt);
+                        + params.getBcOpt());
 
         try {
-            var bcRes = compileBcClosure(params.function.getBody(), params.bcOpt);
+            var bcRes = compileBcClosure(params.getFunction().getBody(), params.getBcOpt());
             if (bcRes.isEmpty()) {
                 throw new CompileException(
                         "bytecode compile",
-                        "Empty bytecode for function " + params.function.getName(),
-                        params.function.getBody().toStringUtf8());
+                        "Empty bytecode for function " + params.getFunction().getName(),
+                        params.getFunction().getBody().toStringUtf8());
             }
             return bcRes.get();
         } catch (CompileException e) {
@@ -196,14 +173,14 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         } catch (Exception e) {
             throw new CompileException(
                     "bytecode compile",
-                    "Cannot bytecode compile function " + params.function.getName() + " ; " + e.getMessage(),
-                    params.function.getBody().toStringUtf8());
+                    "Cannot bytecode compile function " + params.getFunction().getName() + " ; " + e.getMessage(),
+                    params.getFunction().getBody().toStringUtf8());
         }
     }
 
-    private CompileResult compileToOptimized(CompileParams params) throws CompileException, IOException {
+    private CompileResult compileToOptimized(Messages.CompileRequest params) throws CompileException, IOException {
         // Check if we have cached bytecode
-        var bcCached = params.noCache ? null : bcCache.get(params.bcKey());
+        var bcCached = params.getNoCache() ? null : bcCache.get(bcKey(params));
         Bc bc;
         double bcTimeMs = 0;
 
@@ -214,21 +191,21 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             bc = compileBytecode(params);
             long bcEnd = System.nanoTime();
             bcTimeMs = (bcEnd - bcStart) / 1_000_000.0;
-            if (!params.noCache) {
+            if (!params.getNoCache()) {
                 var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
-                bcCache.put(params.bcKey(), Pair.of(bc, serializedBc));
+                bcCache.put(bcKey(params), Pair.of(bc, serializedBc));
             }
         }
 
         logger.info(
                 "Compile function "
-                        + params.function.getName()
+                        + params.getFunction().getName()
                         + " to native with optimisation level "
-                        + params.ccOpt + " debug: " + params.debug);
+                        + params.getCcOpt() + " debug: " + params.getDebug());
 
         try {
             long cStart = System.nanoTime();
-            var name = genSymbol(params.function);
+            var name = genSymbol(params.getFunction());
             var bc2cCompiler = new BC2CCompiler(bc, name, false);
             var module = bc2cCompiler.finish();
 
@@ -242,10 +219,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             long nativeStart = System.nanoTime();
             var output = File.createTempFile("ofile", ".o");
             var compiler =
-                    RshCompiler.getInstance(params.ccOpt)
+                    RshCompiler.getInstance(params.getCcOpt())
                             .createBuilder(input.getPath(), output.getPath())
                             .flag("-c");
-            if (params.debug) {
+            if (params.getDebug()) {
                 compiler.flag("-g");
             }
             compiler.compile();
@@ -257,12 +234,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             var sourceCode = org.prlprg.util.Files.readString(input.toPath());
 
             var nativeClosure = new NativeClosure(module.topLevelFunName(), code, constantPool, sourceCode);
-            if (!params.noCache) {
-                nativeCache.put(params.nativeKey(), nativeClosure);
+            if (!params.getNoCache()) {
+                nativeCache.put(nativeKey(params), nativeClosure);
             }
 
             Messages.SourceCodeData sourceCodeData = null;
-            if (params.debug) {
+            if (params.getDebug()) {
                 sourceCodeData =
                         Messages.SourceCodeData.newBuilder()
                                 .setSourceCode(sourceCode)
@@ -281,20 +258,20 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         } catch (Exception e) {
             throw new CompileException(
                     "native compile",
-                    "Cannot native compile function " + params.function.getName() + " ; " + e.getMessage(),
-                    params.function.getBody().toStringUtf8());
+                    "Cannot native compile function " + params.getFunction().getName() + " ; " + e.getMessage(),
+                    params.getFunction().getBody().toStringUtf8());
         }
     }
 
     private void sendSuccess(
             ServerCallStreamObserver<Messages.CompileResponse> responseObserver,
             CompileResult result,
-            CompileParams params) {
+            Messages.CompileRequest params) {
         var successBuilder =
                 Messages.CompileSuccess.newBuilder()
                         .setCode(result.code())
-                        .setTier(params.tier)
-                        .setHash(params.function.getHash());
+                        .setTier(params.getTier())
+                        .setHash(params.getFunction().getHash());
 
         if (result.constantPool() != null) {
             successBuilder.setConstants(result.constantPool());
@@ -344,13 +321,12 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           return;
       }
 
-      var params = parseRequest(request);
       logger.info(
-              "Received request to compile function: " + params.function.getName());
+              "Received request to compile function: " + request.getFunction().getName());
 
       try {
-          var result = compileFunction(params);
-          sendSuccess(responseObserver, result, params);
+          var result = compileFunction(request);
+          sendSuccess(responseObserver, result, request);
       } catch (CompileException e) {
           sendFailure(responseObserver, e.command, e.getMessage(), e.sourceCode);
       } catch (IOException e) {
@@ -427,7 +403,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   }
 
   private Optional<Bc> compileBcClosure(ByteString body, int optimizationLevel) {
-    SEXP closure = null;
+      SEXP closure;
     try {
       assert session != null;
       closure = RDSReader.readByteString(session, body);

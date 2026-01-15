@@ -140,7 +140,8 @@ std::string genSymbol(uint64_t hash, int index) {
 
 SEXP create_compile_info(CompilerOptions const &opts,
                          protocol::CompileSuccess const &compiled_fun,
-                         double compile_time_ms) {
+                         double compile_time_ms,
+                         std::string const &symbol_name) {
   fs::path debug_dir;
   fs::path o_file;
   fs::path c_file;
@@ -186,8 +187,8 @@ SEXP create_compile_info(CompilerOptions const &opts,
     }
   }
 
-  SEXP info = PROTECT(Rf_allocVector(VECSXP, 10));
-  SEXP info_names = PROTECT(Rf_allocVector(STRSXP, 10));
+  SEXP info = PROTECT(Rf_allocVector(VECSXP, 11));
+  SEXP info_names = PROTECT(Rf_allocVector(STRSXP, 11));
 
   SET_STRING_ELT(info_names, 0, Rf_mkChar("binary_size"));
   SET_VECTOR_ELT(info, 0, Rf_ScalarInteger(compiled_fun.code().size()));
@@ -232,6 +233,9 @@ SEXP create_compile_info(CompilerOptions const &opts,
     SET_VECTOR_ELT(info, 9, Rf_ScalarReal(NA_REAL));
   }
 
+  SET_STRING_ELT(info_names, 10, Rf_mkChar("symbol_name"));
+  SET_VECTOR_ELT(info, 10, Rf_mkString(symbol_name.c_str()));
+
   Rf_setAttrib(info, R_NamesSymbol, info_names);
   UNPROTECT(2); // info_names, info (caller must PROTECT return value)
 
@@ -248,7 +252,8 @@ SEXP compile(SEXP closure, SEXP options) {
   auto start_time = std::chrono::steady_clock::now();
   auto response = compile_closure(closure, opts);
   auto end_time = std::chrono::steady_clock::now();
-  double compile_time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+  double compile_time_ms =
+      std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
   if (std::string *error = std::get_if<std::string>(&response)) {
     Rf_error("Request failed: %s", error->c_str());
@@ -318,13 +323,14 @@ SEXP compile(SEXP closure, SEXP options) {
   UNPROTECT(1); // body
   PROTECT(closure);
 
-  // FIXME: add logging primitive
-  Rprintf("Compiled fun %s (symbol %s) ; ", opts.name.c_str(), name.c_str());
+  // FIXME: add logging primitive (quiet option)
+  Rprintf("Compiled fun %s (symbol %s)\n", opts.name.c_str(), name.c_str());
 
   // Return list with closure and info
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 2));
   SEXP result_names = PROTECT(Rf_allocVector(STRSXP, 2));
-  SEXP info = PROTECT(create_compile_info(opts, compiled_fun, compile_time_ms));
+  SEXP info =
+      PROTECT(create_compile_info(opts, compiled_fun, compile_time_ms, name));
 
   SET_STRING_ELT(result_names, 0, Rf_mkChar("closure"));
   SET_VECTOR_ELT(result, 0, closure);
