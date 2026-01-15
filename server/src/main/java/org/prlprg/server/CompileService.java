@@ -74,7 +74,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     private record CompileResult(
             ByteString code,
             @Nullable ByteString constantPool,
-            @Nullable Messages.SourceCodeData sourceCodeData) {
+            @Nullable Messages.SourceCodeData sourceCodeData,
+            @Nullable Messages.CompileMetrics metrics) {
     }
 
     private static class CompileException extends Exception {
@@ -139,7 +140,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                                     .setSourceCode(ccCached.sourceCode())
                                     .build();
                 }
-                return new CompileResult(ccCached.code(), ccCached.constantPool(), sourceCodeData);
+                return new CompileResult(ccCached.code(), ccCached.constantPool(), sourceCodeData, null);
             }
         }
 
@@ -147,7 +148,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             var bcCached = bcCache.get(params.bcKey());
             if (bcCached != null) {
                 logger.info("Found " + params.function.getName() + " in bytecode cache. No recompilation.");
-                return new CompileResult(bcCached.second(), null, null);
+                return new CompileResult(bcCached.second(), null, null, null);
             }
         }
 
@@ -155,14 +156,23 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     }
 
     private CompileResult compileToBaseline(CompileParams params) throws CompileException, IOException {
+        long bcStart = System.nanoTime();
         var bc = compileBytecode(params);
+        long bcEnd = System.nanoTime();
+        double bcTimeMs = (bcEnd - bcStart) / 1_000_000.0;
+
         var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
 
         if (!params.noCache) {
             bcCache.put(params.bcKey(), Pair.of(bc, serializedBc));
         }
 
-        return new CompileResult(serializedBc, null, null);
+        var metrics = Messages.CompileMetrics.newBuilder()
+                .setBytecodeInstructions(bc.code().size())
+                .setBytecodeCompileTimeMs(bcTimeMs)
+                .build();
+
+        return new CompileResult(serializedBc, null, null, metrics);
     }
 
     private Bc compileBytecode(CompileParams params) throws CompileException {
@@ -195,11 +205,15 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         // Check if we have cached bytecode
         var bcCached = params.noCache ? null : bcCache.get(params.bcKey());
         Bc bc;
+        double bcTimeMs = 0;
 
         if (bcCached != null) {
             bc = bcCached.first();
         } else {
+            long bcStart = System.nanoTime();
             bc = compileBytecode(params);
+            long bcEnd = System.nanoTime();
+            bcTimeMs = (bcEnd - bcStart) / 1_000_000.0;
             if (!params.noCache) {
                 var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
                 bcCache.put(params.bcKey(), Pair.of(bc, serializedBc));
@@ -213,6 +227,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                         + params.ccOpt + " debug: " + params.debug);
 
         try {
+            long cStart = System.nanoTime();
             var name = genSymbol(params.function);
             var bc2cCompiler = new BC2CCompiler(bc, name, false);
             var module = bc2cCompiler.finish();
@@ -221,7 +236,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             try (var f = Files.newWriter(input, Charset.defaultCharset())) {
                 module.file().writeTo(f);
             }
+            long cEnd = System.nanoTime();
+            double cTimeMs = (cEnd - cStart) / 1_000_000.0;
 
+            long nativeStart = System.nanoTime();
             var output = File.createTempFile("ofile", ".o");
             var compiler =
                     RshCompiler.getInstance(params.ccOpt)
@@ -231,6 +249,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                 compiler.flag("-g");
             }
             compiler.compile();
+            long nativeEnd = System.nanoTime();
+            double nativeTimeMs = (nativeEnd - nativeStart) / 1_000_000.0;
 
             var code = ByteString.copyFrom(Files.asByteSource(output).read());
             var constantPool = RDSWriter.writeByteString(module.constantPool());
@@ -250,7 +270,14 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                                 .build();
             }
 
-            return new CompileResult(code, constantPool, sourceCodeData);
+            var metrics = Messages.CompileMetrics.newBuilder()
+                    .setBytecodeInstructions(bc.code().size())
+                    .setBytecodeCompileTimeMs(bcTimeMs)
+                    .setCCompileTimeMs(cTimeMs)
+                    .setNativeCompileTimeMs(nativeTimeMs)
+                    .build();
+
+            return new CompileResult(code, constantPool, sourceCodeData, metrics);
         } catch (Exception e) {
             throw new CompileException(
                     "native compile",
@@ -274,6 +301,9 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         }
         if (result.sourceCodeData() != null) {
             successBuilder.setSourceCodeData(result.sourceCodeData());
+        }
+        if (result.metrics() != null) {
+            successBuilder.setMetrics(result.metrics());
         }
 
         var response = Messages.CompileResponse.newBuilder().setSuccess(successBuilder.build()).build();

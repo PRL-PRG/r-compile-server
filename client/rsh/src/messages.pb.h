@@ -69,6 +69,9 @@ extern ClearCacheResponseDefaultTypeInternal _ClearCacheResponse_default_instanc
 class CompileFailure;
 struct CompileFailureDefaultTypeInternal;
 extern CompileFailureDefaultTypeInternal _CompileFailure_default_instance_;
+class CompileMetrics;
+struct CompileMetricsDefaultTypeInternal;
+extern CompileMetricsDefaultTypeInternal _CompileMetrics_default_instance_;
 class CompileRequest;
 struct CompileRequestDefaultTypeInternal;
 extern CompileRequestDefaultTypeInternal _CompileRequest_default_instance_;
@@ -156,6 +159,7 @@ template<> ::rsh::protocol::CallFeedback* Arena::CreateMaybeMessage<::rsh::proto
 template<> ::rsh::protocol::ClearCacheRequest* Arena::CreateMaybeMessage<::rsh::protocol::ClearCacheRequest>(Arena*);
 template<> ::rsh::protocol::ClearCacheResponse* Arena::CreateMaybeMessage<::rsh::protocol::ClearCacheResponse>(Arena*);
 template<> ::rsh::protocol::CompileFailure* Arena::CreateMaybeMessage<::rsh::protocol::CompileFailure>(Arena*);
+template<> ::rsh::protocol::CompileMetrics* Arena::CreateMaybeMessage<::rsh::protocol::CompileMetrics>(Arena*);
 template<> ::rsh::protocol::CompileRequest* Arena::CreateMaybeMessage<::rsh::protocol::CompileRequest>(Arena*);
 template<> ::rsh::protocol::CompileResponse* Arena::CreateMaybeMessage<::rsh::protocol::CompileResponse>(Arena*);
 template<> ::rsh::protocol::CompileSuccess* Arena::CreateMaybeMessage<::rsh::protocol::CompileSuccess>(Arena*);
@@ -1162,6 +1166,7 @@ class CompileSuccess final :
     kCodeFieldNumber = 1,
     kConstantsFieldNumber = 2,
     kSourceCodeDataFieldNumber = 5,
+    kMetricsFieldNumber = 6,
     kHashFieldNumber = 4,
     kTierFieldNumber = 3,
   };
@@ -1211,6 +1216,24 @@ class CompileSuccess final :
       ::rsh::protocol::SourceCodeData* source_code_data);
   ::rsh::protocol::SourceCodeData* unsafe_arena_release_source_code_data();
 
+  // optional .rsh.protocol.CompileMetrics metrics = 6;
+  bool has_metrics() const;
+  private:
+  bool _internal_has_metrics() const;
+  public:
+  void clear_metrics();
+  const ::rsh::protocol::CompileMetrics& metrics() const;
+  PROTOBUF_NODISCARD ::rsh::protocol::CompileMetrics* release_metrics();
+  ::rsh::protocol::CompileMetrics* mutable_metrics();
+  void set_allocated_metrics(::rsh::protocol::CompileMetrics* metrics);
+  private:
+  const ::rsh::protocol::CompileMetrics& _internal_metrics() const;
+  ::rsh::protocol::CompileMetrics* _internal_mutable_metrics();
+  public:
+  void unsafe_arena_set_allocated_metrics(
+      ::rsh::protocol::CompileMetrics* metrics);
+  ::rsh::protocol::CompileMetrics* unsafe_arena_release_metrics();
+
   // uint64 hash = 4;
   void clear_hash();
   uint64_t hash() const;
@@ -1242,8 +1265,190 @@ class CompileSuccess final :
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr code_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr constants_;
     ::rsh::protocol::SourceCodeData* source_code_data_;
+    ::rsh::protocol::CompileMetrics* metrics_;
     uint64_t hash_;
     int tier_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_messages_2eproto;
+};
+// -------------------------------------------------------------------
+
+class CompileMetrics final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:rsh.protocol.CompileMetrics) */ {
+ public:
+  inline CompileMetrics() : CompileMetrics(nullptr) {}
+  ~CompileMetrics() override;
+  explicit PROTOBUF_CONSTEXPR CompileMetrics(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  CompileMetrics(const CompileMetrics& from);
+  CompileMetrics(CompileMetrics&& from) noexcept
+    : CompileMetrics() {
+    *this = ::std::move(from);
+  }
+
+  inline CompileMetrics& operator=(const CompileMetrics& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline CompileMetrics& operator=(CompileMetrics&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const CompileMetrics& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const CompileMetrics* internal_default_instance() {
+    return reinterpret_cast<const CompileMetrics*>(
+               &_CompileMetrics_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    5;
+
+  friend void swap(CompileMetrics& a, CompileMetrics& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(CompileMetrics* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(CompileMetrics* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  CompileMetrics* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<CompileMetrics>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const CompileMetrics& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const CompileMetrics& from) {
+    CompileMetrics::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(CompileMetrics* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "rsh.protocol.CompileMetrics";
+  }
+  protected:
+  explicit CompileMetrics(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kBytecodeCompileTimeMsFieldNumber = 2,
+    kCCompileTimeMsFieldNumber = 3,
+    kNativeCompileTimeMsFieldNumber = 4,
+    kBytecodeInstructionsFieldNumber = 1,
+  };
+  // double bytecode_compile_time_ms = 2;
+  void clear_bytecode_compile_time_ms();
+  double bytecode_compile_time_ms() const;
+  void set_bytecode_compile_time_ms(double value);
+  private:
+  double _internal_bytecode_compile_time_ms() const;
+  void _internal_set_bytecode_compile_time_ms(double value);
+  public:
+
+  // double c_compile_time_ms = 3;
+  void clear_c_compile_time_ms();
+  double c_compile_time_ms() const;
+  void set_c_compile_time_ms(double value);
+  private:
+  double _internal_c_compile_time_ms() const;
+  void _internal_set_c_compile_time_ms(double value);
+  public:
+
+  // double native_compile_time_ms = 4;
+  void clear_native_compile_time_ms();
+  double native_compile_time_ms() const;
+  void set_native_compile_time_ms(double value);
+  private:
+  double _internal_native_compile_time_ms() const;
+  void _internal_set_native_compile_time_ms(double value);
+  public:
+
+  // int32 bytecode_instructions = 1;
+  void clear_bytecode_instructions();
+  int32_t bytecode_instructions() const;
+  void set_bytecode_instructions(int32_t value);
+  private:
+  int32_t _internal_bytecode_instructions() const;
+  void _internal_set_bytecode_instructions(int32_t value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:rsh.protocol.CompileMetrics)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    double bytecode_compile_time_ms_;
+    double c_compile_time_ms_;
+    double native_compile_time_ms_;
+    int32_t bytecode_instructions_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_messages_2eproto;
@@ -1298,7 +1503,7 @@ class CompileFailure final :
                &_CompileFailure_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    5;
+    6;
 
   friend void swap(CompileFailure& a, CompileFailure& b) {
     a.Swap(&b);
@@ -1483,7 +1688,7 @@ class SourceCodeData final :
                &_SourceCodeData_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    6;
+    7;
 
   friend void swap(SourceCodeData& a, SourceCodeData& b) {
     a.Swap(&b);
@@ -1658,7 +1863,7 @@ class CompileResponse final :
                &_CompileResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    7;
+    8;
 
   friend void swap(CompileResponse& a, CompileResponse& b) {
     a.Swap(&b);
@@ -1848,7 +2053,7 @@ class Function final :
                &_Function_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    8;
+    9;
 
   friend void swap(Function& a, Function& b) {
     a.Swap(&b);
@@ -2044,7 +2249,7 @@ class FunctionRequest final :
                &_FunctionRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    9;
+    10;
 
   friend void swap(FunctionRequest& a, FunctionRequest& b) {
     a.Swap(&b);
@@ -2218,7 +2423,7 @@ class Environment final :
                &_Environment_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    11;
+    12;
 
   friend void swap(Environment& a, Environment& b) {
     a.Swap(&b);
@@ -2381,7 +2586,7 @@ class ValueRequest final :
                &_ValueRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    12;
+    13;
 
   friend void swap(ValueRequest& a, ValueRequest& b) {
     a.Swap(&b);
@@ -2543,7 +2748,7 @@ class Value final :
                &_Value_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    13;
+    14;
 
   friend void swap(Value& a, Value& b) {
     a.Swap(&b);
@@ -2707,7 +2912,7 @@ class Values final :
                &_Values_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    14;
+    15;
 
   friend void swap(Values& a, Values& b) {
     a.Swap(&b);
@@ -2863,7 +3068,7 @@ class Empty final :
                &_Empty_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    15;
+    16;
 
   friend void swap(Empty& a, Empty& b) {
     a.Swap(&b);
@@ -2982,7 +3187,7 @@ class ClearCacheRequest final :
                &_ClearCacheRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    16;
+    17;
 
   friend void swap(ClearCacheRequest& a, ClearCacheRequest& b) {
     a.Swap(&b);
@@ -3143,7 +3348,7 @@ class ClearCacheResponse final :
                &_ClearCacheResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    17;
+    18;
 
   friend void swap(ClearCacheResponse& a, ClearCacheResponse& b) {
     a.Swap(&b);
@@ -3262,7 +3467,7 @@ class CallContext final :
                &_CallContext_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    18;
+    19;
 
   friend void swap(CallContext& a, CallContext& b) {
     a.Swap(&b);
@@ -3443,7 +3648,7 @@ class ArgumentContext final :
                &_ArgumentContext_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    19;
+    20;
 
   friend void swap(ArgumentContext& a, ArgumentContext& b) {
     a.Swap(&b);
@@ -3629,7 +3834,7 @@ class Context final :
                &_Context_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    20;
+    21;
 
   friend void swap(Context& a, Context& b) {
     a.Swap(&b);
@@ -3806,7 +4011,7 @@ class ContextRequest final :
                &_ContextRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    21;
+    22;
 
   friend void swap(ContextRequest& a, ContextRequest& b) {
     a.Swap(&b);
@@ -3963,7 +4168,7 @@ class TestFeedback final :
                &_TestFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    22;
+    23;
 
   friend void swap(TestFeedback& a, TestFeedback& b) {
     a.Swap(&b);
@@ -4111,7 +4316,7 @@ class CallFeedback final :
                &_CallFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    23;
+    24;
 
   friend void swap(CallFeedback& a, CallFeedback& b) {
     a.Swap(&b);
@@ -4270,7 +4475,7 @@ class ValueFeedback final :
                &_ValueFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    25;
 
   friend void swap(ValueFeedback& a, ValueFeedback& b) {
     a.Swap(&b);
@@ -4469,7 +4674,7 @@ class TypeFeedback_Feedback final :
                &_TypeFeedback_Feedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    26;
 
   friend void swap(TypeFeedback_Feedback& a, TypeFeedback_Feedback& b) {
     a.Swap(&b);
@@ -4704,7 +4909,7 @@ class TypeFeedback final :
                &_TypeFeedback_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    27;
+    28;
 
   friend void swap(TypeFeedback& a, TypeFeedback& b) {
     a.Swap(&b);
@@ -4868,7 +5073,7 @@ class FeedbackRequest final :
                &_FeedbackRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    28;
+    29;
 
   friend void swap(FeedbackRequest& a, FeedbackRequest& b) {
     a.Swap(&b);
@@ -5031,7 +5236,7 @@ class PackageSource final :
                &_PackageSource_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    29;
+    30;
 
   friend void swap(PackageSource& a, PackageSource& b) {
     a.Swap(&b);
@@ -5221,7 +5426,7 @@ class Package final :
                &_Package_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    30;
+    31;
 
   friend void swap(Package& a, Package& b) {
     a.Swap(&b);
@@ -5440,7 +5645,7 @@ class PackageRequest final :
                &_PackageRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    31;
+    32;
 
   friend void swap(PackageRequest& a, PackageRequest& b) {
     a.Swap(&b);
@@ -6552,6 +6757,180 @@ inline void CompileSuccess::set_allocated_source_code_data(::rsh::protocol::Sour
   }
   _impl_.source_code_data_ = source_code_data;
   // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileSuccess.source_code_data)
+}
+
+// optional .rsh.protocol.CompileMetrics metrics = 6;
+inline bool CompileSuccess::_internal_has_metrics() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.metrics_ != nullptr);
+  return value;
+}
+inline bool CompileSuccess::has_metrics() const {
+  return _internal_has_metrics();
+}
+inline void CompileSuccess::clear_metrics() {
+  if (_impl_.metrics_ != nullptr) _impl_.metrics_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline const ::rsh::protocol::CompileMetrics& CompileSuccess::_internal_metrics() const {
+  const ::rsh::protocol::CompileMetrics* p = _impl_.metrics_;
+  return p != nullptr ? *p : reinterpret_cast<const ::rsh::protocol::CompileMetrics&>(
+      ::rsh::protocol::_CompileMetrics_default_instance_);
+}
+inline const ::rsh::protocol::CompileMetrics& CompileSuccess::metrics() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileSuccess.metrics)
+  return _internal_metrics();
+}
+inline void CompileSuccess::unsafe_arena_set_allocated_metrics(
+    ::rsh::protocol::CompileMetrics* metrics) {
+  if (GetArenaForAllocation() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.metrics_);
+  }
+  _impl_.metrics_ = metrics;
+  if (metrics) {
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:rsh.protocol.CompileSuccess.metrics)
+}
+inline ::rsh::protocol::CompileMetrics* CompileSuccess::release_metrics() {
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  ::rsh::protocol::CompileMetrics* temp = _impl_.metrics_;
+  _impl_.metrics_ = nullptr;
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
+  temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  if (GetArenaForAllocation() == nullptr) { delete old; }
+#else  // PROTOBUF_FORCE_COPY_IN_RELEASE
+  if (GetArenaForAllocation() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
+  return temp;
+}
+inline ::rsh::protocol::CompileMetrics* CompileSuccess::unsafe_arena_release_metrics() {
+  // @@protoc_insertion_point(field_release:rsh.protocol.CompileSuccess.metrics)
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  ::rsh::protocol::CompileMetrics* temp = _impl_.metrics_;
+  _impl_.metrics_ = nullptr;
+  return temp;
+}
+inline ::rsh::protocol::CompileMetrics* CompileSuccess::_internal_mutable_metrics() {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  if (_impl_.metrics_ == nullptr) {
+    auto* p = CreateMaybeMessage<::rsh::protocol::CompileMetrics>(GetArenaForAllocation());
+    _impl_.metrics_ = p;
+  }
+  return _impl_.metrics_;
+}
+inline ::rsh::protocol::CompileMetrics* CompileSuccess::mutable_metrics() {
+  ::rsh::protocol::CompileMetrics* _msg = _internal_mutable_metrics();
+  // @@protoc_insertion_point(field_mutable:rsh.protocol.CompileSuccess.metrics)
+  return _msg;
+}
+inline void CompileSuccess::set_allocated_metrics(::rsh::protocol::CompileMetrics* metrics) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
+  if (message_arena == nullptr) {
+    delete _impl_.metrics_;
+  }
+  if (metrics) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(metrics);
+    if (message_arena != submessage_arena) {
+      metrics = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, metrics, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  _impl_.metrics_ = metrics;
+  // @@protoc_insertion_point(field_set_allocated:rsh.protocol.CompileSuccess.metrics)
+}
+
+// -------------------------------------------------------------------
+
+// CompileMetrics
+
+// int32 bytecode_instructions = 1;
+inline void CompileMetrics::clear_bytecode_instructions() {
+  _impl_.bytecode_instructions_ = 0;
+}
+inline int32_t CompileMetrics::_internal_bytecode_instructions() const {
+  return _impl_.bytecode_instructions_;
+}
+inline int32_t CompileMetrics::bytecode_instructions() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileMetrics.bytecode_instructions)
+  return _internal_bytecode_instructions();
+}
+inline void CompileMetrics::_internal_set_bytecode_instructions(int32_t value) {
+  
+  _impl_.bytecode_instructions_ = value;
+}
+inline void CompileMetrics::set_bytecode_instructions(int32_t value) {
+  _internal_set_bytecode_instructions(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileMetrics.bytecode_instructions)
+}
+
+// double bytecode_compile_time_ms = 2;
+inline void CompileMetrics::clear_bytecode_compile_time_ms() {
+  _impl_.bytecode_compile_time_ms_ = 0;
+}
+inline double CompileMetrics::_internal_bytecode_compile_time_ms() const {
+  return _impl_.bytecode_compile_time_ms_;
+}
+inline double CompileMetrics::bytecode_compile_time_ms() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileMetrics.bytecode_compile_time_ms)
+  return _internal_bytecode_compile_time_ms();
+}
+inline void CompileMetrics::_internal_set_bytecode_compile_time_ms(double value) {
+  
+  _impl_.bytecode_compile_time_ms_ = value;
+}
+inline void CompileMetrics::set_bytecode_compile_time_ms(double value) {
+  _internal_set_bytecode_compile_time_ms(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileMetrics.bytecode_compile_time_ms)
+}
+
+// double c_compile_time_ms = 3;
+inline void CompileMetrics::clear_c_compile_time_ms() {
+  _impl_.c_compile_time_ms_ = 0;
+}
+inline double CompileMetrics::_internal_c_compile_time_ms() const {
+  return _impl_.c_compile_time_ms_;
+}
+inline double CompileMetrics::c_compile_time_ms() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileMetrics.c_compile_time_ms)
+  return _internal_c_compile_time_ms();
+}
+inline void CompileMetrics::_internal_set_c_compile_time_ms(double value) {
+  
+  _impl_.c_compile_time_ms_ = value;
+}
+inline void CompileMetrics::set_c_compile_time_ms(double value) {
+  _internal_set_c_compile_time_ms(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileMetrics.c_compile_time_ms)
+}
+
+// double native_compile_time_ms = 4;
+inline void CompileMetrics::clear_native_compile_time_ms() {
+  _impl_.native_compile_time_ms_ = 0;
+}
+inline double CompileMetrics::_internal_native_compile_time_ms() const {
+  return _impl_.native_compile_time_ms_;
+}
+inline double CompileMetrics::native_compile_time_ms() const {
+  // @@protoc_insertion_point(field_get:rsh.protocol.CompileMetrics.native_compile_time_ms)
+  return _internal_native_compile_time_ms();
+}
+inline void CompileMetrics::_internal_set_native_compile_time_ms(double value) {
+  
+  _impl_.native_compile_time_ms_ = value;
+}
+inline void CompileMetrics::set_native_compile_time_ms(double value) {
+  _internal_set_native_compile_time_ms(value);
+  // @@protoc_insertion_point(field_set:rsh.protocol.CompileMetrics.native_compile_time_ms)
 }
 
 // -------------------------------------------------------------------
@@ -8837,6 +9216,8 @@ inline void PackageRequest::set_hash(uint64_t value) {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
