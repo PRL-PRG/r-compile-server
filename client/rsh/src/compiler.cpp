@@ -1,11 +1,15 @@
 #include "compiler.hpp"
+#include "R_ext/Error.h"
+#include "R_ext/Print.h"
+#include "Rinternals.h"
 #include "client.hpp"
 #include "rsh.hpp"
 #include "serialize.hpp"
 #include "util.hpp"
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
+#include <filesystem>
+#include <system_error>
 #include <unistd.h>
 
 extern "C" {
@@ -147,88 +151,71 @@ SEXP compile(SEXP closure, SEXP options) {
 
   auto compiler_response = std::get<protocol::CompileResponse>(response);
 
-  // Check if compilation was successful
   if (compiler_response.has_failure()) {
     const auto &failure = compiler_response.failure();
-    Rf_error("Compilation failed\n");
-    Rf_error("Command: %s", failure.command().c_str());
-    Rf_error("Error: %s", failure.compiler_output().c_str());
+    fs::path source_code_path;
 
     if (!failure.source_code().empty()) {
-      Rf_error("Source code:\n");
-      Rf_error("%s", failure.source_code().c_str());
-      Rf_error("\n");
+      if (write_to_temp(failure.source_code(), source_code_path)) {
+        Rf_warning("Unable to save source code of a failed compilation");
+      }
     }
+
+    Rf_error("Compilation failed\nCommand:%s\nError:%s%s",
+             failure.command().c_str(), failure.compiler_output().c_str(),
+             source_code_path.c_str());
 
     return closure;
   }
 
   auto compiled_fun = compiler_response.success();
 
-  // Determine where to save debug files
-  std::string debug_dir;
-  bool cleanup_debug_dir = false;
+  fs::path debug_dir;
+  fs::path o_file;
+  fs::path c_file;
+  fs::path cc_file;
 
   if (opts.output_dir.has_value()) {
     debug_dir = opts.output_dir.value();
+    if (!fs::exists(debug_dir)) {
+      std::error_code ec;
+      fs::create_directories(debug_dir, ec);
+      if (ec) {
+        Rf_warning("Unable to create output directory: %s",
+                   ec.message().c_str());
+        debug_dir = "";
+      }
+    }
   } else if (compiled_fun.has_source_code_data() && opts.debug) {
-    // Create temporary directory for debug files
-    char temp_template[] = "/tmp/rsh_debug_XXXXXX";
-    char *temp_dir = mkdtemp(temp_template);
-    if (temp_dir) {
-      debug_dir = std::string(temp_dir);
-      cleanup_debug_dir = false; // Keep debug files for GDB
-    } else {
-      Rf_warning("Failed to create temporary debug directory");
+    if (auto err = create_temp_dir(debug_dir)) {
+      Rf_warning("Failed to create temporary debug directory: %s",
+                 err->c_str());
     }
   }
 
-  // Save intermediate files if output_dir is specified or debug mode is enabled
   if (!debug_dir.empty()) {
-
-    // Save object file
     if (!compiled_fun.code().empty()) {
-      std::string obj_filename = debug_dir + "/" + opts.name + ".o";
-      std::ofstream obj_file(obj_filename, std::ios::binary);
-      if (obj_file.is_open()) {
-        obj_file.write(compiled_fun.code().data(), compiled_fun.code().size());
-        obj_file.close();
-      } else {
-        Rf_warning("Failed to write object file: %s", obj_filename.c_str());
+      o_file = debug_dir / (opts.name + ".o");
+      if (auto err = write_to(o_file, compiled_fun.code())) {
+        Rf_warning("Failed to write object file: %s: %s", o_file.c_str(),
+                   err->c_str());
       }
     }
 
-    // Save constants pool
     if (!compiled_fun.constants().empty()) {
-      std::string const_filename = debug_dir + "/" + opts.name + ".RDS";
-      std::ofstream const_file(const_filename, std::ios::binary);
-      if (const_file.is_open()) {
-        const std::string &data = compiled_fun.constants();
-        const_file.write(data.data(), data.size());
-        const_file.write(reinterpret_cast<const char *>(data.data()),
-                         data.size());
-        const_file.close();
-      } else {
-        Rf_warning("Failed to write constants file: %s",
-                   const_filename.c_str());
+      cc_file = debug_dir / (opts.name + ".RDS");
+      if (auto err = write_to(cc_file, compiled_fun.constants())) {
+        Rf_warning("Failed to write constants file: %s: %s", cc_file.c_str(),
+                   err->c_str());
       }
     }
 
-    // Save source code for debugging (always save if available)
     if (compiled_fun.has_source_code_data()) {
-      std::string c_filename = debug_dir + "/" + opts.name + ".c";
-      std::ofstream c_file(c_filename);
-      if (c_file.is_open()) {
-        const std::string &data = compiled_fun.source_code_data().source_code();
-        c_file.write(data.data(), data.size());
-        c_file.close();
-
-        // Print debug info to help users locate source files
-        if (!opts.output_dir.has_value() && opts.debug) {
-          Rprintf("Debug source file saved to: %s\n", c_filename.c_str());
-        }
-      } else {
-        Rf_warning("Failed to write C file: %s", c_filename.c_str());
+      c_file = debug_dir / (opts.name + ".c");
+      if (auto err =
+              write_to(c_file, compiled_fun.source_code_data().source_code())) {
+        Rf_warning("Failed to write constants file: %s: %s", c_file.c_str(),
+                   err->c_str());
       }
     }
   }
@@ -247,82 +234,62 @@ SEXP compile(SEXP closure, SEXP options) {
   SEXP fun_ptr_sxp = nullptr;
 
   std::string name = genSymbol(compiled_fun.hash(), 0);
-  // Native or bytecode?
+
   if (opts.tier == protocol::Tier::OPTIMIZED) {
     fun_ptr = insert_into_jit(name.c_str(), compiled_fun);
+
     // FIXME: update the finalizer
     // R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
 
-    auto c_cp = rsh::deserialize(compiled_fun.constants());
-    body =
-        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+    auto c_cp = PROTECT(rsh::deserialize(compiled_fun.constants()));
+    body = R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp);
+    UNPROTECT(1); // c_cp
+    PROTECT(body);
   } else if (opts.tier == protocol::Tier::BASELINE) {
-    body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2
+    body = PROTECT(rsh::deserialize(compiled_fun.code()));
     if (TYPEOF(body) != BCODESXP) {
-      Rf_error("Expected bytecode, got %s", Rf_type2char(TYPEOF(body)));
+      Rf_warning("Function %s was not compiled into bytecode (got back %s)",
+                 opts.name.c_str(), Rf_type2char(TYPEOF(body)));
     }
   }
 
-  // Prepare compilation info
-  SEXP info = PROTECT(Rf_allocVector(VECSXP, 4));
-  SEXP info_names = PROTECT(Rf_allocVector(STRSXP, 4));
+  SEXP info = PROTECT(Rf_allocVector(VECSXP, 5));
+  SEXP info_names = PROTECT(Rf_allocVector(STRSXP, 5));
 
-  // Binary size
   SET_STRING_ELT(info_names, 0, Rf_mkChar("binary_size"));
   SET_VECTOR_ELT(info, 0, Rf_ScalarInteger(compiled_fun.code().size()));
 
-  // Constant pool size
   SET_STRING_ELT(info_names, 1, Rf_mkChar("constants_size"));
   SET_VECTOR_ELT(info, 1, Rf_ScalarInteger(compiled_fun.constants().size()));
 
-  // File paths
-  if (!debug_dir.empty()) {
-    SET_STRING_ELT(info_names, 2, Rf_mkChar("object_file"));
-    SET_VECTOR_ELT(info, 2,
-                   Rf_mkString((debug_dir + "/" + opts.name + ".o").c_str()));
-
-    SET_STRING_ELT(info_names, 3, Rf_mkChar("constants_file"));
-    SET_VECTOR_ELT(info, 3,
-                   Rf_mkString((debug_dir + "/" + opts.name + ".RDS").c_str()));
-  } else {
-    SET_STRING_ELT(info_names, 2, Rf_mkChar("object_file"));
-    SET_VECTOR_ELT(info, 2, R_NilValue);
-
-    SET_STRING_ELT(info_names, 3, Rf_mkChar("constants_file"));
-    SET_VECTOR_ELT(info, 3, R_NilValue);
-  }
+  SET_STRING_ELT(info_names, 2, Rf_mkChar("object_file"));
+  SET_VECTOR_ELT(info, 2,
+                 o_file.empty() ? Rf_ScalarString(NA_STRING)
+                                : Rf_mkString(o_file.c_str()));
+  SET_STRING_ELT(info_names, 3, Rf_mkChar("constants_file"));
+  SET_VECTOR_ELT(info, 3,
+                 cc_file.empty() ? Rf_ScalarString(NA_STRING)
+                                 : Rf_mkString(cc_file.c_str()));
+  SET_STRING_ELT(info_names, 4, Rf_mkChar("source_file"));
+  SET_VECTOR_ELT(info, 4,
+                 c_file.empty() ? Rf_ScalarString(NA_STRING)
+                                : Rf_mkString(c_file.c_str()));
 
   Rf_setAttrib(info, R_NamesSymbol, info_names);
+  UNPROTECT(1); // info_names
 
-  // Inplace or not (i.e. through through an explicit call to `compile` or
-  // through the R JIT)
   if (opts.inplace) {
     SET_BODY(closure, body);
-    UNPROTECT(1); // For P1 or P2
-    // FIXME: add logging primitives
-    Rprintf("Compiled in place fun %s (fun=%p, body=%p) ; ", opts.name.c_str(),
-            closure, body);
-    if (opts.tier == protocol::Tier::OPTIMIZED) {
-      Rprintf("Jit-compiled: jit=%p\n", fun_ptr);
-    } else {
-      Rprintf("Bytecode-compiled\n");
-    }
+    UNPROTECT(1); // body
   } else {
     SEXP orig = closure;
-    closure =
-        PROTECT(Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure))); // P3
-    // FIXME: add logging primitive
-    UNPROTECT(1); // P1 or P2
-    Rprintf("Replaced compiled fun %s -- %p (fun=%p, body=%p) ; ",
-            opts.name.c_str(), orig, closure, body);
-    if (opts.tier == protocol::Tier::OPTIMIZED) {
-      Rprintf("Jit-compiled: jit=%p\n", fun_ptr);
-    } else {
-      Rprintf("Bytecode-compiled\n");
-    }
+    closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
+    UNPROTECT(1); // body
   }
+  PROTECT(closure);
 
-  UNPROTECT(1); // P3
+  // FIXME: add logging primitive
+  Rprintf("Compiled fun %s (symbol %s) ; ", opts.name.c_str(), name.c_str());
 
   // Return list with closure and info
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 2));
@@ -330,13 +297,14 @@ SEXP compile(SEXP closure, SEXP options) {
 
   SET_STRING_ELT(result_names, 0, Rf_mkChar("closure"));
   SET_VECTOR_ELT(result, 0, closure);
+  UNPROTECT(1); // closure
 
   SET_STRING_ELT(result_names, 1, Rf_mkChar("info"));
   SET_VECTOR_ELT(result, 1, info);
 
   Rf_setAttrib(result, R_NamesSymbol, result_names);
 
-  UNPROTECT(4); // info, info_names, result, result_names
+  UNPROTECT(3); // info, closure, result
 
   return result;
 }

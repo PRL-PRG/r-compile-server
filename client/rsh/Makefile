@@ -51,7 +51,7 @@ run:
 	$(LLVM_PRELOAD) $(R)
 
 .PHONY: debug
-debug:
+debug: 
 	$(LLVM_PRELOAD) $(R) -d gdb
 
 .PHONY: compile_commands.json

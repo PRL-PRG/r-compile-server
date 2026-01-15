@@ -1290,10 +1290,12 @@ X_REL_OPS
 
 // calls R builtin function do_* with 1 argument
 #define DO_BUILTIN1(/* PRIMFUN */ fun, /* SEXP */ call, /* SEXP */ op,         \
-                    /* Value */ arg, /* SEXP */ rho, /* Value* */ res)         \
+                    /* SEXP */ arg, /* SEXP */ rho, /* Value* */ res)          \
   do {                                                                         \
-    SEXP __res_sxp__ =                                                         \
-        fun((call), (op), CONS_NR(val_as_sexp((arg)), R_NilValue), (rho));     \
+    SEXP __tmp__ = CONS_NR((arg), R_NilValue);                                 \
+    SET_VAL(res, __tmp__);                                                     \
+    assert(TYPEOF((op)) == BUILTINSXP);                                        \
+    SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
     SET_VAL(res, __res_sxp__);                                                 \
     R_Visible = TRUE;                                                          \
   } while (0)
@@ -1305,6 +1307,7 @@ X_REL_OPS
   do {                                                                         \
     SEXP __tmp__ = CONS_NR(val_as_sexp((arg1)),                                \
                            CONS_NR(val_as_sexp((arg2)), R_NilValue));          \
+    SET_VAL(res, __tmp__);                                                     \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
     SET_VAL(res, __res_sxp__);                                                 \
     R_Visible = TRUE;                                                          \
@@ -1341,7 +1344,7 @@ static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho) {
   } else {
     // Slow path!
     RSH_PC_INC(slow_math1);
-    DO_BUILTIN1(do_math1, call, R_MATH1_OPS[op], arg, rho, res);
+    DO_BUILTIN1(do_math1, call, R_MATH1_OPS[op], val_as_sexp(arg), rho, res);
   }
 }
 
@@ -1394,7 +1397,7 @@ static INLINE void Rsh_Not(Value *stack, SEXP call, SEXP rho) {
     SET_LGL_VAL(res, !VAL_INT(arg));
   } else {
     // Slow path!
-    DO_BUILTIN1(do_logic, call, NOT_OP, arg, rho, res);
+    DO_BUILTIN1(do_logic, call, NOT_OP, val_as_sexp(arg), rho, res);
   }
 }
 
@@ -2587,13 +2590,13 @@ static INLINE void Rsh_SeqAlong(Value *stack, SEXP call, SEXP rho) {
   SEXP s = val_as_sexp(*v);
   if (!isObject(s)) {
     R_xlen_t len = Rf_xlength(s);
-    if (len > 0 && len <= INT_MAX) {
+    if (len >= 1 && len <= INT_MAX) {
       ISQ_NEW(1, len, v);
       R_Visible = TRUE;
       return;
     }
   }
-  DO_BUILTIN1(do_seq_along, call, Rsh_SeqAlongSym, *v, rho, v);
+  DO_BUILTIN1(do_seq_along, call, Rsh_SeqAlongOp, s, rho, v);
 }
 
 static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
@@ -2612,7 +2615,7 @@ static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
     return;
   }
 
-  DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenSym, *v, rho, v);
+  DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenOp, val_as_sexp(*v), rho, v);
 }
 
 #define RSH_IS_TEST(v, p)                                                      \

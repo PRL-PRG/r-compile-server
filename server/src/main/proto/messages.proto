@@ -35,7 +35,7 @@ message CompileRequest {
   optional Context context = 7;
   optional Environment environment = 8;//The values of all the bindings that statically appear in the function
   bool no_cache = 9;//If true, the server will not cache the result
-  bool debug = 10;//If true, the code will be compiled with -O0 -g
+  bool debug = 10;//If true, the code will be compiled with -g
 }
 
 message CompileSuccess {
