@@ -2068,8 +2068,8 @@ static INLINE void Rsh_vec_subassign(Value *stack, SEXP call, Rboolean sub2,
       }
     }
   }
-
-  DO_FAST_SETVECELT(sx, vec, as_index(i) - 1, rhs, sub2);
+  R_xlen_t idx_i = as_index(i) - 1;
+  DO_FAST_SETVECELT(sx, vec, idx_i, rhs, sub2);
 
   // slow path!
   RSH_PC_INC(slow_subassign);
