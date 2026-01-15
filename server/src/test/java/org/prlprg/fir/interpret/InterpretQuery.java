@@ -68,7 +68,7 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
       throws IOException {
     var R = GNUR.instance();
 
-    var returnValuePath = path.resolve("returnValue.RDS");
+    var returnValuePath = path.resolve("returnValue.rds");
     var crashPath = path.resolve("crash.txt");
     var checkpointTracePath = path.resolve("trace.log");
 
@@ -87,7 +87,7 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   @Override
   public void serialize(InterpretOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    var returnValuePath = path.resolve("returnValue.RDS");
+    var returnValuePath = path.resolve("returnValue.rds");
     var crashPath = path.resolve("crash.txt");
     var checkpointTracePath = path.resolve("trace.log");
 

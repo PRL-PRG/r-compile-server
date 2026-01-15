@@ -161,7 +161,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       throws IOException {
     var R = GNUR.instance();
 
-    var returnValuePath = path.resolve("returnValue.RDS");
+    var returnValuePath = path.resolve("returnValue.rds");
     var crashPath = path.resolve("crash.txt");
     var outputLogPath = path.resolve("output.log");
 
@@ -180,7 +180,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   @Override
   public void serialize(EvalOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    var returnValuePath = path.resolve("returnValue.RDS");
+    var returnValuePath = path.resolve("returnValue.rds");
     var crashPath = path.resolve("crash.txt");
     var outputLogPath = path.resolve("output.log");
 

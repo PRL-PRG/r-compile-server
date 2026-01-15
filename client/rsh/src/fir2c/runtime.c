@@ -501,25 +501,26 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names,
                               int *protect_count) {
   SEXP list = R_NilValue;
   for (int i = argc - 1; i >= 0; --i) {
-    SEXP node = PROTECT(Rf_cons(args[i], list));
-    (*protect_count)++;
-    if (names) {
-      SEXP name = names[i];
-      if (name && name != R_MissingArg && name != R_NilValue) {
-        if (TYPEOF(name) == SYMSXP) {
-          SET_TAG(node, name);
-        } else if (TYPEOF(name) == STRSXP && XLENGTH(name) > 0) {
-          SEXP sym = Rf_install(CHAR(STRING_ELT(name, 0)));
-          SET_TAG(node, sym);
-        }
+    SEXP arg = args[i];
+    SEXP name = names[i];
+
+    if (name == R_DotsSymbol) {
+      // Splice dots argument
+      list = Rf_listAppend(list, arg);
+    } else {
+      SEXP node = PROTECT(Rf_cons(arg, list));
+      (*protect_count)++;
+      if (name != R_MissingArg) {
+        SET_TAG(node, name);
       }
+
+      list = node;
     }
-    list = node;
   }
   return list;
 }
 
-SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP const *args) {
+SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP const *args, SEXP const *names) {
   FUNTAB fun = R_FunTab[bltIdx];
   if (fun.arity != -1 && fun.arity != argc) {
     Rf_error("Builtin %s called with incorrect number of arguments: expected %d, got %d",
@@ -527,7 +528,7 @@ SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP const *args) {
   }
 
   int protect_count = 0;
-  SEXP arglist = Fir_build_arglist(argc, args, NULL, &protect_count);
+  SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
   SEXP op = R_Primitive(fun.name);
   SEXP result = fun.cfun(R_NilValue, op, arglist, env);
   UNPROTECT(protect_count);
@@ -583,28 +584,28 @@ void Fir_dbg_comment(const char* comment) {
 }
 
 void Fir_dbg_sexp(const char* name, SEXP value) {
-  fprintf(stderr, "* %s = ", name);
+  fprintf(stderr, "* - %s = ", name);
   Fir_printSexp(value);
   fprintf(stderr, "\n");
 }
 
-#define DEFINE_DISPATCH_INTRINSIC_BODY(X)\
+#define DEFINE_DISPATCH_INTRINSIC_BODY(X, ...)\
   DEFINE_DISPATCH_INTRINSIC(X) {\
     va_list args;\
     va_start(args, signature);\
-    SEXP result = ((Fir_VersionFn) Fir_ver_call_ ## X ## _v0)(env, args);\
+    SEXP result = ((Fir_VersionFn) Fir_ver_call_ ## X ## _v0)(env, ##__VA_ARGS__);\
     va_end(args);\
     return result;\
   }
 
-DEFINE_DISPATCH_INTRINSIC_BODY(checkFun)
-DEFINE_DISPATCH_INTRINSIC_BODY(checkMissing)
-DEFINE_DISPATCH_INTRINSIC_BODY(toForSeq)
+DEFINE_DISPATCH_INTRINSIC_BODY(checkFun, va_arg(args, SEXP))
+DEFINE_DISPATCH_INTRINSIC_BODY(checkMissing, va_arg(args, SEXP))
+DEFINE_DISPATCH_INTRINSIC_BODY(toForSeq, va_arg(args, SEXP))
 DEFINE_DISPATCH_INTRINSIC_BODY(setInvisible)
 DEFINE_DISPATCH_INTRINSIC_BODY(setVisible)
-DEFINE_DISPATCH_INTRINSIC_BODY(tryDispatchBuiltin)
-DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinDispatched)
-DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinValue)
+DEFINE_DISPATCH_INTRINSIC_BODY(tryDispatchBuiltin, va_arg(args, SEXP), va_arg(args, SEXP), va_arg(args, SEXP))
+DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinDispatched, va_arg(args, SEXP))
+DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinValue, va_arg(args, SEXP))
 
 DEFINE_INTRINSIC(checkFun, 0, SEXP value) {
   if (TYPEOF(value) != CLOSXP && TYPEOF(value) != BUILTINSXP &&
