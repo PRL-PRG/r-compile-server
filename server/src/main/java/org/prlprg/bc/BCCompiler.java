@@ -173,6 +173,14 @@ public class BCCompiler {
   /** The default optimization level in GNU-R's {@code compiler::cmpfun} and here. */
   public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
 
+  /**
+   * The optimization level for BC generated specifically for FIŘ.
+   *
+   * <p>This is equivalent to the default optimization level, with minor tweaks to prevent complex
+   * bytecode generation and maintain the stack size in unreachable bytecode.
+   */
+  public static final int FIR_OPTIMIZATION_LEVEL = -1;
+
   /** SEXP types that can participate in constan folding. */
   private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES =
       Set.of(LGL, INT, REAL, CPLX, SEXPType.STR);
@@ -431,11 +439,15 @@ public class BCCompiler {
    */
   private BCCompiler fork(SEXP expr, Context ctx, Loc loc) {
     var compiler = new BCCompiler(expr, ctx, rsession, loc);
-    compiler.setOptimizationLevel(optimizationLevel);
+    compiler.optimizationLevel = optimizationLevel;
     return compiler;
   }
 
   public void setOptimizationLevel(int level) {
+    if (level < -1 || level > 3) {
+      throw new IllegalArgumentException("Invalid optimization level: " + level);
+    }
+
     this.optimizationLevel = level;
   }
 
@@ -793,29 +805,29 @@ public class BCCompiler {
    * @return the inline information or empty if the function is not inlinable
    */
   private Optional<InlineInfo> getInlineInfo(String name, boolean guardOK) {
-    if (FORBIDDEN_INLINES.contains(name) || optimizationLevel < 1) {
+    if (FORBIDDEN_INLINES.contains(name) || optimizationLevel == 0) {
       return Optional.empty();
     }
 
     // FIXME: this considers everything else "global" which is not true, but cannot be
     //  fixed until we have a proper environment chain supported in the Rsession
     return ctx.resolve(name)
-        .map(
+        .flatMap(
             res -> {
-              if (res.first() instanceof NamespaceEnvSXP) {
-                // if is in a namespace we do not have to worry about
-                // shadowing
-                return new InlineInfo(name, res.first(), res.second(), false);
-              } else if (optimizationLevel >= 3
-                  || (optimizationLevel == 2 && LANGUAGE_FUNS.contains(name))) {
-                return new InlineInfo(name, res.first(), res.second(), false);
+              if (optimizationLevel == 3
+                  || ((optimizationLevel == -1 || optimizationLevel == 2)
+                      && LANGUAGE_FUNS.contains(name))
+                  ||
+                  // if is in a namespace we do not have to worry about shadowing
+                  res.first() instanceof NamespaceEnvSXP) {
+                return Optional.of(new InlineInfo(name, res.first(), res.second(), false));
               } else if (guardOK && res.first().isBase()) {
                 // this is the case when the function comes from baseenv()
                 // therefore it could be shadowed by some other function
                 // and thus needs to be guarded
-                return new InlineInfo(name, res.first(), res.second(), true);
+                return Optional.of(new InlineInfo(name, res.first(), res.second(), true));
               } else {
-                return null;
+                return Optional.empty();
               }
             });
   }
@@ -1318,6 +1330,10 @@ public class BCCompiler {
     if (loop != null) {
       if (loop.gotoOK()) {
         cb.addInstr(new Goto(isBreak ? loop.end() : loop.start()));
+        if (optimizationLevel == -1) {
+          // Maintain stack for FIŘ
+          cb.addInstr(new LdConst(cb.addConst(SEXPs.symbol(".firStackStub"))));
+        }
         return true;
       } else {
         return inlineSpecial(call);

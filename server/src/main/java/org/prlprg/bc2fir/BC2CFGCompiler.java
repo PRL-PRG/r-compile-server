@@ -239,7 +239,6 @@ public class BC2CFGCompiler {
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
-  private boolean mayBeUnreachable = false;
   private final CFGCursor cursor;
   private int numDeopts = 0;
   private final List<Argument> stack = new ArrayList<>();
@@ -451,12 +450,10 @@ public class BC2CFGCompiler {
           insert(new PopEnv());
         }
         insert(_ -> new Return(retVal));
-        mayBeUnreachable = true;
       }
       case BcInstr.Goto(var label) -> {
         var bb = bbAt(label);
         insert(_ -> goto_(bb));
-        mayBeUnreachable = true;
       }
       case BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
@@ -626,13 +623,7 @@ public class BC2CFGCompiler {
         moveTo(endBb);
       }
       case EndFor() -> compileEndLoop(LoopType.FOR);
-      case SetLoopVal() -> {
-        // This one is weird. It doesn't get inserted by the Java compiler anywhere.
-        // However, it has a simple (unhelpful) implementation, so even if unused, we'll support it.
-        pop();
-        pop();
-        push(new Constant(SEXPs.NULL));
-      }
+      case SetLoopVal() -> throw failUnsupported("SetLoopVal");
       case Invisible() -> insert(intrinsic("setInvisible", 0));
       case LdConst(var constant) -> push(new Constant(get(constant)));
       case LdNull() -> push(new Constant(SEXPs.NULL));
@@ -1381,28 +1372,18 @@ public class BC2CFGCompiler {
       var numParameters = bb.phiParameters().size();
       var numArguments = stack.size();
       if (numParameters != numArguments) {
-        if (mayBeUnreachable && numParameters == numArguments + 1) {
-          // This happens when the bytecode compiler compiles `break` or `next`.
-          // It inserts a goto instead of pushing a value, making the stack imbalanced,
-          // but the imbalance is never an issue because it's only in unreachable code.
-          stack.add(new Constant(SEXPs.NULL));
-        } else if (mayBeUnreachable && numParameters == numArguments - 1) {
-          // Something similar happens in `repeat({ if (x) next() else y })`.
-          stack.removeLast();
-        } else {
-          throw fail(
-              "BB stack mismatch: "
-                  + bb.label()
-                  + " has "
-                  + numParameters
-                  + " phis but we have "
-                  + numArguments
-                  + " arguments");
-        }
+        throw fail(
+            "BB stack mismatch: "
+                + bb.label()
+                + " has "
+                + numParameters
+                + " phis but we have "
+                + numArguments
+                + " arguments");
       }
 
       // Union phi types
-      for (var i = 0; i < Math.min(numParameters, numArguments); i++) {
+      for (var i = 0; i < numParameters; i++) {
         var phi = bb.phiParameters().get(i);
         var arg = stack.get(i);
 
@@ -1558,11 +1539,6 @@ public class BC2CFGCompiler {
   /// The bytecode is stack-based and IR is SSA-form, see [#push(Argument)] for more
   /// explanation.
   private Argument pop() {
-    if (stack.isEmpty() && mayBeUnreachable) {
-      // See `ensurePhiInputsForStack` comment.
-      return new Constant(SEXPs.NULL);
-    }
-
     require(!stack.isEmpty(), () -> "node stack underflow");
     return stack.removeLast();
   }
