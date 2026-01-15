@@ -67,7 +67,7 @@ TXT_RED = \033[0;31m
 
 .PHONY: test
 test:
-	@for file in $(TEST_DIR)/*.R; do \
+	for file in $$(find $(TEST_DIR) -name "*$(FILTER)*.R"); do \
 		test=$$(basename $$file); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
 		cmd="$(TEST_R) $$file;"; \
