@@ -19,29 +19,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/CompiledItem.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CExternGlobalVariable.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../.idea/SweepConfig.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../../.idea/SweepConfig.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bc2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/bc2c/runtime.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/common2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/common2c/runtime.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/compiler.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/compiler.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/fir2c/print_sexp.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/print_sexp.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../external/R" beforeDir="false" afterPath="$PROJECT_DIR$/../../external/R" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../external/R-debug" beforeDir="false" afterPath="$PROJECT_DIR$/../../external/R-debug" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CCompiler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CModule.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/BC2CModule.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/ClosureCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/bc2c/ClosureCompiler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/ConstantPool.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/ConstantPool.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/fir2c/Fir2CCompiler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CCode.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CCode.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CStaticVariable.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CGlobalVariable.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CUnit.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/gen2c/CUnit.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/server/CompileService.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/main/java/org/prlprg/server/CompileService.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2c/BC2CQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/bc2c/BC2CQuery.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir2c/Fir2CQuery.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/CompiledModuleQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/CompiledModuleQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretQuery.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/EvalQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/EvalQuery.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -390,6 +373,8 @@
       <workItem from="1767874660950" duration="1820000" />
       <workItem from="1768213861405" duration="3087000" />
       <workItem from="1768221674033" duration="6224000" />
+      <workItem from="1768472618848" duration="19000" />
+      <workItem from="1768472656434" duration="4012000" />
     </task>
     <servers />
   </component>

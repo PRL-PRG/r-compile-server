@@ -8,7 +8,7 @@ static void printSexpInternal(SEXP s, int indent);
 /* Print indentation */
 static void printIndent(int indent) {
     if (indent > 0) {
-        fprintf(stderr, "* ");
+        fprintf(stderr, "*   ");
     }
     for (int i = 0; i < indent; i++) {
         fprintf(stderr, "  ");

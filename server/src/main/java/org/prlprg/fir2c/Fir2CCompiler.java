@@ -216,7 +216,8 @@ public final class Fir2CCompiler {
       var cFunction = cUnit.addFunction(FROM_R_C_RETURN, cName, FROM_R_C_PARAMS);
 
       CCode cCode;
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS) || options.contains(Option.EMIT_DEBUG_PRINTS)) {
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)
+          || options.contains(Option.EMIT_DEBUG_PRINTS)) {
         cCode = cFunction.add();
 
         debugComment(cCode, "## Dispatch-from-R %s", function.name());
@@ -322,7 +323,8 @@ public final class Fir2CCompiler {
         cCode = cFunction.add();
         debugComment(cCode, "# Filter by arguments' runtime type");
         debugComment(
-            cCode, "# TODO. Currently we check the full static type, so it's sound, but not optimal");
+            cCode,
+            "# TODO. Currently we check the full static type, so it's sound, but not optimal");
       }
 
       cCode = cFunction.add();
@@ -864,9 +866,24 @@ public final class Fir2CCompiler {
               case DispatchCallee(var calleeFun, var signature) -> {
                 if (calleeFun.owner() == BUILTINS) {
                   var builtinIndex = rSession.RFunTab().indexOf(calleeFun.name().name());
+
                   var arguments = emitArgumentArray("args", call.callArguments());
-                  yield "Fir_call_builtin(%d, %s, %d, %s)"
-                      .formatted(builtinIndex, VAR_ENV, arguments.size(), arguments.pointer());
+                  var names = emitNameArray("arg_names", calleeFun.parameterNames());
+                  if (arguments.size() != names.size()) {
+                    throw new IllegalStateException(
+                        "Dispatched builtin has different number of arguments than it's signature:\nCall = "
+                            + call
+                            + "\nFull definition = "
+                            + calleeFun);
+                  }
+
+                  yield "Fir_call_builtin(%d, %s, %d, %s, %s)"
+                      .formatted(
+                          builtinIndex,
+                          VAR_ENV,
+                          arguments.size(),
+                          arguments.pointer(),
+                          names.pointer());
                 }
 
                 // Protect constants (intrinsics have none)
@@ -1013,7 +1030,7 @@ public final class Fir2CCompiler {
                   "Phi parameter/argument count mismatch for " + target.bb().label());
             }
 
-            debugComment(cCode, "# <%s>", target);
+            debugComment(cCode, "* - <%s>", target);
 
             for (var i = 0; i < parameters.size(); i++) {
               var phi = parameters.get(i);
@@ -1069,6 +1086,11 @@ public final class Fir2CCompiler {
                           return name == null ? "R_MissingArg" : nvSymbolRef(pool, name);
                         })
                     .toList();
+            return emitArray(baseName, "SEXP", arguments);
+          }
+
+          private Array emitNameArray(String baseName, List<NamedVariable> names) {
+            var arguments = names.stream().map(nv -> nvSymbolRef(pool, nv)).toList();
             return emitArray(baseName, "SEXP", arguments);
           }
 

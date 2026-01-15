@@ -35,7 +35,7 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     var R = GNUR.instance();
 
     var cPath = path.resolve("code.c");
-    var bindingsPath = path.resolve("bindings.RDS");
+    var bindingsPath = path.resolve("bindings.rds");
 
     var code = new CUnit();
     code.addExtra(Files.readString(cPath, StandardCharsets.UTF_8));
@@ -48,7 +48,7 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
   default void serialize(CompiledModule data, Path path, Example example, SnapshotStore store)
       throws IOException {
     var cPath = path.resolve("code.c");
-    var bindingsPath = path.resolve("bindings.RDS");
+    var bindingsPath = path.resolve("bindings.rds");
 
     if (!Files.exists(path)) {
       Files.createDirectory(path);
