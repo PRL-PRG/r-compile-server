@@ -18,14 +18,7 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fir2c/print_sexp.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/print_sexp.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fir2c/runtime.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/fir2c/runtime.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/fir/interpret/InterpretQuery.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/EvalQuery.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../server/src/test/java/org/prlprg/gen2c/EvalQuery.java" afterDir="false" />
-    </list>
+    <list default="true" id="930c64f7-95c5-4f5c-a8d9-905ac86cb0a3" name="Changes" comment="fixes" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -374,12 +367,25 @@
       <workItem from="1768213861405" duration="3087000" />
       <workItem from="1768221674033" duration="6224000" />
       <workItem from="1768472618848" duration="19000" />
-      <workItem from="1768472656434" duration="4012000" />
+      <workItem from="1768472656434" duration="4144000" />
     </task>
+    <task id="LOCAL-00001" summary="fixes">
+      <option name="closed" value="true" />
+      <created>1768483639177</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1768483639177</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="fixes" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixes" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

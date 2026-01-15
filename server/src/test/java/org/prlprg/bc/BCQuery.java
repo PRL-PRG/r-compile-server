@@ -3,6 +3,7 @@ package org.prlprg.bc;
 import static org.prlprg.bc.BCCompiler.DEFAULT_OPTIMIZATION_LEVEL;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
 import org.prlprg.rds.RDSReader;
@@ -50,6 +51,7 @@ public class BCQuery implements Query<Bc> {
   }
 
   private Bc genCompute(Example example, ComputeImpl impl) {
+    // TODO: version for FIR with FIR_OPTIMIZATION_LEVEL
     var optimizationLevel =
         example.intOption(name(), "optimizationLevel", DEFAULT_OPTIMIZATION_LEVEL);
 
@@ -82,5 +84,9 @@ public class BCQuery implements Query<Bc> {
   public void serialize(Bc body, Path path, Example example, SnapshotStore store)
       throws IOException {
     RDSWriter.writeFile(path.toFile(), SEXPs.bcode(body));
+
+    // Write string representation for debugging
+    var text = body.toString();
+    Files.writeString(path.resolveSibling(path.getFileName() + ".txt"), text);
   }
 }
