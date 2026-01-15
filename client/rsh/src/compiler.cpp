@@ -280,11 +280,8 @@ SEXP compile(SEXP closure, SEXP options) {
 
   if (opts.inplace) {
     SET_BODY(closure, body);
-    UNPROTECT(1); // body
   } else {
-    SEXP orig = closure;
     closure = Rf_mkCLOSXP(FORMALS(closure), body, CLOENV(closure));
-    UNPROTECT(1); // body
   }
   PROTECT(closure);
 
@@ -297,14 +294,14 @@ SEXP compile(SEXP closure, SEXP options) {
 
   SET_STRING_ELT(result_names, 0, Rf_mkChar("closure"));
   SET_VECTOR_ELT(result, 0, closure);
-  UNPROTECT(1); // closure
 
   SET_STRING_ELT(result_names, 1, Rf_mkChar("info"));
   SET_VECTOR_ELT(result, 1, info);
 
   Rf_setAttrib(result, R_NamesSymbol, result_names);
+  UNPROTECT(1); // result_names
 
-  UNPROTECT(3); // info, closure, result
+  UNPROTECT(4); // result, closure, info, body
 
   return result;
 }
