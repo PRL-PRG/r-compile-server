@@ -1,5 +1,9 @@
 #include "util.hpp"
 #include <cassert>
+#include <filesystem>
+#include <fstream>
+#include <system_error>
+#include <unistd.h>
 
 SEXP append_vec(SEXP v1, SEXP v2) {
   int n1 = LENGTH(v1);
@@ -107,4 +111,86 @@ bool vec_element_as_bool(SEXP vec, int i, std::string_view msg) {
     Rf_error("%s", msg.data());
   }
   return LOGICAL(el)[0];
+}
+
+std::optional<std::string> create_temp_file(fs::path &path) noexcept {
+  std::error_code ec;
+  auto template_path = fs::temp_directory_path(ec) / "tmp.XXXXXX";
+  if (ec) {
+    return ec.message();
+  }
+
+  std::string path_buf = template_path.string();
+
+  int fd = mkstemp(path_buf.data());
+  if (fd == -1) {
+    return std::strerror(errno);
+  }
+
+  close(fd);
+
+  path = path_buf;
+
+  return {};
+}
+
+std::optional<std::string> create_temp_dir(fs::path &path) noexcept {
+  fs::path name;
+  if (auto err = create_temp_file(name)) {
+    return err;
+  }
+
+  try {
+    fs::create_directories(name);
+    return {};
+  } catch (const std::exception &e) {
+    return e.what();
+  }
+}
+
+std::optional<std::string> write_to(fs::path const &path,
+                                    std::string const &str) noexcept {
+  try {
+    std::ofstream file{path, std::ios::binary};
+    if (!file) {
+      return "failed to open:" + path.string();
+    }
+
+    file.write(str.data(), str.size());
+    if (!file) {
+      return "failed to write to: " + path.string();
+    }
+
+    return {};
+  } catch (const std::exception &e) {
+    return e.what();
+  } catch (...) {
+    return "Unknown exception occurred";
+  }
+}
+
+std::optional<std::string> write_to_temp(std::string const &str,
+                                         fs::path &path) noexcept {
+  try {
+    auto template_path = fs::temp_directory_path() / "tmp.XXXXXX";
+    std::string path_buf = template_path.string();
+
+    int fd = mkstemp(path_buf.data());
+    if (fd == -1) {
+      return std::strerror(errno);
+    }
+    close(fd);
+
+    if (auto err = write_to(path_buf, str)) {
+      unlink(path_buf.c_str());
+      return err;
+    }
+
+    path = std::move(path_buf);
+    return std::nullopt;
+  } catch (const std::exception &e) {
+    return e.what();
+  } catch (...) {
+    return "Unknown exception occurred";
+  }
 }

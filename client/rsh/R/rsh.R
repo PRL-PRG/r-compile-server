@@ -81,6 +81,10 @@ rsh_compile <- function(f, options) {
     options$name <- as.character(substitute(f))
   }
 
+  if (is.null(options$debug)) {
+    options$debug <- TRUE
+  }
+
   if (is.null(options$inplace)) {
     options$inplace <- TRUE
   }
@@ -162,12 +166,11 @@ rsh_clear_cache <- function() {
 #' Compiles all functions from the given package or environment
 #'
 #' @param package either a character string specifying the package name or an environment
-#' @param output_dir optional character string; if provided, saves intermediate files (.o and .RDS) to this directory
-#' @param ... additional arguments passed to rsh_cmpfun
+#' @param options additional arguments passed to rsh_cmpfun
 #' @param quiet logical; if FALSE, shows progress for each function
 #' @return invisibly returns a list with compilation statistics
 #' @export
-rsh_cmppkg <- function(package, output_dir = NULL, ..., quiet = FALSE) {
+rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
   if (is.character(package)) {
     if (length(package) != 1) {
       stop("package must be a character string of length 1")
@@ -191,19 +194,6 @@ rsh_cmppkg <- function(package, output_dir = NULL, ..., quiet = FALSE) {
     stop("package must be either a character string or an environment")
   }
 
-  # Validate and create output directory if provided
-  if (!is.null(output_dir)) {
-    if (!is.character(output_dir) || length(output_dir) != 1) {
-      stop("output_dir must be a character string of length 1")
-    }
-    if (!dir.exists(output_dir)) {
-      if (!quiet) {
-        cat("Creating output directory:", output_dir, "\n")
-      }
-      dir.create(output_dir, recursive = TRUE)
-    }
-  }
-
   all_names <- ls(pkg_ns, all.names = TRUE)
 
   func_names <- character(0)
@@ -222,39 +212,31 @@ rsh_cmppkg <- function(package, output_dir = NULL, ..., quiet = FALSE) {
   }
 
   compiled_env <- new.env()
+  options$inplace <- FALSE
 
   for (func_name in func_names) {
     func <- get(func_name, envir = pkg_ns, inherits = FALSE)
 
     tryCatch({
       # Compile with output_dir option if provided
-      if (!is.null(output_dir)) {
-        result <- .Call(C_compile, func, list(name = func_name, output_dir = output_dir, inplace = FALSE, ...))
-        compiled_func <- result$closure
-        info <- result$info
+      options$name <- func_name
+      result <- rsh::rsh_compile(func, options)
+      compiled_func <- result$closure
+      info <- result$info
 
-        if (!quiet) {
-          message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
-          if (info$constants_size > 0) {
-            message <- paste0(message, ", constants: ", info$constants_size, " bytes")
-          }
-          if (!is.null(info$object_file)) {
-            message <- paste0(message, ", saved: ", basename(info$object_file), ", ", basename(info$constants_file))
-          }
-          cat(message, ")\n", sep = "")
-        }
-      } else {
-        result <- .Call(C_compile, func, list(name = func_name, inplace = FALSE, ...))
-        compiled_func <- result$closure
-        info <- result$info
+      if (!quiet) {
+        message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
+        message <- paste0(message, ", constants: ", info$constants_size, " bytes")
 
-        if (!quiet) {
-          message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
-          if (info$constants_size > 0) {
-            message <- paste0(message, ", constants: ", info$constants_size, " bytes")
-          }
-          cat(message, ")\n", sep = "")
+        if (!is.null(info$object_file)) {
+          message <- paste0(message, ", saved: ", info$object_file, ", ", info$constants_file)
         }
+        
+        if (!is.null(info$source_file)) {
+          message <- paste0(message, ", ", info$source_file)
+        }
+        
+        cat(message, ")\n", sep = "")
       }
 
       assign(func_name, compiled_func, envir = compiled_env)
@@ -266,6 +248,7 @@ rsh_cmppkg <- function(package, output_dir = NULL, ..., quiet = FALSE) {
     })
   }
 
+  # replace in the original environment
   for (func_name in ls(compiled_env, all.names = TRUE)) {
     tryCatch({
       unlockBinding(func_name, pkg_ns)
@@ -278,7 +261,6 @@ rsh_cmppkg <- function(package, output_dir = NULL, ..., quiet = FALSE) {
     })
   }
 
-  # Print statistics
   if (!quiet) {
     cat("Compilation complete: ", compiled_functions, "/", total_functions, " functions\n", sep = "")
   }
