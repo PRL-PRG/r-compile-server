@@ -2050,26 +2050,19 @@ static INLINE void Rsh_vec_subassign(Value *stack, SEXP call, Rboolean sub2,
 
   // Fast case - INT index and RHS is scalar of the right type
   if (VAL_TAG(rhs) && VAL_IS_INT(i) && VAL_TAG(rhs) == TYPEOF(vec)) {
-    Rboolean set = TRUE;
     R_xlen_t idx = VAL_INT(i);
     if (idx > 0 && idx <= XLENGTH(vec)) {
       switch (TYPEOF(vec)) {
       case REALSXP:
         REAL(vec)[idx - 1] = VAL_DBL(rhs);
-        break;
+        SETTER_CLEAR_NAMED(vec);
+        return;
       case INTSXP:
         INTEGER(vec)[idx - 1] = VAL_INT(rhs);
-        break;
+        SETTER_CLEAR_NAMED(vec);
+        return;
       case LGLSXP:
         LOGICAL(vec)[idx - 1] = VAL_INT(rhs);
-        break;
-      default:
-        set = FALSE;
-        break;
-      }
-
-      if (set) {
-        R_Visible = TRUE;
         SETTER_CLEAR_NAMED(vec);
         return;
       }
@@ -3010,17 +3003,18 @@ static INLINE void Rsh_do_math1(Value *stack, SEXP call, int op, SEXP rho,
         Rf_warningcall(call, R_MSG_NA);
       }
     }
-    R_Visible = TRUE;
     SET_DBL_VAL(v, r);
+    R_Visible = TRUE;
     return;
   }
 
   // slow path
+  RSH_PC_INC(slow_math1);
+
   SEXP args = CONS_NR(val_as_sexp(*v), R_NilValue);
   SET_SXP_VAL(v, args); // to protect
-  R_Visible = TRUE;
   SET_VAL(v, do_math1(call, r_op, args, rho));
-  RSH_PC_INC(slow_math1);
+  R_Visible = TRUE;
 }
 
 #define Rsh_Math1(v, call, op, rho)                                            \
