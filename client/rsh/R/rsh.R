@@ -6,6 +6,9 @@ NULL
 # save the original compiler::cmpfun
 .gnur_cmpfun <- compiler::cmpfun
 
+# ANSI color helpers
+ansi_green <- function(x) paste0("\033[32m", x, "\033[0m")
+ansi_red <- function(x) paste0("\033[31m", x, "\033[0m")
 
 # Because of the ORC JIT we need all the native symbols registered globally
 # (as RTLD_GLOBAL) so the ORC linker can find them. Unfortunatelly, R does
@@ -161,6 +164,10 @@ rsh_clear_cache <- function() {
   .Call(C_clear_cache)
 }
 
+is_closure <- function(f) {
+    typeof(f) == "closure"
+}
+
 #' Compile all functions in a given package or environment
 #'
 #' Compiles all functions from the given package or environment
@@ -168,13 +175,17 @@ rsh_clear_cache <- function() {
 #' @param package either a character string specifying the package name or an environment
 #' @param options additional arguments passed to rsh_cmpfun
 #' @param quiet logical; if FALSE, shows progress for each function
-#' @return invisibly returns a list with compilation statistics
+#' @return a data.frame with compilation results for each function
 #' @export
 rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
+  pkg_name <- NULL
+
   if (is.character(package)) {
     if (length(package) != 1) {
       stop("package must be a character string of length 1")
     }
+
+    pkg_name <- package
 
     if (!quiet) {
       cat("Compiling package:", package, "\n")
@@ -187,8 +198,12 @@ rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
     })
   } else if (is.environment(package)) {
     pkg_ns <- package
+    pkg_name <- environmentName(pkg_ns)
+    if (pkg_name == "" || is.null(pkg_name)) {
+      pkg_name <- "<env>"
+    }
     if (!quiet) {
-      cat("Compiling environment\n")
+      cat("Compiling environment:", pkg_name, "\n")
     }
   } else {
     stop("package must be either a character string or an environment")
@@ -199,37 +214,72 @@ rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
   func_names <- character(0)
   for (name in all_names) {
     obj <- get(name, envir = pkg_ns, inherits = FALSE)
-    if (is.function(obj)) {
+    if (is_closure(obj)) {
       func_names <- c(func_names, name)
     }
   }
 
   total_functions <- length(func_names)
-  compiled_functions <- 0
 
   if (total_functions == 0) {
-    return(invisible(list(compiled = 0, total = 0)))
+    return(data.frame(
+      name = character(0),
+      symbol_name = character(0),
+      binary_size = integer(0),
+      constants_size = integer(0),
+      compile_time_ms = numeric(0),
+      bytecode_instructions = integer(0),
+      bytecode_compile_time_ms = numeric(0),
+      c_compile_time_ms = numeric(0),
+      native_compile_time_ms = numeric(0),
+      object_file = character(0),
+      constants_file = character(0),
+      source_file = character(0),
+      error = character(0),
+      warning = character(0),
+      stringsAsFactors = FALSE
+    ))
   }
 
+  results <- vector(mode = "list", length = length(func_names))
   compiled_env <- new.env()
   options$inplace <- FALSE
+  compiled_functions <- 0
 
-  for (func_name in func_names) {
+  for (i in seq_along(func_names)) {
+    func_name <- func_names[i]
+    full_name <- paste0(pkg_name, ":::", func_name)
+
     func <- get(func_name, envir = pkg_ns, inherits = FALSE)
 
+    info <- list(name = full_name)
+
     tryCatch({
-      # Compile with output_dir option if provided
       options$name <- func_name
-      result <- rsh::rsh_compile(func, options)
+      warning <- NA_character_
+
+      result <-
+        withCallingHandlers({
+          rsh::rsh_compile(func, options)
+        }, warning = function(w) {
+          msg <- conditionMessage(w)
+          if (is.na(warning)) {
+            warning <<- msg
+          } else {
+            warning <<- paste(warning, msg, sep = "; ")
+          }
+          invokeRestart("muffleWarning")
+        })
+
       compiled_func <- result$closure
-      info <- result$info
+      info <- c(name = full_name, result$info, error = NA_character_, warning = warning)
 
       if (!quiet) {
-        message <- paste0("- ", func_name, " OK (binary: ", info$binary_size, " bytes")
+        progress <- paste0("[", i, "/", total_functions, "] ")
+        message <- paste0(progress, func_name, " ", ansi_green("OK"), " (binary: ", info$binary_size, " bytes")
         message <- paste0(message, ", constants: ", info$constants_size, " bytes")
         message <- paste0(message, ", time: ", round(info$compile_time_ms, 2), " ms")
 
-        # Server-side metrics
         if (!is.na(info$bytecode_instructions)) {
           message <- paste0(message, ", bc_instrs: ", info$bytecode_instructions)
         }
@@ -258,10 +308,29 @@ rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
       compiled_functions <- compiled_functions + 1
     }, error = function(e) {
       if (!quiet) {
-        cat("- ", func_name, " Err (", e$message, ")\n", sep = "")
+        cat("[", i, "/", total_functions, "] ", func_name, " ", ansi_red("Err"), " (", e$message, ")\n", sep = "")
       }
+
+      info <<- c(info,
+        symbol_name = NA_character_,
+        binary_size = NA_integer_,
+        constants_size = NA_integer_,
+        compile_time_ms = NA_real_,
+        bytecode_instructions = NA_integer_,
+        bytecode_compile_time_ms = NA_real_,
+        c_compile_time_ms = NA_real_,
+        native_compile_time_ms = NA_real_,
+        object_file = NA_character_,
+        constants_file = NA_character_,
+        source_file = NA_character_,
+        error = e$message,
+        warning = warning
+      )
     })
+
+    results[[i]] <- info
   }
+
 
   # replace in the original environment
   for (func_name in ls(compiled_env, all.names = TRUE)) {
@@ -280,5 +349,5 @@ rsh_cmppkg <- function(package, options = list(), quiet = FALSE) {
     cat("Compilation complete: ", compiled_functions, "/", total_functions, " functions\n", sep = "")
   }
 
-  invisible(list(compiled = compiled_functions, total = total_functions))
+  do.call(rbind, lapply(results, as.data.frame, stringsAsFactors = FALSE))
 }
