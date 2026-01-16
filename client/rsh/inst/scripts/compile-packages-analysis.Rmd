@@ -1,0 +1,240 @@
+---
+title: "R Compilation Analysis"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+params:
+  base_dir: "."
+---
+
+Run with
+
+```
+Rscript -e "rmarkdown::render('analysis.Rmd', output_file = 'analysis.html', params = list(base_dir = '.'))"
+```
+
+## Setup
+
+```{r setup}
+library(tidyverse)
+library(texvars)
+```
+
+## Loading Data
+
+We start by loading the compilation results from the `results.csv` files located in each package directory.
+
+```{r load-data}
+# Find all results.csv files
+csv_files <- list.files(path = params$base_dir, pattern = "results.csv", recursive = TRUE, full.names = TRUE)
+
+if (length(csv_files) == 0) {
+  stop(paste("No 'results.csv' files found in", params$base_dir, "or its subdirectories."))
+}
+
+# Define column types based on the provided sample
+col_spec <- readr::cols(
+  name = readr::col_character(),
+  symbol_name = readr::col_character(),
+  binary_size = readr::col_double(),
+  constants_size = readr::col_double(),
+  compile_time_ms = readr::col_double(),
+  bytecode_instructions = readr::col_double(),
+  bytecode_compile_time_ms = readr::col_double(),
+  c_compile_time_ms = readr::col_double(),
+  native_compile_time_ms = readr::col_double(),
+  object_file = readr::col_character(),
+  constants_file = readr::col_character(),
+  source_file = readr::col_character(),
+  error = readr::col_character(),
+  warning = readr::col_character()
+)
+
+all_results <- map_dfr(csv_files, ~{
+  package_name <- basename(dirname(.x))
+  tryCatch({
+    readr::read_csv(.x, col_types = col_spec) %>%
+      mutate(package = package_name)
+  }, error = function(e) {
+    warning(paste("Could not read or process", .x, ":", e$message))
+    return(NULL)
+  })
+}, .progress = TRUE) %>% 
+  mutate(across(c(object_file, constants_file, source_file), ~{
+    # Normalize paths to contain only <last_dir>/<file>
+    # This assumes the file is inside a package directory which is inside the base_dir structure
+    if_else(is.na(.x), NA_character_, file.path(basename(dirname(.x)), basename(.x)))
+  }))
+
+if (nrow(all_results) == 0) {
+  stop("All 'results.csv' files failed to load which is weird to say the least")
+}
+```
+
+## Analyzing Lines of Code
+
+Next, we analyze the lines of code in the generated `.c` files using `cloc`.
+
+```{r loc}
+# Check if cloc is installed
+cloc_path <- Sys.which("cloc")
+if (cloc_path == "") {
+  if (file.exists("/opt/homebrew/bin/cloc")) {
+    cloc_path <- "/opt/homebrew/bin/cloc"
+  } else {
+    stop("`cloc` is not installed. Please install it and ensure it's in your PATH.")
+  }
+}
+
+# all known C files normalized to "package/file.c"
+source_files_rel <- all_results %>%
+  filter(!is.na(source_file)) %>%
+  pull(source_file) %>%
+  unique()
+
+source_files_full <- file.path(params$base_dir, source_files_rel)
+
+existing_files <- file.exists(source_files_full)
+missing_files <- source_files_rel[!existing_files]
+
+if (length(missing_files) > 0) {
+  warning(paste("The following", length(missing_files), "source files were not found and will be skipped by cloc:\n", paste(head(missing_files, 10), collapse = "\n"), "\n..."))
+}
+
+files_to_cloc <- source_files_full[existing_files]
+
+if (length(files_to_cloc) == 0) {
+  stop("No valid C source files found to process with cloc.")
+}
+
+# create a temporary file to hold the list of files for cloc
+c_files_list <- tempfile(fileext = ".txt")
+writeLines(files_to_cloc, c_files_list)
+
+# run cloc on the list of files to get a single CSV output
+cloc_csv_output <- system(paste0(cloc_path, " --by-file --csv --list-file=", c_files_list), intern = TRUE)
+cloc_data <- read_csv(
+  I(cloc_csv_output[-1]), # cloc does not generate proper CSV header
+  col_names = c(
+    "language",
+    "filename",
+    "blank",
+    "comment",
+    "code"
+  )
+)
+
+if (nrow(cloc_data) == 0) {
+  stop("No C code files were processed by cloc")
+}
+
+loc <- cloc_data %>%
+  filter(language == "C") %>%
+  select(source_file = filename, c_code_lines = code) %>%
+  mutate(source_file = file.path(basename(dirname(source_file)), basename(source_file)))
+```
+
+## Combined Analysis
+
+```{r combined-analysis}
+D <- left_join(all_results, loc, by = "source_file")
+```
+
+```{r}
+classify_error <- function(x) {
+  case_when(
+    str_detect(x, "Received message larger than max") ~ "Message to large",
+    str_detect(x, "Duplicate definition of symbol") ~ "Duplicate symbol",
+    str_detect(x, "Cannot native compile function") ~ "C compile error",
+    str_detect(x, "Empty bytecode for function") ~ "Empty bytecode",
+    str_detect(x, "Cannot bytecode compile function") ~ "Bytecode compile error",
+    is.na(x) ~ NA,
+    TRUE ~ "Other"
+  )
+}
+
+D <- mutate(D, error = classify_error(error))
+```
+## Summary Statistics
+
+This section provides a summary of the compilation errors and descriptive statistics for the numeric variables in the dataset.
+
+### Packages Summary
+
+```{r}
+count(D, package, sort = TRUE) %>% 
+  knitr::kable(
+    caption = "Number of compilation results per package.",
+    col.names = c("Package", "Functions")
+  )
+```
+
+
+### Compilation Summary
+
+```{r error-summary, echo=FALSE, message=FALSE, warning=FALSE}
+error_summary <- D %>%
+  count(error, sort = TRUE, name = "count") %>%
+  mutate(
+    cumulative_count = cumsum(count),
+    percentage = (count / sum(count)) * 100,
+    cumulative_percentage = cumsum(percentage),
+    error = replace_na(error, "No Error") 
+  ) %>%
+  mutate(
+    count = scales::comma(count),
+    cumulative_count = scales::comma(cumulative_count)
+  )
+
+knitr::kable(
+  error_summary,
+  caption = "Frequency and cumulative distribution of compilation errors.",
+  col.names = c("Error Message", "Count", "Cumulative Count", "%", "Cumulative %"),
+  digits = 2
+)
+```
+
+### Numeric Summary
+
+```{r numeric-summary, echo=FALSE, message=FALSE, warning=FALSE}
+numeric_summary <- D %>%
+  select_if(is.numeric) %>%
+  summarise(across(everything(),
+                   list(mean = mean, min = min, max = max, median = median, sd = sd),
+                   na.rm = TRUE,
+                   .names = "{.col}___{.fn}")) %>%
+  pivot_longer(everything(),
+               names_to = c("variable", "statistic"),
+               names_sep = "___") %>%
+  pivot_wider(names_from = statistic, values_from = value)
+
+formatted_summary <- numeric_summary %>%
+  select(-sd) %>% 
+  pivot_longer(cols = -variable, names_to = "statistic", values_to = "value") %>%
+  mutate(
+    formatted_value = case_when(
+      grepl("size", variable) ~ texvars::size_1000(value) %>% fmt(),
+      grepl("_ms", variable) ~ texvars::duration(value/1000),
+      grepl("instructions", variable) ~ fmt(value, digits=1),
+      TRUE ~ fmt(value)
+    )
+  ) %>%
+  select(-value) %>%
+  pivot_wider(names_from = statistic, values_from = formatted_value) %>% 
+  mutate(variable = case_match(
+      variable,
+      "binary_size" ~ "Binary size",
+      "constants_size" ~ "Constants size",
+      "compile_time_ms" ~ "Compile time",
+      "bytecode_instructions" ~ "Bytecode instructions",
+      "bytecode_compile_time_ms" ~ "Bytecode compile time",
+      "c_compile_time_ms" ~ "C compile time",
+      "native_compile_time_ms" ~ "Native compile time",
+      "c_code_lines" ~ "C code size (lines)"
+    ))
+
+knitr::kable(
+  formatted_summary,
+  caption = "Summary statistics for numeric variables in the dataset."
+)
+```
