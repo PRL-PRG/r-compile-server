@@ -57,7 +57,7 @@ public class PackageDatabase {
         var tmpEnv = readObject(name, tmpEnvs);
         if (tmpEnv instanceof VecSXP v) {
           var realEnv = vecToEnv(v);
-          realEnv = (UserEnvSXP) replacePlaceHolder(realEnv, realEnv, name);
+          realEnv = (UserEnvSXP) replacePlaceHolder(realEnv, realEnv, name, Collections.newSetFromMap(new IdentityHashMap<>()));
           return realEnv;
         }
 
@@ -77,9 +77,15 @@ public class PackageDatabase {
    * @param selfRefEnv the environment that we want to make refer to itself
    * @param v the sexp on which we currently recurse
    * @param name the name of the environment used in the placeholder
+   * @param visited set of already visited SEXPs to avoid infinite recursion on cycles
    * @return the sexp with the placeholder replaced by the actual environment
    */
-  private static SEXP replacePlaceHolder(UserEnvSXP selfRefEnv, SEXP v, String name) {
+  private static SEXP replacePlaceHolder(UserEnvSXP selfRefEnv, SEXP v, String name, Set<SEXP> visited) {
+    // Avoid infinite recursion on cycles
+    if (visited.contains(v)) {
+      return v;
+    }
+
     // FIXME: there could also be environments in attributes
     return switch (v) {
       case NamespaceEnvSXP n -> {
@@ -90,8 +96,9 @@ public class PackageDatabase {
         }
       }
       case EnvSXP env -> {
+        visited.add(env);
         for (var e : env.bindings()) {
-          var res = replacePlaceHolder(selfRefEnv, e.getValue(), name);
+          var res = replacePlaceHolder(selfRefEnv, e.getValue(), name, visited);
           if (res != e.getValue()) {
             env.set(e.getKey(), res);
           }
@@ -99,10 +106,11 @@ public class PackageDatabase {
         yield env;
       }
       case VecSXP vec -> {
+        visited.add(vec);
         SEXP[] res = new SEXP[vec.size()];
         boolean change = false;
         for (int i = 0; i < vec.size(); i++) {
-          res[i] = replacePlaceHolder(selfRefEnv, vec.get(i), name);
+          res[i] = replacePlaceHolder(selfRefEnv, vec.get(i), name, visited);
           if (res[i] != vec.get(i)) {
             change = true;
           }
@@ -114,7 +122,8 @@ public class PackageDatabase {
         }
       }
       case CloSXP clo -> {
-        var res = replacePlaceHolder(selfRefEnv, clo.env(), name);
+        visited.add(clo);
+        var res = replacePlaceHolder(selfRefEnv, clo.env(), name, visited);
         if (res != clo.env()) {
           yield SEXPs.closure(clo.parameters(), clo.body(), (EnvSXP) res, clo.attributes());
         } else {
