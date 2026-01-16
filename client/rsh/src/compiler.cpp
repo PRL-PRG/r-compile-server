@@ -161,8 +161,10 @@ SEXP create_compile_info(CompilerOptions const &opts,
   }
 
   if (!debug_dir.empty()) {
+    auto safe_name = escape_for_filename(opts.name);
+
     if (!compiled_fun.code().empty()) {
-      o_file = debug_dir / (opts.name + ".o");
+      o_file = debug_dir / (safe_name + ".o");
       if (auto err = write_to(o_file, compiled_fun.code())) {
         Rf_warning("Failed to write object file: %s: %s", o_file.c_str(),
                    err->c_str());
@@ -170,7 +172,7 @@ SEXP create_compile_info(CompilerOptions const &opts,
     }
 
     if (!compiled_fun.constants().empty()) {
-      cc_file = debug_dir / (opts.name + ".RDS");
+      cc_file = debug_dir / (safe_name + ".RDS");
       if (auto err = write_to(cc_file, compiled_fun.constants())) {
         Rf_warning("Failed to write constants file: %s: %s", cc_file.c_str(),
                    err->c_str());
@@ -178,10 +180,10 @@ SEXP create_compile_info(CompilerOptions const &opts,
     }
 
     if (compiled_fun.has_source_code_data()) {
-      c_file = debug_dir / (opts.name + ".c");
+      c_file = debug_dir / (safe_name + ".c");
       if (auto err =
               write_to(c_file, compiled_fun.source_code_data().source_code())) {
-        Rf_warning("Failed to write constants file: %s: %s", c_file.c_str(),
+        Rf_warning("Failed to write source file: %s: %s", c_file.c_str(),
                    err->c_str());
       }
     }

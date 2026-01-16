@@ -21,3 +21,5 @@ std::optional<std::string> write_to_temp(std::string const &str,
                                          fs::path &path) noexcept;
 std::optional<std::string> write_to(fs::path const &path,
                                     std::string const &str) noexcept;
+
+std::string escape_for_filename(std::string_view name);

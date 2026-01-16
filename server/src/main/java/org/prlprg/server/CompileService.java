@@ -62,27 +62,23 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         return new BcCacheKey(request.getFunction().getHash(), request.getBcOpt(), request.getFunction().getBody());
     }
 
-    private record CompileResult(
-            ByteString code,
-            @Nullable ByteString constantPool,
-            @Nullable Messages.SourceCodeData sourceCodeData,
-            @Nullable Messages.CompileMetrics metrics) {
+
+    private static Messages.CompileResponse failure(String command, String message, String sourceCode) {
+        var failure = Messages.CompileFailure.newBuilder()
+                .setCommand(command)
+                .setCompilerOutput(message)
+                .setSourceCode(sourceCode)
+                .build();
+        return Messages.CompileResponse.newBuilder().setFailure(failure).build();
     }
 
-    private static class CompileException extends Exception {
-        final String command;
-        final String sourceCode;
-
-        CompileException(String command, String message, String sourceCode) {
-            super(message);
-            this.command = command;
-            this.sourceCode = sourceCode;
-        }
+    private static Messages.CompileResponse success(Messages.CompileSuccess result) {
+        return Messages.CompileResponse.newBuilder().setSuccess(result).build();
     }
 
-    private CompileResult compileFunction(Messages.CompileRequest params) throws CompileException, IOException {
+    private Messages.CompileResponse compileFunction(Messages.CompileRequest params) {
         if (!params.getFunction().hasBody()) {
-            throw new CompileException(
+            return failure(
                     "compile",
                     "No body sent with the request for function " + params.getFunction().getName(),
                     "");
@@ -92,8 +88,8 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         if (!params.getNoCache()) {
             var cached = lookupCache(params);
             if (cached != null) {
-                logger.info("Found " + params.getFunction().getName() + " in native cache. No recompilation.");
-                return cached;
+                logger.info("Found " + params.getFunction().getName() + " in cache. No recompilation.");
+                return success(cached);
             }
         }
 
@@ -105,19 +101,22 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         }
     }
 
-
-    private @Nullable CompileResult lookupCache(Messages.CompileRequest params) {
+    private @Nullable Messages.CompileSuccess lookupCache(Messages.CompileRequest params) {
         if (params.getTier().equals(Messages.Tier.OPTIMIZED)) {
             var ccCached = nativeCache.get(nativeKey(params));
             if (ccCached != null) {
-                Messages.SourceCodeData sourceCodeData = null;
+                var builder = Messages.CompileSuccess.newBuilder()
+                        .setCode(ccCached.code())
+                        .setConstants(ccCached.constantPool())
+                        .setTier(params.getTier())
+                        .setHash(params.getFunction().getHash());
                 if (params.getDebug() && ccCached.sourceCode() != null) {
-                    sourceCodeData =
+                    builder.setSourceCodeData(
                             Messages.SourceCodeData.newBuilder()
                                     .setSourceCode(ccCached.sourceCode())
-                                    .build();
+                                    .build());
                 }
-                return new CompileResult(ccCached.code(), ccCached.constantPool(), sourceCodeData, null);
+                return builder.build();
             }
         }
 
@@ -125,60 +124,73 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
             var bcCached = bcCache.get(bcKey(params));
             if (bcCached != null) {
                 logger.info("Found " + params.getFunction().getName() + " in bytecode cache. No recompilation.");
-                return new CompileResult(bcCached.second(), null, null, null);
+                return Messages.CompileSuccess.newBuilder()
+                        .setCode(bcCached.second())
+                        .setTier(params.getTier())
+                        .setHash(params.getFunction().getHash())
+                        .build();
             }
         }
 
         return null;
     }
 
-    private CompileResult compileToBaseline(Messages.CompileRequest params) throws CompileException, IOException {
-        long bcStart = System.nanoTime();
-        var bc = compileBytecode(params);
-        long bcEnd = System.nanoTime();
-        double bcTimeMs = (bcEnd - bcStart) / 1_000_000.0;
-
-        var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
-
-        if (!params.getNoCache()) {
-            bcCache.put(bcKey(params), Pair.of(bc, serializedBc));
-        }
-
-        var metrics = Messages.CompileMetrics.newBuilder()
-                .setBytecodeInstructions(bc.code().size())
-                .setBytecodeCompileTimeMs(bcTimeMs)
-                .build();
-
-        return new CompileResult(serializedBc, null, null, metrics);
-    }
-
-    private Bc compileBytecode(Messages.CompileRequest params) throws CompileException {
+    private Messages.CompileResponse compileToBaseline(Messages.CompileRequest params) {
         logger.info(
                 "Compile function "
                         + params.getFunction().getName()
                         + " to bytecode with optimisation level "
                         + params.getBcOpt());
 
+        Bc bc;
+        double bcTimeMs;
         try {
+            long bcStart = System.nanoTime();
             var bcRes = compileBcClosure(params.getFunction().getBody(), params.getBcOpt());
+            long bcEnd = System.nanoTime();
+            bcTimeMs = (bcEnd - bcStart) / 1_000_000.0;
+
             if (bcRes.isEmpty()) {
-                throw new CompileException(
+                return failure(
                         "bytecode compile",
                         "Empty bytecode for function " + params.getFunction().getName(),
                         params.getFunction().getBody().toStringUtf8());
             }
-            return bcRes.get();
-        } catch (CompileException e) {
-            throw e;
+            bc = bcRes.get();
         } catch (Exception e) {
-            throw new CompileException(
+            return failure(
                     "bytecode compile",
                     "Cannot bytecode compile function " + params.getFunction().getName() + " ; " + e.getMessage(),
                     params.getFunction().getBody().toStringUtf8());
         }
+
+        try {
+            var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
+
+            if (!params.getNoCache()) {
+                bcCache.put(bcKey(params), Pair.of(bc, serializedBc));
+            }
+
+            var metrics = Messages.CompileMetrics.newBuilder()
+                    .setBytecodeInstructions(bc.code().size())
+                    .setBytecodeCompileTimeMs(bcTimeMs)
+                    .build();
+
+            return success(Messages.CompileSuccess.newBuilder()
+                    .setCode(serializedBc)
+                    .setTier(params.getTier())
+                    .setHash(params.getFunction().getHash())
+                    .setMetrics(metrics)
+                    .build());
+        } catch (IOException e) {
+            return failure(
+                    "bytecode compile",
+                    "Cannot serialize bytecode for function " + params.getFunction().getName() + " ; " + e.getMessage(),
+                    params.getFunction().getBody().toStringUtf8());
+        }
     }
 
-    private CompileResult compileToOptimized(Messages.CompileRequest params) throws CompileException, IOException {
+    private Messages.CompileResponse compileToOptimized(Messages.CompileRequest params) {
         // Check if we have cached bytecode
         var bcCached = params.getNoCache() ? null : bcCache.get(bcKey(params));
         Bc bc;
@@ -187,13 +199,34 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
         if (bcCached != null) {
             bc = bcCached.first();
         } else {
-            long bcStart = System.nanoTime();
-            bc = compileBytecode(params);
-            long bcEnd = System.nanoTime();
-            bcTimeMs = (bcEnd - bcStart) / 1_000_000.0;
-            if (!params.getNoCache()) {
-                var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
-                bcCache.put(bcKey(params), Pair.of(bc, serializedBc));
+            logger.info(
+                    "Compile function "
+                            + params.getFunction().getName()
+                            + " to bytecode with optimisation level "
+                            + params.getBcOpt());
+            try {
+                long bcStart = System.nanoTime();
+                var bcRes = compileBcClosure(params.getFunction().getBody(), params.getBcOpt());
+                long bcEnd = System.nanoTime();
+                bcTimeMs = (bcEnd - bcStart) / 1_000_000.0;
+
+                if (bcRes.isEmpty()) {
+                    return failure(
+                            "bytecode compile",
+                            "Empty bytecode for function " + params.getFunction().getName(),
+                            params.getFunction().getBody().toStringUtf8());
+                }
+                bc = bcRes.get();
+
+                if (!params.getNoCache()) {
+                    var serializedBc = RDSWriter.writeByteString(SEXPs.bcode(bc));
+                    bcCache.put(bcKey(params), Pair.of(bc, serializedBc));
+                }
+            } catch (Exception e) {
+                return failure(
+                        "bytecode compile",
+                        "Cannot bytecode compile function " + params.getFunction().getName() + " ; " + e.getMessage(),
+                        params.getFunction().getBody().toStringUtf8());
             }
         }
 
@@ -238,102 +271,60 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
                 nativeCache.put(nativeKey(params), nativeClosure);
             }
 
-            Messages.SourceCodeData sourceCodeData = null;
+            var successBuilder = Messages.CompileSuccess.newBuilder()
+                    .setCode(code)
+                    .setConstants(constantPool)
+                    .setTier(params.getTier())
+                    .setHash(params.getFunction().getHash());
+
             if (params.getDebug()) {
-                sourceCodeData =
+                successBuilder.setSourceCodeData(
                         Messages.SourceCodeData.newBuilder()
                                 .setSourceCode(sourceCode)
                                 .setTempFileName(input.getAbsolutePath())
-                                .build();
+                                .build());
             }
 
-            var metrics = Messages.CompileMetrics.newBuilder()
+            successBuilder.setMetrics(Messages.CompileMetrics.newBuilder()
                     .setBytecodeInstructions(bc.code().size())
                     .setBytecodeCompileTimeMs(bcTimeMs)
                     .setCCompileTimeMs(cTimeMs)
                     .setNativeCompileTimeMs(nativeTimeMs)
-                    .build();
+                    .build());
 
-            return new CompileResult(code, constantPool, sourceCodeData, metrics);
+            return success(successBuilder.build());
         } catch (Exception e) {
-            throw new CompileException(
+            return failure(
                     "native compile",
                     "Cannot native compile function " + params.getFunction().getName() + " ; " + e.getMessage(),
                     params.getFunction().getBody().toStringUtf8());
         }
     }
 
-    private void sendSuccess(
-            ServerCallStreamObserver<Messages.CompileResponse> responseObserver,
-            CompileResult result,
-            Messages.CompileRequest params) {
-        var successBuilder =
-                Messages.CompileSuccess.newBuilder()
-                        .setCode(result.code())
-                        .setTier(params.getTier())
-                        .setHash(params.getFunction().getHash());
+    // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
+    // CompileService.Compile
+    public void compile(
+            Messages.CompileRequest request,
+            StreamObserver<Messages.CompileResponse> plainResponseObserver) {
 
-        if (result.constantPool() != null) {
-            successBuilder.setConstants(result.constantPool());
-        }
-        if (result.sourceCodeData() != null) {
-            successBuilder.setSourceCodeData(result.sourceCodeData());
-        }
-        if (result.metrics() != null) {
-            successBuilder.setMetrics(result.metrics());
+        ServerCallStreamObserver<Messages.CompileResponse> responseObserver =
+                (ServerCallStreamObserver<Messages.CompileResponse>) plainResponseObserver;
+        responseObserver.setCompression("gzip");
+
+        if (session == null) {
+            responseObserver.onError(
+                    Status.INTERNAL.withDescription("Session not initialized.").asRuntimeException());
+            return;
         }
 
-        var response = Messages.CompileResponse.newBuilder().setSuccess(successBuilder.build()).build();
+        logger.info(
+                "Received request to compile function: " + request.getFunction().getName());
+
+        var response = compileFunction(request);
         responseObserver.onNext(response);
         logger.info("Response size : " + response.getSerializedSize());
         responseObserver.onCompleted();
     }
-
-    private void sendFailure(
-            ServerCallStreamObserver<Messages.CompileResponse> responseObserver,
-            String command,
-            String message,
-            String sourceCode) {
-        var failure =
-                Messages.CompileFailure.newBuilder()
-                        .setCommand(command)
-                        .setCompilerOutput(message)
-                        .setSourceCode(sourceCode)
-                        .build();
-
-        var response = Messages.CompileResponse.newBuilder().setFailure(failure).build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
-  // Testing externally: grpcurl -plaintext -d '{"function":{"name": "testFunc"}}' 0.0.0.0:8980
-  // CompileService.Compile
-  public void compile(
-          Messages.CompileRequest request,
-          StreamObserver<Messages.CompileResponse> plainResponseObserver) {
-
-      ServerCallStreamObserver<Messages.CompileResponse> responseObserver =
-              (ServerCallStreamObserver<Messages.CompileResponse>) plainResponseObserver;
-      responseObserver.setCompression("gzip");
-
-      if (session == null) {
-          responseObserver.onError(
-                  Status.INTERNAL.withDescription("Session not initialized.").asRuntimeException());
-          return;
-      }
-
-      logger.info(
-              "Received request to compile function: " + request.getFunction().getName());
-
-      try {
-          var result = compileFunction(request);
-          sendSuccess(responseObserver, result, request);
-      } catch (CompileException e) {
-          sendFailure(responseObserver, e.command, e.getMessage(), e.sourceCode);
-      } catch (IOException e) {
-          // FIXME: better error handling
-          throw new RuntimeException(e);
-      }
-  }
 
   @Override
   public void init(

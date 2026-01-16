@@ -1,5 +1,6 @@
 #include "util.hpp"
 #include <cassert>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <system_error>
@@ -200,4 +201,24 @@ std::optional<std::string> write_to_temp(std::string const &str,
   } catch (...) {
     return "Unknown exception occurred";
   }
+}
+
+std::string escape_for_filename(std::string_view name) {
+  std::string result;
+  result.reserve(name.size());
+
+  for (unsigned char c : name) {
+    // To be on the safe side allow alphanum, dash, underscore, and dot
+    // Escape everything else
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+        (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.') {
+      result += c;
+    } else {
+      char buf[4];
+      std::snprintf(buf, sizeof(buf), "%%%02X", c);
+      result += buf;
+    }
+  }
+
+  return result;
 }
