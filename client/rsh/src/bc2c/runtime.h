@@ -1254,9 +1254,7 @@ static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
     }
   }
 
-  PROTECT(value_sxp);
   Rboolean ans = asLogicalNoNA(value_sxp, call, rho);
-  UNPROTECT(1);
   return (Rboolean)!ans;
 }
 
