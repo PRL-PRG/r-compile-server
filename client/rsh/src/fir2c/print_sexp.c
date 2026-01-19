@@ -237,7 +237,18 @@ static void printSexpInternal(SEXP s, int indent) {
                     fprintf(stderr, "<package: ?>");
                 }
             } else {
-                fprintf(stderr, "<environment: %p>", (void *)s);
+                fprintf(stderr, "environment {\n");
+                printIndent(indent + 1);
+                fprintf(stderr, "parent: ");
+                printSexpInternal(ENCLOS(s), indent + 1);
+                fprintf(stderr, "\n");
+                // // Recurses or otherwise takes too long
+                // printIndent(indent + 1);
+                // fprintf(stderr, "frame: ");
+                // printSexpInternal(FRAME(s), indent + 1);
+                // fprintf(stderr, "\n");
+                printIndent(indent);
+                fprintf(stderr, "}");
             }
             break;
 

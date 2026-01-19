@@ -20,7 +20,7 @@ public class BCCompilerTest {
       abort("utils/.install.macbinary is different on macOS, so the snapshot also differs");
     }
 
-    store.verify(example, BCQuery.INSTANCE);
+    store.verify(example, BCQuery.REGULAR);
   }
 
   @Test

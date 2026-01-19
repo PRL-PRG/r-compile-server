@@ -593,7 +593,7 @@ void Fir_dbg_sexp(const char* name, SEXP value) {
   DEFINE_DISPATCH_INTRINSIC(X) {\
     va_list args;\
     va_start(args, signature);\
-    SEXP result = ((Fir_VersionFn) Fir_ver_call_ ## X ## _v0)(env, ##__VA_ARGS__);\
+    SEXP result = Fir_ver_call_ ## X ## _v0(env, ##__VA_ARGS__);\
     va_end(args);\
     return result;\
   }

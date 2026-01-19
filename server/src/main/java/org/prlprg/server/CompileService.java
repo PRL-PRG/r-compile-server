@@ -15,6 +15,7 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
+import org.prlprg.bc.BcOptLevel;
 import org.prlprg.bc2c.BC2CCompiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
@@ -36,10 +37,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   // Cache for byte-code, only for functions. We keep the already serialized code in the cache
   // not the Bc (or BcCodeSXP)
   // Key is (hash, optimisationLevel)
-  private final HashMap<Pair<Long, Integer>, Pair<Bc, ByteString>> bcCache = new HashMap<>();
+  private final HashMap<Pair<Long, BcOptLevel>, Pair<Bc, ByteString>> bcCache = new HashMap<>();
   // Cache for native code.
   // Key is (hash, bcOpt, ccOpt)
-  private final HashMap<Triple<Long, Integer, Integer>, NativeClosure> nativeCache =
+  private final HashMap<Triple<Long, BcOptLevel, Integer>, NativeClosure> nativeCache =
       new HashMap<>();
 
   private static String genSymbol(Messages.Function function) {
@@ -72,7 +73,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     if (tier == Messages.Tier.UNRECOGNIZED) {
       tier = Messages.Tier.OPTIMIZED;
     }
-    var bcOpt = request.hasBcOpt() ? request.getBcOpt() : 2;
+    var bcOpt = request.hasBcOpt() ? BcOptLevel.fromValue(request.getBcOpt()) : BcOptLevel.DEFAULT;
     var ccOpt = request.hasCcOpt() ? request.getCcOpt() : 2;
     Messages.Context context = request.getContext(); // null if not provided
 
@@ -309,7 +310,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     return new RVersion(version.getMajor(), version.getMinor(), version.getPatch());
   }
 
-  private Optional<Bc> compileBcClosure(ByteString body, int optimizationLevel) {
+  private Optional<Bc> compileBcClosure(ByteString body, BcOptLevel optimizationLevel) {
     SEXP closure = null;
     try {
       assert session != null;

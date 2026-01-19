@@ -23,7 +23,7 @@ public class BC2CQuery implements CompiledModuleQuery {
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {
     var compilePromises = example.hasOption(name(), "compilePromises");
-    var bc = store.load(example, BCQuery.INSTANCE);
+    var bc = store.load(example, BCQuery.REGULAR);
 
     return compile(bc, compilePromises);
   }
