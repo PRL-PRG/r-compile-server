@@ -1622,7 +1622,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
     SEXP *compiled_functions = (SEXP *)R_alloc(n_objects, sizeof(SEXP));
     SEXP *function_symbols = (SEXP *)R_alloc(n_objects, sizeof(SEXP));
 #endif
-    fprintf(stderr, "Compiling functions from package '%s'...\n", pkg);
+    DEBUG_PRINT("Compiling functions from package '%s'...\n", pkg);
     
     // First pass: compile all functions
     for (int i = 0; i < n_objects; i++) {
@@ -1631,7 +1631,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
         function_symbols[i] = R_NilValue;
 #endif
 
-        fprintf(stderr, "  Compiling:  %s\n", CHAR(STRING_ELT(obj_names, i)));
+        DEBUG_PRINT("  Compiling:  %s\n", CHAR(STRING_ELT(obj_names, i)));
         SEXP name_sym = Rf_install(CHAR(STRING_ELT(obj_names, i)));
         PROTECT(name_sym);
         SEXP obj = Rf_findVarInFrame(pkg_namespace, name_sym);
@@ -1653,7 +1653,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 
         // Check if already compiled
         if (TYPEOF(BODY(obj)) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(BODY(obj))) {
-            fprintf(stderr, "  Skipping %s (already compiled)\n", CHAR(STRING_ELT(obj_names, i)));
+            DEBUG_PRINT("  Skipping %s (already compiled)\n", CHAR(STRING_ELT(obj_names, i)));
             UNPROTECT_SAFE(name_sym);
             continue;
         }
@@ -1710,7 +1710,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
     UNPROTECT_SAFE(obj_names);
     UNPROTECT_SAFE(pkg_namespace);
     
-    fprintf(stderr, "Compilation complete:  %d succeeded, %d failed\n", 
+    DEBUG_PRINT("Compilation complete:  %d succeeded, %d failed\n", 
             compiled_count, failed_count);
     
     // Return a list with statistics
