@@ -4,7 +4,7 @@ queens <- function(n) {
 }
 
 solve_queens <- function(board, row, n) {
-  if (row == n) {
+  if (row == n + 1) {
     return(1)
   }
 

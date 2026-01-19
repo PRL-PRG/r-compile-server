@@ -379,7 +379,6 @@ public class BC2CFGCompiler {
   /// "Label in the bytecode" = relative offset in a jump instruction.
   private void addBcLabelBBs() {
     for (var instr : bc.code()) {
-      assert instr != null;
       addBcLabelBBs(instr);
     }
   }

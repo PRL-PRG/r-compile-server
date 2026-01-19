@@ -1,7 +1,5 @@
 package org.prlprg.bc;
 
-import static org.prlprg.bc.BCCompiler.DEFAULT_OPTIMIZATION_LEVEL;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,9 +13,14 @@ import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 
 public class BCQuery implements Query<Bc> {
-  public static BCQuery INSTANCE = new BCQuery();
+  public static BCQuery REGULAR = new BCQuery(false);
+  public static BCQuery FIR = new BCQuery(true);
 
-  private BCQuery() {}
+  private final boolean fir;
+
+  private BCQuery(boolean fir) {
+    this.fir = fir;
+  }
 
   @Override
   public Bc compute(Example example, SnapshotStore store) {
@@ -33,7 +36,7 @@ public class BCQuery implements Query<Bc> {
 
   @Override
   public Bc oracle(Example example, SnapshotStore store) {
-    return genCompute(
+    return fir ? Query.super.oracle(example, store) : genCompute(
         example,
         (R, text, optimizationLevel) -> {
           var value =
@@ -51,9 +54,9 @@ public class BCQuery implements Query<Bc> {
   }
 
   private Bc genCompute(Example example, ComputeImpl impl) {
-    // TODO: version for FIR with FIR_OPTIMIZATION_LEVEL
     var optimizationLevel =
-        example.intOption(name(), "optimizationLevel", DEFAULT_OPTIMIZATION_LEVEL);
+        BcOptLevel.fromValue(
+            example.intOption(name(), "optimizationLevel", fir ? BcOptLevel.FIR.value() : BcOptLevel.DEFAULT.value()));
 
     var R = GNUR.instance();
 
@@ -66,7 +69,12 @@ public class BCQuery implements Query<Bc> {
 
   @FunctionalInterface
   private interface ComputeImpl {
-    SEXP run(GNUR R, String text, int optimizationLevel);
+    SEXP run(GNUR R, String text, BcOptLevel optimizationLevel);
+  }
+
+  @Override
+  public String name() {
+    return fir ? "bc.fir" : "bc.regular";
   }
 
   @Override

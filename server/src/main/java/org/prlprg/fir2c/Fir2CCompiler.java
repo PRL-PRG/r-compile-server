@@ -868,7 +868,7 @@ public final class Fir2CCompiler {
                   var builtinIndex = rSession.RFunTab().indexOf(calleeFun.name().name());
 
                   var arguments = emitArgumentArray("args", call.callArguments());
-                  var names = emitNameArray("arg_names", calleeFun.parameterNames());
+                  var names = emitArray("arg_names", "SEXP", Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
                   if (arguments.size() != names.size()) {
                     throw new IllegalStateException(
                         "Dispatched builtin has different number of arguments than it's signature:\nCall = "
@@ -1052,8 +1052,9 @@ public final class Fir2CCompiler {
                     "param_types",
                     "Fir_Type",
                     Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
-            return "Fir_signature(%s, %d, %s)"
-                .formatted(returnType, paramTypes.size(), paramTypes.pointer());
+            var comment = options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(signature) : "";
+            return "%sFir_signature(%s, %d, %s)"
+                .formatted(comment, returnType, paramTypes.size(), paramTypes.pointer());
           }
 
           private Array emitArgumentArray(String baseName, List<Argument> arguments) {
@@ -1086,11 +1087,6 @@ public final class Fir2CCompiler {
                           return name == null ? "R_MissingArg" : nvSymbolRef(pool, name);
                         })
                     .toList();
-            return emitArray(baseName, "SEXP", arguments);
-          }
-
-          private Array emitNameArray(String baseName, List<NamedVariable> names) {
-            var arguments = names.stream().map(nv -> nvSymbolRef(pool, nv)).toList();
             return emitArray(baseName, "SEXP", arguments);
           }
 
