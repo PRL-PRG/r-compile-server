@@ -204,6 +204,7 @@ public final class Fir2CCompiler {
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt("*data = (Fir_FunctionData) {.dispatch = %s};", functionDispatchCName(function));
       var idx = fnPool.internSpace();
+      assert idx == 0;
       cCode.stmt("Rsh_set_const(data_sexp, %d, %s);", idx, VAR_POOL);
     }
 
@@ -526,9 +527,10 @@ public final class Fir2CCompiler {
 
         private void beginEmitInit() {
           var cCode = initCFunction.add();
-          debugComment(cCode, "# Create `Fir_PromiseData`");
+          debugComment(cCode, "# Add `Fir_PromiseData`");
           cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_PromiseGlobalData));");
           var idx = pool.internSpace();
+          assert idx == 0;
           cCode.stmt("Rsh_set_const(data_sexp, %d, %s);", idx, constantsCName);
 
           cCode.stmt(

@@ -372,6 +372,12 @@ SEXP Fir_force(SEXP promise) {
       forcePromise(promise);
     }
   }
+
+  // TODO: delete
+  if (TYPEOF(PRVALUE(promise)) == PROMSXP) {
+    Rf_error("promise not fully forced?");
+  }
+
   return PRVALUE(promise);
 }
 
@@ -527,28 +533,66 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names,
   return list;
 }
 
-SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP const *args, SEXP const *names) {
+SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP const *names) {
   FUNTAB fun = R_FunTab[bltIdx];
+
   if (fun.arity != -1 && fun.arity != argc) {
     Rf_error("Builtin %s called with incorrect number of arguments: expected %d, got %d",
              fun.name, fun.arity, argc);
   }
 
+  if (fun.eval) {
+    // BUILTINSXP, so force arguments
+    for (int i = 0; i < argc; ++i) {
+      args[i] = Fir_maybe_force(args[i]);
+      if (args[i] == R_MissingArg) {
+        Rf_error("argument %d is missing", i + 1);
+      }
+    }
+  }
+
+  SEXP op = R_Primitive(fun.name);
+
+  int visibility = (bltIdx / 100) % 10;
+  R_Visible = (Rboolean)(visibility != 1);
+
   int protect_count = 0;
   SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
-  SEXP op = R_Primitive(fun.name);
-  SEXP result = fun.cfun(R_NilValue, op, arglist, env);
+
+  SEXP call = PROTECT(Rf_lcons(op, arglist));
+  protect_count++;
+
+  SEXP result = fun.cfun(call, op, arglist, env);
+
   UNPROTECT(protect_count);
+
+  if (visibility < 2) {
+    R_Visible = (Rboolean)(visibility != 1);
+  }
+
   return result;
 }
 
-SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP const *args,
-                      SEXP const *names) {
-  int protect_count = 0;
-  SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
-  SEXP result = Rf_applyClosure(R_NilValue, callee, arglist, env, R_NilValue, TRUE);
-  UNPROTECT(protect_count);
-  return result;
+SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP const *names) {
+  switch (TYPEOF(callee)) {
+    case BUILTINSXP:
+    case SPECIALSXP:
+      return Fir_call_builtin(PRIMOFFSET(callee), env, argc, args, names);
+    case CLOSXP: {
+      int protect_count = 0;
+      SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
+
+      SEXP call = PROTECT(Rf_lcons(op, arglist));
+      protect_count++;
+
+      SEXP result = Rf_applyClosure(call, callee, arglist, env, R_NilValue, TRUE);
+
+      UNPROTECT(protect_count);
+      return result;
+    }
+    default:
+      Rf_error("Unsupported callee type");
+  }
 }
 
 bool Fir_is_true(SEXP value) {
