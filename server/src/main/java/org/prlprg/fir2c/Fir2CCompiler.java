@@ -799,6 +799,11 @@ public final class Fir2CCompiler {
                   "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
               case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
               case Force(var value) -> "Fir_force(%s)".formatted(emitArgument(value));
+              // This is an R special case.
+              // There's no equivalent for `Store`, `LoadFun`, etc.
+              // their behavior is inconsistent.
+              case Load(var variable) when variable.isDdNum() ->
+                  "Fir_load_dots(%d, %s)".formatted(variable.ddIndex(), VAR_ENV);
               case Load(var variable) ->
                   "Fir_load(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
               case LoadFun(var variable, var env) -> {
@@ -868,7 +873,11 @@ public final class Fir2CCompiler {
                   var builtinIndex = rSession.RFunTab().indexOf(calleeFun.name().name());
 
                   var arguments = emitArgumentArray("args", call.callArguments());
-                  var names = emitArray("arg_names", "SEXP", Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
+                  var names =
+                      emitArray(
+                          "arg_names",
+                          "SEXP",
+                          Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
                   if (arguments.size() != names.size()) {
                     throw new IllegalStateException(
                         "Dispatched builtin has different number of arguments than it's signature:\nCall = "
@@ -1052,7 +1061,10 @@ public final class Fir2CCompiler {
                     "param_types",
                     "Fir_Type",
                     Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
-            var comment = options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(signature) : "";
+            var comment =
+                options.contains(Option.EMIT_DEBUG_COMMENTS)
+                    ? "/* %s */ ".formatted(signature)
+                    : "";
             return "%sFir_signature(%s, %d, %s)"
                 .formatted(comment, returnType, paramTypes.size(), paramTypes.pointer());
           }
@@ -1310,7 +1322,7 @@ public final class Fir2CCompiler {
   }
 
   private static String nvSymbolRef(ConstantPool pool, NamedVariable nv) {
-    return constantRef(pool, SEXPs.symbol(nv.name()));
+    return nv == NamedVariable.DOTS ? "R_DotsSymbol" : constantRef(pool, SEXPs.symbol(nv.name()));
   }
 
   private static String constantRef(ConstantPool pool, SEXP sexp) {

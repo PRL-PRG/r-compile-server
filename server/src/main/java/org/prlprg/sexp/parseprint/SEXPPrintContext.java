@@ -19,6 +19,7 @@ import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ExtptrSxp;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
@@ -348,6 +349,11 @@ public class SEXPPrintContext {
   }
 
   @PrintMethod
+  private void print(ExtptrSxp sexp, Printer p) {
+    handleDepth(p, () -> p.writer().write("<extptr>"));
+  }
+
+  @PrintMethod
   private void print(SEXP sexp, Printer ignored) {
     throw new AssertionError("unhandled SEXP class: " + sexp.getClass().getSimpleName());
   }
@@ -358,8 +364,6 @@ public class SEXPPrintContext {
 
     var i = 0;
     for (var attribute : attributes.entrySet()) {
-      assert attribute.getKey() != null;
-
       if (i == options.maxAttributes()) {
         w.write("\n...");
         break;
