@@ -18,4 +18,4 @@ swap <- function(list, i, j) {
   list
 }
 
-permute(4, 1:7)
+permute(4, 1:5)
