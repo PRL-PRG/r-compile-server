@@ -1,5 +1,4 @@
-#ifndef FIR_RUNTIME_H
-#define FIR_RUNTIME_H
+#pragma once
 
 // THIS HEADER NEEDS TO BE A C-COMPATIBLE HEADER
 // IT IS USED BY THE SERVER COMPILER
@@ -169,5 +168,3 @@ DEFINE_OVERRIDDEN_BUILTIN(as_u2echaracter, 1, SEXP value);  // as.character
 #ifdef __cplusplus
 }
 #endif
-
-#endif // FIR_RUNTIME_H

@@ -680,7 +680,7 @@ public final class Fir2CCompiler {
               cCode.stmt("(void)(%s);", expr);
             } else {
               cCode.stmt("%s = %s;", registerPlace(statement.assignee()), expr);
-              debugValue(cCode, statement.assignee().name(), expr);
+              debugValue(cCode, statement.assignee().name(), registerPlace(statement.assignee()));
             }
           }
 
