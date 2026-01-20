@@ -36,27 +36,32 @@ public class BCQuery implements Query<Bc> {
 
   @Override
   public Bc oracle(Example example, SnapshotStore store) {
-    return fir ? Query.super.oracle(example, store) : genCompute(
-        example,
-        (R, text, optimizationLevel) -> {
-          var value =
-              R.eval(
-                  "compiler::cmpfun("
-                      + text
-                      + ", options = list(optimize = "
-                      + optimizationLevel
-                      + "))");
-          if (!(value instanceof CloSXP closure)) {
-            throw new IllegalArgumentException("Expected a closure, got: " + value);
-          }
-          return closure.body();
-        });
+    return fir
+        ? Query.super.oracle(example, store)
+        : genCompute(
+            example,
+            (R, text, optimizationLevel) -> {
+              var value =
+                  R.eval(
+                      "compiler::cmpfun("
+                          + text
+                          + ", options = list(optimize = "
+                          + optimizationLevel
+                          + "))");
+              if (!(value instanceof CloSXP closure)) {
+                throw new IllegalArgumentException("Expected a closure, got: " + value);
+              }
+              return closure.body();
+            });
   }
 
   private Bc genCompute(Example example, ComputeImpl impl) {
     var optimizationLevel =
         BcOptLevel.fromValue(
-            example.intOption(name(), "optimizationLevel", fir ? BcOptLevel.FIR.value() : BcOptLevel.DEFAULT.value()));
+            example.intOption(
+                name(),
+                "optimizationLevel",
+                fir ? BcOptLevel.FIR.value() : BcOptLevel.DEFAULT.value()));
 
     var R = GNUR.instance();
 

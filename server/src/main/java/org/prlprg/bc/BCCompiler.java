@@ -771,7 +771,8 @@ public class BCCompiler {
         .flatMap(
             res -> {
               if (optimizationLevel == BcOptLevel.MAX
-                  || ((optimizationLevel == BcOptLevel.DEFAULT || optimizationLevel == BcOptLevel.FIR)
+                  || ((optimizationLevel == BcOptLevel.DEFAULT
+                          || optimizationLevel == BcOptLevel.FIR)
                       && LANGUAGE_FUNS.contains(name))
                   ||
                   // if is in a namespace we do not have to worry about shadowing
@@ -828,6 +829,10 @@ public class BCCompiler {
   }
 
   private boolean trySetterInline(RegSymSXP funSym, FlattenLHS flhs, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return false;
+    }
+
     return getInlineInfo(funSym.name(), false)
         .flatMap(this::getSetterInlineHandler)
         .map(handler -> handler.apply(flhs, call))
@@ -835,6 +840,10 @@ public class BCCompiler {
   }
 
   private boolean tryGetterInline(RegSymSXP funSym, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return false;
+    }
+
     return getInlineInfo(funSym.name(), false)
         .flatMap(this::getGetterInlineHandler)
         .map(handler -> handler.apply(call))
@@ -1468,7 +1477,7 @@ public class BCCompiler {
   }
 
   private boolean inlineDollar(LangSXP call) {
-    if (anyDots(call.args()) || call.args().size() != 2) {
+    if (optimizationLevel == BcOptLevel.FIR || anyDots(call.args()) || call.args().size() != 2) {
       return inlineSpecial(call);
     }
 
@@ -1941,7 +1950,7 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarSubset(LangSXP call) {
-    if (anyDots(call.args()) || call.args().size() != 2) {
+    if (optimizationLevel == BcOptLevel.FIR || anyDots(call.args()) || call.args().size() != 2) {
       return false;
     }
 
@@ -2013,7 +2022,7 @@ public class BCCompiler {
 
   private boolean inlineDollarAssign(FlattenLHS flhs, LangSXP call) {
     var place = flhs.temp();
-    if (anyDots(place.args()) || place.args().size() != 2) {
+    if (optimizationLevel == BcOptLevel.FIR || anyDots(place.args()) || place.args().size() != 2) {
       return false;
     } else {
       SEXP sym = place.arg(1);
@@ -2083,6 +2092,10 @@ public class BCCompiler {
   }
 
   private boolean inlineSubset(boolean doubleSquare, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return inlineSpecial(call);
+    }
+
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       if (anyDots(call.args()) || call.args().isEmpty()) {
         return inlineSpecial(call);

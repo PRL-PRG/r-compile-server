@@ -32,18 +32,11 @@ import org.prlprg.bc.BcInstr.DdValMissOk;
 import org.prlprg.bc.BcInstr.DecLnk;
 import org.prlprg.bc.BcInstr.DecLnkStk;
 import org.prlprg.bc.BcInstr.DeclnkN;
-import org.prlprg.bc.BcInstr.DfltC;
-import org.prlprg.bc.BcInstr.DfltSubassign;
-import org.prlprg.bc.BcInstr.DfltSubassign2;
-import org.prlprg.bc.BcInstr.DfltSubset;
-import org.prlprg.bc.BcInstr.DfltSubset2;
 import org.prlprg.bc.BcInstr.Div;
 import org.prlprg.bc.BcInstr.DoDots;
 import org.prlprg.bc.BcInstr.DoLoopBreak;
 import org.prlprg.bc.BcInstr.DoLoopNext;
 import org.prlprg.bc.BcInstr.DoMissing;
-import org.prlprg.bc.BcInstr.Dollar;
-import org.prlprg.bc.BcInstr.DollarGets;
 import org.prlprg.bc.BcInstr.DotCall;
 import org.prlprg.bc.BcInstr.DotsErr;
 import org.prlprg.bc.BcInstr.Dup2nd;
@@ -59,7 +52,6 @@ import org.prlprg.bc.BcInstr.GetBuiltin;
 import org.prlprg.bc.BcInstr.GetFun;
 import org.prlprg.bc.BcInstr.GetGlobFun;
 import org.prlprg.bc.BcInstr.GetIntlBuiltin;
-import org.prlprg.bc.BcInstr.GetSymFun;
 import org.prlprg.bc.BcInstr.GetVar;
 import org.prlprg.bc.BcInstr.GetVarMissOk;
 import org.prlprg.bc.BcInstr.GetterCall;
@@ -86,10 +78,6 @@ import org.prlprg.bc.BcInstr.LogBase;
 import org.prlprg.bc.BcInstr.Lt;
 import org.prlprg.bc.BcInstr.MakeClosure;
 import org.prlprg.bc.BcInstr.MakeProm;
-import org.prlprg.bc.BcInstr.MatSubassign;
-import org.prlprg.bc.BcInstr.MatSubassign2;
-import org.prlprg.bc.BcInstr.MatSubset;
-import org.prlprg.bc.BcInstr.MatSubset2;
 import org.prlprg.bc.BcInstr.Math1;
 import org.prlprg.bc.BcInstr.Mul;
 import org.prlprg.bc.BcInstr.Ne;
@@ -104,10 +92,8 @@ import org.prlprg.bc.BcInstr.PushConstArg;
 import org.prlprg.bc.BcInstr.PushFalseArg;
 import org.prlprg.bc.BcInstr.PushNullArg;
 import org.prlprg.bc.BcInstr.PushTrueArg;
-import org.prlprg.bc.BcInstr.ReturnJmp;
 import org.prlprg.bc.BcInstr.SeqAlong;
 import org.prlprg.bc.BcInstr.SeqLen;
-import org.prlprg.bc.BcInstr.SetLoopVal;
 import org.prlprg.bc.BcInstr.SetTag;
 import org.prlprg.bc.BcInstr.SetVar;
 import org.prlprg.bc.BcInstr.SetVar2;
@@ -116,30 +102,13 @@ import org.prlprg.bc.BcInstr.SpecialSwap;
 import org.prlprg.bc.BcInstr.Sqrt;
 import org.prlprg.bc.BcInstr.StartAssign;
 import org.prlprg.bc.BcInstr.StartAssign2;
-import org.prlprg.bc.BcInstr.StartC;
 import org.prlprg.bc.BcInstr.StartFor;
 import org.prlprg.bc.BcInstr.StartLoopCntxt;
-import org.prlprg.bc.BcInstr.StartSubassign;
-import org.prlprg.bc.BcInstr.StartSubassign2;
-import org.prlprg.bc.BcInstr.StartSubassign2N;
-import org.prlprg.bc.BcInstr.StartSubassignN;
-import org.prlprg.bc.BcInstr.StartSubset;
-import org.prlprg.bc.BcInstr.StartSubset2;
-import org.prlprg.bc.BcInstr.StartSubset2N;
-import org.prlprg.bc.BcInstr.StartSubsetN;
 import org.prlprg.bc.BcInstr.StepFor;
 import org.prlprg.bc.BcInstr.Sub;
-import org.prlprg.bc.BcInstr.Subassign2N;
-import org.prlprg.bc.BcInstr.SubassignN;
-import org.prlprg.bc.BcInstr.Subset2N;
-import org.prlprg.bc.BcInstr.SubsetN;
 import org.prlprg.bc.BcInstr.Switch;
 import org.prlprg.bc.BcInstr.UMinus;
 import org.prlprg.bc.BcInstr.UPlus;
-import org.prlprg.bc.BcInstr.VecSubassign;
-import org.prlprg.bc.BcInstr.VecSubassign2;
-import org.prlprg.bc.BcInstr.VecSubset;
-import org.prlprg.bc.BcInstr.VecSubset2;
 import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.bc.BcLabel;
 import org.prlprg.bc.ConstPool.Idx;
@@ -245,7 +214,6 @@ public class BC2CFGCompiler {
   private final List<Loop> loopStack = new ArrayList<>();
   private final List<ComplexAssign> complexAssignStack = new ArrayList<>();
   private final List<Call> callStack = new ArrayList<>();
-  private final List<Dispatch> dispatchStack = new ArrayList<>();
   private @Nullable String lastLoadedFunName;
 
   // endregion compiler data
@@ -441,7 +409,7 @@ public class BC2CFGCompiler {
   // region compile instructions
   private void addBcInstrIrInstrs(BcInstr instr) {
     switch (instr) {
-      case BcInstr.Return(), ReturnJmp() -> {
+      case BcInstr.Return() -> {
         var retVal = pop();
         assertStackForReturn();
 
@@ -622,7 +590,6 @@ public class BC2CFGCompiler {
         moveTo(endBb);
       }
       case EndFor() -> compileEndLoop(LoopType.FOR);
-      case SetLoopVal() -> throw failUnsupported("SetLoopVal");
       case Invisible() -> insert(intrinsic("setInvisible", 0));
       case LdConst(var constant) -> push(new Constant(get(constant)));
       case LdNull() -> push(new Constant(SEXPs.NULL));
@@ -654,9 +621,6 @@ public class BC2CFGCompiler {
         lastLoadedFunName = getStr(name);
         tryAddCheckpoint(true);
       }
-      // ???: GNU-R calls `SYMVALUE` and `INTERNAL` to implement these, but we don't store that in
-      //  our `RegSymSxp` data-structure. So the next three implementations may be incorrect.
-      case GetSymFun(var name) -> pushCall(new Builtin(get(name).name()));
       case GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case CheckFun() -> {
@@ -772,52 +736,6 @@ public class BC2CFGCompiler {
         var lhs = popComplexAssign(false, get(name));
         insert(new Store(getVar(name), lhs));
       }
-      case StartSubset(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSET, after);
-      case DfltSubset() -> compileDefaultDispatch(Dispatch.Type.SUBSET);
-      case StartSubassign(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBASSIGN, after);
-      case DfltSubassign() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN);
-      case StartC(var _, var after) -> compileStartDispatch(Dispatch.Type.C, after);
-      case DfltC() -> compileDefaultDispatch(Dispatch.Type.C);
-      case StartSubset2(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSET2, after);
-      case DfltSubset2() -> compileDefaultDispatch(Dispatch.Type.SUBSET2);
-      case StartSubassign2(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGN2, after);
-      case DfltSubassign2() -> compileDefaultDispatch(Dispatch.Type.SUBASSIGN2);
-      case Dollar(var _, var member) -> {
-        var after = cfg.addBB();
-
-        var target = top();
-        compileGeneralDispatchCommon(new Builtin("$"), false, target, null, after);
-
-        var call = popCall();
-        if (!call.fun.equals(new Call.Fun.Builtin(new Builtin("$")))) {
-          throw fail("Dollar: expected a call to $");
-        }
-
-        var target1 = pop();
-        pushInsert(builtin("$", target1, new Constant(get(member))));
-        setJump(goto_(after));
-
-        moveTo(after);
-      }
-      case DollarGets(var _, var member) -> {
-        var after = cfg.addBB();
-
-        var rhs = pop();
-        var target = top();
-        compileGeneralDispatchCommon(new Builtin("$<-"), false, target, rhs, after);
-
-        var call = popCall();
-        if (!call.fun.equals(new Call.Fun.Builtin(new Builtin("$<-")))) {
-          throw fail("Dollar: expected a call to $");
-        }
-
-        var target1 = pop();
-        pushInsert(builtin("$<-", target1, new Constant(get(member)), rhs));
-        setJump(goto_(after));
-
-        moveTo(after);
-      }
       case IsNull() -> pushInsert("c", builtin("==", pop(), new Constant(SEXPs.NULL)));
       case IsLogical() -> pushInsert("c", builtin("is.logical", pop()));
       case IsInteger() -> pushInsert("c", builtin("is.integer", pop()));
@@ -827,10 +745,6 @@ public class BC2CFGCompiler {
       case IsSymbol() -> pushInsert("c", builtin("is.symbol", pop()));
       case IsObject() -> pushInsert("c", builtin("is.object", pop()));
       case IsNumeric() -> pushInsert("c", builtin("is.numeric", pop()));
-      case VecSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 2);
-      case MatSubset(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, 3);
-      case VecSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 3);
-      case MatSubassign(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, 4);
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert("c", builtin("as.logical", 1, pop()));
@@ -884,14 +798,14 @@ public class BC2CFGCompiler {
         // which is why it's unused.
         var rhs = pop();
         var lhs = pop();
-        prependCallArg(lhs);
+        replaceFirstCallArg(lhs);
         pushCallArg(rhs);
         compileCall();
       }
       case GetterCall(var _) -> {
         // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
         // but presumably this is something we abstract.
-        prependCallArg(top());
+        replaceFirstCallArg(top());
         compileCall();
       }
       case SpecialSwap() -> {
@@ -1008,20 +922,6 @@ public class BC2CFGCompiler {
         // In practice, there has always a label after this instruction,
         // but take note in case we get bytecode where this doesn't hold.
       }
-      case StartSubsetN(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSETN, after);
-      case StartSubassignN(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGNN, after);
-      case VecSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 2);
-      case MatSubset2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, 3);
-      case VecSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 3);
-      case MatSubassign2(var _) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, 4);
-      case StartSubset2N(var _, var after) -> compileStartDispatch(Dispatch.Type.SUBSET2N, after);
-      case StartSubassign2N(var _, var after) ->
-          compileStartDispatch(Dispatch.Type.SUBASSIGN2N, after);
-      case SubsetN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSETN, n + 1);
-      case Subset2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBSET2N, n + 1);
-      case SubassignN(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGNN, n + 2);
-      case Subassign2N(var _, var n) -> compileDefaultDispatchN(Dispatch.Type.SUBASSIGN2N, n + 2);
       case Log(var _) -> pushInsert(builtin("log", pop(), new Constant(SEXPs.real(Math.E))));
       case LogBase(var _) -> pushInsert(mkBinop("log"));
       case Math1(var _, var funId) -> pushInsert(mkUnop(MATH1_FUNS.get(funId)));
@@ -1076,6 +976,7 @@ public class BC2CFGCompiler {
         moveTo(safeBb);
       }
       case IncLnk(), DecLnk(), DeclnkN(var _), IncLnkStk(), DecLnkStk() -> {}
+      default -> throw failUnsupported(instr.getClass().getSimpleName());
     }
   }
 
@@ -1128,103 +1029,6 @@ public class BC2CFGCompiler {
                 && loopEndGoto.bb() == cursor.bb()))
         || cursor.instructionIndex() != -1) {
       throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.label());
-    }
-  }
-
-  private void compileStartDispatch(Dispatch.Type type, BcLabel after) {
-    compileStartDispatch(type, bbAt(after));
-  }
-
-  private void compileStartDispatch(Dispatch.Type type, BB after) {
-    var rhs = type.hasRhs ? pop() : null;
-    var target = top();
-    compileGeneralDispatchCommon(type.builtin, type.isNForm, target, rhs, after);
-    if (rhs != null) {
-      push(rhs);
-    }
-
-    if (!type.isNForm) {
-      pushCallArg(target);
-    }
-
-    pushDispatch(type, after);
-  }
-
-  private void compileGeneralDispatchCommon(
-      Builtin fun, boolean isNForm, Argument target, @Nullable Argument rhs, BB after) {
-    // ???: Maybe avoid compiling optimized dispatch code, since we can optimize it ourselves.
-    var isObject = insertAndReturn("c", builtin("is.object", target));
-    var objectBb = cfg.addBB();
-    var nonObjectBb = cfg.addBB();
-    setJump(branch(isObject, objectBb, nonObjectBb));
-
-    moveTo(objectBb);
-    var target1 = pop();
-
-    var funNameSexp = new Constant(SEXPs.string(fun.name()));
-    var dispatchExpr =
-        rhs == null
-            ? intrinsic("tryDispatchBuiltin", 1, funNameSexp, target1)
-            : intrinsic("tryDispatchBuiltin", 0, funNameSexp, target1, rhs);
-    var dispatchResult = insertAndReturn("dr", dispatchExpr);
-    var dispatched =
-        insertAndReturn("dc", intrinsic("getTryDispatchBuiltinDispatched", dispatchResult));
-
-    push(dispatchResult);
-    insert(next -> branch(dispatched, next, nonObjectBb));
-    var dispatchValue = insertAndReturn("dx", intrinsic("getTryDispatchBuiltinValue", pop()));
-    push(dispatchValue);
-    setJump(goto_(after));
-
-    moveTo(nonObjectBb);
-
-    if (!isNForm) {
-      pushCall(fun);
-    }
-  }
-
-  private void compileDefaultDispatch(Dispatch.Type type) {
-    assert !type.isNForm : "use compileDefaultDispatchN for `...N` bytecodes";
-
-    if (type.hasRhs) {
-      pushCallArg(pop());
-    }
-
-    var dispatch = popDispatch(type);
-
-    var call = popCall();
-
-    pop();
-
-    var argValues = call.args.stream().map(Call.Arg::node).collect(ImmutableList.toImmutableList());
-    finishCompilingDefaultDispatch(type, dispatch, argValues);
-  }
-
-  private void compileDefaultDispatchN(Dispatch.Type type, int numArgs) {
-    assert type.isNForm : "use compileDefaultDispatch for non-`...N` bytecodes";
-
-    var dispatch = popDispatch(type);
-
-    // Unlike `compileDefaultDispatch`, there's no `Call`, instead we take the args from the stack.
-    // Like `compileDefaultDispatch`, there's either a specialized instruction or a fallback call,
-    // although in this the number of arguments is known.
-    var argsView = stack.subList(stack.size() - numArgs, stack.size());
-    var args = argsView.stream().collect(ImmutableList.toImmutableList());
-    argsView.clear();
-
-    finishCompilingDefaultDispatch(type, dispatch, args);
-  }
-
-  private void finishCompilingDefaultDispatch(
-      Dispatch.Type type, Dispatch dispatch, ImmutableList<Argument> argValues) {
-    // See `compileCall` for why we can't compile builtins directly.
-    var loadFun =
-        insertAndReturn(
-            type.builtin.name, new LoadFun(Variable.named(type.builtin.name), Env.BASE));
-    pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), argValues));
-
-    if (bbAfterCurrent() != dispatch.after) {
-      throw fail("expected to be immediately before `after` BB " + dispatch.after.label());
     }
   }
 
@@ -1497,12 +1301,6 @@ public class BC2CFGCompiler {
     require(
         callStack.isEmpty(),
         () -> "call stack isn't empty at end of function: [" + Strings.join(", ", callStack) + "]");
-    require(
-        dispatchStack.isEmpty(),
-        () ->
-            "dispatch stack isn't empty at end of function: ["
-                + Strings.join(", ", dispatchStack)
-                + "]");
   }
 
   /// Insert a statement that executes the expression and assigns its result to a fresh
@@ -1655,13 +1453,16 @@ public class BC2CFGCompiler {
     return callStack.removeLast();
   }
 
-  /// Prepend a value to the current call stack ([#topCall()]).
+  /// Assume the first argument on the current call stack is `NULL`, then replace it.
   ///
-  /// This is required for [GetterCall] and [SetterCall], since the `lhs` of the
-  /// complex assignment is prepended in the GNU-R. See also [#pushCallArg(Argument)], which
-  /// appends the argument.
-  private void prependCallArg(Argument value) {
-    topCall().args.addFirst(new Call.Arg(value));
+  /// This is required for [GetterCall] and [SetterCall]. See also [#pushCallArg(Argument)],
+  /// which appends the argument.
+  private void replaceFirstCallArg(Argument value) {
+    if (!Objects.equals(topCall().args.getFirst(), new Call.Arg(new Constant(SEXPs.NULL)))) {
+      throw fail("expected first call arg to be NULL, got: " + topCall().args.getFirst());
+    }
+
+    topCall().args.set(0, new Call.Arg(value));
   }
 
   /// Push a value onto the current call stack ([#topCall()]).
@@ -1688,23 +1489,6 @@ public class BC2CFGCompiler {
     var args = topCall().args;
     var last = args.removeLast();
     args.add(new Call.Arg(last.node(), name));
-  }
-
-  /// Add data for a "start dispatch" bytecode instruction that will be referenced by later
-  /// "default dispatch" instruction (via [#popDispatch(Dispatch.Type)].
-  private void pushDispatch(Dispatch.Type type, BB after) {
-    dispatchStack.add(new Dispatch(type, after));
-  }
-
-  /// Reference data from a previously-compiled "start dispatch" bytecode instruction (via
-  /// [#pushDispatch(Dispatch.Type,BB)]), and pop it.
-  private Dispatch popDispatch(Dispatch.Type type) {
-    require(!dispatchStack.isEmpty(), () -> "dispatch stack underflow");
-    var dispatch = dispatchStack.removeLast();
-    if (dispatch.type != type) {
-      throw fail("dispatch stack mismatch: expected " + type + " but got " + dispatch.type);
-    }
-    return dispatch;
   }
 
   // endregion stacks
@@ -1869,34 +1653,6 @@ public class BC2CFGCompiler {
     @Override
     public String toString() {
       return "Call{" + "fun=" + fun + ", args=" + args + '}';
-    }
-  }
-
-  /// Stores information about a dispatch function being compiled which is shared between multiple
-  /// instructions.
-  private record Dispatch(Type type, BB after) {
-
-    /// The dispatch function (e.g. "[", "[<-", "c").
-    private enum Type {
-      C("c", false, false),
-      SUBSET("[", false, false),
-      SUBASSIGN("[<-", true, false),
-      SUBSET2("[[", false, false),
-      SUBASSIGN2("[[<-", true, false),
-      SUBSETN("[", false, true),
-      SUBASSIGNN("[<-", true, true),
-      SUBSET2N("[[", false, true),
-      SUBASSIGN2N("[[<-", true, true);
-
-      private final Builtin builtin;
-      private final boolean hasRhs;
-      private final boolean isNForm;
-
-      Type(String builtinName, boolean hasRhs, boolean isNForm) {
-        this.builtin = new Builtin(builtinName);
-        this.hasRhs = hasRhs;
-        this.isNForm = isNForm;
-      }
     }
   }
 

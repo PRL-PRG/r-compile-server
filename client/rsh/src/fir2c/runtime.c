@@ -221,6 +221,13 @@ SEXP Fir_load(SEXP symbol, SEXP env) {
   return value;
 }
 
+SEXP Fir_load_dots(int ddIndex, SEXP env) {
+  if (TYPEOF(env) != ENVSXP) {
+    Rf_error("Environment expected for load");
+  }
+  return Rf_ddfind(ddIndex, env);
+}
+
 SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load_fun");
   switch (env_selector) {
@@ -539,9 +546,8 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP const *args,
                       SEXP const *names) {
   int protect_count = 0;
   SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
-  SEXP call = PROTECT(Rf_lcons(callee, arglist));
-  SEXP result = Rf_eval(call, env);
-  UNPROTECT(protect_count + 1);
+  SEXP result = Rf_applyClosure(R_NilValue, callee, arglist, env, R_NilValue, TRUE);
+  UNPROTECT(protect_count);
   return result;
 }
 
@@ -603,9 +609,6 @@ DEFINE_DISPATCH_INTRINSIC_BODY(checkMissing, va_arg(args, SEXP))
 DEFINE_DISPATCH_INTRINSIC_BODY(toForSeq, va_arg(args, SEXP))
 DEFINE_DISPATCH_INTRINSIC_BODY(setInvisible)
 DEFINE_DISPATCH_INTRINSIC_BODY(setVisible)
-DEFINE_DISPATCH_INTRINSIC_BODY(tryDispatchBuiltin, va_arg(args, SEXP), va_arg(args, SEXP), va_arg(args, SEXP))
-DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinDispatched, va_arg(args, SEXP))
-DEFINE_DISPATCH_INTRINSIC_BODY(getTryDispatchBuiltinValue, va_arg(args, SEXP))
 
 DEFINE_INTRINSIC(checkFun, 0, SEXP value) {
   if (TYPEOF(value) != CLOSXP && TYPEOF(value) != BUILTINSXP &&
@@ -637,22 +640,6 @@ DEFINE_INTRINSIC(setInvisible, 0) {
 DEFINE_INTRINSIC(setVisible, 0) {
   R_Visible = TRUE;
   return R_NilValue;
-}
-
-DEFINE_INTRINSIC(tryDispatchBuiltin, 0, SEXP funName, SEXP target, SEXP rhs) {
-  return R_NilValue;
-}
-
-DEFINE_INTRINSIC(tryDispatchBuiltin, 1, SEXP funName, SEXP target) {
-  return R_NilValue;
-}
-
-DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0, SEXP dispatchResult) {
-  return R_FalseValue;
-}
-
-DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0, SEXP dispatchResult) {
-  Rf_error("unimplemented. Dispatch intrinsics will probably be removed and we'll prevent compiling this complex bytecode");
 }
 
 // +

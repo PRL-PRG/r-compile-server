@@ -7,9 +7,7 @@ static void printSexpInternal(SEXP s, int indent);
 
 /* Print indentation */
 static void printIndent(int indent) {
-    if (indent > 0) {
-        fprintf(stderr, "*   ");
-    }
+    fprintf(stderr, "*   ");
     for (int i = 0; i < indent; i++) {
         fprintf(stderr, "  ");
     }
@@ -145,19 +143,17 @@ static void printAttributes(SEXP s, int indent) {
     SEXP attrs = ATTRIB(s);
     if (attrs == R_NilValue) return;
 
-    fprintf(stderr, "\n");
-    printIndent(indent);
-    fprintf(stderr, "@ attributes:\n");
-
     for (SEXP a = attrs; a != R_NilValue; a = CDR(a)) {
+        fprintf(stderr, "\n");
         printIndent(indent + 1);
+
         SEXP tag = TAG(a);
         if (tag != R_NilValue) {
+            fprintf(stderr, "@ ");
             printSymbol(tag);
             fprintf(stderr, " = ");
         }
         printSexpInternal(CAR(a), indent + 1);
-        if (CDR(a) != R_NilValue) fprintf(stderr, "\n");
     }
 }
 
@@ -237,18 +233,7 @@ static void printSexpInternal(SEXP s, int indent) {
                     fprintf(stderr, "<package: ?>");
                 }
             } else {
-                fprintf(stderr, "environment {\n");
-                printIndent(indent + 1);
-                fprintf(stderr, "parent: ");
-                printSexpInternal(ENCLOS(s), indent + 1);
-                fprintf(stderr, "\n");
-                // // Recurses or otherwise takes too long
-                // printIndent(indent + 1);
-                // fprintf(stderr, "frame: ");
-                // printSexpInternal(FRAME(s), indent + 1);
-                // fprintf(stderr, "\n");
-                printIndent(indent);
-                fprintf(stderr, "}");
+                fprintf(stderr, "<environment>");
             }
             break;
 
@@ -267,14 +252,12 @@ static void printSexpInternal(SEXP s, int indent) {
                 printSexpInternal(PRENV(s), indent + 1);
             }
             fprintf(stderr, "\n");
-            printIndent(indent + 1);
             /* Only show value if already forced (env is NULL) */
             if (PRENV(s) == R_NilValue) {
+                printIndent(indent + 1);
                 fprintf(stderr, "value: ");
                 printSexpInternal(PRVALUE(s), indent + 1);
                 fprintf(stderr, "\n");
-            } else {
-                fprintf(stderr, "value: <not yet evaluated>\n");
             }
             printIndent(indent);
             fprintf(stderr, "}");
@@ -362,16 +345,15 @@ static void printSexpInternal(SEXP s, int indent) {
                     }
                 }
                 if (hasNonNameAttr) {
-                    fprintf(stderr, "\n");
-                    printIndent(indent);
-                    fprintf(stderr, "@ attributes (excl. names):\n");
                     for (SEXP a = attrs; a != R_NilValue; a = CDR(a)) {
                         if (TAG(a) != R_NamesSymbol) {
+                            fprintf(stderr, "\n");
                             printIndent(indent + 1);
+
+                            fprintf(stderr, "@ ");
                             printSymbol(TAG(a));
                             fprintf(stderr, " = ");
                             printSexpInternal(CAR(a), indent + 1);
-                            fprintf(stderr, "\n");
                         }
                     }
                 }

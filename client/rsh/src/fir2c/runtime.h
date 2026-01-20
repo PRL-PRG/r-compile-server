@@ -93,6 +93,7 @@ SEXP Fir_dup(SEXP value);
 SEXP Fir_force(SEXP promise);
 SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
+SEXP Fir_load_dots(int ddIndex, SEXP env);
 SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env);
 void Fir_push_env(SEXP *env);
 void Fir_pop_env(SEXP *env);
@@ -138,19 +139,12 @@ DEFINE_DISPATCH_INTRINSIC(checkMissing);
 DEFINE_DISPATCH_INTRINSIC(toForSeq);
 DEFINE_DISPATCH_INTRINSIC(setInvisible);
 DEFINE_DISPATCH_INTRINSIC(setVisible);
-DEFINE_DISPATCH_INTRINSIC(tryDispatchBuiltin);
-DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinDispatched);
-DEFINE_DISPATCH_INTRINSIC(getTryDispatchBuiltinValue);
 
 DEFINE_INTRINSIC(checkFun, 0, SEXP value);
 DEFINE_INTRINSIC(checkMissing, 0, SEXP value);
 DEFINE_INTRINSIC(toForSeq, 0, SEXP value);
 DEFINE_INTRINSIC(setInvisible, 0);
 DEFINE_INTRINSIC(setVisible, 0);
-DEFINE_INTRINSIC(tryDispatchBuiltin, 0, SEXP funName, SEXP target, SEXP rhs);
-DEFINE_INTRINSIC(tryDispatchBuiltin, 1, SEXP funName, SEXP target);
-DEFINE_INTRINSIC(getTryDispatchBuiltinDispatched, 0, SEXP dispatchResult);
-DEFINE_INTRINSIC(getTryDispatchBuiltinValue, 0, SEXP dispatchResult);
 
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b);  // +
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b);  // +
