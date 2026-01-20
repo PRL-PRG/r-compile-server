@@ -46,7 +46,7 @@ benchmark <- function(options) {
 
   if ("rcp" %in% options$type) {
     library(rcp)
-
+    rcp:::rcp_cmppkg("compiler")
     rsh <- rcp:::rcp_cmpfun(execute, options=c(RSH_OPTS, options$compiler_options))
     rsh_stats <- attr(rsh, "stats")
     attr(rsh, "stats") <- NULL
