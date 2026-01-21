@@ -200,12 +200,20 @@ public final class Fir2CCompiler {
 
       cCode = initCFunction.add();
       debugComment(cCode, "# Add `Fir_FunctionData`");
-      cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
-      cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
-      cCode.stmt("*data = (Fir_FunctionData) {.dispatch = %s};", functionDispatchCName(function));
       var idx = fnPool.internSpace();
       assert idx == 0;
-      cCode.stmt("Rsh_set_const(data_sexp, %d, %s);", idx, VAR_POOL);
+      var formalNames =
+          constantRef(
+              fnPool,
+              function.parameterNames().stream()
+                  .map(nv -> SEXPs.symbol(nv.name()))
+                  .collect(SEXPs.toVec()));
+      cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
+      cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
+      cCode.stmt(
+          "*data = (Fir_FunctionData) {.dispatch = %s, .formal_names = %s};",
+          functionDispatchCName(function), formalNames);
+      cCode.stmt("Rsh_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
     }
 
     private void endEmitInit() {
@@ -233,19 +241,29 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       debugComment(cCode, "# Dispatch baseline");
+
       var baseline = function.baseline();
       var baselineCName = versionCallCName(function, baseline);
       if (baseline.parameters().size() != function.parameterNames().size()) {
         throw new IllegalStateException(
             "Function's parameter count isn't equal its baseline's:\n" + function);
       }
-      var argsSpliceSb = new StringBuilder();
-      var argsSpliceFmt = new Formatter(argsSpliceSb);
+
+      var argsSplice = new StringBuilder();
+      var argsSpliceFmt = new Formatter(argsSplice);
       for (var paramName : function.parameterNames()) {
-        var paramSym = nvSymbolRef(fnPool, paramName);
-        argsSpliceFmt.format(", Rf_findVarInFrame(%s, %s)", VAR_ENV, paramSym);
+        if (paramName == NamedVariable.DOTS) {
+          // R passes missing instead of an empty list, but FIR always expects a list.
+          cCode.stmt("SEXP missing_in_frame = Rf_findVarInFrame(%s, R_DotsSymbol);", VAR_ENV);
+          argsSpliceFmt.format(
+              ", missing_in_frame == R_MissingArg ? R_NilValue : missing_in_frame");
+        } else {
+          var paramSym = nvSymbolRef(fnPool, paramName);
+          argsSpliceFmt.format(", Rf_findVarInFrame(%s, %s)", VAR_ENV, paramSym);
+        }
       }
-      cCode.stmt("return %s(%s%s);", baselineCName, VAR_ENV, argsSpliceSb);
+
+      cCode.stmt("return %s(%s%s);", baselineCName, VAR_ENV, argsSplice);
     }
 
     private void emitDispatch() {
@@ -270,10 +288,11 @@ public final class Fir2CCompiler {
 
           debugComment(cCode, "# %d. %s", i, version.signature());
         }
+
+        debugSignature(cCode);
       }
 
       cCode = cFunction.add();
-      debugComment(cCode, "# Setup");
       cCode.stmt("bool incompatible[%d];", versions.size());
       cCode.stmt("va_list args;");
       cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
@@ -284,22 +303,25 @@ public final class Fir2CCompiler {
         version = versionIter.next();
 
         cCode.stmt(
-            "incompatible[%d] = %s.param_count == %d;",
+            "incompatible[%d] = %s.param_count != %d;",
             i, VAR_SIGNATURE, version.parameters().size());
       }
 
       cCode = cFunction.add();
-      debugComment(cCode, "# Filter by static return type");
+      debugComment(cCode, "# Filter by static effects and return type");
       for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
         var typeEmit = emitType(cCode, version.returnType());
+        var effectsEmit = emitEffects(version.effects());
         cCode.stmt(
             2,
-            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type);",
+            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type) || (!%s && %s.effects);",
             i,
             i,
             typeEmit,
+            VAR_SIGNATURE,
+            effectsEmit,
             VAR_SIGNATURE);
       }
 
@@ -334,16 +356,26 @@ public final class Fir2CCompiler {
       for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
-        var ifHead = i == 0 ? "if" : "else if";
+        var ifHead = i == 0 ? "if" : "} else if";
         var callCName = versionCallCName(function, version);
 
-        cCode.stmt("%s (!incompatible[%d])", ifHead, i);
+        cCode.stmt("%s (!incompatible[%d]) {", ifHead, i);
+
         // Reuse the active `va_list`.
         // When we implement checking runtime types,
         // we must save and restore the `va_list` after.
-        cCode.stmt(2, "out = ((Fir_VersionFn) %s)(%s, args);", callCName, VAR_ENV);
+        var argsSplice = new StringBuilder();
+        var argsSpliceFmt = new Formatter(argsSplice);
+        for (i = 0; i < version.parameters().size(); i++) {
+          // Passing `va_arg` expressions inline causes the arguments to be passed backwards.
+          // Instead, we must assign them to variables and pass those.
+          cCode.stmt(2, "SEXP args_%d = va_arg(args, SEXP);", i);
+          argsSpliceFmt.format(", args_%d", i);
+        }
+
+        cCode.stmt(2, "out = %s(%s%s);", callCName, VAR_ENV, argsSplice);
       }
-      cCode.stmt("else");
+      cCode.stmt("} else");
       cCode.stmt(
           2,
           "Rf_error(\"No versions compatible with the given arguments for %s\");",
@@ -528,10 +560,10 @@ public final class Fir2CCompiler {
         private void beginEmitInit() {
           var cCode = initCFunction.add();
           debugComment(cCode, "# Add `Fir_PromiseData`");
-          cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_PromiseGlobalData));");
           var idx = pool.internSpace();
           assert idx == 0;
-          cCode.stmt("Rsh_set_const(data_sexp, %d, %s);", idx, constantsCName);
+          cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_PromiseGlobalData));");
+          cCode.stmt("Rsh_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
 
           cCode.stmt(
               "Fir_PromiseGlobalData *data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(data_sexp);");
@@ -1067,8 +1099,13 @@ public final class Fir2CCompiler {
                 options.contains(Option.EMIT_DEBUG_COMMENTS)
                     ? "/* %s */ ".formatted(signature)
                     : "";
-            return "%sFir_signature(%s, %d, %s)"
-                .formatted(comment, returnType, paramTypes.size(), paramTypes.pointer());
+            return "%sFir_signature(%s, %d, %s, %s)"
+                .formatted(
+                    comment,
+                    returnType,
+                    paramTypes.size(),
+                    paramTypes.pointer(),
+                    emitEffects(signature.effects()));
           }
 
           private Array emitArgumentArray(String baseName, List<Argument> arguments) {
@@ -1204,7 +1241,7 @@ public final class Fir2CCompiler {
   }
 
   private static String emitOwnership(Ownership ownership) {
-    return Integer.toString(ownership.ordinal());
+    return "FIR_" + ownership.name();
   }
 
   private static String emitConcreteness(Concreteness concreteness) {
@@ -1341,7 +1378,15 @@ public final class Fir2CCompiler {
   }
 
   private void debugValue(CCode cCode, String name, String var) {
-    cCode.stmt("Fir_dbg_sexp(\"%s\", %s);", sanitizeString(name), var);
+    if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
+      cCode.stmt("Fir_dbg_sexp(\"%s\", %s);", sanitizeString(name), var);
+    }
+  }
+
+  private void debugSignature(CCode cCode) {
+    if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
+      cCode.stmt("Fir_dbg_signature(%s);", VAR_SIGNATURE);
+    }
   }
 
   private static String sanitizeString(String value) {

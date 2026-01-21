@@ -805,7 +805,7 @@ public class BC2CFGCompiler {
       case GetterCall(var _) -> {
         // GNU-R has to wrap this call arg in an evaluated promise depending on the call type,
         // but presumably this is something we abstract.
-        replaceFirstCallArg(top());
+        replaceFirstCallArg(stack.get(stack.size() - 2));
         compileCall();
       }
       case SpecialSwap() -> {
