@@ -35,6 +35,15 @@ extern const void* const _RCP_CRUNTIME0_R_LogicalNAValue[];
 extern const void* const _RCP_CRUNTIME0_R_DotsSymbol[];
 #define R_DotsSymbol CONST_RUNTIME_VAR(R_DotsSymbol, SEXP)
 
+extern const void* const _RCP_CRUNTIME0_R_DimSymbol[];
+#define R_DimSymbol CONST_RUNTIME_VAR(R_DimSymbol, SEXP)
+
+extern const void* const _RCP_CRUNTIME0_R_BaseEnv[];
+#define R_BaseEnv CONST_RUNTIME_VAR(R_BaseEnv, SEXP)
+
+extern const void* const _RCP_CRUNTIME0_R_BaseNamespace[];
+#define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
+
 //#define NO_STACK_OVERFLOW_CHECK
 #include <runtime.h>
 
