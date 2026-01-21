@@ -1,4 +1,4 @@
 x <- TRUE
-y <- FALSE
+y <- TRUE
 
 while (x) { if (y) break() else 1 }

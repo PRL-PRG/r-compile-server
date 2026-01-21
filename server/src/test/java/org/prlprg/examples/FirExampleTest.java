@@ -25,5 +25,7 @@ import org.prlprg.snapshots.SnapshotStoreParameterResolver;
 public @interface FirExampleTest {
   String option() default "";
 
+  String skipOption() default "";
+
   boolean includeFromR() default true;
 }

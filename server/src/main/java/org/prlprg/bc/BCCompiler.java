@@ -829,10 +829,6 @@ public class BCCompiler {
   }
 
   private boolean trySetterInline(RegSymSXP funSym, FlattenLHS flhs, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return false;
-    }
-
     return getInlineInfo(funSym.name(), false)
         .flatMap(this::getSetterInlineHandler)
         .map(handler -> handler.apply(flhs, call))
@@ -840,10 +836,6 @@ public class BCCompiler {
   }
 
   private boolean tryGetterInline(RegSymSXP funSym, LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR) {
-      return false;
-    }
-
     return getInlineInfo(funSym.name(), false)
         .flatMap(this::getGetterInlineHandler)
         .map(handler -> handler.apply(call))
@@ -1477,7 +1469,7 @@ public class BCCompiler {
   }
 
   private boolean inlineDollar(LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR || anyDots(call.args()) || call.args().size() != 2) {
+    if (anyDots(call.args()) || call.args().size() != 2) {
       return inlineSpecial(call);
     }
 
@@ -1950,7 +1942,10 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarSubset(LangSXP call) {
-    if (optimizationLevel == BcOptLevel.FIR || anyDots(call.args()) || call.args().size() != 2) {
+    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
+    // because the `GetterCall` compiles a symbol index into a load.
+
+    if (anyDots(call.args()) || call.args().size() != 2) {
       return false;
     }
 
@@ -1973,6 +1968,10 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketSubSet(boolean doubleBracket, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return false;
+    }
+
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       // inline cmpGetterDispatch from the R compiler
 
@@ -2021,8 +2020,11 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarAssign(FlattenLHS flhs, LangSXP call) {
+    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
+    // because the `GetterCall` compiles a symbol index into a load.
+
     var place = flhs.temp();
-    if (optimizationLevel == BcOptLevel.FIR || anyDots(place.args()) || place.args().size() != 2) {
+    if (anyDots(place.args()) || place.args().size() != 2) {
       return false;
     } else {
       SEXP sym = place.arg(1);
@@ -2041,6 +2043,10 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketAssign(boolean doubleSquare, FlattenLHS flhs, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return false;
+    }
+
     var place = flhs.temp();
 
     if (dotsOrMissing(place.args()) || place.args().hasTags() || place.args().size() < 2) {

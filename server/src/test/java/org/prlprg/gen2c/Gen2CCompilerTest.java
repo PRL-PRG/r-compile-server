@@ -18,7 +18,7 @@ public interface Gen2CCompilerTest {
     store.verify(example, moduleQuery());
   }
 
-  @RExampleTest
+  @RExampleTest(skipOption = "noEval")
   @Order(2)
   default void testEval(Example example, SnapshotStore store) {
     var R = GNUR.instance();
