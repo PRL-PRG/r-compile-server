@@ -294,8 +294,12 @@ public class SEXPPrintContext {
                   }
 
                   if (options.printBcDetails()) {
-                    w.write(' ');
-                    p.print(sexp.bc());
+                    w.runIndented(
+                        () -> {
+                          w.write("{\n");
+                          p.print(sexp.bc());
+                        });
+                    w.write("\n}");
                   } else {
                     w.write(" ...");
                   }
