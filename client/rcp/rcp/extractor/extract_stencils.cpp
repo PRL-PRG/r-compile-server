@@ -775,6 +775,43 @@ static void print_sizes(const Stencils& stencils)
   std::cerr << std::format("Average size of stencils: {:.1f} bytes\n", (double)(total_size) / count);
 }
 
+void count_hole_symbols(const Stencils& stencils, uint8_t stencil_kind, std::ostream& output)
+{
+  // Step 1: Count occurrences
+  std::unordered_map<std::string, size_t> symbol_count;
+  for (const auto &stencil_set : stencils.stencils_opcodes) {
+    for (const auto &stencil : stencil_set.stencils) {
+      for (const auto &hole : stencil.holes) {
+        if (hole.kind == stencil_kind) {
+          symbol_count[hole.val.symbol_name]++;
+        }
+      }
+    }
+  }
+  for (const auto &stencil : stencils.stencils_extra) {
+    for (const auto &hole : stencil.holes) {
+      if (hole.kind == stencil_kind) {
+        symbol_count[hole.val.symbol_name]++;
+      }
+    }
+  }
+
+  // Step 2: Move to vector for sorting
+  std::vector<std::pair<std::string, size_t>> sorted_symbols(symbol_count.begin(),
+                                                  symbol_count.end());
+
+  // Step 3: Sort by count (descending)
+  std::sort(sorted_symbols.begin(), sorted_symbols.end(),
+            [](const auto &a, const auto &b) {
+              return a.second > b.second; // Sort by count, highest first
+            });
+
+  // Print results
+  for (const auto &[symbol, count] : sorted_symbols) {
+    std::cout << "'" << symbol << "': " << count << '\n';
+  }
+}
+
 int main(int argc, char **argv)
 {
   if (argc < 2)
