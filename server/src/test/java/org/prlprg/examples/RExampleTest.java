@@ -24,4 +24,6 @@ import org.prlprg.snapshots.SnapshotStoreParameterResolver;
 @ExtendWith(SnapshotStoreParameterResolver.class)
 public @interface RExampleTest {
   String option() default "";
+
+  String skipOption() default "";
 }

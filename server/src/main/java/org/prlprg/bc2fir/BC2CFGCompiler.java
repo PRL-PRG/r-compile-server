@@ -37,6 +37,8 @@ import org.prlprg.bc.BcInstr.DoDots;
 import org.prlprg.bc.BcInstr.DoLoopBreak;
 import org.prlprg.bc.BcInstr.DoLoopNext;
 import org.prlprg.bc.BcInstr.DoMissing;
+import org.prlprg.bc.BcInstr.Dollar;
+import org.prlprg.bc.BcInstr.DollarGets;
 import org.prlprg.bc.BcInstr.DotCall;
 import org.prlprg.bc.BcInstr.DotsErr;
 import org.prlprg.bc.BcInstr.Dup2nd;
@@ -736,6 +738,17 @@ public class BC2CFGCompiler {
         var lhs = popComplexAssign(false, get(name));
         insert(new Store(getVar(name), lhs));
       }
+      case Dollar(var _, var member) -> {
+        var memberArg = new Constant(get(member));
+        var target = pop();
+        pushInsert(builtin("$", target, memberArg));
+      }
+      case DollarGets(var _, var member) -> {
+        var rhs = pop();
+        var memberArg = new Constant(get(member));
+        var target = pop();
+        pushInsert(builtin("$<-", target, memberArg, rhs));
+      }
       case IsNull() -> pushInsert("c", builtin("==", pop(), new Constant(SEXPs.NULL)));
       case IsLogical() -> pushInsert("c", builtin("is.logical", pop()));
       case IsInteger() -> pushInsert("c", builtin("is.integer", pop()));
@@ -1056,7 +1069,7 @@ public class BC2CFGCompiler {
             // least pre-optimize here when the above conditions are met if it's too expensive.
             var loadFun =
                 insertAndReturn(builtin.name, new LoadFun(Variable.named(builtin.name), Env.BASE));
-            yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args);
+            yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun, names), args);
           }
         };
     pushInsert(callInstr);

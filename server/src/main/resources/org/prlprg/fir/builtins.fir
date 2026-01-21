@@ -111,7 +111,7 @@ fun xor(lhs, rhs) {
   (reg lhs:L, reg rhs:L) --> L { ... }
 }
 
-fun `!`(lhs, rhs) {
+fun `!`(x) {
   (reg x:*) -+> V { ... }
   (reg x:L) --> L { ... }
   (reg x:I) --> L { ... }

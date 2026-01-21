@@ -457,10 +457,14 @@ SEXP Fir_super_load(SEXP symbol, SEXP env) {
       return value;
     }
 
+    if (parent == R_GlobalEnv) {
+      break;
+    }
+
     parent = ENCLOS(parent);
   }
 
-  Rf_error("super_load could not locate variable in parents");
+  Rf_error("Unbound variable");
 }
 
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
@@ -471,7 +475,7 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
   while (parent != R_EmptyEnv && parent != R_NilValue) {
     SEXP existing = Rf_findVarInFrame(parent, symbol);
 
-    if (existing != R_UnboundValue) {
+    if (existing != R_UnboundValue || parent == R_GlobalEnv) {
       Rf_defineVar(symbol, value, parent);
       return;
     }
@@ -479,7 +483,7 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
     parent = ENCLOS(parent);
   }
 
-  Rf_error("super_store could not locate variable in parents");
+  ASSERT(false, "super_store could not locate variable in parents, and skipped global env");
 }
 
 static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names,
