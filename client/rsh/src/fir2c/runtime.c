@@ -3,8 +3,8 @@
 
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
-#include <stdlib.h>
-#include <string.h>
+
+#define ASSERT(x, msg, ...) if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
 
 Fir_Kind Fir_kind_any = {.tag = FIR_KIND_ANY};
 Fir_Kind Fir_kind_anyValue = {.tag = FIR_KIND_ANY_VALUE};
@@ -26,16 +26,22 @@ static Fir_Kind const PRIMITIVE_VECTOR_KINDS[4] = {
 };
 
 Fir_Kind Fir_kind_primitiveScalar(int primitive_kind) {
-  if (primitive_kind < 0 || primitive_kind >= 4) {
-    Rf_error("Invalid primitive scalar kind index %d", primitive_kind);
-  }
+  ASSERT(
+    primitive_kind >= 0 && primitive_kind < 4,
+    "Invalid primitive scalar kind index %d",
+    primitive_kind
+  );
+
   return PRIMITIVE_SCALAR_KINDS[primitive_kind];
 }
 
 Fir_Kind Fir_kind_primitiveVector(int primitive_kind) {
-  if (primitive_kind < 0 || primitive_kind >= 4) {
-    Rf_error("Invalid primitive vector kind index %d", primitive_kind);
-  }
+  ASSERT(
+    primitive_kind >= 0 && primitive_kind < 4,
+    "Invalid primitive vector kind index %d",
+    primitive_kind
+  );
+
   return PRIMITIVE_VECTOR_KINDS[primitive_kind];
 }
 
@@ -43,18 +49,20 @@ Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect) {
   return (Fir_Kind) {.tag = FIR_KIND_PROMISE, .as.promise.value_type = value_type, .as.promise.reflect = reflect};
 }
 
-Fir_Type Fir_type(Fir_Kind kind, int ownership, bool definite) {
+Fir_Type Fir_type(Fir_Kind kind, Fir_Ownership ownership, bool definite) {
   return (Fir_Type) {.kind = kind, .ownership = ownership, .definite = definite};
 }
 
-Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types) {
-  return (Fir_Signature) {.return_type = return_type, .param_count = param_count, .param_types = param_types};
+Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, bool effects) {
+  return (Fir_Signature) {.return_type = return_type, .param_count = param_count, .param_types = param_types, .effects = effects};
 }
 
 static void Fir_assert_symbol(SEXP sym, const char *what) {
-  if (TYPEOF(sym) != SYMSXP) {
-    Rf_error("Expected a symbol for %s", what);
-  }
+  ASSERT(
+    TYPEOF(sym) == SYMSXP,
+    "Expected a symbol for %s",
+    what
+  );
 }
 
 static bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
@@ -66,6 +74,7 @@ static bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
     return false;
   }
   SEXP cp = R_ExternalPtrProtected(body);
+  ASSERT(Rsh_const(cp, 0) != R_NilValue, "Closure data not set");
   *data = (Fir_FunctionData*) STDVEC_DATAPTR(Rsh_const(cp, 0));
   return true;
 }
@@ -80,6 +89,7 @@ static bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_d
   }
   SEXP data = R_ExternalPtrProtected(body);
   SEXP cp = CAR0(data);
+  ASSERT(Rsh_const(cp, 0) != R_NilValue, "Promise data not set");
   *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Rsh_const(cp, 0));
   *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(data));
   return true;
@@ -95,7 +105,6 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
     int other_primitive = other_kind.as.primitive.primitive;
     switch (this_kind.tag) {
     case FIR_KIND_PRIMITIVE_SCALAR:
-      return this_kind.as.primitive.primitive == other_primitive;
     case FIR_KIND_PRIMITIVE_VECTOR:
       return this_kind.as.primitive.primitive == other_primitive;
     default:
@@ -188,7 +197,7 @@ SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
 
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env) {
   SEXP local_data_sexp = PROTECT(Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData)));
-  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(local_data_sexp);
+  Fir_PromiseLocalData *local_data = STDVEC_DATAPTR(local_data_sexp);
   *local_data = (Fir_PromiseLocalData) {.captures = captures};
 
   SEXP data = PROTECT(Rf_cons(cp, local_data_sexp));
@@ -201,9 +210,7 @@ SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env
 }
 
 SEXP Fir_cast(SEXP value, Fir_Type type) {
-  if (!Fir_value_matches(value, type)) {
-    Rf_error("Value does not match expected FIŘ type");
-  }
+  ASSERT(Fir_value_matches(value, type), "Cast failed");
   return value;
 }
 
@@ -211,20 +218,14 @@ SEXP Fir_dup(SEXP value) { return Rf_duplicate(value); }
 
 SEXP Fir_load(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load");
-  if (TYPEOF(env) != ENVSXP) {
-    Rf_error("Environment expected for load");
-  }
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load");
   SEXP value = Rf_findVar(symbol, env);
-  if (value == R_UnboundValue) {
-    Rf_error("Unbound variable");
-  }
+  ASSERT(value != R_UnboundValue, "Unbound variable");
   return value;
 }
 
 SEXP Fir_load_dots(int ddIndex, SEXP env) {
-  if (TYPEOF(env) != ENVSXP) {
-    Rf_error("Environment expected for load");
-  }
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load");
   return Rf_ddfind(ddIndex, env);
 }
 
@@ -244,32 +245,25 @@ SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env) {
 
 void Fir_store(SEXP symbol, SEXP value, SEXP env) {
   Fir_assert_symbol(symbol, "store");
-  if (TYPEOF(env) != ENVSXP) {
-    Rf_error("Environment expected for store");
-  }
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for store");
   Rf_defineVar(symbol, value, env);
 }
 
 void Fir_push_env(SEXP *env_ptr) {
-  if (!env_ptr || !*env_ptr || TYPEOF(*env_ptr) != ENVSXP) {
-    Rf_error("push_env requires a pointer to an environment");
-  }
+  ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
   SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
   *env_ptr = new_env;
 }
 
 void Fir_pop_env(SEXP *env_ptr) {
-  if (!env_ptr || !*env_ptr || TYPEOF(*env_ptr) != ENVSXP) {
-    Rf_error("pop_env requires a pointer to an environment");
-  }
+  ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "pop_env requires a pointer to an environment");
   SEXP parent = ENCLOS(*env_ptr);
-  if (!parent || parent == R_NilValue) {
-    Rf_error("pop_env called on environment without parent");
-  }
+  ASSERT(parent && parent != R_NilValue, "pop_env called on environment without parent");
   *env_ptr = parent;
 }
 
 static SEXP Fir_make_names(int count, SEXP const *names) {
+  ASSERT(count >= 0, "Invalid count for names");
   SEXP result = PROTECT(Rf_allocVector(STRSXP, count));
   for (int i = 0; i < count; ++i) {
     SEXP name = names[i];
@@ -359,24 +353,20 @@ SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *nam
 }
 
 SEXP Fir_force(SEXP promise) {
-  if (TYPEOF(promise) != PROMSXP) {
-    Rf_error("Cannot force a non-promise");
-  }
+  ASSERT(TYPEOF(promise) == PROMSXP, "Cannot force a non-promise");
 
   if (!PROMISE_IS_EVALUATED(promise)) {
     Fir_PromiseGlobalData *global_data;
     Fir_PromiseLocalData *local_data;
     if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
-      global_data->eval(PRENV(promise), local_data->captures);
+      SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
+      SET_PRVALUE(promise, forced);
     } else {
       forcePromise(promise);
     }
   }
 
-  // TODO: delete
-  if (TYPEOF(PRVALUE(promise)) == PROMSXP) {
-    Rf_error("promise not fully forced?");
-  }
+  ASSERT(PROMISE_IS_EVALUATED(promise) && TYPEOF(PRVALUE(promise)) != PROMSXP, "promise not fully forced?");
 
   return PRVALUE(promise);
 }
@@ -387,23 +377,17 @@ SEXP Fir_maybe_force(SEXP valueOrPromise) {
 
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
   Fir_assert_symbol(symbol, "reflective_load symbol");
-  if (TYPEOF(promise) != PROMSXP) {
-    Rf_error("reflective_load requires a promise");
-  }
+  ASSERT(TYPEOF(promise) == PROMSXP, "reflective_load requires a promise");
 
   SEXP value = Rf_findVarInFrame(PRENV(promise), symbol);
-  if (value == R_UnboundValue) {
-    Rf_error("Variable not bound in promise environment");
-  }
+  ASSERT(value != R_UnboundValue, "Variable not bound in promise environment");
 
   return value;
 }
 
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
   Fir_assert_symbol(symbol, "reflective_store symbol");
-  if (TYPEOF(promise) != PROMSXP) {
-    Rf_error("reflective_store requires a promise");
-  }
+  ASSERT(TYPEOF(promise) == PROMSXP, "reflective_store requires a promise");
 
   Rf_defineVar(symbol, value, PRENV(promise));
 
@@ -412,12 +396,8 @@ SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
 
 SEXP Fir_subscript_read(SEXP vector, SEXP index) {
   int idx = Rf_asInteger(index);
-  if (idx == NA_INTEGER) {
-    Rf_error("Subscript index cannot be NA");
-  }
-  if (idx < 0 || (R_xlen_t)idx >= XLENGTH(vector)) {
-    Rf_error("Subscript index out of bounds");
-  }
+  ASSERT(idx != NA_INTEGER, "Subscript index cannot be NA");
+  ASSERT(idx >= 0 && (R_xlen_t)idx < XLENGTH(vector), "Subscript index out of bounds");
 
   switch (TYPEOF(vector)) {
   case LGLSXP:
@@ -437,12 +417,8 @@ SEXP Fir_subscript_read(SEXP vector, SEXP index) {
 
 SEXP Fir_subscript_write(SEXP vector, SEXP index, SEXP value) {
   int idx = Rf_asInteger(index);
-  if (idx == NA_INTEGER) {
-    Rf_error("Subscript index cannot be NA");
-  }
-  if (idx < 0 || (R_xlen_t)idx >= XLENGTH(vector)) {
-    Rf_error("Subscript index out of bounds");
-  }
+  ASSERT(idx != NA_INTEGER, "Subscript index cannot be NA");
+  ASSERT(idx >= 0 && (R_xlen_t)idx < XLENGTH(vector), "Subscript index out of bounds");
 
   switch (TYPEOF(vector)) {
   case LGLSXP:
@@ -471,9 +447,7 @@ SEXP Fir_subscript_write(SEXP vector, SEXP index, SEXP value) {
 
 SEXP Fir_super_load(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "super_load");
-  if (TYPEOF(env) != ENVSXP) {
-    Rf_error("super_load requires an environment");
-  }
+  ASSERT(TYPEOF(env) == ENVSXP, "super_load requires an environment");
 
   SEXP parent = ENCLOS(env);
   while (parent != R_EmptyEnv && parent != R_NilValue) {
@@ -491,9 +465,7 @@ SEXP Fir_super_load(SEXP symbol, SEXP env) {
 
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
   Fir_assert_symbol(symbol, "super_store");
-  if (TYPEOF(env) != ENVSXP) {
-    Rf_error("super_store requires an environment");
-  }
+  ASSERT(TYPEOF(env) == ENVSXP, "super_store requires an environment");
 
   SEXP parent = ENCLOS(env);
   while (parent != R_EmptyEnv && parent != R_NilValue) {
@@ -536,10 +508,11 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names,
 SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP const *names) {
   FUNTAB fun = R_FunTab[bltIdx];
 
-  if (fun.arity != -1 && fun.arity != argc) {
-    Rf_error("Builtin %s called with incorrect number of arguments: expected %d, got %d",
-             fun.name, fun.arity, argc);
-  }
+  ASSERT(
+    fun.arity == -1 || fun.arity == argc,
+    "Builtin %s called with incorrect number of arguments: expected %d, got %d",
+    fun.name, fun.arity, argc
+  );
 
   if (fun.eval) {
     // BUILTINSXP, so force arguments
@@ -579,10 +552,65 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP const *n
     case SPECIALSXP:
       return Fir_call_builtin(PRIMOFFSET(callee), env, argc, args, names);
     case CLOSXP: {
+      // Try to fastcase compiled closures.
+      Fir_FunctionData *data = NULL;
+      // Currently, we don't fastcase 16+ arguments,
+      // because we need some limit to implement the variadic call.
+      if (Fir_is_compiled_closure(callee, &data) && argc < 16) {
+        // Currently, we don't fastcase mismatched names or dots,
+        // because we'd have to re-implement GNU-R's match algorithm.
+        bool trivial_match = argc == LENGTH(data->formal_names);
+        if (trivial_match) {
+          for (int i = 0; i < argc; ++i) {
+            SEXP name = names[i];
+            SEXP formal_name = ((SEXP *) STDVEC_DATAPTR(data->formal_names))[i];
+            if ((name != R_MissingArg || formal_name == R_DotsSymbol) && name != formal_name) {
+              trivial_match = false;
+              break;
+            }
+          }
+        }
+
+        if (trivial_match) {
+          Fir_Type any_param_types[argc];
+          for (int i = 0; i < argc; ++i) {
+            any_param_types[i] = Fir_type(Fir_kind_any, FIR_SHARED, false);
+          }
+          Fir_Signature any_signature = Fir_signature(
+            Fir_type(Fir_kind_anyValue, FIR_SHARED, true),
+            argc,
+            any_param_types,
+            true  // effects = true (ANY)
+          );
+
+          // This is an ugly way to call a variadic function with a fixed number of arguments,
+          // but it's the only way to according to the C standard.
+          switch (argc) {
+            case 0: return data->dispatch(env, any_signature);
+            case 1: return data->dispatch(env, any_signature, args[0]);
+            case 2: return data->dispatch(env, any_signature, args[0], args[1]);
+            case 3: return data->dispatch(env, any_signature, args[0], args[1], args[2]);
+            case 4: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3]);
+            case 5: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4]);
+            case 6: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5]);
+            case 7: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+            case 8: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+            case 9: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
+            case 10: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]);
+            case 11: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]);
+            case 12: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]);
+            case 13: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12]);
+            case 14: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13]);
+            case 15: return data->dispatch(env, any_signature, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11], args[12], args[13], args[14]);
+            default: assert(false);
+          }
+        }
+      }
+
       int protect_count = 0;
       SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
 
-      SEXP call = PROTECT(Rf_lcons(op, arglist));
+      SEXP call = PROTECT(Rf_lcons(callee, arglist));
       protect_count++;
 
       SEXP result = Rf_applyClosure(call, callee, arglist, env, R_NilValue, TRUE);
@@ -597,9 +625,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP const *n
 
 bool Fir_is_true(SEXP value) {
   int logical = Rf_asLogical(value);
-  if (logical == NA_LOGICAL) {
-    Rf_error("Condition evaluated to NA");
-  }
+  ASSERT(logical != NA_LOGICAL, "Condition evaluated to NA");
 
   return logical != 0;
 }
@@ -636,6 +662,127 @@ void Fir_dbg_comment(const char* comment) {
 void Fir_dbg_sexp(const char* name, SEXP value) {
   fprintf(stderr, "* - %s = ", name);
   Fir_printSexp(value);
+  fprintf(stderr, "\n");
+}
+
+static void Fir_printPrimitiveKind(Fir_PrimitiveKind primitive) {
+  switch (primitive) {
+  case FIR_PRIMITIVE_LOGICAL:
+    fprintf(stderr, "L");
+    break;
+  case FIR_PRIMITIVE_INTEGER:
+    fprintf(stderr, "I");
+    break;
+  case FIR_PRIMITIVE_REAL:
+    fprintf(stderr, "R");
+    break;
+  case FIR_PRIMITIVE_STRING:
+    fprintf(stderr, "S");
+    break;
+  }
+}
+
+static void Fir_printOwnership(Fir_Ownership ownership) {
+  switch (ownership) {
+  case FIR_FRESH:
+    fprintf(stderr, "f");
+    break;
+  case FIR_OWNED:
+    fprintf(stderr, "o");
+    break;
+  case FIR_BORROWED:
+    fprintf(stderr, "b");
+    break;
+  case FIR_SHARED:
+    fprintf(stderr, "s");
+    break;
+  }
+}
+
+static void Fir_printConcreteness(bool definite) {
+  if (definite) {
+    fprintf(stderr, "!");
+  } else {
+    fprintf(stderr, "?");
+  }
+}
+
+static void Fir_printEffects(bool reflect) {
+  if (reflect) {
+    fprintf(stderr, "+");
+  } else {
+    fprintf(stderr, "-");
+  }
+}
+
+static void Fir_printKind(Fir_Kind kind);
+
+static void Fir_printType(Fir_Type type) {
+  Fir_printKind(type.kind);
+  if (type.ownership != FIR_SHARED) {
+    Fir_printOwnership(type.ownership);
+  }
+  // For `Kind.Any`, concreteness is implicit iff `MAYBE`.
+  // For other kinds, concreteness is implicit iff `DEFINITELY`.
+  if ((type.kind.tag == FIR_KIND_ANY) == type.definite) {
+    Fir_printConcreteness(type.definite);
+  }
+}
+
+static void Fir_printKind(Fir_Kind kind) {
+  switch (kind.tag) {
+  case FIR_KIND_ANY:
+    fprintf(stderr, "*");
+    break;
+  case FIR_KIND_ANY_VALUE:
+    fprintf(stderr, "V");
+    break;
+  case FIR_KIND_PRIMITIVE_SCALAR:
+    Fir_printPrimitiveKind(kind.as.primitive.primitive);
+    break;
+  case FIR_KIND_PRIMITIVE_VECTOR:
+    fprintf(stderr, "v(");
+    Fir_printPrimitiveKind(kind.as.primitive.primitive);
+    fprintf(stderr, ")");
+    break;
+  case FIR_KIND_CLOSURE:
+    fprintf(stderr, "cls");
+    break;
+  case FIR_KIND_DOTS:
+    fprintf(stderr, "dots");
+    break;
+  case FIR_KIND_PROMISE:
+    fprintf(stderr, "p(");
+    Fir_printType(*kind.as.promise.value_type);
+    fprintf(stderr, " ");
+    Fir_printEffects(kind.as.promise.reflect);
+    fprintf(stderr, ")");
+    break;
+  }
+}
+
+static void Fir_printSignature(Fir_Signature signature) {
+  // Print parameter types separated by ", "
+  for (int i = 0; i < signature.param_count; ++i) {
+    if (i > 0) {
+      fprintf(stderr, ", ");
+    }
+    Fir_printType(signature.param_types[i]);
+  }
+
+  if (signature.param_count > 0) {
+    fprintf(stderr, " ");
+  }
+
+  fprintf(stderr, "-");
+  Fir_printEffects(signature.effects);
+  fprintf(stderr, "> ");
+  Fir_printType(signature.return_type);
+}
+
+void Fir_dbg_signature(Fir_Signature signature) {
+  fprintf(stderr, "* - Signature: ");
+  Fir_printSignature(signature);
   fprintf(stderr, "\n");
 }
 

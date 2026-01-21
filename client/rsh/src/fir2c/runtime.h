@@ -27,6 +27,13 @@ typedef enum {
   FIR_KIND_PROMISE = 6,
 } Fir_KindTag;
 
+typedef enum {
+  FIR_FRESH = 0,
+  FIR_OWNED = 1,
+  FIR_BORROWED = 2,
+  FIR_SHARED = 3,
+} Fir_Ownership;
+
 typedef struct Fir_Type Fir_Type;
 typedef struct {
   Fir_KindTag tag;
@@ -43,7 +50,7 @@ typedef struct {
 
 typedef struct Fir_Type {
   Fir_Kind kind;
-  int ownership;
+  Fir_Ownership ownership;
   bool definite;
 } Fir_Type;
 
@@ -51,6 +58,7 @@ typedef struct Fir_Signature {
   Fir_Type return_type;
   int param_count;
   Fir_Type const *param_types;
+  bool effects;
 } Fir_Signature;
 
 typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
@@ -59,6 +67,7 @@ typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP const **captures);
 
 typedef struct Fir_FunctionData {
   Fir_DispatchFn dispatch;
+  SEXP formal_names;
 } Fir_FunctionData;
 
 typedef struct Fir_PromiseGlobalData {
@@ -79,11 +88,11 @@ Fir_Kind Fir_kind_primitiveScalar(int primitive_kind);
 Fir_Kind Fir_kind_primitiveVector(int primitive_kind);
 Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect);
 
-Fir_Type Fir_type(Fir_Kind kind, int ownership, bool definite);
+Fir_Type Fir_type(Fir_Kind kind, Fir_Ownership ownership, bool definite);
 bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type);
 bool Fir_value_matches(SEXP value, Fir_Type type);
 
-Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types);
+Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, bool effects);
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env);
@@ -115,6 +124,7 @@ bool Fir_assume_type(SEXP value, Fir_Type type);
 
 void Fir_dbg_comment(const char* comment);
 void Fir_dbg_sexp(const char* name, SEXP value);
+void Fir_dbg_signature(Fir_Signature signature);
 
 #define Fir_LoadFun_Local 0
 #define Fir_LoadFun_Global 1
