@@ -4,10 +4,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.*;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
@@ -99,7 +101,7 @@ public class BCQuery implements Query<Bc> {
     RDSWriter.writeFile(path.toFile(), SEXPs.bcode(body));
 
     // Write string representation for debugging
-    var text = body.toString();
+    var text = Printer.toString(body, SEXPPrintOptions.DEFAULT.withBcDetails(true));
     Files.writeString(path.resolveSibling(path.getFileName() + ".txt"), text);
   }
 }
