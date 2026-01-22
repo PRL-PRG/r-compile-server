@@ -1699,7 +1699,7 @@ static INLINE void Rsh_DollarGets(Value *stack, SEXP call, SEXP symbol,
 
   if (isObject(x_sxp)) {
     SEXP ncall = PROTECT(Rf_duplicate(call));
-    SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol)));
+    SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol))); // TODO optimize
     SETCAR(CDDDR(ncall), rhs_sxp);
     dispatched = tryDispatch("$<-", ncall, x_sxp, rho, &value_sxp);
     UNPROTECT(1);
@@ -1709,7 +1709,6 @@ static INLINE void Rsh_DollarGets(Value *stack, SEXP call, SEXP symbol,
     value_sxp = R_subassign3_dflt(call, x_sxp, symbol, rhs_sxp);
   }
   SET_VAL_N(-2, value_sxp);
-  R_Visible = TRUE;
 }
 
 #define Rsh_StartSubsetN(stack, call, rho)                                     \
@@ -2965,8 +2964,8 @@ static INLINE void Rsh_LogBase(Value *stack, SEXP call, SEXP rho) {
         Rf_warningcall(call, R_MSG_NA);
       }
     }
-    R_Visible = TRUE;
     SET_DBL_VAL(res, r);
+    R_Visible = TRUE;
     return;
   }
 
