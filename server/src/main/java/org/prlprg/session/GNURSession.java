@@ -1,6 +1,7 @@
 package org.prlprg.session;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.net.URI;
@@ -351,13 +352,14 @@ public class GNURSession implements RSession {
     var funtabFileStream =
         Objects.requireNonNull(GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE));
     var builder = ImmutableMap.<String, FuntabEntry>builder();
+    int i = 0;
     for (var line : Files.readLines(funtabFileStream)) {
       var parts = line.split(",");
       var name = parts[0];
       var arity = Integer.parseInt(parts[1]);
-      builder.put(name, new FuntabEntry(arity));
+      builder.put(name, new FuntabEntry(i++, arity));
     }
-    return builder.build();
+    return builder.buildKeepingLast();
   }
 
   @Override

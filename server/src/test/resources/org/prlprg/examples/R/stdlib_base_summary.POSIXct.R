@@ -1,12 +1,11 @@
 #? stdlib
-`summary.POSIXct` <- function (object, digits = 15L, ...) 
+`Summary.POSIXct` <- function (..., na.rm, finite = FALSE) 
 {
-    x <- summary.default(unclass(object), digits = digits, ...)
-    if (m <- match("NA's", names(x), 0L)) {
-        NAs <- as.integer(x[m])
-        x <- x[-m]
-        attr(x, "NAs") <- NAs
-    }
-    .POSIXct(x, tz = attr(object, "tzone"), cl = c("summaryDefault", 
-        "table", oldClass(object)))
+    ok <- switch(.Generic, max = , min = , range = TRUE, FALSE)
+    if (!ok) 
+        stop(gettextf("'%s' not defined for \"POSIXt\" objects", 
+            .Generic), domain = NA)
+    args <- list(...)
+    tz <- do.call(.check_tzones, args)
+    .POSIXct(NextMethod(.Generic), tz = tz, cl = oldClass(args[[1L]]))
 }

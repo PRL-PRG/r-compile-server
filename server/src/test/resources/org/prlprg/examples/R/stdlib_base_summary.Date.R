@@ -1,11 +1,9 @@
 #? stdlib
-`summary.Date` <- function (object, digits = 12L, ...) 
+`Summary.Date` <- function (..., na.rm) 
 {
-    x <- summary.default(unclass(object), digits = digits, ...)
-    if (m <- match("NA's", names(x), 0L)) {
-        NAs <- as.integer(x[m])
-        x <- x[-m]
-        attr(x, "NAs") <- NAs
-    }
-    .Date(x, c("summaryDefault", "table", oldClass(object)))
+    ok <- switch(.Generic, max = , min = , range = TRUE, FALSE)
+    if (!ok) 
+        stop(gettextf("%s not defined for \"Date\" objects", 
+            .Generic), domain = NA)
+    .Date(NextMethod(.Generic), oldClass(list(...)[[1L]]))
 }

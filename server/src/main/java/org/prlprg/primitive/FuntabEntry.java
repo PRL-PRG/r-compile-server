@@ -1,3 +1,3 @@
 package org.prlprg.primitive;
 
-public record FuntabEntry(int arity) {}
+public record FuntabEntry(int index, int arity) {}
