@@ -54,18 +54,18 @@ ifneq ($(SPECIALIZE_SWITCH),0)
   DEFINE_FLAGS += -DSWITCH_SPECIALIZE
 endif
 
-$(STENCILS_OBJ): stencils/stencils.c
+$(STENCILS_OBJ): stencils/stencils.c rcp_bc_info.h $(RSH_HOME)/src/bc2c/runtime.h $(RSH_HOME)/src/bc2c/runtime_internals.h $(R_HOME)/include/Rinternals.h
 	@echo "Building stencils..."
 	mkdir -p build
 	$(CC) stencils/stencils.c -Wall -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -fno-pic -mcmodel=$(MCMODEL) -fno-math-errno -fno-trapping-math -fno-merge-constants -fno-jump-tables -fno-ipa-cp -fno-align-functions -fno-align-jumps -fno-align-labels -Wno-unused-function -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c $(DEFINE_FLAGS) $(C_FLAGS_ADDITIONAL)
 # -fno-align-loops
 
-$(EXTRACTOR_BIN): extractor/extract_stencils.cpp
+$(EXTRACTOR_BIN): extractor/extract_stencils.cpp rcp_common.h rcp_bc_info.h
 	@echo "Building extractor..."
 	mkdir -p $(BUILD_DIR)
-	$(CXX) extractor/extract_stencils.cpp -o $(EXTRACTOR_BIN) -lbfd -O1 -march=native -std=c++20 -flto=auto $(DEFINE_FLAGS)
+	$(CXX) extractor/extract_stencils.cpp -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -std=c++20 -flto=auto $(DEFINE_FLAGS)
 
-$(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN)# $(R_PACKAGE_SOURCE)
+$(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN) r-pkg/DESCRIPTION r-pkg/NAMESPACE $(wildcard r-pkg/R/*) $(wildcard r-pkg/src/*) rcp_common.h rcp_bc_info.h $(RSH_HOME)/src/bc2c/runtime_internals.h
 	@echo "Extracting stencils..."
 	cd $(BUILD_DIR) && mkdir -p extracted && cd extracted && ../extract_stencils ../stencils.o
 	@echo "Creating package..."
