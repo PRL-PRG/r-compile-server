@@ -9,8 +9,7 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.support.AnnotationConsumer;
 import org.junit.jupiter.params.support.ParameterDeclarations;
 
-final class FirExampleProvider
-    implements ArgumentsProvider, AnnotationConsumer<FirExampleTest> {
+final class FirExampleProvider implements ArgumentsProvider, AnnotationConsumer<FirExampleTest> {
   private boolean accepted = false;
   private String option = "";
   private String skipOption = "";
