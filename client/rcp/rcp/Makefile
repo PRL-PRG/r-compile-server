@@ -18,17 +18,19 @@ R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 
 # 0 = relative addressing, 1 = relative addressing with GOT where needed, 2 = absolute addressing
 RELOC_MODEL ?= 1
-C_FLAGS_ADDITIONAL ?=
-#C_FLAGS_ADDITIONAL += -march=native
 ALIGN_INSTRUCTIONS ?= 1
+DEFINE_FLAGS ?= -DNDEBUG
+#DEFINE_FLAGS ?= -DASSERTS -DPROFILE_STENCILS
 
 ifeq ($(RELOC_MODEL),2)
   MCMODEL := large
 else ifeq ($(RELOC_MODEL),1)
   MCMODEL := medium
-  C_FLAGS_ADDITIONAL += -fno-plt
+  STENCIL_COMPILE_FLAGS += -fno-plt
+  PKG_COMPILE_FLAGS += -DMCMODEL_SMALL
 else ifeq ($(RELOC_MODEL),0)
   MCMODEL := medium
+  PKG_COMPILE_FLAGS += -DMCMODEL_SMALL
 else
   $(error Unsupported RELOC_MODEL: $(RELOC_MODEL))
 endif
@@ -43,10 +45,13 @@ else
   ALIGNMENT_LOOPS := 1
 endif
 
+PKG_COMPILE_FLAGS += -DALIGNMENT_LABELS=$(ALIGNMENT_LABELS)
+PKG_COMPILE_FLAGS += -DALIGNMENT_JUMPS=$(ALIGNMENT_JUMPS)
+PKG_COMPILE_FLAGS += -DALIGNMENT_LOOPS=$(ALIGNMENT_LOOPS)
+
 SPECIALIZE_STEPFOR ?= 1
 SPECIALIZE_SWITCH ?= 1
 
-DEFINE_FLAGS ?= -DNDEBUG
 ifneq ($(SPECIALIZE_STEPFOR),0)
   DEFINE_FLAGS += -DSTEPFOR_SPECIALIZE
 endif
@@ -54,16 +59,20 @@ ifneq ($(SPECIALIZE_SWITCH),0)
   DEFINE_FLAGS += -DSWITCH_SPECIALIZE
 endif
 
+STENCIL_COMPILE_FLAGS += $(DEFINE_FLAGS)
+EXTRACTOR_COMPILE_FLAGS += $(DEFINE_FLAGS)
+PKG_COMPILE_FLAGS += $(DEFINE_FLAGS)
+
 $(STENCILS_OBJ): stencils/stencils.c rcp_bc_info.h $(RSH_HOME)/src/bc2c/runtime.h $(RSH_HOME)/src/bc2c/runtime_internals.h $(R_HOME)/include/Rinternals.h
 	@echo "Building stencils..."
 	mkdir -p build
-	$(CC) stencils/stencils.c -Wall -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -fno-pic -mcmodel=$(MCMODEL) -fno-math-errno -fno-trapping-math -fno-merge-constants -fno-jump-tables -fno-ipa-cp -fno-align-functions -fno-align-jumps -fno-align-labels -Wno-unused-function -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c $(DEFINE_FLAGS) $(C_FLAGS_ADDITIONAL)
+	$(CC) stencils/stencils.c -Wall -o $(STENCILS_OBJ) -c -ffunction-sections -fno-stack-protector -fcf-protection=none -fno-asynchronous-unwind-tables -Os -fno-pic -mcmodel=$(MCMODEL) -fno-math-errno -fno-trapping-math -fno-merge-constants -fno-jump-tables -fno-ipa-cp -fno-align-functions -fno-align-jumps -fno-align-labels -Wno-unused-function -I$(R_HOME)/include -I$(RSH_HOME)/src/bc2c $(STENCIL_COMPILE_FLAGS)
 # -fno-align-loops
 
 $(EXTRACTOR_BIN): extractor/extract_stencils.cpp rcp_common.h rcp_bc_info.h
 	@echo "Building extractor..."
 	mkdir -p $(BUILD_DIR)
-	$(CXX) extractor/extract_stencils.cpp -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -std=c++20 -flto=auto $(DEFINE_FLAGS)
+	$(CXX) extractor/extract_stencils.cpp -o $(EXTRACTOR_BIN) -lbfd -O3 -march=native -std=c++20 -flto=auto $(EXTRACTOR_COMPILE_FLAGS)
 
 $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN) r-pkg/DESCRIPTION r-pkg/NAMESPACE $(wildcard r-pkg/R/*) $(wildcard r-pkg/src/*) rcp_common.h rcp_bc_info.h $(RSH_HOME)/src/bc2c/runtime_internals.h
 	@echo "Extracting stencils..."
@@ -82,7 +91,7 @@ $(R_PACKAGE): $(STENCILS_OBJ) $(EXTRACTOR_BIN) r-pkg/DESCRIPTION r-pkg/NAMESPACE
 
 $(R_LIB): $(R_PACKAGE)
 	@echo "Installing package..."
-	cd build && MCMODEL=$(MCMODEL) SPECIALIZE_STEPFOR=$(SPECIALIZE_STEPFOR) SPECIALIZE_SWITCH=$(SPECIALIZE_SWITCH) ALIGNMENT_LABELS=$(ALIGNMENT_LABELS) ALIGNMENT_JUMPS=$(ALIGNMENT_JUMPS) ALIGNMENT_LOOPS=$(ALIGNMENT_LOOPS) $(R_HOME)/bin/R CMD INSTALL rcp_1.0.0.0000.tar.gz
+	cd build && PKG_CPPFLAGS="$(PKG_COMPILE_FLAGS)" $(R_HOME)/bin/R CMD INSTALL rcp_1.0.0.0000.tar.gz
 
 .PHONY: install
 install: $(R_LIB)

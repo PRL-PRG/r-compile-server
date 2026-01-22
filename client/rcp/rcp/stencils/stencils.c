@@ -74,6 +74,30 @@ extern const void* const _RCP_CRUNTIME0_R_BaseNamespace[];
     stack -= (n);                                                              \
   } while (0)
 
+#ifdef PROFILE_STENCILS
+struct StencilProfileInfo {
+  size_t call_count;
+  size_t total_cycles;
+};
+extern struct StencilProfileInfo stencil_profile_info[];
+static inline uint64_t rdtsc(void) {
+    uint32_t lo, hi;
+    __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+#define PROFILING_START(opcode) uint64_t _profiling_start_time = rdtsc();
+#define PROFILING_END(opcode)                                                  \
+  do {                                                                         \
+    uint64_t _profiling_end_time = rdtsc();                                    \
+    stencil_profile_info[opcode##_BCOP].call_count++;                          \
+    stencil_profile_info[opcode##_BCOP].total_cycles +=                        \
+        _profiling_end_time - _profiling_start_time;                           \
+  } while (0)
+#else
+#define PROFILING_START(opcode) ((void)0)
+#define PROFILING_END(opcode) ((void)0)
+#endif
+
 // Macros to define stencil functions
 #define RCP_STENCIL_FUNCTION(name) __attribute__ ((noinline)) STENCIL_ATTRIBUTES SEXP name (Value* restrict stack, rcpEval_locals* restrict locals)
 #define RCP_OP_EX(op, ex) RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
@@ -85,11 +109,13 @@ extern const void* const _RCP_CRUNTIME0_R_BaseNamespace[];
   {                                                                            \
     TRACE_PRINT(__FUNCTION__);                                                 \
     TRACE_PRINT("\tSTART\n");                                                  \
+    PROFILING_START(name);                                                   \
     PUSH_VAL(RCP_BC_STACK_EFFECT_##name > 0 ? RCP_BC_STACK_EFFECT_##name : 0); \
     body                                                                       \
     POP_VAL(RCP_BC_STACK_EFFECT_##name < 0 ? -RCP_BC_STACK_EFFECT_##name : 0); \
     TRACE_PRINT(__FUNCTION__);                                                 \
     TRACE_PRINT("\tDONE\n");                                                   \
+    PROFILING_END(name);                                                       \
     continuation                                                               \
     NEXT;                                                                      \
   }

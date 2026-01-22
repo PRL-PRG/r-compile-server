@@ -19,6 +19,16 @@ extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
 #include "rcp_common.h"
 #include "rcp_bc_info.h"
+
+#ifdef PROFILE_STENCILS
+struct StencilProfileInfo
+{
+    size_t call_count;
+    size_t total_cycles;
+};
+static struct StencilProfileInfo stencil_profile_info[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
+#endif
+
 #include "runtime_internals.h"
 #include "stencils/stencils.h"
 
@@ -1742,6 +1752,78 @@ SEXP C_rcp_jit_disable()
 {
     C_rcp_override_cmpfun(original_cmpfun);
     return R_NilValue;
+}
+
+SEXP C_rcp_get_profiling(void)
+{
+#ifdef PROFILE_STENCILS
+    const size_t num_opcodes = sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES);
+    
+    // Create index array for sorting
+    size_t *sorted_indices = (size_t *)R_alloc(num_opcodes, sizeof(size_t));
+    for (size_t i = 0; i < num_opcodes; i++)
+        sorted_indices[i] = i;
+    
+    // Simple insertion sort by time_spent (descending order)
+    for (size_t i = 1; i < num_opcodes; i++)
+    {
+        size_t key_idx = sorted_indices[i];
+        size_t key_time = stencil_profile_info[key_idx].total_cycles;
+        int j = i - 1;
+        
+        while (j >= 0 && stencil_profile_info[sorted_indices[j]].total_cycles < key_time)
+        {
+            sorted_indices[j + 1] = sorted_indices[j];
+            j--;
+        }
+        sorted_indices[j + 1] = key_idx;
+    }
+    
+    // Create a named list to hold the profiling data
+    SEXP result = PROTECT(allocVector(VECSXP, num_opcodes));
+    SEXP names = PROTECT(allocVector(STRSXP, num_opcodes));
+    
+    for (size_t i = 0; i < num_opcodes; i++)
+    {
+        size_t idx = sorted_indices[i];
+        
+        // Set the name for this opcode
+        SET_STRING_ELT(names, i, mkChar(OPCODES_NAMES[idx]));
+        
+        // Create a list with two elements: call_count and time_spent
+        SEXP opcode_data = PROTECT(allocVector(VECSXP, 2));
+        SEXP field_names = PROTECT(allocVector(STRSXP, 2));
+        
+        // Set field names
+        SET_STRING_ELT(field_names, 0, mkChar("call_count"));
+        SET_STRING_ELT(field_names, 1, mkChar("total_cycles"));
+        
+        // Set call_count (as double to avoid integer overflow)
+        SEXP call_count = PROTECT(ScalarReal((double)stencil_profile_info[idx].call_count));
+        SET_VECTOR_ELT(opcode_data, 0, call_count);
+        
+        // Set total_cycles (as double)
+        SEXP total_cycles = PROTECT(ScalarReal((double)stencil_profile_info[idx].total_cycles));
+        SET_VECTOR_ELT(opcode_data, 1, total_cycles);
+        
+        // Attach names to the opcode_data list
+        setAttrib(opcode_data, R_NamesSymbol, field_names);
+        
+        // Add this opcode's data to the result list
+        SET_VECTOR_ELT(result, i, opcode_data);
+        
+        UNPROTECT(4); // opcode_data, field_names, call_count, total_cycles
+    }
+    
+    // Attach names to the result list
+    setAttrib(result, R_NamesSymbol, names);
+    
+    UNPROTECT(2); // result, names
+    return result;
+#else
+    Rf_warning("Profiling is not available. Recompile RCP with PROFILE_STENCILS defined to enable profiling.");
+    return R_NilValue;
+#endif
 }
 
 void rcp_init(void)

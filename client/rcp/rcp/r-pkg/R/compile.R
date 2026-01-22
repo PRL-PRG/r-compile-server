@@ -44,3 +44,10 @@ rcp_jit_disable <- function() {
 rcp_cmppkg <- function(package) {
   .Call(C_rcp_cmppkg, package)
 }
+
+#' Get profiling data from RCP
+#'
+#' @export
+rcp_get_profiling <- function() {
+  .Call(C_rcp_get_profiling)
+}
