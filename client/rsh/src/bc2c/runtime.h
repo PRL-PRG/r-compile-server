@@ -2688,7 +2688,9 @@ static INLINE NODISCARD Rboolean Rsh_StepFor(Value *stack, BCell *cell,
 
 static INLINE void Rsh_EndFor(Value *stack, SEXP rho) {
   // FIXME: missing stack protection stuff
-  SET_SXP_VAL_N(-3, R_NilValue);
+  Value *seq = GET_VAL(-3);
+  DECREMENT_LINKS(VAL_SXP(*seq));
+  SET_SXP_VAL(seq, R_NilValue);
 }
 
 #define ISQ_NEW(/* int */ x, /* int */ y, /* Value* */ res)                    \
