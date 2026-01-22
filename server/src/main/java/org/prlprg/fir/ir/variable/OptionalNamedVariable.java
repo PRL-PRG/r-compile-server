@@ -48,6 +48,10 @@ public class OptionalNamedVariable {
     return inner;
   }
 
+  public String name() {
+    return inner == null ? "" : inner.name();
+  }
+
   public TaggedElem taggedElem(SEXP value) {
     return inner == null ? new TaggedElem(value) : new TaggedElem(inner.name(), value);
   }

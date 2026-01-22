@@ -181,11 +181,11 @@ fun sum(`...`, `na.rm`) {
   (reg x:v(R)) --> R { ... }
 }
 
-fun `.Call`(name, `...`, PACKAGE) {
+fun `.Call`(`.NAME`, `...`, PACKAGE) {
   (reg name:*, reg ddd:dots, reg package:*) -+> V { ... }
 }
 
-fun `.External`(name, `...`, PACKAGE) {
+fun `.External`(`.NAME`, `...`, PACKAGE) {
   (reg name:*, reg ddd:dots, reg package:*) -+> V { ... }
 }
 

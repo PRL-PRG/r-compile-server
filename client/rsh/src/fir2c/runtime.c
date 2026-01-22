@@ -188,6 +188,8 @@ bool Fir_value_matches(SEXP value, Fir_Type type) {
 }
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
+  ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for closure");
+
   SEXP ext = PROTECT(R_MakeExternalPtr((void *)dispatchFromR, Rsh_CodeTag, cp));
   SEXP closure = PROTECT(Rf_mkCLOSXP(formals, ext, env));
   UNPROTECT(2); // body + closure
@@ -196,6 +198,8 @@ SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
 }
 
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env) {
+  ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
+
   SEXP local_data_sexp = PROTECT(Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData)));
   Fir_PromiseLocalData *local_data = STDVEC_DATAPTR(local_data_sexp);
   *local_data = (Fir_PromiseLocalData) {.captures = captures};
@@ -509,23 +513,54 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names,
   return list;
 }
 
-SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP const *names) {
+SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names) {
   FUNTAB fun = R_FunTab[bltIdx];
 
   ASSERT(
-    fun.arity == -1 || fun.arity == argc,
+    fun.arity == -1 || fun.arity == argc ||
+    // Subassign's arity in `names.c` is 3, but it has `...` and works with variadic arguments
+    strcmp(fun.name, "[<-") == 0 || strcmp(fun.name, "[[<-") == 0,
     "Builtin %s called with incorrect number of arguments: expected %d, got %d",
     fun.name, fun.arity, argc
   );
 
   if (fun.eval) {
     // BUILTINSXP, so force arguments
-    for (int i = 0; i < argc; ++i) {
+    for (int i = 0; i < argc; i++) {
       args[i] = Fir_maybe_force(args[i]);
-      if (args[i] == R_MissingArg) {
-        Rf_error("argument %d is missing", i + 1);
-      }
     }
+
+    for (int i = 0; i < argc; i++) {
+      if (args[i] != R_MissingArg) {
+        continue;
+      }
+
+      // If all remaining arguments are missing, ignore them.
+      // FIR requires all arguments of a static call to be present and matched.
+      // This means we must append explicitly missing arguments where R would not.
+      // Although we may get this code from R code with explicitly missing trailing arguments,
+      // since the expected behavior calls `Rf_Error`,
+      // it's an edge-case we probably don't need to handle.
+      bool missing_tail = true;
+      for (int j = i + 1; j < argc; j++) {
+        if (args[j] != R_MissingArg) {
+          missing_tail = false;
+          break;
+        }
+      }
+      if (missing_tail) {
+        argc = i;
+        break;
+      }
+
+      Rf_error("argument %d is missing", i + 1);
+    }
+  }
+
+  if (strcmp(fun.name, ".Call") == 0) {
+    // GNU-R doesn't accept any name for the first argument, even though it's in the signature,
+    // but FIR doesn't support explicitly no-named arguments. This is a workaround.
+    names[0] = R_MissingArg;
   }
 
   SEXP op = R_Primitive(fun.name);
@@ -550,7 +585,7 @@ SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP const *na
   return result;
 }
 
-SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP const *names) {
+SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) {
   switch (TYPEOF(callee)) {
     case BUILTINSXP:
     case SPECIALSXP:

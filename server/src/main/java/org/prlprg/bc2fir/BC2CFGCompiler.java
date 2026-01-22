@@ -153,6 +153,7 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Concreteness;
@@ -164,6 +165,7 @@ import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.session.RSession;
+import org.prlprg.sexp.ArgumentMatcher;
 import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.LangSXP;
@@ -174,6 +176,7 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.SymSXP;
+import org.prlprg.util.Lists;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
 
@@ -710,8 +713,8 @@ public class BC2CFGCompiler {
 
         pushInsert(new Closure(code));
       }
-      case UMinus(var _) -> pushInsert(builtin("-", new Constant(SEXPs.MISSING_ARG), pop()));
-      case UPlus(var _) -> pushInsert(builtin("+", new Constant(SEXPs.MISSING_ARG), pop()));
+      case UMinus(var _) -> pushInsert(builtin("-", pop(), new Constant(SEXPs.MISSING_ARG)));
+      case UPlus(var _) -> pushInsert(builtin("+", pop(), new Constant(SEXPs.MISSING_ARG)));
       case Sqrt(var _) -> pushInsert(mkUnop("sqrt"));
       case Add(var _) -> pushInsert(mkBinop("+"));
       case Sub(var _) -> pushInsert(mkBinop("-"));
@@ -813,6 +816,7 @@ public class BC2CFGCompiler {
         var lhs = pop();
         replaceFirstCallArg(lhs);
         pushCallArg(rhs);
+        setNameOfLastCallArg("value");
         compileCall();
       }
       case GetterCall(var _) -> {
@@ -951,9 +955,9 @@ public class BC2CFGCompiler {
         funAndArgs.clear();
 
         // Insert dots list for arguments
-        var argsDots = insertAndReturn("vargs", new MkVector(new Kind.Dots(), args));
+        var dots = insertAndReturn("vargs", new MkVector(new Kind.Dots(), args));
 
-        pushInsert(builtin(".Call", fun, argsDots, new Constant(SEXPs.MISSING_ARG)));
+        pushInsert(builtin(".Call", fun, dots, new Constant(SEXPs.MISSING_ARG)));
       }
       case Colon(var _) -> pushInsert(mkBinop(":"));
       case SeqAlong(var _) -> pushInsert(builtin("seq_along", pop()));
@@ -1061,15 +1065,53 @@ public class BC2CFGCompiler {
           case Call.Fun.Dynamic(var fun) ->
               new org.prlprg.fir.ir.expression.Call(new DynamicCallee(fun, names), args);
           case Call.Fun.Builtin(var builtin) -> {
-            // REACH: We can't compile builtins directly, only because we don't know how to
-            // match arguments.
-            // The created `LdFun` will be optimized into a builtin call if we know the
-            // builtin's formals and none of the arguments are `...`. Eventually we can add
-            // the formals of all builtins programatically and do this in the compiler, or at
-            // least pre-optimize here when the above conditions are met if it's too expensive.
-            var loadFun =
-                insertAndReturn(builtin.name, new LoadFun(Variable.named(builtin.name), Env.BASE));
-            yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun, names), args);
+            var builtinFun = builtin.function();
+            var parameterNames = Lists.mapLazy(builtinFun.parameterNames(), NamedVariable::name);
+            var argNames = Lists.mapLazy(names, OptionalNamedVariable::name);
+            try {
+              var matches = ArgumentMatcher.matchArgumentNames(parameterNames, argNames);
+              var arguments =
+                  parameterNames.stream()
+                      .map(
+                          paramName -> {
+                            if (paramName.equals("...")) {
+                              var dotsArgs =
+                                  matches.dddIndices().stream()
+                                      .map(
+                                          i ->
+                                              new NamedArgument(names.get(i).orNull(), args.get(i)))
+                                      .collect(ImmutableList.toImmutableList());
+                              return insertAndReturn(
+                                  "vargs", new MkVector(new Kind.Dots(), dotsArgs));
+                            }
+
+                            var paramMatch = matches.arguments().get(paramName);
+                            return paramMatch != null
+                                ? args.get(paramMatch)
+                                : new Constant(SEXPs.MISSING_ARG);
+                          })
+                      .collect(ImmutableList.toImmutableList());
+
+              yield new org.prlprg.fir.ir.expression.Call(
+                  new DispatchCallee(builtinFun, null), arguments);
+            } catch (IllegalArgumentException | MatchException e) {
+              // We can't statically match the arguments,
+              // and FIR builtins require statically matched arguments,
+              // so we fallback to a dynamic call.
+              // In some cases, we may be able to optimize this away.
+              //
+              // Technically we could handle more builtins this way,
+              // deferring the argument matching to the optimizer,
+              // However, "internal" builtins aren't all in base,
+              // so we must handle at least those via the above case.
+              // If an "internal" builtin not in base takes a `...` or illegally-named argument,
+              // this will cause a runtime error;
+              // hopefully, in all cases an error would happen anyways.
+              var loadFun =
+                  insertAndReturn(
+                      builtin.name, new LoadFun(Variable.named(builtin.name), Env.BASE));
+              yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun, names), args);
+            }
           }
         };
     pushInsert(callInstr);
@@ -1512,8 +1554,9 @@ public class BC2CFGCompiler {
   }
 
   private Expression builtin(String name, int versionIndex, Argument... args) {
-    var function = BUILTINS.localFunction(Variable.named(name));
-    assert function != null : "missing builtin " + name;
+    var function =
+        Objects.requireNonNull(
+            BUILTINS.localFunction(Variable.named(name)), "missing builtin " + name);
     var callee =
         versionIndex == -1
             ? new DispatchCallee(function, null)
@@ -1526,8 +1569,9 @@ public class BC2CFGCompiler {
   }
 
   private Expression intrinsic(String name, int versionIndex, Argument... args) {
-    var function = INTRINSICS.localFunction(Variable.named(name));
-    assert function != null : "missing intrinsic " + name;
+    var function =
+        Objects.requireNonNull(
+            INTRINSICS.localFunction(Variable.named(name)), "missing intrinsic " + name);
     var callee =
         versionIndex == -1
             ? new DispatchCallee(function, null)
@@ -1669,7 +1713,12 @@ public class BC2CFGCompiler {
     }
   }
 
-  private record Builtin(String name) {}
+  private record Builtin(String name) {
+    Function function() {
+      return Objects.requireNonNull(
+          BUILTINS.localFunction(Variable.named(name)), "missing builtin " + name);
+    }
+  }
 
   // endregion compiler data types
 }
