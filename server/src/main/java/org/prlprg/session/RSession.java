@@ -1,7 +1,6 @@
 package org.prlprg.session;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
 import org.prlprg.primitive.FuntabEntry;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;

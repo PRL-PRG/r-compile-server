@@ -140,6 +140,7 @@ public class RDSReader implements Closeable {
             case DOT -> readList(flags, SEXPType.DOT);
             case INT -> readInts(flags);
             case REAL -> readReals(flags);
+            case RAW -> readBytes(flags);
             case LGL -> readLogicals(flags);
             case VEC -> readVec(flags);
             case ENV -> readEnv();
@@ -617,6 +618,14 @@ public class RDSReader implements Closeable {
     var attributes = readAttributes(flags);
 
     return SEXPs.integer(data, attributes);
+  }
+
+  private RawSXP readBytes(Flags flags) throws IOException {
+    var length = in.readInt();
+    var data = in.readBytes(length);
+    var attributes = readAttributes(flags);
+
+    return SEXPs.raw(data, attributes);
   }
 
   private AbstractListSXP readList(Flags flags, SEXPType listType) throws IOException {

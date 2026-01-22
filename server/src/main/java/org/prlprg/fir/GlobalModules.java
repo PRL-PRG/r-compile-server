@@ -36,7 +36,7 @@ public final class GlobalModules {
           numArgs == -1
               ? List.of(NamedVariable.DOTS)
               : IntStream.range(0, numArgs)
-                  .mapToObj(i -> Variable.named("arg" + i))
+                  .mapToObj(i -> Variable.named("." + i))
                   .collect(ImmutableList.toImmutableList());
 
       BUILTINS.addFunction(bltName, parameterNames, true);

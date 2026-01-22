@@ -1,7 +1,6 @@
 package org.prlprg.session;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.net.URI;
