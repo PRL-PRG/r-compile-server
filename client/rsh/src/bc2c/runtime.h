@@ -576,10 +576,10 @@ typedef union {
   } while (0)
 
 // This is different from the R implementation:
-//   do { \
-//     BCELL_TAG_CLEAR(cell); \
-//     SETCAR(cell, val); \
-//   } while (0)
+/* do { \
+     BCELL_TAG_CLEAR(cell); \
+     SETCAR(cell, val); \
+   } while (0) */
 // but looking at the code, the SETCAR clears the tag anyway
 #define BCELL_SET(cell, val) SETCAR(cell, val)
 
