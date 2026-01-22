@@ -230,13 +230,13 @@ public class RDSReader implements Closeable {
   private int readBuiltinOrSpecial() throws IOException {
     var length = in.readInt();
     var name = in.readString(length, nativeEncoding);
-    var idx = rsession.RFunTab().indexOf(name);
+    var entry = rsession.RFunTab().get(name);
 
-    if (idx == -1) {
+    if (entry == null) {
       throw new RDSException("Unknown builtin/special function: " + name);
     }
 
-    return idx;
+    return entry.index();
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
