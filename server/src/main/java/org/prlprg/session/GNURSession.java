@@ -1,6 +1,6 @@
 package org.prlprg.session;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.net.URI;
@@ -10,6 +10,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.RVersion;
+import org.prlprg.primitive.FuntabEntry;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.server.Messages;
 import org.prlprg.sexp.*;
@@ -63,7 +64,7 @@ class DummySession implements RSession {
   }
 
   @Override
-  public ImmutableList<String> RFunTab() {
+  public ImmutableMap<String, FuntabEntry> RFunTab() {
     throw new UnsupportedOperationException();
   }
 }
@@ -84,7 +85,7 @@ public class GNURSession implements RSession {
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
   private final HashMap<String, NamespaceEnvSXP> namespaces = new HashMap<>();
-  private @Nullable ImmutableList<String> rFunTab = null;
+  private @Nullable ImmutableMap<String, FuntabEntry> rFunTab = null;
   private static final String R_FUN_TAB_FILE = "R_FunTab.txt";
 
   // TODO: need the path to R *and* the path to the installed packages
@@ -120,6 +121,7 @@ public class GNURSession implements RSession {
       installPackage(name);
       pkgDir = resolvePaths(name);
     }
+    Objects.requireNonNull(pkgDir);
 
     DESCRIPTION description = getDescription(name);
 
@@ -177,7 +179,7 @@ public class GNURSession implements RSession {
 
   private DESCRIPTION getDescription(String name) {
     try {
-      var pkgDir = resolvePaths(name);
+      var pkgDir = Objects.requireNonNull(resolvePaths(name));
 
       Path descriptionFile = pkgDir.toAbsolutePath().resolve("DESCRIPTION");
       DESCRIPTION description;
@@ -197,9 +199,6 @@ public class GNURSession implements RSession {
   /**
    * Objects in a package database refer to their own namespace so we need to create it before
    * reading.
-   *
-   * @param name
-   * @param version
    */
   private void prepareNamespace(String name, String version) {
     var ns = namespaces.get(name + version);
@@ -217,8 +216,6 @@ public class GNURSession implements RSession {
    *
    * <p>Note that it does not support loading the package's data, documentation, etc.
    *
-   * @param name
-   * @param version
    * @param functions in the package
    * @return the populated environment
    */
@@ -328,15 +325,6 @@ public class GNURSession implements RSession {
     return builtinsInternal;
   }
 
-  /// Get all builtins, including specials and "internal" (?) builtins.
-  public static ImmutableSet<String> getAllBuiltins() {
-    return ImmutableSet.<String>builder()
-        .addAll(readNamesFromRds(BUILTINS_SYMBOLS_RDS_FILE))
-        .addAll(readNamesFromRds(SPECIALS_SYMBOLS_RDS_FILE))
-        .addAll(readNamesFromRds(BUILTINS_INTERNAL_SYMBOLS_RDS_FILE))
-        .build();
-  }
-
   private static ImmutableSet<String> readNamesFromRds(String fileName) {
     try {
       var names =
@@ -352,17 +340,24 @@ public class GNURSession implements RSession {
   }
 
   @Override
-  public synchronized ImmutableList<String> RFunTab() {
+  public synchronized ImmutableMap<String, FuntabEntry> RFunTab() {
     if (rFunTab == null) {
-      rFunTab =
-          ImmutableList.<String>builder()
-              .addAll(
-                  Files.readLines(
-                      Objects.requireNonNull(
-                          GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE))))
-              .build();
+      rFunTab = readFunTab();
     }
     return rFunTab;
+  }
+
+  public static ImmutableMap<String, FuntabEntry> readFunTab() {
+    var funtabFileStream =
+        Objects.requireNonNull(GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE));
+    var builder = ImmutableMap.<String, FuntabEntry>builder();
+    for (var line : Files.readLines(funtabFileStream)) {
+      var parts = line.split(",");
+      var name = parts[0];
+      var arity = Integer.parseInt(parts[1]);
+      builder.put(name, new FuntabEntry(arity));
+    }
+    return builder.build();
   }
 
   @Override

@@ -1,7 +1,9 @@
 package org.prlprg.fir;
 
+import com.google.common.collect.ImmutableList;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
@@ -18,21 +20,31 @@ public final class GlobalModules {
 
   static {
     // Add GNU-R builtins that we don't have explicit versions for.
-    var bltNameStrs = GNURSession.getAllBuiltins();
-    for (var bltNameStr : bltNameStrs) {
-      var bltName = Variable.named(bltNameStr);
+    var funtab = GNURSession.readFunTab();
+    for (var entry : funtab.entrySet()) {
+      var bltName = Variable.named(entry.getKey());
       if (BUILTINS.localFunction(bltName) != null) {
         // Already defined.
         continue;
       }
+
       // Builtin that we haven't manually defined.
-      // Its builtin formals are unknown, hence `List.of(NamedVariable.DOTS)`.
-      BUILTINS.addFunction(bltName, List.of(NamedVariable.DOTS), true);
+      // The formal names aren't always specified,
+      // but the amount (and whether they're variadic) are in `FUNTAB`.
+      var numArgs = entry.getValue().arity();
+      var parameterNames =
+          numArgs == -1
+              ? List.of(NamedVariable.DOTS)
+              : IntStream.range(0, numArgs)
+                  .mapToObj(i -> Variable.named("arg" + i))
+                  .collect(ImmutableList.toImmutableList());
+
+      BUILTINS.addFunction(bltName, parameterNames, true);
     }
 
     // Ensure intrinsic names don't conflict with builtins.
     for (var function : INTRINSICS.localFunctions()) {
-      assert !bltNameStrs.contains(function.name().name())
+      assert !funtab.containsKey(function.name().name())
           : "intrinsic function is also a builtin, it must be renamed: " + function.name();
     }
   }

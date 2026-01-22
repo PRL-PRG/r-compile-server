@@ -1,6 +1,6 @@
 package org.prlprg.session;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.util.HashMap;
@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.primitive.FuntabEntry;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -16,7 +17,6 @@ import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
-import org.prlprg.util.Files;
 import org.prlprg.util.IO;
 
 // http://adv-r.had.co.nz/Environments.html
@@ -26,7 +26,6 @@ public class TestRSession implements RSession {
   private static final String BUILTINS_SYMBOLS_RDS_FILE = "builtins.RDS";
   private static final String SPECIALS_SYMBOLS_RDS_FILE = "specials.RDS";
   private static final String BUILTINS_INTERNAL_SYMBOLS_RDS_FILE = "builtins-internal.RDS";
-  private static final String R_FUN_TAB_FILE = "R_FunTab.txt";
 
   private @Nullable BaseEnvSXP baseEnv = null;
   private @Nullable NamespaceEnvSXP baseNamespace = null;
@@ -34,7 +33,7 @@ public class TestRSession implements RSession {
   private @Nullable Set<String> builtins = null;
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
-  private @Nullable ImmutableList<String> rFunTab = null;
+  private @Nullable ImmutableMap<String, FuntabEntry> rFunTab = null;
 
   private void bootstrapBase() {
     try {
@@ -182,15 +181,9 @@ public class TestRSession implements RSession {
   }
 
   @Override
-  public ImmutableList<String> RFunTab() {
+  public ImmutableMap<String, FuntabEntry> RFunTab() {
     if (rFunTab == null) {
-      rFunTab =
-          ImmutableList.<String>builder()
-              .addAll(
-                  Files.readLines(
-                      Objects.requireNonNull(
-                          TestRSession.class.getResourceAsStream(R_FUN_TAB_FILE))))
-              .build();
+      rFunTab = GNURSession.readFunTab();
     }
     return rFunTab;
   }
