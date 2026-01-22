@@ -224,7 +224,15 @@ SEXP Fir_load(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load");
   SEXP value = Rf_findVar(symbol, env);
-  ASSERT(value != R_UnboundValue, "Unbound variable");
+
+  if (value == R_UnboundValue) {
+    if (symbol == R_DotsSymbol) {
+      Rf_error("'...' used in an incorrect context");
+    } else {
+      Rf_error("object '%s' not found", CHAR(PRINTNAME(symbol)));
+    }
+  }
+
   return value;
 }
 
@@ -490,7 +498,7 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env) {
   ASSERT(false, "super_store could not locate variable in parents, and skipped global env");
 }
 
-static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names,
+static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, bool is_builtin,
                               int *protect_count) {
   SEXP list = R_NilValue;
   for (int i = argc - 1; i >= 0; --i) {
@@ -503,7 +511,11 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names,
     } else {
       SEXP node = PROTECT(Rf_cons(arg, list));
       (*protect_count)++;
-      if (name != R_MissingArg) {
+      // Builtins have unnamed arguments, but those don't exist in FIR.
+      // We use names that start with dots as a workaround,
+      // because this seems to be a GNU-R convention:
+      // AFAIK builtins never require names that start with dots.
+      if (name != R_MissingArg && (!is_builtin || CHAR(PRINTNAME(name))[0] != '.')) {
         SET_TAG(node, name);
       }
 
@@ -557,23 +569,21 @@ SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names) {
     }
   }
 
-  if (strcmp(fun.name, ".Call") == 0) {
-    // GNU-R doesn't accept any name for the first argument, even though it's in the signature,
-    // but FIR doesn't support explicitly no-named arguments. This is a workaround.
-    names[0] = R_MissingArg;
-  }
-
   SEXP op = R_Primitive(fun.name);
   if (op == R_NilValue) {
-    // `fun` is an `.Internal`
-    op = Rf_install(fun.name);
+    // `fun` is an `.Internal`.
+    // Idk what this should be, since `R_Primitive` returns `R_NilValue`,
+    // but for some internals `op` must be a builtin or special with "correct" arity,
+    // because arity is checked for some reason.
+    // `if` is the first primitive and has arbitrary arity, so hopefully it's OK.
+    op = R_Primitive("if");
   }
 
   int visibility = (bltIdx / 100) % 10;
   R_Visible = (Rboolean)(visibility != 1);
 
   int protect_count = 0;
-  SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
+  SEXP arglist = Fir_build_arglist(argc, args, names, true, &protect_count);
 
   SEXP call = PROTECT(Rf_lcons(op, arglist));
   protect_count++;
@@ -651,7 +661,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
       }
 
       int protect_count = 0;
-      SEXP arglist = Fir_build_arglist(argc, args, names, &protect_count);
+      SEXP arglist = Fir_build_arglist(argc, args, names, false, &protect_count);
 
       SEXP call = PROTECT(Rf_lcons(callee, arglist));
       protect_count++;

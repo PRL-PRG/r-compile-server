@@ -411,6 +411,10 @@ public class RDSWriter implements Closeable {
         var vec = StreamSupport.stream(ints.spliterator(), false).mapToInt(i -> i).toArray();
         out.writeInts(vec);
       }
+      case RawSXP bytes -> {
+        // Write all the bytes to the stream
+        out.writeBytes(bytes.data());
+      }
       case LglSXP lgls -> {
         // Write all the logicals to the stream as ints
         var vec =

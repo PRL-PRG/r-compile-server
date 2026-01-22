@@ -904,7 +904,9 @@ public final class Fir2CCompiler {
             return switch (call.callee()) {
               case DispatchCallee(var calleeFun, var signature) -> {
                 if (calleeFun.owner() == BUILTINS) {
-                  var builtinIndex = Objects.requireNonNull(rSession.RFunTab().get(calleeFun.name().name())).index();
+                  var builtinIndex =
+                      Objects.requireNonNull(rSession.RFunTab().get(calleeFun.name().name()))
+                          .index();
 
                   var arguments = emitArgumentArray("args", call.callArguments());
                   var names =
