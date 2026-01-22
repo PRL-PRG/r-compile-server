@@ -564,6 +564,10 @@ SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names) {
   }
 
   SEXP op = R_Primitive(fun.name);
+  if (op == R_NilValue) {
+    // `fun` is an `.Internal`
+    op = Rf_install(fun.name);
+  }
 
   int visibility = (bltIdx / 100) % 10;
   R_Visible = (Rboolean)(visibility != 1);

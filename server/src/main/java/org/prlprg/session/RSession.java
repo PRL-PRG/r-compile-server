@@ -1,6 +1,7 @@
 package org.prlprg.session;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import org.prlprg.primitive.FuntabEntry;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
@@ -20,7 +21,7 @@ public interface RSession {
 
   NamespaceEnvSXP getNamespace(String name, String version);
 
-  ImmutableList<String> RFunTab();
+  ImmutableMap<String, FuntabEntry> RFunTab();
 
   default String version() {
     return baseNamespace().version();
