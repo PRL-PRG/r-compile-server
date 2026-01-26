@@ -926,8 +926,12 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b) {
   return Rf_ScalarLogical(a == b);
 }
 
-DEFINE_OVERRIDDEN_BUILTIN(missing, 0, SEXP value) {
+DEFINE_OVERRIDDEN_BUILTIN(missing, 1, SEXP value) {
   return value == R_MissingArg ? R_TrueValue : R_FalseValue;
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(length, 1, SEXP value) {
+  return Rf_ScalarInteger(LENGTH(value));
 }
 
 // as.integer

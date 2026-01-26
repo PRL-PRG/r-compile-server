@@ -11,7 +11,7 @@ import org.prlprg.snapshots.SnapshotStore;
 public record OptimizedFirQuery(Optimization optimization) implements GenFirQuery {
   @Override
   public String name() {
-    return "fir.opt." + optimization.name();
+    return optimization.name() + ".fir";
   }
 
   @Override

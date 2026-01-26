@@ -31,4 +31,5 @@ is_safe <- function(board, row, col, n) {
   return(TRUE)
 }
 
+#? benchmark: queens(12)
 queens(4)

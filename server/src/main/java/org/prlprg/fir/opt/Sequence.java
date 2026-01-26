@@ -44,4 +44,9 @@ public class Sequence implements Optimization {
       }
     }
   }
+
+  @Override
+  public String toString() {
+    return name;
+  }
 }

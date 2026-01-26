@@ -15,4 +15,5 @@ sieve <- function(n) {
   return(sum(primes))
 }
 
+#? benchmark: sieve(25000000)
 sieve(100)

@@ -8,6 +8,7 @@ import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.Optimization;
+import org.prlprg.fir.opt.OptimizedFirQuery;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.gen2c.CompiledModuleQuery;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
@@ -27,16 +28,12 @@ public record Fir2CQuery(@Override String name, @Nullable Optimization optimizat
   public CompiledModule compute(Example example, SnapshotStore store) {
     var R = GNUR.instance();
 
-    var firModule = store.load(example, FirQuery.INSTANCE);
+    var firQuery = optimization == null ? FirQuery.INSTANCE : new OptimizedFirQuery(optimization);
+    var firModule = store.load(example, firQuery);
 
     var firMainFn = firModule.localFunction(Variable.named("main"));
     assertNotNull(firMainFn, "FIR module missing main function");
 
     return compile(firMainFn, R.getSession(), Option.EMIT_DEBUG_COMMENTS, Option.EMIT_DEBUG_PRINTS);
-  }
-
-  @Override
-  public CompiledModule oracle(Example example, SnapshotStore store) {
-    return DIRECT.compute(example, store);
   }
 }

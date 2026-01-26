@@ -190,7 +190,8 @@ fun `.External`(`.NAME`, `...`, PACKAGE) {
 }
 
 fun missing(x) {
-  (reg x:*) --> L { ... }
+  (reg x:*) -+> L { ... }
+  (reg x:V) --> L { ... }
 }
 
 fun seq_along(`along.with`) {
