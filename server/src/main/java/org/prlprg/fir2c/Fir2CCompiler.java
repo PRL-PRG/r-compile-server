@@ -902,35 +902,20 @@ public final class Fir2CCompiler {
 
           private String emitCall(Call call) {
             return switch (call.callee()) {
-              case DispatchCallee(var calleeFun, var signature) -> {
-                if (calleeFun.owner() == BUILTINS) {
-                  var builtinIndex =
-                      Objects.requireNonNull(rSession.RFunTab().get(calleeFun.name().name()))
-                          .index();
-
-                  var arguments = emitArgumentArray("args", call.callArguments());
-                  var names =
-                      emitArray(
-                          "arg_names",
-                          "SEXP",
-                          Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
-                  if (arguments.size() != names.size()) {
-                    throw new IllegalStateException(
-                        "Dispatched builtin has different number of arguments than it's signature:\nCall = "
-                            + call
-                            + "\nFull definition = "
-                            + calleeFun);
-                  }
-
-                  yield "Fir_call_builtin(%d, %s, %d, %s, %s)"
-                      .formatted(
-                          builtinIndex,
-                          VAR_ENV,
-                          arguments.size(),
-                          arguments.pointer(),
-                          names.pointer());
+              case DispatchCallee(var calleeFun, var signature)
+                  when calleeFun.owner() == BUILTINS -> {
+                if (signature != null) {
+                  throw new IllegalStateException(
+                      "Dispatch of builtin can't have an explicit signature");
                 }
 
+                yield emitBuiltinCall(call, calleeFun);
+              }
+              case StaticCallee(var calleeFunction, var calleeVersion)
+                  when calleeFunction.owner() == BUILTINS
+                      && calleeFunction.indexOf(calleeVersion) == 0 ->
+                  emitBuiltinCall(call, calleeFunction);
+              case DispatchCallee(var calleeFun, var signature) -> {
                 // Protect constants (intrinsics have none)
                 if (calleeFun.owner() != INTRINSICS) {
                   pool.internPatched(
@@ -1002,6 +987,29 @@ public final class Fir2CCompiler {
                         names.pointer());
               }
             };
+          }
+
+          private String emitBuiltinCall(Call call, Function calleeFun) {
+            var builtinIndex =
+                Objects.requireNonNull(rSession.RFunTab().get(calleeFun.name().name())).index();
+
+            var arguments = emitArgumentArray("args", call.callArguments());
+            var names =
+                emitArray(
+                    "arg_names",
+                    "SEXP",
+                    Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
+            if (arguments.size() != names.size()) {
+              throw new IllegalStateException(
+                  "Dispatched builtin has different number of arguments than it's signature:\nCall = "
+                      + call
+                      + "\nFull definition = "
+                      + calleeFun);
+            }
+
+            return "Fir_call_builtin(%d, %s, %d, %s, %s)"
+                .formatted(
+                    builtinIndex, VAR_ENV, arguments.size(), arguments.pointer(), names.pointer());
           }
 
           private void emitJump(Jump jump) {

@@ -18,4 +18,5 @@ swap <- function(list, i, j) {
   list
 }
 
+#? benchmark: permute(10, 1:20)
 permute(4, 1:5)

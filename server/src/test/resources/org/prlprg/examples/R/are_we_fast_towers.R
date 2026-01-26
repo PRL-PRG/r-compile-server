@@ -10,4 +10,5 @@ towers <- function(n, from_peg, to_peg, using_peg) {
   return(moves)
 }
 
+#? benchmark: towers(23, 1, 2, 3)
 towers(7, 1, 2, 3)

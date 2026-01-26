@@ -164,7 +164,8 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b);  // ==
-DEFINE_OVERRIDDEN_BUILTIN(missing, 0, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(missing, 1, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(length, 1, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(as_u2einteger, 1, SEXP value);  // as.integer
 DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, 1, SEXP value);  // as.logical
 DEFINE_OVERRIDDEN_BUILTIN(as_u2echaracter, 1, SEXP value);  // as.character

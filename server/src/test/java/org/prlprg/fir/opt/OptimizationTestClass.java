@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -42,7 +40,6 @@ final class OptimizationProvider implements ArgumentsProvider {
       new Optimization[] {
         new Cleanup(true),
         new Cleanup(false),
-        defaultOptimizations(),
         new Specialize(new DefiniteForce()),
         new Specialize(new OptimizeCallee(1)),
         new Specialize(new ReturnTypeAndEffects()),

@@ -280,7 +280,7 @@ public class BC2CFGCompiler {
       var afterBb = cfg.addBB();
 
       insert(
-          new Statement(parameterIsMissing, builtin("missing", 0, new Read(parameter.variable()))));
+          new Statement(parameterIsMissing, builtin("missing", 1, new Read(parameter.variable()))));
       cursor.advance();
       if (defaultIsConstant) {
         cursor.replace(
