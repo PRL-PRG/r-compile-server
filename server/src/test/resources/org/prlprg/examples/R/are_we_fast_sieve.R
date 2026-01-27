@@ -16,4 +16,8 @@ sieve <- function(n) {
 }
 
 #? benchmark: sieve(25000000)
-sieve(100)
+
+# warmup
+for (i in 1:15) {
+  sieve(100)
+}

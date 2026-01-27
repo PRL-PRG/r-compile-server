@@ -22,6 +22,16 @@ import org.prlprg.util.cc.CCompilationException;
 public interface CompiledModuleQuery extends Query<CompiledModule> {
   RuntimeVariant runtime();
 
+  boolean isOptimized();
+
+  CompiledModuleQuery optimized();
+
+  /// Produces a module whose code may be structurally different but has the same eval and
+  /// interpret behavior.
+  ///
+  /// This isn't the oracle of the query itself, since the snapshot's structure matters.
+  CompiledModuleQuery evalOracle();
+
   @Override
   default void verifyEqual(
       CompiledModule expected, CompiledModule actual, Example example, SnapshotStore store) {
@@ -60,7 +70,7 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     // Compile for both `EvalQuery` and easier debugging outside of tests.
     var soPath = path.resolve("code.so");
     try {
-      RshCompiler.getInstance(0, runtime())
+      RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime())
           .createBuilder(cPath, soPath)
           .flag("-shared")
           .flag("-Wl,-undefined,dynamic_lookup")

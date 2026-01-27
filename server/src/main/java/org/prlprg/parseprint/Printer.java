@@ -53,6 +53,16 @@ public class Printer {
     return use(p -> p.withContext(ctx).print(o));
   }
 
+  /** Use a printer to print the given object to a file. */
+  public static void toFile(File output, Object o) throws IOException {
+    use(output, p -> p.print(o));
+  }
+
+  /** Use a printer and context to write the given object to a file. */
+  public static void toFile(File output, Object o, Object ctx) throws IOException {
+    use(output, p -> p.print(o), ctx);
+  }
+
   /** Use a printer and return the output as a string. */
   public static String use(Consumer<Printer> usePrinter) {
     return use(usePrinter, null);

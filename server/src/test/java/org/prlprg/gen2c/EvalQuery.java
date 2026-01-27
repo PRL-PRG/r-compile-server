@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Function;
-import org.prlprg.bc2c.BC2CQuery;
 import org.prlprg.examples.Example;
 import org.prlprg.fir2c.Fir2CQuery;
 import org.prlprg.rds.RDSReader;
@@ -20,41 +19,15 @@ import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.Either;
 import org.prlprg.util.Files;
-import org.prlprg.util.Pair;
 import org.prlprg.util.Paths;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
 public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOutput> {
-  public static EvalQuery BC = new EvalQuery(BC2CQuery.INSTANCE);
   public static EvalQuery FIR_ORACLE = new EvalQuery(Fir2CQuery.DIRECT);
 
   private static final String EVAL_DRIVER =
       Files.readString(Paths.getResource(EvalQuery.class, "eval.R"));
-
-  /// Evaluate the snapshot generated at [Path] by some [CompiledModuleQuery] and return the output.
-  public static EvalOutput eval(Path path, GNUR R) {
-    try {
-      var nestedWithOutput =
-          R.capturingEval("setwd('%s')\n%s".formatted(path.toAbsolutePath(), EVAL_DRIVER));
-      var pair = splitValueAndPC(nestedWithOutput.first());
-      return new EvalOutput(Either.left(pair.first()), nestedWithOutput.second(), pair.second());
-    } catch (EvalException e) {
-      return new EvalOutput(
-          Either.right(e.mainMessage()), e.outputLog(), PerformanceCounters.EMPTY);
-    }
-  }
-
-  private static Pair<SEXP, PerformanceCounters> splitValueAndPC(SEXP value) {
-    if (!(value instanceof VecSXP v) || v.size() != 2) {
-      throw new IllegalArgumentException(
-          "Value first item must be a vector of size 2, got: " + value);
-    }
-    var res = v.get(0);
-    var pc = PerformanceCounters.from(v.get(1));
-
-    return Pair.of(res, pc);
-  }
 
   @Override
   public String name() {
@@ -66,7 +39,30 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     var R = GNUR.instance();
     var modulePath = store.loadPath(example, moduleQuery);
 
-    return eval(modulePath, R);
+    try {
+      var rawOutput =
+          R.capturingEval("path <- '%s'\n%s".formatted(modulePath.toAbsolutePath(), EVAL_DRIVER));
+
+      if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 2) {
+        throw new IllegalArgumentException(
+            "Value first item must be a vector of size 2, got: " + rawOutput.first());
+      }
+      var res = v.get(0);
+      var pc = PerformanceCounters.from(v.get(1));
+
+      var outputLog = rawOutput.second();
+      return new EvalOutput(Either.left(res), outputLog, pc);
+    } catch (EvalException e) {
+      return new EvalOutput(
+          Either.right(e.mainMessage()), e.outputLog(), PerformanceCounters.EMPTY);
+    }
+  }
+
+  @Override
+  public EvalOutput oracle(Example example, SnapshotStore store) {
+    return moduleQuery == moduleQuery.evalOracle()
+        ? Query.super.oracle(example, store)
+        : new EvalQuery(moduleQuery.evalOracle()).oracle(example, store);
   }
 
   @Override

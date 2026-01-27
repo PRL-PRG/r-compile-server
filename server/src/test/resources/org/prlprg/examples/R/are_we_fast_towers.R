@@ -11,4 +11,8 @@ towers <- function(n, from_peg, to_peg, using_peg) {
 }
 
 #? benchmark: towers(23, 1, 2, 3)
-towers(7, 1, 2, 3)
+
+# warmup
+for (i in 1:15) {
+  towers(7, 1, 2, 3)
+}

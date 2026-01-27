@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -247,7 +246,7 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   @Override
-  public ModuleFeedback feedback() {
+  public MockModuleFeedback feedback() {
     return feedback;
   }
 
