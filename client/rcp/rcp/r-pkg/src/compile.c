@@ -1431,7 +1431,10 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     #endif
 
     if(TYPEOF(BODY(compiled)) != BCODESXP)
-        error("The BC compiler could not compile this function.");
+    {
+        DEBUG_PRINT("The BC compiler could not compile this function.");
+        return f;
+    }
 
     DEBUG_PRINT("Bytecode compilation finished.\n");
 
