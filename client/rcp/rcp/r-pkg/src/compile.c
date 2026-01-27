@@ -1,3 +1,4 @@
+#include "R_ext/Print.h"
 #include <stddef.h>
 #define USE_RINTERNALS
 #define RSH
@@ -58,6 +59,17 @@ static struct StencilProfileInfo stencil_profile_info[sizeof(OPCODES_NAMES) / si
 #ifndef ALIGNMENT_LOOPS_UNLIKELY
 #define ALIGNMENT_LOOPS_UNLIKELY 1
 #endif
+
+static void write_perf_map_entry(const void *addr, unsigned int size, const char *name) {
+    char filename[64];
+    snprintf(filename, sizeof(filename), "/tmp/perf-%d.map", getpid());
+
+    FILE *f = fopen(filename, "a");
+    if (f) {
+        fprintf(f, "%lx %x _RCP_%s\n", (uintptr_t)addr, size, name);
+        fclose(f);
+    }
+}
 
 static int fits_in(int64_t value, int size)
 {
@@ -1351,6 +1363,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
 
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
     rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats);
+    // TODO: register the jitted function into a perf map
     UNPROTECT(1); // code
 
     rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
@@ -1423,8 +1436,32 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     struct timespec start, mid, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
     CompilationStats stats = {0, 0};
+    const char* name = NULL;
 
-    DEBUG_PRINT("Compiling to bytecode...\n");
+    if (options != R_NilValue) {
+      if (TYPEOF(options) == VECSXP) {
+        SEXP name_element = Rf_getAttrib(options, R_NamesSymbol);
+        if (name_element != R_NilValue && TYPEOF(name_element) == STRSXP) {
+            int name_index = -1;
+            for (int i = 0; i < LENGTH(name_element); i++) {
+                if (strcmp(CHAR(STRING_ELT(name_element, i)), "name") == 0) {
+                    name_index = i;
+                    break;
+                }
+            }
+            if (name_index != -1) {
+                SEXP name_sexp = VECTOR_ELT(options, name_index);
+                if (TYPEOF(name_sexp) == STRSXP && LENGTH(name_sexp) == 1) {
+                    name = CHAR(STRING_ELT(name_sexp, 0));
+                }
+            }
+        }
+    } else {
+      Rf_error("options must be either NULL or a list");
+    }
+  }
+
+    DEBUG_PRINT("Compiling %s to bytecode...\n", name ? name : "<unknown>");
     SEXP compiled = compile_to_bc(f, options);
     #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
     UNPROTECT(1); // options
@@ -1445,6 +1482,11 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     SET_BODY(compiled, ptr);
     clock_gettime(CLOCK_MONOTONIC, &end);
     UNPROTECT(1); // compiled
+  
+    if (name) {
+      rcp_exec_ptrs *p = (rcp_exec_ptrs*) R_ExternalPtrAddr(ptr);
+      write_perf_map_entry(p->memory_private, p->memory_private_size, name);
+    }
 
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;
@@ -1645,7 +1687,8 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 #endif
 
         DEBUG_PRINT("  Compiling:  %s\n", CHAR(STRING_ELT(obj_names, i)));
-        SEXP name_sym = Rf_install(CHAR(STRING_ELT(obj_names, i)));
+        SEXP name = STRING_ELT(obj_names, i);
+        SEXP name_sym = Rf_install(CHAR(name));
         PROTECT(name_sym);
         SEXP obj = Rf_findVarInFrame(pkg_namespace, name_sym);
 
@@ -1670,15 +1713,29 @@ SEXP C_rcp_cmppkg(SEXP package_name)
             UNPROTECT_SAFE(name_sym);
             continue;
         }
+
+        SEXP options = PROTECT(Rf_allocVector(VECSXP, 1));
+        SEXP options_names = PROTECT(Rf_allocVector(STRSXP, 1));
+        Rf_setAttrib(options, R_NamesSymbol, options_names);
+        UNPROTECT(1); // options_names
+        {
+          const char *name_c = CHAR(name);
+          size_t len = strlen(pkg) + 2 + strlen(name_c) + 1;
+          char *full = (char *)R_alloc(len, 1);
+          snprintf(full, len, "%s::%s", pkg, name_c);
+          SET_VECTOR_ELT(options, 0, Rf_mkString(full));
+        }
+        SET_STRING_ELT(options_names, 0, Rf_mkChar("name"));
         
         PROTECT(obj);
         // Try to compile the function
         SEXP cmpfun_call = Rf_lang3(
             PROTECT(Rf_install("rcp_cmpfun")),
             obj,
-            R_NilValue
+            options
         );
         UNPROTECT(1); // install
+        UNPROTECT(1); // options
         UNPROTECT_SAFE(obj);
         PROTECT(cmpfun_call);
         int comp_error = 0;
