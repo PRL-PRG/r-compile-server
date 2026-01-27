@@ -60,6 +60,7 @@ static struct StencilProfileInfo stencil_profile_info[sizeof(OPCODES_NAMES) / si
 #define ALIGNMENT_LOOPS_UNLIKELY 1
 #endif
 
+#ifdef PERF_SUPPORT
 static void write_perf_map_entry(const void *addr, unsigned int size, const char *name) {
     char filename[64];
     snprintf(filename, sizeof(filename), "/tmp/perf-%d.map", getpid());
@@ -70,6 +71,7 @@ static void write_perf_map_entry(const void *addr, unsigned int size, const char
         fclose(f);
     }
 }
+#endif
 
 static int fits_in(int64_t value, int size)
 {
@@ -880,7 +882,7 @@ static int calculate_max_stack_depth(int bytecode[], int bytecode_size, BasicBlo
 }
 
 
-static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP *constpool, int constpool_size, CompilationStats *stats)
+static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP *constpool, int constpool_size, CompilationStats *stats, const char *name)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
@@ -1171,6 +1173,14 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         const Stencil *stencil = get_stencil(opcode, opargs, constpool);
 
+#ifdef PERF_SUPPORT
+        if (name) {
+            char symbol_name[256];
+            snprintf(symbol_name, sizeof(symbol_name), "%s_%s", name, OPCODES_NAMES[opcode]);
+            write_perf_map_entry(inst_start[bc_pos], stencil->body_size, symbol_name);
+        }
+#endif
+
         memcpy(inst_start[bc_pos], stencil->body, stencil->body_size);
 
         // Patch the holes
@@ -1308,7 +1318,7 @@ static void bytecode_info(const int *bytecode, int bytecode_size, const SEXP *co
     DEBUG_PRINT("Instructions in bytecode: %d\n", instructions);
 }
 
-static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
+static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats, const char* name)
 {
     SEXP bcode_code = BCODE_CODE(bcode);
     SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -1330,6 +1340,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
 
     if(recursive)
     {
+        int closure_counter = 0;
         // First compile all closures recursively, depth first
         for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
         {
@@ -1345,7 +1356,11 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
                 {
                     DEBUG_PRINT("**********\nCompiling closure\n");
                     // constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); // Should not be needed, constpool is ours
-                    SEXP res = copy_patch_bc(body, recursive, stats);
+                    closure_counter++;
+                    char closure_name_buf[256];
+                    const char *base_name = name ? name : "closure";
+                    snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d", base_name, closure_counter);
+                    SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf);
                     SET_VECTOR_ELT(fb, 1, res);
                 }
                 else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
@@ -1362,7 +1377,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
     }
 
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
-    rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats);
+    rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats, name);
     // TODO: register the jitted function into a perf map
     UNPROTECT(1); // code
 
@@ -1478,15 +1493,17 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     PROTECT(compiled);
 
     clock_gettime(CLOCK_MONOTONIC, &mid);
-    SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats);
+    SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name);
     SET_BODY(compiled, ptr);
     clock_gettime(CLOCK_MONOTONIC, &end);
     UNPROTECT(1); // compiled
   
+#ifdef PERF_SUPPORT
     if (name) {
       rcp_exec_ptrs *p = (rcp_exec_ptrs*) R_ExternalPtrAddr(ptr);
       write_perf_map_entry(p->memory_private, p->memory_private_size, name);
     }
+#endif
 
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;

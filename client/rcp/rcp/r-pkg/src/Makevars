@@ -4,3 +4,8 @@ ifneq ($(OPENMP),0)
   PKG_CFLAGS += -fopenmp
   PKG_LIBS += -fopenmp
 endif
+
+PERF_SUPPORT ?= 0
+ifneq ($(PERF_SUPPORT),0)
+  PKG_CFLAGS += -DPERF_SUPPORT
+endif
