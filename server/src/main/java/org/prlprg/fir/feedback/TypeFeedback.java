@@ -6,6 +6,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
@@ -15,6 +17,8 @@ public class TypeFeedback {
 
   private final Map<Type, Integer> hits = new LinkedHashMap<>();
   private @Nullable Type union = null;
+
+  public TypeFeedback() {}
 
   /// `true` if no types were recorded.
   public boolean isEmpty() {
@@ -43,6 +47,35 @@ public class TypeFeedback {
     return Printer.toString(this);
   }
 
+  @ParseMethod
+  private TypeFeedback(Parser p) {
+    var s = p.scanner();
+
+    if (s.trySkip('_')) {
+      // Empty type feedback
+      return;
+    }
+
+    // Parse the union type
+    union = p.parse(Type.class);
+
+    if (s.trySkip('(')) {
+      // Parse individual type hits
+      do {
+        var type = p.parse(Type.class);
+        var count = p.parse(Integer.class);
+        s.assertAndSkip('x');
+
+        hits.put(type, count);
+        // Update union to include this type
+        union = union.union(type, () -> {});
+      } while (s.trySkip(", "));
+      s.assertAndSkip(')');
+    } else {
+      hits.put(union, 1);
+    }
+  }
+
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
@@ -54,6 +87,7 @@ public class TypeFeedback {
 
     p.print(union());
 
+    var wroteAny = false;
     for (var entry : hits.entrySet()) {
       var type = entry.getKey();
       var count = entry.getValue();
@@ -63,11 +97,21 @@ public class TypeFeedback {
         continue;
       }
 
-      w.write(", ");
+      if (!wroteAny) {
+        wroteAny = true;
+        w.write('(');
+      } else {
+        w.write(", ");
+      }
+
       p.print(type);
       w.write(' ');
       p.print(count);
       w.write('x');
+    }
+
+    if (wroteAny) {
+      w.write(')');
     }
   }
 }

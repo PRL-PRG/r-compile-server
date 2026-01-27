@@ -1,11 +1,13 @@
 package org.prlprg.fir.interpret;
 
+import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Either;
 
-public record InterpretOutput(Either<SEXP, String> returnValue, String checkpointTrace) {
+public record InterpretOutput(
+    Either<SEXP, String> returnValue, String checkpointTrace, MockModuleFeedback feedback) {
   public boolean success() {
     return returnValue.isLeft();
   }
@@ -34,5 +36,9 @@ public record InterpretOutput(Either<SEXP, String> returnValue, String checkpoin
     w.write("\n---\n");
 
     w.write(checkpointTrace);
+
+    w.write("\n---\n");
+
+    p.print(feedback);
   }
 }

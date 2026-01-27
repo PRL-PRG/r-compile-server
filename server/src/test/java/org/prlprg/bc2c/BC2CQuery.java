@@ -10,14 +10,28 @@ import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 
-public class BC2CQuery implements CompiledModuleQuery {
-  public static final BC2CQuery INSTANCE = new BC2CQuery();
-
-  private BC2CQuery() {}
+public record BC2CQuery(@Override boolean isOptimized) implements CompiledModuleQuery {
+  public static final BC2CQuery UNOPTIMIZED = new BC2CQuery(false);
+  public static final BC2CQuery OPTIMIZED = new BC2CQuery(true);
 
   @Override
   public RuntimeVariant runtime() {
     return RuntimeVariant.DIRECT_BC2C;
+  }
+
+  @Override
+  public String name() {
+    return isOptimized ? "bc2c.optimized" : "bc2c";
+  }
+
+  @Override
+  public BC2CQuery optimized() {
+    return OPTIMIZED;
+  }
+
+  @Override
+  public BC2CQuery evalOracle() {
+    return UNOPTIMIZED;
   }
 
   @Override

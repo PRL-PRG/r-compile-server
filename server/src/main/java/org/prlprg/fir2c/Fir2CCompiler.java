@@ -263,7 +263,23 @@ public final class Fir2CCompiler {
         }
       }
 
-      cCode.stmt("return %s(%s%s);", baselineCName, VAR_ENV, argsSplice);
+      cCode = cFunction.add();
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment("Suppress inner mkenv (if present) because R makes it");
+      }
+      cCode.stmt("SEXP outer_env;");
+      cCode.stmt("bool push_suppressed;");
+      cCode.stmt("Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed);", VAR_ENV);
+
+      cCode = cFunction.add();
+      cCode.stmt("SEXP result = %s(%s%s);", baselineCName, VAR_ENV, argsSplice);
+
+      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
+        cCode.comment("Un-suppress inner mkenv");
+      }
+      cCode = cFunction.add();
+      cCode.stmt("Fir_unset_env_pushed_from_r(outer_env, push_suppressed);");
+      cCode.stmt("return result;");
     }
 
     private void emitDispatch() {

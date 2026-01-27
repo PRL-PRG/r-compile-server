@@ -13,12 +13,14 @@ final class RExampleProvider implements ArgumentsProvider, AnnotationConsumer<RE
   private boolean accepted = false;
   private String option = "";
   private String skipOption = "";
+  private boolean benchmark = false;
 
   @Override
   public void accept(RExampleTest annotation) {
     accepted = true;
     option = annotation.option();
     skipOption = annotation.skipOption();
+    benchmark = annotation.benchmark();
   }
 
   @Override
@@ -28,6 +30,7 @@ final class RExampleProvider implements ArgumentsProvider, AnnotationConsumer<RE
     return resolveSingleton(RExampleStore.class, context).examples().stream()
         .filter(example -> option.isEmpty() || example.hasOption("", option))
         .filter(example -> !example.hasOption("", skipOption))
+        .filter(example -> !benchmark || example.text().contains("#? benchmark:"))
         .map(Arguments::of);
   }
 }

@@ -8,7 +8,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
+import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.FirQuery;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNUR;
@@ -67,10 +70,12 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   public InterpretOutput deserialize(Path path, Example example, SnapshotStore store)
       throws IOException {
     var R = GNUR.instance();
+    var module = store.load(example, FirQuery.INSTANCE);
 
     var returnValuePath = path.resolve("returnValue.rds");
     var crashPath = path.resolve("crash.txt");
     var checkpointTracePath = path.resolve("trace.log");
+    var feedbackPath = path.resolve("feedback.txt");
 
     if (Files.exists(returnValuePath) && Files.exists(crashPath)) {
       fail("Snapshot has both return value and crash");
@@ -81,7 +86,14 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
             : Either.right(Files.readString(crashPath).trim());
     var checkpointTrace = Files.readString(checkpointTracePath);
 
-    return new InterpretOutput(returnValue, checkpointTrace);
+    // Relies on `module` being cached in-memory, because `feedback` has direct pointers.
+    var feedback =
+        Parser.fromFile(
+            feedbackPath.toFile(),
+            MockModuleFeedback.class,
+            new MockModuleFeedback.ParseContext(module));
+
+    return new InterpretOutput(returnValue, checkpointTrace, feedback);
   }
 
   @Override
@@ -90,6 +102,7 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
     var returnValuePath = path.resolve("returnValue.rds");
     var crashPath = path.resolve("crash.txt");
     var checkpointTracePath = path.resolve("trace.log");
+    var feedbackPath = path.resolve("feedback.txt");
 
     Files.createDirectories(path);
     if (data.returnValue().isLeft()) {
@@ -100,5 +113,6 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
       Files.writeString(crashPath, data.returnValue().getRight());
     }
     Files.writeString(checkpointTracePath, data.checkpointTrace());
+    Printer.toFile(feedbackPath.toFile(), data.feedback());
   }
 }

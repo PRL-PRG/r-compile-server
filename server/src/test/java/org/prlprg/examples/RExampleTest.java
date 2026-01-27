@@ -26,4 +26,6 @@ public @interface RExampleTest {
   String option() default "";
 
   String skipOption() default "";
+
+  boolean benchmark() default false;
 }

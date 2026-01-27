@@ -18,6 +18,10 @@ public record Example(Path rpath, String text, ExampleOptions options) {
     return Paths.getExtension(rpath);
   }
 
+  public Path absolutePath() {
+    return Paths.getResource(Example.class, type()).resolve(rpath);
+  }
+
   public boolean hasOption(String filter, String name) {
     return options.get(filter, name) != null;
   }
@@ -29,11 +33,6 @@ public record Example(Path rpath, String text, ExampleOptions options) {
           "Option \"" + name + "\" not found for filter \"" + filter + "\"");
     }
     return option.expectOneArg();
-  }
-
-  public SEXP sexpOption(String filter, String name, SEXP defaultValue) {
-    var option = options.get(filter, name);
-    return option == null ? defaultValue : option.expectOneArg();
   }
 
   public int intOption(String filter, String name, int defaultValue) {

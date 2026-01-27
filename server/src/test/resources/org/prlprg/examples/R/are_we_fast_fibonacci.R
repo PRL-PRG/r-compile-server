@@ -6,4 +6,8 @@ fibonacci <- function(n) {
 }
 
 #? benchmark: fibonacci(34)
-fibonacci(7)
+
+# warmup
+for (i in 1:15) {
+  fibonacci(7)
+}

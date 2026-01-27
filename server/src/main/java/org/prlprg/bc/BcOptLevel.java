@@ -20,10 +20,9 @@ public enum BcOptLevel {
   /// > In addition to the inlining permitted by Level 1, functions that are
   /// > syntactically special or are considered core language functions and are found via the global
   /// > environment at compile time may be inlined. Other functions in the base packages found via
-  // the
-  /// > global environment may be inlined with a guard that ensures at runtime that the inlined
-  // function
-  /// > has not been masked; if it has, then the call in handled by the AST interpreter.
+  /// > the global environment may be inlined with a guard that ensures at runtime that the
+  /// > inlined function has not been masked; if it has, then the call in handled by the AST
+  /// > interpreter.
   DEFAULT(2),
   /// The maximum optimization level that affects GNU-R's `compiler::cmpfun` and here.
   ///

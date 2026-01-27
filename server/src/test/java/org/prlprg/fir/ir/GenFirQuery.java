@@ -38,6 +38,6 @@ public interface GenFirQuery extends Query<Module> {
   @Override
   default void serialize(Module data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    Printer.use(path.toFile(), p -> p.print(data));
+    Printer.toFile(path.toFile(), data);
   }
 }

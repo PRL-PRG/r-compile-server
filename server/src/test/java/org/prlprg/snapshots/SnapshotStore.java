@@ -33,13 +33,16 @@ public class SnapshotStore {
   ///   [TestConfig#IGNORE_SNAPSHOTS] is unset.
   /// If other checks (e.g. [Query#verifyExtra(Example, SnapshotStore)]) fail, they are reported
   /// (this call raises an exception) but the snapshot is still saved for debugging.
-  public <T> void verify(Example example, Query<T> query) {
+  ///
+  /// Returns the actual computed value (and only returns if it passes verification).
+  public <T> T verify(Example example, Query<T> query) {
     var actual = query.compute(example, this);
 
     RegressionStatus[] regresses = {RegressionStatus.UNCHECKED};
     Throwable error = null;
     try {
       verify(example, query, actual, null, regresses);
+      return actual;
     } catch (Exception | Error e) {
       error = e;
       throw e;

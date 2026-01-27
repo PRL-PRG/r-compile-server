@@ -104,6 +104,8 @@ SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int ddIndex, SEXP env);
 SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env);
+void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
+void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 void Fir_push_env(SEXP *env);
 void Fir_pop_env(SEXP *env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names);
@@ -158,6 +160,8 @@ DEFINE_INTRINSIC(setVisible, 0);
 
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b);  // +
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b);  // +
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 1, SEXP a, SEXP b);  // :
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 2, SEXP a, SEXP b);  // :
 DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b);  // <
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b);  // <=
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b);  // ==

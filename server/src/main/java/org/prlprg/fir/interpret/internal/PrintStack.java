@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.EnvSXP;
@@ -110,7 +111,7 @@ final class PrintStack {
               p.print(register);
               w.write(" = ");
               p.print(value);
-              feedback.print(register, p);
+              feedback.print(register, p, new AbstractionFeedback.PrintContext(ctx.forSexp()));
               w.write('\n');
             }
 

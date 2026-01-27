@@ -19,7 +19,7 @@ final class TestInterpreter {
   }
 
   public InterpretOutput call(String functionName, SEXP... arguments) {
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "DataFlowIssue"})
     Either<SEXP, String>[] returnValue = new Either[] {null};
     var checkpointTrace =
         interpreter
@@ -33,7 +33,7 @@ final class TestInterpreter {
                   }
                 });
     var checkpointTraceStr = Strings.join("\n", checkpointTrace);
-    return new InterpretOutput(returnValue[0], checkpointTraceStr);
+    return new InterpretOutput(returnValue[0], checkpointTraceStr, interpreter.feedback());
   }
 
   public ModuleFeedback feedback() {

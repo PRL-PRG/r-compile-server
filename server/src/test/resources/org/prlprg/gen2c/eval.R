@@ -1,15 +1,16 @@
 options(warn=1)
-args <- commandArgs(TRUE)
 
-# set working directory to first arg if provided
+# read arguments if present
+args <- commandArgs(TRUE)
 if (length(args) > 0) {
-  setwd(args[1])
+  if (length(args) != 1) stop("Usage: eval <path>")
+  path <- args[1]
 }
 
 library(rsh)
 
-dyn.load("code.so")
-constantPool <- readRDS("bindings.rds")
+dyn.load(paste0(path, "/code.so"))
+constantPool <- readRDS(paste0(path, "/bindings.rds"))
 
 # Simulate runtime init from the compile client
 invisible(.Call("Rsh_initialize_runtime"))
@@ -24,6 +25,6 @@ res <- main()
 # Get performance counters, used by some BC->C tests
 pc <- .Call("Rsh_pc_get")
 
-dyn.unload("code.so")
+dyn.unload(paste0(path, "/code.so"))
 
 list(res, pc)

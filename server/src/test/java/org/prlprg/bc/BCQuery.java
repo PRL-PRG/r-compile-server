@@ -14,15 +14,10 @@ import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 
-public class BCQuery implements Query<Bc> {
-  public static BCQuery REGULAR = new BCQuery(false);
-  public static BCQuery FIR = new BCQuery(true);
-
-  private final boolean fir;
-
-  private BCQuery(boolean fir) {
-    this.fir = fir;
-  }
+public record BCQuery(BcOptLevel optimizationLevel) implements Query<Bc> {
+  public static BCQuery REGULAR = new BCQuery(BcOptLevel.DEFAULT);
+  public static BCQuery OPT = new BCQuery(BcOptLevel.MAX);
+  public static BCQuery FIR = new BCQuery(BcOptLevel.FIR);
 
   @Override
   public Bc compute(Example example, SnapshotStore store) {
@@ -38,32 +33,31 @@ public class BCQuery implements Query<Bc> {
 
   @Override
   public Bc oracle(Example example, SnapshotStore store) {
-    return fir
-        ? Query.super.oracle(example, store)
-        : genCompute(
-            example,
-            (R, text, optimizationLevel) -> {
-              var value =
-                  R.eval(
-                      "compiler::cmpfun("
-                          + text
-                          + ", options = list(optimize = "
-                          + optimizationLevel
-                          + "))");
-              if (!(value instanceof CloSXP closure)) {
-                throw new IllegalArgumentException("Expected a closure, got: " + value);
-              }
-              return closure.body();
-            });
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return Query.super.oracle(example, store);
+    }
+
+    return genCompute(
+        example,
+        (R, text, optimizationLevel) -> {
+          var value =
+              R.eval(
+                  "compiler::cmpfun("
+                      + text
+                      + ", options = list(optimize = "
+                      + optimizationLevel.value()
+                      + "))");
+          if (!(value instanceof CloSXP closure)) {
+            throw new IllegalArgumentException("Expected a closure, got: " + value);
+          }
+          return closure.body();
+        });
   }
 
   private Bc genCompute(Example example, ComputeImpl impl) {
     var optimizationLevel =
         BcOptLevel.fromValue(
-            example.intOption(
-                name(),
-                "optimizationLevel",
-                fir ? BcOptLevel.FIR.value() : BcOptLevel.DEFAULT.value()));
+            example.intOption(name(), "optimizationLevel", this.optimizationLevel.value()));
 
     var R = GNUR.instance();
 
@@ -81,7 +75,7 @@ public class BCQuery implements Query<Bc> {
 
   @Override
   public String name() {
-    return fir ? "bc.fir" : "bc.regular";
+    return "bc." + optimizationLevel.name().toLowerCase();
   }
 
   @Override

@@ -261,14 +261,41 @@ void Fir_store(SEXP symbol, SEXP value, SEXP env) {
   Rf_defineVar(symbol, value, env);
 }
 
+static SEXP Fir_env_pushed_from_r = NULL;
+static bool Fir_env_push_suppressed = false;
+
+void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed) {
+  *outer_env = Fir_env_pushed_from_r;
+  *push_suppressed = Fir_env_push_suppressed;
+  Fir_env_pushed_from_r = env;
+  Fir_env_push_suppressed = false;
+}
+
+void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
+  Fir_env_pushed_from_r = outer_env;
+  Fir_env_push_suppressed = push_suppressed;
+}
+
 void Fir_push_env(SEXP *env_ptr) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
+
+  if (Fir_env_pushed_from_r == *env_ptr && !Fir_env_push_suppressed) {
+    Fir_env_push_suppressed = true;
+    return;
+  }
+
   SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
   *env_ptr = new_env;
 }
 
 void Fir_pop_env(SEXP *env_ptr) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "pop_env requires a pointer to an environment");
+
+  if (Fir_env_pushed_from_r == *env_ptr && Fir_env_push_suppressed) {
+    Fir_env_push_suppressed = false;
+    return;
+  }
+
   SEXP parent = ENCLOS(*env_ptr);
   ASSERT(parent && parent != R_NilValue, "pop_env called on environment without parent");
   *env_ptr = parent;
@@ -894,6 +921,16 @@ DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b) {
 // +
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) + Rf_asReal(b));
+}
+
+// :
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 1, SEXP a, SEXP b) {
+  return R_compact_intrange((R_xlen_t) Rf_asInteger(a), (R_xlen_t) Rf_asInteger(b));
+}
+
+// :
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 2, SEXP a, SEXP b) {
+  return R_compact_intrange((R_xlen_t) Rf_asReal(a), (R_xlen_t) Rf_asReal(b));
 }
 
 // <
