@@ -63,10 +63,7 @@ struct jit_code_entry *gdb_jit_register(
     size_t code_size,
     uint8_t **inst_addrs,
     int bytecode_count,
-    const int *bytecode,
-    const char * const *opcode_names,
-    const uint8_t *opcode_arg_counts,
-    int num_opcodes
+    const int *bytecode
 );
 
 /*
