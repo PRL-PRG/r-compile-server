@@ -32,6 +32,7 @@ static struct StencilProfileInfo stencil_profile_info[sizeof(OPCODES_NAMES) / si
 
 #include "runtime_internals.h"
 #include "stencils/stencils.h"
+#include "gdb_jit.h"
 
 #define UNPROTECT_SAFE(ptr)                         \
     do                                              \
@@ -58,19 +59,6 @@ static struct StencilProfileInfo stencil_profile_info[sizeof(OPCODES_NAMES) / si
 #endif
 #ifndef ALIGNMENT_LOOPS_UNLIKELY
 #define ALIGNMENT_LOOPS_UNLIKELY 1
-#endif
-
-#ifdef PERF_SUPPORT
-static void write_perf_map_entry(const void *addr, unsigned int size, const char *name) {
-    char filename[64];
-    snprintf(filename, sizeof(filename), "/tmp/perf-%d.map", getpid());
-
-    FILE *f = fopen(filename, "a");
-    if (f) {
-        fprintf(f, "%lx %x _RCP_%s\n", (uintptr_t)addr, size, name);
-        fclose(f);
-    }
-}
 #endif
 
 static int fits_in(int64_t value, int size)
@@ -1173,14 +1161,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         const Stencil *stencil = get_stencil(opcode, opargs, constpool);
 
-#ifdef PERF_SUPPORT
-        if (name) {
-            char symbol_name[256];
-            snprintf(symbol_name, sizeof(symbol_name), "%s_%s", name, OPCODES_NAMES[opcode]);
-            write_perf_map_entry(inst_start[bc_pos], stencil->body_size, symbol_name);
-        }
-#endif
-
         memcpy(inst_start[bc_pos], stencil->body, stencil->body_size);
 
         // Patch the holes
@@ -1192,6 +1172,24 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     clock_gettime(CLOCK_MONOTONIC, &end);
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
+#endif
+
+#ifdef GDB_JIT_SUPPORT
+    /* Register with GDB JIT interface before freeing temporary arrays */
+    if (name) {
+        res.jit_entry = gdb_jit_register(
+            name,
+            executable,
+            insts_size,
+            inst_start,
+            bytecode_size,
+            bytecode
+        );
+    } else {
+        res.jit_entry = NULL;
+    }
+#else
+    res.jit_entry = NULL;
 #endif
 
     vmaxset(vmax);
@@ -1318,6 +1316,20 @@ static void bytecode_info(const int *bytecode, int bytecode_size, const SEXP *co
     DEBUG_PRINT("Instructions in bytecode: %d\n", instructions);
 }
 
+/*
+ * Finalizer wrapper that unregisters GDB JIT debug info before freeing memory.
+ */
+static void rcp_finalizer(SEXP ptr) {
+#ifdef GDB_JIT_SUPPORT
+    rcp_exec_ptrs* ptrs = (rcp_exec_ptrs*)R_ExternalPtrAddr(ptr);
+    if (ptrs && ptrs->jit_entry) {
+        gdb_jit_unregister(ptrs->jit_entry);
+        ptrs->jit_entry = NULL;
+    }
+#endif
+    R_RcpFree(ptr);
+}
+
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats, const char* name)
 {
     SEXP bcode_code = BCODE_CODE(bcode);
@@ -1378,7 +1390,6 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats, co
 
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
     rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats, name);
-    // TODO: register the jitted function into a perf map
     UNPROTECT(1); // code
 
     rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
@@ -1391,7 +1402,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats, co
     SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
     UNPROTECT(1); // prot
     PROTECT(ptr);
-    R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
+    R_RegisterCFinalizerEx(ptr, &rcp_finalizer, TRUE);
     UNPROTECT(1); // ptr
     return ptr;
 }
@@ -1497,13 +1508,6 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     SET_BODY(compiled, ptr);
     clock_gettime(CLOCK_MONOTONIC, &end);
     UNPROTECT(1); // compiled
-  
-#ifdef PERF_SUPPORT
-    if (name) {
-      rcp_exec_ptrs *p = (rcp_exec_ptrs*) R_ExternalPtrAddr(ptr);
-      write_perf_map_entry(p->memory_private, p->memory_private_size, name);
-    }
-#endif
 
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;

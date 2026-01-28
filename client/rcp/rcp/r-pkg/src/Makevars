@@ -5,7 +5,7 @@ ifneq ($(OPENMP),0)
   PKG_LIBS += -fopenmp
 endif
 
-PERF_SUPPORT ?= 0
-ifneq ($(PERF_SUPPORT),0)
-  PKG_CFLAGS += -DPERF_SUPPORT
+GDB_JIT_SUPPORT ?= 1
+ifneq ($(GDB_JIT_SUPPORT),0)
+  PKG_CFLAGS += -DGDB_JIT_SUPPORT
 endif
