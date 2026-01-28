@@ -458,7 +458,22 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil, c
         assert(ctx->bcell_lookup != NULL);
         assert(imms != NULL);
         assert(ctx->bytecode != NULL);
-        int constant_index = ctx->bytecode[imms[hole->val.imm_pos] - 3];
+
+        // hardcoded for now (not used anywhere else than STEPFOR), TODO: make it generic
+        int opcode_to_find = STARTFOR_BCOP;
+        int constcell_pos = 1;
+
+        // Reverse iterate over the bytecode to find the label
+        int label_pos = imms[hole->val.imm_pos] - 1;
+        while(ctx->executable_lookup[label_pos] == NULL || ctx->bytecode[label_pos] != opcode_to_find)
+        {
+            label_pos--;
+            if(label_pos < 0)
+                error("Could not find corresponding BC instruction for indirect BCell patching in stencil %s\n", stencil->name);
+        }
+        
+        int* label_imms = &ctx->bytecode[label_pos + 1];
+        int constant_index = label_imms[constcell_pos];
         int bcell_index = ctx->bcell_lookup[constant_index];
         ptr = offsetof(rcpEval_locals, vcache) + bcell_index * sizeof(SEXP);
     }
@@ -542,14 +557,11 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms, const 
         case STEPFOR_BCOP:
         {
             // Fake StepFor stencil to allocate correct memory size
-            static Hole res_hole = {
-                .kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM
-            };
             static Stencil res = {
                 .body_size = stepfor_max_size,
-                .holes_size = 1,
-                .holes = &res_hole,
-                .alignment = 1
+                .holes_size = 0,
+                .holes = NULL,
+                .alignment = 32
             };
             return &res;
         }
@@ -967,23 +979,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
         for (size_t j = 0; j < stencil->holes_size; ++j)
         {
             const Hole *hole = &stencil->holes[j];
-
-            switch (hole->kind)
-            {
-            case RELOC_RCP_CONSTCELL_AT_IMM:
+            if(hole->kind == RELOC_RCP_CONSTCELL_AT_IMM)
             {
                 int bcell_index = imms[hole->val.imm_pos];
                 used_bcells[bcell_index] = 1;
-            }
-            break;
-            case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
-            {
-                int bcell_index = bytecode[imms[hole->val.imm_pos] - 3];
-                used_bcells[bcell_index] = 1;
-            }
-            break;
-            default:
-                break;
             }
         }
     }
@@ -1107,6 +1106,19 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             *stepfor_mem = stepfor_data; // Copy the specialized StepFor data
 
             int stepfor_bc = bytecode[bc_pos + 1 + 2]-1;
+
+            // Dirty fix for STARTLOOPCNTXT_BCOP in between STARTFOR and STEPFOR
+            if (bytecode[stepfor_bc] == STARTLOOPCNTXT_BCOP)
+            {
+                stepfor_bc += RCP_BC_ARG_CNT[STARTLOOPCNTXT_BCOP] + 1;
+                while (bytecode[stepfor_bc] == GOTO_BCOP)
+                {
+                    stepfor_bc = bytecode[stepfor_bc + 1]-1;
+                }
+            }
+            if (bytecode[stepfor_bc] != STEPFOR_BCOP)
+                error("Could not find corresponding STEPFOR_OP for STARTFOR_OP at bytecode %d (found %s at %d instead)\n", bc_pos, OPCODES_NAMES[bytecode[stepfor_bc]], stepfor_bc);
+
             uint8_t *stepfor_code = inst_start[stepfor_bc];
 
             // Set the destination pointer to point to where the stepfor code should be copied to
