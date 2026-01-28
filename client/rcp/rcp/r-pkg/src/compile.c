@@ -1745,13 +1745,18 @@ SEXP C_rcp_cmppkg(SEXP package_name)
         SET_STRING_ELT(options_names, 0, Rf_mkChar("name"));
         
         PROTECT(obj);
-        // Try to compile the function
+        // Try to compile the functi
+        SEXP cmpfun = PROTECT(Rf_lang3(
+            Rf_install("::"),
+            Rf_install("rcp"),
+            Rf_install("rcp_cmpfun"))
+        );
         SEXP cmpfun_call = Rf_lang3(
-            PROTECT(Rf_install("rcp_cmpfun")),
+            cmpfun,
             obj,
             options
         );
-        UNPROTECT(1); // install
+        UNPROTECT(1); // cmpfun
         UNPROTECT(1); // options
         UNPROTECT_SAFE(obj);
         PROTECT(cmpfun_call);
