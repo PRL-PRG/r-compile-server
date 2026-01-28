@@ -1183,7 +1183,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             insts_size,
             inst_start,
             bytecode_size,
-            bytecode
+            bytecode,
+            OPCODES_NAMES,
+            RCP_BC_ARG_CNT,
+            sizeof(OPCODES_NAMES) / sizeof(OPCODES_NAMES[0])
         );
     } else {
         res.jit_entry = NULL;

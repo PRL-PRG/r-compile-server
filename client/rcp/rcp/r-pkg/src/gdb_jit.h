@@ -49,6 +49,9 @@ struct jit_descriptor {
  *   inst_addrs     - Array mapping bytecode PC to native addresses
  *   bytecode_count - Number of bytecode instructions
  *   bytecode       - The bytecode array (for opcode info)
+ *   opcode_names   - Array of opcode name strings
+ *   opcode_arg_counts - Array of argument counts per opcode
+ *   num_opcodes    - Number of opcodes in the arrays
  *
  * Returns:
  *   Pointer to the jit_code_entry that can be used for unregistration,
@@ -60,7 +63,10 @@ struct jit_code_entry *gdb_jit_register(
     size_t code_size,
     uint8_t **inst_addrs,
     int bytecode_count,
-    const int *bytecode
+    const int *bytecode,
+    const char * const *opcode_names,
+    const uint8_t *opcode_arg_counts,
+    int num_opcodes
 );
 
 /*
