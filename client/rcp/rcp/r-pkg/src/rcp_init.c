@@ -9,7 +9,7 @@ extern SEXP C_rcp_jit_enable(void);
 extern SEXP C_rcp_jit_disable(void);
 extern SEXP C_rcp_cmppkg(SEXP pkg);
 extern SEXP C_rcp_get_profiling(void);
-extern void rcp_init(void);
+extern SEXP rcp_init(void);
 extern void rcp_destr(void);
 
 // Register the function
@@ -20,6 +20,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"rcp_jit_disable", (DL_FUNC) &C_rcp_jit_disable, 0},
     {"rcp_cmppkg", (DL_FUNC) &C_rcp_cmppkg, 0},
     {"rcp_get_profiling", (DL_FUNC) &C_rcp_get_profiling, 0},
+    {"rcp_init", (DL_FUNC) &rcp_init, 0},
     {NULL, NULL, 0}
 };
 
@@ -27,7 +28,6 @@ static const R_CallMethodDef CallEntries[] = {
 void R_init_rcp(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
-    rcp_init();
 }
 
 // Unloading function

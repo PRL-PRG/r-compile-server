@@ -1908,7 +1908,7 @@ SEXP C_rcp_get_profiling(void)
 #endif
 }
 
-void rcp_init(void)
+SEXP rcp_init(void)
 {
     refresh_near_memory_ptr(0);
 
@@ -1927,6 +1927,8 @@ void rcp_init(void)
     DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, UNLIKELY_LOOPS=%d\n", ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS, ALIGNMENT_LABELS_UNLIKELY, ALIGNMENT_LOOPS_UNLIKELY);
 
     DEBUG_PRINT("RCP initialized\n");
+
+    return R_NilValue;
 }
 
 void rcp_destr(void)
