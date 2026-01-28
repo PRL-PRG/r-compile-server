@@ -1271,7 +1271,7 @@ static SEXP compile_to_bc(SEXP f, SEXP options)
 
     // Evaluate the function call in R
     SEXP result = Rf_eval(call, R_GlobalEnv);
-    UNPROTECT(1); // call
+    UNPROTECT_SAFE(call);
 
     return result;
 }
@@ -1351,7 +1351,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
 
     bytecode_info(bytecode, bytecode_size, consts, consts_size);
     rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, stats);
-    UNPROTECT(1); // code
+    UNPROTECT_SAFE(code);
 
     rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
     *res_ptr = res;
@@ -1361,10 +1361,10 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats)
     SET_VECTOR_ELT(prot, 1, mem_shared_sexp);
 
     SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
-    UNPROTECT(1); // prot
+    UNPROTECT_SAFE(prot);
     PROTECT(ptr);
     R_RegisterCFinalizerEx(ptr, &R_RcpFree, TRUE);
-    UNPROTECT(1); // ptr
+    UNPROTECT_SAFE(ptr);
     return ptr;
 }
 
@@ -1444,7 +1444,6 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
     SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats);
     SET_BODY(compiled, ptr);
     clock_gettime(CLOCK_MONOTONIC, &end);
-    UNPROTECT(1); // compiled
 
     double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
     double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 + (mid.tv_nsec - start.tv_nsec) / 1000000.0;
@@ -1487,6 +1486,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
         DEBUG_PRINT("Copy-patched in %.3f ms (%.3f for bytecode compilation + %.3f for copy-patch)\n", elapsed_time, elapsed_time_mid, elapsed_time - elapsed_time_mid);
     }
 
+    UNPROTECT_SAFE(compiled);
     return compiled;
 }
 
