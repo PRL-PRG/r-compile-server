@@ -19,8 +19,20 @@ R_LIB = $(R_HOME)/library/rcp/libs/rcp.so
 # 0 = relative addressing, 1 = relative addressing with GOT where needed, 2 = absolute addressing
 RELOC_MODEL ?= 1
 ALIGN_INSTRUCTIONS ?= 1
-DEFINE_FLAGS ?= -DNDEBUG
-#DEFINE_FLAGS ?= -DASSERTS -DPROFILE_STENCILS
+DEBUG ?= 0
+PROFILE ?= 0
+
+ifeq ($(DEBUG),0)
+DEFINE_FLAGS += -DNDEBUG
+else ifeq ($(DEBUG),1)
+DEFINE_FLAGS += -DASSERTS
+else
+DEFINE_FLAGS += -DASSERTS -DRCP_TRACE
+endif
+
+ifneq ($(PROFILE),0)
+DEFINE_FLAGS += -DPROFILE_STENCILS
+endif
 
 ifeq ($(RELOC_MODEL),2)
   MCMODEL := large
