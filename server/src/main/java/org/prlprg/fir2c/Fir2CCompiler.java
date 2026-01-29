@@ -9,7 +9,6 @@ import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
 import org.prlprg.fir.analyze.cfg.DefUses;
-import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -620,7 +619,6 @@ public final class Fir2CCompiler {
         private final ConstantPool pool;
 
         // State
-        private final Liveness live;
         private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
 
         CfgEmitter(
@@ -634,8 +632,6 @@ public final class Fir2CCompiler {
           this.initCFunction = initCFunction;
           this.cFunction = cFunction;
           this.pool = pool;
-
-          live = new Liveness(cfg);
         }
 
         VecSXP run() {
@@ -713,14 +709,15 @@ public final class Fir2CCompiler {
               cCode.label("%s:;", labelCName(bb));
             }
 
+            emitProtectPhis();
+
             for (var statement : bb.statements()) {
               emitStatement(statement);
-              emitDeadCleanup(statement);
             }
 
             // Jump won't trigger GC,
             // and we can't emit a cleanup after because it changes control flow.
-            emitDeadCleanup(bb.jump());
+            emitUnprotect();
             emitJump(bb.jump());
           }
 
@@ -1028,7 +1025,11 @@ public final class Fir2CCompiler {
             debugInstr(cCode, jump);
 
             switch (jump) {
-              case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
+              case Return(var _, var value) -> {
+                // TODO: Remove this
+                cCode.stmt("R_PreserveObject(%s);", emitArgument(value));
+                cCode.stmt("return %s;", emitArgument(value));
+              }
               case Goto(var _, var target) -> emitJumpTo(1, target);
               case Unreachable(var _) -> {
                 cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
@@ -1117,12 +1118,14 @@ public final class Fir2CCompiler {
             cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));
           }
 
-          private void emitDeadCleanup(Instruction instr) {
-            var deadAfter = live.deadAfter(instr);
-            var comment = options.contains(Option.EMIT_DEBUG_COMMENTS)
-                ? " /* kill: %s */".formatted(Strings.join(", ", deadAfter))
-                : "";
-            cCode.stmt("UNPROTECT(%d);%s", deadAfter.size(), comment);
+          private void emitProtectPhis() {
+            for (var phi : bb.phiParameters()) {
+              cCode.stmt("PROTECT(%s);", registerPlace(phi));
+            }
+          }
+
+          private void emitUnprotect() {
+            cCode.stmt("UNPROTECT(%s);", bb.phiParameters().size() + bb.statements().stream().filter(s -> s.assignee() != null).count());
           }
 
           private String emitSignature(Signature signature) {
