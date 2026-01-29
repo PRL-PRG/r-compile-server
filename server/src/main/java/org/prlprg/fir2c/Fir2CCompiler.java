@@ -71,7 +71,6 @@ import org.prlprg.gen2c.*;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Lists;
-import org.prlprg.util.Strings;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Fir2CCompiler {
@@ -1025,11 +1024,7 @@ public final class Fir2CCompiler {
             debugInstr(cCode, jump);
 
             switch (jump) {
-              case Return(var _, var value) -> {
-                // TODO: Remove this
-                cCode.stmt("R_PreserveObject(%s);", emitArgument(value));
-                cCode.stmt("return %s;", emitArgument(value));
-              }
+              case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
               case Goto(var _, var target) -> emitJumpTo(1, target);
               case Unreachable(var _) -> {
                 cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
@@ -1125,7 +1120,10 @@ public final class Fir2CCompiler {
           }
 
           private void emitUnprotect() {
-            cCode.stmt("UNPROTECT(%s);", bb.phiParameters().size() + bb.statements().stream().filter(s -> s.assignee() != null).count());
+            cCode.stmt(
+                "UNPROTECT(%s);",
+                bb.phiParameters().size()
+                    + bb.statements().stream().filter(s -> s.assignee() != null).count());
           }
 
           private String emitSignature(Signature signature) {
