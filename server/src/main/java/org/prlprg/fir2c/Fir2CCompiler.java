@@ -331,14 +331,8 @@ public final class Fir2CCompiler {
         var typeEmit = emitType(cCode, version.returnType());
         var effectsEmit = emitEffects(version.effects());
         cCode.stmt(
-            2,
             "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type) || (!%s && %s.effects);",
-            i,
-            i,
-            typeEmit,
-            VAR_SIGNATURE,
-            effectsEmit,
-            VAR_SIGNATURE);
+            i, i, typeEmit, VAR_SIGNATURE, effectsEmit, VAR_SIGNATURE);
       }
 
       // TODO: Don't check parts of the static type that are known at runtime,
@@ -382,11 +376,11 @@ public final class Fir2CCompiler {
         // we must save and restore the `va_list` after.
         var argsSplice = new StringBuilder();
         var argsSpliceFmt = new Formatter(argsSplice);
-        for (i = 0; i < version.parameters().size(); i++) {
+        for (int j = 0; j < version.parameters().size(); j++) {
           // Passing `va_arg` expressions inline causes the arguments to be passed backwards.
           // Instead, we must assign them to variables and pass those.
-          cCode.stmt(2, "SEXP args_%d = va_arg(args, SEXP);", i);
-          argsSpliceFmt.format(", args_%d", i);
+          cCode.stmt(2, "SEXP args_%d = va_arg(args, SEXP);", j);
+          argsSpliceFmt.format(", args_%d", j);
         }
 
         cCode.stmt(2, "out = %s(%s%s);", callCName, VAR_ENV, argsSplice);
@@ -1076,6 +1070,13 @@ public final class Fir2CCompiler {
               case AssumeConstant(var target, var constant) ->
                   "Fir_assume_constant(%s, %s)"
                       .formatted(emitArgument(target), constantRef(pool, constant.sexp()));
+              case AssumeFunction a when a.function().owner() == BUILTINS -> {
+                var builtinIndex =
+                    Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
+                        .index();
+                yield "Fir_assume_builtin_function(%s, %d)"
+                    .formatted(emitArgument(a.target()), builtinIndex);
+              }
               case AssumeFunction a ->
                   "Fir_assume_function(%s, &%s)"
                       .formatted(emitArgument(a.target()), functionDispatchCName(a.function()));

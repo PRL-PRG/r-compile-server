@@ -733,6 +733,14 @@ bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
   return data->dispatch == dispatch;
 }
 
+bool Fir_assume_builtin_function(SEXP value, int bltIdx) {
+  if (value != BUILTINSXP && value != SPECIALSXP) {
+    return false;
+  }
+
+  return PRIMOFFSET(value) == bltIdx;
+}
+
 bool Fir_assume_type(SEXP value, Fir_Type type) {
   return Fir_value_matches(value, type);
 }

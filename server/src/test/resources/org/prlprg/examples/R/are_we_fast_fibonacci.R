@@ -9,5 +9,5 @@ fibonacci <- function(n) {
 
 # warmup
 for (i in 1:12) {
-  fibonacci(4)
+  fibonacci(3)
 }

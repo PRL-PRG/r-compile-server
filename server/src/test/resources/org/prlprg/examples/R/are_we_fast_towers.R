@@ -10,7 +10,7 @@ towers <- function(n, from_peg, to_peg, using_peg) {
   return(moves)
 }
 
-#? benchmark: towers(20, 1, 2, 3)
+#? benchmark: towers(19, 1, 2, 3)
 
 # warmup
 for (i in 1:12) {
