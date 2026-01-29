@@ -1,6 +1,6 @@
 package org.prlprg.fir.ir.cfg.cursor;
 
-import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
+import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
 
 import com.google.common.collect.ImmutableList;
 import org.jspecify.annotations.Nullable;
@@ -38,7 +38,7 @@ public final class CFGInliner {
     // Inlining a CFG is the same as copying it into another, except the source entry block's
     // instructions are inserted at the inline position, not destination entry, and `Return`s
     // are replaced with `Goto`s to the split successor.
-    copyFrom(
+    copyTo(
         bb,
         inlinee,
         (comments, value) ->

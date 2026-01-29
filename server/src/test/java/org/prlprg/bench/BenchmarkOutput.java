@@ -1,4 +1,4 @@
-package org.prlprg.gen2c;
+package org.prlprg.bench;
 
 import java.io.File;
 import org.jspecify.annotations.Nullable;

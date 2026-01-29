@@ -23,12 +23,12 @@ import org.prlprg.util.Lists;
 
 public class CFGCopier {
   /// Assuming `dst` is empty, makes it a copy of `inner` (except [CFG#scope()]).
-  public static void copyFrom(CFG dst, CFG inner) {
-    copyFrom(dst.entry(), inner, Return::new);
+  public static void copyTo(CFG dst, CFG inner) {
+    copyTo(dst.entry(), inner, Return::new);
   }
 
   /// Appends instructions from `inner`'s entry block into `dstBb`, and copies all other blocks.
-  static void copyFrom(BB dstBb, CFG inner, BiFunction<Comments, Argument, Jump> replaceReturn) {
+  static void copyTo(BB dstBb, CFG inner, BiFunction<Comments, Argument, Jump> replaceReturn) {
     var dst = dstBb.owner();
 
     var substitutedBbLabels = new HashMap<BB, String>();
@@ -72,7 +72,7 @@ public class CFGCopier {
     }
 
     var newCode = new CFG(newScope);
-    copyFrom(newCode, code);
+    copyTo(newCode, code);
     return new Statement(
         stmt.comments().copy(), stmt.assignee(), new Promise(innerType, effects, newCode));
   }

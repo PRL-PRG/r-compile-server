@@ -21,14 +21,5 @@ public interface Gen2CCompilerTest {
     store.verify(example, new EvalQuery(moduleQuery()));
   }
 
-  @RExampleTest(benchmark = true)
-  @Order(3)
-  default void benchmark(Example example, SnapshotStore store) {
-    var output = store.verify(example, new BenchmarkQuery(moduleQuery().optimized()));
-
-    System.err.println("Benchmark:");
-    System.err.println(output);
-  }
-
   CompiledModuleQuery moduleQuery();
 }

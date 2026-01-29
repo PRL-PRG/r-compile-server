@@ -1,7 +1,7 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.analyze.resolve.NamedVariablesOf.namedVariablesOf;
-import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
+import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
 import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
 
 import com.google.common.collect.Sets;
@@ -265,7 +265,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         }
         body.addLocal(local);
       }
-      copyFrom(body.cfg(), callee.cfg());
+      copyTo(body.cfg(), callee.cfg());
       var localSubstituter = new InlineSubstituter(body);
       for (var local : callee.locals()) {
         if (!(local.variable() instanceof Register oldVariable)) {

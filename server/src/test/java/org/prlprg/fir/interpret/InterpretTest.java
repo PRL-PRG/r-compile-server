@@ -30,12 +30,8 @@ class InterpretTest {
     var interpretOutput = store.load(example, InterpretQuery.MAIN);
     var evalOutput = store.load(example, EvalQuery.FIR_ORACLE);
 
-    // TODO: When abstracting `Either<SEXP, String>`, also abstract these `assertEqual`s which
-    //  have the same message.
     assertEquals(
-        interpretOutput.returnValue(),
-        evalOutput.returnValue(),
-        "Return value or crash reason changed");
+        interpretOutput.result(), evalOutput.result(), "Return value or crash reason changed");
   }
 
   /// Call the interpreter many times, check that output is the same.

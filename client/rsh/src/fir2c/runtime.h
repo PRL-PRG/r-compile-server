@@ -63,7 +63,7 @@ typedef struct Fir_Signature {
 
 typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
 typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
-typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP const **captures);
+typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP **captures);
 
 typedef struct Fir_FunctionData {
   Fir_DispatchFn dispatch;
@@ -76,7 +76,7 @@ typedef struct Fir_PromiseGlobalData {
 } Fir_PromiseGlobalData;
 
 typedef struct Fir_PromiseLocalData {
-  SEXP const **captures;
+  SEXP **captures;
 } Fir_PromiseLocalData;
 
 extern Fir_Kind Fir_kind_any;
@@ -95,7 +95,7 @@ bool Fir_value_matches(SEXP value, Fir_Type type);
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, bool effects);
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env);
+SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP **captures, SEXP env);
 
 SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
@@ -160,10 +160,25 @@ DEFINE_INTRINSIC(setVisible, 0);
 
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b);  // +
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b);  // +
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 3, SEXP a, SEXP b);  // +
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 4, SEXP a, SEXP b);  // +
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 1, SEXP a, SEXP b);  // -
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 2, SEXP a, SEXP b);  // -
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 3, SEXP a, SEXP b);  // -
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 4, SEXP a, SEXP b);  // -
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 1, SEXP a, SEXP b);  // *
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 2, SEXP a, SEXP b);  // *
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 3, SEXP a, SEXP b);  // *
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 4, SEXP a, SEXP b);  // *
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 1, SEXP a, SEXP b);  // /
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 2, SEXP a, SEXP b);  // /
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 3, SEXP a, SEXP b);  // /
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 4, SEXP a, SEXP b);  // /
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 1, SEXP a, SEXP b);  // :
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 2, SEXP a, SEXP b);  // :
 DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b);  // <
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b);  // <=
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 2, SEXP a, SEXP b);  // <=
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b);  // ==

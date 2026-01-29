@@ -18,9 +18,9 @@ swap <- function(list, i, j) {
   list
 }
 
-#? benchmark: permute(10, 1:20)
+#? benchmark: permute(8, 1:20)
 
 # warmup
-for (i in 1:15) {
-  permute(4, 1:5)
+for (i in 1:12) {
+  permute(3, 1:3)
 }

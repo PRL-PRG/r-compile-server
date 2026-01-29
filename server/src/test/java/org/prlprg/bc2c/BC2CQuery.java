@@ -21,7 +21,7 @@ public record BC2CQuery(@Override boolean isOptimized) implements CompiledModule
 
   @Override
   public String name() {
-    return isOptimized ? "bc2c.optimized" : "bc2c";
+    return isOptimized ? "bc2c.opt" : "bc2c";
   }
 
   @Override

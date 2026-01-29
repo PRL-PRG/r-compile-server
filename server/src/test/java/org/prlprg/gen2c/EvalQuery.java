@@ -1,23 +1,21 @@
 package org.prlprg.gen2c;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Function;
 import org.prlprg.examples.Example;
+import org.prlprg.examples.SexpResult;
+import org.prlprg.examples.SexpResult.Error;
+import org.prlprg.examples.SexpResult.Ok;
 import org.prlprg.fir2c.Fir2CQuery;
-import org.prlprg.rds.RDSReader;
-import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
-import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.Either;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
@@ -51,10 +49,9 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       var pc = PerformanceCounters.from(v.get(1));
 
       var outputLog = rawOutput.second();
-      return new EvalOutput(Either.left(res), outputLog, pc);
+      return new EvalOutput(new Ok(res), outputLog, pc);
     } catch (EvalException e) {
-      return new EvalOutput(
-          Either.right(e.mainMessage()), e.outputLog(), PerformanceCounters.EMPTY);
+      return new EvalOutput(new Error(e), e.outputLog(), PerformanceCounters.EMPTY);
     }
   }
 
@@ -68,26 +65,13 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   @Override
   public void verifyNoRegression(
       EvalOutput previous, EvalOutput current, Example example, SnapshotStore store) {
-    assertEquals(
-        previous.returnValue(), current.returnValue(), "Return value or crash reason changed");
+    assertEquals(previous.result(), current.result(), "Return value or crash reason changed");
     assertEquals(previous.outputLog(), current.outputLog(), "Output changed");
   }
 
   @Override
   public void verifyExtra(EvalOutput data, Example example, SnapshotStore store) {
-    // TODO: Abstract `Either<SEXP, String>` this code, and serialization/deserialization
-    if (example.hasOption(name(), "crashes") && data.success()) {
-      fail("Expected **crash**, got success.\n" + data);
-    } else if (!data.success()) {
-      fail("Expected success.\n" + data);
-    }
-
-    if (example.hasOption(name(), "returns")) {
-      var expected = example.sexpOption(name(), "returns");
-      if (data.success()) {
-        assertEquals(expected, data.returnValue().getLeft(), "Wrong return value");
-      }
-    }
+    data.result().check(example);
 
     if (moduleQuery.runtime() == RuntimeVariant.DIRECT_BC2C) {
       if (example.hasOption(name(), "fastArith")) {
@@ -157,37 +141,21 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       throws IOException {
     var R = GNUR.instance();
 
-    var returnValuePath = path.resolve("returnValue.rds");
-    var crashPath = path.resolve("crash.txt");
     var outputLogPath = path.resolve("output.log");
 
-    if (Files.exists(returnValuePath) && Files.exists(crashPath)) {
-      fail("Snapshot has both return value and crash");
-    }
-    Either<SEXP, String> returnValue =
-        Files.exists(returnValuePath)
-            ? Either.left(RDSReader.readFile(R.getSession(), returnValuePath.toFile()))
-            : Either.right(Files.readString(crashPath).trim());
+    var result = SexpResult.read(path, R);
     var outputLog = Files.readString(outputLogPath);
 
-    return new EvalOutput(returnValue, outputLog, PerformanceCounters.EMPTY);
+    return new EvalOutput(result, outputLog, PerformanceCounters.EMPTY);
   }
 
   @Override
   public void serialize(EvalOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    var returnValuePath = path.resolve("returnValue.rds");
-    var crashPath = path.resolve("crash.txt");
     var outputLogPath = path.resolve("output.log");
 
     Files.createDirectories(path);
-    if (data.returnValue().isLeft()) {
-      Files.deleteIfExists(crashPath);
-      RDSWriter.writeFile(returnValuePath.toFile(), data.returnValue().getLeft());
-    } else {
-      Files.deleteIfExists(returnValuePath);
-      Files.writeString(crashPath, data.returnValue().getRight());
-    }
+    data.result().write(path);
     Files.writeString(outputLogPath, data.outputLog());
   }
 }

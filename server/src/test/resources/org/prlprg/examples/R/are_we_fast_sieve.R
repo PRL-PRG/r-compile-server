@@ -15,9 +15,9 @@ sieve <- function(n) {
   return(sum(primes))
 }
 
-#? benchmark: sieve(25000000)
+#? benchmark: sieve(250000)
 
 # warmup
-for (i in 1:15) {
-  sieve(100)
+for (i in 1:12) {
+  sieve(10)
 }

@@ -18,8 +18,8 @@ public class Optimizations {
   public static Optimization defaultOptimizations(int threshold) {
     return new Sequence(
         "default",
-        new SpeculateAssume(threshold),
         new SpeculateDispatch(threshold, 3, 9),
+        new SpeculateAssume(threshold),
         new FixpointSequence(
             "defaultFixpoint",
             new Specialize(

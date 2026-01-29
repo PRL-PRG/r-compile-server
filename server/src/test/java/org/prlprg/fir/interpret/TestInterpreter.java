@@ -1,12 +1,14 @@
 package org.prlprg.fir.interpret;
 
-import static org.prlprg.fir.interpret.RegisterStubs.registerStubs;
+import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import org.prlprg.examples.SexpResult;
+import org.prlprg.examples.SexpResult.Error;
+import org.prlprg.examples.SexpResult.Ok;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.util.Either;
 import org.prlprg.util.Strings;
 
 /// Wraps [InternalInterpreter] for tests.
@@ -15,25 +17,25 @@ final class TestInterpreter {
 
   public TestInterpreter(Module module) {
     interpreter = new InternalInterpreter(module);
-    registerStubs(interpreter);
+    registerBuiltins(interpreter);
   }
 
   public InterpretOutput call(String functionName, SEXP... arguments) {
-    @SuppressWarnings({"unchecked", "DataFlowIssue"})
-    Either<SEXP, String>[] returnValue = new Either[] {null};
+    @SuppressWarnings({"DataFlowIssue"})
+    SexpResult[] result = new SexpResult[] {null};
     var checkpointTrace =
         interpreter
             .checkpointTrace()
             .track(
                 () -> {
                   try {
-                    returnValue[0] = Either.left(interpreter.call(functionName, arguments));
+                    result[0] = new Ok(interpreter.call(functionName, arguments));
                   } catch (InterpretException e) {
-                    returnValue[0] = Either.right(e.mainMessage());
+                    result[0] = new Error(e);
                   }
                 });
     var checkpointTraceStr = Strings.join("\n", checkpointTrace);
-    return new InterpretOutput(returnValue[0], checkpointTraceStr, interpreter.feedback());
+    return new InterpretOutput(result[0], checkpointTraceStr, interpreter.feedback());
   }
 
   public ModuleFeedback feedback() {

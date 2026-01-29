@@ -299,7 +299,7 @@ public final class Fir2CCompiler {
 
         debugComment(cCode, "## Dispatch %s", function.name());
 
-        for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
+        for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
           version = versionIter.next();
 
           debugComment(cCode, "# %d. %s", i, version.signature());
@@ -315,7 +315,7 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by argument count");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
+      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
         version = versionIter.next();
 
         cCode.stmt(
@@ -325,7 +325,7 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by static effects and return type");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
+      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
         version = versionIter.next();
 
         var typeEmit = emitType(cCode, version.returnType());
@@ -345,7 +345,7 @@ public final class Fir2CCompiler {
       //  then filter by runtime type. Currently we ignore the runtime type.
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by arguments' static types");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
+      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
         version = versionIter.next();
 
         for (var j = 0; j < version.parameters().size(); j++) {
@@ -369,7 +369,7 @@ public final class Fir2CCompiler {
       cCode = cFunction.add();
       debugComment(cCode, "# Call first compatible version");
       cCode.stmt("SEXP out;");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
+      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
         version = versionIter.next();
 
         var ifHead = i == 0 ? "if" : "} else if";
@@ -593,7 +593,7 @@ public final class Fir2CCompiler {
         private void emitFromR() {
           var cCode = fromRCFunction.add();
           cCode.stmt(
-              "SEXP const** captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
+              "SEXP ** captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
               VAR_DATA);
           var evalCName = promiseEvalCName(promise);
           cCode.stmt("return %s(%s, captures);", evalCName, VAR_ENV);
@@ -835,7 +835,7 @@ public final class Fir2CCompiler {
                 var captureArray =
                     emitArray(
                         "captures",
-                        "SEXP",
+                        "SEXP *",
                         captureSet.stream().map(reg -> "&" + registerPlace(reg)).toList());
                 var captures = captureArray.pointer();
 
@@ -918,15 +918,8 @@ public final class Fir2CCompiler {
 
           private String emitCall(Call call) {
             return switch (call.callee()) {
-              case DispatchCallee(var calleeFun, var signature)
-                  when calleeFun.owner() == BUILTINS -> {
-                if (signature != null) {
-                  throw new IllegalStateException(
-                      "Dispatch of builtin can't have an explicit signature");
-                }
-
-                yield emitBuiltinCall(call, calleeFun);
-              }
+              case DispatchCallee(var calleeFun, var _) when calleeFun.owner() == BUILTINS ->
+                  emitBuiltinCall(call, calleeFun);
               case StaticCallee(var calleeFunction, var calleeVersion)
                   when calleeFunction.owner() == BUILTINS
                       && calleeFunction.indexOf(calleeVersion) == 0 ->
@@ -1371,7 +1364,7 @@ public final class Fir2CCompiler {
   private static final String VERSION_CALL_C_RETURN = "SEXP";
 
   private static final List<String> PROMISE_EVAL_C_PARAMS =
-      List.of("SEXP %s".formatted(VAR_ENV), "SEXP const **%s".formatted(VAR_CAPTURES));
+      List.of("SEXP %s".formatted(VAR_ENV), "SEXP **%s".formatted(VAR_CAPTURES));
 
   private static final String PROMISE_EVAL_C_RETURN = "SEXP";
 

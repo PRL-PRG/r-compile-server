@@ -31,9 +31,9 @@ is_safe <- function(board, row, col, n) {
   return(TRUE)
 }
 
-#? benchmark: queens(12)
+#? benchmark: queens(10)
 
 # warmup
-for (i in 1:15) {
+for (i in 1:12) {
   queens(4)
 }
