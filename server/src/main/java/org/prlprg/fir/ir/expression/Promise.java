@@ -4,6 +4,7 @@ import java.util.Collection;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.parseprint.PrintMethod;
@@ -37,7 +38,7 @@ public record Promise(Type valueType, Effects effects, CFG code) implements Expr
   public Collection<Argument> argumentsInCode() {
     return code.bbs().stream()
         .flatMap(bb -> bb.instructions().stream())
-        .flatMap(i -> i.arguments().stream())
+        .flatMap(i -> (i instanceof Statement s && s.expression() instanceof Promise p ? p.argumentsInCode() : i.arguments()).stream())
         .toList();
   }
 }
