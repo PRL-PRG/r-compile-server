@@ -164,6 +164,11 @@ public class AbstractionFeedback {
   }
 
   @PrintMethod
+  private void print(Printer p) {
+    p.withContext(new PrintContext(new SEXPPrintContext())).print(this);
+  }
+
+  @PrintMethod
   private void print(Printer p, PrintContext ctx) {
     var w = p.writer();
 
@@ -172,11 +177,18 @@ public class AbstractionFeedback {
       return;
     }
 
-    w.write('[');
+    w.write("[ ");
     w.runIndented(
         () -> {
+          var wroteAny = false;
+
           for (var register : allRecorded.keySet()) {
-            w.write('\n');
+            if (wroteAny) {
+              w.write('\n');
+            } else {
+              wroteAny = true;
+            }
+
             w.write("reg ");
             p.print(register);
             print(register, p, ctx);

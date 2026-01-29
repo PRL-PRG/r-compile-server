@@ -1,6 +1,7 @@
 package org.prlprg.fir2c;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.prlprg.fir.opt.Optimizations.defaultOptimizations;
 import static org.prlprg.fir2c.Fir2CCompiler.compile;
 
 import org.jspecify.annotations.Nullable;
@@ -19,6 +20,8 @@ public record Fir2CQuery(
     @Override String name, @Nullable Optimization optimization, @Override boolean isOptimized)
     implements CompiledModuleQuery {
   public static final Fir2CQuery DIRECT = new Fir2CQuery("fir2c", null);
+  public static final Fir2CQuery FULLY_OPTIMIZED =
+      new Fir2CQuery("opt.default.fir2c.opt", defaultOptimizations(), true);
 
   public Fir2CQuery(String name, @Nullable Optimization optimization) {
     this(name, optimization, false);
@@ -31,7 +34,7 @@ public record Fir2CQuery(
 
   @Override
   public Fir2CQuery optimized() {
-    return isOptimized ? this : new Fir2CQuery(name + ".optimized", optimization, true);
+    return isOptimized ? this : new Fir2CQuery(name + ".opt", optimization, true);
   }
 
   @Override

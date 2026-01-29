@@ -5,9 +5,9 @@ fibonacci <- function(n) {
   return(fibonacci(n - 1) + fibonacci(n - 2))
 }
 
-#? benchmark: fibonacci(34)
+#? benchmark: fibonacci(30)
 
 # warmup
-for (i in 1:15) {
-  fibonacci(7)
+for (i in 1:12) {
+  fibonacci(4)
 }

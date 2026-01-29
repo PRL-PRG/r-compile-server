@@ -163,6 +163,18 @@ public class SnapshotStore {
     return computeAndSave(example, query);
   }
 
+  /// [#loadPath(Example, Query)], but returns `null` on failure.
+  @SuppressWarnings("CallToPrintStackTrace")
+  public <T> @Nullable Path tryLoadPath(Example example, Query<T> query) {
+    try {
+      return loadPath(example, query);
+    } catch (Throwable e) {
+      System.err.println("Skipped: " + example.rpath());
+      e.printStackTrace();
+      return null;
+    }
+  }
+
   /// Return the path of the snapshot of `query` for `example`.
   ///
   /// @throws TestAbortedException if the example doesn't have a snapshot.

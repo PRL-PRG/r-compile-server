@@ -1,9 +1,11 @@
-package org.prlprg.gen2c;
+package org.prlprg.bench;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import org.prlprg.bc.BCQuery;
+import org.prlprg.bc2c.BC2CQuery;
 import org.prlprg.examples.Example;
+import org.prlprg.fir2c.Fir2CQuery;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.StrSXP;
@@ -15,28 +17,21 @@ import org.prlprg.util.Strings;
 
 /// Check that the article produced by `moduleQuery`'s output hasn't changed, and satisfies
 /// extra checks specified by the example's options.
-public record BenchmarkQuery(CompiledModuleQuery moduleQuery) implements Query<BenchmarkOutput> {
+public class BenchmarkQuery implements Query<BenchmarkOutput> {
+  public static final BenchmarkQuery INSTANCE = new BenchmarkQuery();
+
   private static final String BENCHMARK_DRIVER =
       Files.readString(Paths.getResource(BenchmarkQuery.class, "bench.R"));
-
-  public BenchmarkQuery {
-    if (!moduleQuery.isOptimized()) {
-      throw new IllegalArgumentException("Only benchmark optimized C code");
-    }
-  }
-
-  @Override
-  public String name() {
-    return moduleQuery.name() + ".eval";
-  }
 
   @Override
   public BenchmarkOutput compute(Example example, SnapshotStore store) {
     var R = GNUR.instance();
     var astPath = example.absolutePath();
-    var bcPath = store.loadPath(example, BCQuery.REGULAR);
-    var optBcPath = store.loadPath(example, BCQuery.OPT);
-    var firPath = store.loadPath(example, moduleQuery());
+    var bcPath = store.tryLoadPath(example, BCQuery.REGULAR);
+    var optBcPath = store.tryLoadPath(example, BCQuery.OPT);
+    var bc2cPath = store.tryLoadPath(example, BC2CQuery.OPTIMIZED);
+    var firPath = store.tryLoadPath(example, Fir2CQuery.DIRECT.optimized());
+    var optFirPath = store.tryLoadPath(example, Fir2CQuery.FULLY_OPTIMIZED);
 
     var benchmarkLine =
         example
@@ -50,14 +45,27 @@ public record BenchmarkQuery(CompiledModuleQuery moduleQuery) implements Query<B
     try {
       var rawOutput =
           R.capturingEval(
-              "astPath <- '%s'\nbcPath <- '%s'\noptBcPath <- '%s'\nfirPath <- '%s'\ncall <- parse(text = '%s')[[1]]\n%s"
-                  .formatted(
-                      astPath,
-                      bcPath.toAbsolutePath(),
-                      optBcPath.toAbsolutePath(),
-                      firPath.toAbsolutePath(),
-                      benchmarkCall,
-                      BENCHMARK_DRIVER));
+              "%s\n".formatted(BENCHMARK_DRIVER)
+                  + "\n"
+                  + "run(\n"
+                  + "  call = %s,\n".formatted(benchmarkCall)
+                  + "  ast = ast('%s')".formatted(astPath)
+                  + (bcPath == null
+                      ? ""
+                      : ",\n  bc.default = bc('%s')".formatted(bcPath.toAbsolutePath()))
+                  + (optBcPath == null
+                      ? ""
+                      : ",\n  bc.opt = bc('%s')".formatted(optBcPath.toAbsolutePath()))
+                  + (bc2cPath == null
+                      ? ""
+                      : ",\n  bc2c = cc('%s')".formatted(bc2cPath.toAbsolutePath()))
+                  + (firPath == null
+                      ? ""
+                      : ",\n  fir2c.direct = cc('%s')".formatted(firPath.toAbsolutePath()))
+                  + (optFirPath == null
+                      ? ""
+                      : ",\n  fir2c.opt = cc('%s')".formatted(optFirPath.toAbsolutePath()))
+                  + "\n)\n");
 
       if (!(rawOutput.first() instanceof StrSXP csvSxp)) {
         throw new IllegalArgumentException(
@@ -99,4 +107,6 @@ public record BenchmarkQuery(CompiledModuleQuery moduleQuery) implements Query<B
       throws IOException {
     data.writeCsv(path.toFile());
   }
+
+  private BenchmarkQuery() {}
 }

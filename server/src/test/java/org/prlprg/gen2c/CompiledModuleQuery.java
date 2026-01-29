@@ -22,8 +22,10 @@ import org.prlprg.util.cc.CCompilationException;
 public interface CompiledModuleQuery extends Query<CompiledModule> {
   RuntimeVariant runtime();
 
+  /// Whether the generated C code is optimized
   boolean isOptimized();
 
+  /// Optimize the generated C code
   CompiledModuleQuery optimized();
 
   /// Produces a module whose code may be structurally different but has the same eval and

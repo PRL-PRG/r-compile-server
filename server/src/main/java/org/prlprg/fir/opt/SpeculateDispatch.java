@@ -1,11 +1,10 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
-import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
+import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
-import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
@@ -29,11 +28,11 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
   public void run(ModuleFeedback feedback, Function function) {
     // Copy `version` because we may modify it.
     for (var version : List.copyOf(function.versions())) {
-      run(function, feedback.get(version), version);
+      run(feedback, function, version);
     }
   }
 
-  private void run(Function function, AbstractionFeedback feedback, Abstraction version) {
+  private void run(ModuleFeedback moduleFeedback, Function function, Abstraction version) {
     // Don't specialize stubs
     if (version.cfg() == null) {
       return;
@@ -46,11 +45,12 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
     }
 
     // See if parameter feedback suggests more specific types.
+    var versionFeedback = moduleFeedback.get(version);
     var candidates =
         version.parameters().stream()
             .map(
                 param ->
-                    feedback
+                    versionFeedback
                         .type(param.variable())
                         .streamHits(threshold, param.type())
                         .limit(parameterLimit))
@@ -116,7 +116,8 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
           copy.setReturnType(version.returnType());
           copy.setEffects(version.effects());
           copy.addLocals(version.locals());
-          copyFrom(copy.cfg(), version.cfg());
+          copyTo(copy.cfg(), version.cfg());
+          moduleFeedback.copyTo(copy, version);
         });
   }
 }

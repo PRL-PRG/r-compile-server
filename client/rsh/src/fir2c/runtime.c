@@ -197,7 +197,7 @@ SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env) {
   return closure;
 }
 
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env) {
+SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP **captures, SEXP env) {
   ASSERT(TYPEOF(env) == ENVSXP || env == R_NilValue, "Environment or elided expected for promise");
 
   SEXP local_data_sexp = PROTECT(Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData)));
@@ -208,7 +208,7 @@ SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP const **captures, SEXP env
 
   SEXP ext = PROTECT(R_MakeExternalPtr((void *)evalFromR, Rsh_CodeTag, data));
   SEXP promise = PROTECT(Rf_mkPROMISE(ext, env));
-  UNPROTECT(3); // local_data_sexp + data + ext + promise
+  UNPROTECT(4); // local_data_sexp + data + ext + promise
 
   return promise;
 }
@@ -286,6 +286,7 @@ void Fir_push_env(SEXP *env_ptr) {
 
   SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
   *env_ptr = new_env;
+  PROTECT(*env_ptr);
 }
 
 void Fir_pop_env(SEXP *env_ptr) {
@@ -296,6 +297,7 @@ void Fir_pop_env(SEXP *env_ptr) {
     return;
   }
 
+  UNPROTECT(1);
   SEXP parent = ENCLOS(*env_ptr);
   ASSERT(parent && parent != R_NilValue, "pop_env called on environment without parent");
   *env_ptr = parent;
@@ -920,7 +922,77 @@ DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b) {
 
 // +
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) + Rf_asReal(b));
+}
+
+// +
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) + Rf_asInteger(b));
+}
+
+// +
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 4, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) + Rf_asReal(b));
+}
+
+// -
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 1, SEXP a, SEXP b) {
+  return Rf_ScalarInteger(Rf_asInteger(a) - Rf_asInteger(b));
+}
+
+// -
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 2, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) - Rf_asReal(b));
+}
+
+// -
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) - Rf_asInteger(b));
+}
+
+// -
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 4, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) - Rf_asReal(b));
+}
+
+// *
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 1, SEXP a, SEXP b) {
+  return Rf_ScalarInteger(Rf_asInteger(a) * Rf_asInteger(b));
+}
+
+// *
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 2, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) * Rf_asReal(b));
+}
+
+// *
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) * Rf_asInteger(b));
+}
+
+// *
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 4, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) * Rf_asReal(b));
+}
+
+// /
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 1, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) / Rf_asInteger(b));
+}
+
+// /
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 2, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) / Rf_asReal(b));
+}
+
+// /
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) / Rf_asInteger(b));
+}
+
+// /
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 4, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) / Rf_asReal(b));
 }
 
 // :
@@ -941,6 +1013,11 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b) {
 // <=
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) <= Rf_asInteger(b));
+}
+
+// <=
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 2, SEXP a, SEXP b) {
+  return Rf_ScalarLogical(Rf_asReal(a) <= Rf_asReal(b));
 }
 
 // ==

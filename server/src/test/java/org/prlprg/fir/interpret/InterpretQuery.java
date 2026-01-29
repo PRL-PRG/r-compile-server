@@ -1,25 +1,20 @@
 package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
+import org.prlprg.examples.SexpResult;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.rds.RDSReader;
-import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.Query;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.Either;
 import org.prlprg.util.Files;
 
 public record InterpretQuery(@Override String name, String functionName, SEXP... arguments)
@@ -43,27 +38,13 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   @Override
   public void verifyNoRegression(
       InterpretOutput previous, InterpretOutput current, Example example, SnapshotStore store) {
-    assertEquals(
-        previous.returnValue(), current.returnValue(), "Return value or crash reason changed");
+    assertEquals(previous.result(), current.result(), "Return value or crash reason changed");
     assertEquals(previous.checkpointTrace(), current.checkpointTrace(), "Checkpoint trace changed");
   }
 
   @Override
   public void verifyExtra(InterpretOutput data, Example example, SnapshotStore store) {
-    // TODO: Abstract `Either<SEXP, String>` this code, and serialization/deserialization
-    if (example.hasOption(name(), "crashes")) {
-      assertFalse(data.success(), "Expected crash");
-    } else {
-      assertTrue(
-          data.success(), () -> "Expected success, got crash:\n" + data.returnValue().getRight());
-    }
-
-    if (example.hasOption(name(), "returns")) {
-      var expected = example.sexpOption(name(), "returns");
-      if (data.success()) {
-        assertEquals(expected, data.returnValue().getLeft(), "Wrong return value");
-      }
-    }
+    data.result().check(example);
   }
 
   @Override
@@ -72,18 +53,10 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
     var R = GNUR.instance();
     var module = store.load(example, FirQuery.INSTANCE);
 
-    var returnValuePath = path.resolve("returnValue.rds");
-    var crashPath = path.resolve("crash.txt");
     var checkpointTracePath = path.resolve("trace.log");
     var feedbackPath = path.resolve("feedback.txt");
 
-    if (Files.exists(returnValuePath) && Files.exists(crashPath)) {
-      fail("Snapshot has both return value and crash");
-    }
-    Either<SEXP, String> returnValue =
-        Files.exists(returnValuePath)
-            ? Either.left(RDSReader.readFile(R.getSession(), returnValuePath.toFile()))
-            : Either.right(Files.readString(crashPath).trim());
+    var result = SexpResult.read(path, R);
     var checkpointTrace = Files.readString(checkpointTracePath);
 
     // Relies on `module` being cached in-memory, because `feedback` has direct pointers.
@@ -93,25 +66,17 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
             MockModuleFeedback.class,
             new MockModuleFeedback.ParseContext(module));
 
-    return new InterpretOutput(returnValue, checkpointTrace, feedback);
+    return new InterpretOutput(result, checkpointTrace, feedback);
   }
 
   @Override
   public void serialize(InterpretOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
-    var returnValuePath = path.resolve("returnValue.rds");
-    var crashPath = path.resolve("crash.txt");
     var checkpointTracePath = path.resolve("trace.log");
     var feedbackPath = path.resolve("feedback.txt");
 
     Files.createDirectories(path);
-    if (data.returnValue().isLeft()) {
-      Files.deleteIfExists(crashPath);
-      RDSWriter.writeFile(returnValuePath.toFile(), data.returnValue().getLeft());
-    } else {
-      Files.deleteIfExists(returnValuePath);
-      Files.writeString(crashPath, data.returnValue().getRight());
-    }
+    data.result().write(path);
     Files.writeString(checkpointTracePath, data.checkpointTrace());
     Printer.toFile(feedbackPath.toFile(), data.feedback());
   }

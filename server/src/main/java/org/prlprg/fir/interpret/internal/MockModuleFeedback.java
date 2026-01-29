@@ -25,6 +25,11 @@ public class MockModuleFeedback implements ModuleFeedback {
     return feedbacks.computeIfAbsent(scope, _ -> new AbstractionFeedback());
   }
 
+  @Override
+  public void copyTo(Abstraction dst, Abstraction src) {
+    feedbacks.put(dst, feedbacks.get(src));
+  }
+
   public record ParseContext(Module module) {}
 
   @ParseMethod
@@ -83,8 +88,11 @@ public class MockModuleFeedback implements ModuleFeedback {
               p.print(fn.name());
               w.write('#');
               p.print(fn.indexOf(version));
-              w.write(" = ");
-              p2.print(feedbacks.get(version));
+              w.runIndented(
+                  () -> {
+                    w.write(" =\n");
+                    p2.print(feedbacks.get(version));
+                  });
             }
           }
         });

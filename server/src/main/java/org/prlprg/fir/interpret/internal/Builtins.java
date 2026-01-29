@@ -56,7 +56,7 @@ public final class Builtins {
     interpreter.registerExternal("<=", ExternalVersion.strict(Builtins::lessEqual));
     interpreter.registerExternal(">", ExternalVersion.strict(Builtins::greater));
     interpreter.registerExternal(">=", ExternalVersion.strict(Builtins::greaterEqual));
-    interpreter.registerExternal("rep", ExternalVersion.special(Builtins::rep));
+    interpreter.registerExternal("rep", ExternalVersion.strict(Builtins::rep));
     interpreter.registerExternal("[", ExternalVersion.strict(Builtins::index));
     interpreter.registerExternal("[<-", ExternalVersion.strict(Builtins::subAssign));
     interpreter.registerExternal("[[", ExternalVersion.strict(Builtins::index2));
@@ -76,6 +76,8 @@ public final class Builtins {
     interpreter.registerExternal("print", ExternalVersion.strict(Builtins::print));
 
     // Intrinsics
+    interpreter.registerExternal("setInvisible", 0, Builtins::setInvisible);
+    interpreter.registerExternal("setVisible", 0, Builtins::setVisible);
     interpreter.registerExternal("checkMissing", 0, Builtins::checkMissing);
     interpreter.registerExternal("toForSeq", 0, Builtins::toForSeq);
   }
@@ -568,15 +570,14 @@ public final class Builtins {
           "Mock `[<-` and `[[<-` not implemented for non-vector objects");
     }
 
-    // Unlike FIŘ, the value is the second argument. The index (or indices for multidim) are after.
-    var value = args.get(1);
+    var value = args.get(2);
 
     // Get index as integer, truncating from real if necessary
     int index1;
-    if (args.get(2).asScalarInteger().isPresent()) {
-      index1 = args.get(2).asScalarInteger().get();
-    } else if (args.get(2).asScalarReal().isPresent()) {
-      index1 = args.get(2).asScalarReal().get().intValue();
+    if (args.get(1).asScalarInteger().isPresent()) {
+      index1 = args.get(1).asScalarInteger().get();
+    } else if (args.get(1).asScalarReal().isPresent()) {
+      index1 = args.get(1).asScalarReal().get().intValue();
     } else {
       throw new UnsupportedOperationException(
           "Mock `[<-` and `[[<-` require numeric index argument");
@@ -907,7 +908,27 @@ public final class Builtins {
     }
 
     var toPrint = args.getFirst();
-    System.out.println(toPrint.toString());
+    System.out.println(toPrint);
+    return SEXPs.NULL;
+  }
+
+  private static SEXP setInvisible(
+      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (!args.isEmpty()) {
+      throw interpreter.fail("`setInvisible` takes 0 arguments");
+    }
+
+    // The interpreter doesn't have visibility
+    return SEXPs.NULL;
+  }
+
+  private static SEXP setVisible(
+      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+    if (!args.isEmpty()) {
+      throw interpreter.fail("`setVisible` takes 0 arguments");
+    }
+
+    // The interpreter doesn't have visibility
     return SEXPs.NULL;
   }
 
