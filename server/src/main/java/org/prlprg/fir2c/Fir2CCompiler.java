@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
 import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -71,6 +72,7 @@ import org.prlprg.gen2c.*;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Lists;
+import org.prlprg.util.Strings;
 
 /// Compiles FIŘ modules into C translation units.
 public final class Fir2CCompiler {
@@ -618,6 +620,7 @@ public final class Fir2CCompiler {
         private final ConstantPool pool;
 
         // State
+        private final Liveness live;
         private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
 
         CfgEmitter(
@@ -631,6 +634,8 @@ public final class Fir2CCompiler {
           this.initCFunction = initCFunction;
           this.cFunction = cFunction;
           this.pool = pool;
+
+          live = new Liveness(cfg);
         }
 
         VecSXP run() {
@@ -710,8 +715,12 @@ public final class Fir2CCompiler {
 
             for (var statement : bb.statements()) {
               emitStatement(statement);
+              emitDeadCleanup(statement);
             }
 
+            // Jump won't trigger GC,
+            // and we can't emit a cleanup after because it changes control flow.
+            emitDeadCleanup(bb.jump());
             emitJump(bb.jump());
           }
 
@@ -723,7 +732,7 @@ public final class Fir2CCompiler {
             if (statement.assignee() == null) {
               cCode.stmt("(void)(%s);", expr);
             } else {
-              cCode.stmt("%s = %s;", registerPlace(statement.assignee()), expr);
+              cCode.stmt("%s = PROTECT(%s);", registerPlace(statement.assignee()), expr);
               debugValue(cCode, statement.assignee().name(), registerPlace(statement.assignee()));
             }
           }
@@ -1106,6 +1115,14 @@ public final class Fir2CCompiler {
             }
 
             cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));
+          }
+
+          private void emitDeadCleanup(Instruction instr) {
+            var deadAfter = live.deadAfter(instr);
+            var comment = options.contains(Option.EMIT_DEBUG_COMMENTS)
+                ? " /* kill: %s */".formatted(Strings.join(", ", deadAfter))
+                : "";
+            cCode.stmt("UNPROTECT(%d);%s", deadAfter.size(), comment);
           }
 
           private String emitSignature(Signature signature) {
