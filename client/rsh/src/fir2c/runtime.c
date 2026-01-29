@@ -1068,7 +1068,7 @@ static double Fir_sign(double x) {
   DEFINE_OVERRIDDEN_BUILTIN(name, 2, SEXP value) {\
     return Rf_ScalarReal(func(Rf_asReal(value)));\
   }
-DEFINE_MATH1_BUILTINS(V);
+DEFINE_MATH1_BUILTINS(V)
 #undef V
 
 DEFINE_OVERRIDDEN_BUILTIN(missing, 1, SEXP value) {
