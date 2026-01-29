@@ -38,7 +38,12 @@ public record Promise(Type valueType, Effects effects, CFG code) implements Expr
   public Collection<Argument> argumentsInCode() {
     return code.bbs().stream()
         .flatMap(bb -> bb.instructions().stream())
-        .flatMap(i -> (i instanceof Statement s && s.expression() instanceof Promise p ? p.argumentsInCode() : i.arguments()).stream())
+        .flatMap(
+            i ->
+                (i instanceof Statement s && s.expression() instanceof Promise p
+                        ? p.argumentsInCode()
+                        : i.arguments())
+                    .stream())
         .toList();
   }
 }

@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import java.util.Objects;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.variable.Variable;
 

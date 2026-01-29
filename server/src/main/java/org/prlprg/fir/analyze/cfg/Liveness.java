@@ -136,7 +136,8 @@ public final class Liveness implements CfgAnalysis {
           }
 
           // + uses(B.stmts[i])
-          var args = stmt.expression() instanceof Promise p ? p.argumentsInCode() : stmt.arguments();
+          var args =
+              stmt.expression() instanceof Promise p ? p.argumentsInCode() : stmt.arguments();
           for (var arg : args) {
             if (arg.variable() != null) {
               newLiveIn.add(arg.variable());

@@ -184,6 +184,46 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b);  // ==
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b);  // ==
+
+DEFINE_OVERRIDDEN_BUILTIN(log, 1, SEXP value, SEXP base);
+DEFINE_OVERRIDDEN_BUILTIN(log, 2, SEXP value, SEXP base);
+
+#define DEFINE_MATH1_BUILTINS(V)\
+  V(abs, abs)\
+  V(sqrt, sqrt)\
+  V(exp, exp)\
+  V(floor, floor)\
+  V(ceiling, ceil)\
+  V(sign, Fir_sign)\
+  V(expm1, expm1)\
+  V(log1p, log1p)\
+  V(cos, cos)\
+  V(sin, sin)\
+  V(tan, tan)\
+  V(acos, acos)\
+  V(asin, asin)\
+  V(atan, atan)\
+  V(cosh, cosh)\
+  V(sinh, sinh)\
+  V(tanh, tanh)\
+  V(acosh, acosh)\
+  V(asinh, asinh)\
+  V(atanh, atanh)\
+  V(lgamma, lgammaf)\
+  V(gamma, gammaf)
+// TODO: import from Rmath.h
+//  V(digamma, digamma)\
+//  V(trigamma, trigamma)\
+//  V(cospi, cospi)\
+//  V(sinpi, sinpi)\
+//  V(tanpi, tanpi)
+
+#define V(name, func)\
+  DEFINE_OVERRIDDEN_BUILTIN(name, 1, SEXP value);\
+  DEFINE_OVERRIDDEN_BUILTIN(name, 2, SEXP value);
+DEFINE_MATH1_BUILTINS(V);
+#undef V
+
 DEFINE_OVERRIDDEN_BUILTIN(missing, 1, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(length, 1, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(as_u2einteger, 1, SEXP value);  // as.integer

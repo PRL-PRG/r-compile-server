@@ -734,7 +734,7 @@ bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
 }
 
 bool Fir_assume_builtin_function(SEXP value, int bltIdx) {
-  if (value != BUILTINSXP && value != SPECIALSXP) {
+  if (TYPEOF(value) != BUILTINSXP && TYPEOF(value) != SPECIALSXP) {
     return false;
   }
 
@@ -1047,6 +1047,29 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b) {
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b) {
   return Rf_ScalarLogical(a == b);
 }
+
+DEFINE_OVERRIDDEN_BUILTIN(log, 1, SEXP value, SEXP base) {
+  return Rf_ScalarReal(R_logbase(Rf_asInteger(value), Rf_asReal(base)));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(log, 2, SEXP value, SEXP base) {
+  return Rf_ScalarReal(R_logbase(Rf_asReal(value), Rf_asReal(base)));
+}
+
+static double Fir_sign(double x) {
+  return x == 0 ? 0 : x > 0 ? 1 : -1;
+}
+
+#define V(name, func) \
+  DEFINE_OVERRIDDEN_BUILTIN(name, 1, SEXP value) {\
+    return Rf_ScalarReal(func(Rf_asInteger(value)));\
+  }\
+  \
+  DEFINE_OVERRIDDEN_BUILTIN(name, 2, SEXP value) {\
+    return Rf_ScalarReal(func(Rf_asReal(value)));\
+  }
+DEFINE_MATH1_BUILTINS(V);
+#undef V
 
 DEFINE_OVERRIDDEN_BUILTIN(missing, 1, SEXP value) {
   return value == R_MissingArg ? R_TrueValue : R_FalseValue;
