@@ -1,4 +1,4 @@
-SUBDIRS = gdb-basic gdb-next
+SUBDIRS = gdb-basic gdb-next recursion
 
 .PHONY: all test clean $(SUBDIRS)
 

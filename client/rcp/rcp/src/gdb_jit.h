@@ -47,12 +47,12 @@ struct jit_descriptor {
  *   code_addr      - Start address of the JIT-compiled code
  *   code_size      - Total size of the code region
  *   inst_addrs     - Array mapping bytecode PC to native addresses
- *   bytecode_count - Number of bytecode instructions
- *   bytecode       - The bytecode array (for opcode info)
- *   opcode_names   - Array of opcode name strings
- *   opcode_arg_counts - Array of argument counts per opcode
- *   num_opcodes    - Number of opcodes in the arrays
- *   stencil_variants - Array of stencil variant indices for each instruction
+ *   instruction_count - Number of instructions
+ *   instruction_names - Array of instruction names (for source listing)
+ *   instruction_debug_frames - Array of pointers to DWARF debug frames for each instruction
+ *   base_cfa_offset - The CFA offset at the start of the function (after prologue). 
+ *                     Use 72 (0x48) for standard JIT functions with _RCP_INIT prologue.
+ *                     Use 8 for raw helper functions without extra prologue.
  *
  * Returns:
  *   Pointer to the jit_code_entry that can be used for unregistration,
@@ -63,9 +63,10 @@ struct jit_code_entry *gdb_jit_register(
     void *code_addr,
     size_t code_size,
     uint8_t **inst_addrs,
-    int bytecode_count,
-    const int *bytecode,
-    const int *stencil_variants
+    int instruction_count,
+    const char **instruction_names,
+    const uint8_t **instruction_debug_frames,
+    int base_cfa_offset
 );
 
 /*

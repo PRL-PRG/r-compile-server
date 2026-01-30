@@ -716,6 +716,17 @@ static void export_to_files(const fs::path &output_dir,
       total_size += current.body.size();
       export_body(file, current, current.name.c_str(),
                   stencils.functions_not_inlined);
+
+      // Export FDEs
+      auto it = stencils.debug_frames.find(current.section_symbol_name);
+      if (it != stencils.debug_frames.end()) {
+        file << "/*\n";
+        print_fde_decoded(file, stencils.debug_frame_cie, it->second);
+        file << "*/\n";
+        file << std::format("uint8_t _{}_debug_frame[] = {{ ", current.name);
+        print_byte_array(file, it->second.data(), it->second.size());
+        file << "};\n\n";
+      }
     }
 
     file << std::format("\nconst Stencil notinlined_stencils[] = {{\n");
@@ -724,6 +735,17 @@ static void export_to_files(const fs::path &output_dir,
                           current.body.size(), current.name,
                           current.holes.size(), current.name, current.alignment,
                           current.name);
+    file << "};\n\n";
+
+    file << std::format("\nconst uint8_t *notinlined_debug_frames[] = {{\n");
+    for (const auto &current : stencils.functions_not_inlined) {
+      auto it = stencils.debug_frames.find(current.section_symbol_name);
+      if (it != stencils.debug_frames.end()) {
+        file << std::format("_{}_debug_frame,\n", current.name);
+      } else {
+        file << "NULL,\n";
+      }
+    }
     file << "};\n\n";
 
     file << std::format(

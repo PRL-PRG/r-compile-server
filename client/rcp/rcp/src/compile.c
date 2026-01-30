@@ -1182,14 +1182,29 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 #ifdef GDB_JIT_SUPPORT
     /* Register with GDB JIT interface before freeing temporary arrays */
     if (name) {
+        uint8_t **inst_addrs_packed = (uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
+        const char **instruction_names = (const char **)S_alloc(count_opcodes, sizeof(char *));
+        const uint8_t **instruction_debug_frames = (const uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
+
+        for (int i = 0; i < count_opcodes; i++) {
+            int bc_pos = bytecode_lut[i];
+            int opcode = bytecode[bc_pos];
+            int variant = stencil_variants[bc_pos];
+            
+            inst_addrs_packed[i] = inst_start[bc_pos];
+            instruction_names[i] = OPCODES_NAMES[opcode];
+            instruction_debug_frames[i] = debug_frames[opcode] ? debug_frames[opcode][variant] : NULL;
+        }
+
         res.jit_entry = gdb_jit_register(
             name,
             executable,
             insts_size,
-            inst_start,
-            bytecode_size,
-            bytecode,
-            stencil_variants
+            inst_addrs_packed,
+            count_opcodes,
+            instruction_names,
+            instruction_debug_frames,
+            72 /* base_cfa_offset for JITted functions (due to _RCP_INIT) */
         );
     } else {
         res.jit_entry = NULL;
@@ -1278,6 +1293,30 @@ static const uint8_t* prepare_notinlined_functions(void)
         for (size_t j = 0; j < stencil->holes_size; ++j)
             patch(notinlined_lut[i], notinlined_lut[i], 0, stencil, &stencil->holes[j], j, NULL, 0, NULL, &ctx);
     }
+
+#ifdef GDB_JIT_SUPPORT
+    // Register notinlined functions (helpers) with GDB
+    const char **helper_names = (const char **)R_alloc(notinlined_count, sizeof(char *));
+    const uint8_t **helper_frames = (const uint8_t **)R_alloc(notinlined_count, sizeof(uint8_t *));
+    uint8_t **helper_addrs = (uint8_t **)R_alloc(notinlined_count, sizeof(uint8_t *));
+
+    for (size_t i = 0; i < notinlined_count; i++) {
+        helper_addrs[i] = (uint8_t*)notinlined_lut[i];
+        helper_names[i] = notinlined_stencils[i].name;
+        helper_frames[i] = notinlined_debug_frames[i];
+    }
+
+    gdb_jit_register(
+        "__rcp_notinlined_helpers",
+        mem_notinlined,
+        notinlined_size,
+        helper_addrs,
+        notinlined_count,
+        helper_names,
+        helper_frames,
+        8 /* base_cfa_offset for helpers (standard prologue) */
+    );
+#endif
 
     if (mprotect(mem_notinlined, notinlined_size, PROT_EXEC) != 0)
     {
