@@ -1,4 +1,6 @@
-#pragma once
+#ifndef RCP_COMMON_H
+#define RCP_COMMON_H
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -266,3 +268,7 @@ const char* const OPCODES_NAMES[] = {
 "INCLNKSTK_OP",// <- 127
 "DECLNKSTK_OP"// <- 128
 };
+
+const uint8_t OPCODES_COUNT = sizeof(OPCODES_NAMES)/sizeof(OPCODES_NAMES[0]);
+
+#endif

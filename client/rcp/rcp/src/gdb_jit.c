@@ -33,6 +33,25 @@ extern const uint8_t OPCODES_COUNT;
 #define DW_LNE_end_sequence 1
 #define DW_LNE_set_address 2
 
+/* DWARF CFI opcodes */
+#define DW_CFA_nop 0x00
+#define DW_CFA_advance_loc1 0x02
+#define DW_CFA_advance_loc2 0x03
+#define DW_CFA_advance_loc4 0x04
+#define DW_CFA_def_cfa 0x0c
+#define DW_CFA_def_cfa_offset 0x0e
+#define DW_CFA_offset_base 0x80
+
+/* x86-64 DWARF register numbers */
+#define DWARF_REG_RBX 3
+#define DWARF_REG_RBP 6
+#define DWARF_REG_RSP 7
+#define DWARF_REG_R12 12
+#define DWARF_REG_R13 13
+#define DWARF_REG_R14 14
+#define DWARF_REG_R15 15
+#define DWARF_REG_RA 16
+
 /*
  * GDB JIT Interface Implementation
  */
@@ -57,6 +76,7 @@ enum {
   SEC_DEBUG_ABBREV,
   SEC_DEBUG_INFO,
   SEC_DEBUG_LINE,
+  SEC_DEBUG_FRAME,
   SEC_COUNT
 };
 
@@ -141,6 +161,31 @@ static void buf_free(Buffer *buf) {
   buf->data = NULL;
   buf->size = 0;
   buf->capacity = 0;
+}
+
+/*
+ * Detect stack adjustment at the beginning of a stencil.
+ * Returns the number of bytes subtracted from RSP and the instruction size.
+ */
+typedef struct {
+  int adjustment; /* bytes subtracted from RSP */
+  int insn_size;  /* size of the adjustment instruction in bytes */
+} StackAdj;
+
+static StackAdj detect_stack_adjustment(const uint8_t *code) {
+  /* sub $imm8, %rsp: REX.W=48 83 ec NN */
+  if (code[0] == 0x48 && code[1] == 0x83 && code[2] == 0xec)
+    return (StackAdj){(uint8_t)code[3], 4};
+  /* sub $imm32, %rsp: REX.W=48 81 ec NN NN NN NN */
+  if (code[0] == 0x48 && code[1] == 0x81 && code[2] == 0xec)
+    return (StackAdj){*(const uint32_t *)&code[3], 7};
+  /* push r64 (rax-rdi): 50-57 */
+  if (code[0] >= 0x50 && code[0] <= 0x57)
+    return (StackAdj){8, 1};
+  /* push r8-r15: REX 41 50-57 */
+  if (code[0] == 0x41 && code[1] >= 0x50 && code[1] <= 0x57)
+    return (StackAdj){8, 2};
+  return (StackAdj){0, 0};
 }
 
 /*
@@ -350,6 +395,124 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   uint32_t line_total_len = dbg_line.size - 4;
   memcpy(dbg_line.data, &line_total_len, 4);
 
+  /* Build .debug_frame (CIE + FDE) */
+  Buffer dbg_frame;
+  buf_init(&dbg_frame, 512);
+
+  /* CIE (Common Information Entry) */
+  size_t cie_start = dbg_frame.size;
+  buf_write_u32(&dbg_frame, 0);          /* length (placeholder) */
+  buf_write_u32(&dbg_frame, 0xffffffff); /* CIE_id = -1 for .debug_frame */
+  buf_write_u8(&dbg_frame, 4);           /* version (DWARF 4) */
+  buf_write_u8(&dbg_frame, 0);           /* augmentation string (empty) */
+  buf_write_u8(&dbg_frame, 8);           /* address_size */
+  buf_write_u8(&dbg_frame, 0);           /* segment_selector_size */
+  buf_write_uleb128(&dbg_frame, 1);      /* code_alignment_factor */
+  buf_write_sleb128(&dbg_frame, -8);     /* data_alignment_factor */
+  buf_write_uleb128(&dbg_frame, DWARF_REG_RA); /* return_address_register */
+
+  /* Initial instructions: DW_CFA_def_cfa(RSP, 8) */
+  buf_write_u8(&dbg_frame, DW_CFA_def_cfa);
+  buf_write_uleb128(&dbg_frame, DWARF_REG_RSP);
+  buf_write_uleb128(&dbg_frame, 8);
+
+  /* DW_CFA_offset(RA, 1) => RA at CFA-8 (factored: 1 * -8 = -8) */
+  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_RA);
+  buf_write_uleb128(&dbg_frame, 1);
+
+  /* Pad CIE to pointer-size alignment */
+  while ((dbg_frame.size - cie_start) % 8)
+    buf_write_u8(&dbg_frame, DW_CFA_nop);
+
+  /* Fixup CIE length */
+  uint32_t cie_len = dbg_frame.size - cie_start - 4;
+  memcpy(dbg_frame.data + cie_start, &cie_len, 4);
+
+  /* FDE (Frame Description Entry) */
+  size_t fde_start = dbg_frame.size;
+  buf_write_u32(&dbg_frame, 0);          /* length (placeholder) */
+  buf_write_u32(&dbg_frame, cie_start);  /* CIE_pointer (offset of CIE) */
+  buf_write_u64(&dbg_frame, (uint64_t)code_addr); /* initial_location */
+  buf_write_u64(&dbg_frame, code_size);  /* address_range */
+
+  /*
+   * After _RCP_INIT prologue (7 pushes + call), CFA = RSP + 0x48 (72).
+   * The prologue pushes: r15, r14, r13, r12, rbp, rbx, rax (padding).
+   */
+  buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+  buf_write_uleb128(&dbg_frame, 0x48);
+
+  /* Register save locations (factored offset = CFA_offset / 8) */
+  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R15);
+  buf_write_uleb128(&dbg_frame, 2); /* CFA-16 */
+
+  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R14);
+  buf_write_uleb128(&dbg_frame, 3); /* CFA-24 */
+
+  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R13);
+  buf_write_uleb128(&dbg_frame, 4); /* CFA-32 */
+
+  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R12);
+  buf_write_uleb128(&dbg_frame, 5); /* CFA-40 */
+
+  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_RBP);
+  buf_write_uleb128(&dbg_frame, 6); /* CFA-48 */
+
+  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_RBX);
+  buf_write_uleb128(&dbg_frame, 7); /* CFA-56 */
+
+  /* Per-stencil CFI rows: advance to each instruction and set CFA offset.
+   *
+   * At the start of each stencil, RSP is at base (CFA = RSP + 0x48).
+   * The stencil may then adjust RSP (sub/push) before calling C helpers.
+   * We emit TWO rows for stencils with adjustments:
+   *   1. At inst_addrs[i]:            CFA = RSP + 0x48 (before adjustment)
+   *   2. At inst_addrs[i]+insn_size:  CFA = RSP + 0x48 + adj (after adjustment)
+   * This ensures GDB computes a consistent CFA both at the instruction
+   * start (for frame identity) and at call sites (for unwinding). */
+  uint64_t fde_last_addr = (uint64_t)code_addr;
+  for (int i = 0; i < bytecode_count; i++) {
+    if (!inst_addrs[i])
+      continue;
+    uint64_t curr = (uint64_t)inst_addrs[i];
+    uint64_t delta = curr - fde_last_addr;
+    if (delta > 0) {
+      if (delta <= 0xff) {
+        buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
+        buf_write_u8(&dbg_frame, (uint8_t)delta);
+      } else if (delta <= 0xffff) {
+        buf_write_u8(&dbg_frame, DW_CFA_advance_loc2);
+        buf_write_u16(&dbg_frame, (uint16_t)delta);
+      } else {
+        buf_write_u8(&dbg_frame, DW_CFA_advance_loc4);
+        buf_write_u32(&dbg_frame, (uint32_t)delta);
+      }
+      fde_last_addr = curr;
+    }
+
+    /* At stencil entry, no stack adjustment yet */
+    buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+    buf_write_uleb128(&dbg_frame, 0x48);
+
+    StackAdj adj = detect_stack_adjustment(inst_addrs[i]);
+    if (adj.adjustment > 0) {
+      /* Advance past the adjustment instruction, then set new CFA offset */
+      buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
+      buf_write_u8(&dbg_frame, (uint8_t)adj.insn_size);
+      fde_last_addr += adj.insn_size;
+      buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+      buf_write_uleb128(&dbg_frame, 0x48 + adj.adjustment);
+    }
+  }
+
+  /* Pad FDE to pointer-size alignment */
+  while ((dbg_frame.size - fde_start) % 8)
+    buf_write_u8(&dbg_frame, DW_CFA_nop);
+
+  /* Fixup FDE length */
+  uint32_t fde_len = dbg_frame.size - fde_start - 4;
+  memcpy(dbg_frame.data + fde_start, &fde_len, 4);
+
   /* Section Headers String Table */
   const char shstrtab_data[] = "\0"
                                ".text\0"
@@ -358,7 +521,8 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
                                ".shstrtab\0"
                                ".debug_abbrev\0"
                                ".debug_info\0"
-                               ".debug_line";
+                               ".debug_line\0"
+                               ".debug_frame";
   size_t shstrtab_size = sizeof(shstrtab_data);
 
   /* Calculate Layout */
@@ -387,6 +551,9 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   size_t line_offset = offset;
   offset += dbg_line.size;
 
+  size_t frame_offset = (offset + 7) & ~7; /* align to 8 bytes */
+  offset = frame_offset + dbg_frame.size;
+
   size_t shoff = (offset + 7) & ~7;
   size_t total_size = shoff + SEC_COUNT * sizeof(Elf64_Shdr);
 
@@ -400,6 +567,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     buf_free(&abbrev);
     buf_free(&dbg_info);
     buf_free(&dbg_line);
+    buf_free(&dbg_frame);
     return NULL;
   }
 
@@ -439,6 +607,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   memcpy(elf + abbrev_offset, abbrev.data, abbrev.size);
   memcpy(elf + info_offset, dbg_info.data, dbg_info.size);
   memcpy(elf + line_offset, dbg_line.data, dbg_line.size);
+  memcpy(elf + frame_offset, dbg_frame.data, dbg_frame.size);
 
   /* Section Headers */
   Elf64_Shdr *shdrs = (Elf64_Shdr *)(elf + shoff);
@@ -496,12 +665,20 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   shdrs[SEC_DEBUG_LINE].sh_size = dbg_line.size;
   shdrs[SEC_DEBUG_LINE].sh_addralign = 1;
 
+  /* .debug_frame */
+  shdrs[SEC_DEBUG_FRAME].sh_name = 71;
+  shdrs[SEC_DEBUG_FRAME].sh_type = SHT_PROGBITS;
+  shdrs[SEC_DEBUG_FRAME].sh_offset = frame_offset;
+  shdrs[SEC_DEBUG_FRAME].sh_size = dbg_frame.size;
+  shdrs[SEC_DEBUG_FRAME].sh_addralign = 8;
+
   free(source_path);
   free(symtab);
   buf_free(&strtab);
   buf_free(&abbrev);
   buf_free(&dbg_info);
   buf_free(&dbg_line);
+  buf_free(&dbg_frame);
 
   *elf_size = total_size;
   return elf;

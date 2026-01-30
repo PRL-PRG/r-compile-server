@@ -48,10 +48,13 @@ enum X86_64_RELOC_KIND {
 
 struct StencilExport {
   std::string name;
+  std::string section_symbol_name;
   std::vector<uint8_t> body;
   std::vector<Hole> holes;
   uint8_t alignment = 0;
-  StencilExport(std::string name) : name(std::move(name)) {}
+  StencilExport(std::string name, std::string section_symbol_name)
+      : name(std::move(name)),
+        section_symbol_name(std::move(section_symbol_name)) {}
 };
 
 struct StencilExportSet {
@@ -66,6 +69,8 @@ struct Stencils {
       stencils_opcodes;
   std::vector<StencilExport> stencils_extra;
   std::vector<StencilExport> functions_not_inlined;
+  std::unordered_map<std::string, std::vector<uint8_t>> debug_frames;
+  std::vector<uint8_t> debug_frame_cie;
 
   Stencils() {
     for (size_t i = 0; i < stencils_opcodes.size(); i++)
@@ -227,8 +232,430 @@ export_body(std::ostream &file, const StencilExport &stencil,
 
   file << std::format("uint8_t _{}_BODY[] = {{\n", opcode_name);
   print_byte_array(file, stencil.body.data(), stencil.body.size());
-
   file << "\n};\n\n";
+}
+
+// --- DWARF Decoding ---
+
+constexpr uint8_t DW_CFA_advance_loc = 0x40;
+constexpr uint8_t DW_CFA_offset = 0x80;
+constexpr uint8_t DW_CFA_restore = 0xC0;
+constexpr uint8_t DW_CFA_nop = 0x00;
+constexpr uint8_t DW_CFA_set_loc = 0x01;
+constexpr uint8_t DW_CFA_advance_loc1 = 0x02;
+constexpr uint8_t DW_CFA_advance_loc2 = 0x03;
+constexpr uint8_t DW_CFA_advance_loc4 = 0x04;
+constexpr uint8_t DW_CFA_offset_extended = 0x05;
+constexpr uint8_t DW_CFA_restore_extended = 0x06;
+constexpr uint8_t DW_CFA_undefined = 0x07;
+constexpr uint8_t DW_CFA_same_value = 0x08;
+constexpr uint8_t DW_CFA_register = 0x09;
+constexpr uint8_t DW_CFA_remember_state = 0x0a;
+constexpr uint8_t DW_CFA_restore_state = 0x0b;
+constexpr uint8_t DW_CFA_def_cfa = 0x0c;
+constexpr uint8_t DW_CFA_def_cfa_register = 0x0d;
+constexpr uint8_t DW_CFA_def_cfa_offset = 0x0e;
+constexpr uint8_t DW_CFA_def_cfa_expression = 0x0f;
+constexpr uint8_t DW_CFA_expression = 0x10;
+constexpr uint8_t DW_CFA_offset_extended_sf = 0x11;
+constexpr uint8_t DW_CFA_def_cfa_sf = 0x12;
+constexpr uint8_t DW_CFA_def_cfa_offset_sf = 0x13;
+constexpr uint8_t DW_CFA_val_offset = 0x14;
+constexpr uint8_t DW_CFA_val_offset_sf = 0x15;
+constexpr uint8_t DW_CFA_val_expression = 0x16;
+
+static uint16_t get_le16(const uint8_t *p) {
+  return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t get_le32(const uint8_t *p) {
+  return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
+         ((uint32_t)p[3] << 24);
+}
+
+static uint64_t get_le64(const uint8_t *p) {
+  uint64_t result = 0;
+  for (int i = 0; i < 8; i++)
+    result |= (uint64_t)p[i] << (i * 8);
+  return result;
+}
+
+static uint64_t read_uleb128(const uint8_t *&p, const uint8_t *end) {
+  uint64_t result = 0;
+  int shift = 0;
+  while (p < end) {
+    uint8_t byte = *p++;
+    result |= (uint64_t)(byte & 0x7f) << shift;
+    if ((byte & 0x80) == 0)
+      break;
+    shift += 7;
+  }
+  return result;
+}
+
+static int64_t read_sleb128(const uint8_t *&p, const uint8_t *end) {
+  int64_t result = 0;
+  int shift = 0;
+  uint8_t byte;
+  do {
+    if (p >= end)
+      break;
+    byte = *p++;
+    result |= (int64_t)(byte & 0x7f) << shift;
+    shift += 7;
+  } while (byte & 0x80);
+  if (shift < 64 && (byte & 0x40))
+    result |= -((int64_t)1 << shift);
+  return result;
+}
+
+struct DwarfCIE {
+  uint64_t code_align = 1;
+  int64_t data_align = -8;
+  uint64_t ra_reg = 16;
+  std::vector<uint8_t> initial_instructions;
+  bool valid = false;
+};
+
+static DwarfCIE parse_cie(const std::vector<uint8_t> &cie) {
+  DwarfCIE result;
+  const uint8_t *p = cie.data();
+  const uint8_t *end = p + cie.size();
+
+  if (cie.size() < 4)
+    return result;
+
+  // Skip length and ID
+  uint64_t length = get_le32(p);
+  size_t header_len = 4;
+  if (length == 0xffffffff) {
+    length = get_le64(p + 4);
+    header_len = 12;
+  }
+
+  // Skip Length + ID
+  p += (header_len == 4 ? 8 : 20);
+
+  if (p >= end)
+    return result;
+
+  uint8_t version = *p++;
+  // Augmentation string
+  while (p < end && *p != 0)
+    p++;
+  p++; // skip null
+
+  if (p >= end)
+    return result;
+
+  result.code_align = read_uleb128(p, end);
+  result.data_align = read_sleb128(p, end);
+
+  if (version == 1) // DWARF 1 (unlikely for x86_64)
+    result.ra_reg = *p++;
+  else
+    result.ra_reg = read_uleb128(p, end);
+
+  // Check for 'z' augmentation to skip it?
+  // Simplification: assuming standard GCC/Clang output without complex
+  // augmentations for now, or that the augmentation data (if any) is handled or
+  // skipped. If augmentation string started with 'z', there is a uleb128
+  // length. We can re-check augmentation string if needed, but for now
+  // extracting instructions. The 'z' is common. Let's handle it minimally if we
+  // can find the string. But we already skipped the string. Let's rely on
+  // robust parsing or assume 'zR' which is common. If 'z' present, next is
+  // ULEB128 length of augmentation data, then data.
+
+  const char *aug_str =
+      (const char *)(cie.data() +
+                     (header_len == 4 ? 9 : 21)); // approx location
+  if (aug_str < (const char *)p && aug_str[0] == 'z') {
+    uint64_t aug_len = read_uleb128(p, end);
+    p += aug_len;
+  }
+
+  if (p < end)
+    result.initial_instructions.assign(p, end);
+
+  result.valid = true;
+  return result;
+}
+
+static std::string get_reg_name(uint64_t reg) {
+  switch (reg) {
+  case 0:
+    return "rax";
+  case 1:
+    return "rdx";
+  case 2:
+    return "rcx";
+  case 3:
+    return "rbx";
+  case 4:
+    return "rsi";
+  case 5:
+    return "rdi";
+  case 6:
+    return "rbp";
+  case 7:
+    return "rsp";
+  case 8:
+    return "r8";
+  case 9:
+    return "r9";
+  case 10:
+    return "r10";
+  case 11:
+    return "r11";
+  case 12:
+    return "r12";
+  case 13:
+    return "r13";
+  case 14:
+    return "r14";
+  case 15:
+    return "r15";
+  case 16:
+    return "ra"; // rip
+  default:
+    return std::format("r{}", reg);
+  }
+}
+
+struct DwarfState {
+  uint64_t cfa_reg = 7; // RSP
+  int64_t cfa_offset = 8;
+  bool cfa_is_expr = false;
+
+  struct Rule {
+    enum Type {
+      UNDEF,
+      SAME,
+      OFFSET,
+      VAL_OFFSET,
+      REGISTER,
+      EXPRESSION,
+      VAL_EXPRESSION
+    } type = UNDEF;
+    int64_t offset = 0; // for OFFSET, VAL_OFFSET
+    uint64_t reg = 0;   // for REGISTER
+  };
+
+  std::unordered_map<uint64_t, Rule> rules;
+
+  std::string format_cfa() const {
+    if (cfa_is_expr)
+      return "expr";
+    return std::format("{}{:+}", get_reg_name(cfa_reg), cfa_offset);
+  }
+
+  std::string format_rule(uint64_t reg) const {
+    auto it = rules.find(reg);
+    if (it == rules.end())
+      return "u"; // undefined
+    const auto &r = it->second;
+    switch (r.type) {
+    case Rule::UNDEF:
+      return "u";
+    case Rule::SAME:
+      return "s";
+    case Rule::OFFSET:
+      return std::format("c{:+}", r.offset);
+    case Rule::VAL_OFFSET:
+      return std::format("v{:+}", r.offset);
+    case Rule::REGISTER:
+      return std::format("={}", get_reg_name(r.reg));
+    default:
+      return "exp";
+    }
+  }
+};
+
+static void execute_dwarf_insts(
+    const uint8_t *&p, const uint8_t *end, DwarfState &state,
+    const DwarfCIE &cie,
+    std::vector<std::pair<uint64_t, DwarfState>> *rows = nullptr,
+    uint64_t *pc = nullptr) {
+  std::vector<DwarfState> state_stack;
+
+  while (p < end) {
+    uint8_t op = *p++;
+    uint8_t high = op & 0xC0;
+    uint8_t low = op & 0x3F;
+
+    uint64_t delta_pc = 0;
+    bool advance = false;
+
+    if (high == DW_CFA_advance_loc) {
+      delta_pc = low * cie.code_align;
+      advance = true;
+    } else if (high == DW_CFA_offset) {
+      uint64_t val = read_uleb128(p, end);
+      state.rules[low] = {DwarfState::Rule::OFFSET,
+                          (int64_t)val * cie.data_align, 0};
+    } else if (high == DW_CFA_restore) {
+      // Restore logic requires initial state, simplified here to ignore or
+      // assume undef
+    } else {
+      switch (op) {
+      case DW_CFA_nop:
+        break;
+      case DW_CFA_set_loc: {
+        // relocate? skip for now, assumed not used in standard simple frames
+        p += 8;
+        break;
+      }
+      case DW_CFA_advance_loc1:
+        delta_pc = (*p++) * cie.code_align;
+        advance = true;
+        break;
+      case DW_CFA_advance_loc2:
+        delta_pc = get_le16(p) * cie.code_align;
+        p += 2;
+        advance = true;
+        break;
+      case DW_CFA_advance_loc4:
+        delta_pc = get_le32(p) * cie.code_align;
+        p += 4;
+        advance = true;
+        break;
+      case DW_CFA_offset_extended: {
+        uint64_t reg = read_uleb128(p, end);
+        uint64_t val = read_uleb128(p, end);
+        state.rules[reg] = {DwarfState::Rule::OFFSET,
+                            (int64_t)val * cie.data_align, 0};
+        break;
+      }
+      case DW_CFA_def_cfa:
+        state.cfa_reg = read_uleb128(p, end);
+        state.cfa_offset = read_uleb128(p, end);
+        break;
+      case DW_CFA_def_cfa_sf:
+        state.cfa_reg = read_uleb128(p, end);
+        state.cfa_offset = read_sleb128(p, end) * cie.data_align;
+        break;
+      case DW_CFA_def_cfa_register:
+        state.cfa_reg = read_uleb128(p, end);
+        break;
+      case DW_CFA_def_cfa_offset:
+        state.cfa_offset = read_uleb128(p, end);
+        break;
+      case DW_CFA_def_cfa_offset_sf:
+        state.cfa_offset = read_sleb128(p, end) * cie.data_align;
+        break;
+      case DW_CFA_same_value: {
+        uint64_t reg = read_uleb128(p, end);
+        state.rules[reg] = {DwarfState::Rule::SAME, 0, 0};
+        break;
+      }
+      case DW_CFA_remember_state:
+        state_stack.push_back(state);
+        break;
+      case DW_CFA_restore_state:
+        if (!state_stack.empty()) {
+          state = state_stack.back();
+          state_stack.pop_back();
+        }
+        break;
+      // ... incomplete ...
+      default:
+        // Unknown, skip? Can't skip without knowing length.
+        // Warning: this parser is partial.
+        break;
+      }
+    }
+
+    if (advance && rows && pc) {
+      *pc += delta_pc;
+      rows->emplace_back(*pc, state);
+    }
+  }
+}
+
+static void print_fde_decoded(std::ostream &os,
+                              const std::vector<uint8_t> &cie_data,
+                              const std::vector<uint8_t> &fde_data) {
+  if (fde_data.size() < 8)
+    return;
+
+  DwarfCIE cie = parse_cie(cie_data);
+  if (!cie.valid) {
+    os << "Invalid CIE\n";
+    return;
+  }
+
+  const uint8_t *p = fde_data.data();
+  const uint8_t *end = p + fde_data.size();
+
+  // Parse FDE Header
+  uint64_t length = get_le32(p);
+  size_t header_len = 4;
+  if (length == 0xffffffff) {
+    length = get_le64(p + 4);
+    header_len = 12;
+  }
+  p += (header_len == 4 ? 8 : 20); // Skip Len + ID
+
+  // PC Begin / Range
+  // Assumed relocation applied or raw 0?
+  // In relocatable object, these are usually 0 and Size
+  uint64_t pc_begin = get_le64(p);
+  p += 8;
+  uint64_t pc_range = get_le64(p);
+  p += 8;
+
+  // Augmentation?
+  // If CIE has 'z', FDE also has augmentation length + data
+  const char *cie_aug =
+      (const char *)(cie_data.data() +
+                     (cie_data.size() > 12 ? 9 : 0)); // approximate check
+  // Better: re-parse CIE to find 'z'.
+  // Assuming 'z' check logic holds:
+  // This part is fragile without full CIE parsing context.
+  // For now, assume simplified flow.
+  // Check first byte of FDE instructions. If it's 0, it's NOP padding likely.
+
+  // Need proper augmentation skip logic.
+  // Let's reuse parse_cie logic slightly.
+  bool has_z = false;
+  {
+    const uint8_t *cp = cie_data.data();
+    // Skip len/id/ver
+    cp += (cie_data.size() > 12 && cie_data[0] == 0xff ? 21 : 9);
+    if (cp < cie_data.data() + cie_data.size() && *cp == 'z')
+      has_z = true;
+  }
+  if (has_z) {
+    uint64_t aug_len = read_uleb128(p, end);
+    p += aug_len;
+  }
+
+  os << std::format("FDE {:x} pc={:x}..{:x}\n", fde_data.size(), pc_begin,
+                    pc_begin + pc_range);
+  os << "   LOC           CFA      ra\n";
+
+  DwarfState state;
+  // Defaults for x86_64
+  state.rules[cie.ra_reg] = {DwarfState::Rule::OFFSET, -8, 0}; // Usually c-8
+
+  // Execute CIE initial instructions
+  const uint8_t *ip = cie.initial_instructions.data();
+  execute_dwarf_insts(ip, ip + cie.initial_instructions.size(), state, cie);
+
+  uint64_t current_pc = pc_begin;
+
+  // Print initial row
+  os << std::format("{:016x} {:<8} {}\n", current_pc, state.format_cfa(),
+                    state.format_rule(cie.ra_reg));
+
+  // Execute FDE instructions
+  std::vector<std::pair<uint64_t, DwarfState>> rows;
+  execute_dwarf_insts(p, end, state, cie, &rows, &current_pc);
+
+  for (const auto &row : rows) {
+    os << std::format("{:016x} {:<8} {}\n", row.first, row.second.format_cfa(),
+                      row.second.format_rule(cie.ra_reg));
+  }
 }
 
 // Create all the header files for the stencils
@@ -247,6 +674,20 @@ static void export_to_files(const fs::path &output_dir,
         export_body(file, stencil,
                     (std::string(current.name) + '_' + stencil.name).c_str(),
                     stencils.functions_not_inlined);
+
+      // Export FDEs
+      for (const auto &stencil : current.stencils) {
+        auto it = stencils.debug_frames.find(stencil.section_symbol_name);
+        if (it != stencils.debug_frames.end()) {
+          file << "/*\n";
+          print_fde_decoded(file, stencils.debug_frame_cie, it->second);
+          file << "*/\n";
+          file << std::format("uint8_t _{}_{}_debug_frame[] = {{ ",
+                              current.name, stencil.name);
+          print_byte_array(file, it->second.data(), it->second.size());
+          file << "};\n\n";
+        }
+      }
 
       file << std::format("\nconst Stencil {}_stencils[] = {{\n", current.name);
       for (const auto &stencil : current.stencils)
@@ -292,6 +733,21 @@ static void export_to_files(const fs::path &output_dir,
 
   std::ofstream file(output_dir / "stencils.h");
 
+  // Export CIE
+  if (!stencils.debug_frame_cie.empty()) {
+    DwarfCIE cie = parse_cie(stencils.debug_frame_cie);
+    file << "/*\n";
+    file << std::format("CIE: {}\n", stencils.debug_frame_cie.size());
+    file << std::format("- code alignment: {}\n", cie.code_align);
+    file << std::format("- data alignment: {}\n", cie.data_align);
+    file << std::format("- return address: {}\n", get_reg_name(cie.ra_reg));
+    file << "*/\n";
+  }
+  file << "uint8_t __CIE[] = { ";
+  print_byte_array(file, stencils.debug_frame_cie.data(),
+                   stencils.debug_frame_cie.size());
+  file << "};\n\n";
+
   for (const auto &current : stencils.stencils_extra)
     file << std::format("#include \"{}.h\"\n", current.name);
 
@@ -333,6 +789,34 @@ static void export_to_files(const fs::path &output_dir,
     file << std::format("&notinlined_stencils[{}],", i);
 
   file << "\n};\n";
+
+  // Export Debug Frames Arrays
+  for (const auto &current : stencils.stencils_opcodes) {
+    if (current.stencils.empty())
+      continue;
+
+    file << std::format("const uint8_t *{}_debug_frames[] = {{ ", current.name);
+    for (const auto &stencil : current.stencils) {
+      auto it = stencils.debug_frames.find(stencil.section_symbol_name);
+      if (it != stencils.debug_frames.end()) {
+        file << std::format("_{}_{}_debug_frame, ", current.name, stencil.name);
+      } else {
+        file << "NULL, ";
+      }
+    }
+    file << "};\n";
+  }
+  file << "\n";
+
+  file << std::format("const uint8_t **debug_frames[{}] = {{\n",
+                      stencils.stencils_opcodes.size());
+  for (const auto &current : stencils.stencils_opcodes) {
+    if (!current.stencils.empty())
+      file << std::format("{}_debug_frames,\n", current.name);
+    else
+      file << std::format("NULL,//{}\n", current.name);
+  }
+  file << "};\n";
 }
 
 std::unordered_map<std::string, std::string> rsh_symbol_map;
@@ -406,10 +890,10 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel) {
   if (starts_with((*rel.sym_ptr_ptr)->name, "_RCP_")) {
     const char *descr = &((*rel.sym_ptr_ptr)->name)[5];
 
-    if (descr_imm = remove_prefix(descr, "CRUNTIME0_")) {
+    if ((descr_imm = remove_prefix(descr, "CRUNTIME0_"))) {
       hole.kind = RELOC_RUNTIME_SYMBOL_DEREF;
       hole.val.symbol_name = strdup(descr_imm);
-    } else if (descr_imm = remove_prefix(descr, "CRUNTIME_OPS_")) {
+    } else if ((descr_imm = remove_prefix(descr, "CRUNTIME_OPS_"))) {
       hole.kind = RELOC_RUNTIME_CALL;
 
       std::string_view symbol_name(descr_imm);
@@ -427,19 +911,19 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel) {
 
       const std::string &arg = rsh_symbol_map.at(std::string(arg_name));
       hole.val.call.arg = arg.c_str();
-    } else if (descr_imm = remove_prefix(descr, "CONST_AT_IMM")) {
+    } else if ((descr_imm = remove_prefix(descr, "CONST_AT_IMM"))) {
       hole.kind = RELOC_RCP_CONST_AT_IMM;
       hole.val.imm_pos = atoi(descr_imm);
-    } else if (descr_imm = remove_prefix(descr, "RAW_IMM")) {
+    } else if ((descr_imm = remove_prefix(descr, "RAW_IMM"))) {
       hole.kind = RELOC_RCP_RAW_IMM;
       hole.val.imm_pos = atoi(descr_imm);
-    } else if (descr_imm = remove_prefix(descr, "CONST_STR_AT_IMM")) {
+    } else if ((descr_imm = remove_prefix(descr, "CONST_STR_AT_IMM"))) {
       hole.kind = RELOC_RCP_CONST_STR_AT_IMM;
       hole.val.imm_pos = atoi(descr_imm);
-    } else if (descr_imm = remove_prefix(descr, "CONSTCELL_AT_IMM")) {
+    } else if ((descr_imm = remove_prefix(descr, "CONSTCELL_AT_IMM"))) {
       hole.kind = RELOC_RCP_CONSTCELL_AT_IMM;
       hole.val.imm_pos = atoi(descr_imm);
-    } else if (descr_imm = remove_prefix(descr, "CONSTCELL_AT_LABEL_IMM")) {
+    } else if ((descr_imm = remove_prefix(descr, "CONSTCELL_AT_LABEL_IMM"))) {
       hole.kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM;
       hole.val.imm_pos = atoi(descr_imm);
     } else if (strcmp(descr, "EXEC_NEXT") == 0) {
@@ -478,7 +962,7 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel) {
         stencil_body[rel.address - 1] = 0xE8; // CALL
       }
       hole.kind = RELOC_RCP_EXEC_NEXT;
-    } else if (descr_imm = remove_prefix(descr, "EXEC_IMM")) {
+    } else if ((descr_imm = remove_prefix(descr, "EXEC_IMM"))) {
       int is_relative_jmp = stencil_body[rel.address - 1] == 0xE9; /*JMP*/
       int is_got_jmp = stencil_body[rel.address - 2] == 0xFF &&
                        stencil_body[rel.address - 1] == 0x25; /*GOT JMP*/
@@ -502,7 +986,7 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel) {
       hole.kind = RELOC_RUNTIME_SYMBOL;
       hole.val.symbol_name = strdup((*rel.sym_ptr_ptr)->name);
     }
-  } else if (descr_imm = remove_prefix((*rel.sym_ptr_ptr)->name, ".text.")) {
+  } else if ((descr_imm = remove_prefix((*rel.sym_ptr_ptr)->name, ".text."))) {
     hole.kind = RELOC_NOTINLINED_FUNCTION;
     hole.val.symbol_name = strdup(descr_imm);
     for (size_t i = 0; hole.val.symbol_name[i] != '\0'; i++)
@@ -548,7 +1032,8 @@ static std::vector<Hole> process_relocations(std::vector<uint8_t> &stencil_body,
   return holes;
 }
 
-static StencilExport &add_stencil(Stencils &stencils, std::string_view symbol) {
+static StencilExport &add_stencil(Stencils &stencils, std::string_view symbol,
+                                  std::string section_symbol_name) {
   if (symbol.starts_with("_RCP_")) {
     size_t end = symbol.find("_OP");
     if (end != std::string_view::npos) {
@@ -580,9 +1065,10 @@ static StencilExport &add_stencil(Stencils &stencils, std::string_view symbol) {
       }
 
       return stencils.stencils_opcodes.at(opcode).stencils.emplace_back(
-          std::move(stencil_suffix));
+          std::move(stencil_suffix), std::move(section_symbol_name));
     } else {
-      return stencils.stencils_extra.emplace_back(std::string(symbol));
+      return stencils.stencils_extra.emplace_back(
+          std::string(symbol), std::move(section_symbol_name));
     }
   } else {
     std::string res(symbol);
@@ -590,7 +1076,8 @@ static StencilExport &add_stencil(Stencils &stencils, std::string_view symbol) {
       if (res[i] == '.')
         res[i] = '_';
 
-    return stencils.functions_not_inlined.emplace_back(std::move(res));
+    return stencils.functions_not_inlined.emplace_back(
+        std::move(res), std::move(section_symbol_name));
   }
 }
 
@@ -631,12 +1118,67 @@ static void process_section(bfd &abfd, asection &section, Stencils &stencils) {
   if (section.flags & SEC_CODE) {
     std::vector<Hole> holes = process_relocations(body, reloc_count, relocs);
 
-    StencilExport &stencil = add_stencil(
-        stencils, std::string_view(symbol).substr(6)); // Remove .text prefix
+    StencilExport &stencil =
+        add_stencil(stencils, std::string_view(symbol).substr(6),
+                    std::string(symbol)); // Remove .text prefix
 
     stencil.body = std::move(body);
     stencil.holes = std::move(holes);
     stencil.alignment = 1 << section.alignment_power;
+  } else if (section.flags & SEC_DEBUGGING) {
+    if (strcmp(symbol, ".debug_frame") == 0) {
+      size_t offset = 0;
+      while (offset < body.size()) {
+        if (offset + 4 > body.size())
+          break;
+        uint64_t length = bfd_get_32(&abfd, &body[offset]);
+        size_t header_size = 4;
+        if (length == 0xffffffff) {
+          if (offset + 12 > body.size())
+            break;
+          length = bfd_get_64(&abfd, &body[offset + 4]);
+          header_size = 12;
+        }
+
+        if (length == 0)
+          break;
+
+        size_t entry_end = offset + header_size + length;
+        if (entry_end > body.size())
+          break;
+
+        uint64_t id;
+        bool is_cie = false;
+        if (header_size == 4) {
+          id = bfd_get_32(&abfd, &body[offset + 4]);
+          if (id == 0xffffffff)
+            is_cie = true;
+        } else {
+          id = bfd_get_64(&abfd, &body[offset + 12]);
+          if (id == 0xffffffffffffffffULL)
+            is_cie = true;
+        }
+
+        if (is_cie) {
+          if (stencils.debug_frame_cie.empty())
+            stencils.debug_frame_cie.assign(body.begin() + offset,
+                                            body.begin() + entry_end);
+        } else {
+          size_t loc_offset = offset + (header_size == 4 ? 8 : 20);
+          for (long i = 0; i < reloc_count; i++) {
+            if (relocs[i]->address == loc_offset) {
+              // uint64_t val = bfd_asymbol_value(*relocs[i]->sym_ptr_ptr) +
+              // relocs[i]->addend;
+              std::string key = (*relocs[i]->sym_ptr_ptr)->name;
+              stencils.debug_frames[key].assign(body.begin() + offset,
+                                                body.begin() + entry_end);
+              break;
+            }
+          }
+        }
+        offset = entry_end;
+      }
+    }
   } else if ((section.flags & SEC_READONLY) && (section.flags & BSF_KEEP)) {
     if (strcmp(symbol, ".rodata") == 0) {
       stencils.rodata = std::move(body);

@@ -61,6 +61,7 @@ $(EXTRACTOR): force_check
 $(STENCILS_OBJ): force_check
 	$(MAKE) -C $(STENCILS_DIR)
 
+.PHONY: clean
 clean:
 	$(MAKE) -C $(EXTRACTOR_DIR) clean
 	$(MAKE) -C $(STENCILS_DIR) clean

@@ -16,5 +16,6 @@ $(EXTRACTOR_BIN): $(OBJECTS)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+.PHONY: clean
 clean:
 	rm -f $(EXTRACTOR_BIN) $(OBJECTS)
