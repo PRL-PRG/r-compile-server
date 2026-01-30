@@ -5,6 +5,7 @@
 
 extern const char *const OPCODES_NAMES[];
 extern const uint8_t OPCODES_COUNT;
+extern const uint8_t **debug_frames[];
 
 #define _GNU_SOURCE
 #include <elf.h>
@@ -156,6 +157,20 @@ static void buf_write_sleb128(Buffer *buf, int64_t val) {
   }
 }
 
+static uint64_t read_uleb128(const uint8_t **data) {
+  uint64_t result = 0;
+  int shift = 0;
+  while (1) {
+    uint8_t byte = **data;
+    (*data)++;
+    result |= (byte & 0x7f) << shift;
+    if ((byte & 0x80) == 0)
+      break;
+    shift += 7;
+  }
+  return result;
+}
+
 static void buf_free(Buffer *buf) {
   free(buf->data);
   buf->data = NULL;
@@ -229,7 +244,7 @@ static char *write_source_file(const char *func_name, const int *bytecode,
 static void *create_debug_elf(const char *func_name, void *code_addr,
                               size_t code_size, uint8_t **inst_addrs,
                               int bytecode_count, const int *bytecode,
-                              size_t *elf_size) {
+                              const int *stencil_variants, size_t *elf_size) {
 
   /* Generate source file */
   char *source_path =
@@ -435,45 +450,65 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   buf_write_u64(&dbg_frame, (uint64_t)code_addr); /* initial_location */
   buf_write_u64(&dbg_frame, code_size);  /* address_range */
 
+  uint64_t fde_last_addr = (uint64_t)code_addr;
+
   /*
-   * After _RCP_INIT prologue (7 pushes + call), CFA = RSP + 0x48 (72).
-   * The prologue pushes: r15, r14, r13, r12, rbp, rbx, rax (padding).
+   * Describe _RCP_INIT prologue pushes.
+   * At entry, CFA = RSP + 8 (return address).
    */
+
+  /* push r15, r14, r13, r12 (2 bytes each) */
+  uint8_t prologue_regs[] = {DWARF_REG_R15, DWARF_REG_R14, DWARF_REG_R13,
+                             DWARF_REG_R12};
+  for (int i = 0; i < 4; i++) {
+    buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
+    buf_write_u8(&dbg_frame, 2);
+    fde_last_addr += 2;
+    buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+    buf_write_uleb128(&dbg_frame, 16 + i * 8);
+    buf_write_u8(&dbg_frame, DW_CFA_offset_base | prologue_regs[i]);
+    buf_write_uleb128(&dbg_frame, 2 + i); /* CFA-16, 24, 32, 40 */
+  }
+
+  /* push rbp (1 byte) */
+  buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
+  buf_write_u8(&dbg_frame, 1);
+  fde_last_addr += 1;
   buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
-  buf_write_uleb128(&dbg_frame, 0x48);
-
-  /* Register save locations (factored offset = CFA_offset / 8) */
-  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R15);
-  buf_write_uleb128(&dbg_frame, 2); /* CFA-16 */
-
-  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R14);
-  buf_write_uleb128(&dbg_frame, 3); /* CFA-24 */
-
-  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R13);
-  buf_write_uleb128(&dbg_frame, 4); /* CFA-32 */
-
-  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_R12);
-  buf_write_uleb128(&dbg_frame, 5); /* CFA-40 */
-
+  buf_write_uleb128(&dbg_frame, 48);
   buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_RBP);
   buf_write_uleb128(&dbg_frame, 6); /* CFA-48 */
 
+  /* push rbx (1 byte) */
+  buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
+  buf_write_u8(&dbg_frame, 1);
+  fde_last_addr += 1;
+  buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+  buf_write_uleb128(&dbg_frame, 56);
   buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_RBX);
   buf_write_uleb128(&dbg_frame, 7); /* CFA-56 */
 
-  /* Per-stencil CFI rows: advance to each instruction and set CFA offset.
-   *
-   * At the start of each stencil, RSP is at base (CFA = RSP + 0x48).
-   * The stencil may then adjust RSP (sub/push) before calling C helpers.
-   * We emit TWO rows for stencils with adjustments:
-   *   1. At inst_addrs[i]:            CFA = RSP + 0x48 (before adjustment)
-   *   2. At inst_addrs[i]+insn_size:  CFA = RSP + 0x48 + adj (after adjustment)
-   * This ensures GDB computes a consistent CFA both at the instruction
-   * start (for frame identity) and at call sites (for unwinding). */
-  uint64_t fde_last_addr = (uint64_t)code_addr;
+  /* push rax (padding, 1 byte) */
+  buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
+  buf_write_u8(&dbg_frame, 1);
+  fde_last_addr += 1;
+  buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+  buf_write_uleb128(&dbg_frame, 64);
+
+  /* nop (1 byte) + call (5 bytes) = 6 bytes.
+     After call, we are in bytecode. The stack is now fully set up.
+     The call itself pushes the return address, so CFA offset becomes 72. */
+  buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
+  buf_write_u8(&dbg_frame, 6);
+  fde_last_addr += 6;
+  buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+  buf_write_uleb128(&dbg_frame, 72);
+
   for (int i = 0; i < bytecode_count; i++) {
     if (!inst_addrs[i])
       continue;
+
+    // Advance to the current instruction
     uint64_t curr = (uint64_t)inst_addrs[i];
     uint64_t delta = curr - fde_last_addr;
     if (delta > 0) {
@@ -490,18 +525,69 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
       fde_last_addr = curr;
     }
 
-    /* At stencil entry, no stack adjustment yet */
+    /* Reset CFA to base (RSP+72) at the start of each stencil */
     buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
-    buf_write_uleb128(&dbg_frame, 0x48);
+    buf_write_uleb128(&dbg_frame, 72);
 
-    StackAdj adj = detect_stack_adjustment(inst_addrs[i]);
-    if (adj.adjustment > 0) {
-      /* Advance past the adjustment instruction, then set new CFA offset */
-      buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
-      buf_write_u8(&dbg_frame, (uint8_t)adj.insn_size);
-      fde_last_addr += adj.insn_size;
-      buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
-      buf_write_uleb128(&dbg_frame, 0x48 + adj.adjustment);
+    /* Get debug frame for this stencil */
+    int opcode = bytecode[i];
+    int variant = stencil_variants ? stencil_variants[i] : 0;
+
+    // Safety check for unknown opcodes or missing debug frames
+    if (opcode >= 0 && opcode < OPCODES_COUNT && debug_frames[opcode]) {
+      const uint8_t *frame_data = debug_frames[opcode][variant];
+      if (frame_data) {
+        uint32_t length = *(const uint32_t *)frame_data;
+        const uint8_t *cfi_start = frame_data + 24; // Skip FDE header (4+4+8+8)
+        const uint8_t *cfi_end = frame_data + 4 + length;
+        const uint8_t *p = cfi_start;
+
+        while (p < cfi_end) {
+          uint8_t op = *p++;
+          if ((op & 0xC0) == 0x00) {
+            // Standard opcodes
+            if (op == DW_CFA_def_cfa_offset) {
+              uint64_t val = read_uleb128(&p);
+              /* Adjust CFA offset: new_offset = val - 8 + 72
+                 8 is standard return address offset, 72 is our base offset */
+              buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+              buf_write_uleb128(&dbg_frame, val - 8 + 72);
+            } else if (op == DW_CFA_advance_loc1) {
+              uint8_t d = *p++;
+              buf_write_u8(&dbg_frame, op);
+              buf_write_u8(&dbg_frame, d);
+              fde_last_addr += d;
+            } else if (op == DW_CFA_advance_loc2) {
+              uint16_t d = *(const uint16_t *)p;
+              p += 2;
+              buf_write_u8(&dbg_frame, op);
+              buf_write_u16(&dbg_frame, d);
+              fde_last_addr += d;
+            } else if (op == DW_CFA_advance_loc4) {
+              uint32_t d = *(const uint32_t *)p;
+              p += 4;
+              buf_write_u8(&dbg_frame, op);
+              buf_write_u32(&dbg_frame, d);
+              fde_last_addr += d;
+            } else {
+              // Copy other opcodes as is (nop, restore, etc.)
+              buf_write_u8(&dbg_frame, op);
+            }
+          } else if ((op & 0xC0) == 0x40) {
+            // DW_CFA_advance_loc (0x40 | delta)
+            buf_write_u8(&dbg_frame, op);
+            fde_last_addr += (op & 0x3F);
+          } else if ((op & 0xC0) == 0x80) {
+            // DW_CFA_offset (0x80 | reg)
+            uint64_t val = read_uleb128(&p);
+            buf_write_u8(&dbg_frame, op);
+            buf_write_uleb128(&dbg_frame, val);
+          } else if ((op & 0xC0) == 0xC0) {
+            // DW_CFA_restore (0xC0 | reg)
+            buf_write_u8(&dbg_frame, op);
+          }
+        }
+      }
     }
   }
 
@@ -691,14 +777,15 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
 struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
                                         size_t code_size, uint8_t **inst_addrs,
                                         int bytecode_count,
-                                        const int *bytecode) {
+                                        const int *bytecode,
+                                        const int *stencil_variants) {
   if (!func_name || !code_addr || code_size == 0)
     return NULL;
 
   /* Create ELF image with symbols */
   size_t elf_size;
   void *elf = create_debug_elf(func_name, code_addr, code_size, inst_addrs,
-                               bytecode_count, bytecode, &elf_size);
+                               bytecode_count, bytecode, stencil_variants, &elf_size);
   if (!elf)
     return NULL;
 

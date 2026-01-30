@@ -993,6 +993,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     stats->count_opcodes += count_opcodes;
     DEBUG_PRINT("Total opcodes: %d\n", count_opcodes);
 
+    int *stencil_variants = (int *)S_alloc(bytecode_size, sizeof(int));
+    memset(stencil_variants, 0, bytecode_size * sizeof(int));
+
     DEBUG_PRINT("For loops used for this closure: %d\n", for_count);
 
     // Create bcell lookup table
@@ -1161,6 +1164,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 
         const Stencil *stencil = get_stencil(opcode, opargs, constpool);
 
+        stencil_variants[bc_pos] = (int)(stencil - stencils[opcode]);
+
         memcpy(inst_start[bc_pos], stencil->body, stencil->body_size);
 
         // Patch the holes
@@ -1183,7 +1188,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             insts_size,
             inst_start,
             bytecode_size,
-            bytecode
+            bytecode,
+            stencil_variants
         );
     } else {
         res.jit_entry = NULL;

@@ -52,6 +52,7 @@ struct jit_descriptor {
  *   opcode_names   - Array of opcode name strings
  *   opcode_arg_counts - Array of argument counts per opcode
  *   num_opcodes    - Number of opcodes in the arrays
+ *   stencil_variants - Array of stencil variant indices for each instruction
  *
  * Returns:
  *   Pointer to the jit_code_entry that can be used for unregistration,
@@ -63,7 +64,8 @@ struct jit_code_entry *gdb_jit_register(
     size_t code_size,
     uint8_t **inst_addrs,
     int bytecode_count,
-    const int *bytecode
+    const int *bytecode,
+    const int *stencil_variants
 );
 
 /*
