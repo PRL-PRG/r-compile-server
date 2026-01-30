@@ -9,7 +9,6 @@ break __jit_debug_register_code
 run
 
 # Wait for compilation
-echo [GDB] Hit JIT registration. Finishing...
 finish
 # Now symbols for f_jit should be loaded.
 break f_jit
@@ -17,35 +16,18 @@ break f_jit
 # Continue to execution
 continue
 
-# We hit f_jit at Prologue (Line 1)
-echo [GDB] Hit f_jit. At Prologue:
-display/i $pc
-list
-
-# 1. Step over Prologue -> Op 1
-echo [GDB] Step 1 (Prologue -> Op 1)...
+# 1. At Prologue
 next
-display/i $pc
-
-# 2. Step over Op 1 -> Op 2
-echo [GDB] Step 2 (Op 1 -> Op 2)...
+# 2. At GETVAR_OP
 next
-display/i $pc
-
-# 3. Step over Op 2 -> Op 3
-echo [GDB] Step 3 (Op 2 -> Op 3)...
+# 3. At LDCONST_OP
 next
-display/i $pc
-
-# 4. Step over Op 3 -> Op 4
-echo [GDB] Step 4 (Op 3 -> Op 4)...
+# 4. At ADD_OP
+# Before nexting from ADD to RETURN, show the current frame if next lands on RETURN
 next
-display/i $pc
-
-# 5. Step over Op 4 -> Return/Exit
-echo [GDB] Step 5 (Op 4 -> Exit)...
+# Now at RETURN_OP. Explicitly show it.
+frame
 next
-display/i $pc
 
 continue
 quit

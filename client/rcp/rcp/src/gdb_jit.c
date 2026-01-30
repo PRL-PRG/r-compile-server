@@ -402,6 +402,11 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   }
 
   /* End sequence */
+  uint64_t end_addr = (uint64_t)code_addr + code_size;
+  if (end_addr > last_addr) {
+    buf_write_u8(&dbg_line, DW_LNS_advance_pc);
+    buf_write_uleb128(&dbg_line, end_addr - last_addr);
+  }
   buf_write_u8(&dbg_line, 0);
   buf_write_uleb128(&dbg_line, 1);
   buf_write_u8(&dbg_line, DW_LNE_end_sequence);

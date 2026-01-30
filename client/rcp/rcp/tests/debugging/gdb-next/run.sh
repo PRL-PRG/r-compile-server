@@ -14,7 +14,7 @@ if [ ! -f "$R_BIN" ]; then
     exit 1
 fi
 
-echo "Running GDB JIT 'next' minimal test..."
+echo "Running GDB JIT 'next' ordered test..."
 
 OUTPUT_LOG="$DIR/gdb_output.log"
 
@@ -27,42 +27,18 @@ LD_LIBRARY_PATH="$R_LIB" R_HOME="$R_HOME_PATH" timeout 60s gdb -q -batch \
 # Verification logic
 echo "Verifying output..."
 
-if grep -q "Hit f_jit" "$OUTPUT_LOG"; then
-    echo "[PASS] Hit function breakpoint."
-else
-    echo "[FAIL] Did not hit function breakpoint. Log:"
-    cat "$OUTPUT_LOG"
-    exit 1
-fi
+# Grep for lines that start with a number (GDB stop location) 
+# and contain our keywords. Extract only the keyword.
+EXPECTED="__rcp_jit_prologue GETVAR_OP LDCONST_OP ADD_OP RETURN_OP"
+ACTUAL=$(grep -E "^[0-9]+[[:space:]]+(__rcp_jit_prologue|[A-Z]+_OP)" "$OUTPUT_LOG" | awk '{print $2}' | uniq | xargs)
 
-# Check for specific opcodes in the order we expect (or just presence)
-# Note: output order depends on GDB display, but we can check existence.
+echo "Expected: $EXPECTED"
+echo "Actual:   $ACTUAL"
 
-if grep -q "GETVAR_OP" "$OUTPUT_LOG"; then
-    echo "[PASS] Stepped over GETVAR_OP."
+if [ "$ACTUAL" == "$EXPECTED" ]; then
+    echo "[PASS] Instruction sequence matches."
 else
-    echo "[FAIL] Missing GETVAR_OP."
-    exit 1
-fi
-
-if grep -q "LDCONST_OP" "$OUTPUT_LOG"; then
-    echo "[PASS] Stepped over LDCONST_OP."
-else
-    echo "[FAIL] Missing LDCONST_OP."
-    exit 1
-fi
-
-if grep -q "ADD_OP" "$OUTPUT_LOG"; then
-    echo "[PASS] Stepped over ADD_OP."
-else
-    echo "[FAIL] Missing ADD_OP."
-    exit 1
-fi
-
-if grep -q "RETURN_OP" "$OUTPUT_LOG"; then
-    echo "[PASS] Stepped over RETURN_OP."
-else
-    echo "[FAIL] Missing RETURN_OP."
+    echo "[FAIL] Instruction sequence mismatch."
     exit 1
 fi
 
