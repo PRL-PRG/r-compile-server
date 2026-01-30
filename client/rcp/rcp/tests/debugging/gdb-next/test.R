@@ -1,18 +1,16 @@
 library(rcp)
 
-# Define a function with sequential operations
-f_seq <- function(x) {
-  # Each line/expression here corresponds to one or more bytecode instructions
-  a <- x + 1
-  b <- a * 2
-  c <- b - 5
-  return(c)
-}
+# Minimal function: f(x) = x + 1
+# Expected Bytecode:
+# 1. GETVAR x
+# 2. LDCONST 1
+# 3. ADD
+# 4. RETURN
+f <- function(x) x + 1
 
-cat("Compiling sequential function...\n")
-f_seq_jit <- rcp::rcp_cmpfun(f_seq, list(name="f_seq_jit"))
+cat("Compiling minimal function...\n")
+f_jit <- rcp::rcp_cmpfun(f, list(name="f_jit"))
 
 cat("Executing function...\n")
-res <- f_seq_jit(10)
+res <- f_jit(10)
 cat("Result:", res, "\n")
-

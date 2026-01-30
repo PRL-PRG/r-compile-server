@@ -14,7 +14,7 @@ if [ ! -f "$R_BIN" ]; then
     exit 1
 fi
 
-echo "Running GDB JIT 'next' command test..."
+echo "Running GDB JIT 'next' minimal test..."
 
 OUTPUT_LOG="$DIR/gdb_output.log"
 
@@ -27,14 +27,7 @@ LD_LIBRARY_PATH="$R_LIB" R_HOME="$R_HOME_PATH" timeout 60s gdb -q -batch \
 # Verification logic
 echo "Verifying output..."
 
-# We expect to see source listing showing different lines
-# e.g., 
-# 1       __rcp_jit_prologue
-# 2       LDCONST_OP
-# 3       SETVAR_OP
-# etc.
-
-if grep -q "Hit f_seq_jit" "$OUTPUT_LOG"; then
+if grep -q "Hit f_jit" "$OUTPUT_LOG"; then
     echo "[PASS] Hit function breakpoint."
 else
     echo "[FAIL] Did not hit function breakpoint. Log:"
@@ -42,20 +35,35 @@ else
     exit 1
 fi
 
-# Count how many unique lines were displayed by 'list' or 'frame' during 'next'
-# GDB output for 'next' usually shows the source line number if symbols are present
-# We look for the patterns from the virtual source file
+# Check for specific opcodes in the order we expect (or just presence)
+# Note: output order depends on GDB display, but we can check existence.
 
-if grep -q "LDCONST_OP" "$OUTPUT_LOG"; then
-    echo "[PASS] Encountered LDCONST_OP."
+if grep -q "GETVAR_OP" "$OUTPUT_LOG"; then
+    echo "[PASS] Stepped over GETVAR_OP."
 else
-    echo "[WARN] Did not see LDCONST_OP (check generated code)."
+    echo "[FAIL] Missing GETVAR_OP."
+    exit 1
 fi
 
-if grep -q "ADD_OP" "$OUTPUT_LOG" || grep -q "MUL_OP" "$OUTPUT_LOG" || grep -q "SUB_OP" "$OUTPUT_LOG"; then
-    echo "[PASS] Encountered Math OP (ADD/MUL/SUB)."
+if grep -q "LDCONST_OP" "$OUTPUT_LOG"; then
+    echo "[PASS] Stepped over LDCONST_OP."
 else
-    echo "[WARN] Did not explicitly see Math OP."
+    echo "[FAIL] Missing LDCONST_OP."
+    exit 1
+fi
+
+if grep -q "ADD_OP" "$OUTPUT_LOG"; then
+    echo "[PASS] Stepped over ADD_OP."
+else
+    echo "[FAIL] Missing ADD_OP."
+    exit 1
+fi
+
+if grep -q "RETURN_OP" "$OUTPUT_LOG"; then
+    echo "[PASS] Stepped over RETURN_OP."
+else
+    echo "[FAIL] Missing RETURN_OP."
+    exit 1
 fi
 
 echo "Test passed successfully!"

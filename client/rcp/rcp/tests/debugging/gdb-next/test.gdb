@@ -9,43 +9,41 @@ break __jit_debug_register_code
 run
 
 # Wait for compilation
-echo [GDB] Hit JIT registration. Finishing...\n
+echo [GDB] Hit JIT registration. Finishing...
 finish
-# Now symbols for f_seq_jit should be loaded.
-break f_seq_jit
+# Now symbols for f_jit should be loaded.
+break f_jit
 
 # Continue to execution
 continue
 
-# We hit f_seq_jit
-echo [GDB] Hit f_seq_jit. Current location:\n
-# We should be at the prologue
+# We hit f_jit at Prologue (Line 1)
+echo [GDB] Hit f_jit. At Prologue:
 display/i $pc
 list
 
-# Step (next) over prologue
-# Note: The prologue is mapped to line 1. 'next' should jump to line 2.
-
-echo [GDB] Executing 'next' (skip prologue)...
-next
-display/i $pc
-list
-
-# Now we should be at the first instruction (e.g. LDCONST or GETVAR)
-# We will execute 'next' several times and verify the line number increases
-echo [GDB] Executing 'next' 1...
+# 1. Step over Prologue -> Op 1
+echo [GDB] Step 1 (Prologue -> Op 1)...
 next
 display/i $pc
 
-echo [GDB] Executing 'next' 2...
+# 2. Step over Op 1 -> Op 2
+echo [GDB] Step 2 (Op 1 -> Op 2)...
 next
 display/i $pc
 
-echo [GDB] Executing 'next' 3...
+# 3. Step over Op 2 -> Op 3
+echo [GDB] Step 3 (Op 2 -> Op 3)...
 next
 display/i $pc
 
-echo [GDB] Executing 'next' 4...
+# 4. Step over Op 3 -> Op 4
+echo [GDB] Step 4 (Op 3 -> Op 4)...
+next
+display/i $pc
+
+# 5. Step over Op 4 -> Return/Exit
+echo [GDB] Step 5 (Op 4 -> Exit)...
 next
 display/i $pc
 
