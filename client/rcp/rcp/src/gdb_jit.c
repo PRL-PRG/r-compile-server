@@ -179,31 +179,6 @@ static void buf_free(Buffer *buf) {
 }
 
 /*
- * Detect stack adjustment at the beginning of a stencil.
- * Returns the number of bytes subtracted from RSP and the instruction size.
- */
-typedef struct {
-  int adjustment; /* bytes subtracted from RSP */
-  int insn_size;  /* size of the adjustment instruction in bytes */
-} StackAdj;
-
-static StackAdj detect_stack_adjustment(const uint8_t *code) {
-  /* sub $imm8, %rsp: REX.W=48 83 ec NN */
-  if (code[0] == 0x48 && code[1] == 0x83 && code[2] == 0xec)
-    return (StackAdj){(uint8_t)code[3], 4};
-  /* sub $imm32, %rsp: REX.W=48 81 ec NN NN NN NN */
-  if (code[0] == 0x48 && code[1] == 0x81 && code[2] == 0xec)
-    return (StackAdj){*(const uint32_t *)&code[3], 7};
-  /* push r64 (rax-rdi): 50-57 */
-  if (code[0] >= 0x50 && code[0] <= 0x57)
-    return (StackAdj){8, 1};
-  /* push r8-r15: REX 41 50-57 */
-  if (code[0] == 0x41 && code[1] >= 0x50 && code[1] <= 0x57)
-    return (StackAdj){8, 2};
-  return (StackAdj){0, 0};
-}
-
-/*
  * Generate a temporary source file with opcode names.
  * Only instruction positions (where inst_addrs[i] != NULL) are emitted,
  * so argument slots in the bytecode array are skipped.
@@ -375,7 +350,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   /* Line Number Program */
 
   /* Emit row for prologue: line 1, address = code_addr */
-  buf_write_u8(&dbg_line, 0); // Extended opcode
+  buf_write_u8(&dbg_line, 0);          // Extended opcode
   buf_write_uleb128(&dbg_line, 1 + 8); // Length (opcode byte + 8-byte addr)
   buf_write_u8(&dbg_line, DW_LNE_set_address);
   buf_write_u64(&dbg_line, (uint64_t)code_addr);
@@ -450,10 +425,10 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
 
   /* FDE (Frame Description Entry) */
   size_t fde_start = dbg_frame.size;
-  buf_write_u32(&dbg_frame, 0);          /* length (placeholder) */
-  buf_write_u32(&dbg_frame, cie_start);  /* CIE_pointer (offset of CIE) */
+  buf_write_u32(&dbg_frame, 0);         /* length (placeholder) */
+  buf_write_u32(&dbg_frame, cie_start); /* CIE_pointer (offset of CIE) */
   buf_write_u64(&dbg_frame, (uint64_t)code_addr); /* initial_location */
-  buf_write_u64(&dbg_frame, code_size);  /* address_range */
+  buf_write_u64(&dbg_frame, code_size);           /* address_range */
 
   uint64_t fde_last_addr = (uint64_t)code_addr;
 
@@ -781,16 +756,16 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
 
 struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
                                         size_t code_size, uint8_t **inst_addrs,
-                                        int bytecode_count,
-                                        const int *bytecode,
+                                        int bytecode_count, const int *bytecode,
                                         const int *stencil_variants) {
   if (!func_name || !code_addr || code_size == 0)
     return NULL;
 
   /* Create ELF image with symbols */
   size_t elf_size;
-  void *elf = create_debug_elf(func_name, code_addr, code_size, inst_addrs,
-                               bytecode_count, bytecode, stencil_variants, &elf_size);
+  void *elf =
+      create_debug_elf(func_name, code_addr, code_size, inst_addrs,
+                       bytecode_count, bytecode, stencil_variants, &elf_size);
   if (!elf)
     return NULL;
 
