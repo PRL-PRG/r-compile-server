@@ -1,0 +1,4 @@
+*.o
+*.so
+src/extractor/extractor
+src/stencils-build/

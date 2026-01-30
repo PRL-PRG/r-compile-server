@@ -1,4 +1,4 @@
-#include "R_ext/Print.h"
+#include <R_ext/Print.h>
 #include <stddef.h>
 #define USE_RINTERNALS
 #define RSH
@@ -31,7 +31,7 @@ static struct StencilProfileInfo stencil_profile_info[sizeof(OPCODES_NAMES) / si
 #endif
 
 #include "runtime_internals.h"
-#include "stencils/stencils.h"
+#include <stencils.h>
 #include "gdb_jit.h"
 
 #define UNPROTECT_SAFE(ptr)                         \

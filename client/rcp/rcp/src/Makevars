@@ -1,0 +1,69 @@
+include ../common.mk
+
+OPENMP ?= 0
+
+ifneq ($(OPENMP),0)
+  PKG_CFLAGS += -fopenmp
+  PKG_LIBS += -fopenmp
+endif
+
+ifneq ($(GDB_JIT_SUPPORT),0)
+  PKG_CFLAGS += -DGDB_JIT_SUPPORT
+endif
+
+PKG_CFLAGS += $(DEFINE_FLAGS)
+PKG_CFLAGS += -I$(RSH_HOME)/src/bc2c
+PKG_CFLAGS += -DALIGNMENT_LABELS=$(ALIGNMENT_LABELS)
+PKG_CFLAGS += -DALIGNMENT_JUMPS=$(ALIGNMENT_JUMPS)
+PKG_CFLAGS += -DALIGNMENT_LOOPS=$(ALIGNMENT_LOOPS)
+
+ifeq ($(strip $(MCMODEL)),medium)
+  PKG_CFLAGS += -DMCMODEL_SMALL
+endif
+
+ifneq ($(SPECIALIZE_STEPFOR),0)
+  PKG_CFLAGS += -DSTEPFOR_SPECIALIZE
+endif
+
+ifneq ($(SPECIALIZE_SWITCH),0)
+  PKG_CFLAGS += -DSWITCH_SPECIALIZE
+endif
+
+$(info --- CONFIG ---)
+$(info RSH_HOME=$(RSH_HOME))
+$(info R_HOME=$(R_HOME))
+$(info --------------)
+
+STENCILS_BUILD_DIR = stencils-build
+STENCILS_H = $(STENCILS_BUILD_DIR)/stencils.h
+
+PKG_CFLAGS += -I$(STENCILS_BUILD_DIR)
+
+SOURCES = $(wildcard *.c)
+OBJECTS = $(SOURCES:.c=.o)
+
+## ------------------------------------------------------------------------ 
+## targets
+## ------------------------------------------------------------------------ 
+
+.PHONY: force_check
+
+all: $(SHLIB)
+
+$(OBJECTS): $(STENCILS_H)
+
+$(STENCILS_H): $(EXTRACTOR) $(STENCILS_OBJ)
+	$(EXTRACTOR) $(STENCILS_OBJ) $(STENCILS_BUILD_DIR)
+
+$(EXTRACTOR): force_check
+	$(MAKE) -C $(EXTRACTOR_DIR)
+
+$(STENCILS_OBJ): force_check
+	$(MAKE) -C $(STENCILS_DIR)
+
+clean:
+	$(MAKE) -C $(EXTRACTOR_DIR) clean
+	$(MAKE) -C $(STENCILS_DIR) clean
+	rm -f *.o *.so
+
+# vim: ft=make
