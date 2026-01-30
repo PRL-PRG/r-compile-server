@@ -6,3 +6,6 @@ rcp/.RData
 rcp/.Rhistory
 rcp/.gdb_history
 rcp/benchmark-results
+rcp/tests/debugging/gdb-basic/gdb_output.log
+rcp/tests/debugging/gdb-next/gdb_output.log
+.Rhistory

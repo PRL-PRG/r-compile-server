@@ -8,7 +8,13 @@ break __jit_debug_register_code
 # Run the R script
 run
 
-# Wait for compilation
+# 1. Not-inlined helpers registration
+finish
+
+# Continue to f_jit compilation
+continue
+
+# 2. f_jit registration
 finish
 # Now symbols for f_jit should be loaded.
 break f_jit
@@ -23,9 +29,8 @@ next
 # 3. At LDCONST_OP
 next
 # 4. At ADD_OP
-# Before nexting from ADD to RETURN, show the current frame if next lands on RETURN
 next
-# Now at RETURN_OP. Explicitly show it.
+# 5. At RETURN_OP
 frame
 next
 

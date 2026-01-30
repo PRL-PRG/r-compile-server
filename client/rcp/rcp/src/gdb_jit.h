@@ -50,7 +50,8 @@ struct jit_descriptor {
  *   instruction_count - Number of instructions
  *   instruction_names - Array of instruction names (for source listing)
  *   instruction_debug_frames - Array of pointers to DWARF debug frames for each instruction
- *   base_cfa_offset - The CFA offset at the start of the function (after prologue). 
+ *   prologue_debug_frame - Debug frame for the function prologue (e.g. _RCP_INIT), or NULL.
+ *   base_cfa_offset - The CFA offset to reset to at the start of each instruction body. 
  *                     Use 72 (0x48) for standard JIT functions with _RCP_INIT prologue.
  *                     Use 8 for raw helper functions without extra prologue.
  *
@@ -66,6 +67,7 @@ struct jit_code_entry *gdb_jit_register(
     int instruction_count,
     const char **instruction_names,
     const uint8_t **instruction_debug_frames,
+    const uint8_t *prologue_debug_frame,
     int base_cfa_offset
 );
 

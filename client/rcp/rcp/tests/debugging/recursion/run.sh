@@ -38,8 +38,8 @@ echo "Verifying output..."
 # #2 test_add ...
 
 # Check the 2nd call backtrace
-if grep -A 5 "Hit test_add (2nd call" "$OUTPUT_LOG" | grep -q "#2.*test_add"; then
-    echo "[PASS] Recursion backtrace correct (test_add found at frame #2)."
+if grep -A 10 "Hit test_add (2nd call" "$OUTPUT_LOG" | grep -q "#3.*test_add"; then
+    echo "[PASS] Recursion backtrace correct (test_add found at frame #3)."
 else
     echo "[FAIL] Recursion backtrace broken."
     echo "Full log:"

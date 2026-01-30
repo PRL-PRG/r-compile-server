@@ -707,6 +707,17 @@ static void export_to_files(const fs::path &output_dir,
     std::ofstream file(filename);
     export_body(file, current, current.name.c_str(),
                 stencils.functions_not_inlined);
+
+    // Export FDEs
+    auto it = stencils.debug_frames.find(current.section_symbol_name);
+    if (it != stencils.debug_frames.end()) {
+      file << "/*\n";
+      print_fde_decoded(file, stencils.debug_frame_cie, it->second);
+      file << "*/\n";
+      file << std::format("uint8_t _{}_debug_frame[] = {{ ", current.name);
+      print_byte_array(file, it->second.data(), it->second.size());
+      file << "};\n\n";
+    }
   }
 
   {
