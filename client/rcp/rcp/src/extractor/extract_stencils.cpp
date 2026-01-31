@@ -65,7 +65,7 @@ struct StencilExportSet {
 
 struct Stencils {
   std::vector<uint8_t> rodata;
-  std::array<StencilExportSet, sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)>
+  std::array<StencilExportSet, NUM_OPCODES>
       stencils_opcodes;
   std::vector<StencilExport> stencils_extra;
   std::vector<StencilExport> functions_not_inlined;
@@ -106,8 +106,8 @@ static const char *remove_prefix(const char *str, const char *prefix) {
 std::unordered_map<std::string_view, uint8_t> opcode_idx;
 static auto prepare_opcodes() {
   std::unordered_map<std::string_view, uint8_t> idx;
-  idx.reserve(sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)); // avoid rehashes
-  for (size_t i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
+  idx.reserve(NUM_OPCODES); // avoid rehashes
+  for (size_t i = 0; i < NUM_OPCODES; ++i)
     idx.emplace(std::string_view(OPCODES_NAMES[i]), i);
 
   return idx;
@@ -119,7 +119,7 @@ static int get_opcode(const char *str) {
 
   str += 5;
 
-  for (int i = 0; i < sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES); ++i)
+  for (int i = 0; i < NUM_OPCODES; ++i)
     if (strcmp(str, OPCODES_NAMES[i]) == 0)
       return i;
   return -1;
@@ -169,11 +169,11 @@ void prepare_stepfor(StencilExportSet &stencil_set) {
     stepfor_sum_size += current.body.size();
 
   stencil_set.extra_string +=
-      std::format("#define stepfor_variant_count "
-                  "sizeof(STEPFOR_OP_stencils)/sizeof(*STEPFOR_OP_stencils)\n"
+      std::format("#define stepfor_variant_count {}\n"
                   "#define stepfor_max_size {}\n"
                   "#define stepfor_sum_size {}\n",
-                  stepfor_max_size, stepfor_sum_size);
+                  stencil_set.stencils.size(), stepfor_max_size,
+                  stepfor_sum_size);
 }
 
 static void print_byte_array(std::ostream &file, const unsigned char *arr,
@@ -340,9 +340,12 @@ static DwarfCIE parse_cie(const std::vector<uint8_t> &cie) {
     return result;
 
   uint8_t version = *p++;
-  // Augmentation string
-  while (p < end && *p != 0)
-    p++;
+  // Augmentation string - should be empty (just a null byte)
+  if (p < end && *p != 0) {
+    throw std::runtime_error(
+        std::format("Unsupported non-empty CIE augmentation string: \"{}\"",
+                    (const char *)p));
+  }
   p++; // skip null
 
   if (p >= end)
@@ -355,24 +358,6 @@ static DwarfCIE parse_cie(const std::vector<uint8_t> &cie) {
     result.ra_reg = *p++;
   else
     result.ra_reg = read_uleb128(p, end);
-
-  // Check for 'z' augmentation to skip it?
-  // Simplification: assuming standard GCC/Clang output without complex
-  // augmentations for now, or that the augmentation data (if any) is handled or
-  // skipped. If augmentation string started with 'z', there is a uleb128
-  // length. We can re-check augmentation string if needed, but for now
-  // extracting instructions. The 'z' is common. Let's handle it minimally if we
-  // can find the string. But we already skipped the string. Let's rely on
-  // robust parsing or assume 'zR' which is common. If 'z' present, next is
-  // ULEB128 length of augmentation data, then data.
-
-  const char *aug_str =
-      (const char *)(cie.data() +
-                     (header_len == 4 ? 9 : 21)); // approx location
-  if (aug_str < (const char *)p && aug_str[0] == 'z') {
-    uint64_t aug_len = read_uleb128(p, end);
-    p += aug_len;
-  }
 
   if (p < end)
     result.initial_instructions.assign(p, end);
@@ -557,11 +542,8 @@ static void execute_dwarf_insts(
           state_stack.pop_back();
         }
         break;
-      // ... incomplete ...
       default:
-        // Unknown, skip? Can't skip without knowing length.
-        // Warning: this parser is partial.
-        break;
+        throw std::runtime_error(std::format("Unknown DWARF CFA opcode: {:#x}", op));
       }
     }
 
@@ -604,32 +586,6 @@ static void print_fde_decoded(std::ostream &os,
   uint64_t pc_range = get_le64(p);
   p += 8;
 
-  // Augmentation?
-  // If CIE has 'z', FDE also has augmentation length + data
-  const char *cie_aug =
-      (const char *)(cie_data.data() +
-                     (cie_data.size() > 12 ? 9 : 0)); // approximate check
-  // Better: re-parse CIE to find 'z'.
-  // Assuming 'z' check logic holds:
-  // This part is fragile without full CIE parsing context.
-  // For now, assume simplified flow.
-  // Check first byte of FDE instructions. If it's 0, it's NOP padding likely.
-
-  // Need proper augmentation skip logic.
-  // Let's reuse parse_cie logic slightly.
-  bool has_z = false;
-  {
-    const uint8_t *cp = cie_data.data();
-    // Skip len/id/ver
-    cp += (cie_data.size() > 12 && cie_data[0] == 0xff ? 21 : 9);
-    if (cp < cie_data.data() + cie_data.size() && *cp == 'z')
-      has_z = true;
-  }
-  if (has_z) {
-    uint64_t aug_len = read_uleb128(p, end);
-    p += aug_len;
-  }
-
   os << std::format("FDE {:x} pc={:x}..{:x}\n", fde_data.size(), pc_begin,
                     pc_begin + pc_range);
   os << "   LOC           CFA      ra\n";
@@ -658,198 +614,246 @@ static void print_fde_decoded(std::ostream &os,
   }
 }
 
-// Create all the header files for the stencils
+static void export_fde(std::ostream &file, const Stencils &stencils,
+                       const std::string &section_symbol_name,
+                       const std::string &variable_name) {
+  auto it = stencils.debug_frames.find(section_symbol_name);
+  if (it != stencils.debug_frames.end()) {
+    file << "/*\n";
+    print_fde_decoded(file, stencils.debug_frame_cie, it->second);
+    file << "*/\n";
+    file << std::format("uint8_t {}_debug_frame[] = {{ ", variable_name);
+    print_byte_array(file, it->second.data(), it->second.size());
+    file << "};\n\n";
+  }
+}
+
+// Create stencils_data.c and stencils_data.h
 static void export_to_files(const fs::path &output_dir,
                             const Stencils &stencils) {
   if (!fs::is_directory(output_dir)) {
     fs::create_directories(output_dir);
   }
 
+  std::ofstream c_file(output_dir / "stencils_data.c");
+  std::ofstream h_file(output_dir / "stencils_data.h");
+
+  h_file << "#ifndef STENCILS_DATA_H\n";
+  h_file << "#define STENCILS_DATA_H\n";
+  h_file << "#include \"rcp_common.h\"\n\n";
+  h_file << "#include <stddef.h>\n\n";
+
+  c_file << "#include \"stencils_data.h\"\n\n";
+  c_file << "#define USE_RINTERNALS\n";
+  c_file << "#define RSH\n";
+  c_file << "#include <string.h>\n";
+  c_file << "#include <R.h>\n";
+  c_file << "#include <Rinternals.h>\n";
+  c_file << "#include <Rmath.h>\n";
+  c_file << "#include \"runtime_internals.h\"\n";
+  c_file << "extern RCNTXT *R_GlobalContext;\n";
+  c_file << "extern SEXP R_ReturnedValue;\n\n";
+
+  // --- 1. Bodies, Holes, Debug Frames (Definitions in .c) ---
+
+  // Opcodes Stencils
   for (const auto &current : stencils.stencils_opcodes) {
     if (!current.stencils.empty()) {
-      fs::path filename = output_dir / (std::string(current.name) + ".h");
-      std::ofstream file(filename);
+      h_file << current.extra_string << "\n";
 
-      for (const auto &stencil : current.stencils)
-        export_body(file, stencil,
+      for (const auto &stencil : current.stencils) {
+        export_body(c_file, stencil,
                     (std::string(current.name) + '_' + stencil.name).c_str(),
                     stencils.functions_not_inlined);
 
-      // Export FDEs
-      for (const auto &stencil : current.stencils) {
-        auto it = stencils.debug_frames.find(stencil.section_symbol_name);
-        if (it != stencils.debug_frames.end()) {
-          file << "/*\n";
-          print_fde_decoded(file, stencils.debug_frame_cie, it->second);
-          file << "*/\n";
-          file << std::format("uint8_t _{}_{}_debug_frame[] = {{ ",
-                              current.name, stencil.name);
-          print_byte_array(file, it->second.data(), it->second.size());
-          file << "};\n\n";
-        }
+        // Export FDEs
+        export_fde(c_file, stencils, stencil.section_symbol_name,
+                   std::format("_{}_{}", current.name, stencil.name));
       }
+    }
+  }
 
-      file << std::format("\nconst Stencil {}_stencils[] = {{\n", current.name);
+  // Extra Stencils
+  for (const auto &current : stencils.stencils_extra) {
+    export_body(c_file, current, current.name.c_str(),
+                stencils.functions_not_inlined);
+    export_fde(c_file, stencils, current.section_symbol_name,
+               std::format("_{}", current.name));
+  }
+
+  // Not-inlined Functions
+  size_t notinlined_total_size = 0;
+  for (const auto &current : stencils.functions_not_inlined) {
+    notinlined_total_size += current.body.size();
+    export_body(c_file, current, current.name.c_str(),
+                stencils.functions_not_inlined);
+    export_fde(c_file, stencils, current.section_symbol_name,
+               std::format("_{}", current.name));
+  }
+
+  // --- 2. Arrays (Definitions in .c, Declarations in .h) ---
+
+  // Opcodes Stencils Arrays
+  for (const auto &current : stencils.stencils_opcodes) {
+    if (!current.stencils.empty()) {
+      c_file << std::format("\nconst Stencil {}_stencils[] = {{\n",
+                            current.name);
       for (const auto &stencil : current.stencils)
-        file << std::format(
+        c_file << std::format(
             "{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n",
             stencil.body.size(), std::string(current.name) + '_' + stencil.name,
             stencil.holes.size(),
             std::string(current.name) + '_' + stencil.name, stencil.alignment,
             std::string(current.name) + '_' + stencil.name);
-      file << "};\n\n";
+      c_file << "};\n";
 
-      file << current.extra_string;
+      h_file << std::format("extern const Stencil {}_stencils[];\n",
+                            current.name);
     }
   }
+
+  // Extra Stencils Constants
   for (const auto &current : stencils.stencils_extra) {
-    fs::path filename = output_dir / (std::string(current.name) + ".h");
-    std::ofstream file(filename);
-    export_body(file, current, current.name.c_str(),
-                stencils.functions_not_inlined);
-
-    // Export FDEs
-    auto it = stencils.debug_frames.find(current.section_symbol_name);
-    if (it != stencils.debug_frames.end()) {
-      file << "/*\n";
-      print_fde_decoded(file, stencils.debug_frame_cie, it->second);
-      file << "*/\n";
-      file << std::format("uint8_t _{}_debug_frame[] = {{ ", current.name);
-      print_byte_array(file, it->second.data(), it->second.size());
-      file << "};\n\n";
-    }
-  }
-
-  {
-    std::ofstream file(output_dir / "notinlined_functions.h");
-    size_t total_size = 0;
-    for (const auto &current : stencils.functions_not_inlined) {
-      total_size += current.body.size();
-      export_body(file, current, current.name.c_str(),
-                  stencils.functions_not_inlined);
-
-      // Export FDEs
-      auto it = stencils.debug_frames.find(current.section_symbol_name);
-      if (it != stencils.debug_frames.end()) {
-        file << "/*\n";
-        print_fde_decoded(file, stencils.debug_frame_cie, it->second);
-        file << "*/\n";
-        file << std::format("uint8_t _{}_debug_frame[] = {{ ", current.name);
-        print_byte_array(file, it->second.data(), it->second.size());
-        file << "};\n\n";
-      }
-    }
-
-    file << std::format("\nconst Stencil notinlined_stencils[] = {{\n");
-    for (const auto &current : stencils.functions_not_inlined)
-      file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n",
-                          current.body.size(), current.name,
-                          current.holes.size(), current.name, current.alignment,
-                          current.name);
-    file << "};\n\n";
-
-    file << std::format("\nconst uint8_t *notinlined_debug_frames[] = {{\n");
-    for (const auto &current : stencils.functions_not_inlined) {
-      auto it = stencils.debug_frames.find(current.section_symbol_name);
-      if (it != stencils.debug_frames.end()) {
-        file << std::format("_{}_debug_frame,\n", current.name);
-      } else {
-        file << "NULL,\n";
-      }
-    }
-    file << "};\n\n";
-
-    file << std::format(
-        "#define notinlined_count {}\n#define notinlined_size {}\n",
-        stencils.functions_not_inlined.size(), total_size);
-  }
-
-  std::ofstream file(output_dir / "stencils.h");
-
-  // Export CIE
-  if (!stencils.debug_frame_cie.empty()) {
-    DwarfCIE cie = parse_cie(stencils.debug_frame_cie);
-    file << "/*\n";
-    file << std::format("CIE: {}\n", stencils.debug_frame_cie.size());
-    file << std::format("- code alignment: {}\n", cie.code_align);
-    file << std::format("- data alignment: {}\n", cie.data_align);
-    file << std::format("- return address: {}\n", get_reg_name(cie.ra_reg));
-    file << "*/\n";
-  }
-  file << "uint8_t __CIE[] = { ";
-  print_byte_array(file, stencils.debug_frame_cie.data(),
-                   stencils.debug_frame_cie.size());
-  file << "};\n\n";
-
-  for (const auto &current : stencils.stencils_extra)
-    file << std::format("#include \"{}.h\"\n", current.name);
-
-  for (const auto &current : stencils.stencils_opcodes)
-    if (!current.stencils.empty())
-      file << std::format("#include \"{}.h\"\n", current.name);
-
-  file << "#include \"notinlined_functions.h\"\n";
-  file << "const uint8_t rodata[] = { ";
-  print_byte_array(file, stencils.rodata.data(), stencils.rodata.size());
-  file << "};\n";
-
-  for (const auto &current : stencils.stencils_extra)
-    file << std::format(
+    c_file << std::format(
         "const Stencil {} = {{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}};\n",
         current.name, current.body.size(), current.name, current.holes.size(),
         current.name, current.alignment, current.name);
-
-  file << std::format("\nconst Stencil* stencils[{}] = {{\n",
-                      stencils.stencils_opcodes.size());
-
-  for (const auto &current : stencils.stencils_opcodes) {
-    if (!current.stencils.empty())
-      file << std::format("{}_stencils,\n", current.name);
-    else
-      file << std::format("NULL,//{}\n", current.name);
+    h_file << std::format("extern const Stencil {};\n", current.name);
   }
 
-  file << "};\n";
+  // Not-inlined Stencils Array
+  c_file << "\nconst Stencil notinlined_stencils[] = {\n";
+  for (const auto &current : stencils.functions_not_inlined)
+    c_file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n",
+                          current.body.size(), current.name,
+                          current.holes.size(), current.name, current.alignment,
+                          current.name);
+  c_file << "};\n";
+  h_file << "extern const Stencil notinlined_stencils[];\n";
 
-  file << "\nconst Stencil* stencils_all[] = {\n";
+  // Not-inlined Debug Frames Array
+  c_file << "\nconst uint8_t *notinlined_debug_frames[] = {\n";
+  for (const auto &current : stencils.functions_not_inlined) {
+    auto it = stencils.debug_frames.find(current.section_symbol_name);
+    if (it != stencils.debug_frames.end()) {
+      c_file << std::format("_{}_debug_frame,\n", current.name);
+    } else {
+      c_file << "NULL,\n";
+    }
+  }
+  c_file << "};\n";
+  h_file << "extern const uint8_t *notinlined_debug_frames[];\n";
 
-  for (const auto &current : stencils.stencils_opcodes)
-    for (size_t i = 0; i < current.stencils.size(); ++i)
-      file << std::format("&{}_stencils[{}],", std::string(current.name), i);
-  for (const auto &current : stencils.stencils_extra)
-    file << std::format("&{},", current.name);
-  for (size_t i = 0; i < stencils.functions_not_inlined.size(); ++i)
-    file << std::format("&notinlined_stencils[{}],", i);
+  h_file << std::format("#define notinlined_count {}\n",
+                        stencils.functions_not_inlined.size());
+  h_file << std::format("#define notinlined_size {}\n", notinlined_total_size);
 
-  file << "\n};\n";
+  // --- 3. CIE and RODATA ---
 
-  // Export Debug Frames Arrays
+  // CIE
+  if (!stencils.debug_frame_cie.empty()) {
+    DwarfCIE cie = parse_cie(stencils.debug_frame_cie);
+    c_file << "/*\n";
+    c_file << std::format("CIE: {}\n", stencils.debug_frame_cie.size());
+    c_file << std::format("- code alignment: {}\n", cie.code_align);
+    c_file << std::format("- data alignment: {}\n", cie.data_align);
+    c_file << std::format("- return address: {}\n", get_reg_name(cie.ra_reg));
+    c_file << "*/\n";
+  }
+  c_file << "uint8_t __CIE[] = { ";
+  print_byte_array(c_file, stencils.debug_frame_cie.data(),
+                   stencils.debug_frame_cie.size());
+  c_file << "};\n";
+  h_file << "extern uint8_t __CIE[];\n";
+
+  // RODATA
+  c_file << "const uint8_t rodata[] = { ";
+  print_byte_array(c_file, stencils.rodata.data(), stencils.rodata.size());
+  c_file << "};\n";
+  h_file << "extern const uint8_t rodata[];\n";
+  h_file << std::format("#define rodata_size {}\n", stencils.rodata.size());
+
+  // --- 4. Main Access Arrays (stencils, debug_frames, stencils_all) ---
+
+  // stencils[]
+  c_file << std::format("\nconst Stencil* stencils[{}] = {{\n",
+                        stencils.stencils_opcodes.size());
+  for (const auto &current : stencils.stencils_opcodes) {
+    if (!current.stencils.empty())
+      c_file << std::format("{}_stencils,\n", current.name);
+    else
+      c_file << std::format("NULL,//{}\n", current.name);
+  }
+  c_file << "};\n";
+  h_file << "extern const Stencil* stencils[];\n";
+
+  // debug_frames[] (Need separate arrays for each opcode first)
   for (const auto &current : stencils.stencils_opcodes) {
     if (current.stencils.empty())
       continue;
 
-    file << std::format("const uint8_t *{}_debug_frames[] = {{ ", current.name);
+    c_file << std::format("const uint8_t *{}_debug_frames[] = {{ ",
+                          current.name);
     for (const auto &stencil : current.stencils) {
       auto it = stencils.debug_frames.find(stencil.section_symbol_name);
       if (it != stencils.debug_frames.end()) {
-        file << std::format("_{}_{}_debug_frame, ", current.name, stencil.name);
+        c_file << std::format("_{}_{}_debug_frame, ", current.name,
+                              stencil.name);
       } else {
-        file << "NULL, ";
+        c_file << "NULL, ";
       }
     }
-    file << "};\n";
+    c_file << "};\n";
+    h_file << std::format("extern const uint8_t *{}_debug_frames[];\n",
+                          current.name);
   }
-  file << "\n";
 
-  file << std::format("const uint8_t **debug_frames[{}] = {{\n",
-                      stencils.stencils_opcodes.size());
+  c_file << std::format("\nconst uint8_t **debug_frames[{}] = {{\n",
+                        stencils.stencils_opcodes.size());
   for (const auto &current : stencils.stencils_opcodes) {
     if (!current.stencils.empty())
-      file << std::format("{}_debug_frames,\n", current.name);
+      c_file << std::format("{}_debug_frames,\n", current.name);
     else
-      file << std::format("NULL,//{}\n", current.name);
+      c_file << std::format("NULL,//{}\n", current.name);
   }
-  file << "};\n";
+  c_file << "};\n";
+  h_file << "extern const uint8_t **debug_frames[];\n";
+
+  // stencils_all[]
+  size_t stencils_all_count = 0;
+  c_file << "\nconst Stencil* stencils_all[] = {\n";
+  for (const auto &current : stencils.stencils_opcodes)
+    for (size_t i = 0; i < current.stencils.size(); ++i) {
+      c_file << std::format("&{}_stencils[{}],", std::string(current.name), i);
+      stencils_all_count++;
+    }
+  for (const auto &current : stencils.stencils_extra) {
+    c_file << std::format("&{},", current.name);
+    stencils_all_count++;
+  }
+  for (size_t i = 0; i < stencils.functions_not_inlined.size(); ++i) {
+    c_file << std::format("&notinlined_stencils[{}],", i);
+    stencils_all_count++;
+  }
+  c_file << "\n};\n";
+  h_file << "extern const Stencil* stencils_all[];\n";
+  h_file << std::format("#define stencils_all_count {}\n", stencils_all_count);
+
+  // FDE for extra stencils (explicit decls needed for direct access?)
+  // e.g. __RCP_INIT_debug_frame
+  for (const auto &current : stencils.stencils_extra) {
+     // Check if it has debug frame
+     auto it = stencils.debug_frames.find(current.section_symbol_name);
+     if (it != stencils.debug_frames.end()) {
+        h_file << std::format("extern uint8_t _{}_debug_frame[];\n", current.name);
+     }
+  }
+
+  h_file << "#endif\n";
+
+  // Generate backward-compatible stencils.h to just include data header
+  std::ofstream stencils_h(output_dir / "stencils.h");
+  stencils_h << "#include \"stencils_data.h\"\n";
 }
 
 std::unordered_map<std::string, std::string> rsh_symbol_map;

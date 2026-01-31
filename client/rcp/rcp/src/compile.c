@@ -34,8 +34,6 @@ static struct StencilProfileInfo stencil_profile_info[sizeof(OPCODES_NAMES) / si
 #include <stencils.h>
 #include "gdb_jit.h"
 
-extern uint8_t __RCP_INIT_debug_frame[];
-
 #define UNPROTECT_SAFE(ptr)                         \
     do                                              \
     {                                               \
@@ -159,7 +157,7 @@ static const void** prepare_got_table(size_t* got_size)
 {
     // Pass 1: count the number of GOT relocations and patch those that can be transformed into relative addressing
     size_t count = 0;
-    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    for (size_t i = 0; i < stencils_all_count; i++)
     {
         const Stencil *stencil = stencils_all[i];
         for (size_t j = 0; j < stencil->holes_size; j++)
@@ -201,7 +199,7 @@ static const void** prepare_got_table(size_t* got_size)
     const void** got_table_tmp = (const void**)R_alloc(count, sizeof(void*));
     *got_size = 0;
 
-    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    for (size_t i = 0; i < stencils_all_count; i++)
     {
         const Stencil *stencil = stencils_all[i];
         for (size_t j = 0; j < stencil->holes_size; j++)
@@ -235,7 +233,7 @@ static const void** prepare_got_table(size_t* got_size)
 
 static void prepare_active_holes(void)
 {
-    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    for (size_t i = 0; i < stencils_all_count; i++)
     {
         const Stencil *stencil = stencils_all[i];
         for (size_t j = 0; j < stencil->holes_size; j++)
@@ -258,7 +256,7 @@ static void prepare_active_holes(void)
 }
 
 typedef struct {
-    uint8_t rodata[sizeof(rodata)];
+    uint8_t rodata[rodata_size];
     size_t got_table_size;
     void* got_table[];
 } mem_shared_data;
@@ -282,7 +280,7 @@ static void prepare_shared_memory()
     if (mem_shared_near == MAP_FAILED)
         exit(1);
 
-    memcpy(mem_shared_near->rodata, rodata, sizeof(rodata));
+    memcpy(mem_shared_near->rodata, rodata, rodata_size);
     mem_shared_near->got_table_size = got_table_size;
     memcpy(mem_shared_near->got_table, got_table, got_table_size * sizeof(void*));
 
@@ -1206,7 +1204,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             count_opcodes,
             instruction_names,
             instruction_debug_frames,
-            __RCP_INIT_debug_frame,
             72 /* base_cfa_offset for JITted functions (due to _RCP_INIT) */
         );
     } else {
@@ -1263,7 +1260,7 @@ static const uint8_t* prepare_notinlined_functions(void)
     }
 
     // ... resolve other holes ...
-    for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
+    for (size_t i = 0; i < stencils_all_count; i++)
     {
         const Stencil *stencil = stencils_all[i];
         for (size_t j = 0; j < stencil->holes_size; j++)
@@ -1317,7 +1314,6 @@ static const uint8_t* prepare_notinlined_functions(void)
         notinlined_count,
         helper_names,
         helper_frames,
-        NULL,
         8 /* base_cfa_offset for helpers (standard prologue) */
     );
 #endif

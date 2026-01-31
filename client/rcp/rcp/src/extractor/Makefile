@@ -5,7 +5,7 @@ ifneq ($(GDB_JIT_SUPPORT),0)
 endif
 
 SOURCES = $(wildcard *.cpp)
-OBJECTS = $(SOURCES:.cpp=.o)
+OBJECTS = $(SOURCES:.cpp=.o) ../shared/opcodes.o
 
 CXXFLAGS += -std=c++20
 EXT_LIBS = -lbfd
@@ -15,6 +15,9 @@ $(EXTRACTOR_BIN): $(OBJECTS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+../shared/opcodes.o: ../shared/opcodes.c
+	$(CC) -c $< -o $@
 
 .PHONY: clean
 clean:
