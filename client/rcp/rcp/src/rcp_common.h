@@ -58,6 +58,7 @@ typedef struct {
   Hole * holes;
   uint8_t alignment;
   const char* name;
+  const uint8_t *debug_frame;
 } Stencil;
 
 typedef struct {

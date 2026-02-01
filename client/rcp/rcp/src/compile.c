@@ -1183,17 +1183,19 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
     /* Register with GDB JIT interface before freeing temporary arrays */
     if (name) {
         uint8_t **inst_addrs_packed = (uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
-        const char **instruction_names = (const char **)S_alloc(count_opcodes, sizeof(char *));
-        const uint8_t **instruction_debug_frames = (const uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
+        const Stencil **instruction_stencils = (const Stencil **)S_alloc(count_opcodes, sizeof(Stencil *));
 
+        /* Populate the arrays for GDB registration.
+         * inst_addrs_packed contains the absolute runtime addresses of each instruction.
+         * instruction_stencils contains pointers to the Stencil metadata (including names and debug frames)
+         * for each instruction. These two arrays must correspond 1:1. */
         for (int i = 0; i < count_opcodes; i++) {
             int bc_pos = bytecode_lut[i];
             int opcode = bytecode[bc_pos];
             int variant = stencil_variants[bc_pos];
             
             inst_addrs_packed[i] = inst_start[bc_pos];
-            instruction_names[i] = OPCODES_NAMES[opcode];
-            instruction_debug_frames[i] = debug_frames[opcode] ? debug_frames[opcode][variant] : NULL;
+            instruction_stencils[i] = &stencils[opcode][variant];
         }
 
         res.jit_entry = gdb_jit_register(
@@ -1202,9 +1204,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             insts_size,
             inst_addrs_packed,
             count_opcodes,
-            instruction_names,
-            instruction_debug_frames,
-            72 /* base_cfa_offset for JITted functions (due to _RCP_INIT) */
+            instruction_stencils,
+            RCP_INIT_CFA_OFFSET /* base_cfa_offset for JITted functions (derived from _RCP_INIT) */
         );
     } else {
         res.jit_entry = NULL;
@@ -1296,14 +1297,12 @@ static const uint8_t* prepare_notinlined_functions(void)
 
 #ifdef GDB_JIT_SUPPORT
     // Register notinlined functions (helpers) with GDB
-    const char **helper_names = (const char **)R_alloc(notinlined_count, sizeof(char *));
-    const uint8_t **helper_frames = (const uint8_t **)R_alloc(notinlined_count, sizeof(uint8_t *));
     uint8_t **helper_addrs = (uint8_t **)R_alloc(notinlined_count, sizeof(uint8_t *));
+    const Stencil **helper_stencils = (const Stencil **)R_alloc(notinlined_count, sizeof(Stencil *));
 
     for (size_t i = 0; i < notinlined_count; i++) {
         helper_addrs[i] = (uint8_t*)notinlined_lut[i];
-        helper_names[i] = notinlined_stencils[i].name;
-        helper_frames[i] = notinlined_debug_frames[i];
+        helper_stencils[i] = &notinlined_stencils[i];
     }
 
     gdb_jit_register(
@@ -1312,8 +1311,7 @@ static const uint8_t* prepare_notinlined_functions(void)
         notinlined_size,
         helper_addrs,
         notinlined_count,
-        helper_names,
-        helper_frames,
+        helper_stencils,
         8 /* base_cfa_offset for helpers (standard prologue) */
     );
 #endif

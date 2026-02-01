@@ -460,8 +460,11 @@ static void execute_dwarf_insts(
     const uint8_t *&p, const uint8_t *end, DwarfState &state,
     const DwarfCIE &cie,
     std::vector<std::pair<uint64_t, DwarfState>> *rows = nullptr,
-    uint64_t *pc = nullptr) {
+    uint64_t *pc = nullptr, int64_t *max_cfa_offset = nullptr) {
   std::vector<DwarfState> state_stack;
+
+  if (max_cfa_offset)
+    *max_cfa_offset = std::max(*max_cfa_offset, state.cfa_offset);
 
   while (p < end) {
     uint8_t op = *p++;
@@ -543,9 +546,13 @@ static void execute_dwarf_insts(
         }
         break;
       default:
-        throw std::runtime_error(std::format("Unknown DWARF CFA opcode: {:#x}", op));
+        throw std::runtime_error(
+            std::format("Unknown DWARF CFA opcode: {:#x}", op));
       }
     }
+
+    if (max_cfa_offset)
+      *max_cfa_offset = std::max(*max_cfa_offset, state.cfa_offset);
 
     if (advance && rows && pc) {
       *pc += delta_pc;
@@ -628,6 +635,41 @@ static void export_fde(std::ostream &file, const Stencils &stencils,
   }
 }
 
+static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
+                              const std::vector<uint8_t> &fde_data) {
+  if (fde_data.size() < 8)
+    throw std::runtime_error("FDE data too small to compute CFA offset");
+
+  DwarfCIE cie = parse_cie(cie_data);
+  if (!cie.valid)
+    throw std::runtime_error("Invalid CIE while computing CFA offset");
+
+  const uint8_t *p = fde_data.data();
+  const uint8_t *end = p + fde_data.size();
+
+  // Parse FDE Header
+  uint64_t length = get_le32(p);
+  size_t header_len = 4;
+  if (length == 0xffffffff) {
+    length = get_le64(p + 4);
+    header_len = 12;
+  }
+  p += (header_len == 4 ? 8 : 20); // Skip Len + ID
+  p += 16;                         // Skip PC Begin + Range
+
+  DwarfState state;
+  state.rules[cie.ra_reg] = {DwarfState::Rule::OFFSET, -8, 0};
+
+  int64_t max_cfa_offset = 8;
+  const uint8_t *ip = cie.initial_instructions.data();
+  execute_dwarf_insts(ip, ip + cie.initial_instructions.size(), state, cie,
+                      nullptr, nullptr, &max_cfa_offset);
+
+  execute_dwarf_insts(p, end, state, cie, nullptr, nullptr, &max_cfa_offset);
+
+  return max_cfa_offset;
+}
+
 // Create stencils_data.c and stencils_data.h
 static void export_to_files(const fs::path &output_dir,
                             const Stencils &stencils) {
@@ -642,6 +684,28 @@ static void export_to_files(const fs::path &output_dir,
   h_file << "#define STENCILS_DATA_H\n";
   h_file << "#include \"rcp_common.h\"\n\n";
   h_file << "#include <stddef.h>\n\n";
+
+  // Calculate _RCP_INIT CFA offset
+  {
+    const StencilExport *rcp_init = nullptr;
+    for (const auto &s : stencils.stencils_extra) {
+      if (s.name == "_RCP_INIT") {
+        rcp_init = &s;
+        break;
+      }
+    }
+    if (!rcp_init)
+      throw std::runtime_error("_RCP_INIT stencil not found");
+
+    auto it = stencils.debug_frames.find(rcp_init->section_symbol_name);
+    if (it == stencils.debug_frames.end()) {
+      throw std::runtime_error(
+          std::format("_RCP_INIT debug frame not found (searched for {})",
+                      rcp_init->section_symbol_name));
+    }
+    int64_t offset = get_cfa_offset(stencils.debug_frame_cie, it->second);
+    h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
+  }
 
   c_file << "#include \"stencils_data.h\"\n\n";
   c_file << "#define USE_RINTERNALS\n";
@@ -698,13 +762,21 @@ static void export_to_files(const fs::path &output_dir,
     if (!current.stencils.empty()) {
       c_file << std::format("\nconst Stencil {}_stencils[] = {{\n",
                             current.name);
-      for (const auto &stencil : current.stencils)
+      for (const auto &stencil : current.stencils) {
+        std::string debug_frame_ptr = "NULL";
+        auto it = stencils.debug_frames.find(stencil.section_symbol_name);
+        if (it != stencils.debug_frames.end()) {
+          debug_frame_ptr = std::format("_{}_{}_debug_frame", current.name, stencil.name);
+        }
+
         c_file << std::format(
-            "{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n",
+            "{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\", {}}},\n",
             stencil.body.size(), std::string(current.name) + '_' + stencil.name,
             stencil.holes.size(),
             std::string(current.name) + '_' + stencil.name, stencil.alignment,
-            std::string(current.name) + '_' + stencil.name);
+            std::string(current.name) + '_' + stencil.name,
+            debug_frame_ptr);
+      }
       c_file << "};\n";
 
       h_file << std::format("extern const Stencil {}_stencils[];\n",
@@ -714,20 +786,33 @@ static void export_to_files(const fs::path &output_dir,
 
   // Extra Stencils Constants
   for (const auto &current : stencils.stencils_extra) {
+    std::string debug_frame_ptr = "NULL";
+    auto it = stencils.debug_frames.find(current.section_symbol_name);
+    if (it != stencils.debug_frames.end()) {
+      debug_frame_ptr = std::format("_{}_debug_frame", current.name);
+    }
+
     c_file << std::format(
-        "const Stencil {} = {{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}};\n",
+        "const Stencil {} = {{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\", {}}};\n",
         current.name, current.body.size(), current.name, current.holes.size(),
-        current.name, current.alignment, current.name);
+        current.name, current.alignment, current.name, debug_frame_ptr);
     h_file << std::format("extern const Stencil {};\n", current.name);
   }
 
   // Not-inlined Stencils Array
   c_file << "\nconst Stencil notinlined_stencils[] = {\n";
-  for (const auto &current : stencils.functions_not_inlined)
-    c_file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"}},\n",
+  for (const auto &current : stencils.functions_not_inlined) {
+    std::string debug_frame_ptr = "NULL";
+    auto it = stencils.debug_frames.find(current.section_symbol_name);
+    if (it != stencils.debug_frames.end()) {
+      debug_frame_ptr = std::format("_{}_debug_frame", current.name);
+    }
+
+    c_file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\", {}}},\n",
                           current.body.size(), current.name,
                           current.holes.size(), current.name, current.alignment,
-                          current.name);
+                          current.name, debug_frame_ptr);
+  }
   c_file << "};\n";
   h_file << "extern const Stencil notinlined_stencils[];\n";
 

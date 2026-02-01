@@ -183,8 +183,7 @@ static void buf_free(Buffer *buf) {
  * so argument slots in the bytecode array are skipped.
  */
 static char *write_source_file(const char *func_name, int instruction_count,
-                               const char **instruction_names,
-                               uint8_t **inst_addrs) {
+                               const Stencil **stencils, uint8_t **inst_addrs) {
   char dir_templ[] = "/tmp/rcp_jit_XXXXXX";
   if (!mkdtemp(dir_templ))
     return NULL;
@@ -205,7 +204,7 @@ static char *write_source_file(const char *func_name, int instruction_count,
   for (int i = 0; i < instruction_count; i++) {
     if (!inst_addrs[i])
       continue;
-    fprintf(fp, "%s\n", instruction_names[i]);
+    fprintf(fp, "%s\n", stencils[i]->name);
   }
 
   fclose(fp);
@@ -217,14 +216,12 @@ static char *write_source_file(const char *func_name, int instruction_count,
  */
 static void *create_debug_elf(const char *func_name, void *code_addr,
                               size_t code_size, uint8_t **inst_addrs,
-                              int instruction_count,
-                              const char **instruction_names,
-                              const uint8_t **instruction_debug_frames,
+                              int instruction_count, const Stencil **stencils,
                               int base_cfa_offset, size_t *elf_size) {
 
   /* Generate source file */
-  char *source_path = write_source_file(func_name, instruction_count,
-                                        instruction_names, inst_addrs);
+  char *source_path =
+      write_source_file(func_name, instruction_count, stencils, inst_addrs);
 
   if (!source_path) {
     return NULL;
@@ -433,7 +430,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
 
   uint64_t fde_last_addr = (uint64_t)code_addr;
 
-  if (base_cfa_offset == 72) {
+  if (base_cfa_offset == RCP_INIT_CFA_OFFSET) {
     const uint8_t *prologue_debug_frame = __RCP_INIT_debug_frame;
     uint32_t length = *(const uint32_t *)prologue_debug_frame;
     const uint8_t *cfi_start = prologue_debug_frame + 24;
@@ -506,7 +503,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     buf_write_uleb128(&dbg_frame, base_cfa_offset);
 
     /* Get debug frame for this stencil */
-    const uint8_t *frame_data = instruction_debug_frames[i];
+    const uint8_t *frame_data = stencils[i]->debug_frame;
     if (frame_data) {
       uint32_t length = *(const uint32_t *)frame_data;
       const uint8_t *cfi_start = frame_data + 24; // Skip FDE header (4+4+8+8)
@@ -520,7 +517,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
           if (op == DW_CFA_def_cfa_offset) {
             uint64_t val = read_uleb128(&p);
             /* Adjust CFA offset: new_offset = val - 8 + base_cfa_offset
-               8 is standard return address offset, 72 is our base offset */
+               8 is standard return address offset */
             buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
             buf_write_uleb128(&dbg_frame, val - 8 + base_cfa_offset);
           } else if (op == DW_CFA_advance_loc1) {
@@ -744,30 +741,22 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
  * Public API
  */
 
-struct jit_code_entry *gdb_jit_register(
-    const char *func_name, void *code_addr, size_t code_size,
-    uint8_t **inst_addrs, int instruction_count, const char **instruction_names,
-    const uint8_t **instruction_debug_frames, int base_cfa_offset) {
+struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
+                                        size_t code_size, uint8_t **inst_addrs,
+                                        int instruction_count,
+                                        const Stencil **stencils,
+                                        int base_cfa_offset) {
+
   if (!func_name || !code_addr || code_size == 0)
     return NULL;
 
-    /* Create ELF image with symbols */
-
-    size_t elf_size;
-
-    void *elf =
-
-        create_debug_elf(func_name, code_addr, code_size, inst_addrs,
-
-                         instruction_count, instruction_names,
-
-                         instruction_debug_frames,
-
-                         base_cfa_offset, &elf_size);
-
-    if (!elf)
-
-      return NULL;
+  /* Create ELF image with symbols */
+  size_t elf_size;
+  void *elf =
+      create_debug_elf(func_name, code_addr, code_size, inst_addrs,
+                       instruction_count, stencils, base_cfa_offset, &elf_size);
+  if (!elf)
+    return NULL;
 
   /* Create JIT code entry */
   struct jit_code_entry *entry = malloc(sizeof(struct jit_code_entry));
