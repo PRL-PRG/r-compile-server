@@ -507,6 +507,9 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     buf_write_u8(&dbg_frame, DW_CFA_restore_state);
     buf_write_u8(&dbg_frame, DW_CFA_remember_state);
 
+    buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
+    buf_write_uleb128(&dbg_frame, base_cfa_offset);
+
     /* Get debug frame for this stencil */
     const uint8_t *frame_data = stencils[i]->debug_frame;
     if (frame_data) {
