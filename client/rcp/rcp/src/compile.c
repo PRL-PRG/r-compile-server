@@ -1205,7 +1205,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             inst_addrs_packed,
             count_opcodes,
             instruction_stencils,
-            RCP_INIT_CFA_OFFSET /* base_cfa_offset for JITted functions (derived from _RCP_INIT) */
+            RCP_INIT_CFA_OFFSET + 8 /* base_cfa_offset for JITted functions (derived from _RCP_INIT + 8 bytes return address) */
         );
     } else {
         res.jit_entry = NULL;
@@ -1952,6 +1952,15 @@ SEXP C_rcp_get_profiling(void)
 #else
     Rf_warning("Profiling is not available. Recompile RCP with PROFILE_STENCILS defined to enable profiling.");
     return R_NilValue;
+#endif
+}
+
+SEXP C_rcp_gdb_jit_support(void)
+{
+#ifdef GDB_JIT_SUPPORT
+    return ScalarLogical(1);
+#else
+    return ScalarLogical(0);
 #endif
 }
 

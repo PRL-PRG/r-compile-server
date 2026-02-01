@@ -626,12 +626,14 @@ static void export_fde(std::ostream &file, const Stencils &stencils,
                        const std::string &variable_name) {
   auto it = stencils.debug_frames.find(section_symbol_name);
   if (it != stencils.debug_frames.end()) {
+    file << "#ifdef GDB_JIT_SUPPORT\n";
     file << "/*\n";
     print_fde_decoded(file, stencils.debug_frame_cie, it->second);
     file << "*/\n";
     file << std::format("uint8_t {}_debug_frame[] = {{ ", variable_name);
     print_byte_array(file, it->second.data(), it->second.size());
-    file << "};\n\n";
+    file << "};\n";
+    file << "#endif\n\n";
   }
 }
 
@@ -686,6 +688,7 @@ static void export_to_files(const fs::path &output_dir,
   h_file << "#include <stddef.h>\n\n";
 
   // Calculate _RCP_INIT CFA offset
+  h_file << "#ifdef GDB_JIT_SUPPORT\n";
   {
     const StencilExport *rcp_init = nullptr;
     for (const auto &s : stencils.stencils_extra) {
@@ -706,6 +709,7 @@ static void export_to_files(const fs::path &output_dir,
     int64_t offset = get_cfa_offset(stencils.debug_frame_cie, it->second);
     h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
   }
+  h_file << "#endif\n";
 
   c_file << "#include \"stencils_data.h\"\n\n";
   c_file << "#define USE_RINTERNALS\n";
@@ -766,16 +770,21 @@ static void export_to_files(const fs::path &output_dir,
         std::string debug_frame_ptr = "NULL";
         auto it = stencils.debug_frames.find(stencil.section_symbol_name);
         if (it != stencils.debug_frames.end()) {
-          debug_frame_ptr = std::format("_{}_{}_debug_frame", current.name, stencil.name);
+          debug_frame_ptr =
+              std::format("_{}_{}_debug_frame", current.name, stencil.name);
         }
 
         c_file << std::format(
-            "{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\", {}}},\n",
+            "{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"",
             stencil.body.size(), std::string(current.name) + '_' + stencil.name,
             stencil.holes.size(),
             std::string(current.name) + '_' + stencil.name, stencil.alignment,
-            std::string(current.name) + '_' + stencil.name,
-            debug_frame_ptr);
+            std::string(current.name) + '_' + stencil.name);
+
+        c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
+        c_file << ", " << debug_frame_ptr << "\n";
+        c_file << "#endif\n";
+        c_file << "},\n";
       }
       c_file << "};\n";
 
@@ -793,9 +802,15 @@ static void export_to_files(const fs::path &output_dir,
     }
 
     c_file << std::format(
-        "const Stencil {} = {{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\", {}}};\n",
+        "const Stencil {} = {{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"",
         current.name, current.body.size(), current.name, current.holes.size(),
-        current.name, current.alignment, current.name, debug_frame_ptr);
+        current.name, current.alignment, current.name);
+
+    c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
+    c_file << ", " << debug_frame_ptr << "\n";
+    c_file << "#endif\n";
+    c_file << "};\n";
+
     h_file << std::format("extern const Stencil {};\n", current.name);
   }
 
@@ -808,15 +823,21 @@ static void export_to_files(const fs::path &output_dir,
       debug_frame_ptr = std::format("_{}_debug_frame", current.name);
     }
 
-    c_file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\", {}}},\n",
+    c_file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"",
                           current.body.size(), current.name,
                           current.holes.size(), current.name, current.alignment,
-                          current.name, debug_frame_ptr);
+                          current.name);
+
+    c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
+    c_file << ", " << debug_frame_ptr << "\n";
+    c_file << "#endif\n";
+    c_file << "},\n";
   }
   c_file << "};\n";
   h_file << "extern const Stencil notinlined_stencils[];\n";
 
   // Not-inlined Debug Frames Array
+  c_file << "#ifdef GDB_JIT_SUPPORT\n";
   c_file << "\nconst uint8_t *notinlined_debug_frames[] = {\n";
   for (const auto &current : stencils.functions_not_inlined) {
     auto it = stencils.debug_frames.find(current.section_symbol_name);
@@ -827,7 +848,11 @@ static void export_to_files(const fs::path &output_dir,
     }
   }
   c_file << "};\n";
+  c_file << "#endif\n";
+
+  h_file << "#ifdef GDB_JIT_SUPPORT\n";
   h_file << "extern const uint8_t *notinlined_debug_frames[];\n";
+  h_file << "#endif\n";
 
   h_file << std::format("#define notinlined_count {}\n",
                         stencils.functions_not_inlined.size());
@@ -836,6 +861,7 @@ static void export_to_files(const fs::path &output_dir,
   // --- 3. CIE and RODATA ---
 
   // CIE
+  c_file << "#ifdef GDB_JIT_SUPPORT\n";
   if (!stencils.debug_frame_cie.empty()) {
     DwarfCIE cie = parse_cie(stencils.debug_frame_cie);
     c_file << "/*\n";
@@ -849,7 +875,11 @@ static void export_to_files(const fs::path &output_dir,
   print_byte_array(c_file, stencils.debug_frame_cie.data(),
                    stencils.debug_frame_cie.size());
   c_file << "};\n";
+  c_file << "#endif\n";
+
+  h_file << "#ifdef GDB_JIT_SUPPORT\n";
   h_file << "extern uint8_t __CIE[];\n";
+  h_file << "#endif\n";
 
   // RODATA
   c_file << "const uint8_t rodata[] = { ";
@@ -873,6 +903,7 @@ static void export_to_files(const fs::path &output_dir,
   h_file << "extern const Stencil* stencils[];\n";
 
   // debug_frames[] (Need separate arrays for each opcode first)
+  c_file << "#ifdef GDB_JIT_SUPPORT\n";
   for (const auto &current : stencils.stencils_opcodes) {
     if (current.stencils.empty())
       continue;
@@ -889,8 +920,10 @@ static void export_to_files(const fs::path &output_dir,
       }
     }
     c_file << "};\n";
+    h_file << "#ifdef GDB_JIT_SUPPORT\n";
     h_file << std::format("extern const uint8_t *{}_debug_frames[];\n",
                           current.name);
+    h_file << "#endif\n";
   }
 
   c_file << std::format("\nconst uint8_t **debug_frames[{}] = {{\n",
@@ -902,7 +935,11 @@ static void export_to_files(const fs::path &output_dir,
       c_file << std::format("NULL,//{}\n", current.name);
   }
   c_file << "};\n";
+  c_file << "#endif\n";
+
+  h_file << "#ifdef GDB_JIT_SUPPORT\n";
   h_file << "extern const uint8_t **debug_frames[];\n";
+  h_file << "#endif\n";
 
   // stencils_all[]
   size_t stencils_all_count = 0;
@@ -926,13 +963,16 @@ static void export_to_files(const fs::path &output_dir,
 
   // FDE for extra stencils (explicit decls needed for direct access?)
   // e.g. __RCP_INIT_debug_frame
+  h_file << "#ifdef GDB_JIT_SUPPORT\n";
   for (const auto &current : stencils.stencils_extra) {
-     // Check if it has debug frame
-     auto it = stencils.debug_frames.find(current.section_symbol_name);
-     if (it != stencils.debug_frames.end()) {
-        h_file << std::format("extern uint8_t _{}_debug_frame[];\n", current.name);
-     }
+    // Check if it has debug frame
+    auto it = stencils.debug_frames.find(current.section_symbol_name);
+    if (it != stencils.debug_frames.end()) {
+      h_file << std::format("extern uint8_t _{}_debug_frame[];\n",
+                            current.name);
+    }
   }
+  h_file << "#endif\n";
 
   h_file << "#endif\n";
 

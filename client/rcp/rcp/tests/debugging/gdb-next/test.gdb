@@ -22,17 +22,21 @@ break f_jit
 # Continue to execution
 continue
 
-# 1. At Prologue
-next
-# 2. At GETVAR_OP
-next
-# 3. At LDCONST_OP
-next
-# 4. At ADD_OP
-next
-# 5. At RETURN_OP
-frame
-next
-
+# We are at Prologue. Set breakpoints for next lines to verify mapping.
+# Line 2: GETVAR_OP
+break f_jit.S:2
 continue
+
+# Line 3: LDCONST_OP
+break f_jit.S:3
+continue
+
+# Line 4: ADD_OP
+break f_jit.S:4
+continue
+
+# Line 5: RETURN_OP
+break f_jit.S:5
+continue
+
 quit

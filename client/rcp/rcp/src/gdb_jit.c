@@ -38,6 +38,8 @@
 #define DW_CFA_advance_loc1 0x02
 #define DW_CFA_advance_loc2 0x03
 #define DW_CFA_advance_loc4 0x04
+#define DW_CFA_remember_state 0x0a
+#define DW_CFA_restore_state 0x0b
 #define DW_CFA_def_cfa 0x0c
 #define DW_CFA_def_cfa_offset 0x0e
 #define DW_CFA_offset_base 0x80
@@ -430,7 +432,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
 
   uint64_t fde_last_addr = (uint64_t)code_addr;
 
-  if (base_cfa_offset == RCP_INIT_CFA_OFFSET) {
+  if (base_cfa_offset == RCP_INIT_CFA_OFFSET + 8) {
     const uint8_t *prologue_debug_frame = __RCP_INIT_debug_frame;
     uint32_t length = *(const uint32_t *)prologue_debug_frame;
     const uint8_t *cfi_start = prologue_debug_frame + 24;
@@ -477,6 +479,9 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     }
   }
 
+  /* Save the "base" state for this function (either CIE state or Post-Prologue state) */
+  buf_write_u8(&dbg_frame, DW_CFA_remember_state);
+
   for (int i = 0; i < instruction_count; i++) {
     if (!inst_addrs[i])
       continue;
@@ -498,9 +503,9 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
       fde_last_addr = curr;
     }
 
-    /* Reset CFA to base offset at the start of each stencil */
-    buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
-    buf_write_uleb128(&dbg_frame, base_cfa_offset);
+    /* Reset state to base for this function */
+    buf_write_u8(&dbg_frame, DW_CFA_restore_state);
+    buf_write_u8(&dbg_frame, DW_CFA_remember_state);
 
     /* Get debug frame for this stencil */
     const uint8_t *frame_data = stencils[i]->debug_frame;
