@@ -1964,6 +1964,46 @@ SEXP C_rcp_gdb_jit_support(void)
 #endif
 }
 
+#ifdef GDB_JIT_SUPPORT
+
+/* Tags from R sources */
+#ifndef ISQSXP
+#define ISQSXP 9999 // Internal SEXP type for sequences
+#endif
+
+void __attribute__((used)) rcp_print_stack_val(void *p) {
+    if (!p) {
+        Rprintf("Stack value is NULL\n");
+        return;
+    }
+    R_bcstack_t v = *(R_bcstack_t *)p;
+    
+    switch (v.tag) {
+    case REALSXP:
+        Rprintf("dbl: %lf\n", v.u.dval);
+        break;
+    case INTSXP:
+        Rprintf("int: %d\n", v.u.ival);
+        break;
+    case LGLSXP:
+        Rprintf("lgl: %d\n", v.u.ival);
+        break;
+    case ISQSXP: {
+        int *seqinfo = INTEGER(v.u.sxpval);
+        Rprintf("ISQ: %d,%d\n", seqinfo[0], seqinfo[1]);
+        break;
+    }
+    default:
+        // Assume boxed SEXP
+        // Rprintf("Tag %d: ", v.tag); // Debugging
+        if (v.u.sxpval)
+            Rf_PrintValue(v.u.sxpval);
+        else
+            Rprintf("NULL SEXP\n");
+    }
+}
+#endif
+
 SEXP rcp_init(void)
 {
     refresh_near_memory_ptr(0);

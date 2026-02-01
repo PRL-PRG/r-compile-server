@@ -18,14 +18,32 @@
 
 /* DWARF Constants */
 #define DW_TAG_compile_unit 0x11
+#define DW_TAG_formal_parameter 0x05
+#define DW_TAG_pointer_type 0x0F
 #define DW_TAG_subprogram 0x2e
+#define DW_TAG_base_type 0x24
+
 #define DW_AT_name 0x03
+#define DW_AT_byte_size 0x0B
 #define DW_AT_stmt_list 0x10
 #define DW_AT_low_pc 0x11
 #define DW_AT_high_pc 0x12
+#define DW_AT_encoding 0x3E
+#define DW_AT_type 0x49
+#define DW_AT_location 0x02
+
 #define DW_FORM_addr 0x01
 #define DW_FORM_data4 0x06
 #define DW_FORM_string 0x08
+#define DW_FORM_block1 0x0A
+#define DW_FORM_data1 0x0B
+#define DW_FORM_ref4 0x13
+
+#define DW_OP_reg4 0x54
+#define DW_OP_reg5 0x55
+
+#define DW_ATE_address 0x01
+
 #define DW_LNS_copy 1
 #define DW_LNS_advance_pc 2
 #define DW_LNS_advance_line 3
@@ -270,7 +288,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   /* Abbrev 2: Subprogram */
   buf_write_uleb128(&abbrev, 2);
   buf_write_uleb128(&abbrev, DW_TAG_subprogram);
-  buf_write_u8(&abbrev, 0); // CHILDREN_NO
+  buf_write_u8(&abbrev, 1); // CHILDREN_YES
 
   buf_write_uleb128(&abbrev, DW_AT_name);
   buf_write_uleb128(&abbrev, DW_FORM_string);
@@ -279,6 +297,28 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   buf_write_uleb128(&abbrev, DW_AT_high_pc);
   buf_write_uleb128(&abbrev, DW_FORM_addr);
   buf_write_u16(&abbrev, 0); // End attributes
+
+  /* Abbrev 3: Formal Parameter */
+  buf_write_uleb128(&abbrev, 3);
+  buf_write_uleb128(&abbrev, DW_TAG_formal_parameter);
+  buf_write_u8(&abbrev, 0); // CHILDREN_NO
+
+  buf_write_uleb128(&abbrev, DW_AT_name);
+  buf_write_uleb128(&abbrev, DW_FORM_string);
+  buf_write_uleb128(&abbrev, DW_AT_type);
+  buf_write_uleb128(&abbrev, DW_FORM_ref4);
+  buf_write_uleb128(&abbrev, DW_AT_location);
+  buf_write_uleb128(&abbrev, DW_FORM_block1);
+  buf_write_u16(&abbrev, 0);
+
+  /* Abbrev 4: Pointer Type */
+  buf_write_uleb128(&abbrev, 4);
+  buf_write_uleb128(&abbrev, DW_TAG_pointer_type);
+  buf_write_u8(&abbrev, 0);
+
+  buf_write_uleb128(&abbrev, DW_AT_byte_size);
+  buf_write_uleb128(&abbrev, DW_FORM_data1);
+  buf_write_u16(&abbrev, 0);
 
   buf_write_u8(&abbrev, 0); // End abbrevs
 
@@ -299,13 +339,33 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   buf_write_u64(&dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
   buf_write_u64(&dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
+  /* DIE 3 (reserved): Pointer Type (void*) */
+  size_t void_ptr_offset = dbg_info.size;
+  buf_write_uleb128(&dbg_info, 4); // Abbrev 4
+  buf_write_u8(&dbg_info, 8);      // Size 8
+
   /* DIE 2: Subprogram */
   buf_write_uleb128(&dbg_info, 2);                           // Abbrev 2
   buf_write_string(&dbg_info, func_name);                    // DW_AT_name
   buf_write_u64(&dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
   buf_write_u64(&dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
-  buf_write_u8(&dbg_info, 0); // End of children
+  /* Formal Parameter: stack */
+  buf_write_uleb128(&dbg_info, 3);                     // Abbrev 3
+  buf_write_string(&dbg_info, "stack");                // Name
+  buf_write_u32(&dbg_info, (uint32_t)void_ptr_offset); // Type
+  buf_write_u8(&dbg_info, 1);                          // Block len
+  buf_write_u8(&dbg_info, DW_OP_reg5);                 // RDI
+
+  /* Formal Parameter: locals */
+  buf_write_uleb128(&dbg_info, 3);                     // Abbrev 3
+  buf_write_string(&dbg_info, "locals");               // Name
+  buf_write_u32(&dbg_info, (uint32_t)void_ptr_offset); // Type
+  buf_write_u8(&dbg_info, 1);                          // Block len
+  buf_write_u8(&dbg_info, DW_OP_reg4);                 // RSI
+
+  buf_write_u8(&dbg_info, 0); // End of Subprogram children
+  buf_write_u8(&dbg_info, 0); // End of CU children
 
   /* Fixup length */
   uint32_t total_info_len = dbg_info.size - 4;

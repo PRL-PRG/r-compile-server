@@ -40,7 +40,7 @@ else
   exit 1
 fi
 
-if grep -q "outer_jit ()" "$OUTPUT_LOG"; then
+if grep -q "outer_jit (.*)" "$OUTPUT_LOG"; then
   echo "[PASS] outer_jit found in backtrace."
 else
   echo "[FAIL] outer_jit NOT found in backtrace of inner_jit."
