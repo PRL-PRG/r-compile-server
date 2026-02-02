@@ -1,5 +1,6 @@
 #include "../rcp_bc_info.h"
 #include "../rcp_common.h"
+#include "../shared/dwarf.h"
 #include <bfd.h>
 #include <stdlib.h>
 
@@ -236,33 +237,6 @@ export_body(std::ostream &file, const StencilExport &stencil,
 }
 
 // --- DWARF Decoding ---
-
-constexpr uint8_t DW_CFA_advance_loc = 0x40;
-constexpr uint8_t DW_CFA_offset = 0x80;
-constexpr uint8_t DW_CFA_restore = 0xC0;
-constexpr uint8_t DW_CFA_nop = 0x00;
-constexpr uint8_t DW_CFA_set_loc = 0x01;
-constexpr uint8_t DW_CFA_advance_loc1 = 0x02;
-constexpr uint8_t DW_CFA_advance_loc2 = 0x03;
-constexpr uint8_t DW_CFA_advance_loc4 = 0x04;
-constexpr uint8_t DW_CFA_offset_extended = 0x05;
-constexpr uint8_t DW_CFA_restore_extended = 0x06;
-constexpr uint8_t DW_CFA_undefined = 0x07;
-constexpr uint8_t DW_CFA_same_value = 0x08;
-constexpr uint8_t DW_CFA_register = 0x09;
-constexpr uint8_t DW_CFA_remember_state = 0x0a;
-constexpr uint8_t DW_CFA_restore_state = 0x0b;
-constexpr uint8_t DW_CFA_def_cfa = 0x0c;
-constexpr uint8_t DW_CFA_def_cfa_register = 0x0d;
-constexpr uint8_t DW_CFA_def_cfa_offset = 0x0e;
-constexpr uint8_t DW_CFA_def_cfa_expression = 0x0f;
-constexpr uint8_t DW_CFA_expression = 0x10;
-constexpr uint8_t DW_CFA_offset_extended_sf = 0x11;
-constexpr uint8_t DW_CFA_def_cfa_sf = 0x12;
-constexpr uint8_t DW_CFA_def_cfa_offset_sf = 0x13;
-constexpr uint8_t DW_CFA_val_offset = 0x14;
-constexpr uint8_t DW_CFA_val_offset_sf = 0x15;
-constexpr uint8_t DW_CFA_val_expression = 0x16;
 
 static uint16_t get_le16(const uint8_t *p) {
   return (uint16_t)p[0] | ((uint16_t)p[1] << 8);

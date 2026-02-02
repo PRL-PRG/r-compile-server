@@ -4,6 +4,7 @@
 #ifdef GDB_JIT_SUPPORT
 
 #include "shared/opcodes.h"
+#include "shared/dwarf.h"
 #include "stencils_data.h"
 
 #define _GNU_SOURCE
@@ -15,62 +16,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-/* DWARF Constants */
-#define DW_TAG_compile_unit 0x11
-#define DW_TAG_formal_parameter 0x05
-#define DW_TAG_pointer_type 0x0F
-#define DW_TAG_subprogram 0x2e
-#define DW_TAG_base_type 0x24
-
-#define DW_AT_name 0x03
-#define DW_AT_byte_size 0x0B
-#define DW_AT_stmt_list 0x10
-#define DW_AT_low_pc 0x11
-#define DW_AT_high_pc 0x12
-#define DW_AT_encoding 0x3E
-#define DW_AT_type 0x49
-#define DW_AT_location 0x02
-
-#define DW_FORM_addr 0x01
-#define DW_FORM_data4 0x06
-#define DW_FORM_string 0x08
-#define DW_FORM_block1 0x0A
-#define DW_FORM_data1 0x0B
-#define DW_FORM_ref4 0x13
-
-#define DW_OP_reg4 0x54
-#define DW_OP_reg5 0x55
-
-#define DW_ATE_address 0x01
-
-#define DW_LNS_copy 1
-#define DW_LNS_advance_pc 2
-#define DW_LNS_advance_line 3
-#define DW_LNS_set_file 4
-#define DW_LNE_end_sequence 1
-#define DW_LNE_set_address 2
-
-/* DWARF CFI opcodes */
-#define DW_CFA_nop 0x00
-#define DW_CFA_advance_loc1 0x02
-#define DW_CFA_advance_loc2 0x03
-#define DW_CFA_advance_loc4 0x04
-#define DW_CFA_remember_state 0x0a
-#define DW_CFA_restore_state 0x0b
-#define DW_CFA_def_cfa 0x0c
-#define DW_CFA_def_cfa_offset 0x0e
-#define DW_CFA_offset_base 0x80
-
-/* x86-64 DWARF register numbers */
-#define DWARF_REG_RBX 3
-#define DWARF_REG_RBP 6
-#define DWARF_REG_RSP 7
-#define DWARF_REG_R12 12
-#define DWARF_REG_R13 13
-#define DWARF_REG_R14 14
-#define DWARF_REG_R15 15
-#define DWARF_REG_RA 16
 
 /*
  * GDB JIT Interface Implementation
@@ -151,43 +96,15 @@ static void buf_write_u64(Buffer *buf, uint64_t val) {
 
 /* Write LEB128 value to buffer */
 static void buf_write_uleb128(Buffer *buf, uint64_t val) {
-  do {
-    uint8_t byte = val & 0x7f;
-    val >>= 7;
-    if (val != 0)
-      byte |= 0x80;
-    buf_write(buf, &byte, 1);
-  } while (val != 0);
+  buf_ensure(buf, 10);
+  size_t len = dwarf_encode_uleb128(val, buf->data + buf->size);
+  buf->size += len;
 }
 
 static void buf_write_sleb128(Buffer *buf, int64_t val) {
-  int more = 1;
-  while (more) {
-    uint8_t byte = val & 0x7f;
-    val >>= 7;
-    /* sign extend if neg */
-    int sign = (byte & 0x40);
-    if ((val == 0 && !sign) || (val == -1 && sign)) {
-      more = 0;
-    } else {
-      byte |= 0x80;
-    }
-    buf_write(buf, &byte, 1);
-  }
-}
-
-static uint64_t read_uleb128(const uint8_t **data) {
-  uint64_t result = 0;
-  int shift = 0;
-  while (1) {
-    uint8_t byte = **data;
-    (*data)++;
-    result |= (uint64_t)(byte & 0x7f) << shift;
-    if ((byte & 0x80) == 0)
-      break;
-    shift += 7;
-  }
-  return result;
+  buf_ensure(buf, 10);
+  size_t len = dwarf_encode_sleb128(val, buf->data + buf->size);
+  buf->size += len;
 }
 
 static void buf_free(Buffer *buf) {
@@ -502,8 +419,9 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     while (p < cfi_end) {
       uint8_t op = *p++;
       if ((op & 0xC0) == 0x00) {
+        /* Standard opcodes */
         if (op == DW_CFA_def_cfa_offset) {
-          uint64_t val = read_uleb128(&p);
+          uint64_t val = dwarf_decode_uleb128(&p);
           buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
           buf_write_uleb128(&dbg_frame, val);
         } else if (op == DW_CFA_advance_loc1) {
@@ -530,7 +448,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
         buf_write_u8(&dbg_frame, op);
         fde_last_addr += (op & 0x3F);
       } else if ((op & 0xC0) == 0x80) {
-        uint64_t val = read_uleb128(&p);
+        uint64_t val = dwarf_decode_uleb128(&p);
         buf_write_u8(&dbg_frame, op);
         buf_write_uleb128(&dbg_frame, val);
       } else if ((op & 0xC0) == 0xC0) {
@@ -583,7 +501,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
         if ((op & 0xC0) == 0x00) {
           // Standard opcodes
           if (op == DW_CFA_def_cfa_offset) {
-            uint64_t val = read_uleb128(&p);
+            uint64_t val = dwarf_decode_uleb128(&p);
             /* Adjust CFA offset: new_offset = val - 8 + base_cfa_offset
                8 is standard return address offset */
             buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
@@ -615,7 +533,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
           fde_last_addr += (op & 0x3F);
         } else if ((op & 0xC0) == 0x80) {
           // DW_CFA_offset (0x80 | reg)
-          uint64_t val = read_uleb128(&p);
+          uint64_t val = dwarf_decode_uleb128(&p);
           buf_write_u8(&dbg_frame, op);
           buf_write_uleb128(&dbg_frame, val);
         } else if ((op & 0xC0) == 0xC0) {
