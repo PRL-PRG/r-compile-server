@@ -149,31 +149,14 @@ static char *write_source_file(const char *func_name, int instruction_count,
 }
 
 /*
- * Build complete ELF image with symbols and DWARF info
+ * Build the Symbol Table (.symtab)
+ * 
+ * We need a symbol table to map the function name to its memory address.
+ * GDB uses this to know that the code at `code_addr` corresponds to `func_name`.
  */
-static void *create_debug_elf(const char *func_name, void *code_addr,
-                              size_t code_size, uint8_t **inst_addrs,
-                              int instruction_count, const Stencil **stencils,
-                              int base_cfa_offset, size_t *elf_size) {
-
-  /* Generate source file */
-  char *source_path =
-      write_source_file(func_name, instruction_count, stencils, inst_addrs);
-
-  if (!source_path) {
-    return NULL;
-  }
-
-  /* Build dynamic string table */
-  Buffer strtab;
-  buf_init(&strtab, 1024);
-  buf_write_u8(&strtab, 0); // NULL byte
-  size_t func_name_offset = buf_write_string(&strtab, func_name);
-
-  /* Build symbol table */
-  /* Entry 0: NULL, Entry 1: Main function */
-  int sym_count = 2;
-  Elf64_Sym *symtab = calloc(sym_count, sizeof(Elf64_Sym));
+static void build_symtab(Elf64_Sym *symtab, size_t func_name_offset, void *code_addr, size_t code_size) {
+  /* Entry 0: NULL (Required by ELF standard) */
+  /* Already zeroed by calloc in caller */
 
   /* Entry 1: Main function */
   int main_sym_idx = 1;
@@ -182,173 +165,192 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   symtab[main_sym_idx].st_shndx = SEC_TEXT;
   symtab[main_sym_idx].st_value = (uint64_t)code_addr;
   symtab[main_sym_idx].st_size = code_size;
+}
 
-  /* Build DWARF .debug_abbrev */
-  Buffer abbrev;
-  buf_init(&abbrev, 128);
+/*
+ * Build DWARF Abbreviations (.debug_abbrev)
+ * 
+ * Abbreviations describe the format of Debugging Information Entries (DIEs).
+ * They act as a schema, allowing `.debug_info` to be compact by referencing
+ * these definitions instead of repeating the structure for every entry.
+ */
+static void build_debug_abbrev(Buffer *abbrev) {
+  buf_init(abbrev, 128);
 
   /* Abbrev 1: Compile Unit */
-  buf_write_uleb128(&abbrev, 1);
-  buf_write_uleb128(&abbrev, DW_TAG_compile_unit);
-  buf_write_u8(&abbrev, 1); // CHILDREN_YES
+  buf_write_uleb128(abbrev, 1);
+  buf_write_uleb128(abbrev, DW_TAG_compile_unit);
+  buf_write_u8(abbrev, 1); // CHILDREN_YES
 
-  buf_write_uleb128(&abbrev, DW_AT_name);
-  buf_write_uleb128(&abbrev, DW_FORM_string);
-  buf_write_uleb128(&abbrev, DW_AT_stmt_list);
-  buf_write_uleb128(&abbrev, DW_FORM_data4);
-  buf_write_uleb128(&abbrev, DW_AT_low_pc);
-  buf_write_uleb128(&abbrev, DW_FORM_addr);
-  buf_write_uleb128(&abbrev, DW_AT_high_pc);
-  buf_write_uleb128(&abbrev, DW_FORM_addr); // Using addr for absolute end
-  buf_write_u16(&abbrev, 0);                // End attributes
+  buf_write_uleb128(abbrev, DW_AT_name);
+  buf_write_uleb128(abbrev, DW_FORM_string);
+  buf_write_uleb128(abbrev, DW_AT_stmt_list);
+  buf_write_uleb128(abbrev, DW_FORM_data4);
+  buf_write_uleb128(abbrev, DW_AT_low_pc);
+  buf_write_uleb128(abbrev, DW_FORM_addr);
+  buf_write_uleb128(abbrev, DW_AT_high_pc);
+  buf_write_uleb128(abbrev, DW_FORM_addr); // Using addr for absolute end
+  buf_write_u16(abbrev, 0);                // End attributes
 
   /* Abbrev 2: Subprogram */
-  buf_write_uleb128(&abbrev, 2);
-  buf_write_uleb128(&abbrev, DW_TAG_subprogram);
-  buf_write_u8(&abbrev, 1); // CHILDREN_YES
+  buf_write_uleb128(abbrev, 2);
+  buf_write_uleb128(abbrev, DW_TAG_subprogram);
+  buf_write_u8(abbrev, 1); // CHILDREN_YES
 
-  buf_write_uleb128(&abbrev, DW_AT_name);
-  buf_write_uleb128(&abbrev, DW_FORM_string);
-  buf_write_uleb128(&abbrev, DW_AT_low_pc);
-  buf_write_uleb128(&abbrev, DW_FORM_addr);
-  buf_write_uleb128(&abbrev, DW_AT_high_pc);
-  buf_write_uleb128(&abbrev, DW_FORM_addr);
-  buf_write_u16(&abbrev, 0); // End attributes
+  buf_write_uleb128(abbrev, DW_AT_name);
+  buf_write_uleb128(abbrev, DW_FORM_string);
+  buf_write_uleb128(abbrev, DW_AT_low_pc);
+  buf_write_uleb128(abbrev, DW_FORM_addr);
+  buf_write_uleb128(abbrev, DW_AT_high_pc);
+  buf_write_uleb128(abbrev, DW_FORM_addr);
+  buf_write_u16(abbrev, 0); // End attributes
 
   /* Abbrev 3: Formal Parameter */
-  buf_write_uleb128(&abbrev, 3);
-  buf_write_uleb128(&abbrev, DW_TAG_formal_parameter);
-  buf_write_u8(&abbrev, 0); // CHILDREN_NO
+  buf_write_uleb128(abbrev, 3);
+  buf_write_uleb128(abbrev, DW_TAG_formal_parameter);
+  buf_write_u8(abbrev, 0); // CHILDREN_NO
 
-  buf_write_uleb128(&abbrev, DW_AT_name);
-  buf_write_uleb128(&abbrev, DW_FORM_string);
-  buf_write_uleb128(&abbrev, DW_AT_type);
-  buf_write_uleb128(&abbrev, DW_FORM_ref4);
-  buf_write_uleb128(&abbrev, DW_AT_location);
-  buf_write_uleb128(&abbrev, DW_FORM_block1);
-  buf_write_u16(&abbrev, 0);
+  buf_write_uleb128(abbrev, DW_AT_name);
+  buf_write_uleb128(abbrev, DW_FORM_string);
+  buf_write_uleb128(abbrev, DW_AT_type);
+  buf_write_uleb128(abbrev, DW_FORM_ref4);
+  buf_write_uleb128(abbrev, DW_AT_location);
+  buf_write_uleb128(abbrev, DW_FORM_block1);
+  buf_write_u16(abbrev, 0);
 
   /* Abbrev 4: Pointer Type */
-  buf_write_uleb128(&abbrev, 4);
-  buf_write_uleb128(&abbrev, DW_TAG_pointer_type);
-  buf_write_u8(&abbrev, 0);
+  buf_write_uleb128(abbrev, 4);
+  buf_write_uleb128(abbrev, DW_TAG_pointer_type);
+  buf_write_u8(abbrev, 0);
 
-  buf_write_uleb128(&abbrev, DW_AT_byte_size);
-  buf_write_uleb128(&abbrev, DW_FORM_data1);
-  buf_write_u16(&abbrev, 0);
+  buf_write_uleb128(abbrev, DW_AT_byte_size);
+  buf_write_uleb128(abbrev, DW_FORM_data1);
+  buf_write_u16(abbrev, 0);
 
-  buf_write_u8(&abbrev, 0); // End abbrevs
+  buf_write_u8(abbrev, 0); // End abbrevs
+}
 
-  /* Build DWARF .debug_info */
-  Buffer dbg_info;
-  buf_init(&dbg_info, 256);
+/*
+ * Build DWARF Debug Info (.debug_info)
+ * 
+ * This section contains the actual debugging information entries (DIEs)
+ * that describe the code, matching the schema in `.debug_abbrev`.
+ */
+static size_t build_debug_info(Buffer *dbg_info, const char *func_name, void *code_addr, size_t code_size, const char *source_path) {
+  buf_init(dbg_info, 256);
 
   /* Header - length will be fixed up after all DIEs are written */
-  buf_write_u32(&dbg_info, 0); // Length (placeholder)
-  buf_write_u16(&dbg_info, 4); // DWARF Version 4
-  buf_write_u32(&dbg_info, 0); // Abbrev offset
-  buf_write_u8(&dbg_info, 8);  // Ptr size
+  buf_write_u32(dbg_info, 0); // Length (placeholder)
+  buf_write_u16(dbg_info, 4); // DWARF Version 4
+  buf_write_u32(dbg_info, 0); // Abbrev offset
+  buf_write_u8(dbg_info, 8);  // Ptr size
 
   /* DIE 1: Compile Unit */
-  buf_write_uleb128(&dbg_info, 1);          // Abbrev 1
-  buf_write_string(&dbg_info, source_path); // DW_AT_name
-  buf_write_u32(&dbg_info, 0); // DW_AT_stmt_list (offset 0 in .debug_line)
-  buf_write_u64(&dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
-  buf_write_u64(&dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
+  buf_write_uleb128(dbg_info, 1);          // Abbrev 1
+  buf_write_string(dbg_info, source_path); // DW_AT_name
+  buf_write_u32(dbg_info, 0); // DW_AT_stmt_list (offset 0 in .debug_line)
+  buf_write_u64(dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
+  buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
   /* DIE 3 (reserved): Pointer Type (void*) */
-  size_t void_ptr_offset = dbg_info.size;
-  buf_write_uleb128(&dbg_info, 4); // Abbrev 4
-  buf_write_u8(&dbg_info, 8);      // Size 8
+  size_t void_ptr_offset = dbg_info->size;
+  buf_write_uleb128(dbg_info, 4); // Abbrev 4
+  buf_write_u8(dbg_info, 8);      // Size 8
 
   /* DIE 2: Subprogram */
-  buf_write_uleb128(&dbg_info, 2);                           // Abbrev 2
-  buf_write_string(&dbg_info, func_name);                    // DW_AT_name
-  buf_write_u64(&dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
-  buf_write_u64(&dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
+  buf_write_uleb128(dbg_info, 2);                           // Abbrev 2
+  buf_write_string(dbg_info, func_name);                    // DW_AT_name
+  buf_write_u64(dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
+  buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
   /* Formal Parameter: stack */
-  buf_write_uleb128(&dbg_info, 3);                     // Abbrev 3
-  buf_write_string(&dbg_info, "stack");                // Name
-  buf_write_u32(&dbg_info, (uint32_t)void_ptr_offset); // Type
-  buf_write_u8(&dbg_info, 1);                          // Block len
-  buf_write_u8(&dbg_info, DW_OP_reg5);                 // RDI
+  buf_write_uleb128(dbg_info, 3);                     // Abbrev 3
+  buf_write_string(dbg_info, "stack");                // Name
+  buf_write_u32(dbg_info, (uint32_t)void_ptr_offset); // Type
+  buf_write_u8(dbg_info, 1);                          // Block len
+  buf_write_u8(dbg_info, DW_OP_reg5);                 // RDI
 
   /* Formal Parameter: locals */
-  buf_write_uleb128(&dbg_info, 3);                     // Abbrev 3
-  buf_write_string(&dbg_info, "locals");               // Name
-  buf_write_u32(&dbg_info, (uint32_t)void_ptr_offset); // Type
-  buf_write_u8(&dbg_info, 1);                          // Block len
-  buf_write_u8(&dbg_info, DW_OP_reg4);                 // RSI
+  buf_write_uleb128(dbg_info, 3);                     // Abbrev 3
+  buf_write_string(dbg_info, "locals");               // Name
+  buf_write_u32(dbg_info, (uint32_t)void_ptr_offset); // Type
+  buf_write_u8(dbg_info, 1);                          // Block len
+  buf_write_u8(dbg_info, DW_OP_reg4);                 // RSI
 
-  buf_write_u8(&dbg_info, 0); // End of Subprogram children
-  buf_write_u8(&dbg_info, 0); // End of CU children
+  buf_write_u8(dbg_info, 0); // End of Subprogram children
+  buf_write_u8(dbg_info, 0); // End of CU children
 
   /* Fixup length */
-  uint32_t total_info_len = dbg_info.size - 4;
-  memcpy(dbg_info.data, &total_info_len, 4);
+  uint32_t total_info_len = dbg_info->size - 4;
+  memcpy(dbg_info->data, &total_info_len, 4);
+  
+  return void_ptr_offset;
+}
 
-  /* Build DWARF .debug_line */
-  Buffer dbg_line;
-  buf_init(&dbg_line, 512);
+/*
+ * Build DWARF Line Table (.debug_line)
+ * 
+ * Maps machine code addresses to source file lines. This allows GDB to step
+ * through the "source code" (our generated assembly-like file) line by line.
+ */
+static void build_debug_line(Buffer *dbg_line, void *code_addr, size_t code_size, uint8_t **inst_addrs, int instruction_count, const char *source_path) {
+  buf_init(dbg_line, 512);
 
   /* Header */
-  size_t line_header_start = dbg_line.size;
-  buf_write_u32(&dbg_line, 0); // Length (placeholder)
-  buf_write_u16(&dbg_line, 4); // Version
-  buf_write_u32(&dbg_line, 0); // Prologue Length (placeholder)
-  size_t prologue_start = dbg_line.size;
+  size_t line_header_start = dbg_line->size;
+  buf_write_u32(dbg_line, 0); // Length (placeholder)
+  buf_write_u16(dbg_line, 4); // Version
+  buf_write_u32(dbg_line, 0); // Prologue Length (placeholder)
+  size_t prologue_start = dbg_line->size;
 
-  buf_write_u8(&dbg_line, 1);  // Min Inst Length
-  buf_write_u8(&dbg_line, 1);  // Max Ops Per Inst
-  buf_write_u8(&dbg_line, 1);  // Default is_stmt
-  buf_write_u8(&dbg_line, -5); // Line Base
-  buf_write_u8(&dbg_line, 14); // Line Range
-  buf_write_u8(&dbg_line, 13); // Opcode Base
+  buf_write_u8(dbg_line, 1);  // Min Inst Length
+  buf_write_u8(dbg_line, 1);  // Max Ops Per Inst
+  buf_write_u8(dbg_line, 1);  // Default is_stmt
+  buf_write_u8(dbg_line, -5); // Line Base
+  buf_write_u8(dbg_line, 14); // Line Range
+  buf_write_u8(dbg_line, 13); // Opcode Base
 
   /* Standard Opcode Lengths (12 entries for opcodes 1..12) */
   uint8_t std_lens[] = {0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1};
-  buf_write(&dbg_line, std_lens, sizeof(std_lens));
+  buf_write(dbg_line, std_lens, sizeof(std_lens));
 
   /* Include Dirs */
-  buf_write_u8(&dbg_line, 0); // End
+  buf_write_u8(dbg_line, 0); // End
 
   /* File Names */
-  buf_write_string(&dbg_line, source_path);
-  buf_write_uleb128(&dbg_line, 0); // Dir index
-  buf_write_uleb128(&dbg_line, 0); // Time
-  buf_write_uleb128(&dbg_line, 0); // Size
-  buf_write_u8(&dbg_line, 0);      // End
+  buf_write_string(dbg_line, source_path);
+  buf_write_uleb128(dbg_line, 0); // Dir index
+  buf_write_uleb128(dbg_line, 0); // Time
+  buf_write_uleb128(dbg_line, 0); // Size
+  buf_write_u8(dbg_line, 0);      // End
 
   /* Fixup Prologue Length */
-  uint32_t prologue_len = dbg_line.size - prologue_start;
-  memcpy(dbg_line.data + line_header_start + 6, &prologue_len, 4);
+  uint32_t prologue_len = dbg_line->size - prologue_start;
+  memcpy(dbg_line->data + line_header_start + 6, &prologue_len, 4);
 
   /* Line Number Program */
 
   /* Emit row for prologue: line 1, address = code_addr */
-  buf_write_u8(&dbg_line, 0);          // Extended opcode
-  buf_write_uleb128(&dbg_line, 1 + 8); // Length (opcode byte + 8-byte addr)
-  buf_write_u8(&dbg_line, DW_LNE_set_address);
-  buf_write_u64(&dbg_line, (uint64_t)code_addr);
-  buf_write_u8(&dbg_line, DW_LNS_copy); // Emit row: (code_addr, line 1)
+  buf_write_u8(dbg_line, 0);          // Extended opcode
+  buf_write_uleb128(dbg_line, 1 + 8); // Length (opcode byte + 8-byte addr)
+  buf_write_u8(dbg_line, DW_LNE_set_address);
+  buf_write_u64(dbg_line, (uint64_t)code_addr);
+  buf_write_u8(dbg_line, DW_LNS_copy); // Emit row: (code_addr, line 1)
 
-  /* Emit a row for each bytecode instruction.
-   * inst_addrs[i] is non-NULL only at instruction start positions;
-   * argument slots are NULL and skipped. */
+  /* Emit a row for each bytecode instruction. */
   uint64_t last_addr = (uint64_t)code_addr;
   for (int i = 0; i < instruction_count; i++) {
     if (!inst_addrs[i])
       continue;
     uint64_t curr = (uint64_t)inst_addrs[i];
 
-    buf_write_u8(&dbg_line, DW_LNS_advance_pc);
-    buf_write_uleb128(&dbg_line, curr - last_addr);
+    buf_write_u8(dbg_line, DW_LNS_advance_pc);
+    buf_write_uleb128(dbg_line, curr - last_addr);
 
-    buf_write_u8(&dbg_line, DW_LNS_advance_line);
-    buf_write_sleb128(&dbg_line, 1);
+    buf_write_u8(dbg_line, DW_LNS_advance_line);
+    buf_write_sleb128(dbg_line, 1);
 
-    buf_write_u8(&dbg_line, DW_LNS_copy);
+    buf_write_u8(dbg_line, DW_LNS_copy);
 
     last_addr = curr;
   }
@@ -356,56 +358,63 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   /* End sequence */
   uint64_t end_addr = (uint64_t)code_addr + code_size;
   if (end_addr > last_addr) {
-    buf_write_u8(&dbg_line, DW_LNS_advance_pc);
-    buf_write_uleb128(&dbg_line, end_addr - last_addr);
+    buf_write_u8(dbg_line, DW_LNS_advance_pc);
+    buf_write_uleb128(dbg_line, end_addr - last_addr);
   }
-  buf_write_u8(&dbg_line, 0);
-  buf_write_uleb128(&dbg_line, 1);
-  buf_write_u8(&dbg_line, DW_LNE_end_sequence);
+  buf_write_u8(dbg_line, 0);
+  buf_write_uleb128(dbg_line, 1);
+  buf_write_u8(dbg_line, DW_LNE_end_sequence);
 
   /* Fixup Total Length */
-  uint32_t line_total_len = dbg_line.size - 4;
-  memcpy(dbg_line.data, &line_total_len, 4);
+  uint32_t line_total_len = dbg_line->size - 4;
+  memcpy(dbg_line->data, &line_total_len, 4);
+}
 
-  /* Build .debug_frame (CIE + FDE) */
-  Buffer dbg_frame;
-  buf_init(&dbg_frame, 512);
+/*
+ * Build DWARF Frame info (.debug_frame)
+ * 
+ * Provides Call Frame Information (CFI) to help GDB unwind the stack.
+ * It describes how to restore registers and find the return address
+ * for any instruction pointer within the JIT-compiled code.
+ */
+static void build_debug_frame(Buffer *dbg_frame, void *code_addr, size_t code_size, uint8_t **inst_addrs, int instruction_count, const Stencil **stencils, int base_cfa_offset) {
+  buf_init(dbg_frame, 512);
 
   /* CIE (Common Information Entry) */
-  size_t cie_start = dbg_frame.size;
-  buf_write_u32(&dbg_frame, 0);          /* length (placeholder) */
-  buf_write_u32(&dbg_frame, 0xffffffff); /* CIE_id = -1 for .debug_frame */
-  buf_write_u8(&dbg_frame, 4);           /* version (DWARF 4) */
-  buf_write_u8(&dbg_frame, 0);           /* augmentation string (empty) */
-  buf_write_u8(&dbg_frame, 8);           /* address_size */
-  buf_write_u8(&dbg_frame, 0);           /* segment_selector_size */
-  buf_write_uleb128(&dbg_frame, 1);      /* code_alignment_factor */
-  buf_write_sleb128(&dbg_frame, -8);     /* data_alignment_factor */
-  buf_write_uleb128(&dbg_frame, DWARF_REG_RA); /* return_address_register */
+  size_t cie_start = dbg_frame->size;
+  buf_write_u32(dbg_frame, 0);          /* length (placeholder) */
+  buf_write_u32(dbg_frame, 0xffffffff); /* CIE_id = -1 for .debug_frame */
+  buf_write_u8(dbg_frame, 4);           /* version (DWARF 4) */
+  buf_write_u8(dbg_frame, 0);           /* augmentation string (empty) */
+  buf_write_u8(dbg_frame, 8);           /* address_size */
+  buf_write_u8(dbg_frame, 0);           /* segment_selector_size */
+  buf_write_uleb128(dbg_frame, 1);      /* code_alignment_factor */
+  buf_write_sleb128(dbg_frame, -8);     /* data_alignment_factor */
+  buf_write_uleb128(dbg_frame, DWARF_REG_RA); /* return_address_register */
 
   /* Initial instructions: DW_CFA_def_cfa(RSP, 8) */
-  buf_write_u8(&dbg_frame, DW_CFA_def_cfa);
-  buf_write_uleb128(&dbg_frame, DWARF_REG_RSP);
-  buf_write_uleb128(&dbg_frame, 8);
+  buf_write_u8(dbg_frame, DW_CFA_def_cfa);
+  buf_write_uleb128(dbg_frame, DWARF_REG_RSP);
+  buf_write_uleb128(dbg_frame, 8);
 
   /* DW_CFA_offset(RA, 1) => RA at CFA-8 (factored: 1 * -8 = -8) */
-  buf_write_u8(&dbg_frame, DW_CFA_offset_base | DWARF_REG_RA);
-  buf_write_uleb128(&dbg_frame, 1);
+  buf_write_u8(dbg_frame, DW_CFA_offset_base | DWARF_REG_RA);
+  buf_write_uleb128(dbg_frame, 1);
 
   /* Pad CIE to pointer-size alignment */
-  while ((dbg_frame.size - cie_start) % 8)
-    buf_write_u8(&dbg_frame, DW_CFA_nop);
+  while ((dbg_frame->size - cie_start) % 8)
+    buf_write_u8(dbg_frame, DW_CFA_nop);
 
   /* Fixup CIE length */
-  uint32_t cie_len = dbg_frame.size - cie_start - 4;
-  memcpy(dbg_frame.data + cie_start, &cie_len, 4);
+  uint32_t cie_len = dbg_frame->size - cie_start - 4;
+  memcpy(dbg_frame->data + cie_start, &cie_len, 4);
 
   /* FDE (Frame Description Entry) */
-  size_t fde_start = dbg_frame.size;
-  buf_write_u32(&dbg_frame, 0);         /* length (placeholder) */
-  buf_write_u32(&dbg_frame, cie_start); /* CIE_pointer (offset of CIE) */
-  buf_write_u64(&dbg_frame, (uint64_t)code_addr); /* initial_location */
-  buf_write_u64(&dbg_frame, code_size);           /* address_range */
+  size_t fde_start = dbg_frame->size;
+  buf_write_u32(dbg_frame, 0);         /* length (placeholder) */
+  buf_write_u32(dbg_frame, cie_start); /* CIE_pointer (offset of CIE) */
+  buf_write_u64(dbg_frame, (uint64_t)code_addr); /* initial_location */
+  buf_write_u64(dbg_frame, code_size);           /* address_range */
 
   uint64_t fde_last_addr = (uint64_t)code_addr;
 
@@ -416,49 +425,67 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     const uint8_t *cfi_end = prologue_debug_frame + 4 + length;
     const uint8_t *p = cfi_start;
 
+    /* 
+     * Loop: Copy Prologue CFI from _RCP_INIT
+     * 
+     * The JIT function begins with a machine code copy of the `_RCP_INIT` function.
+     * To ensure GDB can unwind through this prologue, we must copy the DWARF 
+     * Call Frame Information (CFI) from `_RCP_INIT`'s debug frame.
+     *
+     * This loop iterates over the raw CFI bytes of the template:
+     * 1. It copies "Advance Location" opcodes to match the instruction flow.
+     * 2. It copies "Register Save" opcodes (e.g., storing RBP, RBX) exactly.
+     * 3. It ADJUSTS `DW_CFA_def_cfa_offset`:
+     *    - The template assumes a base stack depth (typically 64 bytes).
+     *    - The JIT function is called via an extra instruction, pushing an 
+     *      8-byte return address.
+     *    - We must add this delta so GDB calculates the correct Canonical Frame Address (CFA).
+     */
     while (p < cfi_end) {
       uint8_t op = *p++;
       if ((op & 0xC0) == 0x00) {
         /* Standard opcodes */
         if (op == DW_CFA_def_cfa_offset) {
           uint64_t val = dwarf_decode_uleb128(&p);
-          buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
-          buf_write_uleb128(&dbg_frame, val);
+          /* Adjust CFA offset: new_offset = val - 8 + base_cfa_offset 
+             (base_cfa_offset includes the extra 8 bytes) */
+          buf_write_u8(dbg_frame, DW_CFA_def_cfa_offset);
+          buf_write_uleb128(dbg_frame, val - 8 + base_cfa_offset);
         } else if (op == DW_CFA_advance_loc1) {
           uint8_t d = *p++;
-          buf_write_u8(&dbg_frame, op);
-          buf_write_u8(&dbg_frame, d);
+          buf_write_u8(dbg_frame, op);
+          buf_write_u8(dbg_frame, d);
           fde_last_addr += d;
         } else if (op == DW_CFA_advance_loc2) {
           uint16_t d = *(const uint16_t *)p;
           p += 2;
-          buf_write_u8(&dbg_frame, op);
-          buf_write_u16(&dbg_frame, d);
+          buf_write_u8(dbg_frame, op);
+          buf_write_u16(dbg_frame, d);
           fde_last_addr += d;
         } else if (op == DW_CFA_advance_loc4) {
           uint32_t d = *(const uint32_t *)p;
           p += 4;
-          buf_write_u8(&dbg_frame, op);
-          buf_write_u32(&dbg_frame, d);
+          buf_write_u8(dbg_frame, op);
+          buf_write_u32(dbg_frame, d);
           fde_last_addr += d;
         } else {
-          buf_write_u8(&dbg_frame, op);
+          buf_write_u8(dbg_frame, op);
         }
       } else if ((op & 0xC0) == 0x40) {
-        buf_write_u8(&dbg_frame, op);
+        buf_write_u8(dbg_frame, op);
         fde_last_addr += (op & 0x3F);
       } else if ((op & 0xC0) == 0x80) {
         uint64_t val = dwarf_decode_uleb128(&p);
-        buf_write_u8(&dbg_frame, op);
-        buf_write_uleb128(&dbg_frame, val);
+        buf_write_u8(dbg_frame, op);
+        buf_write_uleb128(dbg_frame, val);
       } else if ((op & 0xC0) == 0xC0) {
-        buf_write_u8(&dbg_frame, op);
+        buf_write_u8(dbg_frame, op);
       }
     }
   }
 
   /* Save the "base" state for this function (either CIE state or Post-Prologue state) */
-  buf_write_u8(&dbg_frame, DW_CFA_remember_state);
+  buf_write_u8(dbg_frame, DW_CFA_remember_state);
 
   for (int i = 0; i < instruction_count; i++) {
     if (!inst_addrs[i])
@@ -469,24 +496,24 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     uint64_t delta = curr - fde_last_addr;
     if (delta > 0) {
       if (delta <= 0xff) {
-        buf_write_u8(&dbg_frame, DW_CFA_advance_loc1);
-        buf_write_u8(&dbg_frame, (uint8_t)delta);
+        buf_write_u8(dbg_frame, DW_CFA_advance_loc1);
+        buf_write_u8(dbg_frame, (uint8_t)delta);
       } else if (delta <= 0xffff) {
-        buf_write_u8(&dbg_frame, DW_CFA_advance_loc2);
-        buf_write_u16(&dbg_frame, (uint16_t)delta);
+        buf_write_u8(dbg_frame, DW_CFA_advance_loc2);
+        buf_write_u16(dbg_frame, (uint16_t)delta);
       } else {
-        buf_write_u8(&dbg_frame, DW_CFA_advance_loc4);
-        buf_write_u32(&dbg_frame, (uint32_t)delta);
+        buf_write_u8(dbg_frame, DW_CFA_advance_loc4);
+        buf_write_u32(dbg_frame, (uint32_t)delta);
       }
       fde_last_addr = curr;
     }
 
     /* Reset state to base for this function */
-    buf_write_u8(&dbg_frame, DW_CFA_restore_state);
-    buf_write_u8(&dbg_frame, DW_CFA_remember_state);
+    buf_write_u8(dbg_frame, DW_CFA_restore_state);
+    buf_write_u8(dbg_frame, DW_CFA_remember_state);
 
-    buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
-    buf_write_uleb128(&dbg_frame, base_cfa_offset);
+    buf_write_u8(dbg_frame, DW_CFA_def_cfa_offset);
+    buf_write_uleb128(dbg_frame, base_cfa_offset);
 
     /* Get debug frame for this stencil */
     const uint8_t *frame_data = stencils[i]->debug_frame;
@@ -504,53 +531,96 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
             uint64_t val = dwarf_decode_uleb128(&p);
             /* Adjust CFA offset: new_offset = val - 8 + base_cfa_offset
                8 is standard return address offset */
-            buf_write_u8(&dbg_frame, DW_CFA_def_cfa_offset);
-            buf_write_uleb128(&dbg_frame, val - 8 + base_cfa_offset);
+            buf_write_u8(dbg_frame, DW_CFA_def_cfa_offset);
+            buf_write_uleb128(dbg_frame, val - 8 + base_cfa_offset);
           } else if (op == DW_CFA_advance_loc1) {
             uint8_t d = *p++;
-            buf_write_u8(&dbg_frame, op);
-            buf_write_u8(&dbg_frame, d);
+            buf_write_u8(dbg_frame, op);
+            buf_write_u8(dbg_frame, d);
             fde_last_addr += d;
           } else if (op == DW_CFA_advance_loc2) {
             uint16_t d = *(const uint16_t *)p;
             p += 2;
-            buf_write_u8(&dbg_frame, op);
-            buf_write_u16(&dbg_frame, d);
+            buf_write_u8(dbg_frame, op);
+            buf_write_u16(dbg_frame, d);
             fde_last_addr += d;
           } else if (op == DW_CFA_advance_loc4) {
             uint32_t d = *(const uint32_t *)p;
             p += 4;
-            buf_write_u8(&dbg_frame, op);
-            buf_write_u32(&dbg_frame, d);
+            buf_write_u8(dbg_frame, op);
+            buf_write_u32(dbg_frame, d);
             fde_last_addr += d;
           } else {
             // Copy other opcodes as is (nop, restore, etc.)
-            buf_write_u8(&dbg_frame, op);
+            buf_write_u8(dbg_frame, op);
           }
         } else if ((op & 0xC0) == 0x40) {
           // DW_CFA_advance_loc (0x40 | delta)
-          buf_write_u8(&dbg_frame, op);
+          buf_write_u8(dbg_frame, op);
           fde_last_addr += (op & 0x3F);
         } else if ((op & 0xC0) == 0x80) {
           // DW_CFA_offset (0x80 | reg)
           uint64_t val = dwarf_decode_uleb128(&p);
-          buf_write_u8(&dbg_frame, op);
-          buf_write_uleb128(&dbg_frame, val);
+          buf_write_u8(dbg_frame, op);
+          buf_write_uleb128(dbg_frame, val);
         } else if ((op & 0xC0) == 0xC0) {
           // DW_CFA_restore (0xC0 | reg)
-          buf_write_u8(&dbg_frame, op);
+          buf_write_u8(dbg_frame, op);
         }
       }
     }
   }
 
   /* Pad FDE to pointer-size alignment */
-  while ((dbg_frame.size - fde_start) % 8)
-    buf_write_u8(&dbg_frame, DW_CFA_nop);
+  while ((dbg_frame->size - fde_start) % 8)
+    buf_write_u8(dbg_frame, DW_CFA_nop);
 
   /* Fixup FDE length */
-  uint32_t fde_len = dbg_frame.size - fde_start - 4;
-  memcpy(dbg_frame.data + fde_start, &fde_len, 4);
+  uint32_t fde_len = dbg_frame->size - fde_start - 4;
+  memcpy(dbg_frame->data + fde_start, &fde_len, 4);
+}
+
+/*
+ * Build complete ELF image with symbols and DWARF info
+ */
+static void *create_debug_elf(const char *func_name, void *code_addr,
+                              size_t code_size, uint8_t **inst_addrs,
+                              int instruction_count, const Stencil **stencils,
+                              int base_cfa_offset, size_t *elf_size) {
+
+  /* Generate source file */
+  char *source_path =
+      write_source_file(func_name, instruction_count, stencils, inst_addrs);
+
+  if (!source_path) {
+    return NULL;
+  }
+
+  /* 1. Build String Table */
+  Buffer strtab;
+  buf_init(&strtab, 1024);
+  buf_write_u8(&strtab, 0); // NULL byte
+  size_t func_name_offset = buf_write_string(&strtab, func_name);
+
+  /* 2. Build Symbol Table */
+  Elf64_Sym *symtab = calloc(2, sizeof(Elf64_Sym));
+  build_symtab(symtab, func_name_offset, code_addr, code_size);
+
+  /* 3. Build .debug_abbrev */
+  Buffer abbrev;
+  build_debug_abbrev(&abbrev);
+
+  /* 4. Build .debug_info */
+  Buffer dbg_info;
+  build_debug_info(&dbg_info, func_name, code_addr, code_size, source_path);
+
+  /* 5. Build .debug_line */
+  Buffer dbg_line;
+  build_debug_line(&dbg_line, code_addr, code_size, inst_addrs, instruction_count, source_path);
+
+  /* 6. Build .debug_frame */
+  Buffer dbg_frame;
+  build_debug_frame(&dbg_frame, code_addr, code_size, inst_addrs, instruction_count, stencils, base_cfa_offset);
 
   /* Section Headers String Table */
   const char shstrtab_data[] = "\0"
@@ -565,7 +635,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   size_t shstrtab_size = sizeof(shstrtab_data);
 
   /* Calculate Layout */
-  size_t symtab_size = sym_count * sizeof(Elf64_Sym);
+  size_t symtab_size = 2 * sizeof(Elf64_Sym); // 2 symbols
 
   size_t ehdr_size = sizeof(Elf64_Ehdr);
   size_t phdr_size = sizeof(Elf64_Phdr);
@@ -610,37 +680,102 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
     return NULL;
   }
 
-  /* ELF Header */
+  /* 7. Construct ELF Header */
   Elf64_Ehdr *ehdr = (Elf64_Ehdr *)elf;
-  memcpy(ehdr->e_ident, ELFMAG, SELFMAG);
+  
+  /* e_ident: Magic number and other info */
+  memcpy(ehdr->e_ident, ELFMAG, SELFMAG); // "\x7fELF"
+  
+  /* e_ident[EI_CLASS]: File class.
+   * ELFCLASS64 = 64-bit objects. 
+   * Necessary because we are running on a 64-bit architecture (x86_64). */
   ehdr->e_ident[EI_CLASS] = ELFCLASS64;
+  
+  /* e_ident[EI_DATA]: Data encoding.
+   * ELFDATA2LSB = Little Endian (Least Significant Byte first).
+   * x86_64 is little-endian. */
   ehdr->e_ident[EI_DATA] = ELFDATA2LSB;
+  
+  /* e_ident[EI_VERSION]: ELF version. Must be EV_CURRENT. */
   ehdr->e_ident[EI_VERSION] = EV_CURRENT;
+  
+  /* e_ident[EI_OSABI]: OS/ABI identification.
+   * ELFOSABI_NONE (or ELFOSABI_SYSV) is standard for Linux/Unix. */
   ehdr->e_ident[EI_OSABI] = ELFOSABI_NONE;
+  
+  /* e_type: Object file type.
+   * ET_EXEC = Executable file. 
+   * We treat the JIT code as an in-memory executable. */
   ehdr->e_type = ET_EXEC;
+  
+  /* e_machine: Architecture.
+   * EM_X86_64 = AMD x86-64. Matches the host architecture. */
   ehdr->e_machine = EM_X86_64;
+  
+  /* e_version: Object file version. */
   ehdr->e_version = EV_CURRENT;
+  
+  /* e_entry: Entry point virtual address.
+   * Set to the start of the JIT code (`code_addr`). 
+   * Though GDB might not use this for execution, it identifies the code location. */
   ehdr->e_entry = (uint64_t)code_addr;
+  
+  /* e_phoff: Program Header Table offset.
+   * Immediately follows the ELF header. */
   ehdr->e_phoff = ehdr_size;
+  
+  /* e_shoff: Section Header Table offset.
+   * Placed at the very end of the file/buffer. */
   ehdr->e_shoff = shoff;
+  
+  /* e_ehsize: ELF Header size. */
   ehdr->e_ehsize = sizeof(Elf64_Ehdr);
+  
+  /* e_phentsize: Program Header Entry size. */
   ehdr->e_phentsize = sizeof(Elf64_Phdr);
+  
+  /* e_phnum: Number of Program Header entries.
+   * We have 1 segment (PT_LOAD) covering the JIT code. */
   ehdr->e_phnum = 1;
+  
+  /* e_shentsize: Section Header Entry size. */
   ehdr->e_shentsize = sizeof(Elf64_Shdr);
+  
+  /* e_shnum: Number of Section Header entries.
+   * Defined by `SEC_COUNT` enum. */
   ehdr->e_shnum = SEC_COUNT;
+  
+  /* e_shstrndx: Section Header String Table index.
+   * Index of the section that contains section names (.shstrtab). */
   ehdr->e_shstrndx = SEC_SHSTRTAB;
 
-  /* Program Header */
+  /* 8. Construct Program Header */
   Elf64_Phdr *phdr = (Elf64_Phdr *)(elf + ehdr_size);
+  
+  /* p_type: Segment type.
+   * PT_LOAD = Loadable segment. The code is already in memory, 
+   * but this tells GDB that this segment maps to memory. */
   phdr->p_type = PT_LOAD;
+  
+  /* p_flags: Segment flags.
+   * PF_R (Read) | PF_X (Execute). The code is readable and executable. */
   phdr->p_flags = PF_R | PF_X;
+  
+  /* p_vaddr: Virtual address.
+   * The actual address of the JIT code in memory. */
   phdr->p_vaddr = (uint64_t)code_addr;
+  
+  /* p_paddr: Physical address. Same as vaddr on this system. */
   phdr->p_paddr = (uint64_t)code_addr;
+  
+  /* p_memsz: Memory size of the segment. */
   phdr->p_memsz = code_size;
+  
+  /* p_align: Alignment. */
   phdr->p_align = 16;
 
-  /* Copy Data */
-  memcpy(elf + symtab_offset, symtab, symtab_size);
+  /* 9. Copy Section Data */
+  memcpy(elf + symtab_offset, symtab, 2 * sizeof(Elf64_Sym));
   memcpy(elf + strtab_offset, strtab.data, strtab.size);
   memcpy(elf + shstrtab_offset, shstrtab_data, shstrtab_size);
   memcpy(elf + abbrev_offset, abbrev.data, abbrev.size);
@@ -648,64 +783,87 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
   memcpy(elf + line_offset, dbg_line.data, dbg_line.size);
   memcpy(elf + frame_offset, dbg_frame.data, dbg_frame.size);
 
-  /* Section Headers */
+  /* 10. Construct Section Headers
+   * The Section Header Table describes the sections of the ELF file.
+   * GDB uses this table to locate debug information and map code.
+   */
   Elf64_Shdr *shdrs = (Elf64_Shdr *)(elf + shoff);
 
-  /* .text */
-  shdrs[SEC_TEXT].sh_name = 1;
-  shdrs[SEC_TEXT].sh_type = SHT_NOBITS;
-  shdrs[SEC_TEXT].sh_flags = SHF_ALLOC | SHF_EXECINSTR;
-  shdrs[SEC_TEXT].sh_addr = (uint64_t)code_addr;
-  shdrs[SEC_TEXT].sh_size = code_size;
-  shdrs[SEC_TEXT].sh_addralign = 16;
+  /* .text Section Header
+   * Represents the executable code.
+   */
+  shdrs[SEC_TEXT].sh_name = 1; /* Index into .shstrtab for ".text" */
+  shdrs[SEC_TEXT].sh_type = SHT_NOBITS; /* No data in file, occupies memory.
+                                         * We use SHT_NOBITS because the code
+                                         * exists in memory at `code_addr`,
+                                         * not in this ELF image. */
+  shdrs[SEC_TEXT].sh_flags = SHF_ALLOC | SHF_EXECINSTR; /* Allocatable (in memory)
+                                                         * and Executable. */
+  shdrs[SEC_TEXT].sh_addr = (uint64_t)code_addr; /* Virtual address in memory */
+  shdrs[SEC_TEXT].sh_size = code_size;           /* Size of the code */
+  shdrs[SEC_TEXT].sh_addralign = 16;             /* Alignment */
 
-  /* .symtab */
-  shdrs[SEC_SYMTAB].sh_name = 7;
+  /* .symtab Section Header
+   * Symbol Table: definitions of functions and variables.
+   */
+  shdrs[SEC_SYMTAB].sh_name = 7;      /* Index for ".symtab" */
   shdrs[SEC_SYMTAB].sh_type = SHT_SYMTAB;
-  shdrs[SEC_SYMTAB].sh_offset = symtab_offset;
+  shdrs[SEC_SYMTAB].sh_offset = symtab_offset; /* File offset */
   shdrs[SEC_SYMTAB].sh_size = symtab_size;
-  shdrs[SEC_SYMTAB].sh_link = SEC_STRTAB;
-  shdrs[SEC_SYMTAB].sh_info = 1;
+  shdrs[SEC_SYMTAB].sh_link = SEC_STRTAB;      /* Associated string table index */
+  shdrs[SEC_SYMTAB].sh_info = 1;               /* One local symbol (required) */
   shdrs[SEC_SYMTAB].sh_addralign = 8;
-  shdrs[SEC_SYMTAB].sh_entsize = sizeof(Elf64_Sym);
+  shdrs[SEC_SYMTAB].sh_entsize = sizeof(Elf64_Sym); /* Size of one entry */
 
-  /* .strtab */
-  shdrs[SEC_STRTAB].sh_name = 15;
+  /* .strtab Section Header
+   * String Table: names associated with symbols.
+   */
+  shdrs[SEC_STRTAB].sh_name = 15;     /* Index for ".strtab" */
   shdrs[SEC_STRTAB].sh_type = SHT_STRTAB;
   shdrs[SEC_STRTAB].sh_offset = strtab_offset;
   shdrs[SEC_STRTAB].sh_size = strtab.size;
   shdrs[SEC_STRTAB].sh_addralign = 1;
 
-  /* .shstrtab */
-  shdrs[SEC_SHSTRTAB].sh_name = 23;
+  /* .shstrtab Section Header
+   * Section Header String Table: names of sections (.text, .symtab, etc.)
+   */
+  shdrs[SEC_SHSTRTAB].sh_name = 23;   /* Index for ".shstrtab" */
   shdrs[SEC_SHSTRTAB].sh_type = SHT_STRTAB;
   shdrs[SEC_SHSTRTAB].sh_offset = shstrtab_offset;
   shdrs[SEC_SHSTRTAB].sh_size = shstrtab_size;
   shdrs[SEC_SHSTRTAB].sh_addralign = 1;
 
-  /* .debug_abbrev */
-  shdrs[SEC_DEBUG_ABBREV].sh_name = 33;
-  shdrs[SEC_DEBUG_ABBREV].sh_type = SHT_PROGBITS;
+  /* .debug_abbrev Section Header
+   * DWARF Abbreviations: schema for .debug_info.
+   */
+  shdrs[SEC_DEBUG_ABBREV].sh_name = 33; /* Index for ".debug_abbrev" */
+  shdrs[SEC_DEBUG_ABBREV].sh_type = SHT_PROGBITS; /* Program defined data */
   shdrs[SEC_DEBUG_ABBREV].sh_offset = abbrev_offset;
   shdrs[SEC_DEBUG_ABBREV].sh_size = abbrev.size;
   shdrs[SEC_DEBUG_ABBREV].sh_addralign = 1;
 
-  /* .debug_info */
-  shdrs[SEC_DEBUG_INFO].sh_name = 47;
+  /* .debug_info Section Header
+   * DWARF Debug Info: core debugging data (DIEs).
+   */
+  shdrs[SEC_DEBUG_INFO].sh_name = 47;   /* Index for ".debug_info" */
   shdrs[SEC_DEBUG_INFO].sh_type = SHT_PROGBITS;
   shdrs[SEC_DEBUG_INFO].sh_offset = info_offset;
   shdrs[SEC_DEBUG_INFO].sh_size = dbg_info.size;
   shdrs[SEC_DEBUG_INFO].sh_addralign = 1;
 
-  /* .debug_line */
-  shdrs[SEC_DEBUG_LINE].sh_name = 59;
+  /* .debug_line Section Header
+   * DWARF Line Table: source line mappings.
+   */
+  shdrs[SEC_DEBUG_LINE].sh_name = 59;   /* Index for ".debug_line" */
   shdrs[SEC_DEBUG_LINE].sh_type = SHT_PROGBITS;
   shdrs[SEC_DEBUG_LINE].sh_offset = line_offset;
   shdrs[SEC_DEBUG_LINE].sh_size = dbg_line.size;
   shdrs[SEC_DEBUG_LINE].sh_addralign = 1;
 
-  /* .debug_frame */
-  shdrs[SEC_DEBUG_FRAME].sh_name = 71;
+  /* .debug_frame Section Header
+   * DWARF Frame Info: stack unwinding (CFI).
+   */
+  shdrs[SEC_DEBUG_FRAME].sh_name = 71;  /* Index for ".debug_frame" */
   shdrs[SEC_DEBUG_FRAME].sh_type = SHT_PROGBITS;
   shdrs[SEC_DEBUG_FRAME].sh_offset = frame_offset;
   shdrs[SEC_DEBUG_FRAME].sh_size = dbg_frame.size;

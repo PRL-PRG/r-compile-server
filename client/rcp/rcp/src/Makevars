@@ -40,7 +40,7 @@ STENCILS_H = $(STENCILS_BUILD_DIR)/stencils.h
 PKG_CFLAGS += -I$(STENCILS_BUILD_DIR) -I.
 
 SOURCES = $(wildcard *.c)
-OBJECTS = $(SOURCES:.c=.o) shared/opcodes.o $(STENCILS_BUILD_DIR)/stencils_data.o
+OBJECTS = $(SOURCES:.c=.o) shared/opcodes.o shared/dwarf.o $(STENCILS_BUILD_DIR)/stencils_data.o
 
 ## ------------------------------------------------------------------------ 
 ## targets
