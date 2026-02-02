@@ -187,9 +187,10 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b);  // ==
 
 DEFINE_OVERRIDDEN_BUILTIN(log, 1, SEXP value, SEXP base);
 DEFINE_OVERRIDDEN_BUILTIN(log, 2, SEXP value, SEXP base);
+DEFINE_OVERRIDDEN_BUILTIN(abs, 1, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(abs, 2, SEXP value);
 
 #define DEFINE_MATH1_BUILTINS(V)\
-  V(abs, abs)\
   V(sqrt, sqrt)\
   V(exp, exp)\
   V(floor, floor)\
@@ -209,9 +210,9 @@ DEFINE_OVERRIDDEN_BUILTIN(log, 2, SEXP value, SEXP base);
   V(acosh, acosh)\
   V(asinh, asinh)\
   V(atanh, atanh)\
-  V(lgamma, lgammaf)\
-  V(gamma, gammaf)
+  V(lgamma, lgammaf)
 // TODO: import from Rmath.h
+//  V(gamma, gammaf)\
 //  V(digamma, digamma)\
 //  V(trigamma, trigamma)\
 //  V(cospi, cospi)\

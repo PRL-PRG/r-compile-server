@@ -440,6 +440,7 @@ SEXP Fir_subscript_read(SEXP vector, SEXP index) {
   ASSERT(idx != NA_INTEGER, "Subscript index cannot be NA");
   ASSERT(idx >= 0 && (R_xlen_t)idx < XLENGTH(vector), "Subscript index out of bounds");
 
+  SEXP res;
   switch (TYPEOF(vector)) {
   case LGLSXP:
     return Rf_ScalarLogical(LOGICAL(vector)[idx]);
@@ -598,6 +599,12 @@ SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names) {
     }
   }
 
+  int visibility = (bltIdx / 100) % 10;
+  R_Visible = (Rboolean)(visibility != 1);
+
+  int protect_count = 0;
+  SEXP arglist = Fir_build_arglist(argc, args, names, true, &protect_count);
+
   SEXP op = R_Primitive(fun.name);
   if (op == R_NilValue) {
     // `fun` is an `.Internal`.
@@ -607,12 +614,6 @@ SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names) {
     // `if` is the first primitive and has arbitrary arity, so hopefully it's OK.
     op = R_Primitive("if");
   }
-
-  int visibility = (bltIdx / 100) % 10;
-  R_Visible = (Rboolean)(visibility != 1);
-
-  int protect_count = 0;
-  SEXP arglist = Fir_build_arglist(argc, args, names, true, &protect_count);
 
   SEXP call = PROTECT(Rf_lcons(op, arglist));
   protect_count++;
@@ -1054,6 +1055,15 @@ DEFINE_OVERRIDDEN_BUILTIN(log, 1, SEXP value, SEXP base) {
 
 DEFINE_OVERRIDDEN_BUILTIN(log, 2, SEXP value, SEXP base) {
   return Rf_ScalarReal(R_logbase(Rf_asReal(value), Rf_asReal(base)));
+}
+
+
+DEFINE_OVERRIDDEN_BUILTIN(abs, 1, SEXP value) {
+  return Rf_ScalarInteger(abs(Rf_asInteger(value)));
+}
+
+DEFINE_OVERRIDDEN_BUILTIN(abs, 2, SEXP value) {
+  return Rf_ScalarReal(fabs(Rf_asReal(value)));
 }
 
 static double Fir_sign(double x) {

@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
 import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
@@ -618,6 +619,8 @@ public final class Fir2CCompiler {
         private final ConstantPool pool;
 
         // State
+        private final Liveness liveness;
+        private final Set<Register> locals;
         private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
 
         CfgEmitter(
@@ -631,6 +634,9 @@ public final class Fir2CCompiler {
           this.initCFunction = initCFunction;
           this.cFunction = cFunction;
           this.pool = pool;
+
+          liveness = new Liveness(cfg);
+          locals = Objects.requireNonNull(VersionEmitter.this.locals.get(cfg));
         }
 
         VecSXP run() {
@@ -673,8 +679,7 @@ public final class Fir2CCompiler {
         }
 
         private void emitLocalDeclarations() {
-          var localRegisters = Objects.requireNonNull(locals.get(cfg));
-          if (localRegisters.isEmpty()) {
+          if (locals.isEmpty()) {
             return;
           }
 
@@ -682,7 +687,7 @@ public final class Fir2CCompiler {
 
           debugComment(sec, "# Declare locals");
 
-          for (var register : localRegisters) {
+          for (var register : locals) {
             var cName = registerCName(register);
             sec.stmt("SEXP %s;", cName);
           }
@@ -708,7 +713,7 @@ public final class Fir2CCompiler {
               cCode.label("%s:;", labelCName(bb));
             }
 
-            emitProtectPhis();
+            int numLiveIn = emitProtect();
 
             for (var statement : bb.statements()) {
               emitStatement(statement);
@@ -716,7 +721,7 @@ public final class Fir2CCompiler {
 
             // Jump won't trigger GC,
             // and we can't emit a cleanup after because it changes control flow.
-            emitUnprotect();
+            emitUnprotect(numLiveIn);
             emitJump(bb.jump());
           }
 
@@ -1113,16 +1118,29 @@ public final class Fir2CCompiler {
             cCode.stmt(indentLevel, "goto %s;", labelCName(target.bb()));
           }
 
-          private void emitProtectPhis() {
+          private int emitProtect() {
+            int numLiveIn = 0;
+            for (var register : liveness.liveIn(bb)) {
+              if (version.isParameter(register) || !locals.contains(register)) {
+                continue;
+              }
+
+              cCode.stmt("PROTECT(%s);", registerPlace(register));
+              numLiveIn++;
+            }
+
             for (var phi : bb.phiParameters()) {
               cCode.stmt("PROTECT(%s);", registerPlace(phi));
             }
+
+            return numLiveIn;
           }
 
-          private void emitUnprotect() {
+          private void emitUnprotect(int numLiveIn) {
             cCode.stmt(
                 "UNPROTECT(%s);",
-                bb.phiParameters().size()
+                numLiveIn
+                    + bb.phiParameters().size()
                     + bb.statements().stream().filter(s -> s.assignee() != null).count());
           }
 
