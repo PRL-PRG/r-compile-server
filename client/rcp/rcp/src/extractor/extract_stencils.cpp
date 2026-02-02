@@ -237,7 +237,17 @@ export_body(std::ostream &file, const StencilExport &stencil,
 }
 
 // --- DWARF Decoding ---
+//
+// These functions parse DWARF .debug_frame structures at build time.
+// The extracted FDE (Frame Description Entry) bytes are stored verbatim as
+// C byte arrays in the generated stencils_data.c. At runtime, gdb_jit.c
+// re-interprets these bytes using the shared dwarf_decode_cfi() decoder to
+// construct the JIT function's .debug_frame section.
+//
+// Additionally, the decoded CFI tables are emitted as human-readable comments
+// in the generated C code for debugging purposes (via print_fde_decoded).
 
+// Little-endian readers for FDE/CIE header fields (not CFI instructions).
 static uint16_t get_le16(const uint8_t *p) {
   return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
 }
@@ -254,35 +264,6 @@ static uint64_t get_le64(const uint8_t *p) {
   return result;
 }
 
-static uint64_t read_uleb128(const uint8_t *&p, const uint8_t *end) {
-  uint64_t result = 0;
-  int shift = 0;
-  while (p < end) {
-    uint8_t byte = *p++;
-    result |= (uint64_t)(byte & 0x7f) << shift;
-    if ((byte & 0x80) == 0)
-      break;
-    shift += 7;
-  }
-  return result;
-}
-
-static int64_t read_sleb128(const uint8_t *&p, const uint8_t *end) {
-  int64_t result = 0;
-  int shift = 0;
-  uint8_t byte;
-  do {
-    if (p >= end)
-      break;
-    byte = *p++;
-    result |= (int64_t)(byte & 0x7f) << shift;
-    shift += 7;
-  } while (byte & 0x80);
-  if (shift < 64 && (byte & 0x40))
-    result |= -((int64_t)1 << shift);
-  return result;
-}
-
 struct DwarfCIE {
   uint64_t code_align = 1;
   int64_t data_align = -8;
@@ -291,6 +272,9 @@ struct DwarfCIE {
   bool valid = false;
 };
 
+// Parse a DWARF Common Information Entry (CIE) from raw bytes.
+// Extracts code/data alignment factors, return address register,
+// and initial CFI instructions. Returns a DwarfCIE; check .valid for success.
 static DwarfCIE parse_cie(const std::vector<uint8_t> &cie) {
   DwarfCIE result;
   const uint8_t *p = cie.data();
@@ -325,13 +309,13 @@ static DwarfCIE parse_cie(const std::vector<uint8_t> &cie) {
   if (p >= end)
     return result;
 
-  result.code_align = read_uleb128(p, end);
-  result.data_align = read_sleb128(p, end);
+  result.code_align = dwarf_decode_uleb128(&p);
+  result.data_align = dwarf_decode_sleb128(&p);
 
   if (version == 1) // DWARF 1 (unlikely for x86_64)
     result.ra_reg = *p++;
   else
-    result.ra_reg = read_uleb128(p, end);
+    result.ra_reg = dwarf_decode_uleb128(&p);
 
   if (p < end)
     result.initial_instructions.assign(p, end);
@@ -430,6 +414,13 @@ struct DwarfState {
   }
 };
 
+// Execute a sequence of DWARF CFI instructions, updating the register rule
+// table in `state`. Uses the shared dwarf_decode_cfi() decoder.
+//
+// If `rows` and `pc` are provided, a new row is appended on each location
+// advance (for building the human-readable decoded CFI table).
+// If `max_cfa_offset` is provided, it tracks the maximum CFA offset seen
+// (used by get_cfa_offset to determine stack depth).
 static void execute_dwarf_insts(
     const uint8_t *&p, const uint8_t *end, DwarfState &state,
     const DwarfCIE &cie,
@@ -440,89 +431,110 @@ static void execute_dwarf_insts(
   if (max_cfa_offset)
     *max_cfa_offset = std::max(*max_cfa_offset, state.cfa_offset);
 
-  while (p < end) {
-    uint8_t op = *p++;
-    uint8_t high = op & 0xC0;
-    uint8_t low = op & 0x3F;
+  // dwarf_decode_cfi() takes a C-style pointer-to-pointer; bridge with a local
+  const uint8_t *cursor = p;
+  DwarfCFI inst;
 
+  while (dwarf_decode_cfi(&cursor, end, &inst)) {
     uint64_t delta_pc = 0;
     bool advance = false;
 
-    if (high == DW_CFA_advance_loc) {
-      delta_pc = low * cie.code_align;
+    switch (inst.opcode) {
+    case DW_CFA_advance_loc:
+    case DW_CFA_advance_loc1:
+    case DW_CFA_advance_loc2:
+    case DW_CFA_advance_loc4:
+      delta_pc = inst.operand1 * cie.code_align;
       advance = true;
-    } else if (high == DW_CFA_offset) {
-      uint64_t val = read_uleb128(p, end);
-      state.rules[low] = {DwarfState::Rule::OFFSET,
-                          (int64_t)val * cie.data_align, 0};
-    } else if (high == DW_CFA_restore) {
-      // Restore logic requires initial state, simplified here to ignore or
-      // assume undef
-    } else {
-      switch (op) {
-      case DW_CFA_nop:
-        break;
-      case DW_CFA_set_loc: {
-        // relocate? skip for now, assumed not used in standard simple frames
-        p += 8;
-        break;
+      break;
+
+    case DW_CFA_set_loc:
+      // Absolute address; not used in our relocatable stencils
+      break;
+
+    case DW_CFA_offset:
+    case DW_CFA_offset_extended:
+    case DW_CFA_offset_extended_sf:
+      // operand1 = register, operand2 = factored offset (raw from decoder)
+      state.rules[inst.operand1] = {DwarfState::Rule::OFFSET,
+                                    inst.operand2 * cie.data_align, 0};
+      break;
+
+    case DW_CFA_val_offset:
+    case DW_CFA_val_offset_sf:
+      state.rules[inst.operand1] = {DwarfState::Rule::VAL_OFFSET,
+                                    inst.operand2 * cie.data_align, 0};
+      break;
+
+    case DW_CFA_restore:
+    case DW_CFA_restore_extended:
+      // Restore to CIE initial state; simplified to ignore here
+      break;
+
+    case DW_CFA_def_cfa:
+      state.cfa_reg = inst.operand1;
+      state.cfa_offset = inst.operand2;
+      break;
+
+    case DW_CFA_def_cfa_sf:
+      state.cfa_reg = inst.operand1;
+      state.cfa_offset = inst.operand2 * cie.data_align;
+      break;
+
+    case DW_CFA_def_cfa_register:
+      state.cfa_reg = inst.operand1;
+      break;
+
+    case DW_CFA_def_cfa_offset:
+      state.cfa_offset = (int64_t)inst.operand1;
+      break;
+
+    case DW_CFA_def_cfa_offset_sf:
+      state.cfa_offset = inst.operand2 * cie.data_align;
+      break;
+
+    case DW_CFA_same_value:
+      state.rules[inst.operand1] = {DwarfState::Rule::SAME, 0, 0};
+      break;
+
+    case DW_CFA_undefined:
+      state.rules[inst.operand1] = {DwarfState::Rule::UNDEF, 0, 0};
+      break;
+
+    case DW_CFA_register:
+      state.rules[inst.operand1] = {DwarfState::Rule::REGISTER, 0,
+                                    (uint64_t)inst.operand2};
+      break;
+
+    case DW_CFA_expression:
+      state.rules[inst.operand1] = {DwarfState::Rule::EXPRESSION, 0, 0};
+      break;
+
+    case DW_CFA_val_expression:
+      state.rules[inst.operand1] = {DwarfState::Rule::VAL_EXPRESSION, 0, 0};
+      break;
+
+    case DW_CFA_def_cfa_expression:
+      state.cfa_is_expr = true;
+      break;
+
+    case DW_CFA_remember_state:
+      state_stack.push_back(state);
+      break;
+
+    case DW_CFA_restore_state:
+      if (!state_stack.empty()) {
+        state = state_stack.back();
+        state_stack.pop_back();
       }
-      case DW_CFA_advance_loc1:
-        delta_pc = (*p++) * cie.code_align;
-        advance = true;
-        break;
-      case DW_CFA_advance_loc2:
-        delta_pc = get_le16(p) * cie.code_align;
-        p += 2;
-        advance = true;
-        break;
-      case DW_CFA_advance_loc4:
-        delta_pc = get_le32(p) * cie.code_align;
-        p += 4;
-        advance = true;
-        break;
-      case DW_CFA_offset_extended: {
-        uint64_t reg = read_uleb128(p, end);
-        uint64_t val = read_uleb128(p, end);
-        state.rules[reg] = {DwarfState::Rule::OFFSET,
-                            (int64_t)val * cie.data_align, 0};
-        break;
-      }
-      case DW_CFA_def_cfa:
-        state.cfa_reg = read_uleb128(p, end);
-        state.cfa_offset = read_uleb128(p, end);
-        break;
-      case DW_CFA_def_cfa_sf:
-        state.cfa_reg = read_uleb128(p, end);
-        state.cfa_offset = read_sleb128(p, end) * cie.data_align;
-        break;
-      case DW_CFA_def_cfa_register:
-        state.cfa_reg = read_uleb128(p, end);
-        break;
-      case DW_CFA_def_cfa_offset:
-        state.cfa_offset = read_uleb128(p, end);
-        break;
-      case DW_CFA_def_cfa_offset_sf:
-        state.cfa_offset = read_sleb128(p, end) * cie.data_align;
-        break;
-      case DW_CFA_same_value: {
-        uint64_t reg = read_uleb128(p, end);
-        state.rules[reg] = {DwarfState::Rule::SAME, 0, 0};
-        break;
-      }
-      case DW_CFA_remember_state:
-        state_stack.push_back(state);
-        break;
-      case DW_CFA_restore_state:
-        if (!state_stack.empty()) {
-          state = state_stack.back();
-          state_stack.pop_back();
-        }
-        break;
-      default:
-        throw std::runtime_error(
-            std::format("Unknown DWARF CFA opcode: {:#x}", op));
-      }
+      break;
+
+    case DW_CFA_nop:
+      break;
+
+    default:
+      throw std::runtime_error(
+          std::format("Unknown DWARF CFA opcode: {:#x}", inst.opcode));
     }
 
     if (max_cfa_offset)
@@ -533,8 +545,12 @@ static void execute_dwarf_insts(
       rows->emplace_back(*pc, state);
     }
   }
+  p = cursor;
 }
 
+// Decode an FDE's CFI instructions and print the resulting register table
+// as a human-readable comment. Output shows one row per location advance:
+// address, CFA definition, and the return-address register rule.
 static void print_fde_decoded(std::ostream &os,
                               const std::vector<uint8_t> &cie_data,
                               const std::vector<uint8_t> &fde_data) {
@@ -595,6 +611,9 @@ static void print_fde_decoded(std::ostream &os,
   }
 }
 
+// Export a stencil's FDE as a C byte array in the generated code.
+// Emits the decoded CFI table as a block comment for debugging, followed
+// by the raw FDE bytes as a uint8_t array, wrapped in #ifdef GDB_JIT_SUPPORT.
 static void export_fde(std::ostream &file, const Stencils &stencils,
                        const std::string &section_symbol_name,
                        const std::string &variable_name) {
@@ -611,6 +630,9 @@ static void export_fde(std::ostream &file, const Stencils &stencils,
   }
 }
 
+// Compute the maximum CFA offset reached by a stencil's FDE.
+// This is the peak stack depth (in bytes from RSP) that the stencil uses,
+// needed at runtime to set RCP_INIT_CFA_OFFSET for GDB JIT registration.
 static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
                               const std::vector<uint8_t> &fde_data) {
   if (fde_data.size() < 8)

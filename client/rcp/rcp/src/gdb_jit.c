@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "gdb_jit.h"
 #include <assert.h>
 
@@ -7,7 +8,6 @@
 #include "shared/dwarf.h"
 #include "stencils_data.h"
 
-#define _GNU_SOURCE
 #include <elf.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -19,6 +19,43 @@
 
 /*
  * GDB JIT Interface Implementation
+ *
+ * This module constructs in-memory ELF objects containing DWARF debug
+ * information for JIT-compiled functions and registers them with GDB via the
+ * GDB JIT compilation interface.
+ *
+ * Debug Info Data Flow
+ * --------------------
+ *
+ * At build time, `extract_stencils` parses the `.debug_frame` section from the
+ * compiled stencils object file and exports the raw FDE (Frame Description
+ * Entry) bytes for each stencil as C byte arrays (e.g. `_RETURN_OP__debug_frame[]`).
+ * It also computes `RCP_INIT_CFA_OFFSET` -- the maximum CFA depth of the
+ * `_RCP_INIT` prologue stencil.
+ *
+ * At runtime, when a function is JIT-compiled, this module:
+ *
+ * 1. Generates a pseudo-source file listing opcode names (for GDB's source view).
+ * 2. Builds an ELF image in memory with the following DWARF sections:
+ *    - `.debug_abbrev`: Abbreviation table (schema for .debug_info).
+ *    - `.debug_info`:   DIEs describing the function, its parameters, and types.
+ *    - `.debug_line`:   Line table mapping machine addresses to opcode lines.
+ *    - `.debug_frame`:  CFI for stack unwinding, assembled from stencil FDEs.
+ *
+ * 3. For `.debug_frame`, it copies CFI instructions from each stencil's
+ *    pre-extracted FDE, adjusting `DW_CFA_def_cfa_offset` values.  Each
+ *    stencil was compiled as a standalone function with its own 8-byte return
+ *    address on the stack.  In the JIT-compiled function, these stencils are
+ *    inlined after the `_RCP_INIT` prologue which establishes a deeper stack
+ *    frame.  The adjustment formula is:
+ *
+ *        new_offset = original_offset - 8 + base_cfa_offset
+ *
+ *    where `-8` removes the template's implicit return-address push and
+ *    `base_cfa_offset` is the actual CFA depth of the JIT function.
+ *
+ * 4. Registers the ELF image with GDB, which reads the debug info to provide
+ *    backtraces, stepping, and variable inspection for JIT code.
  */
 
 /* Global descriptor - GDB looks for this symbol */
@@ -112,6 +149,44 @@ static void buf_free(Buffer *buf) {
   buf->data = NULL;
   buf->size = 0;
   buf->capacity = 0;
+}
+
+//
+// Copy CFI instructions from a template FDE into a Buffer, adjusting CFA offsets.
+//
+// Each stencil was compiled as a standalone function whose CFI assumes an 8-byte
+// return address as the only stack usage.  In the JIT function the stencil code
+// runs after a deeper prologue, so DW_CFA_def_cfa_offset values must be rebased:
+//
+//     new_offset = original_offset - 8 + base_cfa_offset
+//
+// All other instructions (advance_loc, register saves, etc.) are copied verbatim.
+// Advance-location instructions additionally update *fde_last_addr so the caller
+// can track the current PC position in the FDE.
+//
+static void copy_cfi_with_adjusted_cfa(Buffer *buf, const uint8_t *start,
+                                        const uint8_t *end,
+                                        uint64_t *fde_last_addr,
+                                        int base_cfa_offset) {
+  DwarfCFI inst;
+  const uint8_t *p = start;
+  while (dwarf_decode_cfi(&p, end, &inst)) {
+    if (inst.opcode == DW_CFA_def_cfa_offset) {
+      // Rebase: remove template's 8-byte RA, add actual stack depth
+      buf_write_u8(buf, DW_CFA_def_cfa_offset);
+      buf_write_uleb128(buf, inst.operand1 - 8 + base_cfa_offset);
+    } else {
+      // Copy instruction verbatim
+      buf_write(buf, inst.raw, inst.raw_size);
+      // Track address advances
+      if (inst.opcode == DW_CFA_advance_loc ||
+          inst.opcode == DW_CFA_advance_loc1 ||
+          inst.opcode == DW_CFA_advance_loc2 ||
+          inst.opcode == DW_CFA_advance_loc4) {
+        *fde_last_addr += inst.operand1;
+      }
+    }
+  }
 }
 
 /*
@@ -236,7 +311,7 @@ static void build_debug_abbrev(Buffer *abbrev) {
  * This section contains the actual debugging information entries (DIEs)
  * that describe the code, matching the schema in `.debug_abbrev`.
  */
-static size_t build_debug_info(Buffer *dbg_info, const char *func_name, void *code_addr, size_t code_size, const char *source_path) {
+static void build_debug_info(Buffer *dbg_info, const char *func_name, void *code_addr, size_t code_size, const char *source_path) {
   buf_init(dbg_info, 256);
 
   /* Header - length will be fixed up after all DIEs are written */
@@ -252,12 +327,12 @@ static size_t build_debug_info(Buffer *dbg_info, const char *func_name, void *co
   buf_write_u64(dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
   buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
-  /* DIE 3 (reserved): Pointer Type (void*) */
+  // Pointer Type DIE (void*) -- must precede Subprogram so it can be referenced
   size_t void_ptr_offset = dbg_info->size;
   buf_write_uleb128(dbg_info, 4); // Abbrev 4
-  buf_write_u8(dbg_info, 8);      // Size 8
+  buf_write_u8(dbg_info, 8);      // DW_AT_byte_size = 8
 
-  /* DIE 2: Subprogram */
+  // Subprogram DIE
   buf_write_uleb128(dbg_info, 2);                           // Abbrev 2
   buf_write_string(dbg_info, func_name);                    // DW_AT_name
   buf_write_u64(dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
@@ -280,11 +355,9 @@ static size_t build_debug_info(Buffer *dbg_info, const char *func_name, void *co
   buf_write_u8(dbg_info, 0); // End of Subprogram children
   buf_write_u8(dbg_info, 0); // End of CU children
 
-  /* Fixup length */
+  // Fixup length
   uint32_t total_info_len = dbg_info->size - 4;
   memcpy(dbg_info->data, &total_info_len, 4);
-  
-  return void_ptr_offset;
 }
 
 /*
@@ -306,7 +379,7 @@ static void build_debug_line(Buffer *dbg_line, void *code_addr, size_t code_size
   buf_write_u8(dbg_line, 1);  // Min Inst Length
   buf_write_u8(dbg_line, 1);  // Max Ops Per Inst
   buf_write_u8(dbg_line, 1);  // Default is_stmt
-  buf_write_u8(dbg_line, -5); // Line Base
+  buf_write_u8(dbg_line, 0xFB); // Line Base (-5 as uint8_t)
   buf_write_u8(dbg_line, 14); // Line Range
   buf_write_u8(dbg_line, 13); // Opcode Base
 
@@ -418,73 +491,21 @@ static void build_debug_frame(Buffer *dbg_frame, void *code_addr, size_t code_si
 
   uint64_t fde_last_addr = (uint64_t)code_addr;
 
+  // Copy prologue CFI from _RCP_INIT if this is a JIT function with that prologue.
+  // The JIT function begins with a machine code copy of _RCP_INIT, so we must
+  // include its CFI to let GDB unwind through the prologue correctly.
   if (base_cfa_offset == RCP_INIT_CFA_OFFSET + 8) {
-    const uint8_t *prologue_debug_frame = __RCP_INIT_debug_frame;
-    uint32_t length = *(const uint32_t *)prologue_debug_frame;
-    const uint8_t *cfi_start = prologue_debug_frame + 24;
-    const uint8_t *cfi_end = prologue_debug_frame + 4 + length;
-    const uint8_t *p = cfi_start;
-
-    /* 
-     * Loop: Copy Prologue CFI from _RCP_INIT
-     * 
-     * The JIT function begins with a machine code copy of the `_RCP_INIT` function.
-     * To ensure GDB can unwind through this prologue, we must copy the DWARF 
-     * Call Frame Information (CFI) from `_RCP_INIT`'s debug frame.
-     *
-     * This loop iterates over the raw CFI bytes of the template:
-     * 1. It copies "Advance Location" opcodes to match the instruction flow.
-     * 2. It copies "Register Save" opcodes (e.g., storing RBP, RBX) exactly.
-     * 3. It ADJUSTS `DW_CFA_def_cfa_offset`:
-     *    - The template assumes a base stack depth (typically 64 bytes).
-     *    - The JIT function is called via an extra instruction, pushing an 
-     *      8-byte return address.
-     *    - We must add this delta so GDB calculates the correct Canonical Frame Address (CFA).
-     */
-    while (p < cfi_end) {
-      uint8_t op = *p++;
-      if ((op & 0xC0) == 0x00) {
-        /* Standard opcodes */
-        if (op == DW_CFA_def_cfa_offset) {
-          uint64_t val = dwarf_decode_uleb128(&p);
-          /* Adjust CFA offset: new_offset = val - 8 + base_cfa_offset 
-             (base_cfa_offset includes the extra 8 bytes) */
-          buf_write_u8(dbg_frame, DW_CFA_def_cfa_offset);
-          buf_write_uleb128(dbg_frame, val - 8 + base_cfa_offset);
-        } else if (op == DW_CFA_advance_loc1) {
-          uint8_t d = *p++;
-          buf_write_u8(dbg_frame, op);
-          buf_write_u8(dbg_frame, d);
-          fde_last_addr += d;
-        } else if (op == DW_CFA_advance_loc2) {
-          uint16_t d = *(const uint16_t *)p;
-          p += 2;
-          buf_write_u8(dbg_frame, op);
-          buf_write_u16(dbg_frame, d);
-          fde_last_addr += d;
-        } else if (op == DW_CFA_advance_loc4) {
-          uint32_t d = *(const uint32_t *)p;
-          p += 4;
-          buf_write_u8(dbg_frame, op);
-          buf_write_u32(dbg_frame, d);
-          fde_last_addr += d;
-        } else {
-          buf_write_u8(dbg_frame, op);
-        }
-      } else if ((op & 0xC0) == 0x40) {
-        buf_write_u8(dbg_frame, op);
-        fde_last_addr += (op & 0x3F);
-      } else if ((op & 0xC0) == 0x80) {
-        uint64_t val = dwarf_decode_uleb128(&p);
-        buf_write_u8(dbg_frame, op);
-        buf_write_uleb128(dbg_frame, val);
-      } else if ((op & 0xC0) == 0xC0) {
-        buf_write_u8(dbg_frame, op);
-      }
-    }
+    const uint8_t *prologue_fde = __RCP_INIT_debug_frame;
+    uint32_t length;
+    memcpy(&length, prologue_fde, 4);
+    // FDE header: 4 (length) + 4 (CIE ptr) + 8 (pc_begin) + 8 (pc_range) = 24
+    const uint8_t *cfi_start = prologue_fde + 24;
+    const uint8_t *cfi_end = prologue_fde + 4 + length;
+    copy_cfi_with_adjusted_cfa(dbg_frame, cfi_start, cfi_end,
+                               &fde_last_addr, base_cfa_offset);
   }
 
-  /* Save the "base" state for this function (either CIE state or Post-Prologue state) */
+  // Save the "base" state (either CIE default or post-prologue state)
   buf_write_u8(dbg_frame, DW_CFA_remember_state);
 
   for (int i = 0; i < instruction_count; i++) {
@@ -508,66 +529,23 @@ static void build_debug_frame(Buffer *dbg_frame, void *code_addr, size_t code_si
       fde_last_addr = curr;
     }
 
-    /* Reset state to base for this function */
+    // Reset state to base for this function
     buf_write_u8(dbg_frame, DW_CFA_restore_state);
     buf_write_u8(dbg_frame, DW_CFA_remember_state);
 
     buf_write_u8(dbg_frame, DW_CFA_def_cfa_offset);
     buf_write_uleb128(dbg_frame, base_cfa_offset);
 
-    /* Get debug frame for this stencil */
+    // Copy this stencil's CFI instructions (with CFA adjustment)
     const uint8_t *frame_data = stencils[i]->debug_frame;
     if (frame_data) {
-      uint32_t length = *(const uint32_t *)frame_data;
-      const uint8_t *cfi_start = frame_data + 24; // Skip FDE header (4+4+8+8)
+      uint32_t length;
+      memcpy(&length, frame_data, 4);
+      // FDE header: 4 (length) + 4 (CIE ptr) + 8 (pc_begin) + 8 (pc_range) = 24
+      const uint8_t *cfi_start = frame_data + 24;
       const uint8_t *cfi_end = frame_data + 4 + length;
-      const uint8_t *p = cfi_start;
-
-      while (p < cfi_end) {
-        uint8_t op = *p++;
-        if ((op & 0xC0) == 0x00) {
-          // Standard opcodes
-          if (op == DW_CFA_def_cfa_offset) {
-            uint64_t val = dwarf_decode_uleb128(&p);
-            /* Adjust CFA offset: new_offset = val - 8 + base_cfa_offset
-               8 is standard return address offset */
-            buf_write_u8(dbg_frame, DW_CFA_def_cfa_offset);
-            buf_write_uleb128(dbg_frame, val - 8 + base_cfa_offset);
-          } else if (op == DW_CFA_advance_loc1) {
-            uint8_t d = *p++;
-            buf_write_u8(dbg_frame, op);
-            buf_write_u8(dbg_frame, d);
-            fde_last_addr += d;
-          } else if (op == DW_CFA_advance_loc2) {
-            uint16_t d = *(const uint16_t *)p;
-            p += 2;
-            buf_write_u8(dbg_frame, op);
-            buf_write_u16(dbg_frame, d);
-            fde_last_addr += d;
-          } else if (op == DW_CFA_advance_loc4) {
-            uint32_t d = *(const uint32_t *)p;
-            p += 4;
-            buf_write_u8(dbg_frame, op);
-            buf_write_u32(dbg_frame, d);
-            fde_last_addr += d;
-          } else {
-            // Copy other opcodes as is (nop, restore, etc.)
-            buf_write_u8(dbg_frame, op);
-          }
-        } else if ((op & 0xC0) == 0x40) {
-          // DW_CFA_advance_loc (0x40 | delta)
-          buf_write_u8(dbg_frame, op);
-          fde_last_addr += (op & 0x3F);
-        } else if ((op & 0xC0) == 0x80) {
-          // DW_CFA_offset (0x80 | reg)
-          uint64_t val = dwarf_decode_uleb128(&p);
-          buf_write_u8(dbg_frame, op);
-          buf_write_uleb128(dbg_frame, val);
-        } else if ((op & 0xC0) == 0xC0) {
-          // DW_CFA_restore (0xC0 | reg)
-          buf_write_u8(dbg_frame, op);
-        }
-      }
+      copy_cfi_with_adjusted_cfa(dbg_frame, cfi_start, cfi_end,
+                                 &fde_last_addr, base_cfa_offset);
     }
   }
 
