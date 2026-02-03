@@ -10,3 +10,4 @@ rcp/tests/debugging/*/actual.log
 .Rhistory
 .cache/
 rcp/compile_commands.json
+rcp/src/shared/libshared.a

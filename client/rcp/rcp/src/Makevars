@@ -38,9 +38,10 @@ STENCILS_BUILD_DIR = stencils-build
 STENCILS_H = $(STENCILS_BUILD_DIR)/stencils.h
 
 PKG_CFLAGS += -I$(STENCILS_BUILD_DIR) -I.
+PKG_LIBS += $(SHARED_LIB)
 
 SOURCES = $(wildcard *.c)
-OBJECTS = $(SOURCES:.c=.o) shared/opcodes.o shared/dwarf.o $(STENCILS_BUILD_DIR)/stencils_data.o
+OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o
 
 ## ------------------------------------------------------------------------ 
 ## targets
@@ -49,6 +50,8 @@ OBJECTS = $(SOURCES:.c=.o) shared/opcodes.o shared/dwarf.o $(STENCILS_BUILD_DIR)
 .PHONY: force_check
 
 all: $(SHLIB)
+
+$(SHLIB): $(SHARED_LIB)
 
 $(OBJECTS): $(STENCILS_H)
 
@@ -61,10 +64,14 @@ $(EXTRACTOR): force_check
 $(STENCILS_OBJ): force_check
 	$(MAKE) -C $(STENCILS_DIR)
 
+$(SHARED_LIB):
+	$(MAKE) -C $(SHARED_LIB_DIR)
+
 .PHONY: clean
 clean:
 	$(MAKE) -C $(EXTRACTOR_DIR) clean
 	$(MAKE) -C $(STENCILS_DIR) clean
+	$(MAKE) -C $(SHARED_LIB_DIR) clean
 	rm -f *.o *.so
 
 # vim: ft=make
