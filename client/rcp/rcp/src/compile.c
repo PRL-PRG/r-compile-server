@@ -966,6 +966,35 @@ static int calculate_max_stack_depth(int bytecode[], int bytecode_size,
 	return max_depth;
 }
 
+static int unroll_goto(int bytecode[], SEXP *constpool, int index)
+{
+	RCP_BC_OPCODES opcode = bytecode[index];
+	int *imms = &bytecode[index + 1];
+
+	if (opcode == GOTO_BCOP)
+	{
+		int target = imms[0] - 1;
+		DEBUG_PRINT("Peephole optimization: Simplifying unncessary trampoline jump from bytecode %d to target %d\n", index, target);
+		return unroll_goto(bytecode, constpool, target);
+	}
+
+	return index;
+}
+
+static void peephole_goto(int bytecode[], int bytecode_size, SEXP *constpool)
+{
+	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		RCP_BC_OPCODES opcode = bytecode[i];
+		int *imms = &bytecode[i + 1];
+
+		int *jmp_target = jump_target_ref(bytecode[i], imms);
+
+		if (jmp_target != NULL)
+			*jmp_target = unroll_goto(bytecode, constpool, *jmp_target - 1) + 1; // +1 to convert back to 1-based index
+	}
+}
+
 static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 SEXP *constpool, int constpool_size,
 										 CompilationStats *stats,
@@ -974,6 +1003,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	rcp_exec_ptrs res;
 	size_t insts_size = _RCP_INIT.body_size;
 	int for_count = 0;
+
+	peephole_goto(bytecode, bytecode_size, constpool);
 
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
 								  // allocated by the following calls
