@@ -5,7 +5,10 @@ include ../../../common.mk
 all: test
 
 test:
-	R_HOME=$(R_HOME) ./run.sh
+	R_HOME=$(R_HOME) ../run_test.sh $(ARGS)
+
+re-record:
+	$(MAKE) test ARGS="--update"
 
 clean:
-	rm -f gdb_output.log
+	rm -f actual.log

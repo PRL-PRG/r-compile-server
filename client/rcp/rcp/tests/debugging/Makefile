@@ -17,6 +17,11 @@ test:
 		echo "Skipping debugging tests (GDB_JIT_SUPPORT disabled)"; \
 	fi
 
+re-record:
+	for dir in $(SUBDIRS); do \
+		$(MAKE) -C $$dir re-record || exit 1; \
+	done
+
 clean:
 	for dir in $(SUBDIRS); do \
 		$(MAKE) -C $$dir clean; \
