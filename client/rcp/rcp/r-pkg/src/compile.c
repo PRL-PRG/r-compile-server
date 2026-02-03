@@ -602,12 +602,12 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms, const 
     return NULL;
 }
 
-static int jump_target(RCP_BC_OPCODES opcode, const int *imms) {
-  int res = 0;
+static int* jump_target_ref(RCP_BC_OPCODES opcode, int *imms) {
+  int* res = NULL;
   switch (opcode) {
   case (GOTO_BCOP):
   case (STEPFOR_BCOP):
-    res = imms[0];
+    res = &imms[0];
     break;
   case (BRIFNOT_BCOP):
   case (STARTSUBSET_BCOP):
@@ -620,13 +620,22 @@ static int jump_target(RCP_BC_OPCODES opcode, const int *imms) {
   case (STARTSUBASSIGN2_N_BCOP):
   case (BASEGUARD_BCOP):
   case (STARTLOOPCNTXT_BCOP):
-    res = imms[1];
+    res = &imms[1];
     break;
   case (STARTFOR_BCOP):
-    res = imms[2];
+    res = &imms[2];
     break;
   }
-  return res - 1;
+  return res;
+}
+
+static int jump_target(RCP_BC_OPCODES opcode, const int *imms) {
+    int* target_ref = jump_target_ref(opcode, (int*)imms);
+    if (target_ref != NULL) {
+        return *target_ref - 1; // Convert to zero-based index
+    } else {
+        return -1; // No jump target
+    }
 }
 
 static int can_fallthrough_from_opcode(RCP_BC_OPCODES opcode) {
@@ -879,12 +888,42 @@ static int calculate_max_stack_depth(int bytecode[], int bytecode_size, BasicBlo
     return max_depth;
 }
 
+static int unroll_goto(int bytecode[], SEXP *constpool, int index)
+{
+    RCP_BC_OPCODES opcode = bytecode[index];
+    int* imms = &bytecode[index + 1];
+
+    if(opcode == GOTO_BCOP)
+    {
+        int target = imms[0] - 1;
+        DEBUG_PRINT("Peephole optimization: Simplifying unncessary trampoline jump from bytecode %d to target %d\n", index, target);
+        return unroll_goto(bytecode, constpool, target);
+    }
+
+    return index;
+}
+
+static void peephole_goto(int bytecode[], int bytecode_size, SEXP *constpool)
+{
+    for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+    {
+        RCP_BC_OPCODES opcode = bytecode[i];
+        int* imms = &bytecode[i + 1];
+
+        int* jmp_target = jump_target_ref(bytecode[i], imms);
+
+        if(jmp_target != NULL)
+            *jmp_target = unroll_goto(bytecode, constpool, *jmp_target - 1) + 1; // +1 to convert back to 1-based index
+    }
+}
 
 static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP *constpool, int constpool_size, CompilationStats *stats)
 {
     rcp_exec_ptrs res;
     size_t insts_size = _RCP_INIT.body_size;
     int for_count = 0;
+
+    peephole_goto(bytecode, bytecode_size, constpool);
 
     const void *vmax = vmaxget(); // Save to restore it later to free memory allocated by the following calls
     uint8_t **inst_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
@@ -1721,7 +1760,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 
 #ifdef CMPPKG_WAITALL
     // Second pass: replace all compiled functions in the namespace
-    fprintf(stderr, "Replacing functions in package namespace...\n");
+    DEBUG_PRINT("Replacing functions in package namespace...\n");
     for (int i = 0; i < n_objects; i++) {
         if (compiled_functions[i] != R_NilValue && function_symbols[i] != R_NilValue) {
             R_unLockBinding(function_symbols[i], pkg_namespace);
