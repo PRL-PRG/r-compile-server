@@ -33,8 +33,8 @@ echo "Verifying output..."
 
 # Grep for lines that start with a number (GDB stop location)
 # and contain our keywords. Extract only the keyword.
-EXPECTED="__rcp_jit_prologue GETVAR_OP_ LDCONST_OP_DBL ADD_OP_ RETURN_OP_"
-ACTUAL=$(grep -E "^[0-9]+[[:space:]]+(__rcp_jit_prologue|[A-Z]+_OP)" "$OUTPUT_LOG" | awk '{print $2}' | uniq | xargs)
+EXPECTED="_RCP_INIT GETVAR_OP_ LDCONST_OP_DBL ADD_OP_ RETURN_OP_"
+ACTUAL=$(grep -E "^[0-9]+[[:space:]]+(_RCP_INIT|[A-Z]+_OP)" "$OUTPUT_LOG" | awk '{print $2}' | uniq | xargs)
 
 if [ "$ACTUAL" == "$EXPECTED" ]; then
   echo "[PASS] Instruction sequence matches."

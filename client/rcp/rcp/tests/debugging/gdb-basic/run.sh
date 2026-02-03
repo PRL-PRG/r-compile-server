@@ -47,8 +47,8 @@ else
   exit 1
 fi
 
-# Check for correct bytecode mapping (prologue step over)
-if grep -q "__rcp_jit_prologue" "$OUTPUT_LOG"; then
+# Check for correct bytecode mapping (prologue)
+if grep -q "_RCP_INIT" "$OUTPUT_LOG"; then
   echo "[PASS] Saw prologue symbols."
 else
   echo "[FAIL] Prologue symbols missing."

@@ -1180,22 +1180,24 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
 #endif
 
 #ifdef GDB_JIT_SUPPORT
-    /* Register with GDB JIT interface before freeing temporary arrays */
+    // Register with GDB JIT interface before freeing temporary arrays
     if (name) {
-        uint8_t **inst_addrs_packed = (uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
-        const Stencil **instruction_stencils = (const Stencil **)S_alloc(count_opcodes, sizeof(Stencil *));
+        // +1 for _RCP_INIT prologue as the first entry
+        uint8_t **inst_addrs_packed = (uint8_t **)S_alloc(count_opcodes + 1, sizeof(uint8_t *));
+        const Stencil **instruction_stencils = (const Stencil **)S_alloc(count_opcodes + 1, sizeof(Stencil *));
 
-        /* Populate the arrays for GDB registration.
-         * inst_addrs_packed contains the absolute runtime addresses of each instruction.
-         * instruction_stencils contains pointers to the Stencil metadata (including names and debug frames)
-         * for each instruction. These two arrays must correspond 1:1. */
+        // First entry is _RCP_INIT at offset 0
+        inst_addrs_packed[0] = executable;
+        instruction_stencils[0] = &_RCP_INIT;
+
+        // Body stencils follow at index 1..count_opcodes
         for (int i = 0; i < count_opcodes; i++) {
             int bc_pos = bytecode_lut[i];
             int opcode = bytecode[bc_pos];
             int variant = stencil_variants[bc_pos];
-            
-            inst_addrs_packed[i] = inst_start[bc_pos];
-            instruction_stencils[i] = &stencils[opcode][variant];
+
+            inst_addrs_packed[i + 1] = inst_start[bc_pos];
+            instruction_stencils[i + 1] = &stencils[opcode][variant];
         }
 
         res.jit_entry = gdb_jit_register(
@@ -1203,9 +1205,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size, SEXP
             executable,
             insts_size,
             inst_addrs_packed,
-            count_opcodes,
+            count_opcodes + 1,
             instruction_stencils,
-            RCP_INIT_CFA_OFFSET + 8 /* base_cfa_offset for JITted functions (derived from _RCP_INIT + 8 bytes return address) */
+            RCP_INIT_CFA_OFFSET + 8
         );
     } else {
         res.jit_entry = NULL;
