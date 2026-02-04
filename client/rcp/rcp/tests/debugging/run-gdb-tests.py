@@ -13,7 +13,6 @@ Examples:
     ./run-gdb-tests.py --update gdb-basic    # Update expected output
 """
 
-import argparse
 import os
 import re
 import subprocess
@@ -50,6 +49,9 @@ JIT_PATH_PATTERN = re.compile(r'/tmp/rcp_jit_[a-zA-Z0-9]+/')
 PROCESS_PATTERN = re.compile(r'process \d+')
 THREAD_PATTERN = re.compile(r'Thread \d+')
 C_LINE_PATTERN = re.compile(r' at (.*\.c):\d+')
+
+# Test timeout in seconds
+TIMEOUT = 60
 
 
 def normalize_output(content: str) -> str:
@@ -89,8 +91,7 @@ def check_gdb_jit_support(r_home: str) -> bool:
         return False
 
 
-def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False, 
-                    timeout: int = 60) -> tuple[bool, str]:
+def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> tuple[bool, str]:
     """
     Run a single GDB test in the specified directory.
     
@@ -130,7 +131,7 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False,
         result = subprocess.run(
             gdb_cmd,
             capture_output=True,
-            timeout=timeout,
+            timeout=TIMEOUT,
             env=env,
             cwd=test_dir
         )
@@ -187,34 +188,12 @@ def print_diff(diff_text: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run GDB debugging tests for RCP JIT",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
-    )
-    parser.add_argument(
-        "test_dirs",
-        nargs="*",
-        help="Test directories to run"
-    )
-    parser.add_argument(
-        "--update",
-        action="store_true",
-        help="Update expected output files instead of comparing"
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=60,
-        help="Timeout for each test in seconds (default: 60)"
-    )
-    parser.add_argument(
-        "--skip-jit-check",
-        action="store_true",
-        help="Skip GDB JIT support check"
-    )
-
-    args = parser.parse_args()
+    # Parse arguments manually
+    args = sys.argv[1:]
+    update_mode = "--update" in args
+    if update_mode:
+        args.remove("--update")
+    test_dirs_args = args
 
     # Get R_HOME
     r_home = os.environ.get("R_HOME")
@@ -223,22 +202,21 @@ def main():
         sys.exit(1)
 
     # Check GDB JIT support
-    if not args.skip_jit_check:
-        rprint("[bold blue]Checking for GDB JIT support...[/bold blue]")
-        if not check_gdb_jit_support(r_home):
-            rprint("[yellow]Skipping debugging tests (GDB_JIT_SUPPORT disabled)[/yellow]")
-            sys.exit(0)
-        rprint("[green]GDB JIT support enabled.[/green]")
+    rprint("[bold blue]Checking for GDB JIT support...[/bold blue]")
+    if not check_gdb_jit_support(r_home):
+        rprint("[yellow]Skipping debugging tests (GDB_JIT_SUPPORT disabled)[/yellow]")
+        sys.exit(0)
+    rprint("[green]GDB JIT support enabled.[/green]")
 
     # Determine script directory and test directories
     script_dir = Path(__file__).parent.resolve()
     
-    if not args.test_dirs:
+    if not test_dirs_args:
         rprint("[yellow]No test directories specified. Nothing to run.[/yellow]")
         sys.exit(0)
 
     test_dirs = [Path(d) if os.path.isabs(d) else script_dir / d 
-                 for d in args.test_dirs]
+                 for d in test_dirs_args]
 
     # Validate directories exist
     for d in test_dirs:
@@ -265,13 +243,12 @@ def main():
 
         success, message = run_single_test(
             test_dir, r_home, 
-            update_mode=args.update, 
-            timeout=args.timeout
+            update_mode=update_mode
         )
 
         if success:
             passed += 1
-            if args.update:
+            if update_mode:
                 rprint(f"  [bold blue]UPDATED[/bold blue] {message}")
             else:
                 rprint(f"  [bold green]PASS[/bold green] {message}")
