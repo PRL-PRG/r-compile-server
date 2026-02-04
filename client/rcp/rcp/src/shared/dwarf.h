@@ -1,8 +1,8 @@
 #ifndef DWARF_H
 #define DWARF_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // DWARF Debugging Information Format -- Definitions and Helpers
 //
@@ -10,13 +10,13 @@
 // DWARF debug information. It is used by two consumers in this project:
 //
 // 1. Build-time (extract_stencils.cpp): Parses .debug_frame sections from
-//    compiled stencil object files, extracts raw FDE bytes, computes CFA offsets,
-//    and emits decoded CFI tables as comments in generated C code.
+//    compiled stencil object files, extracts raw FDE bytes, computes CFA
+//    offsets, and emits decoded CFI tables as comments in generated C code.
 //
 // 2. Runtime (gdb_jit.c): Constructs an in-memory ELF image with DWARF
-//    debug info for JIT-compiled code. Copies CFI instructions from stencil FDEs
-//    into a new .debug_frame section, adjusting CFA offsets, and registers the
-//    result with GDB via the JIT interface.
+//    debug info for JIT-compiled code. Copies CFI instructions from stencil
+//    FDEs into a new .debug_frame section, adjusting CFA offsets, and registers
+//    the result with GDB via the JIT interface.
 //
 // Both consumers share the dwarf_decode_cfi() function for iterating over CFI
 // instruction streams, avoiding duplicated opcode-parsing logic.
@@ -50,7 +50,8 @@
 // ELF Sections
 //
 // DWARF information is organized into sections in an ELF file:
-// - .debug_info:   Core debug info tree (DIEs describing types, variables, functions).
+// - .debug_info:   Core debug info tree (DIEs describing types, variables,
+// functions).
 // - .debug_abbrev: Abbreviation tables -- schemas that compress .debug_info.
 // - .debug_line:   Line number table (maps PC addresses to source file lines).
 // - .debug_frame:  Call Frame Information (CFI) for stack unwinding.
@@ -87,7 +88,8 @@
 //
 // 1. A CIE (Common Information Entry) shared by all FDEs:
 //    - code_alignment_factor: Multiplier for advance_loc operands (usually 1).
-//    - data_alignment_factor: Multiplier for offset operands (usually -8 on x86-64).
+//    - data_alignment_factor: Multiplier for offset operands (usually -8 on
+//    x86-64).
 //    - return_address_register: DWARF register number for RA (16 on x86-64).
 //    - Initial CFI instructions: establish the default register rules.
 //
@@ -155,7 +157,8 @@
 //    - RIP is executing instructions in f.
 //
 // 2. Call g: f executes CALL g.
-//    - The return address (address of next instruction in f) is pushed onto the stack.
+//    - The return address (address of next instruction in f) is pushed onto the
+//    stack.
 //    - RSP decrements by 8.
 //    - Control transfers to g.
 //
@@ -209,91 +212,82 @@
 extern "C" {
 #endif
 
-/* ========================================================================
- * DWARF Constants
- * ======================================================================== */
-
-/* Tag Encodings (identify the kind of a DIE) */
-#define DW_TAG_compile_unit     0x11
+// Tag Encodings (identify the kind of a DIE)
+#define DW_TAG_compile_unit 0x11
 #define DW_TAG_formal_parameter 0x05
-#define DW_TAG_pointer_type     0x0F
-#define DW_TAG_subprogram       0x2e
-#define DW_TAG_structure_type   0x13
+#define DW_TAG_pointer_type 0x0F
+#define DW_TAG_subprogram 0x2e
+#define DW_TAG_structure_type 0x13
 
-/* Attribute Encodings (properties of a DIE) */
-#define DW_AT_location          0x02
-#define DW_AT_name              0x03
-#define DW_AT_byte_size         0x0B
-#define DW_AT_stmt_list         0x10
-#define DW_AT_low_pc            0x11
-#define DW_AT_high_pc           0x12
-#define DW_AT_type              0x49
-#define DW_AT_declaration       0x3c
+// Attribute Encodings (properties of a DIE)
+#define DW_AT_location 0x02
+#define DW_AT_name 0x03
+#define DW_AT_byte_size 0x0B
+#define DW_AT_stmt_list 0x10
+#define DW_AT_low_pc 0x11
+#define DW_AT_high_pc 0x12
+#define DW_AT_type 0x49
+#define DW_AT_declaration 0x3c
 
-/* Attribute Form Encodings (how an attribute value is stored) */
-#define DW_FORM_addr            0x01
-#define DW_FORM_data4           0x06
-#define DW_FORM_string          0x08
-#define DW_FORM_block1          0x0A
-#define DW_FORM_data1           0x0B
-#define DW_FORM_ref4            0x13
-#define DW_FORM_flag_present    0x19
+// Attribute Form Encodings (how an attribute value is stored)
+#define DW_FORM_addr 0x01
+#define DW_FORM_data4 0x06
+#define DW_FORM_string 0x08
+#define DW_FORM_block1 0x0A
+#define DW_FORM_data1 0x0B
+#define DW_FORM_ref4 0x13
+#define DW_FORM_flag_present 0x19
 
-/* DWARF Expression Operations (location descriptions) */
-#define DW_OP_reg4              0x54 /* RSI */
-#define DW_OP_reg5              0x55 /* RDI */
+// DWARF Expression Operations (location descriptions)
+#define DW_OP_reg4 0x54 // RSI
+#define DW_OP_reg5 0x55 // RDI
 
-/* Line Number Standard Opcodes */
-#define DW_LNS_copy             1
-#define DW_LNS_advance_pc       2
-#define DW_LNS_advance_line     3
-#define DW_LNE_end_sequence     1
-#define DW_LNE_set_address      2
+// Line Number Standard Opcodes
+#define DW_LNS_copy 1
+#define DW_LNS_advance_pc 2
+#define DW_LNS_advance_line 3
+#define DW_LNE_end_sequence 1
+#define DW_LNE_set_address 2
 
-/* Call Frame Instruction Opcodes -- standard (high 2 bits = 00) */
-#define DW_CFA_nop                      0x00
-#define DW_CFA_set_loc                  0x01
-#define DW_CFA_advance_loc1             0x02
-#define DW_CFA_advance_loc2             0x03
-#define DW_CFA_advance_loc4             0x04
-#define DW_CFA_offset_extended          0x05
-#define DW_CFA_restore_extended         0x06
-#define DW_CFA_undefined                0x07
-#define DW_CFA_same_value               0x08
-#define DW_CFA_register                 0x09
-#define DW_CFA_remember_state           0x0a
-#define DW_CFA_restore_state            0x0b
-#define DW_CFA_def_cfa                  0x0c
-#define DW_CFA_def_cfa_register         0x0d
-#define DW_CFA_def_cfa_offset           0x0e
-#define DW_CFA_def_cfa_expression       0x0f
-#define DW_CFA_expression               0x10
-#define DW_CFA_offset_extended_sf       0x11
-#define DW_CFA_def_cfa_sf               0x12
-#define DW_CFA_def_cfa_offset_sf        0x13
-#define DW_CFA_val_offset               0x14
-#define DW_CFA_val_offset_sf            0x15
-#define DW_CFA_val_expression           0x16
+// Call Frame Instruction Opcodes -- standard (high 2 bits = 00)
+#define DW_CFA_nop 0x00
+#define DW_CFA_set_loc 0x01
+#define DW_CFA_advance_loc1 0x02
+#define DW_CFA_advance_loc2 0x03
+#define DW_CFA_advance_loc4 0x04
+#define DW_CFA_offset_extended 0x05
+#define DW_CFA_restore_extended 0x06
+#define DW_CFA_undefined 0x07
+#define DW_CFA_same_value 0x08
+#define DW_CFA_register 0x09
+#define DW_CFA_remember_state 0x0a
+#define DW_CFA_restore_state 0x0b
+#define DW_CFA_def_cfa 0x0c
+#define DW_CFA_def_cfa_register 0x0d
+#define DW_CFA_def_cfa_offset 0x0e
+#define DW_CFA_def_cfa_expression 0x0f
+#define DW_CFA_expression 0x10
+#define DW_CFA_offset_extended_sf 0x11
+#define DW_CFA_def_cfa_sf 0x12
+#define DW_CFA_def_cfa_offset_sf 0x13
+#define DW_CFA_val_offset 0x14
+#define DW_CFA_val_offset_sf 0x15
+#define DW_CFA_val_expression 0x16
 
-/* Call Frame Instruction Opcodes -- compact (operand packed in low 6 bits) */
-#define DW_CFA_advance_loc              0x40
-#define DW_CFA_offset                   0x80
-#define DW_CFA_offset_base              0x80 /* Alias used when composing: DW_CFA_offset_base | reg */
-#define DW_CFA_restore                  0xC0
+// Call Frame Instruction Opcodes -- compact (operand packed in low 6 bits)
+#define DW_CFA_advance_loc 0x40
+#define DW_CFA_offset 0x80
+#define DW_CFA_restore 0xC0
 
-/* x86-64 DWARF Register Numbers */
-#define DWARF_REG_RBX           3
-#define DWARF_REG_RBP           6
-#define DWARF_REG_RSP           7
-#define DWARF_REG_R12           12
-#define DWARF_REG_R13           13
-#define DWARF_REG_R14           14
-#define DWARF_REG_R15           15
-#define DWARF_REG_RA            16
-
-// ========================================================================
-// Helper Functions -- LEB128 Encoding/Decoding
-// ========================================================================
+// x86-64 DWARF Register Numbers
+#define DWARF_REG_RBX 3
+#define DWARF_REG_RBP 6
+#define DWARF_REG_RSP 7
+#define DWARF_REG_R12 12
+#define DWARF_REG_R13 13
+#define DWARF_REG_R14 14
+#define DWARF_REG_R15 15
+#define DWARF_REG_RA 16
 
 // Encode an unsigned integer as ULEB128.
 // @param val The value to encode.
@@ -308,25 +302,24 @@ size_t dwarf_encode_uleb128(uint64_t val, uint8_t *out);
 size_t dwarf_encode_sleb128(int64_t val, uint8_t *out);
 
 // Decode a ULEB128 value, advancing the cursor past it.
-// @param[in,out] data Pointer to cursor; updated to point after the decoded value.
+// @param[in,out] data Pointer to cursor; updated to point after the decoded
+// value.
 // @return The decoded unsigned value.
 uint64_t dwarf_decode_uleb128(const uint8_t **data);
 
 // Decode a SLEB128 value, advancing the cursor past it.
-// @param[in,out] data Pointer to cursor; updated to point after the decoded value.
+// @param[in,out] data Pointer to cursor; updated to point after the decoded
+// value.
 // @return The decoded signed value.
 int64_t dwarf_decode_sleb128(const uint8_t **data);
-
-// ========================================================================
-// Helper Functions -- CFI Instruction Decoder
-// ========================================================================
 
 // Decoded representation of a single DWARF Call Frame Instruction.
 //
 // Produced by dwarf_decode_cfi(). The opcode field is normalized:
 // for compact-encoded instructions, it is set to the base value:
 //   - 0x40|delta  -> opcode = DW_CFA_advance_loc (0x40),  operand1 = delta
-//   - 0x80|reg    -> opcode = DW_CFA_offset      (0x80),  operand1 = reg, operand2 = ULEB128 value
+//   - 0x80|reg    -> opcode = DW_CFA_offset      (0x80),  operand1 = reg,
+//   operand2 = ULEB128 value
 //   - 0xC0|reg    -> opcode = DW_CFA_restore      (0xC0), operand1 = reg
 //
 // For standard opcodes (high bits == 0x00), the opcode is the raw byte, and
@@ -340,11 +333,11 @@ int64_t dwarf_decode_sleb128(const uint8_t **data);
 // The raw pointer and raw_size allow callers to copy the instruction
 // verbatim (useful for re-emitting CFI into a new .debug_frame).
 typedef struct {
-    uint8_t opcode;           // Normalized opcode (base value for compact forms)
-    uint64_t operand1;        // First operand (unsigned: delta, register, offset)
-    int64_t  operand2;        // Second operand (signed when applicable)
-    const uint8_t *raw;       // Pointer to start of this instruction in the input
-    size_t raw_size;          // Total byte size of this instruction
+  uint8_t opcode;     // Normalized opcode (base value for compact forms)
+  uint64_t operand1;  // First operand (unsigned: delta, register, offset)
+  int64_t operand2;   // Second operand (signed when applicable)
+  const uint8_t *raw; // Pointer to start of this instruction in the input
+  size_t raw_size;    // Total byte size of this instruction
 } DwarfCFI;
 
 // Decode one CFI instruction from a byte stream.
@@ -355,7 +348,8 @@ typedef struct {
 // Handles all standard x86-64 CFA opcodes (see the table in the file
 // header documentation).
 //
-// @param[in,out] p    Cursor into the CFI byte stream; advanced past the instruction.
+// @param[in,out] p    Cursor into the CFI byte stream; advanced past the
+// instruction.
 // @param[in]     end  One-past-end of the CFI byte stream.
 // @param[out]    out  Filled with the decoded instruction.
 // @return 1 if an instruction was decoded, 0 if p >= end.

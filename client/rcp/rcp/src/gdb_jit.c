@@ -180,7 +180,7 @@ static void copy_cfi_with_adjusted_cfa(Buffer *buf, const uint8_t *start,
     if (inst.opcode == DW_CFA_def_cfa_offset) {
       // Rebase: remove template's 8-byte RA, add actual stack depth
       buf_write_u8(buf, DW_CFA_def_cfa_offset);
-      buf_write_uleb128(buf, inst.operand1 - 8 + base_cfa_offset);
+      buf_write_uleb128(buf, inst.operand1 + base_cfa_offset);
     } else {
       // Copy instruction verbatim
       buf_write(buf, inst.raw, inst.raw_size);
@@ -548,7 +548,7 @@ static void build_debug_frame(Buffer *dbg_frame, void *code_addr,
   buf_write_uleb128(dbg_frame, 8);
 
   /* DW_CFA_offset(RA, 1) => RA at CFA-8 (factored: 1 * -8 = -8) */
-  buf_write_u8(dbg_frame, DW_CFA_offset_base | DWARF_REG_RA);
+  buf_write_u8(dbg_frame, DW_CFA_offset | DWARF_REG_RA);
   buf_write_uleb128(dbg_frame, 1);
 
   /* Pad CIE to pointer-size alignment */
@@ -700,7 +700,7 @@ static void build_debug_frame(Buffer *dbg_frame, void *code_addr,
       // Write the actual offset value (ULEB128 encoded).
       // This tells the debugger: "At this instruction boundary, the previous
       // frame's stack pointer is at (Current_SP + base_cfa_offset)".
-      buf_write_uleb128(dbg_frame, base_cfa_offset);
+      buf_write_uleb128(dbg_frame, base_cfa_offset + 8);
 
       // Parse the pre-compiled CFI byte stream for this stencil (generated
       // by the compiler when the stencil was built) and copy it into our

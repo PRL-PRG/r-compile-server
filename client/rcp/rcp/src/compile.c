@@ -1160,9 +1160,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
       instruction_stencils[i + 1] = &stencils[opcode][variant];
     }
 
-    res.jit_entry = gdb_jit_register(
-        name, executable, insts_size, inst_addrs_packed, count_opcodes + 1,
-        instruction_stencils, RCP_INIT_CFA_OFFSET + 8);
+    res.jit_entry = gdb_jit_register(name, executable, insts_size,
+                                     inst_addrs_packed, count_opcodes + 1,
+                                     instruction_stencils, RCP_INIT_CFA_OFFSET);
   } else {
     res.jit_entry = NULL;
   }
@@ -1260,9 +1260,7 @@ static const uint8_t *prepare_notinlined_functions(void) {
   }
 
   gdb_jit_register("__rcp_notinlined_helpers", mem_notinlined, notinlined_size,
-                   helper_addrs, notinlined_count, helper_stencils,
-                   8 /* base_cfa_offset for helpers (standard prologue) */
-  );
+                   helper_addrs, notinlined_count, helper_stencils, 0);
 #endif
 
   if (mprotect(mem_notinlined, notinlined_size, PROT_EXEC) != 0) {

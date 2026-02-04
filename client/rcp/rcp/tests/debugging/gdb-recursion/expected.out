@@ -4,8 +4,8 @@ Breakpoint 1 (__jit_debug_register_code) pending.
 
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
 69	void __attribute__((noinline)) __jit_debug_register_code(void) {
-gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=8) at gdb_jit.c:XXX
-1026	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
+gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=0) at gdb_jit.c:XXX
+1074	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
 >
 > # Recursive function
 > # test_add(4) -> calls test_add(3) -> calls test_add(2) -> returns 12
@@ -24,8 +24,8 @@ Compiling recursive function...
 
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
 69	void __attribute__((noinline)) __jit_debug_register_code(void) {
-gdb_jit_register (func_name=func_name@entry=0xADDR "test_add", code_addr=code_addr@entry=0xADDR <test_add>, code_size=4184, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=13, stencils=<optimized out>, base_cfa_offset=72) at gdb_jit.c:XXX
-1026	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
+gdb_jit_register (func_name=func_name@entry=0xADDR "test_add", code_addr=code_addr@entry=0xADDR <test_add>, code_size=4184, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=13, stencils=<optimized out>, base_cfa_offset=64) at gdb_jit.c:XXX
+1074	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
 Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/test_add.S, line 1.
 >
 > cat("Executing recursive function...\n")

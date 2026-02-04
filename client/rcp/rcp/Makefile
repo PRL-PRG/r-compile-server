@@ -16,11 +16,11 @@ test: install
 	$(MAKE) -C tests test
 
 .PHONY: run
-run:
+run: install
 	$(R)
 
 .PHONY: debug
-debug:
+debug: install
 	$(R) -d gdb
 
 compile_commands.json:
