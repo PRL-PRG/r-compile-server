@@ -1,8 +1,8 @@
 #ifndef RCP_COMMON_H
 #define RCP_COMMON_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -32,14 +32,14 @@ typedef enum {
 } RELOC_KIND;
 
 struct HoleValueCall {
-  const void* sym;
-  const void* arg;
+  const void *sym;
+  const void *arg;
 };
 
 typedef struct {
   union Value {
-    const void* symbol;
-    char* symbol_name;
+    const void *symbol;
+    char *symbol_name;
     size_t imm_pos;
     struct HoleValueCall call;
   } val;
@@ -49,15 +49,15 @@ typedef struct {
   uint8_t size;
   uint8_t is_pc_relative;
   uint8_t got_pos;
-} Hole; 
+} Hole;
 
 typedef struct {
   size_t body_size;
-  uint8_t * body;
+  uint8_t *body;
   size_t holes_size;
-  Hole * holes;
+  Hole *holes;
   uint8_t alignment;
-  const char* name;
+  const char *name;
 #ifdef GDB_JIT_SUPPORT
   const uint8_t *debug_frame;
 #endif
@@ -65,13 +65,12 @@ typedef struct {
 
 typedef struct {
   size_t body_size;
-  uint8_t * body;
+  uint8_t *body;
   size_t holes_size;
-  Hole * holes;
+  Hole *holes;
   uint8_t alignment;
-  const char* name;
+  const char *name;
 } StencilMutable;
-
 
 #define X_MATH1_OPS                                                            \
   X(sqrt, SQRT_OP, Sqrt)                                                       \

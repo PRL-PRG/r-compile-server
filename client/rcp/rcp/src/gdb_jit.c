@@ -1,13 +1,13 @@
 #define _GNU_SOURCE
 #include "gdb_jit.h"
-#include <assert.h>
 #include <Rinternals.h>
+#include <assert.h>
 
 #ifdef GDB_JIT_SUPPORT
 
 #include "shared/dwarf.h"
 #include "shared/opcodes.h"
-#include "stencils_data.h"
+#include "stencils.h"
 
 #include <elf.h>
 #include <fcntl.h>
@@ -386,21 +386,21 @@ static void build_debug_info(Buffer *dbg_info, const char *func_name,
 
   // Pointer DIE: R_bcstack_t*
   size_t bcstack_ptr_offset = dbg_info->size;
-  buf_write_uleb128(dbg_info, 4);                            // Abbrev 4 (pointer)
-  buf_write_u8(dbg_info, 8);                                 // DW_AT_byte_size
-  buf_write_u32(dbg_info, (uint32_t)bcstack_struct_offset);  // DW_AT_type
+  buf_write_uleb128(dbg_info, 4); // Abbrev 4 (pointer)
+  buf_write_u8(dbg_info, 8);      // DW_AT_byte_size
+  buf_write_u32(dbg_info, (uint32_t)bcstack_struct_offset); // DW_AT_type
 
   // Structure DIE: rcpEval_locals (sized, no members)
   size_t locals_struct_offset = dbg_info->size;
-  buf_write_uleb128(dbg_info, 5);                   // Abbrev 5 (structure with size)
-  buf_write_string(dbg_info, "rcpEval_locals");    // DW_AT_name
-  buf_write_u8(dbg_info, sizeof(rcpEval_locals));  // DW_AT_byte_size
+  buf_write_uleb128(dbg_info, 5); // Abbrev 5 (structure with size)
+  buf_write_string(dbg_info, "rcpEval_locals");   // DW_AT_name
+  buf_write_u8(dbg_info, sizeof(rcpEval_locals)); // DW_AT_byte_size
 
   // Pointer DIE: rcpEval_locals*
   size_t locals_ptr_offset = dbg_info->size;
-  buf_write_uleb128(dbg_info, 4);                           // Abbrev 4 (pointer)
-  buf_write_u8(dbg_info, 8);                                // DW_AT_byte_size
-  buf_write_u32(dbg_info, (uint32_t)locals_struct_offset);  // DW_AT_type
+  buf_write_uleb128(dbg_info, 4);                          // Abbrev 4 (pointer)
+  buf_write_u8(dbg_info, 8);                               // DW_AT_byte_size
+  buf_write_u32(dbg_info, (uint32_t)locals_struct_offset); // DW_AT_type
 
   // Subprogram DIE
   buf_write_uleb128(dbg_info, 2);                           // Abbrev 2
@@ -409,18 +409,18 @@ static void build_debug_info(Buffer *dbg_info, const char *func_name,
   buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
   /* Formal Parameter: stack (R_bcstack_t*) */
-  buf_write_uleb128(dbg_info, 3);                      // Abbrev 3
-  buf_write_string(dbg_info, "stack");                 // DW_AT_name
+  buf_write_uleb128(dbg_info, 3);                        // Abbrev 3
+  buf_write_string(dbg_info, "stack");                   // DW_AT_name
   buf_write_u32(dbg_info, (uint32_t)bcstack_ptr_offset); // DW_AT_type
-  buf_write_u8(dbg_info, 1);                           // Block len
-  buf_write_u8(dbg_info, DW_OP_reg5);                  // DW_AT_location: RDI
+  buf_write_u8(dbg_info, 1);                             // Block len
+  buf_write_u8(dbg_info, DW_OP_reg5);                    // DW_AT_location: RDI
 
   /* Formal Parameter: locals (rcpEval_locals*) */
-  buf_write_uleb128(dbg_info, 3);                      // Abbrev 3
-  buf_write_string(dbg_info, "locals");                // DW_AT_name
-  buf_write_u32(dbg_info, (uint32_t)locals_ptr_offset);  // DW_AT_type
-  buf_write_u8(dbg_info, 1);                           // Block len
-  buf_write_u8(dbg_info, DW_OP_reg4);                  // DW_AT_location: RSI
+  buf_write_uleb128(dbg_info, 3);                       // Abbrev 3
+  buf_write_string(dbg_info, "locals");                 // DW_AT_name
+  buf_write_u32(dbg_info, (uint32_t)locals_ptr_offset); // DW_AT_type
+  buf_write_u8(dbg_info, 1);                            // Block len
+  buf_write_u8(dbg_info, DW_OP_reg4);                   // DW_AT_location: RSI
 
   buf_write_u8(dbg_info, 0); // End of Subprogram children
   buf_write_u8(dbg_info, 0); // End of CU children

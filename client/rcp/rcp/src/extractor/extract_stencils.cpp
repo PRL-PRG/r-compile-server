@@ -66,8 +66,7 @@ struct StencilExportSet {
 
 struct Stencils {
   std::vector<uint8_t> rodata;
-  std::array<StencilExportSet, NUM_OPCODES>
-      stencils_opcodes;
+  std::array<StencilExportSet, NUM_OPCODES> stencils_opcodes;
   std::vector<StencilExport> stencils_extra;
   std::vector<StencilExport> functions_not_inlined;
   std::unordered_map<std::string, std::vector<uint8_t>> debug_frames;
@@ -169,12 +168,11 @@ void prepare_stepfor(StencilExportSet &stencil_set) {
   for (const auto &current : stencil_set.stencils)
     stepfor_sum_size += current.body.size();
 
-  stencil_set.extra_string +=
-      std::format("#define stepfor_variant_count {}\n"
-                  "#define stepfor_max_size {}\n"
-                  "#define stepfor_sum_size {}\n",
-                  stencil_set.stencils.size(), stepfor_max_size,
-                  stepfor_sum_size);
+  stencil_set.extra_string += std::format("#define stepfor_variant_count {}\n"
+                                          "#define stepfor_max_size {}\n"
+                                          "#define stepfor_sum_size {}\n",
+                                          stencil_set.stencils.size(),
+                                          stepfor_max_size, stepfor_sum_size);
 }
 
 static void print_byte_array(std::ostream &file, const unsigned char *arr,
@@ -676,10 +674,10 @@ static void export_to_files(const fs::path &output_dir,
   }
 
   std::ofstream c_file(output_dir / "stencils_data.c");
-  std::ofstream h_file(output_dir / "stencils_data.h");
+  std::ofstream h_file(output_dir / "stencils.h");
 
-  h_file << "#ifndef STENCILS_DATA_H\n";
-  h_file << "#define STENCILS_DATA_H\n";
+  h_file << "#ifndef STENCILS_H\n";
+  h_file << "#define STENCILS_H\n";
   h_file << "#include \"rcp_common.h\"\n\n";
   h_file << "#include <stddef.h>\n\n";
 
@@ -707,7 +705,7 @@ static void export_to_files(const fs::path &output_dir,
   }
   h_file << "#endif\n";
 
-  c_file << "#include \"stencils_data.h\"\n\n";
+  c_file << "#include \"stencils.h\"\n\n";
   c_file << "#define USE_RINTERNALS\n";
   c_file << "#define RSH\n";
   c_file << "#include <string.h>\n";
@@ -718,7 +716,7 @@ static void export_to_files(const fs::path &output_dir,
   c_file << "extern RCNTXT *R_GlobalContext;\n";
   c_file << "extern SEXP R_ReturnedValue;\n\n";
 
-  // --- 1. Bodies, Holes, Debug Frames (Definitions in .c) ---
+  // --- Bodies, Holes, Debug Frames (Definitions in .c) ---
 
   // Opcodes Stencils
   for (const auto &current : stencils.stencils_opcodes) {
@@ -755,7 +753,7 @@ static void export_to_files(const fs::path &output_dir,
                std::format("_{}", current.name));
   }
 
-  // --- 2. Arrays (Definitions in .c, Declarations in .h) ---
+  // --- Arrays (Definitions in .c, Declarations in .h) ---
 
   // Opcodes Stencils Arrays
   for (const auto &current : stencils.stencils_opcodes) {
@@ -771,8 +769,8 @@ static void export_to_files(const fs::path &output_dir,
         }
 
         c_file << std::format(
-            "{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"",
-            stencil.body.size(), std::string(current.name) + '_' + stencil.name,
+            "{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"", stencil.body.size(),
+            std::string(current.name) + '_' + stencil.name,
             stencil.holes.size(),
             std::string(current.name) + '_' + stencil.name, stencil.alignment,
             std::string(current.name) + '_' + stencil.name);
@@ -971,10 +969,6 @@ static void export_to_files(const fs::path &output_dir,
   h_file << "#endif\n";
 
   h_file << "#endif\n";
-
-  // Generate backward-compatible stencils.h to just include data header
-  std::ofstream stencils_h(output_dir / "stencils.h");
-  stencils_h << "#include \"stencils_data.h\"\n";
 }
 
 std::unordered_map<std::string, std::string> rsh_symbol_map;

@@ -3,6 +3,7 @@ import sys
 import re
 import difflib
 import os
+import rich
 
 IGNORE_LINES = [
     r'^\[Thread debugging using libthread_db enabled\]$',
@@ -70,9 +71,9 @@ def main():
         expected_content = f.read()
 
     if normalized_actual == expected_content:
-        print("[PASS] Output matches expected golden file.")
+        rich.print(r"\[[bold green]PASS[/bold green]] Output matches expected golden file.")
     else:
-        print("[FAIL] Output mismatch.")
+        rich.print(r"\[[bold red]FAIL[/bold red]] Output mismatch.")
         diff = difflib.unified_diff(
             expected_content.splitlines(),
             normalized_actual.splitlines(),
