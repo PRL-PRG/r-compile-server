@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "gdb_jit.h"
 #include <assert.h>
+#include <Rinternals.h>
 
 #ifdef GDB_JIT_SUPPORT
 
@@ -297,13 +298,46 @@ static void build_debug_abbrev(Buffer *abbrev) {
   buf_write_uleb128(abbrev, DW_FORM_block1);
   buf_write_u16(abbrev, 0);
 
-  /* Abbrev 4: Pointer Type */
+  /* Abbrev 4: Pointer Type (with type reference)
+   *
+   * A pointer type DIE tells GDB what type this pointer points to.
+   * DW_AT_byte_size: Size of the pointer itself (8 bytes on x86_64)
+   * DW_AT_type: Reference to another DIE describing the pointed-to type
+   *
+   * Example: For "R_bcstack_t*", this DIE says "I'm an 8-byte pointer"
+   * and DW_AT_type points to the R_bcstack_t structure DIE.
+   */
   buf_write_uleb128(abbrev, 4);
   buf_write_uleb128(abbrev, DW_TAG_pointer_type);
-  buf_write_u8(abbrev, 0);
+  buf_write_u8(abbrev, 0); // CHILDREN_NO
 
   buf_write_uleb128(abbrev, DW_AT_byte_size);
   buf_write_uleb128(abbrev, DW_FORM_data1);
+  buf_write_uleb128(abbrev, DW_AT_type);
+  buf_write_uleb128(abbrev, DW_FORM_ref4); // 4-byte offset to another DIE
+  buf_write_u16(abbrev, 0);
+
+  /* Abbrev 5: Structure Type (sized, no members)
+   *
+   * A structure DIE with name and size but no member definitions.
+   * GDB knows the struct's name and total size, enabling:
+   *   - Correct pointer arithmetic (ptr + 1 advances by struct size)
+   *   - Display of type name in backtraces
+   *   - Raw memory display of the struct
+   *
+   * However, GDB cannot show individual members since they're not defined.
+   *
+   * DW_AT_name: The struct's name (e.g., "R_bcstack_t")
+   * DW_AT_byte_size: Total size of the struct in bytes
+   */
+  buf_write_uleb128(abbrev, 5);
+  buf_write_uleb128(abbrev, DW_TAG_structure_type);
+  buf_write_u8(abbrev, 0); // CHILDREN_NO (no member DIEs)
+
+  buf_write_uleb128(abbrev, DW_AT_name);
+  buf_write_uleb128(abbrev, DW_FORM_string);
+  buf_write_uleb128(abbrev, DW_AT_byte_size);
+  buf_write_uleb128(abbrev, DW_FORM_data1); // 1-byte size (up to 255 bytes)
   buf_write_u16(abbrev, 0);
 
   buf_write_u8(abbrev, 0); // End abbrevs
@@ -333,10 +367,40 @@ static void build_debug_info(Buffer *dbg_info, const char *func_name,
   buf_write_u64(dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
   buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
-  // Pointer Type DIE (void*) -- must precede Subprogram so it can be referenced
-  size_t void_ptr_offset = dbg_info->size;
-  buf_write_uleb128(dbg_info, 4); // Abbrev 4
-  buf_write_u8(dbg_info, 8);      // DW_AT_byte_size = 8
+  /* Type DIEs for function parameters
+   *
+   * DIE hierarchy for "R_bcstack_t* stack":
+   *   - Structure DIE (R_bcstack_t) - forward declaration, just the name
+   *   - Pointer DIE (R_bcstack_t*) - points to the structure DIE above
+   *   - Parameter DIE (stack) - references the pointer DIE
+   *
+   * The offsets recorded here (e.g., bcstack_struct_offset) are byte offsets
+   * from the start of .debug_info. DW_FORM_ref4 uses these to link DIEs.
+   */
+
+  // Structure DIE: R_bcstack_t (sized, no members)
+  size_t bcstack_struct_offset = dbg_info->size;
+  buf_write_uleb128(dbg_info, 5);              // Abbrev 5 (structure with size)
+  buf_write_string(dbg_info, "R_bcstack_t");   // DW_AT_name
+  buf_write_u8(dbg_info, sizeof(R_bcstack_t)); // DW_AT_byte_size
+
+  // Pointer DIE: R_bcstack_t*
+  size_t bcstack_ptr_offset = dbg_info->size;
+  buf_write_uleb128(dbg_info, 4);                            // Abbrev 4 (pointer)
+  buf_write_u8(dbg_info, 8);                                 // DW_AT_byte_size
+  buf_write_u32(dbg_info, (uint32_t)bcstack_struct_offset);  // DW_AT_type
+
+  // Structure DIE: rcpEval_locals (sized, no members)
+  size_t locals_struct_offset = dbg_info->size;
+  buf_write_uleb128(dbg_info, 5);                   // Abbrev 5 (structure with size)
+  buf_write_string(dbg_info, "rcpEval_locals");    // DW_AT_name
+  buf_write_u8(dbg_info, sizeof(rcpEval_locals));  // DW_AT_byte_size
+
+  // Pointer DIE: rcpEval_locals*
+  size_t locals_ptr_offset = dbg_info->size;
+  buf_write_uleb128(dbg_info, 4);                           // Abbrev 4 (pointer)
+  buf_write_u8(dbg_info, 8);                                // DW_AT_byte_size
+  buf_write_u32(dbg_info, (uint32_t)locals_struct_offset);  // DW_AT_type
 
   // Subprogram DIE
   buf_write_uleb128(dbg_info, 2);                           // Abbrev 2
@@ -344,19 +408,19 @@ static void build_debug_info(Buffer *dbg_info, const char *func_name,
   buf_write_u64(dbg_info, (uint64_t)code_addr);             // DW_AT_low_pc
   buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
-  /* Formal Parameter: stack */
-  buf_write_uleb128(dbg_info, 3);                     // Abbrev 3
-  buf_write_string(dbg_info, "stack");                // Name
-  buf_write_u32(dbg_info, (uint32_t)void_ptr_offset); // Type
-  buf_write_u8(dbg_info, 1);                          // Block len
-  buf_write_u8(dbg_info, DW_OP_reg5);                 // RDI
+  /* Formal Parameter: stack (R_bcstack_t*) */
+  buf_write_uleb128(dbg_info, 3);                      // Abbrev 3
+  buf_write_string(dbg_info, "stack");                 // DW_AT_name
+  buf_write_u32(dbg_info, (uint32_t)bcstack_ptr_offset); // DW_AT_type
+  buf_write_u8(dbg_info, 1);                           // Block len
+  buf_write_u8(dbg_info, DW_OP_reg5);                  // DW_AT_location: RDI
 
-  /* Formal Parameter: locals */
-  buf_write_uleb128(dbg_info, 3);                     // Abbrev 3
-  buf_write_string(dbg_info, "locals");               // Name
-  buf_write_u32(dbg_info, (uint32_t)void_ptr_offset); // Type
-  buf_write_u8(dbg_info, 1);                          // Block len
-  buf_write_u8(dbg_info, DW_OP_reg4);                 // RSI
+  /* Formal Parameter: locals (rcpEval_locals*) */
+  buf_write_uleb128(dbg_info, 3);                      // Abbrev 3
+  buf_write_string(dbg_info, "locals");                // DW_AT_name
+  buf_write_u32(dbg_info, (uint32_t)locals_ptr_offset);  // DW_AT_type
+  buf_write_u8(dbg_info, 1);                           // Block len
+  buf_write_u8(dbg_info, DW_OP_reg4);                  // DW_AT_location: RSI
 
   buf_write_u8(dbg_info, 0); // End of Subprogram children
   buf_write_u8(dbg_info, 0); // End of CU children

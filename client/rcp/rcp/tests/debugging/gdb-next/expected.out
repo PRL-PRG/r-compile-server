@@ -1,10 +1,11 @@
+Function "__jit_debug_register_code" not defined.
+Breakpoint 1 (__jit_debug_register_code) pending.
 > library(rcp)
 
-Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:68
-warning: Source file is more recent than executable.
-68	void __attribute__((noinline)) __jit_debug_register_code(void) {
-gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=8) at gdb_jit.c:973
-973	    entry->prev_entry->next_entry = entry->next_entry;
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+69	void __attribute__((noinline)) __jit_debug_register_code(void) {
+gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=8) at gdb_jit.c:XXX
+1026	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
 >
 > # Minimal function: f(x) = x + 1
 > # Expected Bytecode:
@@ -18,10 +19,10 @@ gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", c
 Compiling minimal function...
 > f_jit <- rcp::rcp_cmpfun(f, list(name="f_jit"))
 
-Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:68
-68	void __attribute__((noinline)) __jit_debug_register_code(void) {
-gdb_jit_register (func_name=func_name@entry=0xADDR "f_jit", code_addr=code_addr@entry=0xADDR <f_jit>, code_size=1880, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=5, stencils=<optimized out>, base_cfa_offset=72) at gdb_jit.c:973
-973	    entry->prev_entry->next_entry = entry->next_entry;
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+69	void __attribute__((noinline)) __jit_debug_register_code(void) {
+gdb_jit_register (func_name=func_name@entry=0xADDR "f_jit", code_addr=code_addr@entry=0xADDR <f_jit>, code_size=1880, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=5, stencils=<optimized out>, base_cfa_offset=72) at gdb_jit.c:XXX
+1026	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
 Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 1.
 >
 > cat("Executing function...\n")

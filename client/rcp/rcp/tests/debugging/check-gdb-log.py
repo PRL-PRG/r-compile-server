@@ -4,54 +4,36 @@ import re
 import difflib
 import os
 
+IGNORE_LINES = [
+    r'^\[Thread debugging using libthread_db enabled\]$',
+    r'^Using host libthread_db library .*',
+    r"^warning: could not find '\.gnu_debugaltlink' .*",
+    r'^\[Detaching after vfork from child process PID\]$'
+]
+IGNORE_PATTERNS = [re.compile(p) for p in IGNORE_LINES]
+
 def normalize(content):
     lines = content.splitlines()
     normalized_lines = []
     
-    # Flags to skip header
-    skip_until_library = True
-    
-    # Regex patterns
-    # Hex addresses: 0x7ffff458b2e6
     hex_pattern = re.compile(r'0x[0-9a-fA-F]+')
-    # JIT paths: /tmp/rcp_jit_KjmRLU/
     jit_path_pattern = re.compile(r'/tmp/rcp_jit_[a-zA-Z0-9]+/')
-    # Thread/Process info
     process_pattern = re.compile(r'process \d+')
     thread_pattern = re.compile(r'Thread \d+')
+    c_line = re.compile(r' at (.*\.c):\d+')
     
-    # GDB specific warnings to ignore
-    ignore_patterns = [
-        "warning: could not find '.gnu_debugaltlink'",
-        "[Thread debugging using libthread_db enabled]",
-        "Using host libthread_db library",
-        "[Detaching after vfork from child process"
-    ]
-
     for line in lines:
-        # 1. Skip R header until we see "library(rcp)" or a prompt
-        if skip_until_library:
-            if "library(rcp)" in line or line.strip() == "> library(rcp)":
-                skip_until_library = False
-            else:
-                continue
+        line = line.strip()
 
-        # 2. Filter out noisy GDB lines
-        if any(p in line for p in ignore_patterns):
-            continue
-
-        # 3. Normalize
-        # Replace hex addresses
         line = hex_pattern.sub('0xADDR', line)
-        # Replace JIT paths
         line = jit_path_pattern.sub('/tmp/rcp_jit_XXXXXX/', line)
-        # Replace process/thread IDs
         line = process_pattern.sub('process PID', line)
         line = thread_pattern.sub('Thread PID', line)
+        line = c_line.sub(' at \\1:XXX', line)
         
-        # Remove trailing whitespace
-        line = line.rstrip()
-        
+        if any(p.match(line) for p in IGNORE_PATTERNS):
+            continue
+
         normalized_lines.append(line)
 
     return "\n".join(normalized_lines) + "\n"
@@ -87,24 +69,31 @@ def main():
     with open(expected_file, 'r', encoding='utf-8', errors='replace') as f:
         expected_content = f.read()
 
-    # Normalize expected content too? 
-    # Usually expected content is already normalized. 
-    # But just in case user manually edited it or it was generated differently.
-    # We assume expected content IS the normalized version.
-    
     if normalized_actual == expected_content:
         print("[PASS] Output matches expected golden file.")
     else:
         print("[FAIL] Output mismatch.")
         diff = difflib.unified_diff(
-            expected_content.splitlines(), 
-            normalized_actual.splitlines(), 
-            fromfile=f"Expected ({expected_file})", 
-            tofile=f"Actual (normalized)", 
+            expected_content.splitlines(),
+            normalized_actual.splitlines(),
+            fromfile=f"Expected ({expected_file})",
+            tofile=f"Actual (normalized)",
             lineterm=""
         )
-        for line in diff:
-            print(line)
+        diff_text = "\n".join(diff)
+
+        if sys.stdout.isatty():
+            try:
+                from rich.console import Console
+                from rich.syntax import Syntax
+                console = Console()
+                syntax = Syntax(diff_text, "diff", theme="ansi_dark", line_numbers=False)
+                console.print(syntax)
+            except ImportError:
+                print(diff_text)
+        else:
+            print(diff_text)
+
         sys.exit(1)
 
 if __name__ == "__main__":

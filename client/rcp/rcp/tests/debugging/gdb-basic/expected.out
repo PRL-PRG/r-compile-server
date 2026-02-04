@@ -1,11 +1,12 @@
+Function "__jit_debug_register_code" not defined.
+Breakpoint 1 (__jit_debug_register_code) pending.
 > library(rcp)
 
-Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:68
-warning: Source file is more recent than executable.
-68	void __attribute__((noinline)) __jit_debug_register_code(void) {
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+69	void __attribute__((noinline)) __jit_debug_register_code(void) {
 [GDB] Hit JIT registration (helpers). Finishing...
-gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=8) at gdb_jit.c:973
-973	    entry->prev_entry->next_entry = entry->next_entry;
+gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=8) at gdb_jit.c:XXX
+1026	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
 >
 > # Define inner function
 > f_inner <- function(x) {
@@ -24,22 +25,22 @@ gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", c
 Compiling inner function...
 > f_inner_jit <- rcp::rcp_cmpfun(f_inner, list(name="inner_jit"))
 
-Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:68
-68	void __attribute__((noinline)) __jit_debug_register_code(void) {
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+69	void __attribute__((noinline)) __jit_debug_register_code(void) {
 [GDB] Hit JIT registration (inner_jit). Finishing...
-gdb_jit_register (func_name=func_name@entry=0xADDR "inner_jit", code_addr=code_addr@entry=0xADDR <inner_jit>, code_size=1880, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=5, stencils=<optimized out>, base_cfa_offset=72) at gdb_jit.c:973
-973	    entry->prev_entry->next_entry = entry->next_entry;
+gdb_jit_register (func_name=func_name@entry=0xADDR "inner_jit", code_addr=code_addr@entry=0xADDR <inner_jit>, code_size=1880, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=5, stencils=<optimized out>, base_cfa_offset=72) at gdb_jit.c:XXX
+1026	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
 Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/inner_jit.S, line 1.
 >
 > cat("Compiling outer function...\n")
 Compiling outer function...
 > f_outer_jit <- rcp::rcp_cmpfun(f_outer, list(name="outer_jit"))
 
-Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:68
-68	void __attribute__((noinline)) __jit_debug_register_code(void) {
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+69	void __attribute__((noinline)) __jit_debug_register_code(void) {
 [GDB] Hit JIT registration (outer_jit). Finishing...
-gdb_jit_register (func_name=func_name@entry=0xADDR "outer_jit", code_addr=code_addr@entry=0xADDR <outer_jit>, code_size=3420, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=10, stencils=<optimized out>, base_cfa_offset=72) at gdb_jit.c:973
-973	    entry->prev_entry->next_entry = entry->next_entry;
+gdb_jit_register (func_name=func_name@entry=0xADDR "outer_jit", code_addr=code_addr@entry=0xADDR <outer_jit>, code_size=3420, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=10, stencils=<optimized out>, base_cfa_offset=72) at gdb_jit.c:XXX
+1026	  __jit_debug_descriptor.action_flag = JIT_NOACTION;
 Breakpoint 3 at 0xADDR: file /tmp/rcp_jit_XXXXXX/outer_jit.S, line 1.
 >
 > cat("Executing outer function...\n")
@@ -51,10 +52,10 @@ Breakpoint 3, outer_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/out
 1	_RCP_INIT
 [GDB] Hit outer_jit. Initial Backtrace:
 #0  outer_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/outer_jit.S:1
-#1  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:7550
-#2  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:1168
-#3  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:2404
-#4  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:2318
+#1  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#2  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#3  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:XXX
+#4  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:XXX
 [GDB] Stepping through outer_jit prologue...
 0xADDR in outer_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/outer_jit.S:1
 1	_RCP_INIT
@@ -84,15 +85,15 @@ Breakpoint 2, inner_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/inn
 => 0xADDR <inner_jit>:	push   %r15
 [GDB] Hit inner_jit. FULL BACKTRACE (Verify Stack):
 #0  inner_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/inner_jit.S:1
-#1  0xADDR in rcpEval (body=<optimized out>, rho=<optimized out>) at eval.c:7550
+#1  0xADDR in rcpEval (body=<optimized out>, rho=<optimized out>) at eval.c:XXX
 #2  0xADDR in __rcp_notinlined_helpers (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/__rcp_notinlined_helpers.S:2
 #3  0xADDR in outer_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/outer_jit.S:4
-#4  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:7550
-#5  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:1168
-#6  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:2404
-#7  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:2318
-#8  0xADDR in Rf_applyClosure (call=0xADDR, op=0xADDR, arglist=<optimized out>, rho=0xADDR, suppliedvars=<optimized out>, unpromise=TRUE) at eval.c:2339
-#9  Rf_eval (e=0xADDR, rho=rho@entry=0xADDR) at eval.c:1292
+#4  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#5  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#6  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:XXX
+#7  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:XXX
+#8  0xADDR in Rf_applyClosure (call=0xADDR, op=0xADDR, arglist=<optimized out>, rho=0xADDR, suppliedvars=<optimized out>, unpromise=TRUE) at eval.c:XXX
+#9  Rf_eval (e=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
 [GDB] Stepping through inner_jit prologue...
 0xADDR in inner_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/inner_jit.S:1
 1	_RCP_INIT
@@ -133,7 +134,7 @@ Result: 22
 >
 >
 
-Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:68
-68	void __attribute__((noinline)) __jit_debug_register_code(void) {
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+69	void __attribute__((noinline)) __jit_debug_register_code(void) {
 1: x/i $pc
 => 0xADDR <__jit_debug_register_code>:	endbr64
