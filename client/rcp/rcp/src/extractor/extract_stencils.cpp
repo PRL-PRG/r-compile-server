@@ -631,38 +631,68 @@ static void export_fde(std::ostream &file, const Stencils &stencils,
 // Compute the maximum CFA offset reached by a stencil's FDE.
 // This is the peak stack depth (in bytes from RSP) that the stencil uses,
 // needed at runtime to set RCP_INIT_CFA_OFFSET for GDB JIT registration.
+//
+// The CFA (Canonical Frame Address) is a reference point - typically the stack
+// pointer value at function entry. As the function executes, it may adjust the
+// stack (push/pop), and DWARF records these changes as "CFA offset from
+// register X". We need to find the maximum offset to know the stack depth
+// required.
 static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
                               const std::vector<uint8_t> &fde_data) {
-  if (fde_data.size() < 8)
+  // Sanity check: FDE must be at least 8 bytes (minimal header size)
+  if (fde_data.size() < 8) {
     throw std::runtime_error("FDE data too small to compute CFA offset");
+  }
 
+  // Parse the CIE (Common Information Entry) which contains shared unwinding
+  // rules like alignment factors and initial register states
   DwarfCIE cie = parse_cie(cie_data);
-  if (!cie.valid)
+  if (!cie.valid) {
     throw std::runtime_error("Invalid CIE while computing CFA offset");
+  }
 
+  // Start parsing the FDE (Frame Description Entry) which contains
+  // function-specific unwinding instructions
   const uint8_t *p = fde_data.data();
   const uint8_t *end = p + fde_data.size();
 
-  // Parse FDE Header
+  // Read the length field (32-bit by default, or 64-bit if extended format)
+  // This tells us how much data follows in this FDE
   uint64_t length = get_le32(p);
   size_t header_len = 4;
-  if (length == 0xffffffff) {
+  if (length == 0xffffffff) { // Magic value indicates 64-bit DWARF format
     length = get_le64(p + 4);
     header_len = 12;
   }
-  p += (header_len == 4 ? 8 : 20); // Skip Len + ID
-  p += 16;                         // Skip PC Begin + Range
 
+  // Skip past the header (length + CIE pointer ID)
+  p += (header_len == 4 ? 8 : 20);
+
+  // Skip the PC range fields (initial_location and address_range)
+  // These tell which code addresses this FDE covers, but we don't need them
+  // here
+  p += 16;
+
+  // Initialize the unwinding state with x86_64 defaults:
+  // - CFA is typically RSP (register 7) + 8 (return address pushed on stack)
   DwarfState state;
+  // Return address register (usually rip/register 16) is saved at CFA-8
   state.rules[cie.ra_reg] = {DwarfState::Rule::OFFSET, -8, 0};
 
+  // Track the maximum CFA offset seen. Start at 8 (the return address).
   int64_t max_cfa_offset = 8;
+
+  // First, execute the CIE's initial instructions (common setup for all
+  // functions)
   const uint8_t *ip = cie.initial_instructions.data();
   execute_dwarf_insts(ip, ip + cie.initial_instructions.size(), state, cie,
                       nullptr, nullptr, &max_cfa_offset);
 
+  // Then execute the FDE's instructions (function-specific stack adjustments)
+  // As we go, max_cfa_offset is updated to track the deepest stack usage
   execute_dwarf_insts(p, end, state, cie, nullptr, nullptr, &max_cfa_offset);
 
+  // Return the maximum offset, which represents the peak stack depth in bytes
   return max_cfa_offset;
 }
 
@@ -682,6 +712,7 @@ static void export_to_files(const fs::path &output_dir,
   h_file << "#include <stddef.h>\n\n";
 
   // Calculate _RCP_INIT CFA offset
+  // FIXME: @matej - can the RCP_INIT be a normal stencil?
   h_file << "#ifdef GDB_JIT_SUPPORT\n";
   {
     const StencilExport *rcp_init = nullptr;
