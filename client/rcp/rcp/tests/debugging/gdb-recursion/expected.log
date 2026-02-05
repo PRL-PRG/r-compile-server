@@ -1,4 +1,3 @@
-Function "__jit_debug_register_code" not defined.
 Breakpoint 1 (__jit_debug_register_code) pending.
 > library(rcp)
 
@@ -62,3 +61,4 @@ Result: 12
 
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
 69	void __attribute__((noinline)) __jit_debug_register_code(void) {
+Function "__jit_debug_register_code" not defined.

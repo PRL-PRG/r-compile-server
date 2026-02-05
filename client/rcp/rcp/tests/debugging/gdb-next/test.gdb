@@ -12,6 +12,7 @@ continue
 
 # Line 2 (GETVAR)
 break f_jit.S:2
+bt
 continue
 
 # Line 3 (LDCONST)

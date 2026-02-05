@@ -280,14 +280,152 @@ extern "C" {
 #define DW_CFA_restore 0xC0
 
 // x86-64 DWARF Register Numbers
+#define DWARF_REG_RAX 0
+#define DWARF_REG_RDX 1
+#define DWARF_REG_RCX 2
 #define DWARF_REG_RBX 3
+#define DWARF_REG_RSI 4
+#define DWARF_REG_RDI 5
 #define DWARF_REG_RBP 6
 #define DWARF_REG_RSP 7
+#define DWARF_REG_R8 8
+#define DWARF_REG_R9 9
+#define DWARF_REG_R10 10
+#define DWARF_REG_R11 11
 #define DWARF_REG_R12 12
 #define DWARF_REG_R13 13
 #define DWARF_REG_R14 14
 #define DWARF_REG_R15 15
 #define DWARF_REG_RA 16
+
+// Maximum DWARF register number we track (RA = 16)
+#define DWARF_MAX_REGS 17
+
+// ---------------------------------------------------------------------------
+// CIE (Common Information Entry) Parsing
+// ---------------------------------------------------------------------------
+
+// Parsed representation of a DWARF CIE.
+//
+// The CIE contains shared metadata for all FDEs in a compilation unit:
+// alignment factors, return address register, and initial CFI instructions.
+typedef struct {
+  uint64_t code_align;             // Code alignment factor (multiplier for advance_loc)
+  int64_t data_align;              // Data alignment factor (multiplier for offsets)
+  uint64_t ra_reg;                 // Return address register number
+  const uint8_t *initial_insts;    // Pointer to initial CFI instructions
+  size_t initial_insts_len;        // Length of initial instructions in bytes
+  int valid;                       // Non-zero if parsing succeeded
+} DwarfCIE;
+
+// Parse a DWARF CIE from raw bytes.
+//
+// Extracts code/data alignment factors, return address register, and a
+// pointer to the initial CFI instructions. The returned DwarfCIE contains
+// pointers into the input buffer (no allocation is performed).
+//
+// @param data   Pointer to the start of the CIE bytes.
+// @param len    Length of the CIE data in bytes.
+// @return       Parsed CIE; check the .valid field for success.
+DwarfCIE dwarf_parse_cie(const uint8_t *data, size_t len);
+
+// ---------------------------------------------------------------------------
+// x86-64 Register Names
+// ---------------------------------------------------------------------------
+
+// Get the name of an x86-64 register by DWARF register number.
+//
+// Returns a short string like "rax", "rbp", "r12", or "ra" (for the return
+// address pseudo-register). For unknown register numbers, returns "r<N>".
+//
+// @param reg    DWARF register number (0-16 for standard x86-64 registers).
+// @param buf    Buffer to write the name to (for unknown registers).
+// @param buflen Size of the buffer.
+// @return       Pointer to a static string or to buf.
+const char *dwarf_get_x86_64_reg_name(uint64_t reg, char *buf, size_t buflen);
+
+// ---------------------------------------------------------------------------
+// CFI State Machine
+// ---------------------------------------------------------------------------
+
+// Rule type for how to restore a register's value.
+typedef enum {
+  DWARF_RULE_UNDEFINED,       // Register value is undefined (not preserved)
+  DWARF_RULE_SAME_VALUE,      // Register value is unchanged
+  DWARF_RULE_OFFSET,          // Value at CFA + offset
+  DWARF_RULE_VAL_OFFSET,      // Value is CFA + offset (not dereferenced)
+  DWARF_RULE_REGISTER,        // Value is in another register
+  DWARF_RULE_EXPRESSION,      // Value computed by DWARF expression
+  DWARF_RULE_VAL_EXPRESSION   // Value is expression result (not dereferenced)
+} DwarfRuleType;
+
+// Rule for restoring a single register.
+typedef struct {
+  DwarfRuleType type;
+  int64_t offset;   // For OFFSET/VAL_OFFSET rules
+  uint64_t reg;     // For REGISTER rule
+} DwarfRegRule;
+
+// CFI state machine state.
+//
+// Tracks the current CFA definition and register rules while executing
+// CFI instructions. Use dwarf_cfi_state_init() to initialize.
+typedef struct {
+  uint64_t cfa_reg;             // CFA base register (default: RSP = 7)
+  int64_t cfa_offset;           // CFA offset from base register
+  int cfa_is_expr;              // Non-zero if CFA is defined by expression
+  DwarfRegRule rules[DWARF_MAX_REGS];  // Register restoration rules
+} DwarfCFIState;
+
+// Initialize a CFI state with x86-64 defaults.
+//
+// Sets CFA to RSP+8 (return address pushed on stack) and marks the return
+// address register (RA) as saved at CFA-8.
+//
+// @param state  State to initialize.
+void dwarf_cfi_state_init(DwarfCFIState *state);
+
+// Execute CFI instructions, updating the state.
+//
+// Interprets CFI bytecode from p to end, updating the CFA definition and
+// register rules in state. Uses the CIE's alignment factors.
+//
+// If max_cfa_offset is non-NULL, it is updated to track the maximum CFA
+// offset seen during execution (useful for computing stack depth).
+//
+// @param p               Cursor into CFI byte stream; advanced past processed
+//                        instructions.
+// @param end             One-past-end of the CFI byte stream.
+// @param state           CFI state to update.
+// @param cie             CIE providing alignment factors.
+// @param max_cfa_offset  If non-NULL, updated with the maximum CFA offset.
+void dwarf_execute_cfi(const uint8_t **p, const uint8_t *end,
+                       DwarfCFIState *state, const DwarfCIE *cie,
+                       int64_t *max_cfa_offset);
+
+// ---------------------------------------------------------------------------
+// CFA Offset Calculation
+// ---------------------------------------------------------------------------
+
+// Compute the maximum CFA offset from an FDE.
+//
+// Parses the FDE header and executes its CFI instructions (after the CIE's
+// initial instructions), tracking the maximum CFA offset. This represents
+// the peak stack depth used by the function.
+//
+// @param cie_data   Pointer to the raw CIE bytes.
+// @param cie_len    Length of the CIE data.
+// @param fde_data   Pointer to the raw FDE bytes.
+// @param fde_len    Length of the FDE data.
+// @param out_offset Receives the maximum CFA offset.
+// @return           0 on success, -1 on error.
+int dwarf_get_max_cfa_offset(const uint8_t *cie_data, size_t cie_len,
+                             const uint8_t *fde_data, size_t fde_len,
+                             int64_t *out_offset);
+
+// ---------------------------------------------------------------------------
+// LEB128 Encoding/Decoding
+// ---------------------------------------------------------------------------
 
 // Encode an unsigned integer as ULEB128.
 // @param val The value to encode.
@@ -312,6 +450,12 @@ uint64_t dwarf_decode_uleb128(const uint8_t **data);
 // value.
 // @return The decoded signed value.
 int64_t dwarf_decode_sleb128(const uint8_t **data);
+
+uint16_t dwarf_decode_le16(const uint8_t *p);
+
+uint32_t dwarf_decode_le32(const uint8_t *p);
+
+uint64_t dwarf_decode_le64(const uint8_t *p);
 
 // Decoded representation of a single DWARF Call Frame Instruction.
 //

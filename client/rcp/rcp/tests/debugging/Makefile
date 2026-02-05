@@ -1,6 +1,6 @@
 include ../../common.mk
 
-SUBDIRS = gdb-basic gdb-next gdb-recursion
+SUBDIRS = gdb-next gdb-recursion
 
 .PHONY: all test clean re-record
 

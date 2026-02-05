@@ -100,7 +100,7 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     """
     test_gdb = test_dir / "test.gdb"
     test_r = test_dir / "test.R"
-    expected_file = test_dir / "expected.out"
+    expected_file = test_dir / "expected.log"
     actual_file = test_dir / "actual.log"
 
     # Validate test directory
