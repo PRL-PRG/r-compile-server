@@ -237,9 +237,6 @@ public final class Fir2CCompiler {
         emitConstantPoolAlias(cFunction);
       }
 
-      // TODO: Dispatch optimized version when possible
-      debugComment(cFunction.add(), "# TODO: Dispatch optimized version when possible");
-
       cCode = cFunction.add();
       debugComment(cCode, "# Dispatch baseline");
 
@@ -313,6 +310,8 @@ public final class Fir2CCompiler {
       cCode.stmt("bool incompatible[%d];", versions.size());
       cCode.stmt("va_list args;");
       cCode.stmt("va_start(args, %s);", VAR_SIGNATURE);
+      cCode.stmt("va_list args2;");
+      cCode.stmt("va_copy(args2, args);");
 
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by argument count");
@@ -336,30 +335,57 @@ public final class Fir2CCompiler {
             i, i, typeEmit, VAR_SIGNATURE, effectsEmit, VAR_SIGNATURE);
       }
 
-      // TODO: Don't check parts of the static type that are known at runtime,
-      //  then filter by runtime type. Currently we ignore the runtime type.
       cCode = cFunction.add();
-      debugComment(cCode, "# Filter by arguments' static types");
+      debugComment(cCode, "# Filter by arguments' un-improvable type info:");
+      debugComment(
+          cCode, "# parameter length, static ownership, and C type (but currently all are SEXP)");
+      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
+        version = versionIter.next();
+
+        cCode.stmt(
+            "incompatible[%d] = incompatible[%d] || %s.param_count != %d;",
+            i, i, VAR_SIGNATURE, version.parameters().size());
+
+        for (var j = 0; j < version.parameters().size(); j++) {
+          var ownershipEmit = emitOwnership(version.parameters().get(j).type().ownership());
+          cCode.stmt(
+              "incompatible[%d] = incompatible[%d] || %s.param_types[%d].ownership != %s;",
+              i, i, VAR_SIGNATURE, j, ownershipEmit);
+        }
+      }
+
+      cCode = cFunction.add();
+      debugComment(cCode, "# Filter by arguments' runtime type");
+      cCode.stmt("for (int i = 0; i < %s.param_count; ++i) {", VAR_SIGNATURE);
+      cCode.stmt(2, "SEXP arg_sexp = va_arg(args2, SEXP);");
+      cCode.stmt(2, "switch (i) {");
+      var cases = new ArrayList<ArrayList<String>>();
       for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
         version = versionIter.next();
 
         for (var j = 0; j < version.parameters().size(); j++) {
-          var type = version.parameters().get(j).type();
-          var typeEmit = emitType(cCode, type);
-          cCode.stmt(
-              "incompatible[%d] = incompatible[%d] || %s.param_count <= %d || !Fir_is_subtype(%s.param_types[%d], %s);",
-              i, i, VAR_SIGNATURE, j, VAR_SIGNATURE, j, typeEmit);
+          var typeEmit = emitType(cCode, version.parameters().get(j).type());
+
+          if (cases.size() <= j) {
+            cases.add(new ArrayList<>());
+          }
+          cases
+              .get(j)
+              .add(
+                  "incompatible[%d] = incompatible[%d] || !Fir_value_matches(arg_sexp, %s);"
+                      .formatted(i, i, typeEmit));
         }
       }
-
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)
-          || options.contains(Option.EMIT_DEBUG_PRINTS)) {
-        cCode = cFunction.add();
-        debugComment(cCode, "# Filter by arguments' runtime type");
-        debugComment(
-            cCode,
-            "# TODO. Currently we check the full static type, so it's sound, but not optimal");
+      for (var j = 0; j < cases.size(); j++) {
+        cCode.stmt(2, "case %d:", j);
+        for (var line : cases.get(j)) {
+          cCode.stmt(3, "%s", line);
+        }
       }
+      cCode.stmt(2, "default:");
+      cCode.stmt(3, "break;");
+      cCode.stmt("}");
+      cCode.stmt("va_end(args2);");
 
       cCode = cFunction.add();
       debugComment(cCode, "# Call first compatible version");
@@ -372,16 +398,13 @@ public final class Fir2CCompiler {
 
         cCode.stmt("%s (!incompatible[%d]) {", ifHead, i);
 
-        // Reuse the active `va_list`.
-        // When we implement checking runtime types,
-        // we must save and restore the `va_list` after.
         var argsSplice = new StringBuilder();
         var argsSpliceFmt = new Formatter(argsSplice);
         for (int j = 0; j < version.parameters().size(); j++) {
           // Passing `va_arg` expressions inline causes the arguments to be passed backwards.
           // Instead, we must assign them to variables and pass those.
-          cCode.stmt(2, "SEXP args_%d = va_arg(args, SEXP);", j);
-          argsSpliceFmt.format(", args_%d", j);
+          cCode.stmt(2, "SEXP arg%d = va_arg(args, SEXP);", j);
+          argsSpliceFmt.format(", arg%d", j);
         }
 
         cCode.stmt(2, "out = %s(%s%s);", callCName, VAR_ENV, argsSplice);
@@ -391,7 +414,6 @@ public final class Fir2CCompiler {
           2,
           "Rf_error(\"No versions compatible with the given arguments for %s\");",
           sanitizeString(function.name().name()));
-      cCode.stmt("va_end(args);");
       cCode.stmt("return out;");
     }
 
