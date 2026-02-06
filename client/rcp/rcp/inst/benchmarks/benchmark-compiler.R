@@ -146,5 +146,7 @@ rcp:::rcp_cmppkg("utils")
   invisible(results)
 }
 
-# Example usage:  
-results <- benchmark_rcp_execute("/mnt/data-1/krikava/rcp/external/rsh/client/rsh/inst/benchmarks")
+# Example usage:
+args <- commandArgs(trailingOnly = TRUE)
+directory <- if (length(args) > 0) args[1] else stop("Usage: Rscript benchmark-compiler.R <directory>")
+results <- benchmark_rcp_execute(directory)

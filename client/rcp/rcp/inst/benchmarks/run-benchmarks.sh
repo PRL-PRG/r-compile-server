@@ -58,19 +58,45 @@ if [ ${#files[@]} -eq 0 ]; then
     exit 1
 fi
 
-echo "Benchmarks: ${#files[@]}  Runs: $RUNS  Parallel: $PARALLEL  Output: $OUTPUT"
+TOTAL=${#files[@]}
+echo "Benchmarks: $TOTAL  Runs: $RUNS  Parallel: $PARALLEL  Output: $OUTPUT"
+
+LOCKFILE="$OUTPUT/.progress.lock"
+COUNTERFILE="$OUTPUT/.progress.count"
+echo 0 > "$COUNTERFILE"
 
 run_one() {
     local file=$1
     local name
     name=$(basename "$file")
     name="${name%.*}"
-    "$R" --slave --no-restore -f "$HARNESS_BIN" --args \
+
+    local status_text exit_status
+    if "$R" --slave --no-restore -f "$HARNESS_BIN" --args \
         --output-dir "$OUTPUT" $BENCH_OPTS --runs "$RUNS" "${file%.*}" \
-        > "$OUTPUT/$name.log" 2>&1
+        > "$OUTPUT/$name.log" 2>&1; then
+        exit_status=0
+    else
+        exit_status=1
+    fi
+
+    (
+        flock 9
+        local count
+        count=$(cat "$COUNTERFILE")
+        count=$((count + 1))
+        echo "$count" > "$COUNTERFILE"
+        if [ $exit_status -eq 0 ]; then
+            echo "  [$count/$TOTAL] $name ... OK"
+        else
+            echo "  [$count/$TOTAL] $name ... FAIL"
+        fi
+    ) 9>"$LOCKFILE"
+
+    return $exit_status
 }
 export -f run_one
-export R HARNESS_BIN OUTPUT BENCH_OPTS RUNS
+export R HARNESS_BIN OUTPUT BENCH_OPTS RUNS LOCKFILE COUNTERFILE TOTAL
 
 printf '%s\n' "${files[@]}" | xargs -P "$PARALLEL" -I{} bash -c 'run_one "$@"' _ {} \
     && exit_code=0 || exit_code=$?
@@ -80,7 +106,6 @@ for file in "${files[@]}"; do
     name=$(basename "$file")
     name="${name%.*}"
     if [ -f "$OUTPUT/$name.log" ] && grep -q "^Error\|stopped$" "$OUTPUT/$name.log"; then
-        color "0;31" "  FAIL"; echo " $name"
         failures=$((failures + 1))
     fi
 done
@@ -94,6 +119,8 @@ else
     echo "Logs in: $OUTPUT"
 fi
 echo
+
+rm -f "$LOCKFILE" "$COUNTERFILE"
 
 if [ $CLEANUP -eq 1 ] && [ $exit_code -eq 0 ]; then
     rm -rf "$OUTPUT"

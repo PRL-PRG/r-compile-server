@@ -4,13 +4,9 @@ FROM ubuntu:24.04
 ENV LANG=en_US.UTF-8
 
 RUN apt-get update -y \
-  && apt-get install -y --no-install-recommends locales tzdata \
-  && echo "$LANG" >> /etc/locale.gen \
-  && locale-gen "$LANG" \
-  && update-locale LANG="$LANG"
-
-RUN apt update -y \
-  && apt install -y \
+  && apt-get install -y --no-install-recommends \
+  locales \
+  tzdata \
   bear \
   binutils-dev \
   build-essential \
@@ -44,7 +40,11 @@ RUN apt update -y \
   time \
   wget \
   xvfb \
-  zlib1g-dev
+  zlib1g-dev \
+  && echo "$LANG" >> /etc/locale.gen \
+  && locale-gen "$LANG" \
+  && update-locale LANG="$LANG" \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
 
