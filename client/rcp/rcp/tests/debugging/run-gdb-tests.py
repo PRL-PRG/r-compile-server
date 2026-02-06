@@ -39,7 +39,8 @@ IGNORE_LINES = [
     r'^\[Thread debugging using libthread_db enabled\]$',
     r'^Using host libthread_db library .*',
     r"^warning: could not find '\.gnu_debugaltlink' .*",
-    r'^\[Detaching after vfork from child process PID\]$'
+    r'^\[Detaching after vfork from child process PID\]$',
+    r'^warning: Error disabling address space randomization: Operation not permitted$'
 ]
 IGNORE_PATTERNS = [re.compile(p) for p in IGNORE_LINES]
 

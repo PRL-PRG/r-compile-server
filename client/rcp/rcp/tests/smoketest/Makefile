@@ -1,17 +1,16 @@
 include ../../common.mk
 
-SUBDIRS = basic
+TESTS = basic.R
 
-.PHONY: all test clean $(SUBDIRS)
+.PHONY: all test clean
 
 all: test
 
-test: $(SUBDIRS)
-
-$(SUBDIRS):
-	$(MAKE) -C $@ test
+test:
+	@for test in $(TESTS); do \
+		echo "Running $$test..."; \
+		$(R) --vanilla --quiet < $$test || exit 1; \
+	done
 
 clean:
-	for dir in $(SUBDIRS); do \
-		$(MAKE) -C $$dir clean; \
-	done
+	@rm -f *.Rout .RData
