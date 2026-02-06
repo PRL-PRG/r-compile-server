@@ -1,4 +1,6 @@
-SUBDIRS = smoketest debugging
+include ../../common.mk
+
+SUBDIRS = basic
 
 .PHONY: all test clean $(SUBDIRS)
 

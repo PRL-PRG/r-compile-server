@@ -32,6 +32,7 @@ endif
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
+$(info GDB_JIT_SUPPORT=$(GDB_JIT_SUPPORT))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build

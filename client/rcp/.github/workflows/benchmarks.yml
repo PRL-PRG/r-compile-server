@@ -96,6 +96,38 @@ jobs:
           cache-from: type=gha,scope=rcp
           cache-to: type=gha,mode=max,scope=rcp
 
+  test:
+    name: Test (GDB_JIT=${{ matrix.gdb_jit }})
+    runs-on: ubuntu-latest
+    needs: build-images
+    strategy:
+      matrix:
+        gdb_jit: [0, 1]
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TEST_DOCKER_CONTAINER: test-gdb-${{ matrix.gdb_jit }}
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and test
+        shell: bash
+        run: |
+          docker run \
+          --name $TEST_DOCKER_CONTAINER \
+          ghcr.io/prl-prg/rcp:${{ github.sha }} \
+          bash -c "make -C /rcp/rcp clean test GDB_JIT_SUPPORT=${{ matrix.gdb_jit }}"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f $TEST_DOCKER_CONTAINER || true
+
   run-benchmarks:
     name: Benchmarks
     runs-on: self-hosted
