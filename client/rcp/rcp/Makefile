@@ -34,7 +34,7 @@ setup:
 BENCH_ITER ?= 15
 
 .PHONY: benchmark
-benchmark: install
+benchmark:
 	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh --runs $(BENCH_ITER) --parallel 1
 
 compile_commands.json:
