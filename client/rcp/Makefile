@@ -24,6 +24,7 @@ docker-rcp: docker-rcp-rsh
 
 setup:
 	external/rsh/tools/build-gnur.sh external/rsh/external/R
+	$(MAKE) -C rcp setup
 
 test:
 	$(MAKE) -C rcp test

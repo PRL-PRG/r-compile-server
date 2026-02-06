@@ -131,7 +131,7 @@ jobs:
   run-benchmarks:
     name: Benchmarks
     runs-on: self-hosted
-    needs: build-images
+    needs: test
     strategy:
       max-parallel: 1
       matrix:
