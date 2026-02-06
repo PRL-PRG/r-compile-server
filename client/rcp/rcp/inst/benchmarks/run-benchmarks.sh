@@ -71,7 +71,8 @@ run_one() {
     name=$(basename "$file")
     name="${name%.*}"
 
-    local status_text exit_status
+    local exit_status start_time elapsed
+    start_time=$(date +%s)
     if "$R" --slave --no-restore -f "$HARNESS_BIN" --args \
         --output-dir "$OUTPUT" $BENCH_OPTS --runs "$RUNS" "${file%.*}" \
         > "$OUTPUT/$name.log" 2>&1; then
@@ -79,6 +80,7 @@ run_one() {
     else
         exit_status=1
     fi
+    elapsed=$(( $(date +%s) - start_time ))
 
     (
         flock 9
@@ -87,9 +89,9 @@ run_one() {
         count=$((count + 1))
         echo "$count" > "$COUNTERFILE"
         if [ $exit_status -eq 0 ]; then
-            echo "  [$count/$TOTAL] $name ... OK"
+            echo "  [$count/$TOTAL] $name ... OK (${elapsed}s)"
         else
-            echo "  [$count/$TOTAL] $name ... FAIL"
+            echo "  [$count/$TOTAL] $name ... FAIL (${elapsed}s)"
         fi
     ) 9>"$LOCKFILE"
 
