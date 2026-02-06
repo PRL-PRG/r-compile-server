@@ -21,3 +21,9 @@ docker-rcp: docker-rcp-rsh
 		--build-arg RSH_COMMIT=$(RSH_COMMIT) \
 		--build-arg RCP_COMMIT=$(RCP_COMMIT) \
 		-t $(DOCKER_IMAGE_ORG)/rcp:$(RCP_COMMIT) -f Dockerfile.rcp .
+
+setup:
+	external/rsh/tools/build-gnur.sh external/rsh/external/R
+
+test:
+	$(MAKE) -C rcp test
