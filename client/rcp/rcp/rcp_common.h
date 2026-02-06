@@ -264,5 +264,5 @@ const char* const OPCODES_NAMES[] = {
 "DECLNK_OP",// <- 125
 "DECLNK_N_OP",// <- 126
 "INCLNKSTK_OP",// <- 127
-"DECLNKSTK_OP"// <- 128
+"DECLNKSTK_OP",// <- 128
 };
