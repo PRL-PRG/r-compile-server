@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-extern const char* const OPCODES_NAMES[];
+extern const char *const OPCODES_NAMES[];
 extern const uint8_t OPCODES_COUNT;
 
 #endif

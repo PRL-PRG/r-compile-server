@@ -23,5 +23,9 @@ run: install
 debug: install
 	$(R) -d gdb
 
+.PHONY: format
+format:
+	find src -type f \( -name "*.c" -o -name "*.h" -o -name "*.cpp" \) -exec clang-format -i {} +
+
 compile_commands.json:
 	bear -- $(MAKE) clean install
