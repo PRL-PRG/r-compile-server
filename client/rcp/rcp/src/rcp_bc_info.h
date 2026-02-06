@@ -1,3 +1,6 @@
+#ifndef RCP_BC_INFO_H
+#define RCP_BC_INFO_H
+
 #include <stdint.h>
 
 typedef enum
@@ -525,3 +528,5 @@ static int8_t RCP_BC_STACK_EFFECT[] __attribute__((unused)) = {
 	RCP_BC_STACK_EFFECT_DECLNK_N,
 	RCP_BC_STACK_EFFECT_INCLNKSTK,
 	RCP_BC_STACK_EFFECT_DECLNKSTK};
+
+#endif // RCP_BC_INFO_H

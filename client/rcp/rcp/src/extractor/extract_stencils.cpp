@@ -271,14 +271,6 @@ export_body(std::ostream &file, const StencilExport &stencil,
 // src/shared/dwarf.{c,h} library. This file uses those functions and adds
 // C++ formatting for the human-readable decoded CFI table comments.
 
-// Get x86-64 register name as a std::string.
-// Wraps the shared C function for convenient C++ usage.
-static std::string get_reg_name(uint64_t reg)
-{
-	char buf[16];
-	return std::string(dwarf_get_x86_64_reg_name(reg, buf, sizeof(buf)));
-}
-
 // C++ wrapper for DwarfCFIState that adds formatting methods.
 // Used for generating human-readable CFI table comments in the output.
 struct DwarfStateFormatter
@@ -296,7 +288,7 @@ struct DwarfStateFormatter
 	{
 		if (state.cfa_is_expr)
 			return "expr";
-		return std::format("{}{:+}", get_reg_name(state.cfa_reg), state.cfa_offset);
+		return std::format("{}{:+}", dwarf_get_x86_64_reg_name(state.cfa_reg), state.cfa_offset);
 	}
 
 	std::string format_rule(uint64_t reg) const
@@ -315,7 +307,7 @@ struct DwarfStateFormatter
 			case DWARF_RULE_VAL_OFFSET:
 				return std::format("v{:+}", r.offset);
 			case DWARF_RULE_REGISTER:
-				return std::format("={}", get_reg_name(r.reg));
+				return std::format("={}", dwarf_get_x86_64_reg_name(r.reg));
 			case DWARF_RULE_EXPRESSION:
 			case DWARF_RULE_VAL_EXPRESSION:
 				return "exp";
@@ -578,9 +570,6 @@ static void export_fde(std::ostream &file, const Stencils &stencils,
 // stack (push/pop), and DWARF records these changes as "CFA offset from
 // register X". We need to find the maximum offset to know the stack depth
 // required.
-//
-// This function delegates to the shared dwarf_get_max_cfa_offset() in
-// src/shared/dwarf.c.
 static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
 							  const std::vector<uint8_t> &fde_data)
 {
@@ -595,65 +584,60 @@ static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
 	return max_offset;
 }
 
-// Create stencils_data.c and stencils_data.h
-static void export_to_files(const fs::path &output_dir,
-							const Stencils &stencils)
+// =============================================================================
+// Code Generation
+//
+// The following functions generate stencils_data.c and stencils.h, which
+// contain compiled stencil data for the JIT compiler.
+// =============================================================================
+
+// Write the RCP_INIT_CFA_OFFSET macro to the header file.
+// This is the maximum stack depth (CFA offset) of the _RCP_INIT prologue
+// stencil, used at runtime for GDB JIT debug frame generation.
+//
+// Generated variable:
+//   #define RCP_INIT_CFA_OFFSET <offset>
+static void export_rcp_init_cfa_offset(std::ostream &h_file,
+									   const Stencils &stencils)
 {
-	if (!fs::is_directory(output_dir))
-	{
-		fs::create_directories(output_dir);
-	}
-
-	std::ofstream c_file(output_dir / "stencils_data.c");
-	std::ofstream h_file(output_dir / "stencils.h");
-
-	h_file << "#ifndef STENCILS_H\n";
-	h_file << "#define STENCILS_H\n";
-	h_file << "#include \"rcp_common.h\"\n\n";
-	h_file << "#include <stddef.h>\n\n";
-
-	// Calculate _RCP_INIT CFA offset
-	// FIXME: @matej - can the RCP_INIT be a normal stencil?
 	h_file << "#ifdef GDB_JIT_SUPPORT\n";
+
+	const StencilExport *rcp_init = nullptr;
+	for (const auto &s : stencils.stencils_extra)
 	{
-		const StencilExport *rcp_init = nullptr;
-		for (const auto &s : stencils.stencils_extra)
+		if (s.name == "_RCP_INIT")
 		{
-			if (s.name == "_RCP_INIT")
-			{
-				rcp_init = &s;
-				break;
-			}
+			rcp_init = &s;
+			break;
 		}
-		if (!rcp_init)
-			throw std::runtime_error("_RCP_INIT stencil not found");
-
-		auto it = stencils.debug_frames.find(rcp_init->section_symbol_name);
-		if (it == stencils.debug_frames.end())
-		{
-			throw std::runtime_error(
-				std::format("_RCP_INIT debug frame not found (searched for {})",
-							rcp_init->section_symbol_name));
-		}
-		int64_t offset = get_cfa_offset(stencils.debug_frame_cie, it->second);
-		h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
 	}
+	if (!rcp_init)
+		throw std::runtime_error("_RCP_INIT stencil not found");
+
+	auto it = stencils.debug_frames.find(rcp_init->section_symbol_name);
+	if (it == stencils.debug_frames.end())
+	{
+		throw std::runtime_error(
+			std::format("_RCP_INIT debug frame not found (searched for {})",
+						rcp_init->section_symbol_name));
+	}
+	int64_t offset = get_cfa_offset(stencils.debug_frame_cie, it->second);
+	h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
+
 	h_file << "#endif\n";
+}
 
-	c_file << "#include \"stencils.h\"\n\n";
-	c_file << "#define USE_RINTERNALS\n";
-	c_file << "#define RSH\n";
-	c_file << "#include <string.h>\n";
-	c_file << "#include <R.h>\n";
-	c_file << "#include <Rinternals.h>\n";
-	c_file << "#include <Rmath.h>\n";
-	c_file << "#include \"runtime_internals.h\"\n";
-	c_file << "extern RCNTXT *R_GlobalContext;\n";
-	c_file << "extern SEXP R_ReturnedValue;\n\n";
-
-	// --- Bodies, Holes, Debug Frames (Definitions in .c) ---
-
-	// Opcodes Stencils
+// Export stencil bodies (machine code bytes) and holes (relocations) for
+// opcode stencils. Also exports FDE debug frames for each stencil.
+//
+// Generated variables (per opcode, per variant):
+//   uint8_t _{OPCODE}_{VARIANT}_BODY[]
+//   Hole _{OPCODE}_{VARIANT}_HOLES[]
+//   uint8_t _{OPCODE}_{VARIANT}_debug_frame[]  (if GDB_JIT_SUPPORT)
+static void export_opcode_stencil_bodies(std::ostream &c_file,
+										 std::ostream &h_file,
+										 const Stencils &stencils)
+{
 	for (const auto &current : stencils.stencils_opcodes)
 	{
 		if (!current.stencils.empty())
@@ -666,14 +650,23 @@ static void export_to_files(const fs::path &output_dir,
 							(std::string(current.name) + '_' + stencil.name).c_str(),
 							stencils.functions_not_inlined);
 
-				// Export FDEs
 				export_fde(c_file, stencils, stencil.section_symbol_name,
 						   std::format("_{}_{}", current.name, stencil.name));
 			}
 		}
 	}
+}
 
-	// Extra Stencils
+// Export stencil bodies and FDEs for extra stencils (non-opcode stencils
+// like _RCP_INIT, _RCP_RETURN, etc.).
+//
+// Generated variables (per stencil):
+//   uint8_t _{NAME}_BODY[]
+//   Hole _{NAME}_HOLES[]
+//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT)
+static void export_extra_stencil_bodies(std::ostream &c_file,
+										const Stencils &stencils)
+{
 	for (const auto &current : stencils.stencils_extra)
 	{
 		export_body(c_file, current, current.name.c_str(),
@@ -681,8 +674,18 @@ static void export_to_files(const fs::path &output_dir,
 		export_fde(c_file, stencils, current.section_symbol_name,
 				   std::format("_{}", current.name));
 	}
+}
 
-	// Not-inlined Functions
+// Export stencil bodies and FDEs for functions that couldn't be inlined.
+// Returns the total size of all not-inlined function bodies.
+//
+// Generated variables (per function):
+//   uint8_t _{NAME}_BODY[]
+//   Hole _{NAME}_HOLES[]
+//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT)
+static size_t export_notinlined_bodies(std::ostream &c_file,
+									   const Stencils &stencils)
+{
 	size_t notinlined_total_size = 0;
 	for (const auto &current : stencils.functions_not_inlined)
 	{
@@ -692,10 +695,18 @@ static void export_to_files(const fs::path &output_dir,
 		export_fde(c_file, stencils, current.section_symbol_name,
 				   std::format("_{}", current.name));
 	}
+	return notinlined_total_size;
+}
 
-	// --- Arrays (Definitions in .c, Declarations in .h) ---
-
-	// Opcodes Stencils Arrays
+// Export Stencil struct arrays for each opcode that has stencil variants.
+// Each array contains all variants for that opcode.
+//
+// Generated variables:
+//   const Stencil {OPCODE}_stencils[]  (one per opcode with variants)
+static void export_opcode_stencil_arrays(std::ostream &c_file,
+										 std::ostream &h_file,
+										 const Stencils &stencils)
+{
 	for (const auto &current : stencils.stencils_opcodes)
 	{
 		if (!current.stencils.empty())
@@ -730,8 +741,16 @@ static void export_to_files(const fs::path &output_dir,
 								  current.name);
 		}
 	}
+}
 
-	// Extra Stencils Constants
+// Export individual Stencil structs for extra stencils.
+//
+// Generated variables:
+//   const Stencil {NAME}  (e.g., _RCP_INIT, _RCP_RETURN)
+static void export_extra_stencil_structs(std::ostream &c_file,
+										 std::ostream &h_file,
+										 const Stencils &stencils)
+{
 	for (const auto &current : stencils.stencils_extra)
 	{
 		std::string debug_frame_ptr = "NULL";
@@ -753,8 +772,20 @@ static void export_to_files(const fs::path &output_dir,
 
 		h_file << std::format("extern const Stencil {};\n", current.name);
 	}
+}
 
-	// Not-inlined Stencils Array
+// Export the array of not-inlined function stencils and their debug frames.
+//
+// Generated variables:
+//   const Stencil notinlined_stencils[]
+//   const uint8_t *notinlined_debug_frames[]  (if GDB_JIT_SUPPORT)
+//   #define notinlined_count <count>
+//   #define notinlined_size <total_size>
+static void export_notinlined_stencil_array(std::ostream &c_file,
+											std::ostream &h_file,
+											const Stencils &stencils,
+											size_t notinlined_total_size)
+{
 	c_file << "\nconst Stencil notinlined_stencils[] = {\n";
 	for (const auto &current : stencils.functions_not_inlined)
 	{
@@ -778,7 +809,7 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "};\n";
 	h_file << "extern const Stencil notinlined_stencils[];\n";
 
-	// Not-inlined Debug Frames Array
+	// Debug frames array
 	c_file << "#ifdef GDB_JIT_SUPPORT\n";
 	c_file << "\nconst uint8_t *notinlined_debug_frames[] = {\n";
 	for (const auto &current : stencils.functions_not_inlined)
@@ -803,10 +834,15 @@ static void export_to_files(const fs::path &output_dir,
 	h_file << std::format("#define notinlined_count {}\n",
 						  stencils.functions_not_inlined.size());
 	h_file << std::format("#define notinlined_size {}\n", notinlined_total_size);
+}
 
-	// --- 3. CIE and RODATA ---
-
-	// CIE
+// Export the DWARF CIE (Common Information Entry) used for all FDEs.
+//
+// Generated variables:
+//   uint8_t __CIE[]  (if GDB_JIT_SUPPORT)
+static void export_cie(std::ostream &c_file, std::ostream &h_file,
+					   const Stencils &stencils)
+{
 	c_file << "#ifdef GDB_JIT_SUPPORT\n";
 	if (!stencils.debug_frame_cie.empty())
 	{
@@ -816,7 +852,8 @@ static void export_to_files(const fs::path &output_dir,
 		c_file << std::format("CIE: {}\n", stencils.debug_frame_cie.size());
 		c_file << std::format("- code alignment: {}\n", cie.code_align);
 		c_file << std::format("- data alignment: {}\n", cie.data_align);
-		c_file << std::format("- return address: {}\n", get_reg_name(cie.ra_reg));
+		c_file << std::format("- return address: {}\n",
+							  dwarf_get_x86_64_reg_name(cie.ra_reg));
 		c_file << "*/\n";
 	}
 	c_file << "uint8_t __CIE[] = { ";
@@ -828,17 +865,29 @@ static void export_to_files(const fs::path &output_dir,
 	h_file << "#ifdef GDB_JIT_SUPPORT\n";
 	h_file << "extern uint8_t __CIE[];\n";
 	h_file << "#endif\n";
+}
 
-	// RODATA
+// Export the read-only data section.
+//
+// Generated variables:
+//   const uint8_t rodata[]
+static void export_rodata(std::ostream &c_file, std::ostream &h_file,
+						  const Stencils &stencils)
+{
 	c_file << "const uint8_t rodata[] = { ";
 	print_byte_array(c_file, stencils.rodata.data(), stencils.rodata.size());
 	c_file << "};\n";
-	h_file << "extern const uint8_t rodata[];\n";
-	h_file << std::format("#define rodata_size {}\n", stencils.rodata.size());
+	h_file << std::format("extern const uint8_t rodata[{}];\n",
+						  stencils.rodata.size());
+}
 
-	// --- 4. Main Access Arrays (stencils, debug_frames, stencils_all) ---
-
-	// stencils[]
+// Export the main stencils lookup table indexed by opcode.
+//
+// Generated variables:
+//   const Stencil* stencils[NUM_OPCODES]
+static void export_stencils_table(std::ostream &c_file, std::ostream &h_file,
+								  const Stencils &stencils)
+{
 	c_file << std::format("\nconst Stencil* stencils[{}] = {{\n",
 						  stencils.stencils_opcodes.size());
 	for (const auto &current : stencils.stencils_opcodes)
@@ -849,9 +898,18 @@ static void export_to_files(const fs::path &output_dir,
 			c_file << std::format("NULL,//{}\n", current.name);
 	}
 	c_file << "};\n";
-	h_file << "extern const Stencil* stencils[];\n";
+	h_file << std::format("extern const Stencil* stencils[{}];\n",
+						  stencils.stencils_opcodes.size());
+}
 
-	// debug_frames[] (Need separate arrays for each opcode first)
+// Export debug frame pointer arrays for each opcode (for GDB JIT support).
+//
+// Generated variables:
+//   const uint8_t *{OPCODE}_debug_frames[]  (one per opcode with variants)
+static void export_opcode_debug_frame_arrays(std::ostream &c_file,
+											 std::ostream &h_file,
+											 const Stencils &stencils)
+{
 	c_file << "#ifdef GDB_JIT_SUPPORT\n";
 	for (const auto &current : stencils.stencils_opcodes)
 	{
@@ -879,52 +937,59 @@ static void export_to_files(const fs::path &output_dir,
 							  current.name);
 		h_file << "#endif\n";
 	}
-
-	c_file << std::format("\nconst uint8_t **debug_frames[{}] = {{\n",
-						  stencils.stencils_opcodes.size());
-	for (const auto &current : stencils.stencils_opcodes)
-	{
-		if (!current.stencils.empty())
-			c_file << std::format("{}_debug_frames,\n", current.name);
-		else
-			c_file << std::format("NULL,//{}\n", current.name);
-	}
-	c_file << "};\n";
 	c_file << "#endif\n";
+}
 
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
-	h_file << "extern const uint8_t **debug_frames[];\n";
-	h_file << "#endif\n";
-
-	// stencils_all[]
+// Export the stencils_all array containing pointers to all stencils.
+// Returns the total count of stencils.
+//
+// Generated variables:
+//   const Stencil* stencils_all[]
+static size_t export_stencils_all(std::ostream &c_file, std::ostream &h_file,
+								  const Stencils &stencils)
+{
 	size_t stencils_all_count = 0;
 	c_file << "\nconst Stencil* stencils_all[] = {\n";
+
 	for (const auto &current : stencils.stencils_opcodes)
+	{
 		for (size_t i = 0; i < current.stencils.size(); ++i)
 		{
-			c_file << std::format("&{}_stencils[{}],", std::string(current.name), i);
+			c_file << std::format("&{}_stencils[{}],",
+								  std::string(current.name), i);
 			stencils_all_count++;
 		}
+	}
+
 	for (const auto &current : stencils.stencils_extra)
 	{
 		c_file << std::format("&{},", current.name);
 		stencils_all_count++;
 	}
+
 	for (size_t i = 0; i < stencils.functions_not_inlined.size(); ++i)
 	{
 		c_file << std::format("&notinlined_stencils[{}],", i);
 		stencils_all_count++;
 	}
-	c_file << "\n};\n";
-	h_file << "extern const Stencil* stencils_all[];\n";
-	h_file << std::format("#define stencils_all_count {}\n", stencils_all_count);
 
-	// FDE for extra stencils (explicit decls needed for direct access?)
-	// e.g. __RCP_INIT_debug_frame
+	c_file << "\n};\n";
+	h_file << std::format("extern const Stencil* stencils_all[{}];\n",
+						  stencils_all_count);
+
+	return stencils_all_count;
+}
+
+// Export extern declarations for extra stencil debug frames.
+//
+// Generated declarations:
+//   extern uint8_t _{NAME}_debug_frame[]  (for each extra stencil with FDE)
+static void export_extra_debug_frame_decls(std::ostream &h_file,
+										   const Stencils &stencils)
+{
 	h_file << "#ifdef GDB_JIT_SUPPORT\n";
 	for (const auto &current : stencils.stencils_extra)
 	{
-		// Check if it has debug frame
 		auto it = stencils.debug_frames.find(current.section_symbol_name);
 		if (it != stencils.debug_frames.end())
 		{
@@ -933,7 +998,69 @@ static void export_to_files(const fs::path &output_dir,
 		}
 	}
 	h_file << "#endif\n";
+}
 
+// Create stencils_data.c and stencils.h
+//
+// This is the main export function that coordinates generation of all stencil
+// data. See the individual export_* functions for details on generated
+// variables.
+static void export_to_files(const fs::path &output_dir,
+							const Stencils &stencils)
+{
+	if (!fs::is_directory(output_dir))
+	{
+		fs::create_directories(output_dir);
+	}
+
+	std::ofstream c_file(output_dir / "stencils_data.c");
+	std::ofstream h_file(output_dir / "stencils.h");
+
+	// Header file preamble
+	h_file << "#ifndef STENCILS_H\n";
+	h_file << "#define STENCILS_H\n";
+	h_file << "#include \"rcp_common.h\"\n\n";
+	h_file << "#include <stddef.h>\n\n";
+
+	// C file preamble
+	c_file << "#include \"stencils.h\"\n\n";
+	c_file << "#define USE_RINTERNALS\n";
+	c_file << "#define RSH\n";
+	c_file << "#include <string.h>\n";
+	c_file << "#include <R.h>\n";
+	c_file << "#include <Rinternals.h>\n";
+	c_file << "#include <Rmath.h>\n";
+	c_file << "#include \"runtime_internals.h\"\n";
+	c_file << "extern RCNTXT *R_GlobalContext;\n";
+	c_file << "extern SEXP R_ReturnedValue;\n\n";
+
+	// Export RCP_INIT_CFA_OFFSET for GDB JIT support
+	export_rcp_init_cfa_offset(h_file, stencils);
+
+	// Export stencil bodies (machine code + holes + FDEs)
+	export_opcode_stencil_bodies(c_file, h_file, stencils);
+	export_extra_stencil_bodies(c_file, stencils);
+	size_t notinlined_total_size = export_notinlined_bodies(c_file, stencils);
+
+	// Export Stencil struct arrays and individual structs
+	export_opcode_stencil_arrays(c_file, h_file, stencils);
+	export_extra_stencil_structs(c_file, h_file, stencils);
+	export_notinlined_stencil_array(c_file, h_file, stencils,
+									notinlined_total_size);
+
+	// Export CIE and rodata
+	export_cie(c_file, h_file, stencils);
+	export_rodata(c_file, h_file, stencils);
+
+	// Export lookup tables
+	export_stencils_table(c_file, h_file, stencils);
+	export_opcode_debug_frame_arrays(c_file, h_file, stencils);
+	export_stencils_all(c_file, h_file, stencils);
+
+	// Export extra stencil debug frame declarations
+	export_extra_debug_frame_decls(h_file, stencils);
+
+	// Close header guard
 	h_file << "#endif\n";
 }
 

@@ -338,13 +338,11 @@ extern "C"
 	// Get the name of an x86-64 register by DWARF register number.
 	//
 	// Returns a short string like "rax", "rbp", "r12", or "ra" (for the return
-	// address pseudo-register). For unknown register numbers, returns "r<N>".
+	// address pseudo-register).
 	//
 	// @param reg    DWARF register number (0-16 for standard x86-64 registers).
-	// @param buf    Buffer to write the name to (for unknown registers).
-	// @param buflen Size of the buffer.
-	// @return       Pointer to a static string or to buf.
-	const char *dwarf_get_x86_64_reg_name(uint64_t reg, char *buf, size_t buflen);
+	// @return       Pointer to a static string ("r?" if unknown).
+	const char *dwarf_get_x86_64_reg_name(uint64_t reg);
 
 	// ---------------------------------------------------------------------------
 	// CFI State Machine

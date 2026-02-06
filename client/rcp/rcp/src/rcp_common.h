@@ -6,7 +6,7 @@
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-#ifdef DEBUG_MODE
+#ifdef RCP_TRACE
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
 #define DEBUG_PRINT(...) // No-op

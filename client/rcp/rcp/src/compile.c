@@ -1,15 +1,19 @@
-#include <R_ext/Print.h>
-#include <stddef.h>
 #define USE_RINTERNALS
 #define RSH
 
+#include "gdb_jit.h"
+#include "rcp_bc_info.h"
+#include "rcp_common.h"
+#include "runtime_internals.h"
+#include <assert.h>
+#include <omp.h>
 #include <R.h>
 #include <Rinternals.h>
 #include <Rmath.h>
-#include <assert.h>
-#include <omp.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stencils.h>
 #include <sys/mman.h>
 #include <time.h>
 #include <unistd.h>
@@ -18,9 +22,6 @@ void __assert_fail(const char *assertion, const char *file, unsigned int line,
 				   const char *function);
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;	/* Slot for return-ing values */
-
-#include "rcp_bc_info.h"
-#include "rcp_common.h"
 
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
@@ -31,10 +32,6 @@ struct StencilProfileInfo
 static struct StencilProfileInfo
 	stencil_profile_info[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
 #endif
-
-#include "gdb_jit.h"
-#include "runtime_internals.h"
-#include <stencils.h>
 
 #define UNPROTECT_SAFE(ptr)                         \
 	do                                              \
@@ -162,7 +159,7 @@ static const void **prepare_got_table(size_t *got_size)
 	// Pass 1: count the number of GOT relocations and patch those that can be
 	// transformed into relative addressing
 	size_t count = 0;
-	for (size_t i = 0; i < stencils_all_count; i++)
+	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
 	{
 		const Stencil *stencil = stencils_all[i];
 		for (size_t j = 0; j < stencil->holes_size; j++)
@@ -210,7 +207,7 @@ static const void **prepare_got_table(size_t *got_size)
 	const void **got_table_tmp = (const void **)R_alloc(count, sizeof(void *));
 	*got_size = 0;
 
-	for (size_t i = 0; i < stencils_all_count; i++)
+	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
 	{
 		const Stencil *stencil = stencils_all[i];
 		for (size_t j = 0; j < stencil->holes_size; j++)
@@ -245,7 +242,7 @@ static const void **prepare_got_table(size_t *got_size)
 
 static void prepare_active_holes(void)
 {
-	for (size_t i = 0; i < stencils_all_count; i++)
+	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
 	{
 		const Stencil *stencil = stencils_all[i];
 		for (size_t j = 0; j < stencil->holes_size; j++)
@@ -275,7 +272,7 @@ static void prepare_active_holes(void)
 
 typedef struct
 {
-	uint8_t rodata[rodata_size];
+	uint8_t rodata[sizeof(rodata)];
 	size_t got_table_size;
 	void *got_table[];
 } mem_shared_data;
@@ -302,7 +299,7 @@ static void prepare_shared_memory()
 	if (mem_shared_near == MAP_FAILED)
 		exit(1);
 
-	memcpy(mem_shared_near->rodata, rodata, rodata_size);
+	memcpy(mem_shared_near->rodata, rodata, sizeof(rodata));
 	mem_shared_near->got_table_size = got_table_size;
 	memcpy(mem_shared_near->got_table, got_table,
 		   got_table_size * sizeof(void *));
@@ -492,7 +489,22 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 			assert(ctx->bcell_lookup != NULL);
 			assert(imms != NULL);
 			assert(ctx->bytecode != NULL);
-			int constant_index = ctx->bytecode[imms[hole->val.imm_pos] - 3];
+
+			// hardcoded for now (not used anywhere else than STEPFOR), TODO: make it generic
+			int opcode_to_find = STARTFOR_BCOP;
+			int constcell_pos = 1;
+
+			// Reverse iterate over the bytecode to find the label
+			int label_pos = imms[hole->val.imm_pos] - 1;
+			while (ctx->executable_lookup[label_pos] == NULL || ctx->bytecode[label_pos] != opcode_to_find)
+			{
+				label_pos--;
+				if (label_pos < 0)
+					error("Could not find corresponding BC instruction for indirect BCell patching in stencil %s\n", stencil->name);
+			}
+
+			int *label_imms = &ctx->bytecode[label_pos + 1];
+			int constant_index = label_imms[constcell_pos];
 			int bcell_index = ctx->bcell_lookup[constant_index];
 			ptr = offsetof(rcpEval_locals, vcache) + bcell_index * sizeof(SEXP);
 		}
@@ -584,11 +596,11 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		case STEPFOR_BCOP:
 		{
 			// Fake StepFor stencil to allocate correct memory size
-			static Hole res_hole = {.kind = RELOC_RCP_CONSTCELL_AT_LABEL_IMM};
-			static Stencil res = {.body_size = stepfor_max_size,
-								  .holes_size = 1,
-								  .holes = &res_hole,
-								  .alignment = 1};
+			static Stencil res = {
+				.body_size = stepfor_max_size,
+				.holes_size = 0,
+				.holes = NULL,
+				.alignment = 32};
 			return &res;
 		}
 		break;
@@ -630,14 +642,14 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 	return NULL;
 }
 
-static int jump_target(RCP_BC_OPCODES opcode, const int *imms)
+static int *jump_target_ref(RCP_BC_OPCODES opcode, int *imms)
 {
-	int res = 0;
+	int *res = NULL;
 	switch (opcode)
 	{
 		case (GOTO_BCOP):
 		case (STEPFOR_BCOP):
-			res = imms[0];
+			res = &imms[0];
 			break;
 		case (BRIFNOT_BCOP):
 		case (STARTSUBSET_BCOP):
@@ -650,13 +662,26 @@ static int jump_target(RCP_BC_OPCODES opcode, const int *imms)
 		case (STARTSUBASSIGN2_N_BCOP):
 		case (BASEGUARD_BCOP):
 		case (STARTLOOPCNTXT_BCOP):
-			res = imms[1];
+			res = &imms[1];
 			break;
 		case (STARTFOR_BCOP):
-			res = imms[2];
+			res = &imms[2];
 			break;
 	}
-	return res - 1;
+	return res;
+}
+
+static int jump_target(RCP_BC_OPCODES opcode, const int *imms)
+{
+	int *target_ref = jump_target_ref(opcode, (int *)imms);
+	if (target_ref != NULL)
+	{
+		return *target_ref - 1; // Convert to zero-based index
+	}
+	else
+	{
+		return -1; // No jump target
+	}
 }
 
 static int can_fallthrough_from_opcode(RCP_BC_OPCODES opcode)
@@ -1375,7 +1400,7 @@ static const uint8_t *prepare_notinlined_functions(void)
 	}
 
 	// ... resolve other holes ...
-	for (size_t i = 0; i < stencils_all_count; i++)
+	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
 	{
 		const Stencil *stencil = stencils_all[i];
 		for (size_t j = 0; j < stencil->holes_size; j++)
@@ -1964,7 +1989,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 
 #ifdef CMPPKG_WAITALL
 	// Second pass: replace all compiled functions in the namespace
-	fprintf(stderr, "Replacing functions in package namespace...\n");
+	DEBUG_PRINT("Replacing functions in package namespace...\n");
 	for (int i = 0; i < n_objects; i++)
 	{
 		if (compiled_functions[i] != R_NilValue &&

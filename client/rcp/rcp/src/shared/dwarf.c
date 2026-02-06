@@ -333,22 +333,21 @@ DwarfCIE dwarf_parse_cie(const uint8_t *data, size_t len)
 static const char *const x86_64_reg_names[] = {
 	"rax", "rdx", "rcx", "rbx", "rsi", "rdi", "rbp", "rsp",
 	"r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
-	"ra" // Return address (RIP)
+	"ra", // Return address
+	"r?", // Placeholder for unknown registers
 };
 
-const char *dwarf_get_x86_64_reg_name(uint64_t reg, char *buf, size_t buflen)
+const char *dwarf_get_x86_64_reg_name(uint64_t reg)
 {
-	if (reg < sizeof(x86_64_reg_names) / sizeof(x86_64_reg_names[0]))
+	static uint64_t N = sizeof(x86_64_reg_names) / sizeof(x86_64_reg_names[0]);
+	if (reg < N - 1)
 	{
 		return x86_64_reg_names[reg];
 	}
-	// Unknown register - format as "r<N>"
-	if (buf && buflen > 0)
+	else
 	{
-		snprintf(buf, buflen, "r%llu", (unsigned long long)reg);
-		return buf;
+		return x86_64_reg_names[N - 1];
 	}
-	return "r?";
 }
 
 void dwarf_cfi_state_init(DwarfCFIState *state)
