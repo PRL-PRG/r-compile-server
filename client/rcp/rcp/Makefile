@@ -32,10 +32,11 @@ setup:
 	$(R) --quiet -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")'
 
 BENCH_ITER ?= 15
+BENCH_PARALLEL ?= 1
 
 .PHONY: benchmark
 benchmark:
-	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh --runs $(BENCH_ITER) --parallel 1
+	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh --runs $(BENCH_ITER) --parallel $(BENCH_PARALLEL)
 
 compile_commands.json:
 	bear -- $(MAKE) clean install

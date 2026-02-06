@@ -1,5 +1,5 @@
 DOCKER_IMAGE_ORG := prl-prg
-DOCKER_BUILD_CMD := DOCKER_BUILDKIT=1 docker build --ssh default
+DOCKER_BUILD_CMD := docker build
 
 RSH_COMMIT ?= $(shell git -C external/rsh rev-parse HEAD)
 RCP_COMMIT ?= $(shell git rev-parse HEAD) 
@@ -28,3 +28,6 @@ setup:
 
 test:
 	$(MAKE) -C rcp test
+
+benchmark:
+	$(MAKE) -C rcp benchmark
