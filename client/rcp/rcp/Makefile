@@ -33,10 +33,13 @@ setup:
 
 BENCH_ITER ?= 15
 BENCH_PARALLEL ?= 1
+BENCH_OUT_DIR ?=
 
 .PHONY: benchmark
 benchmark:
-	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh --runs $(BENCH_ITER) --parallel $(BENCH_PARALLEL)
+	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh \
+		--runs $(BENCH_ITER) --parallel $(BENCH_PARALLEL) \
+		$(if $(BENCH_OUT_DIR),--output $(BENCH_OUT_DIR))
 
 compile_commands.json:
 	bear -- $(MAKE) clean install
