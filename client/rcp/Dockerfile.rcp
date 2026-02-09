@@ -2,12 +2,12 @@ ARG RSH_COMMIT=latest
 
 FROM ghcr.io/prl-prg/rcp-rsh:${RSH_COMMIT}
 
-RUN R -e 'install.packages("microbenchmark", repos="http://cran.r-project.org")'
-
 ARG RCP_COMMIT
-RUN --mount=type=ssh git clone git@github.com:PRL-PRG/rcp /rcp && \
+RUN git clone git@github.com:PRL-PRG/rcp /rcp && \
     git -C /rcp checkout --detach ${RCP_COMMIT} && \
-    git -C /rcp submodule update --init --depth 1 external/rsh 
+    git -C /rcp submodule update --init --depth 1 external/rsh
+
+RUN R -e 'install.packages("microbenchmark", repos="https://cran.r-project.org")'
 
 WORKDIR /rcp/rcp
 

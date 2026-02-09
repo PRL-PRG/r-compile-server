@@ -1,0 +1,7 @@
+src/**/*.o
+src/**/*.so
+src/**/*.a
+compile_commands.json
+src/extractor/extractor
+src/stencils-build/
+tests/debugging/*/actual.log

@@ -2,12 +2,9 @@ FROM ghcr.io/prl-prg/rcp-base
 
 ARG RSH_COMMIT
 
-# Until we figure our how to pass SSH AUTH
-# RUN mkdir -p -m 0700 /root/.ssh \
-#    && ssh-keyscan github.com >> /root/.ssh/known_hosts
 RUN git config --global url."https://github.com/".insteadOf git@github.com:
 
-RUN --mount=type=ssh git clone git@github.com:PRL-PRG/r-compile-server.git /rsh && \
+RUN git clone git@github.com:PRL-PRG/r-compile-server.git /rsh && \
     git -C /rsh checkout --detach ${RSH_COMMIT} && \
     git -C /rsh submodule update --init --depth 1 external/R
 

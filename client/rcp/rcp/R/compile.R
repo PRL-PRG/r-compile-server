@@ -1,3 +1,7 @@
+.onLoad <- function(libname, pkgname) {
+  .Call("rcp_init");
+}
+
 #' Compile a function
 #'
 #' This function compiles another function with optional settings.

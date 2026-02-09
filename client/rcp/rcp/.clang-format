@@ -19,7 +19,6 @@ BreakBeforeBraces: Allman
 # Function formatting
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
-AllowShortBracedListsOnASingleLine: false
 Cpp11BracedListStyle: true
 
 # Alignment

@@ -1,5 +1,5 @@
 DOCKER_IMAGE_ORG := prl-prg
-DOCKER_BUILD_CMD := DOCKER_BUILDKIT=1 docker build --ssh default
+DOCKER_BUILD_CMD := docker build
 
 RSH_COMMIT ?= $(shell git -C external/rsh rev-parse HEAD)
 RCP_COMMIT ?= $(shell git rev-parse HEAD) 
@@ -21,3 +21,13 @@ docker-rcp: docker-rcp-rsh
 		--build-arg RSH_COMMIT=$(RSH_COMMIT) \
 		--build-arg RCP_COMMIT=$(RCP_COMMIT) \
 		-t $(DOCKER_IMAGE_ORG)/rcp:$(RCP_COMMIT) -f Dockerfile.rcp .
+
+setup:
+	external/rsh/tools/build-gnur.sh external/rsh/external/R
+	$(MAKE) -C rcp setup
+
+test:
+	$(MAKE) -C rcp test
+
+benchmark:
+	$(MAKE) -C rcp benchmark

@@ -1,6 +1,0 @@
-OPENMP ?= 0
-
-ifneq ($(OPENMP),0)
-  PKG_CFLAGS += -fopenmp
-  PKG_LIBS += -fopenmp
-endif

@@ -1,0 +1,66 @@
+Breakpoint 1 (__jit_debug_register_code) pending.
+> library(rcp)
+
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+70	{
+gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=0) at gdb_jit.c:XXX
+1120		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+>
+> # Minimal function: f(x) = x + 1
+> # Expected Bytecode:
+> # 1. GETVAR x
+> # 2. LDCONST 1
+> # 3. ADD
+> # 4. RETURN
+> f <- function(x) x + 1
+>
+> cat("Compiling minimal function...\n")
+Compiling minimal function...
+> f_jit <- rcp::rcp_cmpfun(f, list(name="f_jit"))
+
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+70	{
+gdb_jit_register (func_name=func_name@entry=0xADDR "f_jit", code_addr=code_addr@entry=0xADDR <f_jit>, code_size=1880, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=5, stencils=<optimized out>, base_cfa_offset=64) at gdb_jit.c:XXX
+1120		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 1.
+>
+> cat("Executing function...\n")
+Executing function...
+> res <- f_jit(10)
+
+Breakpoint 2, f_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/f_jit.S:1
+1	_RCP_INIT
+Breakpoint 3 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 2.
+#0  f_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/f_jit.S:1
+#1  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#2  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#3  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:XXX
+#4  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:XXX
+#5  0xADDR in Rf_applyClosure (call=0xADDR, op=0xADDR, arglist=<optimized out>, rho=0xADDR, suppliedvars=<optimized out>, unpromise=TRUE) at eval.c:XXX
+#6  Rf_eval (e=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#7  0xADDR in do_set (call=0xADDR, op=0xADDR, args=0xADDR, rho=0xADDR) at ../../src/include/Rinlinedfuns.h:92
+#8  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#9  0xADDR in Rf_ReplIteration (rho=rho@entry=0xADDR, savestack=savestack@entry=0, browselevel=browselevel@entry=0, state=state@entry=0xADDR) at main.c:XXX
+#10 0xADDR in R_ReplConsole (rho=0xADDR, savestack=savestack@entry=0, browselevel=browselevel@entry=0) at main.c:XXX
+#11 0xADDR in run_Rmainloop () at main.c:XXX
+#12 0xADDR in Rf_mainloop () at main.c:XXX
+#13 0xADDR in main (ac=<optimized out>, av=<optimized out>) at Rmain.c:XXX
+
+Breakpoint 3, f_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/f_jit.S:2
+2	GETVAR_OP_
+Breakpoint 4 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 3.
+
+Breakpoint 4, f_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/f_jit.S:3
+3	LDCONST_OP_DBL
+Stack Top after GETVAR (should be 10):dbl: 10.000000
+Breakpoint 5 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 4.
+
+Breakpoint 5, f_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/f_jit.S:4
+4	ADD_OP_
+Stack Top after LDCONST (should be 1):dbl: 1.000000
+Breakpoint 6 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 5.
+
+Breakpoint 6, f_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/f_jit.S:5
+5	RETURN_OP_
+Stack Top after ADD (should be 11):dbl: 11.000000
+Function "__jit_debug_register_code" not defined.

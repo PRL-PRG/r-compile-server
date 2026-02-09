@@ -1,0 +1,9 @@
+.git/
+*.o
+*.so
+*.Rcheck/
+benchmark-results/
+*~
+.Rproj.user/
+.Rhistory
+.RData

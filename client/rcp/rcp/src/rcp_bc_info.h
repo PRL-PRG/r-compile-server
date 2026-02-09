@@ -1,3 +1,6 @@
+#ifndef RCP_BC_INFO_H
+#define RCP_BC_INFO_H
+
 #include <stdint.h>
 
 typedef enum
@@ -131,6 +134,7 @@ typedef enum
 	DECLNK_N_BCOP = 126,
 	INCLNKSTK_BCOP = 127,
 	DECLNKSTK_BCOP = 128,
+	NUM_OPCODES
 } RCP_BC_OPCODES;
 
 static uint8_t RCP_BC_ARG_CNT[] __attribute__((unused)) = {
@@ -262,8 +266,7 @@ static uint8_t RCP_BC_ARG_CNT[] __attribute__((unused)) = {
 	/*DECLNK.OP*/ 0,
 	/*DECLNK_N.OP*/ 1,
 	/*INCLNKSTK.OP*/ 0,
-	/*DECLNKSTK.OP*/ 0,
-};
+	/*DECLNKSTK.OP*/ 0};
 
 #define RCP_BC_STACK_EFFECT_BCMISMATCH		  0
 #define RCP_BC_STACK_EFFECT_RETURN			  -1
@@ -524,5 +527,6 @@ static int8_t RCP_BC_STACK_EFFECT[] __attribute__((unused)) = {
 	RCP_BC_STACK_EFFECT_DECLNK,
 	RCP_BC_STACK_EFFECT_DECLNK_N,
 	RCP_BC_STACK_EFFECT_INCLNKSTK,
-	RCP_BC_STACK_EFFECT_DECLNKSTK,
-};
+	RCP_BC_STACK_EFFECT_DECLNKSTK};
+
+#endif // RCP_BC_INFO_H

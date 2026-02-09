@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: benchmarks
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -50,14 +50,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build prl-rpg/rcp-base
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.rcp-base
@@ -70,7 +70,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=rcp-base
 
       - name: Build prl-prg/rcp-rsh
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.rcp-rsh
@@ -83,7 +83,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=rcp-rsh
 
       - name: Build prl-prg/rcp
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.rcp
@@ -96,10 +96,43 @@ jobs:
           cache-from: type=gha,scope=rcp
           cache-to: type=gha,mode=max,scope=rcp
 
+  test:
+    name: Test (GDB_JIT=${{ matrix.gdb_jit }})
+    runs-on: ubuntu-latest
+    needs: build-images
+    strategy:
+      fail-fast: false
+      matrix:
+        gdb_jit: [0, 1]
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TEST_DOCKER_CONTAINER: test-gdb-${{ matrix.gdb_jit }}
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and test
+        shell: bash
+        run: |
+          docker run \
+          --name $TEST_DOCKER_CONTAINER \
+          ghcr.io/prl-prg/rcp:${{ github.sha }} \
+          bash -c "make -C /rcp/rcp clean test GDB_JIT_SUPPORT=${{ matrix.gdb_jit }}"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f $TEST_DOCKER_CONTAINER || true
+
   run-benchmarks:
     name: Benchmarks
     runs-on: self-hosted
-    needs: build-images
+    needs: test
     strategy:
       max-parallel: 1
       matrix:
@@ -115,7 +148,7 @@ jobs:
       BENCH_ITER: 15
     steps:
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

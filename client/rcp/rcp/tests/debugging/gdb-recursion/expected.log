@@ -1,0 +1,64 @@
+Breakpoint 1 (__jit_debug_register_code) pending.
+> library(rcp)
+
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+70	{
+gdb_jit_register (func_name=func_name@entry=0xADDR "__rcp_notinlined_helpers", code_addr=code_addr@entry=0xADDR <__rcp_notinlined_helpers>, code_size=code_size@entry=2365, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=3, stencils=<optimized out>, base_cfa_offset=0) at gdb_jit.c:XXX
+1120		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+>
+> # Recursive function
+> # test_add(4) -> calls test_add(3) -> calls test_add(2) -> returns 12
+> test_add <- function(x) {
++   if (x > 2) {
++     return(test_add(x - 1))
++   } else {
++     return(x + 10)
++   }
++ }
+>
+> cat("Compiling recursive function...\n")
+Compiling recursive function...
+> # Compile
+> test_add <- rcp::rcp_cmpfun(test_add, list(name="test_add"))
+
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+70	{
+gdb_jit_register (func_name=func_name@entry=0xADDR "test_add", code_addr=code_addr@entry=0xADDR <test_add>, code_size=4184, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=13, stencils=<optimized out>, base_cfa_offset=64) at gdb_jit.c:XXX
+1120		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/test_add.S, line 1.
+>
+> cat("Executing recursive function...\n")
+Executing recursive function...
+> res <- test_add(4)
+
+Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:1
+1	_RCP_INIT
+[GDB] Hit test_add (1st call). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:1
+#1  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#2  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#3  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:XXX
+#4  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:XXX
+
+Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:1
+1	_RCP_INIT
+[GDB] Hit test_add (2nd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:1
+#1  0xADDR in rcpEval (body=<optimized out>, rho=<optimized out>) at eval.c:XXX
+#2  0xADDR in __rcp_notinlined_helpers (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/__rcp_notinlined_helpers.S:2
+#3  0xADDR in test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:8
+#4  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+
+Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:1
+1	_RCP_INIT
+[GDB] Hit test_add (3rd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:1
+#1  0xADDR in rcpEval (body=<optimized out>, rho=<optimized out>) at eval.c:XXX
+#2  0xADDR in __rcp_notinlined_helpers (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/__rcp_notinlined_helpers.S:2
+#3  0xADDR in test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:8
+#4  0xADDR in rcpEval (body=<optimized out>, rho=<optimized out>) at eval.c:XXX
+> cat("Result:", res, "\n")
+Result: 12
+>
+>
+
+Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
+70	{
+Function "__jit_debug_register_code" not defined.
