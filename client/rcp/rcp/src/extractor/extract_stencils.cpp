@@ -1259,9 +1259,9 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 			hole.kind = RELOC_RCP_EXEC_IMM;
 			hole.val.imm_pos = atoi(descr_imm);
 		}
-		else if (strcmp(descr, "PATCHED_VARIANTS") == 0)
+		else if (strcmp(descr, "CUSTOM_DATA") == 0)
 		{
-			hole.kind = RELOC_RCP_PATCHED_VARIANTS;
+			hole.kind = RELOC_RCP_CUSTOM;
 		}
 		else if (strcmp(descr, "LOOPCNTXT") == 0)
 		{

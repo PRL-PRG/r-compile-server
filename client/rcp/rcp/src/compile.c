@@ -23,6 +23,14 @@ void __assert_fail(const char *assertion, const char *file, unsigned int line,
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;	/* Slot for return-ing values */
 
+static const Stencil NOP_STENCIL = {
+	.body_size = 0,
+	.body = NULL,
+	.holes_size = 0,
+	.holes = NULL,
+	.alignment = 1,
+	.name = "NOP_STENCIL"};
+
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
 {
@@ -389,7 +397,7 @@ typedef struct
 
 static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 				  const Hole *hole, int hole_id, int *imms, int nextop,
-				  void *smc_variants, const PatchContext *ctx)
+				  void *custom_ptr, const PatchContext *ctx)
 {
 	ptrdiff_t ptr;
 	const mem_shared_data *shared;
@@ -517,14 +525,12 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 					 // allow value of 0)
 		}
 		break;
-#ifdef STEPFOR_SPECIALIZE
-		case RELOC_RCP_PATCHED_VARIANTS:
+		case RELOC_RCP_CUSTOM:
 		{
-			assert(smc_variants != NULL);
-			ptr = (ptrdiff_t)smc_variants;
+			assert(custom_ptr != NULL);
+			ptr = (ptrdiff_t)custom_ptr;
 		}
 		break;
-#endif
 		case RELOC_RCP_EXECUTABLE_START:
 		{
 			assert(ctx->executable_start != NULL);
@@ -995,8 +1001,33 @@ static void peephole_goto(int bytecode[], int bytecode_size, SEXP *constpool)
 	}
 }
 
+typedef struct PluginStencil
+{
+	int pos;
+	const Stencil *stencil;
+	void *data;
+} PluginStencil;
+
+typedef struct PluginStencils
+{
+	size_t sparse_stencils_count;
+	const PluginStencil *sparse_stencils;
+} PluginStencils;
+
+static int plugin_stencil_pos_cmp(const void *a, const void *b)
+{
+	const PluginStencil *pa = (const PluginStencil *)a;
+	const PluginStencil *pb = (const PluginStencil *)b;
+	if (pa->pos < pb->pos)
+		return -1;
+	if (pa->pos > pb->pos)
+		return 1;
+	return 0;
+}
+
 static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 SEXP *constpool, int constpool_size,
+										 const PluginStencil* plugins, int plugin_size,
 										 CompilationStats *stats,
 										 const char *name)
 {
@@ -1067,11 +1098,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			}
 		}
 
-		// Update alignment based on stencil requirements
-		bytecode_alignment[i] =
-			MAX(bytecode_alignment[i],
-				get_stencil(bytecode[i], imms, constpool)->alignment);
-
 		// Determine whether the next instruction can be jumped to directly or not
 		can_fallthrough = can_fallthrough_from_opcode(bytecode[i]);
 	}
@@ -1082,12 +1108,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 	int loopcntxts_size = 0;
 	// First pass to calculate the sizes
-	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	for (int i = 0, p = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		const int *imms = &bytecode[i + 1];
 		const Stencil *stencil = get_stencil(bytecode[i], imms, constpool);
 		// DEBUG_PRINT("Opcode: %s\n", OPCODES_NAMES[bytecode[i]]);
-		if (stencil == NULL || stencil->body_size == 0)
+		if (stencil == NULL)
 			error("Opcode not implemented: %s\n", OPCODES_NAMES[bytecode[i]]);
 
 		switch (bytecode[i])
@@ -1100,14 +1126,27 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				break;
 		}
 
-		size_t aligned_size = align_to_higher(insts_size, bytecode_alignment[i]);
-		size_t aligned_diff = aligned_size - insts_size;
-		// DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff:
-		// %zu\n", OPCODES_NAMES[bytecode[i]], insts_size, aligned_size,
-		// aligned_diff);
+		{
+			size_t aligned_size = align_to_higher(insts_size, bytecode_alignment[i]);
+			size_t aligned_diff = aligned_size - insts_size;
+			// DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff: %zu\n", OPCODES_NAMES[bytecode[i]], insts_size, aligned_size, aligned_diff);
 
-		inst_start[i] = (uint8_t *)aligned_size;
-		insts_size += stencil->body_size + aligned_diff;
+			insts_size = aligned_size;
+			inst_start[i] = (uint8_t *)insts_size;
+		}
+
+		for (; p < plugin_size && plugins[p].pos == i; p++)
+		{
+			const PluginStencil *plugin = &plugins[p];
+			const Stencil *plugin_stencil = plugin->stencil;
+			size_t aligned_size = align_to_higher(insts_size, plugin_stencil->alignment);
+			insts_size = aligned_size + plugin_stencil->body_size;
+		}
+
+		size_t aligned_size = align_to_higher(insts_size, stencil->alignment);
+		size_t aligned_diff = aligned_size - insts_size;
+
+		insts_size = aligned_size + stencil->body_size;
 		bytecode_lut[count_opcodes++] = i;
 
 		for (size_t j = 0; j < stencil->holes_size; ++j)
@@ -1242,7 +1281,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 
 #pragma omp parallel for
-	for (int i = 0; i < count_opcodes; i++)
+	for (int i = 0, p = 0; i < count_opcodes; i++)
 	{
 		int bc_pos = bytecode_lut[i];
 		int opcode = bytecode[bc_pos];
@@ -1327,15 +1366,31 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 		const Stencil *stencil = get_stencil(opcode, opargs, constpool);
 
-		stencil_variants[bc_pos] = (int)(stencil - stencils[opcode]);
+		uint8_t *pos = inst_start[bc_pos];
+		// pos is already aligned in context of native code generation, but stencils might require additional alignment, so we need to align it again here
 
-		memcpy(inst_start[bc_pos], stencil->body, stencil->body_size);
+		for (; p < plugin_size && plugins[p].pos == bc_pos; p++)
+		{
+			const PluginStencil *plugin = &plugins[p];
+			const Stencil *plugin_stencil = plugin->stencil;
+
+			//pos = (uint8_t *)align_to_higher((uintptr_t)pos, plugin_stencil->alignment);
+
+			memcpy(pos, plugin_stencil->body, plugin_stencil->body_size);
+			for (size_t k = 0; k < plugin_stencil->holes_size; ++k)
+				patch(pos, pos, bc_pos, plugin_stencil, &plugin_stencil->holes[k], k, opargs, bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, plugin->data, &ctx);
+			pos += plugin_stencil->body_size;
+		}
+
+		//pos = (uint8_t *)align_to_higher((uintptr_t)pos, stencil->alignment);
+
+		memcpy(pos, stencil->body, stencil->body_size);
 
 		// Patch the holes
 		for (size_t j = 0; j < stencil->holes_size; ++j)
-			patch(inst_start[bc_pos], inst_start[bc_pos], bc_pos, stencil,
-				  &stencil->holes[j], j, opargs,
-				  bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+			patch(pos, pos, bc_pos, stencil, &stencil->holes[j], j, opargs, bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+
+		pos += stencil->body_size;
 	}
 
 #ifdef DEBUG_MODE
@@ -1605,8 +1660,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	}
 
 	bytecode_info(bytecode, bytecode_size, consts, consts_size);
-	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts,
-											consts_size, stats, name);
+	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, NULL, 0, stats, name);
 	UNPROTECT(1); // code
 
 	rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);

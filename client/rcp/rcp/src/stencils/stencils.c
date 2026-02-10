@@ -174,8 +174,9 @@ extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
 #define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
 
-extern const void *const _RCP_PATCHED_VARIANTS[];
-#define GETVARIANTS() (const void *)&_RCP_PATCHED_VARIANTS
+extern void* const _RCP_CUSTOM_DATA[];
+#define GETCUSTOM() (const void*)&_RCP_CUSTOM_DATA
+#define GETVARIANTS() (const void*)&_RCP_CUSTOM_DATA
 
 extern const void *const _RCP_LOOPCNTXT;
 #define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
