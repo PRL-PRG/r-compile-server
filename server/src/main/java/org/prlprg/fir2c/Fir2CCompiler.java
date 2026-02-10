@@ -71,6 +71,7 @@ import org.prlprg.fir.ir.variable.*;
 import org.prlprg.gen2c.*;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
+import org.prlprg.util.Collections2;
 import org.prlprg.util.Lists;
 
 /// Compiles FIŘ modules into C translation units.
@@ -225,12 +226,27 @@ public final class Fir2CCompiler {
       var cName = functionFromRCName(function);
       var cFunction = cUnit.addFunction(FROM_R_C_RETURN, cName, FROM_R_C_PARAMS);
 
+      int numParams = function.parameterNames().size();
+      var versions = Collections2.filter(function.versionsSorted(), v -> v.parameters().size() == numParams && v.parameters().stream().allMatch(p -> p.type().ownership() == Ownership.SHARED));
+      int i;
+      Iterator<Abstraction> versionIter;
+      Abstraction version;
+
       CCode cCode;
+
       if (options.contains(Option.EMIT_DEBUG_COMMENTS)
           || options.contains(Option.EMIT_DEBUG_PRINTS)) {
         cCode = cFunction.add();
 
         debugComment(cCode, "## Dispatch-from-R %s", function.name());
+
+        for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
+          version = versionIter.next();
+
+          debugComment(cCode, "# %d. %s", i, version.signature());
+        }
+
+        debugSignature(cCode);
       }
 
       if (!function.parameterNames().isEmpty()) {
@@ -238,7 +254,35 @@ public final class Fir2CCompiler {
       }
 
       cCode = cFunction.add();
-      debugComment(cCode, "# Dispatch baseline");
+      debugComment(cCode, "# Read arguments");
+      var argsSplice = new StringBuilder();
+      for (int j = 0; j < numParams; j++) {
+        var paramName = function.parameterNames().get(j);
+        var argName = "arg" + j;
+
+        if (paramName == NamedVariable.DOTS) {
+          // R passes missing instead of an empty list, but FIR always expects a list.
+          cCode.stmt("SEXP %s = Rf_findVarInFrame(%s, R_DotsSymbol);", argName, VAR_ENV);
+          cCode.stmt(
+              "%s = %s == R_MissingArg ? R_NilValue : %s;",
+              argName, argName, argName);
+        } else {
+          var paramSym = nvSymbolRef(fnPool, paramName);
+          cCode.stmt(
+              "SEXP %s = Rf_findVarInFrame(%s, %s);",
+              argName, VAR_ENV, paramSym);
+          cCode.stmt("if (TYPEOF(%s) == PROMSXP && PROMISE_IS_EVALUATED(%s))", argName, argName);
+          cCode.stmt(2, "%s = PRVALUE(%s);", argName, argName);
+        }
+
+        argsSplice.append(", ").append(argName);
+      }
+
+      cCode = cFunction.add();
+      debugComment(cCode, "# Suppress inner mkenv (if present) because R makes it");
+      cCode.stmt("SEXP outer_env;");
+      cCode.stmt("bool push_suppressed;");
+      cCode.stmt("Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed);", VAR_ENV);
 
       var baseline = function.baseline();
       var baselineCName = versionCallCName(function, baseline);
@@ -247,37 +291,50 @@ public final class Fir2CCompiler {
             "Function's parameter count isn't equal its baseline's:\n" + function);
       }
 
-      var argsSplice = new StringBuilder();
-      var argsSpliceFmt = new Formatter(argsSplice);
-      for (var paramName : function.parameterNames()) {
-        if (paramName == NamedVariable.DOTS) {
-          // R passes missing instead of an empty list, but FIR always expects a list.
-          cCode.stmt("SEXP missing_in_frame = Rf_findVarInFrame(%s, R_DotsSymbol);", VAR_ENV);
-          argsSpliceFmt.format(
-              ", missing_in_frame == R_MissingArg ? R_NilValue : missing_in_frame");
-        } else {
-          var paramSym = nvSymbolRef(fnPool, paramName);
-          argsSpliceFmt.format(", Rf_findVarInFrame(%s, %s)", VAR_ENV, paramSym);
+      if (versions.size() > 1) {
+        cCode = cFunction.add();
+        debugComment(cCode, "# Filter possible optimized versions by runtime types");
+        cCode.stmt("bool incompatible[%d];", versions.size() - 1);
+        for (int j = 0; j < numParams; j++) {
+          var argName = "arg" + j;
+
+          for (i = 0, versionIter = versions.iterator(); i < versions.size() - 1; i++) {
+            version = versionIter.next();
+
+            var typeEmit = emitType(cCode, version.parameters().get(j).type());
+
+            cCode.stmt(
+                "incompatible[%d] = !Fir_value_matches(%s, %s);",
+                i, argName, typeEmit);
+          }
         }
+
+        cCode = cFunction.add();
+        debugComment(cCode, "# Call first compatible optimized version, else baseline");
+        cCode.stmt("SEXP out;");
+        for (i = 0, versionIter = versions.iterator(); i < versions.size() - 1; i++) {
+          version = versionIter.next();
+
+          var ifHead = i == 0 ? "if" : "else if";
+          var callCName = versionCallCName(function, version);
+
+          cCode.stmt("%s (!incompatible[%d])", ifHead, i);
+          cCode.stmt(2, "out = %s(%s%s);", callCName, VAR_ENV, argsSplice);
+        }
+
+        cCode.stmt("else");
+        cCode.stmt(2, "out = %s(%s%s);", baselineCName, VAR_ENV, argsSplice);
+      } else {
+        cCode = cFunction.add();
+        debugComment(cCode, "# Call baseline (no optimized versions are possible)");
+        cCode.stmt("SEXP out = %s(%s%s);", baselineCName, VAR_ENV, argsSplice);
       }
 
-      cCode = cFunction.add();
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment("Suppress inner mkenv (if present) because R makes it");
-      }
-      cCode.stmt("SEXP outer_env;");
-      cCode.stmt("bool push_suppressed;");
-      cCode.stmt("Fir_set_env_pushed_from_r(%s, &outer_env, &push_suppressed);", VAR_ENV);
-
-      cCode = cFunction.add();
-      cCode.stmt("SEXP result = %s(%s%s);", baselineCName, VAR_ENV, argsSplice);
-
-      if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
-        cCode.comment("Un-suppress inner mkenv");
-      }
-      cCode = cFunction.add();
+      debugComment(cCode, "# Un-suppress inner mkenv");
       cCode.stmt("Fir_unset_env_pushed_from_r(outer_env, push_suppressed);");
-      cCode.stmt("return result;");
+
+      cCode = cFunction.add();
+      cCode.stmt("return out;");
     }
 
     private void emitDispatch() {
@@ -297,7 +354,7 @@ public final class Fir2CCompiler {
 
         debugComment(cCode, "## Dispatch %s", function.name());
 
-        for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
+        for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
           version = versionIter.next();
 
           debugComment(cCode, "# %d. %s", i, version.signature());
@@ -315,7 +372,7 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by argument count");
-      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
+      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
         cCode.stmt(
@@ -325,7 +382,7 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by static effects and return type");
-      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
+      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
         var typeEmit = emitType(cCode, version.returnType());
@@ -339,12 +396,8 @@ public final class Fir2CCompiler {
       debugComment(cCode, "# Filter by arguments' un-improvable type info:");
       debugComment(
           cCode, "# parameter length, static ownership, and C type (but currently all are SEXP)");
-      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
+      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
-
-        cCode.stmt(
-            "incompatible[%d] = incompatible[%d] || %s.param_count != %d;",
-            i, i, VAR_SIGNATURE, version.parameters().size());
 
         for (var j = 0; j < version.parameters().size(); j++) {
           var ownershipEmit = emitOwnership(version.parameters().get(j).type().ownership());
@@ -354,13 +407,8 @@ public final class Fir2CCompiler {
         }
       }
 
-      cCode = cFunction.add();
-      debugComment(cCode, "# Filter by arguments' runtime type");
-      cCode.stmt("for (int i = 0; i < %s.param_count; ++i) {", VAR_SIGNATURE);
-      cCode.stmt(2, "SEXP arg_sexp = va_arg(args2, SEXP);");
-      cCode.stmt(2, "switch (i) {");
       var cases = new ArrayList<ArrayList<String>>();
-      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
+      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
         for (var j = 0; j < version.parameters().size(); j++) {
@@ -376,21 +424,29 @@ public final class Fir2CCompiler {
                       .formatted(i, i, typeEmit));
         }
       }
-      for (var j = 0; j < cases.size(); j++) {
-        cCode.stmt(2, "case %d:", j);
-        for (var line : cases.get(j)) {
-          cCode.stmt(3, "%s", line);
+      if (!cases.isEmpty()) {
+        cCode = cFunction.add();
+        debugComment(cCode, "# Filter by arguments' runtime type");
+        cCode.stmt("for (int i = 0; i < %s.param_count; ++i) {", VAR_SIGNATURE);
+        cCode.stmt(2, "SEXP arg_sexp = va_arg(args2, SEXP);");
+        cCode.stmt(2, "switch (i) {");
+        for (var j = 0; j < cases.size(); j++) {
+          cCode.stmt(2, "case %d:", j);
+          for (var line : cases.get(j)) {
+            cCode.stmt(3, "%s", line);
+          }
         }
+        cCode.stmt(2, "default:");
+        cCode.stmt(3, "break;");
+        cCode.stmt(2, "}");
+        cCode.stmt("}");
       }
-      cCode.stmt(2, "default:");
-      cCode.stmt(3, "break;");
-      cCode.stmt("}");
       cCode.stmt("va_end(args2);");
 
       cCode = cFunction.add();
       debugComment(cCode, "# Call first compatible version");
       cCode.stmt("SEXP out;");
-      for (i = 0, versionIter = versions.iterator(); versionIter.hasNext(); i++) {
+      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
         var ifHead = i == 0 ? "if" : "} else if";
@@ -414,6 +470,9 @@ public final class Fir2CCompiler {
           2,
           "Rf_error(\"No versions compatible with the given arguments for %s\");",
           sanitizeString(function.name().name()));
+
+      cCode = cFunction.add();
+      cCode.stmt("va_end(args);");
       cCode.stmt("return out;");
     }
 
