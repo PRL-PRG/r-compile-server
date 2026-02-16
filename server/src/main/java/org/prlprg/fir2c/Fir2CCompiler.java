@@ -943,9 +943,9 @@ public final class Fir2CCompiler {
               case LoadFun(var variable, var env) -> {
                 var envSelector =
                     switch (env) {
-                      case LoadFun.Env.LOCAL -> "Fir_LoadFun_Local";
-                      case LoadFun.Env.GLOBAL -> "Fir_LoadFun_Global";
-                      case LoadFun.Env.BASE -> "Fir_LoadFun_Base";
+                      case LoadFun.Env.LOCAL -> "FIR_LOADFUN_LOCAL";
+                      case LoadFun.Env.GLOBAL -> "FIR_LOADFUN_GLOBAL";
+                      case LoadFun.Env.BASE -> "FIR_LOADFUN_BASE";
                     };
                 yield "Fir_load_fun(%s, %s, %s)"
                     .formatted(envSelector, nvSymbolRef(pool, variable), VAR_ENV);
@@ -1358,9 +1358,9 @@ public final class Fir2CCompiler {
       case Kind.Any() -> "Fir_kind_any";
       case Kind.AnyValue() -> "Fir_kind_anyValue";
       case Kind.PrimitiveScalar(var primitiveKind) ->
-          "Fir_kind_primitiveScalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
+          "Fir_kind_primitive_scalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
       case Kind.PrimitiveVector(var primitiveKind) ->
-          "Fir_kind_primitiveVector(%s)".formatted(emitPrimitiveKind(primitiveKind));
+          "Fir_kind_primitive_vector(%s)".formatted(emitPrimitiveKind(primitiveKind));
       case Kind.Closure() -> "Fir_kind_closure";
       case Kind.Dots() -> "Fir_kind_dots";
       case Kind.Promise(var valueType, var fx) -> {
