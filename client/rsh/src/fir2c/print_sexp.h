@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-void Fir_printSexp(SEXP s);
+void Fir_print_sexp(SEXP s);
 
 #ifdef __cplusplus
 }

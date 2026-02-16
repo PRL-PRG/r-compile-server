@@ -12,36 +12,24 @@ Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
 Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
 
 static Fir_Kind const PRIMITIVE_SCALAR_KINDS[4] = {
-    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
-    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
-    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
-    {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
+  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
+  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
+  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
+  {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
 
 static Fir_Kind const PRIMITIVE_VECTOR_KINDS[4] = {
-    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
-    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
-    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
-    {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
 
-Fir_Kind Fir_kind_primitiveScalar(int primitive_kind) {
-  ASSERT(
-    primitive_kind >= 0 && primitive_kind < 4,
-    "Invalid primitive scalar kind index %d",
-    primitive_kind
-  );
-
+Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_SCALAR_KINDS[primitive_kind];
 }
 
-Fir_Kind Fir_kind_primitiveVector(int primitive_kind) {
-  ASSERT(
-    primitive_kind >= 0 && primitive_kind < 4,
-    "Invalid primitive vector kind index %d",
-    primitive_kind
-  );
-
+Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_VECTOR_KINDS[primitive_kind];
 }
 
@@ -142,8 +130,7 @@ bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
 }
 
 bool Fir_value_matches(SEXP value, Fir_Type type) {
-  switch (type.kind.tag)
-  {
+  switch (type.kind.tag) {
   case FIR_KIND_ANY:
   case FIR_KIND_ANY_VALUE:
     return true;
@@ -254,14 +241,14 @@ SEXP Fir_load_dots(int ddIndex, SEXP env) {
   return Rf_ddfind(ddIndex, env);
 }
 
-SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env) {
+SEXP Fir_load_fun(Fir_LoadFun env_selector, SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load_fun");
   switch (env_selector) {
-  case Fir_LoadFun_Local:
+  case FIR_LOADFUN_LOCAL:
     return Rf_findFun(symbol, env);
-  case Fir_LoadFun_Global:
+  case FIR_LOADFUN_GLOBAL:
     return Rf_findFun(symbol, R_GlobalEnv);
-  case Fir_LoadFun_Base:
+  case FIR_LOADFUN_BASE:
     return Rf_findFun(symbol, R_BaseEnv);
   default:
     Rf_error("Invalid environment selector for load_fun");
@@ -788,17 +775,17 @@ void Fir_dbg_comment(const char* comment) {
 
 void Fir_dbg_sexp(const char* name, SEXP value) {
   fprintf(stderr, "* - %s = ", name);
-  Fir_printSexp(value);
+  Fir_print_sexp(value);
   fprintf(stderr, "\n");
 }
 
-void Fir_printSignature(Fir_Signature signature) {
+void Fir_print_signature(Fir_Signature signature) {
   // Print parameter types separated by ", "
   for (int i = 0; i < signature.param_count; ++i) {
     if (i > 0) {
       fprintf(stderr, ", ");
     }
-    Fir_printType(signature.param_types[i]);
+    Fir_print_type(signature.param_types[i]);
   }
 
   if (signature.param_count > 0) {
@@ -806,24 +793,24 @@ void Fir_printSignature(Fir_Signature signature) {
   }
 
   fprintf(stderr, "-");
-  Fir_printEffects(signature.effects);
+  Fir_print_effects(signature.effects);
   fprintf(stderr, "> ");
-  Fir_printType(signature.return_type);
+  Fir_print_type(signature.return_type);
 }
 
-void Fir_printType(Fir_Type type) {
-  Fir_printKind(type.kind);
+void Fir_print_type(Fir_Type type) {
+  Fir_print_kind(type.kind);
   if (type.ownership != FIR_SHARED) {
-    Fir_printOwnership(type.ownership);
+    Fir_print_ownership(type.ownership);
   }
   // For `Kind.Any`, concreteness is implicit iff `MAYBE`.
   // For other kinds, concreteness is implicit iff `DEFINITELY`.
   if ((type.kind.tag == FIR_KIND_ANY) == type.definite) {
-    Fir_printConcreteness(type.definite);
+    Fir_print_concreteness(type.definite);
   }
 }
 
-void Fir_printKind(Fir_Kind kind) {
+void Fir_print_kind(Fir_Kind kind) {
   switch (kind.tag) {
   case FIR_KIND_ANY:
     fprintf(stderr, "*");
@@ -832,11 +819,11 @@ void Fir_printKind(Fir_Kind kind) {
     fprintf(stderr, "V");
     break;
   case FIR_KIND_PRIMITIVE_SCALAR:
-    Fir_printPrimitiveKind(kind.as.primitive.primitive);
+    Fir_print_primitive_kind(kind.as.primitive.primitive);
     break;
   case FIR_KIND_PRIMITIVE_VECTOR:
     fprintf(stderr, "v(");
-    Fir_printPrimitiveKind(kind.as.primitive.primitive);
+    Fir_print_primitive_kind(kind.as.primitive.primitive);
     fprintf(stderr, ")");
     break;
   case FIR_KIND_CLOSURE:
@@ -847,15 +834,15 @@ void Fir_printKind(Fir_Kind kind) {
     break;
   case FIR_KIND_PROMISE:
     fprintf(stderr, "p(");
-    Fir_printType(*kind.as.promise.value_type);
+    Fir_print_type(*kind.as.promise.value_type);
     fprintf(stderr, " ");
-    Fir_printEffects(kind.as.promise.reflect);
+    Fir_print_effects(kind.as.promise.reflect);
     fprintf(stderr, ")");
     break;
   }
 }
 
-void Fir_printPrimitiveKind(Fir_PrimitiveKind primitive) {
+void Fir_print_primitive_kind(Fir_PrimitiveKind primitive) {
   switch (primitive) {
   case FIR_PRIMITIVE_LOGICAL:
     fprintf(stderr, "L");
@@ -872,7 +859,7 @@ void Fir_printPrimitiveKind(Fir_PrimitiveKind primitive) {
   }
 }
 
-void Fir_printOwnership(Fir_Ownership ownership) {
+void Fir_print_ownership(Fir_Ownership ownership) {
   switch (ownership) {
   case FIR_FRESH:
     fprintf(stderr, "f");
@@ -889,7 +876,7 @@ void Fir_printOwnership(Fir_Ownership ownership) {
   }
 }
 
-void Fir_printConcreteness(bool definite) {
+void Fir_print_concreteness(bool definite) {
   if (definite) {
     fprintf(stderr, "!");
   } else {
@@ -897,7 +884,7 @@ void Fir_printConcreteness(bool definite) {
   }
 }
 
-void Fir_printEffects(bool reflect) {
+void Fir_print_effects(bool reflect) {
   if (reflect) {
     fprintf(stderr, "+");
   } else {
@@ -907,7 +894,7 @@ void Fir_printEffects(bool reflect) {
 
 void Fir_dbg_signature(Fir_Signature signature) {
   fprintf(stderr, "* - Signature: ");
-  Fir_printSignature(signature);
+  Fir_print_signature(signature);
   fprintf(stderr, "\n");
 }
 

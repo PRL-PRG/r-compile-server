@@ -61,6 +61,12 @@ typedef struct Fir_Signature {
   bool effects;
 } Fir_Signature;
 
+typedef enum {
+  FIR_LOADFUN_LOCAL = 0,
+  FIR_LOADFUN_GLOBAL = 1,
+  FIR_LOADFUN_BASE = 2,
+} Fir_LoadFun;
+
 typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
 typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
 typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP **captures);
@@ -86,19 +92,19 @@ extern Fir_Kind Fir_kind_anyValue;
 extern Fir_Kind Fir_kind_closure;
 extern Fir_Kind Fir_kind_dots;
 
-void Fir_printSignature(Fir_Signature signature);
-void Fir_printType(Fir_Type type);
-void Fir_printKind(Fir_Kind kind);
-void Fir_printPrimitiveKind(Fir_PrimitiveKind primitive);
-void Fir_printOwnership(Fir_Ownership ownership);
-void Fir_printConcreteness(bool definite);
-void Fir_printEffects(bool reflect);
+void Fir_print_signature(Fir_Signature signature);
+void Fir_print_type(Fir_Type type);
+void Fir_print_kind(Fir_Kind kind);
+void Fir_print_primitive_kind(Fir_PrimitiveKind primitive);
+void Fir_print_ownership(Fir_Ownership ownership);
+void Fir_print_concreteness(bool definite);
+void Fir_print_effects(bool reflect);
 
 bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
 bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data);
 
-Fir_Kind Fir_kind_primitiveScalar(int primitive_kind);
-Fir_Kind Fir_kind_primitiveVector(int primitive_kind);
+Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
+Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
 Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect);
 
 Fir_Type Fir_type(Fir_Kind kind, Fir_Ownership ownership, bool definite);
@@ -117,7 +123,7 @@ SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_safe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int ddIndex, SEXP env);
-SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env);
+SEXP Fir_load_fun(Fir_LoadFun env_selector, SEXP symbol, SEXP env);
 void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 void Fir_push_env(SEXP *env);
@@ -142,10 +148,6 @@ bool Fir_assume_type(SEXP value, Fir_Type type);
 void Fir_dbg_comment(const char* comment);
 void Fir_dbg_sexp(const char* name, SEXP value);
 void Fir_dbg_signature(Fir_Signature signature);
-
-#define Fir_LoadFun_Local 0
-#define Fir_LoadFun_Global 1
-#define Fir_LoadFun_Base 2
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
