@@ -303,7 +303,8 @@ public final class Fir2CCompiler {
 
             var typeEmit = emitType(cCode, version.parameters().get(j).type());
 
-            cCode.stmt("incompatible[%d] = !Fir_value_matches(%s, %s);", i, argName, typeEmit);
+            var chain = j == 0 ? "" : "incompatible[%d] || ".formatted(i);
+            cCode.stmt("incompatible[%d] = %s!Fir_value_matches(%s, %s);", i, chain, argName, typeEmit);
           }
         }
 
