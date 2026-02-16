@@ -1,0 +1,69 @@
+package org.prlprg.fir.opt.specialize;
+
+import static org.prlprg.fir.ir.expression.Expression.NOOP;
+
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.Analyses;
+import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.resolve.OriginAnalysis;
+import org.prlprg.fir.analyze.type.InferType;
+import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.AssumeConstant;
+import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeType;
+import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.variable.Register;
+
+/// Optimization that removes [Assume](org.prlprg.fir.ir.expression.Assume)s that statically
+/// succeed.
+public record ElideTrivialAssume() implements SpecializeOptimization {
+  @Override
+  public AnalysisTypes analyses() {
+    return new AnalysisTypes(InferType.class, OriginAnalysis.class);
+  }
+
+  @Override
+  public Expression run(
+      BB bb,
+      int index,
+      @Nullable Register assignee,
+      Expression expression,
+      Abstraction scope,
+      AbstractionFeedback feedback,
+      Analyses analyses,
+      NonLocalSpecializations nonLocal,
+      DeferredInsertions defer) {
+    return switch (expression) {
+      case AssumeType(var value, var type) -> {
+        var valueType = analyses.get(InferType.class).of(value);
+        if (valueType == null || !valueType.isSubtypeOf(type)) {
+          yield expression;
+        }
+
+        yield new Aea(value);
+      }
+      case AssumeFunction a -> {
+        var origin = analyses.get(OriginAnalysis.class).resolveExpression(a.target());
+        if (!Objects.equals(origin, new Closure(a.function()))) {
+          yield expression;
+        }
+
+        yield NOOP;
+      }
+      case AssumeConstant(var value, var constant) -> {
+        var origin = analyses.get(OriginAnalysis.class).resolve(value);
+        if (origin != constant) {
+          yield expression;
+        }
+
+        yield NOOP;
+      }
+      default -> expression;
+    };
+  }
+}

@@ -30,6 +30,9 @@
 #define PRIMOFFSET(x)	((x)->u.primsxp.offset)
 #define PRIMNAME(x)	(R_FunTab[PRIMOFFSET(x)].name)
 
+// This one is defined somewhere unknown, but the value is mentioned in a comment
+#define FLT_EPSILON 1.192e-07
+
 extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;

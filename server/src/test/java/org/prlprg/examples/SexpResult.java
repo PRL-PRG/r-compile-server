@@ -50,8 +50,8 @@ public sealed interface SexpResult {
   default void check(Example example) {
     if (example.hasOption("", "crashes") && success()) {
       fail("Expected **crash**, got success.\n" + this);
-    } else if (!success()) {
-      fail("Expected success.\n" + this);
+    } else if (this instanceof Error(var message)) {
+      fail("Expected success, got crash.\n" + message);
     }
 
     if (example.hasOption("", "returns")) {

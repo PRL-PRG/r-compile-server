@@ -121,7 +121,9 @@ fun `!`(x) {
 fun `:`(lhs, rhs) {
   (reg lhs:*, reg rhs:*) -+> V { ... }
   (reg lhs:I, reg rhs:I) --> v(I) { ... }
-  (reg lhs:R, reg rhs:R) --> v(R) { ... }
+  (reg lhs:I, reg rhs:R) --> v(I) { ... }
+  # If `lhs` has no decimals, it coerces to int
+  (reg lhs:R, reg rhs:R) --> V { ... }
 }
 
 fun `[`(x, i, `...`, drop) {

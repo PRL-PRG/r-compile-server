@@ -204,6 +204,7 @@ public final class Fir2CCompiler {
       debugComment(cCode, "# Add `Fir_FunctionData`");
       var idx = fnPool.internSpace();
       assert idx == 0;
+      var functionName = "\"%s\"".formatted(sanitizeString(function.name().toString()));
       var formalNames =
           constantRef(
               fnPool,
@@ -213,8 +214,8 @@ public final class Fir2CCompiler {
       cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_FunctionData));");
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt(
-          "*data = (Fir_FunctionData) {.dispatch = %s, .formal_names = %s};",
-          functionDispatchCName(function), formalNames);
+          "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .formal_names = %s};",
+          functionName, functionDispatchCName(function), formalNames);
       cCode.stmt("Rsh_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
     }
 
@@ -227,7 +228,13 @@ public final class Fir2CCompiler {
       var cFunction = cUnit.addFunction(FROM_R_C_RETURN, cName, FROM_R_C_PARAMS);
 
       int numParams = function.parameterNames().size();
-      var versions = Collections2.filter(function.versionsSorted(), v -> v.parameters().size() == numParams && v.parameters().stream().allMatch(p -> p.type().ownership() == Ownership.SHARED));
+      var versions =
+          Collections2.filter(
+              function.versionsSorted(),
+              v ->
+                  v.parameters().size() == numParams
+                      && v.parameters().stream()
+                          .allMatch(p -> p.type().ownership() == Ownership.SHARED));
       int i;
       Iterator<Abstraction> versionIter;
       Abstraction version;
@@ -245,8 +252,6 @@ public final class Fir2CCompiler {
 
           debugComment(cCode, "# %d. %s", i, version.signature());
         }
-
-        debugSignature(cCode);
       }
 
       if (!function.parameterNames().isEmpty()) {
@@ -263,16 +268,11 @@ public final class Fir2CCompiler {
         if (paramName == NamedVariable.DOTS) {
           // R passes missing instead of an empty list, but FIR always expects a list.
           cCode.stmt("SEXP %s = Rf_findVarInFrame(%s, R_DotsSymbol);", argName, VAR_ENV);
-          cCode.stmt(
-              "%s = %s == R_MissingArg ? R_NilValue : %s;",
-              argName, argName, argName);
+          cCode.stmt("%s = %s == R_MissingArg ? R_NilValue : %s;", argName, argName, argName);
         } else {
           var paramSym = nvSymbolRef(fnPool, paramName);
           cCode.stmt(
-              "SEXP %s = Rf_findVarInFrame(%s, %s);",
-              argName, VAR_ENV, paramSym);
-          cCode.stmt("if (TYPEOF(%s) == PROMSXP && PROMISE_IS_EVALUATED(%s))", argName, argName);
-          cCode.stmt(2, "%s = PRVALUE(%s);", argName, argName);
+              "SEXP %s = Fir_safe_force(Rf_findVarInFrame(%s, %s));", argName, VAR_ENV, paramSym);
         }
 
         argsSplice.append(", ").append(argName);
@@ -303,9 +303,7 @@ public final class Fir2CCompiler {
 
             var typeEmit = emitType(cCode, version.parameters().get(j).type());
 
-            cCode.stmt(
-                "incompatible[%d] = !Fir_value_matches(%s, %s);",
-                i, argName, typeEmit);
+            cCode.stmt("incompatible[%d] = !Fir_value_matches(%s, %s);", i, argName, typeEmit);
           }
         }
 
@@ -661,9 +659,10 @@ public final class Fir2CCompiler {
               "Fir_PromiseGlobalData *data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(data_sexp);");
           var evalCName = promiseEvalCName(promise);
           var valueType = emitType(cCode, promise.valueType());
+          var reflect = emitEffects(promise.effects());
           cCode.stmt(
-              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s};",
-              evalCName, valueType);
+              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .reflect = %s};",
+              evalCName, valueType, reflect);
         }
 
         private void emitFromR() {

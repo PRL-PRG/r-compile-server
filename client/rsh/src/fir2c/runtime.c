@@ -65,7 +65,7 @@ static void Fir_assert_symbol(SEXP sym, const char *what) {
   );
 }
 
-static bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
+bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
   if (TYPEOF(value) != CLOSXP) {
     return false;
   }
@@ -79,7 +79,7 @@ static bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
   return true;
 }
 
-static bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data) {
+bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data) {
   if (TYPEOF(value) != PROMSXP) {
     return false;
   }
@@ -172,16 +172,29 @@ bool Fir_value_matches(SEXP value, Fir_Type type) {
   case FIR_KIND_DOTS:
     return TYPEOF(value) == DOTSXP;
   case FIR_KIND_PROMISE: {
+    if (TYPEOF(value) != PROMSXP) {
+        // Not a promise
+        return false;
+    }
+
+    SEXP forced = Fir_safe_force(value);
+    if (TYPEOF(forced) != PROMSXP) {
+      // Already-evaluated or constant
+      return Fir_value_matches(forced, *type.kind.as.promise.value_type);
+    }
+
     Fir_PromiseGlobalData *global_data;
     Fir_PromiseLocalData *local_data;
     if (Fir_is_compiled_promise(value, &global_data, &local_data)) {
-      return Fir_is_subtype(global_data->value_type, type);
+      // FIŘ promise
+      return
+        Fir_is_subtype(global_data->value_type, *type.kind.as.promise.value_type) &&
+        (!global_data->reflect || type.kind.as.promise.reflect);
     }
-    if (TYPEOF(value) == PROMSXP) {
-      // GNU-R promise. We have no information on the inner type,
-      // besides that it's never another promise.
-      return type.kind.as.promise.value_type->kind.tag == FIR_KIND_ANY_VALUE;
-    }
+
+    // GNU-R promise with eval body.
+    // We have no information except that the inner type is never another promise.
+    return type.kind.as.promise.value_type->kind.tag == FIR_KIND_ANY_VALUE;
   }
   }
   return false;
@@ -402,6 +415,7 @@ SEXP Fir_force(SEXP promise) {
     if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
       SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
       SET_PRVALUE(promise, forced);
+      SET_PRENV(promise, R_NilValue);
     } else {
       forcePromise(promise);
     }
@@ -414,6 +428,28 @@ SEXP Fir_force(SEXP promise) {
 
 SEXP Fir_maybe_force(SEXP valueOrPromise) {
   return TYPEOF(valueOrPromise) == PROMSXP ? Fir_force(valueOrPromise) : valueOrPromise;
+}
+
+SEXP Fir_safe_force(SEXP valueOrPromise) {
+  if (TYPEOF(valueOrPromise) != PROMSXP) {
+    return valueOrPromise;
+  }
+  SEXP promise = valueOrPromise;
+
+  // Extract already-evaluated
+  if (PROMISE_IS_EVALUATED(promise)) {
+    return PRVALUE(promise);
+  }
+
+  // Extract constant
+  SEXP code = PRCODE(promise);
+  SEXPTYPE t = TYPEOF(code);
+  if (t != LANGSXP && t != SYMSXP && t != PROMSXP && t != BCODESXP && t != EXTPTRSXP) {
+    return code;
+  }
+
+  // Could not force
+  return valueOrPromise;
 }
 
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
@@ -756,59 +792,26 @@ void Fir_dbg_sexp(const char* name, SEXP value) {
   fprintf(stderr, "\n");
 }
 
-static void Fir_printPrimitiveKind(Fir_PrimitiveKind primitive) {
-  switch (primitive) {
-  case FIR_PRIMITIVE_LOGICAL:
-    fprintf(stderr, "L");
-    break;
-  case FIR_PRIMITIVE_INTEGER:
-    fprintf(stderr, "I");
-    break;
-  case FIR_PRIMITIVE_REAL:
-    fprintf(stderr, "R");
-    break;
-  case FIR_PRIMITIVE_STRING:
-    fprintf(stderr, "S");
-    break;
+void Fir_printSignature(Fir_Signature signature) {
+  // Print parameter types separated by ", "
+  for (int i = 0; i < signature.param_count; ++i) {
+    if (i > 0) {
+      fprintf(stderr, ", ");
+    }
+    Fir_printType(signature.param_types[i]);
   }
+
+  if (signature.param_count > 0) {
+    fprintf(stderr, " ");
+  }
+
+  fprintf(stderr, "-");
+  Fir_printEffects(signature.effects);
+  fprintf(stderr, "> ");
+  Fir_printType(signature.return_type);
 }
 
-static void Fir_printOwnership(Fir_Ownership ownership) {
-  switch (ownership) {
-  case FIR_FRESH:
-    fprintf(stderr, "f");
-    break;
-  case FIR_OWNED:
-    fprintf(stderr, "o");
-    break;
-  case FIR_BORROWED:
-    fprintf(stderr, "b");
-    break;
-  case FIR_SHARED:
-    fprintf(stderr, "s");
-    break;
-  }
-}
-
-static void Fir_printConcreteness(bool definite) {
-  if (definite) {
-    fprintf(stderr, "!");
-  } else {
-    fprintf(stderr, "?");
-  }
-}
-
-static void Fir_printEffects(bool reflect) {
-  if (reflect) {
-    fprintf(stderr, "+");
-  } else {
-    fprintf(stderr, "-");
-  }
-}
-
-static void Fir_printKind(Fir_Kind kind);
-
-static void Fir_printType(Fir_Type type) {
+void Fir_printType(Fir_Type type) {
   Fir_printKind(type.kind);
   if (type.ownership != FIR_SHARED) {
     Fir_printOwnership(type.ownership);
@@ -820,7 +823,7 @@ static void Fir_printType(Fir_Type type) {
   }
 }
 
-static void Fir_printKind(Fir_Kind kind) {
+void Fir_printKind(Fir_Kind kind) {
   switch (kind.tag) {
   case FIR_KIND_ANY:
     fprintf(stderr, "*");
@@ -852,23 +855,54 @@ static void Fir_printKind(Fir_Kind kind) {
   }
 }
 
-static void Fir_printSignature(Fir_Signature signature) {
-  // Print parameter types separated by ", "
-  for (int i = 0; i < signature.param_count; ++i) {
-    if (i > 0) {
-      fprintf(stderr, ", ");
-    }
-    Fir_printType(signature.param_types[i]);
+void Fir_printPrimitiveKind(Fir_PrimitiveKind primitive) {
+  switch (primitive) {
+  case FIR_PRIMITIVE_LOGICAL:
+    fprintf(stderr, "L");
+    break;
+  case FIR_PRIMITIVE_INTEGER:
+    fprintf(stderr, "I");
+    break;
+  case FIR_PRIMITIVE_REAL:
+    fprintf(stderr, "R");
+    break;
+  case FIR_PRIMITIVE_STRING:
+    fprintf(stderr, "S");
+    break;
   }
+}
 
-  if (signature.param_count > 0) {
-    fprintf(stderr, " ");
+void Fir_printOwnership(Fir_Ownership ownership) {
+  switch (ownership) {
+  case FIR_FRESH:
+    fprintf(stderr, "f");
+    break;
+  case FIR_OWNED:
+    fprintf(stderr, "o");
+    break;
+  case FIR_BORROWED:
+    fprintf(stderr, "b");
+    break;
+  case FIR_SHARED:
+    fprintf(stderr, "s");
+    break;
   }
+}
 
-  fprintf(stderr, "-");
-  Fir_printEffects(signature.effects);
-  fprintf(stderr, "> ");
-  Fir_printType(signature.return_type);
+void Fir_printConcreteness(bool definite) {
+  if (definite) {
+    fprintf(stderr, "!");
+  } else {
+    fprintf(stderr, "?");
+  }
+}
+
+void Fir_printEffects(bool reflect) {
+  if (reflect) {
+    fprintf(stderr, "+");
+  } else {
+    fprintf(stderr, "-");
+  }
 }
 
 void Fir_dbg_signature(Fir_Signature signature) {
@@ -1011,7 +1045,30 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3a, 1, SEXP a, SEXP b) {
 
 // :
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 2, SEXP a, SEXP b) {
-  return R_compact_intrange((R_xlen_t) Rf_asReal(a), (R_xlen_t) Rf_asReal(b));
+  return R_compact_intrange((R_xlen_t) Rf_asInteger(a), (R_xlen_t) Rf_asReal(b));
+}
+
+// :
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 3, SEXP a, SEXP b) {
+  double n1 = Rf_asReal(a);
+  double n2 = Rf_asReal(b);
+  if (n1 == (R_xlen_t) n1) {
+      return R_compact_intrange((R_xlen_t) n1, (R_xlen_t) n2);
+  }
+
+  // Copied from GNU-R
+  double r = fabs(n2 - n1);
+  if (r >= R_XLEN_T_MAX) Rf_error("result would be too long a vector");
+  R_xlen_t n = r + 1 + FLT_EPSILON;
+	SEXP ans = allocVector(REALSXP, n);
+	if (n1 <= n2) {
+    for (R_xlen_t i = 0; i < n; i++)
+		  REAL(ans)[i] = n1 + (double)i;
+	} else {
+	  for (R_xlen_t i = 0; i < n; i++)
+		  REAL(ans)[i] = n1 - (double)i;
+  }
+  return ans;
 }
 
 // <

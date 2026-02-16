@@ -66,6 +66,7 @@ typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
 typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP **captures);
 
 typedef struct Fir_FunctionData {
+  const char* name;
   Fir_DispatchFn dispatch;
   SEXP formal_names;
 } Fir_FunctionData;
@@ -73,6 +74,7 @@ typedef struct Fir_FunctionData {
 typedef struct Fir_PromiseGlobalData {
   Fir_PromiseFn eval;
   Fir_Type value_type;
+  bool reflect;
 } Fir_PromiseGlobalData;
 
 typedef struct Fir_PromiseLocalData {
@@ -83,6 +85,17 @@ extern Fir_Kind Fir_kind_any;
 extern Fir_Kind Fir_kind_anyValue;
 extern Fir_Kind Fir_kind_closure;
 extern Fir_Kind Fir_kind_dots;
+
+void Fir_printSignature(Fir_Signature signature);
+void Fir_printType(Fir_Type type);
+void Fir_printKind(Fir_Kind kind);
+void Fir_printPrimitiveKind(Fir_PrimitiveKind primitive);
+void Fir_printOwnership(Fir_Ownership ownership);
+void Fir_printConcreteness(bool definite);
+void Fir_printEffects(bool reflect);
+
+bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
+bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data);
 
 Fir_Kind Fir_kind_primitiveScalar(int primitive_kind);
 Fir_Kind Fir_kind_primitiveVector(int primitive_kind);
@@ -101,6 +114,7 @@ SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
 SEXP Fir_force(SEXP promise);
 SEXP Fir_maybe_force(SEXP valueOrPromise);
+SEXP Fir_safe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int ddIndex, SEXP env);
 SEXP Fir_load_fun(int env_selector, SEXP symbol, SEXP env);
@@ -177,6 +191,7 @@ DEFINE_OVERRIDDEN_BUILTIN(_u2f, 3, SEXP a, SEXP b);  // /
 DEFINE_OVERRIDDEN_BUILTIN(_u2f, 4, SEXP a, SEXP b);  // /
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 1, SEXP a, SEXP b);  // :
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 2, SEXP a, SEXP b);  // :
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 3, SEXP a, SEXP b);  // :
 DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b);  // <
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b);  // <=
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 2, SEXP a, SEXP b);  // <=

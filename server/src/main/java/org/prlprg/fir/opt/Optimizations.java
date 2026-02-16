@@ -2,6 +2,7 @@ package org.prlprg.fir.opt;
 
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
+import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
@@ -26,6 +27,7 @@ public class Optimizations {
                 "defaultSpecialize",
                 new DefiniteForce(),
                 new ElideDeadStore(),
+                new ElideTrivialAssume(),
                 new ElideTrivialCast(),
                 new ElideUseSubscriptWrite(),
                 new OptimizeCallee(threshold),
