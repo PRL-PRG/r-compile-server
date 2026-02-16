@@ -625,12 +625,11 @@ public final class Builtins {
       throw new UnsupportedOperationException("Mock `:` requires numeric end argument");
     }
 
-    // Check if both arguments are integers for return type decision
-    boolean bothIntegers =
-        args.getFirst().asScalarInteger().isPresent() && args.get(1).asScalarInteger().isPresent();
+    // Check if first argument has no decimal. If so, the doubles are coerced
+    boolean coerceToInteger = start == (int) start;
 
     if (start == end) {
-      if (bothIntegers) {
+      if (coerceToInteger) {
         return SEXPs.integer((int) start);
       } else {
         return SEXPs.real(start);
@@ -650,7 +649,7 @@ public final class Builtins {
       }
     }
 
-    if (bothIntegers) {
+    if (coerceToInteger) {
       var intResult = new int[size];
       for (int i = 0; i < size; i++) {
         intResult[i] = (int) result[i];
