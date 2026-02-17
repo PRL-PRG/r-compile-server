@@ -1173,9 +1173,12 @@ public final class Fir2CCompiler {
               case AssumeFunction a ->
                   "Fir_assume_function(%s, &%s)"
                       .formatted(emitArgument(a.target()), functionDispatchCName(a.function()));
-              case AssumeLoadFun _ ->
-                  throw new UnsupportedOperationException(
-                      "AssumeLoadFun is not yet supported in C compilation");
+              case AssumeLoadFun a ->
+                  "Fir_assume_load_fun(%s, %s, &%s)"
+                      .formatted(
+                          nvSymbolRef(pool, a.variable()),
+                          VAR_ENV,
+                          functionDispatchCName(a.function()));
               case AssumeType(var target, var type) ->
                   "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
             };

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -166,7 +167,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       var assumes = entry.getValue();
 
       for (var assume : assumes) {
-        var target = ((Read) assume.target()).variable();
+        var target = Objects.requireNonNull((Read) assume.target()).variable();
         switch (assume) {
           case AssumeType(var _, var type) -> {
             var improvedType = scope.addLocal(target.name(), type);
@@ -184,7 +185,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
           case AssumeConstant(var _, var constant) ->
               assumeSubsts.stage(target, constant, successBb);
           case AssumeLoadFun _ ->
-              throw new IllegalStateException("SpeculateAssume should never create AssumeLoadFun");
+              throw new IllegalStateException("SpeculateAssume never creates AssumeLoadFun");
         }
       }
     }

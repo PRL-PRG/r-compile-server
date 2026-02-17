@@ -40,7 +40,6 @@ final class OptimizationProvider implements ArgumentsProvider {
       new Optimization[] {
         new Cleanup(true),
         new Cleanup(false),
-        new MergeAssumeLoadFun(),
         new Specialize(new DefiniteForce()),
         new Specialize(new OptimizeCallee(1)),
         new Specialize(new ReturnTypeAndEffects()),
@@ -49,9 +48,9 @@ final class OptimizationProvider implements ArgumentsProvider {
             new Specialize(
                 "resolve", new ResolveLoad(), new ResolveLoadFun(), new ResolveDynamicCallee()),
             new Inline(10000),
-            new Cleanup(true))
-        // TODO: fix these, then re-enable
-        // new SpeculateAssume(1, true),
-        // new SpeculateDispatch(1, 9, 99)
+            new Cleanup(true)),
+        new SpeculateAssume(1, true),
+        new SpeculateDispatch(1, 9, 99),
+        new MergeAssumeLoadFun(),
       };
 }

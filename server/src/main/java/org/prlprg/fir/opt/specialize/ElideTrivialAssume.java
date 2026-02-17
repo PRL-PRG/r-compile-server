@@ -64,9 +64,18 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
 
         yield NOOP;
       }
-      case AssumeLoadFun _ -> {
-        // AssumeLoadFun can't be trivially elided because it depends on a runtime lookup.
-        yield expression;
+      case AssumeLoadFun a -> {
+        var originAnalysis = analyses.get(OriginAnalysis.class);
+        var originRegister = originAnalysis.get(bb, index, a.variable());
+        if (originRegister == null) {
+          yield expression;
+        }
+        var originExpression = originAnalysis.resolveExpression(originRegister);
+        if (!Objects.equals(originExpression, new Closure(a.function()))) {
+          yield expression;
+        }
+
+        yield NOOP;
       }
       default -> expression;
     };
