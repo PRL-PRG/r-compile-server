@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.parseprint.Printer;
 
@@ -34,11 +35,16 @@ abstract class AbstractEnvSXP {
   }
 
   // @Override
-  public Optional<CloSXP> getFunction(String name) {
+  public Optional<CloSXP> getFunction(String name, Function<PromSXP, SEXP> forcer) {
     return getLocal(name)
+        .map(
+            v ->
+                !(v instanceof PromSXP promSXP)
+                    ? v
+                    : promSXP.boundVal() != null ? promSXP.boundVal() : forcer.apply(promSXP))
         .filter(CloSXP.class::isInstance)
         .map(CloSXP.class::cast)
-        .or(() -> parent.getFunction(name));
+        .or(() -> parent.getFunction(name, forcer));
   }
 
   // @Override

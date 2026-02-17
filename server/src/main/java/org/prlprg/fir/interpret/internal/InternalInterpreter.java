@@ -554,9 +554,9 @@ public final class InternalInterpreter implements Interpreter {
       case LoadFun(var variable, var env) -> {
         var value =
             switch (env) {
-              case LOCAL -> topFrame().getFunction(variable);
-              case GLOBAL -> globalEnv.getFunction(variable.name()).orElse(null);
-              case BASE -> baseEnv().getFunction(variable.name()).orElse(null);
+              case LOCAL -> topFrame().getFunction(variable, this::force);
+              case GLOBAL -> globalEnv.getFunction(variable.name(), this::force).orElse(null);
+              case BASE -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
             };
         if (value == null) {
           throw fail("Unbound function: " + variable.name());
@@ -916,9 +916,13 @@ public final class InternalInterpreter implements Interpreter {
         var variable = alf.variable();
         var function = alf.function();
 
-        // TODO: add promise handler to `getFunction`, then change `LoadFun` behavior to force
-        //  promises, and this to abort.
-        var value = topFrame().getFunction(variable);
+        // Returns `false` when an unevaluated promise is encountered,
+        // by returning a stub so that `extractClosure` never returns `function`
+        var value =
+            topFrame()
+                .getFunction(
+                    variable,
+                    _ -> SEXPs.closure(SEXPs.list(), SEXPs.symbol(".stub"), SEXPs.EMPTY_ENV));
         if (value == null) {
           return false;
         }

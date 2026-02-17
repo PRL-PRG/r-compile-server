@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -18,6 +19,7 @@ import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.UserEnvSXP;
 
@@ -86,8 +88,8 @@ final class StackFrame {
   }
 
   /// Function lookup named variable.
-  public @Nullable CloSXP getFunction(NamedVariable variable) {
-    return environment.getFunction(variable.name()).orElse(null);
+  public @Nullable CloSXP getFunction(NamedVariable variable, Function<PromSXP, SEXP> forcer) {
+    return environment.getFunction(variable.name(), forcer).orElse(null);
   }
 
   /// Set local register or store named variable.
