@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
@@ -41,12 +42,14 @@ public sealed interface EnvSXP extends SEXP permits StaticEnvSXP, UserEnvSXP {
 
   /**
    * GNU-R function lookup; like {@link #get(String)} but ignores (goes through) non-function {@link
-   * SEXP}s.
+   * SEXP}s (except forces unevaluated promises via {@code forcer}, then ignores or returns the
+   * inner value).
    *
    * @param name the name of the symbol
+   * @param forcer a function to force unevaluated promises
    * @return the value of the symbol, if found
    */
-  Optional<CloSXP> getFunction(String name);
+  Optional<CloSXP> getFunction(String name, Function<PromSXP, SEXP> forcer);
 
   /**
    * Set the value of a symbol in the environment.

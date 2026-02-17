@@ -143,6 +143,7 @@ void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
 bool Fir_assume_constant(SEXP value, SEXP constant);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_builtin_function(SEXP value, int bltIdx);
+bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch);
 bool Fir_assume_type(SEXP value, Fir_Type type);
 
 void Fir_dbg_comment(const char* comment);
