@@ -25,6 +25,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -241,6 +242,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         // TODO: Constant-fold some calls.
         case AssumeConstant _,
             AssumeFunction _,
+            AssumeLoadFun _,
             Call _,
             Closure _,
             Dup _,

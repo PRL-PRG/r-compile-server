@@ -141,6 +141,28 @@ public sealed interface Expression
         }
         case "ldf" -> {
           var variable = p.parse(NamedVariable.class);
+          // Check for AssumeLoadFun syntax: "ldf <variable> ?- <functionName>"
+          if (s.runWithWhitespacePolicy(
+              SkipWhitespace.ALL_EXCEPT_NEWLINES, () -> s.trySkip("?- "))) {
+            var functionName = p.parse(NamedVariable.class);
+
+            // We must defer setting the function in case it's a forward reference.
+            @SuppressWarnings("DataFlowIssue")
+            var assume = new AssumeLoadFun(variable, null);
+            postModule.add(
+                m -> {
+                  assert m == module;
+
+                  var function = m.lookupFunction(functionName);
+                  if (function == null) {
+                    throw s.fail(
+                        "Assumption references a function that wasn't defined: " + functionName);
+                  }
+                  assume.unsafeSetFunction(function);
+                });
+
+            return assume;
+          }
           var env =
               s.runWithWhitespacePolicy(
                   SkipWhitespace.ALL_EXCEPT_NEWLINES,

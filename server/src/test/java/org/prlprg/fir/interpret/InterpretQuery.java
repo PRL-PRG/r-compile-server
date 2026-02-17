@@ -6,8 +6,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult;
-import org.prlprg.fir.interpret.internal.InternalInterpretException;
-import org.prlprg.fir.interpret.internal.InternalInterpretUnsupportedException;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.parseprint.Parser;
@@ -16,7 +14,6 @@ import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.Query;
-import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.Files;
 
@@ -39,8 +36,8 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   }
 
   @Override
-  public void verifyEqual(InterpretOutput expected, InterpretOutput actual, Example example,
-      SnapshotStore store) {
+  public void verifyEqual(
+      InterpretOutput expected, InterpretOutput actual, Example example, SnapshotStore store) {
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     assertEquals(expected.checkpointTrace(), actual.checkpointTrace(), "Checkpoint trace changed");
   }

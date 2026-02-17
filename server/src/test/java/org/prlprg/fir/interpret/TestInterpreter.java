@@ -10,7 +10,6 @@ import org.prlprg.fir.interpret.internal.InternalInterpretUnsupportedException;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.sexp.SEXP;
-import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.util.Strings;
 
 /// Wraps [InternalInterpreter] for tests.

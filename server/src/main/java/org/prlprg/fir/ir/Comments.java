@@ -30,7 +30,8 @@ public final class Comments extends ForwardingList<String> {
 
     var comments = new Comments();
     while (s.trySkip('#')) {
-      s.runWithWhitespacePolicy(SkipWhitespace.NONE, () -> comments.add(s.readPastEndOfLine().stripTrailing()));
+      s.runWithWhitespacePolicy(
+          SkipWhitespace.NONE, () -> comments.add(s.readPastEndOfLine().stripTrailing()));
     }
     return comments;
   }
