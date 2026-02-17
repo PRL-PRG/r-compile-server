@@ -17,7 +17,7 @@ public class ParseUtil {
               + e.getMessage()
               + "\n"
               + region(firText, e.position().line(), e.position().column()),
-          e.getCause());
+          e);
     }
   }
 
@@ -31,7 +31,7 @@ public class ParseUtil {
               + e.getMessage()
               + "\n"
               + region(sexpText, e.position().line(), e.position().column()),
-          e.getCause());
+          e);
     }
   }
 

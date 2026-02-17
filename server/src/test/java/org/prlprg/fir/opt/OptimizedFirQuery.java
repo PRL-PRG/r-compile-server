@@ -38,7 +38,7 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     ModuleFeedback feedback;
     try {
       var interpreterOutput = store.load(example, InterpretQuery.MAIN);
-      if (interpreterOutput.result() instanceof Error(var message)) {
+      if (interpreterOutput.result() instanceof Error(var message, var _)) {
         System.err.println("WARNING: interpreter crashed:\n" + message);
       }
       feedback = interpreterOutput.feedback();

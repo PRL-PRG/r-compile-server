@@ -51,7 +51,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       var outputLog = rawOutput.second();
       return new EvalOutput(new Ok(res), outputLog, pc);
     } catch (EvalException e) {
-      return new EvalOutput(new Error(e), e.outputLog(), PerformanceCounters.EMPTY);
+      return new EvalOutput(new Error(e, false), e.outputLog(), PerformanceCounters.EMPTY);
     }
   }
 

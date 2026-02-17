@@ -61,7 +61,7 @@ public record Statement(
 
     var s = p.scanner();
 
-    var comments = p.parse(Comments.class);
+    var comments = ctx.comments() != null ? ctx.comments() : p.parse(Comments.class);
 
     if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
       var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();

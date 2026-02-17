@@ -25,7 +25,7 @@ public sealed interface Jump extends Instruction
 
     var s = p.scanner();
 
-    var comments = p.parse(Comments.class);
+    var comments = ctx.comments() != null ? ctx.comments() : p.parse(Comments.class);
 
     var k = s.readIdentifierOrKeyword();
     return switch (k) {

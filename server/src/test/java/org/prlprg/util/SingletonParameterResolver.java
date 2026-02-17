@@ -34,37 +34,41 @@ public abstract class SingletonParameterResolver<T> implements ParameterResolver
     }
 
     try {
-      return store.computeIfAbsent(
-          clazz,
-          _ -> {
-            var singletonClassAnnotation = clazz.getAnnotation(SingletonClass.class);
-            if (singletonClassAnnotation != null) {
-              return clazz.cast(resolveSingleton(singletonClassAnnotation.value(), store, pending));
-            }
+      T existing = store.get(clazz, clazz);
+      if (existing != null) {
+        return existing;
+      }
 
-            var ctors = clazz.getDeclaredConstructors();
-            if (ctors.length != 1) {
-              throw new IllegalStateException(
-                  "Expected exactly one constructor for "
-                      + clazz.getName()
-                      + ", found "
-                      + ctors.length);
-            }
-            var ctor = ctors[0];
+      var singletonClassAnnotation = clazz.getAnnotation(SingletonClass.class);
+      if (singletonClassAnnotation != null) {
+        return clazz.cast(resolveSingleton(singletonClassAnnotation.value(), store, pending));
+      }
 
-            var args =
-                Arrays.stream(ctor.getParameterTypes())
-                    .map(paramType -> resolveSingleton(paramType, store, pending))
-                    .toArray();
+      var ctors = clazz.getDeclaredConstructors();
+      if (ctors.length != 1) {
+        throw new IllegalStateException(
+            "Expected exactly one constructor for "
+                + clazz.getName()
+                + ", found "
+                + ctors.length);
+      }
+      var ctor = ctors[0];
 
-            try {
-              ctor.setAccessible(true);
-              return clazz.cast(ctor.newInstance(args));
-            } catch (Exception e) {
-              throw new RuntimeException("Failed to construct " + clazz.getName(), e);
-            }
-          },
-          clazz);
+      var args =
+          Arrays.stream(ctor.getParameterTypes())
+              .map(paramType -> resolveSingleton(paramType, store, pending))
+              .toArray();
+
+      T result;
+      try {
+        ctor.setAccessible(true);
+        result = clazz.cast(ctor.newInstance(args));
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to construct " + clazz.getName(), e);
+      }
+
+      store.put(clazz, result);
+      return result;
     } finally {
       pending.remove(clazz);
     }

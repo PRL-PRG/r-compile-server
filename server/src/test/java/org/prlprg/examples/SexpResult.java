@@ -26,9 +26,14 @@ public sealed interface SexpResult {
       fail("Snapshot has both return value and crash");
     }
 
-    return returnValueExists
-        ? new Ok(RDSReader.readFile(R.getSession(), returnValuePath.toFile()))
-        : new Error(Files.readString(crashPath));
+    if (returnValueExists) {
+      return new Ok(RDSReader.readFile(R.getSession(), returnValuePath.toFile()));
+    }
+
+    var fullMessage = Files.readString(crashPath);
+    var isSimplyUnsupported = fullMessage.startsWith("(Unsupported) ");
+    var message = isSimplyUnsupported ? fullMessage.substring("(Unsupported) ".length()) : fullMessage;
+    return new Error(message, isSimplyUnsupported);
   }
 
   default void write(Path path) throws IOException {
@@ -40,17 +45,18 @@ public sealed interface SexpResult {
         Files.deleteIfExists(crashPath);
         RDSWriter.writeFile(returnValuePath.toFile(), value);
       }
-      case Error(var message) -> {
+      case Error(var message, var isSimplyUnsupported) -> {
         Files.deleteIfExists(returnValuePath);
-        Files.writeString(crashPath, message);
+        var unsupportedPrefix = isSimplyUnsupported ? "(Unsupported) " : "";
+        Files.writeString(crashPath, unsupportedPrefix + message);
       }
     }
   }
 
   default void check(Example example) {
-    if (example.hasOption("", "crashes") && success()) {
+    if (example.hasOption("", "crashes") && this instanceof Ok) {
       fail("Expected **crash**, got success.\n" + this);
-    } else if (this instanceof Error(var message)) {
+    } else if (this instanceof Error(var message, var isSimplyUnsupported) && !isSimplyUnsupported) {
       fail("Expected success, got crash.\n" + message);
     }
 
@@ -60,13 +66,6 @@ public sealed interface SexpResult {
         assertEquals(expected, value, "Wrong return value");
       }
     }
-  }
-
-  default boolean success() {
-    return switch (this) {
-      case Ok _ -> true;
-      case Error _ -> false;
-    };
   }
 
   record Ok(SEXP value) implements SexpResult {
@@ -84,11 +83,12 @@ public sealed interface SexpResult {
     }
   }
 
-  record Error(String message) implements SexpResult {
-    public Error(Throwable error) {
+  record Error(String message, boolean isSimplyUnsupported) implements SexpResult {
+    public Error(Throwable error, boolean isSimplyUnsupported) {
       this(
           error.getMessage()
-              + (error.getCause() == null ? "" : "\nCaused by: " + error.getCause().getMessage()));
+              + (error.getCause() == null ? "" : "\nCaused by: " + error.getCause().getMessage()),
+          isSimplyUnsupported);
     }
 
     public String mainMessage() {

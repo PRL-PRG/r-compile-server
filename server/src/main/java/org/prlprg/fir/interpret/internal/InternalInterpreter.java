@@ -318,7 +318,7 @@ public final class InternalInterpreter implements Interpreter {
 
     var cfg = abstraction.cfg();
     if (cfg == null) {
-      throw fail("Can't call unregistered stub");
+      throw failUnsupported("Can't call unregistered stub");
     }
 
     var frame = mkFrame(abstraction, environment);
@@ -1196,6 +1196,10 @@ public final class InternalInterpreter implements Interpreter {
   @Override
   public InterpretException fail(String message, @Nullable Throwable cause) {
     return new InternalInterpretException(message, cause, stack, globalEnv);
+  }
+
+  public InterpretException failUnsupported(String message) {
+    return new InternalInterpretUnsupportedException(message, null, stack, globalEnv);
   }
 
   public String stackToString() {

@@ -1,5 +1,6 @@
 fun main() {
-  () --> I { reg out:I |
+  # after: () --> I { reg out:I |
+  () --> V { reg out:V |
     out = body();
     return out;
   }
@@ -7,7 +8,7 @@ fun main() {
 
 fun body() {
   # after: () --> I { reg val:V, reg val1:I |
-  () --> I { reg val:V |
+  () --> V { reg val:V |
     val = 1;
     check BBopt() else BBdeopt();
   BBopt():
