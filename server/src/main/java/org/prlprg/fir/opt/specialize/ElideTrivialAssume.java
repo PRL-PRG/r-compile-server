@@ -14,6 +14,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
@@ -62,6 +63,10 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
         }
 
         yield NOOP;
+      }
+      case AssumeLoadFun _ -> {
+        // AssumeLoadFun can't be trivially elided because it depends on a runtime lookup.
+        yield expression;
       }
       default -> expression;
     };

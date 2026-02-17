@@ -28,6 +28,7 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -481,7 +482,7 @@ public final class InternalInterpreter implements Interpreter {
         checkType(value, type, "assume-type");
         yield value;
       }
-      case AssumeConstant(var _, var _), AssumeFunction _ -> SEXPs.NULL;
+      case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> SEXPs.NULL;
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
@@ -909,6 +910,24 @@ public final class InternalInterpreter implements Interpreter {
           return false;
         }
         var sexpFun = extractClosure(cloSXP);
+        return sexpFun == function;
+      }
+      case AssumeLoadFun alf -> {
+        var variable = alf.variable();
+        var function = alf.function();
+
+        // Perform a function lookup that fails instead of forcing promises.
+        // In the interpreter, getFunction already skips non-closures (goes through them),
+        // but the real semantics would fail on promises instead of forcing them.
+        // Here we approximate: look up the function, and if not found, fail the assumption.
+        var value = topFrame().getFunction(variable);
+        if (value == null) {
+          return false;
+        }
+        if (!(value.env() instanceof StaticEnvSXP)) {
+          return false;
+        }
+        var sexpFun = extractClosure(value);
         return sexpFun == function;
       }
       case AssumeType(var arg, var type) -> {

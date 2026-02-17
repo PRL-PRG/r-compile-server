@@ -26,6 +26,7 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -304,7 +305,8 @@ public final class Fir2CCompiler {
             var typeEmit = emitType(cCode, version.parameters().get(j).type());
 
             var chain = j == 0 ? "" : "incompatible[%d] || ".formatted(i);
-            cCode.stmt("incompatible[%d] = %s!Fir_value_matches(%s, %s);", i, chain, argName, typeEmit);
+            cCode.stmt(
+                "incompatible[%d] = %s!Fir_value_matches(%s, %s);", i, chain, argName, typeEmit);
           }
         }
 
@@ -927,7 +929,7 @@ public final class Fir2CCompiler {
                 yield "Fir_mk_promise(%s, %s, %s, %s)".formatted(fromRCName, cp, captures, VAR_ENV);
               }
               case Aea(var arg) -> emitArgument(arg);
-              case AssumeConstant(var _, var _), AssumeFunction _ -> "R_NilValue";
+              case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> "R_NilValue";
               case AssumeType(var target, var _) -> emitArgument(target);
               case Call call -> emitCall(call);
               case Cast(var target, var type) ->
@@ -1171,6 +1173,9 @@ public final class Fir2CCompiler {
               case AssumeFunction a ->
                   "Fir_assume_function(%s, &%s)"
                       .formatted(emitArgument(a.target()), functionDispatchCName(a.function()));
+              case AssumeLoadFun _ ->
+                  throw new UnsupportedOperationException(
+                      "AssumeLoadFun is not yet supported in C compilation");
               case AssumeType(var target, var type) ->
                   "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
             };

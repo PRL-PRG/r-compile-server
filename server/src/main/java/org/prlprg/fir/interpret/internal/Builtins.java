@@ -540,8 +540,7 @@ public final class Builtins {
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw interpreter.failUnsupported(
-          "Mock `[` and `[[` not implemented for non-vector objects");
+      throw interpreter.failUnsupported("Mock `[` and `[[` not implemented for non-vector objects");
     }
 
     // Get index as integer, truncating from real if necessary
@@ -579,8 +578,7 @@ public final class Builtins {
     } else if (args.get(1).asScalarReal().isPresent()) {
       index1 = args.get(1).asScalarReal().get().intValue();
     } else {
-      throw interpreter.failUnsupported(
-          "Mock `[<-` and `[[<-` require numeric index argument");
+      throw interpreter.failUnsupported("Mock `[<-` and `[[<-` require numeric index argument");
     }
 
     // R uses 1-based indexing, but FIŘ uses 0
@@ -755,8 +753,7 @@ public final class Builtins {
         yield SEXPs.integer(sum);
       }
       default ->
-          throw interpreter.failUnsupported(
-              "Mock `sum` requires an int, real, or logical vector");
+          throw interpreter.failUnsupported("Mock `sum` requires an int, real, or logical vector");
     };
   }
 

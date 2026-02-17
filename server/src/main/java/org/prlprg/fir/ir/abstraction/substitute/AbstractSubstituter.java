@@ -21,6 +21,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -164,6 +165,7 @@ abstract class AbstractSubstituter {
           new AssumeConstant(substitute(bb, target), constant);
       case AssumeFunction assume ->
           new AssumeFunction(substitute(bb, assume.target()), assume.function());
+      case AssumeLoadFun assume -> new AssumeLoadFun(assume.variable(), assume.function());
       case AssumeType(var target, var type) -> new AssumeType(substitute(bb, target), type);
       case Call call ->
           new Call(

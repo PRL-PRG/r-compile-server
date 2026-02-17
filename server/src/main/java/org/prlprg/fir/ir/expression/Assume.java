@@ -6,7 +6,7 @@ import org.prlprg.fir.ir.argument.Argument;
 /// if any assumptions in the normal successor fail their check, control diverts into the deopt
 /// successor.
 public sealed interface Assume extends Expression
-    permits AssumeConstant, AssumeFunction, AssumeType {
+    permits AssumeConstant, AssumeFunction, AssumeLoadFun, AssumeType {
   /// The argument whose value is being assumed.
   Argument target();
 }

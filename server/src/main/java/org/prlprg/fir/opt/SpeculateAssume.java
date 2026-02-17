@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
@@ -182,6 +183,8 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
           }
           case AssumeConstant(var _, var constant) ->
               assumeSubsts.stage(target, constant, successBb);
+          case AssumeLoadFun _ ->
+              throw new IllegalStateException("SpeculateAssume should never create AssumeLoadFun");
         }
       }
     }

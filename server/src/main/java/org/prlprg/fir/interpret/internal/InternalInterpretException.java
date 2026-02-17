@@ -9,7 +9,8 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.GlobalEnvSXP;
 
 /// Exception thrown during FIŘ interpretation.
-public sealed class InternalInterpretException extends InterpretException permits InternalInterpretUnsupportedException {
+public sealed class InternalInterpretException extends InterpretException
+    permits InternalInterpretUnsupportedException {
   private final String printStack;
 
   InternalInterpretException(

@@ -19,6 +19,7 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -119,7 +120,7 @@ public final class TypeAndEffectChecker extends Checker {
         switch (assume) {
           case AssumeType(var _, var type) -> type;
           case AssumeConstant(var _, var constant) -> Type.of(constant.sexp());
-          case AssumeFunction _ -> Type.CLOSURE;
+          case AssumeFunction _, AssumeLoadFun _ -> Type.CLOSURE;
         };
     // Every runtime value's type is guaranteed to either be `argType` or a subtype.
     // If and only if `requiredType` is a subtype, it's possible that a runtime type will be it.
@@ -208,6 +209,10 @@ public final class TypeAndEffectChecker extends Checker {
 
         switch (expression) {
           case Aea(var _) -> {}
+          case AssumeLoadFun _ -> {
+            // AssumeLoadFun operates on a named variable, not a register argument.
+            // No target type check needed.
+          }
           case Assume assume -> {
             var target = assume.target();
             var argType = scope.typeOf(target);

@@ -47,10 +47,7 @@ public abstract class SingletonParameterResolver<T> implements ParameterResolver
       var ctors = clazz.getDeclaredConstructors();
       if (ctors.length != 1) {
         throw new IllegalStateException(
-            "Expected exactly one constructor for "
-                + clazz.getName()
-                + ", found "
-                + ctors.length);
+            "Expected exactly one constructor for " + clazz.getName() + ", found " + ctors.length);
       }
       var ctor = ctors[0];
 

@@ -32,7 +32,8 @@ public sealed interface SexpResult {
 
     var fullMessage = Files.readString(crashPath);
     var isSimplyUnsupported = fullMessage.startsWith("(Unsupported) ");
-    var message = isSimplyUnsupported ? fullMessage.substring("(Unsupported) ".length()) : fullMessage;
+    var message =
+        isSimplyUnsupported ? fullMessage.substring("(Unsupported) ".length()) : fullMessage;
     return new Error(message, isSimplyUnsupported);
   }
 
@@ -56,7 +57,8 @@ public sealed interface SexpResult {
   default void check(Example example) {
     if (example.hasOption("", "crashes") && this instanceof Ok) {
       fail("Expected **crash**, got success.\n" + this);
-    } else if (this instanceof Error(var message, var isSimplyUnsupported) && !isSimplyUnsupported) {
+    } else if (this instanceof Error(var message, var isSimplyUnsupported)
+        && !isSimplyUnsupported) {
       fail("Expected success, got crash.\n" + message);
     }
 

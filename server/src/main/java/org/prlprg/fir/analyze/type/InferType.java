@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.AssumeConstant;
 import org.prlprg.fir.ir.expression.AssumeFunction;
+import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -70,7 +71,7 @@ public final class InferType implements Analysis {
     return switch (expression) {
       case Aea(var value) -> of(value);
       case AssumeType(var _, var type) -> type;
-      case AssumeConstant(var _, var _), AssumeFunction _ -> Type.ANY_VALUE;
+      case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> Type.ANY_VALUE;
       case Call call ->
           switch (call.callee()) {
             case StaticCallee(var _, var version) -> version.returnType();

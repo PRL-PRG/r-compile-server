@@ -12,7 +12,6 @@ import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.snapshots.SkipQueryException;
 
 public final class BC2FirCompilerUtils {
   public static Module compile(EnvSXP rModuleEnv, RSession session) {
