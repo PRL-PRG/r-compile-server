@@ -120,11 +120,14 @@ public final class TypeAndEffectChecker extends Checker {
         switch (assume) {
           case AssumeType(var _, var type) -> type;
           case AssumeConstant(var _, var constant) -> Type.of(constant.sexp());
-          case AssumeFunction _, AssumeLoadFun _ -> Type.CLOSURE;
+          case AssumeFunction _ -> Type.CLOSURE;
+          case AssumeLoadFun _ ->
+              throw new IllegalArgumentException(
+                  "AssumeLoadFun has no target, so this isn't called");
         };
     // Every runtime value's type is guaranteed to either be `argType` or a subtype.
-    // If and only if `requiredType` is a subtype, it's possible that a runtime type will be it.
-    return requiredType.isSubtypeOf(argType);
+    // Iff `requiredType` is disjoint, the assumption can't succeed.
+    return argType.isSubtypeOf(requiredType) || requiredType.isSubtypeOf(argType);
   }
 
   private class OnAbstraction {
@@ -209,12 +212,11 @@ public final class TypeAndEffectChecker extends Checker {
 
         switch (expression) {
           case Aea(var _) -> {}
-          case AssumeLoadFun _ -> {
-            // AssumeLoadFun operates on a named variable, not a register argument.
-            // No target type check needed.
-          }
           case Assume assume -> {
             var target = assume.target();
+            if (target == null) {
+              break;
+            }
             var argType = scope.typeOf(target);
 
             if (argType != null && !assumeCanSucceed(assume, argType)) {

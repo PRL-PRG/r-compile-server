@@ -916,10 +916,8 @@ public final class InternalInterpreter implements Interpreter {
         var variable = alf.variable();
         var function = alf.function();
 
-        // Perform a function lookup that fails instead of forcing promises.
-        // In the interpreter, getFunction already skips non-closures (goes through them),
-        // but the real semantics would fail on promises instead of forcing them.
-        // Here we approximate: look up the function, and if not found, fail the assumption.
+        // TODO: add promise handler to `getFunction`, then change `LoadFun` behavior to force
+        //  promises, and this to abort.
         var value = topFrame().getFunction(variable);
         if (value == null) {
           return false;

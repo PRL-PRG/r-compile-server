@@ -9,7 +9,6 @@ import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
@@ -78,7 +77,7 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
                         .noneMatch(
                             stmt -> {
                               if (!(stmt.expression() instanceof Assume assume)
-                                  || assume instanceof AssumeLoadFun
+                                  || assume.target() == null
                                   || assume.target().variable() == null) {
                                 return false;
                               }
