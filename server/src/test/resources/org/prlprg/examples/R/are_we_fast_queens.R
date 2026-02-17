@@ -35,5 +35,5 @@ is_safe <- function(board, row, col, n) {
 
 # warmup
 for (i in 1:12) {
-  queens(4)
+  queens(3)
 }

@@ -8,6 +8,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.parseprint.SkipWhitespace;
 
 public final class Comments extends ForwardingList<String> {
   private final List<String> lines = new ArrayList<>();
@@ -29,7 +30,7 @@ public final class Comments extends ForwardingList<String> {
 
     var comments = new Comments();
     while (s.trySkip('#')) {
-      comments.add(s.readPastEndOfLine().stripTrailing());
+      s.runWithWhitespacePolicy(SkipWhitespace.NONE, () -> comments.add(s.readPastEndOfLine().stripTrailing()));
     }
     return comments;
   }
@@ -53,7 +54,7 @@ public final class Comments extends ForwardingList<String> {
   private void print(Printer p) {
     for (var comment : lines) {
       p.print('#');
-      p.print(comment);
+      p.writer().write(comment);
       p.print('\n');
     }
   }

@@ -150,7 +150,7 @@ public final class Builtins {
       return SEXPs.real(arg0 + arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `+` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -252,7 +252,7 @@ public final class Builtins {
       return SEXPs.real(arg0 - arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `-` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -280,7 +280,7 @@ public final class Builtins {
       return SEXPs.real(arg0 * arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `*` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -320,7 +320,7 @@ public final class Builtins {
       return SEXPs.real(arg0 / arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `/` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -348,7 +348,7 @@ public final class Builtins {
       return SEXPs.logical(arg0 < arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `<` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -376,7 +376,7 @@ public final class Builtins {
       return SEXPs.logical(arg0 <= arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `<=` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -404,7 +404,7 @@ public final class Builtins {
       return SEXPs.logical(arg0 > arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `>` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -432,7 +432,7 @@ public final class Builtins {
       return SEXPs.logical(arg0 >= arg1);
     }
 
-    throw new UnsupportedOperationException(
+    throw interpreter.failUnsupported(
         "Mock `>=` not implemented for arguments except integers, reals, or logicals");
   }
 
@@ -468,7 +468,7 @@ public final class Builtins {
       // Convert real to integer, truncating
       timesValue = times.asScalarReal().get().intValue();
     } else {
-      throw new UnsupportedOperationException("Mock `rep` requires numeric times argument");
+      throw interpreter.failUnsupported("Mock `rep` requires numeric times argument");
     }
     if (timesValue < 0) {
       throw interpreter.fail("rep() argument 'times' must be >= 0");
@@ -480,7 +480,7 @@ public final class Builtins {
       } else if (value.asScalarReal().isPresent()) {
         return SEXPs.EMPTY_REAL;
       } else {
-        throw new UnsupportedOperationException("Mock `rep` not implemented for this value type");
+        throw interpreter.failUnsupported("Mock `rep` not implemented for this value type");
       }
     }
 
@@ -500,7 +500,7 @@ public final class Builtins {
       Arrays.fill(result, logicalValue);
       return SEXPs.logical(result);
     } else {
-      throw new UnsupportedOperationException(
+      throw interpreter.failUnsupported(
           "Mock `rep` not implemented for arguments except scalar integers, reals, and logicals");
     }
   }
@@ -540,7 +540,7 @@ public final class Builtins {
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new UnsupportedOperationException(
+      throw interpreter.failUnsupported(
           "Mock `[` and `[[` not implemented for non-vector objects");
     }
 
@@ -551,7 +551,7 @@ public final class Builtins {
     } else if (args.get(1).asScalarReal().isPresent()) {
       index1 = args.get(1).asScalarReal().get().intValue();
     } else {
-      throw new UnsupportedOperationException("Mock `[` and `[[` require numeric index argument");
+      throw interpreter.failUnsupported("Mock `[` and `[[` require numeric index argument");
     }
 
     // R uses 1-based indexing, but FIŘ uses 0
@@ -566,7 +566,7 @@ public final class Builtins {
       throw interpreter.fail("`[<-` takes 3 arguments");
     }
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new UnsupportedOperationException(
+      throw interpreter.failUnsupported(
           "Mock `[<-` and `[[<-` not implemented for non-vector objects");
     }
 
@@ -579,7 +579,7 @@ public final class Builtins {
     } else if (args.get(1).asScalarReal().isPresent()) {
       index1 = args.get(1).asScalarReal().get().intValue();
     } else {
-      throw new UnsupportedOperationException(
+      throw interpreter.failUnsupported(
           "Mock `[<-` and `[[<-` require numeric index argument");
     }
 
@@ -612,7 +612,7 @@ public final class Builtins {
     } else if (args.getFirst().asScalarReal().isPresent()) {
       start = args.getFirst().asScalarReal().get();
     } else {
-      throw new UnsupportedOperationException("Mock `:` requires numeric start argument");
+      throw interpreter.failUnsupported("Mock `:` requires numeric start argument");
     }
 
     // Get end argument as double
@@ -622,7 +622,7 @@ public final class Builtins {
     } else if (args.get(1).asScalarReal().isPresent()) {
       end = args.get(1).asScalarReal().get();
     } else {
-      throw new UnsupportedOperationException("Mock `:` requires numeric end argument");
+      throw interpreter.failUnsupported("Mock `:` requires numeric end argument");
     }
 
     // Check if first argument has no decimal. If so, the doubles are coerced
@@ -696,7 +696,7 @@ public final class Builtins {
     }
 
     if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
-      throw new UnsupportedOperationException("Mock `length` requires a vector argument");
+      throw interpreter.failUnsupported("Mock `length` requires a vector argument");
     }
 
     return SEXPs.integer(vector.size());
@@ -755,7 +755,7 @@ public final class Builtins {
         yield SEXPs.integer(sum);
       }
       default ->
-          throw new UnsupportedOperationException(
+          throw interpreter.failUnsupported(
               "Mock `sum` requires an int, real, or logical vector");
     };
   }
@@ -789,7 +789,7 @@ public final class Builtins {
     } else if (arg.asScalarLogical().isPresent()) {
       return SEXPs.logical(arg.asScalarLogical().get());
     } else {
-      throw new UnsupportedOperationException(
+      throw interpreter.failUnsupported(
           "Mock `as.logical` not implemented for arguments except scalar integers, reals, and logicals");
     }
   }

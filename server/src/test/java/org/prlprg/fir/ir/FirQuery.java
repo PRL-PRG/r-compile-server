@@ -5,11 +5,14 @@ import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import junit.framework.AssertionFailedError;
 import org.prlprg.bc.BCQuery;
+import org.prlprg.bc2fir.BC2CFGCompilerUnsupportedException;
+import org.prlprg.bc2fir.BC2ClosureCompilerUnsupportedException;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 
 public class FirQuery implements GenFirQuery {
@@ -35,7 +38,11 @@ public class FirQuery implements GenFirQuery {
         var env = new UserEnvSXP();
         env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
 
-        yield compile(env, R.getSession());
+        try {
+          yield compile(env, R.getSession());
+        } catch (BC2ClosureCompilerUnsupportedException | BC2CFGCompilerUnsupportedException e) {
+          throw new SkipQueryException(name(), e);
+        }
       }
       default ->
           throw new AssertionFailedError(

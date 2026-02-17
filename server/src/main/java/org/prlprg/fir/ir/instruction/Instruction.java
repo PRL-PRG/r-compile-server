@@ -23,11 +23,28 @@ public sealed interface Instruction permits Statement, Jump {
       CFG cfg,
       DeferredCallbacks<CFG> postCfg,
       DeferredCallbacks<Module> postModule,
-      @Nullable Object inner) {}
+      @Nullable Object inner,
+      @Nullable Comments comments) {
+    public ParseContext(
+        CFG cfg,
+        DeferredCallbacks<CFG> postCfg,
+        DeferredCallbacks<Module> postModule,
+        @Nullable Object inner) {
+      this(cfg, postCfg, postModule, inner, null);
+    }
+
+    private ParseContext withComments(Comments comments) {
+      return new ParseContext(cfg, postCfg, postModule, inner, comments);
+    }
+  }
 
   @ParseMethod
-  private static Instruction parse(Parser p, ParseContext _ctx) {
+  private static Instruction parse(Parser p, ParseContext ctx) {
     var s = p.scanner();
+
+    var comments = ctx.comments != null ? ctx.comments : p.parse(Comments.class);
+    var p2 = p.withContext(ctx.withComments(comments));
+
     if ((s.nextCharsAre("check ") && !s.nextCharsAre("check ="))
         || (s.nextCharsAre("deopt ") && !s.nextCharsAre("deopt ="))
         || (s.nextCharsAre("if ") && !s.nextCharsAre("if ="))
@@ -35,9 +52,9 @@ public sealed interface Instruction permits Statement, Jump {
         || (s.nextCharsAre("return ") && !s.nextCharsAre("return ="))
         || (s.nextCharsAre("unreachable ") && !s.nextCharsAre("unreachable ="))
         || s.nextCharsAre("unreachable;")) {
-      return p.parse(Jump.class);
+      return p2.parse(Jump.class);
     } else {
-      return p.parse(Statement.class);
+      return p2.parse(Statement.class);
     }
   }
 }
