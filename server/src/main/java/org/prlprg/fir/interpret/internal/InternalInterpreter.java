@@ -737,6 +737,11 @@ public final class InternalInterpreter implements Interpreter {
         throw fail("Error: '" + nv + "' used in an incorrect context, no ... to look in");
       }
 
+      // Missing value is semantically equivalent to an empty dots list
+      if (dots.equals(SEXPs.MISSING_ARG)) {
+        throw fail("Error: the ... list contains fewer than " + n + " element(s)");
+      }
+
       var dots1 = (DotsListSXP) dots;
 
       if (n > dots1.size()) {

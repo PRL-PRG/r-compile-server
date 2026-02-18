@@ -10,6 +10,7 @@ Fir_Kind Fir_kind_any = {.tag = FIR_KIND_ANY};
 Fir_Kind Fir_kind_anyValue = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
 Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
+Fir_Kind Fir_kind_missing = {.tag = FIR_KIND_MISSING};
 
 static Fir_Kind const PRIMITIVE_SCALAR_KINDS[4] = {
   {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
@@ -101,7 +102,6 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
   }
   case FIR_KIND_PRIMITIVE_SCALAR:
   case FIR_KIND_CLOSURE:
-  case FIR_KIND_DOTS:
     // For these kinds, only exact match is a subtype
     if (this_kind.tag != other_kind.tag) {
       return false;
@@ -110,6 +110,11 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
       return this_kind.as.primitive.primitive == other_kind.as.primitive.primitive;
     }
     return true;
+  case FIR_KIND_DOTS:
+    // Missing is a subtype of Dots
+    return this_kind.tag == FIR_KIND_DOTS || this_kind.tag == FIR_KIND_MISSING;
+  case FIR_KIND_MISSING:
+    return this_kind.tag == FIR_KIND_MISSING;
   case FIR_KIND_PROMISE:
     if (this_kind.tag != FIR_KIND_PROMISE) {
       return false;
@@ -157,7 +162,9 @@ bool Fir_value_matches(SEXP value, Fir_Type type) {
     return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP ||
            TYPEOF(value) == SPECIALSXP;
   case FIR_KIND_DOTS:
-    return TYPEOF(value) == DOTSXP;
+    return TYPEOF(value) == DOTSXP || value == R_MissingArg;
+  case FIR_KIND_MISSING:
+    return value == R_MissingArg;
   case FIR_KIND_PROMISE: {
     if (TYPEOF(value) != PROMSXP) {
         // Not a promise
@@ -559,8 +566,10 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
     SEXP name = names[i];
 
     if (name == R_DotsSymbol) {
-      // Splice dots argument
-      list = Rf_listAppend(list, arg);
+      // Splice dots argument (missing value = empty dots)
+      if (arg != R_MissingArg) {
+        list = Rf_listAppend(list, arg);
+      }
     } else {
       SEXP node = PROTECT(Rf_cons(arg, list));
       (*protect_count)++;
@@ -881,6 +890,9 @@ void Fir_print_kind(Fir_Kind kind) {
     break;
   case FIR_KIND_DOTS:
     fprintf(stderr, "dots");
+    break;
+  case FIR_KIND_MISSING:
+    fprintf(stderr, "M");
     break;
   case FIR_KIND_PROMISE:
     fprintf(stderr, "p(");

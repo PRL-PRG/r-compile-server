@@ -59,6 +59,7 @@ import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.util.Strings;
 
 /// Checks type and effect soundness.
 public final class TypeAndEffectChecker extends Checker {
@@ -78,7 +79,9 @@ public final class TypeAndEffectChecker extends Checker {
                 + baselineEffects
                 + "\nIn fun "
                 + function.name()
-                + " { ... }");
+                + "("
+                + Strings.join(", ", function.parameterNames())
+                + ") { ... }");
       }
       if (!version.returnType().canBeAssignedTo(baselineReturnType)) {
         report(
@@ -89,7 +92,24 @@ public final class TypeAndEffectChecker extends Checker {
                 + baselineReturnType
                 + "\nIn fun "
                 + function.name()
-                + " { ... }");
+                + "("
+                + Strings.join(", ", function.parameterNames())
+                + ") { ... }");
+      }
+
+      // Check parameter count
+      if (version.parameters().size() != function.parameterNames().size()) {
+        report(
+            version,
+            "Version has "
+                + version.parameters().size()
+                + " parameters, but function has "
+                + function.parameterNames().size()
+                + "\nIn fun "
+                + function.name()
+                + "("
+                + Strings.join(", ", function.parameterNames())
+                + ") { ... }");
       }
 
       // Check that versions with strictly worse parameters have strictly worse effects/return.

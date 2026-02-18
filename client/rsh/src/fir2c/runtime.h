@@ -24,7 +24,8 @@ typedef enum {
   FIR_KIND_PRIMITIVE_VECTOR = 3,
   FIR_KIND_CLOSURE = 4,
   FIR_KIND_DOTS = 5,
-  FIR_KIND_PROMISE = 6,
+  FIR_KIND_MISSING = 6,
+  FIR_KIND_PROMISE = 7,
 } Fir_KindTag;
 
 typedef enum {
@@ -91,6 +92,7 @@ extern Fir_Kind Fir_kind_any;
 extern Fir_Kind Fir_kind_anyValue;
 extern Fir_Kind Fir_kind_closure;
 extern Fir_Kind Fir_kind_dots;
+extern Fir_Kind Fir_kind_missing;
 
 void Fir_print_signature(Fir_Signature signature);
 void Fir_print_type(Fir_Type type);

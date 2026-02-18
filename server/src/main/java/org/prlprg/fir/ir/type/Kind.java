@@ -49,6 +49,13 @@ public sealed interface Kind extends Comparable<Kind> {
     }
   }
 
+  record Missing() implements Kind {
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+  }
+
   record Promise(Type value, Effects effects) implements Kind {
     @Override
     public String toString() {
@@ -65,7 +72,7 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (this) {
       case Any(), AnyValue(), PrimitiveScalar(var _) -> false;
       case PrimitiveVector(var _) -> true;
-      case Closure(), Dots(), Promise(var _, var _) -> false;
+      case Closure(), Dots(), Missing(), Promise(var _, var _) -> false;
     };
   }
 
@@ -79,7 +86,8 @@ public sealed interface Kind extends Comparable<Kind> {
             case PrimitiveVector(var primitiveKind) -> primitiveKind == otherPrimitiveKind;
             default -> false;
           };
-      case PrimitiveScalar(var _), Closure(), Dots() -> this.equals(other);
+      case Dots() -> this instanceof Dots || this instanceof Missing;
+      case PrimitiveScalar(var _), Closure(), Missing() -> this.equals(other);
       case Promise(var otherValue, var otherEffects) ->
           this instanceof Promise(var value, var effects)
               && value.isSubtypeOf(otherValue)
@@ -122,9 +130,22 @@ public sealed interface Kind extends Comparable<Kind> {
             case Dots() -> 0;
             default -> -1;
           };
-      case Promise(var otherValue, var otherEffects) ->
+      case Missing() ->
           switch (this) {
             case Any(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_), Closure(), Dots() -> 1;
+            case Missing() -> 0;
+            default -> -1;
+          };
+      case Promise(var otherValue, var otherEffects) ->
+          switch (this) {
+            case Any(),
+                AnyValue(),
+                PrimitiveVector(_),
+                PrimitiveScalar(_),
+                Closure(),
+                Dots(),
+                Missing() ->
+                1;
             case Promise(var value, var effects) -> {
               int cmp = value.compareTo(otherValue);
               if (cmp != 0) yield cmp;
@@ -154,8 +175,15 @@ public sealed interface Kind extends Comparable<Kind> {
                 this;
             default -> union(new AnyValue(), onOwnershipMismatch);
           };
-      case Closure(), Dots() ->
-          this.equals(other) ? this : union(new AnyValue(), onOwnershipMismatch);
+      case Closure() -> this.equals(other) ? this : union(new AnyValue(), onOwnershipMismatch);
+      case Dots() ->
+          (this instanceof Dots || this instanceof Missing)
+              ? other
+              : union(new AnyValue(), onOwnershipMismatch);
+      case Missing() ->
+          (this instanceof Dots || this instanceof Missing)
+              ? this
+              : union(new AnyValue(), onOwnershipMismatch);
       case Promise(var otherValue, var otherEffects) ->
           this instanceof Promise(var value, var effects)
               ? new Promise(
@@ -179,6 +207,7 @@ public sealed interface Kind extends Comparable<Kind> {
       }
       case Closure() -> w.write("cls");
       case Dots() -> w.write("dots");
+      case Missing() -> w.write("M");
       case Promise(var type, var effects) -> {
         w.write("p(");
         p.print(type);
@@ -206,6 +235,8 @@ public sealed interface Kind extends Comparable<Kind> {
       return new Closure();
     } else if (s.trySkip("dots")) {
       return new Dots();
+    } else if (s.trySkip('M')) {
+      return new Missing();
     } else if (s.trySkip('p')) {
       s.assertAndSkip('(');
       var type = p.parse(Type.class);
@@ -217,7 +248,7 @@ public sealed interface Kind extends Comparable<Kind> {
       return new PrimitiveScalar(primitive);
     } else {
       throw s.fail(
-          "expected '*', 'V', 'v('..., 'cls', 'p('..., or a primitive kind ('L', 'I', 'R', or 'S')");
+          "expected '*', 'V', 'v('..., 'cls', 'dots', 'M', 'p('..., or a primitive kind ('L', 'I', 'R', or 'S')");
     }
   }
 }

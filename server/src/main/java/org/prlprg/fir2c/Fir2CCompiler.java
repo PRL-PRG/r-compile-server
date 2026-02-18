@@ -1402,6 +1402,7 @@ public final class Fir2CCompiler {
           "Fir_kind_primitive_vector(%s)".formatted(emitPrimitiveKind(primitiveKind));
       case Kind.Closure() -> "Fir_kind_closure";
       case Kind.Dots() -> "Fir_kind_dots";
+      case Kind.Missing() -> "Fir_kind_missing";
       case Kind.Promise(var valueType, var fx) -> {
         var tempTypeName = "t_type_%d".formatted(tempTypeDisambiguator++);
 

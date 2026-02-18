@@ -44,8 +44,8 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public static final Type DOTS =
       new Type(new Kind.Dots(), Ownership.SHARED, Concreteness.DEFINITE);
 
-  /// Alias for [#ANY_VALUE] because we don't have a special type for missing.
-  public static final Type MISSING = ANY_VALUE;
+  public static final Type MISSING =
+      new Type(new Kind.Missing(), Ownership.SHARED, Concreteness.DEFINITE);
 
   private static final Logger LOGGER = Logger.getLogger(Type.class.getName());
 
