@@ -55,3 +55,18 @@ rcp_cmppkg <- function(package) {
 rcp_get_profiling <- function() {
   .Call(C_rcp_get_profiling)
 }
+
+#' Calculate test coverage for a specific function.
+#'
+#' @param fun name of the function.
+#' @param code expressions to run.
+#' @param env environment the function is defined in.
+#' @param enc the enclosing environment which to run the expressions.
+#' @examples
+#' add <- function(x, y) { x + y }
+#' function_coverage(fun = add, code = NULL) # 0% coverage
+#' function_coverage(fun = add, code = add(1, 2) == 3) # 100% coverage
+#' @export
+rcp_function_coverage <- function(fun, code = NULL, env = NULL, enc = parent.frame()) {
+  .Call(C_rcp_function_coverage, fun, code, env, enc)
+}
