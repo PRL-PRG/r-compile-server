@@ -211,10 +211,18 @@ public final class Builtins {
     if (args.size() != 2) {
       throw interpreter.fail("`==` takes 2 arguments");
     }
-    var arg0 = args.getFirst();
-    var arg1 = args.get(1);
 
-    return SEXPs.logical(arg0.equals(arg1));
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.logical(arg0 == arg1);
+    }
+
+    throw interpreter.failUnsupported(
+        "Mock `==` not implemented for arguments except scalar logicals and numbers");
   }
 
   private static SEXP notEqual(
@@ -222,10 +230,18 @@ public final class Builtins {
     if (args.size() != 2) {
       throw interpreter.fail("`!=` takes 2 arguments");
     }
-    var arg0 = args.getFirst();
-    var arg1 = args.get(1);
 
-    return SEXPs.logical(!arg0.equals(arg1));
+    var arg0Double = asScalarDouble(args.getFirst());
+    var arg1Double = asScalarDouble(args.get(1));
+
+    if (arg0Double.isPresent() && arg1Double.isPresent()) {
+      double arg0 = arg0Double.get();
+      double arg1 = arg1Double.get();
+      return SEXPs.logical(arg0 != arg1);
+    }
+
+    throw interpreter.failUnsupported(
+        "Mock `!=` not implemented for arguments except scalar logicals and numbers");
   }
 
   private static SEXP subtract(

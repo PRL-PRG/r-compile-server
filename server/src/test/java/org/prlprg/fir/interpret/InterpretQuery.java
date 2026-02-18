@@ -14,6 +14,7 @@ import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.Query;
+import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.util.Files;
 
@@ -30,6 +31,9 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
 
   @Override
   public InterpretOutput compute(Example example, SnapshotStore store) {
+    if (example.hasOption(name(), "noEval")) {
+      throw new SkipQueryException(name);
+    }
     var module = store.load(example, FirQuery.INSTANCE);
 
     return new TestInterpreter(module).call(functionName, arguments);

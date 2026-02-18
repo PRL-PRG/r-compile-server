@@ -765,15 +765,13 @@ bool Fir_assume_builtin_function(SEXP value, int bltIdx) {
   return PRIMOFFSET(value) == bltIdx;
 }
 
-bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {
+static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "assume_load_fun");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for assume_load_fun");
 
   // `Rf_findFun`,
-  // but returns `false` when it encounters a promise (instead of forcing
-  // or on lookup fail (instead of `Rf_error`),
-  // and when it find a function, returns a boolean indicating
-  // whether it's is a compiled wrapper for `dispatch`
+  // but returns `NULL` when it encounters a promise (instead of forcing
+  // or on lookup fail (instead of `Rf_error`)
   while (env != R_EmptyEnv) {
     SEXP vl = R_findVarInFrame(env, symbol);
     if (vl != R_UnboundValue) {
@@ -781,15 +779,10 @@ bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {
         if (PROMISE_IS_EVALUATED(vl))
           vl = PRVALUE(vl);
         else
-          return false; // fail instead of forcing
+          return NULL; // fail instead of forcing
       }
       if (TYPEOF(vl) == CLOSXP || TYPEOF(vl) == BUILTINSXP || TYPEOF(vl) == SPECIALSXP) {
-        // Found a function, check if it matches
-        Fir_FunctionData *data = NULL;
-        if (!Fir_is_compiled_closure(vl, &data)) {
-          return false;
-        }
-        return data->dispatch == dispatch;
+        return vl;
       }
       // Not a function, not a promise - keep searching (R's `findFun` behavior)
     }
@@ -797,7 +790,29 @@ bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {
   }
 
   // No function found for `symbol`
-  return false;
+  return NULL;
+}
+
+bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {
+  SEXP found = Fir_load_fun_for_assume(symbol, env);
+  if (found == NULL) {
+    return false;
+  }
+
+  Fir_FunctionData *data = NULL;
+  if (!Fir_is_compiled_closure(found, &data)) {
+    return false;
+  }
+  return data->dispatch == dispatch;
+}
+
+bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int bltIdx) {
+  SEXP found = Fir_load_fun_for_assume(symbol, env);
+  if (found == NULL) {
+    return false;
+  }
+
+  return PRIMOFFSET(found) == bltIdx;
 }
 
 bool Fir_assume_type(SEXP value, Fir_Type type) {

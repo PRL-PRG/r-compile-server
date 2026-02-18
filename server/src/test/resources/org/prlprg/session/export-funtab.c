@@ -15,7 +15,7 @@ SEXP export_funtab(SEXP filename_sxp) {
   }
 
   for (int i = 0; R_FunTab[i].name != NULL; i++) {
-    fprintf(f, "%s,%d\n", R_FunTab[i].name, R_FunTab[i].arity);
+    fprintf(f, "%s,%d,%d\n", R_FunTab[i].name, R_FunTab[i].eval, R_FunTab[i].arity);
   }
 
   fclose(f);

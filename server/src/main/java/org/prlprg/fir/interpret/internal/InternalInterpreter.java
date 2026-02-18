@@ -76,7 +76,9 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Logical;
+import org.prlprg.session.GNURSession;
 import org.prlprg.sexp.ArgumentMatcher.MatchException;
+import org.prlprg.sexp.Attributes;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
@@ -108,6 +110,8 @@ import org.prlprg.util.UnreachableError;
 
 /// FIŘ interpreter.
 public final class InternalInterpreter implements Interpreter {
+  private static final EnvSXP BASE_ENV = GNURSession.readLatestBaseEnv();
+
   // Input
   private final Module module;
   private final Map<Abstraction, ExternalVersion> externalVersions = new HashMap<>();
@@ -148,7 +152,7 @@ public final class InternalInterpreter implements Interpreter {
     globalEnv = new GlobalEnvSXP(baseEnv, bindings);
     // Add module functions, including those in parents to the environment.
     addModuleToEnv(module, globalEnv);
-    addModuleToEnv(GlobalModules.BUILTINS, baseEnv);
+    addModuleToEnv(GlobalModules.BASE, baseEnv);
     // `GlobalModules.INTRINSICS` are only directly called, so we don't add them
     // because environments only store stub SEXPs that may be looked up by dynamic calls.
 
@@ -170,6 +174,18 @@ public final class InternalInterpreter implements Interpreter {
             }
           }
         });
+
+    // Add global variables from GNU-R's base
+    for (var entry : BASE_ENV.bindings()) {
+      var name = entry.getKey();
+      var sexp = entry.getValue();
+      if (sexp.isFunction()) {
+        // Already added via `GlobalModules.BASE`
+        continue;
+      }
+
+      baseEnv.set(name, sexp);
+    }
   }
 
   /// Adds stub closures for every function in the module to the environment.
@@ -559,7 +575,11 @@ public final class InternalInterpreter implements Interpreter {
               case BASE -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
             };
         if (value == null) {
-          throw fail("Unbound function: " + variable.name());
+          // TODO: Find which non-builtin functions are included in the GNU-R standard library
+          throw failUnsupported(
+              "Unbound function: "
+                  + variable.name()
+                  + "\n\"Unsupported\" because it may be a library function");
         }
         yield value;
       }
@@ -748,8 +768,15 @@ public final class InternalInterpreter implements Interpreter {
 
     return switch (kind) {
       case PrimitiveVector(var primitiveKind) -> {
+        var attrs = Attributes.NONE;
         if (elementNames.stream().anyMatch(OptionalNamedVariable::isPresent)) {
-          throw fail("Primitive vector elements can't have names");
+          attrs =
+              attrs.including(
+                  "names",
+                  SEXPs.string(
+                      elementNames.stream()
+                          .map(OptionalNamedVariable::name)
+                          .toArray(String[]::new)));
         }
 
         yield switch (primitiveKind) {
@@ -758,23 +785,27 @@ public final class InternalInterpreter implements Interpreter {
                   elements.stream()
                       .mapToInt(
                           v -> v.asScalarInteger().orElseThrow(() -> fail("Not an integer: " + v)))
-                      .toArray());
+                      .toArray(),
+                  attrs);
           case PrimitiveKind.REAL ->
               SEXPs.real(
                   elements.stream()
                       .mapToDouble(
                           v -> v.asScalarReal().orElseThrow(() -> fail("Not a real: " + v)))
-                      .toArray());
+                      .toArray(),
+                  attrs);
           case PrimitiveKind.LOGICAL ->
               SEXPs.logical(
                   elements.stream()
                       .map(v -> v.asScalarLogical().orElseThrow(() -> fail("Not a logical: " + v)))
-                      .toArray(Logical[]::new));
+                      .toArray(Logical[]::new),
+                  attrs);
           case PrimitiveKind.STRING ->
               SEXPs.string(
                   elements.stream()
                       .map(v -> v.asScalarString().orElseThrow(() -> fail("Not a string: " + v)))
-                      .toArray(String[]::new));
+                      .toArray(String[]::new),
+                  attrs);
         };
       }
       case Dots() ->
@@ -1181,7 +1212,7 @@ public final class InternalInterpreter implements Interpreter {
     }
     // Don't check `GlobalModules.INTRINSICS` because they're never stubs.
     if (module.localFunction(function.name()) != function
-        && GlobalModules.BUILTINS.localFunction(function.name()) != function) {
+        && GlobalModules.BASE.localFunction(function.name()) != function) {
       // Closure was removed or is from another interpreter.
       return null;
     }

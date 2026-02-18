@@ -52,6 +52,9 @@ public record Fir2CQuery(
     var firMainFn = firModule.localFunction(Variable.named("main"));
     assertNotNull(firMainFn, "FIR module missing main function");
 
-    return compile(firMainFn, R.getSession(), isOptimized ? new Option[0] : Option.values());
+    var options =
+        isOptimized ? new Option[] {Option.COMPILE_REFERENCED_FUNCTIONS} : Option.values();
+
+    return compile(firMainFn, R.getSession(), options);
   }
 }

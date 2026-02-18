@@ -70,6 +70,10 @@ public sealed interface SexpResult {
     }
   }
 
+  default boolean isSimplyUnsupported() {
+    return this instanceof Error(var _, var isSimplyUnsupported) && isSimplyUnsupported;
+  }
+
   record Ok(SEXP value) implements SexpResult {
     @PrintMethod
     private void print(Printer p) {

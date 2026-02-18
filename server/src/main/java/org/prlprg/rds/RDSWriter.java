@@ -119,6 +119,7 @@ public class RDSWriter implements Closeable {
           case BuiltinOrSpecialSXP bos -> writeBuiltinOrSpecialSXP(bos);
           case VectorSXP<?> vec -> writeVectorSXP(vec);
           case BCodeSXP bc -> writeByteCode(bc);
+          case ExtptrSxp extptr -> writeExtptrSXP(extptr);
           default -> throw new RDSException("Unsupported SEXP type: " + s.type());
         }
       }
@@ -603,6 +604,12 @@ public class RDSWriter implements Closeable {
 
     var nextRepIndex = new AtomicInteger(0);
     writeByteCode1(s, reps, nextRepIndex);
+  }
+
+  private void writeExtptrSXP(ExtptrSxp extptr) throws IOException {
+    refAdd(extptr);
+    writeItem(extptr.prot());
+    writeItem(extptr.tag());
   }
 
   @Override

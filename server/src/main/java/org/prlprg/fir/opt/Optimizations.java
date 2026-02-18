@@ -21,6 +21,7 @@ public class Optimizations {
         "default",
         new SpeculateDispatch(threshold, 3, 9),
         new SpeculateAssume(threshold),
+        new MergeAssumeLoadFun(),
         new FixpointSequence(
             "defaultFixpoint",
             new Specialize(
