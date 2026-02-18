@@ -1,5 +1,15 @@
 fun main() {
-  (reg cond1:L, reg cond2:L) --> I { reg r:I, reg x:I, reg y:I, reg z:I |
+  () -+> I { reg r1:I, reg r2:I, reg r3:I, reg r4:I |
+    r1 = f(TRUE, TRUE);
+    r2 = f(TRUE, FALSE);
+    r3 = f(FALSE, TRUE);
+    r4 = f(FALSE, FALSE);
+    return r1;
+  }
+}
+
+fun f(cond1, cond2) {
+  (reg cond1:L, reg cond2:L) -+> I { reg r:I, reg x:I, reg y:I, reg z:I |
     if cond1 then BB1() else BB2();
   BB1():
     r = 42;

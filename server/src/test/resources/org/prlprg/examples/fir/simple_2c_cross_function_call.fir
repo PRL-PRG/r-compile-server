@@ -8,14 +8,14 @@ fun main() {
   }
 }
 
-fun add_pair(`...`) {
+fun add_pair(lhs, rhs) {
   (reg lhs:I, reg rhs:I) --> I { reg sum:I |
     sum = `+`.1(lhs, rhs);
     return sum;
   }
 }
 
-fun double_value(`...`) {
+fun double_value(value) {
   (reg value:I) --> I { reg twice:I |
     twice = `+`.1(value, value);
     return twice;

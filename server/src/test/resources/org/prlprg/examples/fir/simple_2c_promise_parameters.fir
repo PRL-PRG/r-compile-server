@@ -8,7 +8,7 @@ fun main() {
   }
 }
 
-fun sum_promises(`...`) {
+fun sum_promises(lhs, rhs) {
   (reg lhs:p(I -), reg rhs:p(I -)) --> I { reg left:I, reg right:I, reg ret:I |
     left = force lhs;
     right = force rhs;
