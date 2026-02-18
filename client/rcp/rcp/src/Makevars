@@ -11,6 +11,10 @@ ifneq ($(GDB_JIT_SUPPORT),0)
   PKG_CFLAGS += -DGDB_JIT_SUPPORT
 endif
 
+ifneq ($(PERF_SUPPORT),0)
+  PKG_CFLAGS += -DPERF_SUPPORT
+endif
+
 PKG_CFLAGS += $(DEFINE_FLAGS)
 PKG_CFLAGS += -I$(RSH_HOME)/src/bc2c
 PKG_CFLAGS += -DALIGNMENT_LABELS=$(ALIGNMENT_LABELS)
@@ -33,6 +37,7 @@ $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
 $(info GDB_JIT_SUPPORT=$(GDB_JIT_SUPPORT))
+$(info PERF_SUPPORT=$(PERF_SUPPORT))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build

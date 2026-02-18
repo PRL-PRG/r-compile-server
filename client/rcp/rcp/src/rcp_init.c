@@ -10,6 +10,7 @@ extern SEXP C_rcp_jit_disable(void);
 extern SEXP C_rcp_cmppkg(SEXP pkg);
 extern SEXP C_rcp_get_profiling(void);
 extern SEXP C_rcp_gdb_jit_support(void);
+extern SEXP C_rcp_perf_support(void);
 extern SEXP rcp_init(void);
 extern void rcp_destr(void);
 
@@ -22,6 +23,7 @@ static const R_CallMethodDef CallEntries[] = {
 	{"rcp_cmppkg", (DL_FUNC)&C_rcp_cmppkg, 0},
 	{"rcp_get_profiling", (DL_FUNC)&C_rcp_get_profiling, 0},
 	{"rcp_gdb_jit_support", (DL_FUNC)&C_rcp_gdb_jit_support, 0},
+	{"rcp_perf_support", (DL_FUNC)&C_rcp_perf_support, 0},
 	{"rcp_init", (DL_FUNC)&rcp_init, 0},
 	{NULL, NULL, 0}};
 

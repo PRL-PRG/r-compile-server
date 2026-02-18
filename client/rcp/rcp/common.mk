@@ -10,6 +10,8 @@ CC := gcc-14
 CXX := g++-14
 # Add support for debugging jitted code
 GDB_JIT_SUPPORT ?= 0
+# Add support for perf/samply profiling via jitdump
+PERF_SUPPORT ?= 0
 
 # Get the directory of common.mk itself
 COMMON_MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))

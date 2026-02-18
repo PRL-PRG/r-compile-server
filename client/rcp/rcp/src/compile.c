@@ -2,6 +2,7 @@
 #define RSH
 
 #include "gdb_jit.h"
+#include "perf_jit.h"
 #include "rcp_bc_info.h"
 #include "rcp_common.h"
 #include "runtime_internals.h"
@@ -1350,6 +1351,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	res.jit_entry = NULL;
 #endif
 
+#ifdef PERF_SUPPORT
+	if (name)
+	{
+		perf_jit_register(name, executable, insts_size);
+	}
+#endif
+
 	vmaxset(vmax);
 
 	int prot = PROT_EXEC;
@@ -1450,6 +1458,10 @@ static const uint8_t *prepare_notinlined_functions(void)
 
 	gdb_jit_register("__rcp_notinlined_helpers", mem_notinlined, notinlined_size,
 					 helper_addrs, notinlined_count, helper_stencils, 0);
+#endif
+
+#ifdef PERF_SUPPORT
+	perf_jit_register("__rcp_notinlined_helpers", mem_notinlined, notinlined_size);
 #endif
 
 	if (mprotect(mem_notinlined, notinlined_size, PROT_EXEC) != 0)
@@ -2125,6 +2137,15 @@ SEXP C_rcp_gdb_jit_support(void)
 #endif
 }
 
+SEXP C_rcp_perf_support(void)
+{
+#ifdef PERF_SUPPORT
+	return ScalarLogical(1);
+#else
+	return ScalarLogical(0);
+#endif
+}
+
 #ifdef GDB_JIT_SUPPORT
 
 /* Tags from R sources */
@@ -2185,6 +2206,10 @@ SEXP rcp_init(void)
 
 	save_original_cmpfun();
 
+#ifdef PERF_SUPPORT
+	perf_jit_init();
+#endif
+
 	DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, "
 				"UNLIKELY_LOOPS=%d\n",
 				ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS,
@@ -2197,6 +2222,10 @@ SEXP rcp_init(void)
 
 void rcp_destr(void)
 {
+#ifdef PERF_SUPPORT
+	perf_jit_close();
+#endif
+
 	if (mem_shared_sexp != NULL)
 	{
 		R_ReleaseObject(mem_shared_sexp);
