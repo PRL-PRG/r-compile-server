@@ -96,7 +96,7 @@ public final class Fir2CCompiler {
 
   // Output
   private final CUnit cUnit = new CUnit();
-  private final Set<Function> referencedFunctions = new LinkedHashSet<>();
+  private final LinkedHashSet<Function> referencedFunctions = new LinkedHashSet<>();
   private final Map<Abstraction, Function> referencedVersions = new LinkedHashMap<>();
   private final Set<Function> compiledFunctions = new HashSet<>();
   private final Set<Promise> compiledPromises = new HashSet<>();
@@ -115,7 +115,14 @@ public final class Fir2CCompiler {
 
     var cpSxp = new FunctionEmitter(mainFunction).run();
 
-    emitReferencedExternalDeclarations();
+    if (options.contains(Option.COMPILE_REFERENCED_FUNCTIONS)) {
+      while (!referencedFunctions.isEmpty()) {
+        var next = referencedFunctions.removeFirst();
+        new FunctionEmitter(next).run();
+      }
+    } else {
+      emitReferencedExternalDeclarations();
+    }
 
     return new CompiledModule(cUnit, cpSxp);
   }
@@ -1170,15 +1177,38 @@ public final class Fir2CCompiler {
                 yield "Fir_assume_builtin_function(%s, %d)"
                     .formatted(emitArgument(a.target()), builtinIndex);
               }
-              case AssumeFunction a ->
-                  "Fir_assume_function(%s, &%s)"
-                      .formatted(emitArgument(a.target()), functionDispatchCName(a.function()));
-              case AssumeLoadFun a ->
-                  "Fir_assume_load_fun(%s, %s, &%s)"
-                      .formatted(
-                          nvSymbolRef(pool, a.variable()),
-                          VAR_ENV,
-                          functionDispatchCName(a.function()));
+              case AssumeFunction a when a.function().owner() == INTRINSICS ->
+                  throw new IllegalArgumentException(
+                      "We should never need to assume an intrinsic: " + a.function());
+              case AssumeFunction a -> {
+                // Defer declare extern for referenced (previously-compiled) version
+                // (without duplicates, builtins, or intrinsics).
+                referencedFunctions.add(a.function());
+
+                yield "Fir_assume_function(%s, &%s)"
+                    .formatted(emitArgument(a.target()), functionDispatchCName(a.function()));
+              }
+              case AssumeLoadFun a when a.function().owner() == BUILTINS -> {
+                var builtinIndex =
+                    Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
+                        .index();
+                yield "Fir_assume_load_builtin_fun(%s, %s, %d)"
+                    .formatted(nvSymbolRef(pool, a.variable()), VAR_ENV, builtinIndex);
+              }
+              case AssumeLoadFun a when a.function().owner() == INTRINSICS ->
+                  throw new IllegalArgumentException(
+                      "We should never need to assume an intrinsic: " + a.function());
+              case AssumeLoadFun a -> {
+                // Defer declare extern for referenced (previously-compiled) version
+                // (without duplicates, builtins, or intrinsics).
+                referencedFunctions.add(a.function());
+
+                yield "Fir_assume_load_fun(%s, %s, &%s)"
+                    .formatted(
+                        nvSymbolRef(pool, a.variable()),
+                        VAR_ENV,
+                        functionDispatchCName(a.function()));
+              }
               case AssumeType(var target, var type) ->
                   "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
             };
@@ -1535,7 +1565,7 @@ public final class Fir2CCompiler {
   }
 
   private static String sanitizeString(String value) {
-    return value.replace("\n", "\\n").replace("\"", "\\\"");
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"");
   }
 
   private record Array(int size, String pointer) {}

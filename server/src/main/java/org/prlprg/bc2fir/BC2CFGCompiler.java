@@ -1716,7 +1716,7 @@ public class BC2CFGCompiler {
   private record Builtin(String name) {
     Function function() {
       return Objects.requireNonNull(
-          BUILTINS.localFunction(Variable.named(name)), "missing builtin " + name);
+          BUILTINS.localFunction(Variable.named(name)), "missing builtin: " + name);
     }
   }
 

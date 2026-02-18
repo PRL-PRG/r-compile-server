@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.primitive.FuntabEntry;
+import org.prlprg.primitive.FunTabEntry;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.BaseEnvSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -33,7 +33,7 @@ public class TestRSession implements RSession {
   private @Nullable Set<String> builtins = null;
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
-  private @Nullable ImmutableMap<String, FuntabEntry> rFunTab = null;
+  private @Nullable ImmutableMap<String, FunTabEntry> rFunTab = null;
 
   private void bootstrapBase() {
     try {
@@ -181,7 +181,7 @@ public class TestRSession implements RSession {
   }
 
   @Override
-  public ImmutableMap<String, FuntabEntry> RFunTab() {
+  public ImmutableMap<String, FunTabEntry> RFunTab() {
     if (rFunTab == null) {
       rFunTab = GNURSession.readFunTab();
     }

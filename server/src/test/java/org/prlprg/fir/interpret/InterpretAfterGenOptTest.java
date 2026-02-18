@@ -21,7 +21,7 @@ public interface InterpretAfterGenOptTest {
   Optimization optimization();
 
   /// Call the interpreter once on an optimization without feedback, check output.
-  @FirExampleTest
+  @FirExampleTest(skipOption = "noEval")
   default void test(Example example, SnapshotStore store) {
     var module = store.load(example, new OptimizedFirQuery(optimization()));
     var interpreter = new TestInterpreter(module);
@@ -31,7 +31,7 @@ public interface InterpretAfterGenOptTest {
 
   /// Call the interpreter many times and re-optimize with feedback, check that output is the
   /// same.
-  @FirExampleTest
+  @FirExampleTest(skipOption = "noEval")
   default void testRepeat(Example example, SnapshotStore store) {
     var optimization = optimization();
 

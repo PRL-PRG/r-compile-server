@@ -24,11 +24,19 @@ base_env$pi <- pi
 base_env$T <- T
 base_env$F <- F
 
+# TODO: Fix RDS error in one of the symbols
+# for now we only add globals that we reference
+latest_base_env <- base_env
+latest_base_env$letters <- letters
+
 cat("saving ", length(basevars), " base variables\n")
 saveRDS(basevars, "basevars.RDS", version = 2)
 
 cat("saving ", length(base_env), " baseenv symbols\n")
 saveRDS(base_env, "baseenv.RDS", version = 2)
+
+cat("saving ", length(latest_base_env), " real base environment bindings\n")
+saveRDS(latest_base_env, "latest-baseenv.RDS", version = 2)
 
 # moved to CompilerTest.RDS
 # list_functions <- function(name) {
