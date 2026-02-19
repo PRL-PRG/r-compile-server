@@ -1033,8 +1033,8 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#include \"runtime_internals.h\"\n";
 	c_file << "extern RCNTXT *R_GlobalContext;\n";
 	c_file << "extern SEXP R_ReturnedValue;\n";
-	c_file << "extern void (*_RCP_ENTRY_HOOK_FN)(SEXP rho);\n";
-	c_file << "extern void (*_RCP_EXIT_HOOK_FN)(SEXP retval, SEXP rho);\n\n";
+	c_file << "extern void _RCP_ENTRY_HOOK(SEXP rho);\n";
+	c_file << "extern void _RCP_EXIT_HOOK(SEXP retval, SEXP rho);\n\n";
 
 	// Export RCP_INIT_CFA_OFFSET for GDB JIT support
 	export_rcp_init_cfa_offset(h_file, stencils);
@@ -1275,10 +1275,16 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 		}
 		else
 		{
-			std::cerr << std::format("Unsupported internal relocation symbol: {}\n",
-									 (*rel.sym_ptr_ptr)->name);
-
-			hole.kind = RELOC_RUNTIME_SYMBOL;
+			switch (rel.howto->type)
+			{
+				case X86_64_RELOC_KIND::R_X86_64_GOTPCRELX:
+				case X86_64_RELOC_KIND::R_X86_64_GOTPCREL:
+					hole.kind = RELOC_RUNTIME_SYMBOL_GOT;
+					break;
+				default:
+					hole.kind = RELOC_RUNTIME_SYMBOL;
+					break;
+			}
 			hole.val.symbol_name = strdup((*rel.sym_ptr_ptr)->name);
 		}
 	}

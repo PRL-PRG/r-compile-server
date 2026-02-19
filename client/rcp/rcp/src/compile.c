@@ -23,8 +23,15 @@ void __assert_fail(const char *assertion, const char *file, unsigned int line,
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;	/* Slot for return-ing values */
 
-void (*_RCP_ENTRY_HOOK_FN)(SEXP rho) = NULL;
-void (*_RCP_EXIT_HOOK_FN)(SEXP retval, SEXP rho) = NULL;
+void _RCP_ENTRY_HOOK(SEXP rho)
+{
+	Rprintf("ENTRY rho type=%s\n", Rf_type2char(TYPEOF(rho)));
+}
+
+void _RCP_EXIT_HOOK(SEXP retval, SEXP rho)
+{
+	Rprintf("EXIT retval type=%s\n", Rf_type2char(TYPEOF(retval)));
+}
 
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
@@ -640,13 +647,13 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		break;
 #endif
 		case RETURN_BCOP:
-			if(_RCP_EXIT_HOOK_FN)
+			if(_RCP_EXIT_HOOK)
 				return &stencil_set[1]; // Specialized version with exit hook
-			return &stencil_set[0]; 
+			return &stencil_set[0];
 		case RETURNJMP_BCOP:
-			if(_RCP_EXIT_HOOK_FN)
+			if(_RCP_EXIT_HOOK)
 				return &stencil_set[1]; // Specialized version with exit hook
-			return &stencil_set[0]; 
+			return &stencil_set[0];
 		default:
 			return &stencil_set[0];
 	}
@@ -983,7 +990,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 const char *name)
 {
 	rcp_exec_ptrs res;
-	const Stencil *init_stencil = _RCP_ENTRY_HOOK_FN ? &_RCP_INIT_HOOK : &_RCP_INIT;
+	const Stencil *init_stencil = _RCP_ENTRY_HOOK ? &_RCP_INIT_HOOK : &_RCP_INIT;
 	size_t insts_size = init_stencil->body_size;
 	int for_count = 0;
 
