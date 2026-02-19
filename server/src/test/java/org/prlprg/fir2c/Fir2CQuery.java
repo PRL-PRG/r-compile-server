@@ -53,7 +53,9 @@ public record Fir2CQuery(
     assertNotNull(firMainFn, "FIR module missing main function");
 
     var options =
-        isOptimized ? new Option[] {Option.COMPILE_REFERENCED_FUNCTIONS} : Option.values();
+        isOptimized
+            ? new Option[] {Option.COMPILE_REFERENCED_FUNCTIONS, Option.EMIT_DEBUG_COMMENTS}
+            : Option.values();
 
     return compile(firMainFn, R.getSession(), options);
   }

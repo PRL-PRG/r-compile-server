@@ -97,7 +97,7 @@ public final class Fir2CCompiler {
   // Output
   private final CUnit cUnit = new CUnit();
   private final LinkedHashSet<Function> referencedFunctions = new LinkedHashSet<>();
-  private final Map<Abstraction, Function> referencedVersions = new LinkedHashMap<>();
+  private final LinkedHashMap<Abstraction, Function> referencedVersions = new LinkedHashMap<>();
   private final Set<Function> compiledFunctions = new HashSet<>();
   private final Set<Promise> compiledPromises = new HashSet<>();
 
@@ -116,8 +116,14 @@ public final class Fir2CCompiler {
     var cpSxp = new FunctionEmitter(mainFunction).run();
 
     if (options.contains(Option.COMPILE_REFERENCED_FUNCTIONS)) {
-      while (!referencedFunctions.isEmpty()) {
-        var next = referencedFunctions.removeFirst();
+      while (!referencedFunctions.isEmpty() || !referencedVersions.isEmpty()) {
+        var next =
+            referencedFunctions.isEmpty()
+                ? referencedVersions.remove(referencedVersions.firstEntry().getKey())
+                : referencedFunctions.removeFirst();
+        if (compiledFunctions.contains(next)) {
+          continue;
+        }
         new FunctionEmitter(next).run();
       }
     } else {
