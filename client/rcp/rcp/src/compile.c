@@ -2194,6 +2194,10 @@ SEXP rcp_init(void)
 {
 	refresh_near_memory_ptr(0);
 
+#ifdef PERF_SUPPORT
+	perf_jit_init();
+#endif
+
 	prepare_shared_memory();
 
 	prepare_active_holes();
@@ -2205,10 +2209,6 @@ SEXP rcp_init(void)
 #endif
 
 	save_original_cmpfun();
-
-#ifdef PERF_SUPPORT
-	perf_jit_init();
-#endif
 
 	DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, "
 				"UNLIKELY_LOOPS=%d\n",
