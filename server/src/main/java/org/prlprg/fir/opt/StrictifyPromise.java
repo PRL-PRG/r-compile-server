@@ -5,12 +5,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.cursor.CFGCopier;
@@ -22,10 +24,14 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.util.UnreachableError;
 
 /// For each call to a non-effectful function, inlines every non-effectful, singly-used promise
-/// argument before the call. The callee signature (if dispatch) or version (if static) changes to
-/// accommodate the new (non-promise) parameter types.
+/// argument before the call. The callee signature (if dispatch) or version (if static) changes
+/// to accommodate the new (non-promise) parameter types.
+///
+/// For simplicity, currently only inlines promises whose code has a single BB. If necessary it
+/// can be extended to accommodate multiple BBs.
 public record StrictifyPromise() implements AbstractionOptimization {
   private record Inlineable(
       int argIndex,
@@ -33,7 +39,8 @@ public record StrictifyPromise() implements AbstractionOptimization {
       BB defBb,
       int defStmtIndex,
       List<Statement> promiseStmts,
-      Argument retValue) {}
+      Argument retValue,
+      Type valueType) {}
 
   @Override
   public boolean run(AbstractionFeedback feedback, Abstraction scope) {
@@ -42,9 +49,10 @@ public record StrictifyPromise() implements AbstractionOptimization {
     }
 
     var changed = false;
+    var inferEffects = new InferEffects(scope);
     var defUses = new DefUses(scope);
 
-    for (var bb : List.copyOf(scope.cfg().bbs())) {
+    for (var bb : scope.cfg().bbs()) {
       for (int callIdx = 0; callIdx < bb.statements().size(); callIdx++) {
         var stmt = bb.statements().get(callIdx);
         if (!(stmt.expression() instanceof Call call)) {
@@ -52,7 +60,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
         }
 
         // Only apply to non-effectful callees
-        if (!isNonEffectful(call.callee())) {
+        if (inferEffects.of(call).reflect()) {
           continue;
         }
 
@@ -70,26 +78,17 @@ public record StrictifyPromise() implements AbstractionOptimization {
             continue;
           }
 
-          // Must be in the outer (main) CFG, not inside a nested promise
-          var cfgPos = def.inCfg(scope.cfg());
-          if (cfgPos == null) {
+          var defInCfg = def.inCfg(scope.cfg());
+          if (defInCfg == null) {
             continue;
           }
 
-          // Must be a non-reflective Promise with a single-BB CFG
-          if (!(cfgPos.instruction() instanceof Statement(var _, var _, var expr))) {
-            continue;
-          }
-          if (!(expr instanceof Promise(var _, var effects, var code))) {
-            continue;
-          }
-          if (effects.reflect()) {
-            continue;
-          }
-          if (code.bbs().size() != 1) {
-            continue;
-          }
-          if (!(code.entry().jump() instanceof Return(var _, var retValue))) {
+          // Must be a non-reflective Promise
+          if (!(defInCfg.instruction() instanceof Statement(var _, var _, var expr))
+              || !(expr instanceof Promise(var valueType, var effects, var code))
+              || effects.reflect()
+              || code.bbs().size() != 1
+              || !(code.entry().jump() instanceof Return(var _, var retValue))) {
             continue;
           }
 
@@ -102,10 +101,11 @@ public record StrictifyPromise() implements AbstractionOptimization {
               new Inlineable(
                   j,
                   reg,
-                  cfgPos.bb(),
-                  cfgPos.instructionIndex(),
+                  defInCfg.bb(),
+                  defInCfg.instructionIndex(),
                   List.copyOf(code.entry().statements()),
-                  retValue));
+                  retValue,
+                  valueType));
         }
 
         if (inlineables.isEmpty()) {
@@ -118,33 +118,38 @@ public record StrictifyPromise() implements AbstractionOptimization {
           newArgs.set(il.argIndex(), il.retValue());
         }
 
-        // Compute new callee before applying mutations, so we can bail out if needed
+        // Compute new callee
         var newArgTypes =
-            ImmutableList.copyOf(
-                newArgs.stream()
-                    .map(
-                        arg -> {
-                          var t = scope.typeOf(arg);
-                          return t != null ? t : Type.ANY_VALUE;
-                        })
-                    .toList());
+            newArgs.stream()
+                .map(
+                    arg -> {
+                      var t = scope.typeOf(arg);
+                      return t != null ? t : Type.ANY_VALUE;
+                    })
+                .collect(ImmutableList.toImmutableList());
         Callee newCallee;
-        if (call.callee() instanceof StaticCallee(var fn, var _)) {
-          // Find best version whose parameters accept the new (non-promise) argument types
-          var bestVersion = fn.guess(new Signature(newArgTypes, Type.ANY_VALUE, Effects.NONE));
-          if (bestVersion == null) {
-            // No compatible version found; cannot apply this optimization
-            continue;
+        switch (call.callee()) {
+          case StaticCallee(var fn, var _) -> {
+            // Find best version whose parameters accept the new (non-promise) argument types
+            var bestVersion = fn.guess(new Signature(newArgTypes, Type.ANY_VALUE, Effects.NONE));
+            if (bestVersion == null) {
+              throw new IllegalStateException(
+                  "No compatible version found for "
+                      + call
+                      + " with "
+                      + newArgTypes
+                      + ", not even baseline:\n"
+                      + fn);
+            }
+            newCallee = new StaticCallee(fn, bestVersion);
           }
-          newCallee = new StaticCallee(fn, bestVersion);
-        } else if (call.callee() instanceof DispatchCallee(var fn, var sig)) {
-          // sig != null is guaranteed by isNonEffectful
-          // TODO: This is already an issue, the baseline can be non-effectful,
-          //  although perhaps `InferEffects` doesn't know that...
-          var newSig = new Signature(newArgTypes, sig.returnType(), sig.effects());
-          newCallee = new DispatchCallee(fn, newSig);
-        } else {
-          continue;
+          case DispatchCallee(var fn, var sig) -> {
+            var newSig =
+                sig == null ? null : new Signature(newArgTypes, sig.returnType(), sig.effects());
+            newCallee = new DispatchCallee(fn, newSig);
+          }
+          case DynamicCallee _ ->
+              throw new UnreachableError("dynamic callees are always reflectful");
         }
 
         // Remove promise definitions in this BB (high to low index to avoid index shifting)
@@ -188,13 +193,5 @@ public record StrictifyPromise() implements AbstractionOptimization {
     }
 
     return changed;
-  }
-
-  private static boolean isNonEffectful(Callee callee) {
-    return switch (callee) {
-      case StaticCallee(var _, var version) -> !version.effects().reflect();
-      case DispatchCallee(var _, var sig) -> sig != null && !sig.effects().reflect();
-      default -> false;
-    };
   }
 }
