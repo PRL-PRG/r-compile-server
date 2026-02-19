@@ -194,7 +194,6 @@ extern const void *const _RCP_EXECUTABLE[];
 
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 {
-	printf("Hit coverage point!\n");
   int* coverage_counter = (int*)GETCUSTOM();
   *coverage_counter += 1;
   NEXT;

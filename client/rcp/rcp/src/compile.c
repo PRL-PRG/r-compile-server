@@ -1620,8 +1620,6 @@ static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP covera
 	int *expr_index = INTEGER(expressionsIndex);
 	int len = LENGTH(bytecode);
 
-	PrintValue(expressionsIndex);
-
 	int used_expressions[len];
 	int used_expr_ids[len]; // store expr_ids in discovery order
 	int expressions_count = 0;
@@ -1641,7 +1639,7 @@ static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP covera
 			if (used_expressions[j] == expr_id)
 				goto next_expr;
 		}
-		printf("Sourceref %d used first at bytecode %d\n", expr_id, i);
+		DEBUG_PRINT("Sourceref %d used first at bytecode %d\n", expr_id, i);
 		used_expressions[expressions_count] = expr_id;
 		used_expr_ids[expressions_count] = expr_id;
 		expressions_count++;
@@ -1669,13 +1667,17 @@ static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP covera
 
 			// Get the filename from srcfile attribute
 			SEXP srcfile = Rf_getAttrib(srcref, Rf_install("srcfile"));
-			const char *filename = "";
+			const char *filename = "<text>";
 			if (TYPEOF(srcfile) == ENVSXP)
 			{
 				SEXP filename_sexp = Rf_findVar(Rf_install("filename"), srcfile);
 				if (TYPEOF(filename_sexp) == STRSXP && LENGTH(filename_sexp) > 0)
 				{
-					filename = CHAR(STRING_ELT(filename_sexp, 0));
+					const char *filename_char = CHAR(STRING_ELT(filename_sexp, 0));
+					if(strlen(filename_char) > 0) // To protect from empty filenames
+					{
+						filename = filename_char;
+					}
 				}
 			}
 
@@ -1824,7 +1826,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 
 	PluginStencils plugins = {0};
 
-	if(coverage_registry != R_NilValue)
+	if (coverage_registry != R_NilValue)
 		plugins = srcref_coverage(code, bcode_consts, coverage_registry, name);
 
 	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, plugins.sparse_stencils, plugins.sparse_stencils_count, bbs, stats, name);
@@ -1874,12 +1876,33 @@ SEXP C_is_compiled(SEXP closure)
 	return Rf_ScalarLogical(TRUE);
 }
 
-static SEXP cmpfun(SEXP f, SEXP options, SEXP coverage_registry)
+SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
 	DEBUG_PRINT("Starting to JIT a function...\n");
 
 	if (TYPEOF(f) != CLOSXP)
 		error("The first argument must be a closure.");
+
+	SEXP coverage_registry = R_NilValue;
+
+	// Check if R option "rcp.cmpfun.stats" is set to TRUE
+	SEXP coverage_option = Rf_GetOption1(Rf_install("rcp.cmpfun.coverage"));
+	int attach_coverage = (TYPEOF(coverage_option) == LGLSXP && LOGICAL(coverage_option)[0] == TRUE);
+	if (attach_coverage)
+	{
+		// Get the covr namespace environment
+		SEXP covr_ns = PROTECT(R_FindNamespace(Rf_mkString("covr")));
+		// Get the .counters variable from covr namespace
+		coverage_registry = PROTECT(Rf_findVarInFrame(covr_ns, Rf_install(".counters")));
+		coverage_registry = eval(coverage_registry, covr_ns); // In case it's a promise
+		UNPROTECT_SAFE(coverage_registry); // Is it safe?
+		UNPROTECT_SAFE(covr_ns);
+
+		if (coverage_registry == R_UnboundValue || coverage_registry == R_NilValue)
+		{
+			error("covr package not found or .counters variable not found. Coverage data will not be attached.\n");
+		}
+	}
 
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
 	if (options == R_NilValue)
@@ -1925,7 +1948,6 @@ static SEXP cmpfun(SEXP f, SEXP options, SEXP coverage_registry)
 						break;
 					}
 				}
-				
 			}
 		}
 		else
@@ -1934,7 +1956,7 @@ static SEXP cmpfun(SEXP f, SEXP options, SEXP coverage_registry)
 		}
 	}
 
-	printf("Compiling %s to bytecode...\n", name);
+	DEBUG_PRINT("Compiling %s to bytecode...\n", name);
 	SEXP compiled = compile_to_bc(f, options);
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
 	UNPROTECT(1); // options
@@ -2008,12 +2030,6 @@ static SEXP cmpfun(SEXP f, SEXP options, SEXP coverage_registry)
 	return compiled;
 }
 
-SEXP C_rcp_cmpfun(SEXP f, SEXP options)
-{
-	return cmpfun(f, options, R_NilValue);
-}
-
-
 static SEXP get_coverage(SEXP coverage_registry)
 {
 	if (coverage_registry == NULL)
@@ -2054,7 +2070,7 @@ static SEXP get_coverage(SEXP coverage_registry)
 	UNPROTECT(5); // class_attr, result_names, result, keys, ls_call
 	return result;
 }
-
+/*
 SEXP C_rcp_function_coverage(SEXP fun, SEXP code, SEXP env, SEXP enc)
 {
 	if (TYPEOF(fun) == CLOSXP)
@@ -2071,8 +2087,7 @@ SEXP C_rcp_function_coverage(SEXP fun, SEXP code, SEXP env, SEXP enc)
 	UNPROTECT_SAFE(coverage_registry);
 	return res;
 }
-
-
+*/
 static void save_original_cmpfun(void)
 {
 	// Get the compiler namespace
