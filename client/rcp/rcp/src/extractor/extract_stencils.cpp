@@ -1032,7 +1032,9 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#include <Rmath.h>\n";
 	c_file << "#include \"runtime_internals.h\"\n";
 	c_file << "extern RCNTXT *R_GlobalContext;\n";
-	c_file << "extern SEXP R_ReturnedValue;\n\n";
+	c_file << "extern SEXP R_ReturnedValue;\n";
+	c_file << "extern void (*_RCP_ENTRY_HOOK_FN)(SEXP rho);\n";
+	c_file << "extern void (*_RCP_EXIT_HOOK_FN)(SEXP retval, SEXP rho);\n\n";
 
 	// Export RCP_INIT_CFA_OFFSET for GDB JIT support
 	export_rcp_init_cfa_offset(h_file, stencils);

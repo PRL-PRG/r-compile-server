@@ -44,6 +44,10 @@ extern const void *const _RCP_CRUNTIME0_R_BaseEnv[];
 extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
 
+extern void (*_RCP_ENTRY_HOOK_FN)(SEXP rho);
+extern void (*_RCP_EXIT_HOOK_FN)(SEXP retval, SEXP rho);
+
+
 // #define NO_STACK_OVERFLOW_CHECK
 #include <runtime.h>
 
@@ -196,10 +200,27 @@ SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
 	NEXT;
 }
 
+// or RCP_STENCIL_FUNCTION(_RCP_INIT_HOOK) //but why not also just above?
+SEXP _RCP_INIT_HOOK(Value *restrict stack, rcpEval_locals *restrict locals)
+{
+	_RCP_ENTRY_HOOK_FN(GET_RHO());
+	NEXT;
+}
+
+
 RCP_OP(RETURN,
 	   ,
 	   PUSH_VAL(1); // to hold return value
 	   Rsh_Return(stack);)
+
+RCP_OP_EX(RETURN, HOOK)
+{
+	   POP_VAL(1); // get return value
+	   SEXP __rcp_retval__ = val_as_sexp(*stack);
+	   _RCP_EXIT_HOOK_FN(__rcp_retval__, GET_RHO());
+	   PUSH_VAL(1); // to hold return value
+	   Rsh_Return(stack);
+}
 
 RCP_OP(GOTO,
 	   ,
@@ -776,6 +797,15 @@ RCP_OP(RETURNJMP,
 	   ,
 	   PUSH_VAL(1); // to hold return value
 	   Rsh_ReturnJmp(stack, GET_RHO());)
+
+RCP_OP_EX(RETURNJMP, HOOK)
+{
+	   POP_VAL(1); // get return value
+	   SEXP __rcp_retval__ = val_as_sexp(*stack);
+	   _RCP_EXIT_HOOK_FN(__rcp_retval__, GET_RHO());
+	   PUSH_VAL(1); // to hold return value
+	   Rsh_ReturnJmp(stack, GET_RHO());
+}
 
 RCP_OP(STARTSUBSET_N,
 	   Rboolean condition = Rsh_StartSubsetN(stack, GETCONST_IMM(0), GET_RHO());

@@ -23,6 +23,9 @@ void __assert_fail(const char *assertion, const char *file, unsigned int line,
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;	/* Slot for return-ing values */
 
+void (*_RCP_ENTRY_HOOK_FN)(SEXP rho) = NULL;
+void (*_RCP_EXIT_HOOK_FN)(SEXP retval, SEXP rho) = NULL;
+
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
 {
@@ -562,7 +565,7 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 								  const SEXP *r_constpool)
 {
 	const Stencil *stencil_set = stencils[opcode];
-	// For speciailized stencils
+	// For specialized stencils
 	switch (opcode)
 	{
 		case MATH1_BCOP:
@@ -636,6 +639,14 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		}
 		break;
 #endif
+		case RETURN_BCOP:
+			if(_RCP_EXIT_HOOK_FN)
+				return &stencil_set[1]; // Specialized version with exit hook
+			return &stencil_set[0]; 
+		case RETURNJMP_BCOP:
+			if(_RCP_EXIT_HOOK_FN)
+				return &stencil_set[1]; // Specialized version with exit hook
+			return &stencil_set[0]; 
 		default:
 			return &stencil_set[0];
 	}
@@ -972,7 +983,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 const char *name)
 {
 	rcp_exec_ptrs res;
-	size_t insts_size = _RCP_INIT.body_size;
+	const Stencil *init_stencil = _RCP_ENTRY_HOOK_FN ? &_RCP_INIT_HOOK : &_RCP_INIT;
+	size_t insts_size = init_stencil->body_size;
 	int for_count = 0;
 
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
@@ -1196,9 +1208,9 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 									 // case of non-trivial alignment
 
 	// Start to copy-patch
-	memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
-	for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-		patch(executable, executable, 0, &_RCP_INIT, &_RCP_INIT.holes[j], j, NULL,
+	memcpy(executable, init_stencil->body, init_stencil->body_size);
+	for (size_t j = 0; j < init_stencil->holes_size; ++j)
+		patch(executable, executable, 0, init_stencil, &init_stencil->holes[j], j, NULL,
 			  0, NULL, &ctx);
 
 #ifdef STEPFOR_SPECIALIZE
