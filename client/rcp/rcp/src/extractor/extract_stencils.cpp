@@ -1033,8 +1033,6 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#include \"runtime_internals.h\"\n";
 	c_file << "extern RCNTXT *R_GlobalContext;\n";
 	c_file << "extern SEXP R_ReturnedValue;\n";
-	c_file << "extern void _RCP_ENTRY_HOOK(SEXP rho);\n";
-	c_file << "extern void _RCP_EXIT_HOOK(SEXP retval, SEXP rho);\n\n";
 
 	// Export RCP_INIT_CFA_OFFSET for GDB JIT support
 	export_rcp_init_cfa_offset(h_file, stencils);
@@ -1261,9 +1259,9 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 			hole.kind = RELOC_RCP_EXEC_IMM;
 			hole.val.imm_pos = atoi(descr_imm);
 		}
-		else if (strcmp(descr, "PATCHED_VARIANTS") == 0)
+		else if (strcmp(descr, "CUSTOM_DATA") == 0)
 		{
-			hole.kind = RELOC_RCP_PATCHED_VARIANTS;
+			hole.kind = RELOC_RCP_CUSTOM;
 		}
 		else if (strcmp(descr, "LOOPCNTXT") == 0)
 		{

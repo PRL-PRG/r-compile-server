@@ -44,9 +44,6 @@ extern const void *const _RCP_CRUNTIME0_R_BaseEnv[];
 extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
 
-extern void _RCP_ENTRY_HOOK(SEXP rho);
-extern void _RCP_EXIT_HOOK(SEXP retval, SEXP rho);
-
 
 // #define NO_STACK_OVERFLOW_CHECK
 #include <runtime.h>
@@ -57,7 +54,7 @@ extern void _RCP_EXIT_HOOK(SEXP retval, SEXP rho);
 #warning "Compiler does not support no_callee_saved_registers directive. Generated code will be slower."
 #define STENCIL_ATTRIBUTES
 #endif
-
+#define RCP_TRACE 0
 #if RCP_TRACE
 #define TRACE_PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else
@@ -178,8 +175,9 @@ extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
 #define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
 
-extern const void *const _RCP_PATCHED_VARIANTS[];
-#define GETVARIANTS() (const void *)&_RCP_PATCHED_VARIANTS
+extern void* const _RCP_CUSTOM_DATA[];
+#define GETCUSTOM() (const void*)&_RCP_CUSTOM_DATA
+#define GETVARIANTS() (const void*)&_RCP_CUSTOM_DATA
 
 extern const void *const _RCP_LOOPCNTXT;
 #define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
@@ -195,15 +193,15 @@ extern const void *const _RCP_EXECUTABLE[];
 
 /**************************************************************************/
 
-SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 {
-	NEXT;
+  int* coverage_counter = (int*)GETCUSTOM();
+  *coverage_counter += 1;
+  NEXT;
 }
 
-// or RCP_STENCIL_FUNCTION(_RCP_INIT_HOOK) //but why not also just above?
-SEXP _RCP_INIT_HOOK(Value *restrict stack, rcpEval_locals *restrict locals)
+SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
 {
-	_RCP_ENTRY_HOOK(GET_RHO());
 	NEXT;
 }
 
@@ -213,14 +211,6 @@ RCP_OP(RETURN,
 	   PUSH_VAL(1); // to hold return value
 	   Rsh_Return(stack);)
 
-RCP_OP_EX(RETURN, HOOK)
-{
-	   POP_VAL(1); // get return value
-	   SEXP __rcp_retval__ = val_as_sexp(*stack);
-	   _RCP_EXIT_HOOK(__rcp_retval__, GET_RHO());
-	   PUSH_VAL(1); // to hold return value
-	   Rsh_Return(stack);
-}
 
 RCP_OP(GOTO,
 	   ,
@@ -798,14 +788,6 @@ RCP_OP(RETURNJMP,
 	   PUSH_VAL(1); // to hold return value
 	   Rsh_ReturnJmp(stack, GET_RHO());)
 
-RCP_OP_EX(RETURNJMP, HOOK)
-{
-	   POP_VAL(1); // get return value
-	   SEXP __rcp_retval__ = val_as_sexp(*stack);
-	   _RCP_EXIT_HOOK(__rcp_retval__, GET_RHO());
-	   PUSH_VAL(1); // to hold return value
-	   Rsh_ReturnJmp(stack, GET_RHO());
-}
 
 RCP_OP(STARTSUBSET_N,
 	   Rboolean condition = Rsh_StartSubsetN(stack, GETCONST_IMM(0), GET_RHO());
