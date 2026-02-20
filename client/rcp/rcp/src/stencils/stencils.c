@@ -215,7 +215,6 @@ __asm__(
 	"  push %r13\n"
 	"  push %r12\n"
 	"  push %rbx\n"
-	"  push %rax\n"
 
 	// just in case, switch back so we don't mess up subsequent code
 	".previous\n");
@@ -225,12 +224,11 @@ RCP_OP(RETURN, ,
 	   SEXP result = Rsh_Return(stack);
 	   // Restore the callee-saved registers pushed by _RCP_PROLOGUE and return.
 	   // rbp is fixed (-ffixed-rbp) and still points to the prologue's frame base.
-	   // The prologue pushed: rbp (then set rbp=rsp), r15, r14, r13, r12, rbx, rax.
-	   // So saved registers start at rbp - 48 (6 pushes × 8 bytes).
+	   // The prologue pushed: rbp (then set rbp=rsp), r15, r14, r13, r12, rbx.
+	   // So saved registers start at rbp - 40 (5 pushes × 8 bytes).
 	   // Use lea to reset rsp regardless of stencil's own stack usage.
 	   __asm__ volatile(
-		   "lea -48(%%rbp), %%rsp\n\t" // reset rsp to prologue's saved regs
-		   "pop %%rdx\n\t"			   // alignment rax (use rdx to preserve return value)
+		   "lea -40(%%rbp), %%rsp\n\t" // reset rsp to prologue's saved regs
 		   "pop %%rbx\n\t"
 		   "pop %%r12\n\t"
 		   "pop %%r13\n\t"
