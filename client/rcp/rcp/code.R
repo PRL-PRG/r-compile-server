@@ -7,6 +7,8 @@ fib <- function(x) {
 }
 
 fib = rcp::rcp_cmpfun(fib, list(name="fib"))
+fib(10)
+print(rcp::rcp_get_types_df("fib"))
 
 library(rcp)
 test <- function(x) {

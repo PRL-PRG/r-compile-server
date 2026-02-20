@@ -55,3 +55,28 @@ rcp_cmppkg <- function(package) {
 rcp_get_profiling <- function() {
   .Call(C_rcp_get_profiling)
 }
+
+#' Get recorded type information from entry/exit hooks
+#'
+#' Returns an environment where each key is a function name and each value
+#' is a list of call records. Each record has \code{arguments} (integer vector
+#' of SEXPTYPEs) and \code{ret} (integer SEXPTYPE of the return value).
+#'
+#' @export
+rcp_get_types <- function() {
+  .Call(C_rcp_get_types)
+}
+
+#' Get a data frame of traced types for a given function
+#'
+#' Returns a data frame with one row per traced call. Columns are
+#' \code{arg1}, \code{arg2}, ..., \code{argN} for arguments (up to the
+#' maximum number of arguments across all calls), and \code{ret} for the
+#' return value. Types are shown as character strings.
+#'
+#' @param func_name Character string naming the function to query.
+#' @return A data.frame, or NULL if no type data is available.
+#' @export
+rcp_get_types_df <- function(func_name) {
+  .Call(C_rcp_get_types_df, func_name)
+}

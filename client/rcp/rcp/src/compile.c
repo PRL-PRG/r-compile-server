@@ -2553,6 +2553,153 @@ SEXP C_rcp_get_profiling(void)
 #endif
 }
 
+SEXP C_rcp_get_types(void)
+{
+	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+	if (hooks == R_UnboundValue || hooks == R_NilValue)
+		return R_NilValue;
+
+	SEXP types_env = Rf_findVarInFrame(hooks, Rf_install("types"));
+	if (types_env == R_UnboundValue || types_env == R_NilValue)
+		return R_NilValue;
+
+	// Create a new environment with the same bindings but converted values
+	SEXP result_env = PROTECT(R_NewEnv(R_EmptyEnv, 1, 8));
+
+	// List all keys in types_env
+	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), types_env));
+	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
+	int n = LENGTH(keys);
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *func_name = CHAR(STRING_ELT(keys, i));
+		SEXP ext = Rf_findVarInFrame(types_env, Rf_install(func_name));
+		if (ext == R_UnboundValue || TYPEOF(ext) != EXTPTRSXP)
+			continue;
+
+		TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+		if (!trace || trace->count == 0)
+			continue;
+
+		// Create a list with one entry per call
+		SEXP calls_list = PROTECT(Rf_allocVector(VECSXP, trace->count));
+
+		for (size_t j = 0; j < trace->count; j++)
+		{
+			TypeRecord *rec = &trace->types[j];
+
+			// Create list(arguments = c(...), ret = int)
+			SEXP entry = PROTECT(Rf_allocVector(VECSXP, 2));
+			SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 2));
+			SET_STRING_ELT(entry_names, 0, Rf_mkChar("arguments"));
+			SET_STRING_ELT(entry_names, 1, Rf_mkChar("ret"));
+			Rf_setAttrib(entry, R_NamesSymbol, entry_names);
+
+			// arguments: integer vector
+			SEXP args_vec = PROTECT(Rf_allocVector(INTSXP, rec->count));
+			for (size_t k = 0; k < rec->count; k++)
+				INTEGER(args_vec)[k] = rec->arguments[k];
+			SET_VECTOR_ELT(entry, 0, args_vec);
+
+			// ret: scalar integer
+			SET_VECTOR_ELT(entry, 1, Rf_ScalarInteger(rec->ret));
+
+			SET_VECTOR_ELT(calls_list, j, entry);
+			UNPROTECT(3); // entry, entry_names, args_vec
+		}
+
+		Rf_defineVar(Rf_install(func_name), calls_list, result_env);
+		UNPROTECT(1); // calls_list
+	}
+
+	UNPROTECT(3); // result_env, ls_call, keys
+	return result_env;
+}
+
+SEXP C_rcp_get_types_df(SEXP func_name_sexp)
+{
+	if (TYPEOF(func_name_sexp) != STRSXP || LENGTH(func_name_sexp) != 1)
+		error("func_name must be a single character string.");
+
+	const char *func_name = CHAR(STRING_ELT(func_name_sexp, 0));
+
+	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+	if (hooks == R_UnboundValue || hooks == R_NilValue)
+		return R_NilValue;
+
+	SEXP types_env = Rf_findVarInFrame(hooks, Rf_install("types"));
+	if (types_env == R_UnboundValue || types_env == R_NilValue)
+		return R_NilValue;
+
+	SEXP ext = Rf_findVarInFrame(types_env, Rf_install(func_name));
+	if (ext == R_UnboundValue || TYPEOF(ext) != EXTPTRSXP)
+		return R_NilValue;
+
+	TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+	if (!trace || trace->count == 0)
+		return R_NilValue;
+
+	// Find max number of arguments across all calls
+	size_t max_args = 0;
+	for (size_t i = 0; i < trace->count; i++)
+		if (trace->types[i].count > max_args)
+			max_args = trace->types[i].count;
+
+	size_t ncols = max_args + 1; // arg1..argN + ret
+	size_t nrows = trace->count;
+
+	// Allocate columns (each is a character vector)
+	SEXP df = PROTECT(Rf_allocVector(VECSXP, ncols));
+	SEXP col_names = PROTECT(Rf_allocVector(STRSXP, ncols));
+
+	for (size_t c = 0; c < max_args; c++)
+	{
+		SEXP col = PROTECT(Rf_allocVector(STRSXP, nrows));
+		for (size_t r = 0; r < nrows; r++)
+		{
+			TypeRecord *rec = &trace->types[r];
+			if (c < rec->count)
+				SET_STRING_ELT(col, r, Rf_mkChar(Rf_type2char(rec->arguments[c])));
+			else
+				SET_STRING_ELT(col, r, NA_STRING);
+		}
+		SET_VECTOR_ELT(df, c, col);
+		UNPROTECT(1); // col
+
+		char name_buf[16];
+		snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
+		SET_STRING_ELT(col_names, c, Rf_mkChar(name_buf));
+	}
+
+	// ret column
+	SEXP ret_col = PROTECT(Rf_allocVector(STRSXP, nrows));
+	for (size_t r = 0; r < nrows; r++)
+		SET_STRING_ELT(ret_col, r, Rf_mkChar(Rf_type2char(trace->types[r].ret)));
+	SET_VECTOR_ELT(df, max_args, ret_col);
+	UNPROTECT(1); // ret_col
+	SET_STRING_ELT(col_names, max_args, Rf_mkChar("ret"));
+
+	// Set column names
+	Rf_setAttrib(df, R_NamesSymbol, col_names);
+
+	// Set row.names: 1:nrows
+	SEXP row_names = PROTECT(Rf_allocVector(INTSXP, 2));
+	INTEGER(row_names)[0] = NA_INTEGER;
+	INTEGER(row_names)[1] = -(int)nrows;
+	Rf_setAttrib(df, R_RowNamesSymbol, row_names);
+	UNPROTECT(1); // row_names
+
+	// Set class to "data.frame"
+	SEXP class = PROTECT(Rf_allocVector(STRSXP, 1));
+	SET_STRING_ELT(class, 0, Rf_mkChar("data.frame"));
+	Rf_setAttrib(df, R_ClassSymbol, class);
+	UNPROTECT(1); // class
+
+	UNPROTECT(2); // df, col_names
+	return df;
+}
+
 SEXP C_rcp_gdb_jit_support(void)
 {
 #ifdef GDB_JIT_SUPPORT
