@@ -38,6 +38,7 @@ public class Optimizations {
                 new ReturnTypeAndEffects()),
             new Inline(1000),
             new Cleanup()),
+        new MergeConsecutiveCheckpoints(),
         new ElideUnusedCheckpoints());
   }
 
