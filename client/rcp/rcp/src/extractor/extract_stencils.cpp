@@ -12,6 +12,7 @@
 #include <format>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -1038,6 +1039,34 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#include \"runtime_internals.h\"\n";
 	c_file << "extern RCNTXT *R_GlobalContext;\n";
 	c_file << "extern SEXP R_ReturnedValue;\n\n";
+
+	// Emit forward declarations for runtime symbols referenced in holes
+	// that are not provided by standard R headers (e.g. rcp_ helpers).
+	{
+		std::set<std::string> runtime_symbols;
+		auto collect_from = [&](const std::vector<Hole> &holes) {
+			for (const auto &hole : holes)
+				if (hole.kind == RELOC_RUNTIME_SYMBOL ||
+					hole.kind == RELOC_RUNTIME_SYMBOL_GOT)
+					if (hole.val.symbol_name)
+						runtime_symbols.insert(hole.val.symbol_name);
+		};
+		for (const auto &opset : stencils.stencils_opcodes)
+			for (const auto &s : opset.stencils)
+				collect_from(s.holes);
+		for (const auto &s : stencils.stencils_extra)
+			collect_from(s.holes);
+		for (const auto &s : stencils.functions_not_inlined)
+			collect_from(s.holes);
+
+		// Only emit declarations for symbols not already provided by
+		// R headers or runtime_internals.h (e.g. rcp_ prefixed helpers).
+		for (const auto &sym : runtime_symbols)
+			if (sym.starts_with("rcp_"))
+				c_file << std::format("extern char {};\n", sym);
+		if (!runtime_symbols.empty())
+			c_file << "\n";
+	}
 
 	// Export RCP_INIT_CFA_OFFSET for GDB JIT support
 	export_rcp_init_cfa_offset(h_file, stencils);

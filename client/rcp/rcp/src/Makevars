@@ -49,6 +49,9 @@ PKG_LIBS += $(SHARED_LIB)
 SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o
 
+# Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
+stencils-runtime.o: PKG_CFLAGS += -fno-omit-frame-pointer
+
 ## ------------------------------------------------------------------------ 
 ## targets
 ## ------------------------------------------------------------------------ 

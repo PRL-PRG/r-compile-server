@@ -45,7 +45,25 @@ extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
 
 // #define NO_STACK_OVERFLOW_CHECK
+
+// Redirect helpers to extern rcp_-prefixed functions in the package .so
+// (compiled with frame pointers for perf unwinding).
+// The _static_unused variants suppress "unused static function" warnings.
+#define Rsh_Call Rsh_Call_static_unused
+#define Rsh_StartLoopCntxt Rsh_StartLoopCntxt_static_unused
+
 #include <runtime.h>
+
+#undef Rsh_Call
+#undef Rsh_StartLoopCntxt
+
+// Declare external helpers (in the package .so, compiled with frame pointers)
+extern void rcp_Rsh_Call(Value *stack, SEXP call, SEXP rho);
+#define Rsh_Call rcp_Rsh_Call
+extern Rboolean rcp_Rsh_StartLoopCntxt(Value *stack, RCNTXT *cntxt, SEXP rho);
+#define Rsh_StartLoopCntxt rcp_Rsh_StartLoopCntxt
+extern Rboolean rcp_RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
+#define RCP_STEPFOR_Fallback rcp_RCP_STEPFOR_Fallback
 
 #if __GNUC__ >= 14
 #define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers))
@@ -315,13 +333,6 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
 #undef X
 
 #ifdef STEPFOR_SPECIALIZE
-
-static __attribute__((noinline))
-Rboolean
-RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho)
-{
-	return Rsh_StepFor(stack, cell, rho);
-}
 
 #define X(a, b)                                                                 \
 	static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(               \

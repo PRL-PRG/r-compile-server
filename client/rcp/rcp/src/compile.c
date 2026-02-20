@@ -1400,28 +1400,16 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 static const uint8_t *prepare_notinlined_functions(void)
 {
+	// Helpers (Rsh_Call, Rsh_StartLoopCntxt, RCP_STEPFOR_Fallback) are now
+	// compiled as normal functions in the package .so (stencils-runtime.c)
+	// with frame pointers. The stencils reference them as external symbols
+	// resolved via RELOC_RUNTIME_SYMBOL / RELOC_RUNTIME_SYMBOL_GOT.
+	// No extraction or runtime patching needed.
 	if (notinlined_count == 0)
 		return NULL;
 
-	void *notinlined_lut[notinlined_count];
-
-	uint8_t *mem_notinlined =
-		mmap(get_near_memory(notinlined_size), notinlined_size, PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (mem_notinlined == MAP_FAILED)
-		exit(1);
-
-	// Copy ...
-	uint8_t *offset = mem_notinlined;
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		const Stencil *stencil = &notinlined_stencils[i];
-		memcpy(offset, stencil->body, stencil->body_size);
-		notinlined_lut[i] = offset;
-		offset += stencil->body_size;
-	}
-
-	// ... resolve other holes ...
+	// Legacy path: if the extractor still emits non-inlined stencils,
+	// resolve their RELOC_NOTINLINED_FUNCTION holes as before.
 	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
 	{
 		const Stencil *stencil = stencils_all[i];
@@ -1430,60 +1418,12 @@ static const uint8_t *prepare_notinlined_functions(void)
 			Hole *hole = &stencil->holes[j];
 			if (hole->kind == RELOC_NOTINLINED_FUNCTION)
 			{
-				DEBUG_PRINT(
-					"Patching notinlined function hole at imm_pos %d with address %p\n",
-					hole->val.imm_pos, notinlined_lut[hole->val.imm_pos]);
-				hole->val.symbol = notinlined_lut[hole->val.imm_pos];
-				hole->kind = RELOC_RUNTIME_SYMBOL;
+				error("RELOC_NOTINLINED_FUNCTION encountered but helpers are now "
+					  "in the package .so. Rebuild stencils.\n");
 			}
 		}
 	}
-
-	PatchContext ctx = {.shared_near = mem_shared->memory_shared_near,
-						.shared_low = mem_shared->memory_shared_low,
-						.constpool = NULL,
-						.executable_lookup = NULL,
-						.bytecode = NULL,
-						.bcell_lookup = NULL,
-						.loopcntxt_lookup = NULL,
-						.executable_start = NULL};
-
-	// ... and patch holes in notinlined functions
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		const Stencil *stencil = &notinlined_stencils[i];
-		for (size_t j = 0; j < stencil->holes_size; ++j)
-			patch(notinlined_lut[i], notinlined_lut[i], 0, stencil,
-				  &stencil->holes[j], j, NULL, 0, NULL, &ctx);
-	}
-
-#ifdef GDB_JIT_SUPPORT
-	// Register notinlined functions (helpers) with GDB
-	uint8_t **helper_addrs =
-		(uint8_t **)R_alloc(notinlined_count, sizeof(uint8_t *));
-	const Stencil **helper_stencils =
-		(const Stencil **)R_alloc(notinlined_count, sizeof(Stencil *));
-
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		helper_addrs[i] = (uint8_t *)notinlined_lut[i];
-		helper_stencils[i] = &notinlined_stencils[i];
-	}
-
-	gdb_jit_register("__rcp_notinlined_helpers", mem_notinlined, notinlined_size,
-					 helper_addrs, notinlined_count, helper_stencils, 0);
-#endif
-
-#ifdef PERF_SUPPORT
-	perf_jit_register("__rcp_notinlined_helpers", mem_notinlined, notinlined_size);
-#endif
-
-	if (mprotect(mem_notinlined, notinlined_size, PROT_EXEC) != 0)
-	{
-		perror("mprotect failed");
-		exit(1);
-	}
-	return mem_notinlined;
+	return NULL;
 }
 
 static SEXP original_cmpfun = NULL;
