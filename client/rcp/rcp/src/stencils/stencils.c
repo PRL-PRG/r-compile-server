@@ -53,7 +53,7 @@ extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #warning "Compiler does not support no_callee_saved_registers directive. Generated code will be slower."
 #define STENCIL_ATTRIBUTES
 #endif
-#define RCP_TRACE 1
+
 #if RCP_TRACE
 #define TRACE_PRINT(...) fprintf(stderr, __VA_ARGS__)
 #else

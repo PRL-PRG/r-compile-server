@@ -1011,7 +1011,8 @@ typedef struct PluginStencil
 typedef struct PluginStencils
 {
 	size_t sparse_stencils_count;
-	const PluginStencil *sparse_stencils;
+	size_t sparse_stencils_capacity;
+	PluginStencil *sparse_stencils;
 } PluginStencils;
 
 static int plugin_stencil_pos_cmp(const void *a, const void *b)
@@ -1612,7 +1613,34 @@ SEXP get_attribute(SEXP list, const char *attr_name)
 	return R_NilValue;
 }
 
-static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP coverage_registry, const char *func_name)
+static PluginStencil *add_plugin_stencil_pos(PluginStencils *stencils, int pos, const Stencil *stencil, void *data)
+{
+	if (stencils->sparse_stencils_count >= stencils->sparse_stencils_capacity)
+	{
+		if (stencils->sparse_stencils_capacity == 0)
+			stencils->sparse_stencils_capacity = 4; // initial capacity
+		stencils->sparse_stencils = (PluginStencil *)realloc(stencils->sparse_stencils, stencils->sparse_stencils_capacity * 2 * sizeof(PluginStencil));
+		stencils->sparse_stencils_capacity *= 2;
+	}
+
+	stencils->sparse_stencils[stencils->sparse_stencils_count].pos = pos;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].stencil = stencil;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].data = data;
+	stencils->sparse_stencils_count++;
+
+	return &stencils->sparse_stencils[stencils->sparse_stencils_count - 1];
+}
+
+static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], int bytecode_size, RCP_BC_OPCODES instr, const Stencil *stencil, void *data)
+{
+	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		if (bytecode[i] == instr)
+			add_plugin_stencil_pos(stencils, i, stencil, data);
+	}
+}
+
+static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, const char *func_name)
 {
 	SEXP expressionsIndex = get_attribute(constpool, "srcrefsIndex");
 	if (TYPEOF(expressionsIndex) != INTSXP)
@@ -1623,9 +1651,6 @@ static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP covera
 	int used_expressions[len];
 	int used_expr_ids[len]; // store expr_ids in discovery order
 	int expressions_count = 0;
-	PluginStencils res;
-	res.sparse_stencils = (PluginStencil *)R_alloc(len, sizeof(PluginStencil));
-	res.sparse_stencils_count = 0;
 
 	SEXP *consts = (SEXP *)DATAPTR(constpool);
 
@@ -1644,11 +1669,7 @@ static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP covera
 		used_expr_ids[expressions_count] = expr_id;
 		expressions_count++;
 
-		PluginStencil *custom_stencil = (PluginStencil *)&res.sparse_stencils[res.sparse_stencils_count];
-		custom_stencil->pos = i - 1;
-		custom_stencil->stencil = &_RCP_CUSTOM_COVERAGE;
-		custom_stencil->data = NULL; // will be set below
-		res.sparse_stencils_count++;
+		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COVERAGE, NULL);
 	next_expr:
 	}
 
@@ -1674,7 +1695,7 @@ static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP covera
 				if (TYPEOF(filename_sexp) == STRSXP && LENGTH(filename_sexp) > 0)
 				{
 					const char *filename_char = CHAR(STRING_ELT(filename_sexp, 0));
-					if(strlen(filename_char) > 0) // To protect from empty filenames
+					if (strlen(filename_char) > 0) // To protect from empty filenames
 					{
 						filename = filename_char;
 					}
@@ -1747,14 +1768,10 @@ static PluginStencils srcref_coverage(SEXP bytecode, SEXP constpool, SEXP covera
 			}
 
 			// Point the stencil at this expression's value field
-			PluginStencil *ps = (PluginStencil *)&res.sparse_stencils[i];
+			PluginStencil *ps = (PluginStencil *)&plugins->sparse_stencils[i];
 			ps->data = value_ptr;
 		}
 	}
-
-	qsort((void *)res.sparse_stencils, res.sparse_stencils_count, sizeof(PluginStencil), plugin_stencil_pos_cmp);
-
-	return res;
 }
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
@@ -1826,11 +1843,22 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 
 	PluginStencils plugins = {0};
 
+	/* ALL PLUGINS MUST BE ADDED HERE */
+
 	if (coverage_registry != R_NilValue)
-		plugins = srcref_coverage(code, bcode_consts, coverage_registry, name);
+		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
+
+	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
+	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
+	// add_plugin_stencil_instr(&plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_MYATEXIT, NULL);
+
+	/******************************** */
+
+	qsort((void *)plugins.sparse_stencils, plugins.sparse_stencils_count, sizeof(PluginStencil), plugin_stencil_pos_cmp);
 
 	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, plugins.sparse_stencils, plugins.sparse_stencils_count, bbs, stats, name);
 	UNPROTECT_SAFE(code);
+	free(plugins.sparse_stencils);
 
 	vmaxset(vmax);
 
@@ -1895,7 +1923,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		// Get the .counters variable from covr namespace
 		coverage_registry = PROTECT(Rf_findVarInFrame(covr_ns, Rf_install(".counters")));
 		coverage_registry = eval(coverage_registry, covr_ns); // In case it's a promise
-		UNPROTECT_SAFE(coverage_registry); // Is it safe?
+		UNPROTECT_SAFE(coverage_registry);					  // Is it safe?
 		UNPROTECT_SAFE(covr_ns);
 
 		if (coverage_registry == R_UnboundValue || coverage_registry == R_NilValue)
