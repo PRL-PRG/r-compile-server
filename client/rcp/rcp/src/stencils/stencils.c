@@ -203,11 +203,53 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 
 RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
 {	
+	// do we actually need an entry hook for the types?
+	// If we have evaluated promises, and an argument is assigned with another type
+	// later in teh function, yes...
+	// But that should be rare.
+	Rprintf("Entry hook\n");
 	NEXT;
 }
 
 RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
-{
+{	
+	Rprintf("Exit hook\n");
+	TypeTrace* trace = (TypeTrace*) GETCUSTOM();
+	SEXP rho = GET_RHO();
+
+	// Resize if needed
+	if (trace->count >= trace->capacity) {
+		trace->capacity *= 2;
+		trace->types = realloc(trace->types, trace->capacity * sizeof(TypeRecord));
+	}
+
+	TypeRecord *rec = &trace->types[trace->count];
+
+	// Count arguments
+	size_t nargs = 0;
+	for (SEXP b = FRAME(rho); b != R_NilValue; b = CDR(b)) nargs++;
+
+	rec->count = nargs;
+	rec->arguments = malloc(nargs * sizeof(int));
+
+	// Record argument types (promises are forced by now for used args)
+	size_t i = 0;
+	for (SEXP b = FRAME(rho); b != R_NilValue; b = CDR(b)) {
+		SEXP val = CAR(b);
+		if (TYPEOF(val) == PROMSXP) {
+			SEXP prval = PRVALUE(val);
+			rec->arguments[i] = (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
+		} else {
+			rec->arguments[i] = TYPEOF(val);
+		}
+		i++;
+	}
+
+	// Record return value type (top of stack before RETURN)
+	SEXP ret = val_as_sexp(*GET_VAL(-1));
+	rec->ret = TYPEOF(ret);
+
+	trace->count++;
 	NEXT;
 }
 

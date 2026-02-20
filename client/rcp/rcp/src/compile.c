@@ -1656,6 +1656,13 @@ static void type_trace_finalizer(SEXP ext) {
 static void types_of_function(int bytecode[], int bytecode_size, PluginStencils* plugins, SEXP hooks_registry, const char* func_name) {
 	// fun_name will be unknown if we get it from the JIT
 	// TODO: modify cmpfun_call_sexp to get package and function name using match.call and sys.call
+	// For now, we don't instrument functions for which we don't know the name
+	// TODO: create names for anonymous closures
+	if(!strcmp(func_name, "<unknown>"))
+	{
+		DEBUG_PRINT("Function with unknown name so no creation of entry and exit hooks.\n");
+		return;
+	}
 
 	// get the types environment from the hooks_registry 
 	// Should not need to protect as types is already in an enviornment known by the GC
