@@ -1987,7 +1987,11 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 +
 							  (mid.tv_nsec - start.tv_nsec) / 1000000.0;
 
-	
+	// Check if R option "rcp.cmpfun.stats" is set to TRUE
+	SEXP stats_option = Rf_GetOption1(Rf_install("rcp.cmpfun.stats"));
+	int attach_stats =
+		(stats_option != R_NilValue && LOGICAL(stats_option)[0] == TRUE);
+
 	if (attach_stats)
 	{
 		stats_values[0] = (double)stats.total_size;
