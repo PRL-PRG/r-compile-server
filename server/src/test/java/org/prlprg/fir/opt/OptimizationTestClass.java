@@ -53,5 +53,6 @@ final class OptimizationProvider implements ArgumentsProvider {
         new SpeculateDispatch(1, 9, 99),
         new MergeAssumeLoadFun(),
         new StrictifyPromise(),
+        new ElideUnusedCheckpoints(),
       };
 }

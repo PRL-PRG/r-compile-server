@@ -37,7 +37,8 @@ public class Optimizations {
                 new ResolveLoadFun(),
                 new ReturnTypeAndEffects()),
             new Inline(1000),
-            new Cleanup()));
+            new Cleanup()),
+        new ElideUnusedCheckpoints());
   }
 
   private Optimizations() {}
