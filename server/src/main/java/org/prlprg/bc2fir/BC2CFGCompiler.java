@@ -615,6 +615,7 @@ public class BC2CFGCompiler {
       }
       case SetVar(var name) -> insert(new Store(getVar(name), top()));
       case GetFun(var name) -> {
+        tryAddCheckpoint(false);
         var fun = insertAndReturn(getStr(name), new LoadFun(getVar(name), Env.LOCAL));
         pushCall(fun);
         lastLoadedFunName = getStr(name);
