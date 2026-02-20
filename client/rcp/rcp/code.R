@@ -1,3 +1,4 @@
+options(rcp.cmpfun.entry_exit_hooks = TRUE)
 library(rcp)
 fib <- function(x) {
   if (x == 0) 0

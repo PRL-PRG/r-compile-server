@@ -11,6 +11,7 @@
 #undef RSH
 
 #include "../rcp_bc_info.h"
+#include "../rcp_hooks.h"
 
 #define CONST_RUNTIME_VAR(symbol, type) ((type const)(void *const)(&_RCP_CRUNTIME0_##symbol))
 
@@ -198,6 +199,16 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
   int* coverage_counter = (int*)GETCUSTOM();
   *coverage_counter += 1;
   NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
+{	
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
+{
+	NEXT;
 }
 
 SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)

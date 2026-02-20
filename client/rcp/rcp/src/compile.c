@@ -5,6 +5,7 @@
 #include "rcp_bc_info.h"
 #include "rcp_common.h"
 #include "runtime_internals.h"
+#include "rcp_hooks.h"
 #include <assert.h>
 #include <omp.h>
 #include <R.h>
@@ -1640,6 +1641,48 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 	}
 }
 
+// Finalizer for our growable type trace
+static void type_trace_finalizer(SEXP ext) {
+    TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+    if (trace) {
+        for (size_t i = 0; i < trace->count; i++)
+            free(trace->types[i].arguments);
+        free(trace->types);
+        free(trace);
+        R_ClearExternalPtr(ext);
+    }
+}
+
+static void types_of_function(int bytecode[], int bytecode_size, PluginStencils* plugins, SEXP hooks_registry, const char* func_name) {
+	// fun_name will be unknown if we get it from the JIT
+	// TODO: modify cmpfun_call_sexp to get package and function name using match.call and sys.call
+
+	// get the types environment from the hooks_registry 
+	// Should not need to protect as types is already in an enviornment known by the GC
+	SEXP types_env = Rf_findVarInFrame(hooks_registry, Rf_install("types"));
+
+	DEBUG_PRINT("Adding entry and exit type hooks for %s.\n", func_name);
+
+	// Prepare the key and value for that specific function
+	//We don't know yet how many calls we will see and will need to resize.
+	// But we will also need a stable pointer (so not a GC-allocated SEXP).
+
+	TypeTrace *trace = malloc(sizeof(TypeTrace));
+	trace->capacity = 16; // 16 calls should be enough for most functions
+	trace->count = 0;
+	trace->types = malloc(trace->capacity * sizeof(TypeRecord));
+
+	SEXP ext = PROTECT(R_MakeExternalPtr(trace, R_NilValue, R_NilValue));
+    R_RegisterCFinalizerEx(ext, type_trace_finalizer, TRUE);
+    Rf_defineVar(Rf_install(func_name), ext, types_env);
+    UNPROTECT_SAFE(ext);
+
+	// Create the plugin stencils
+	add_plugin_stencil_pos(plugins, 0, &_RCP_ENTRY_HOOK, trace);
+	add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_EXIT_HOOK, trace);
+	add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURNJMP_BCOP, &_RCP_EXIT_HOOK, trace);
+}
+
 static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, const char *func_name)
 {
 	SEXP expressionsIndex = get_attribute(constpool, "srcrefsIndex");
@@ -1775,7 +1818,7 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 }
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
-						  const char *name, SEXP coverage_registry)
+						  const char *name, SEXP coverage_registry, SEXP hooks_registry)
 {
 	SEXP bcode_code = BCODE_CODE(bcode);
 	SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -1819,7 +1862,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, hooks_registry);
 					SET_VECTOR_ELT(fb, 1, res);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
@@ -1847,6 +1890,9 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 
 	if (coverage_registry != R_NilValue)
 		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
+
+	if(hooks_registry != R_NilValue)
+		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name);
 
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
@@ -1933,8 +1979,29 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	}
 
 	// R option "rcp.entry_exit_hooks" 
+	SEXP hooks_registry = R_NilValue;
 	SEXP entry_exit_hooks = Rf_GetOption1(Rf_install("rcp.cmpfun.entry_exit_hooks"));
 	int attach_entry_exit_hooks = (TYPEOF(entry_exit_hooks) == LGLSXP && LOGICAL(entry_exit_hooks)[0] == TRUE);
+	if(attach_entry_exit_hooks) 
+	{
+		// Reuse existing .rcp_hooks environment if already present, otherwise create it
+		SEXP existing_hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+		if (existing_hooks != R_UnboundValue && existing_hooks != R_NilValue)
+		{
+			hooks_registry = existing_hooks;
+		}
+		else
+		{
+			hooks_registry = PROTECT(R_NewEnv(R_EmptyEnv, 1, 1));
+			Rf_defineVar(Rf_install(".rcp_hooks"), hooks_registry, R_GlobalEnv);
+			// Another environment to store the types:
+			// key: pkg_name:fun_name ; value: list of list(args=list(...), ret_val=)
+			SEXP types = PROTECT(R_NewEnv(R_EmptyEnv, 1, 8));
+			Rf_defineVar(Rf_install("types"), types, hooks_registry);
+			UNPROTECT_SAFE(types);
+			UNPROTECT_SAFE(hooks_registry);
+		}
+	}
 
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
 	if (options == R_NilValue)
@@ -2005,7 +2072,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	PROTECT(compiled);
 
 	clock_gettime(CLOCK_MONOTONIC, &mid);
-	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry);
+	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry);
 	SET_BODY(compiled, ptr);
 	clock_gettime(CLOCK_MONOTONIC, &end);
 	UNPROTECT(1); // compiled
