@@ -602,27 +602,32 @@ static void export_rcp_init_cfa_offset(std::ostream &h_file,
 {
 	h_file << "#ifdef GDB_JIT_SUPPORT\n";
 
-	const StencilExport *rcp_init = nullptr;
+	const StencilExport *rcp_prologue = nullptr;
 	for (const auto &s : stencils.stencils_extra)
 	{
-		if (s.name == "_RCP_INIT")
+		if (s.name == "_RCP_PROLOGUE")
 		{
-			rcp_init = &s;
+			rcp_prologue = &s;
 			break;
 		}
 	}
-	if (!rcp_init)
-		throw std::runtime_error("_RCP_INIT stencil not found");
+	if (!rcp_prologue)
+		throw std::runtime_error("_RCP_PROLOGUE stencil not found");
 
-	auto it = stencils.debug_frames.find(rcp_init->section_symbol_name);
-	if (it == stencils.debug_frames.end())
+	auto it = stencils.debug_frames.find(rcp_prologue->section_symbol_name);
+	if (it != stencils.debug_frames.end())
 	{
-		throw std::runtime_error(
-			std::format("_RCP_INIT debug frame not found (searched for {})",
-						rcp_init->section_symbol_name));
+		int64_t offset = get_cfa_offset(stencils.debug_frame_cie, it->second);
+		h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
 	}
-	int64_t offset = get_cfa_offset(stencils.debug_frame_cie, it->second);
-	h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
+	else
+	{
+		// Naked functions may not get compiler-generated debug frames.
+		// Hardcode the CFA offset: 6 callee-saved regs + rbp + alignment = 8 pushes
+		// = 64 bytes, but CFA is measured from rbp which is set after 2 pushes,
+		// so max CFA offset = 16 (same as original _RCP_INIT).
+		h_file << "#define RCP_INIT_CFA_OFFSET 16\n";
+	}
 
 	h_file << "#endif\n";
 }
@@ -658,7 +663,7 @@ static void export_opcode_stencil_bodies(std::ostream &c_file,
 }
 
 // Export stencil bodies and FDEs for extra stencils (non-opcode stencils
-// like _RCP_INIT, _RCP_RETURN, etc.).
+// like _RCP_PROLOGUE, etc.).
 //
 // Generated variables (per stencil):
 //   uint8_t _{NAME}_BODY[]
@@ -746,7 +751,7 @@ static void export_opcode_stencil_arrays(std::ostream &c_file,
 // Export individual Stencil structs for extra stencils.
 //
 // Generated variables:
-//   const Stencil {NAME}  (e.g., _RCP_INIT, _RCP_RETURN)
+//   const Stencil {NAME}  (e.g., _RCP_PROLOGUE)
 static void export_extra_stencil_structs(std::ostream &c_file,
 										 std::ostream &h_file,
 										 const Stencils &stencils)

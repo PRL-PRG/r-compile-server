@@ -973,7 +973,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 const char *name)
 {
 	rcp_exec_ptrs res;
-	size_t insts_size = _RCP_INIT.body_size;
+	size_t insts_size = _RCP_PROLOGUE.body_size;
 	int for_count = 0;
 
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
@@ -1197,10 +1197,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 									 // case of non-trivial alignment
 
 	// Start to copy-patch
-	memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
-	for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-		patch(executable, executable, 0, &_RCP_INIT, &_RCP_INIT.holes[j], j, NULL,
-			  0, NULL, &ctx);
+	memcpy(executable, _RCP_PROLOGUE.body, _RCP_PROLOGUE.body_size);
 
 #ifdef STEPFOR_SPECIALIZE
 	StepFor_specialized *stepfor_pool = stepfor_storage;
@@ -1318,15 +1315,15 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #ifdef GDB_JIT_SUPPORT
 	if (name)
 	{
-		// +1 for _RCP_INIT prologue as the first entry
+		// +1 for _RCP_PROLOGUE as the first entry
 		uint8_t **inst_addrs_packed =
 			(uint8_t **)S_alloc(count_opcodes + 1, sizeof(uint8_t *));
 		const Stencil **instruction_stencils =
 			(const Stencil **)S_alloc(count_opcodes + 1, sizeof(Stencil *));
 
-		// First entry is _RCP_INIT at offset 0
+		// First entry is _RCP_PROLOGUE at offset 0
 		inst_addrs_packed[0] = executable;
-		instruction_stencils[0] = &_RCP_INIT;
+		instruction_stencils[0] = &_RCP_PROLOGUE;
 
 		// Body stencils follow at index 1..count_opcodes
 		for (int i = 0; i < count_opcodes; i++)
@@ -1339,6 +1336,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			instruction_stencils[i + 1] = &stencils[opcode][variant];
 		}
 
+		// No +8 for call return address since _RCP_PROLOGUE falls through
+		// (no call instruction into body stencils)
 		res.jit_entry = gdb_jit_register(name, executable, insts_size,
 										 inst_addrs_packed, count_opcodes + 1,
 										 instruction_stencils, RCP_INIT_CFA_OFFSET);
@@ -1357,6 +1356,21 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		perf_jit_register(name, executable, insts_size);
 	}
 #endif
+
+	// Debug: dump JIT code to file if RCP_DUMP_DIR is set
+	if (name) {
+		const char *dump_dir = getenv("RCP_DUMP_DIR");
+		if (dump_dir) {
+			char path[512];
+			snprintf(path, sizeof(path), "%s/%s.bin", dump_dir, name);
+			FILE *fp = fopen(path, "wb");
+			if (fp) {
+				fwrite(executable, 1, insts_size, fp);
+				fclose(fp);
+				fprintf(stderr, "JIT %s: %zu bytes written to %s\n", name, insts_size, path);
+			}
+		}
+	}
 
 	vmaxset(vmax);
 

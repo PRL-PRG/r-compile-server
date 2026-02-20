@@ -16,8 +16,10 @@ ifneq ($(SPECIALIZE_SWITCH),0)
   CFLAGS += -DSWITCH_SPECIALIZE
 endif
 
+CFLAGS += -ffixed-rbp
+
 ifneq ($(PERF_SUPPORT),0)
-  CFLAGS += -fno-omit-frame-pointer -ffixed-rbp
+  # additional perf flags if needed
 endif
 
 CFLAGS += -Wall \
