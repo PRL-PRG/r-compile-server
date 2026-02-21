@@ -63,7 +63,7 @@ typedef struct
 	Hole *holes;
 	uint8_t alignment;
 	const char *name;
-#ifdef GDB_JIT_SUPPORT
+#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)
 	const uint8_t *debug_frame;
 #endif
 } Stencil;

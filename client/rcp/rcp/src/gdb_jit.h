@@ -71,4 +71,22 @@ struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 // Unregister a function.
 void gdb_jit_unregister(struct jit_code_entry *entry);
 
+// Build .eh_frame data for runtime unwinding (samply, libunwind, etc.)
+//
+// Produces .eh_frame format from stencil FDE data, suitable for
+// JIT_CODE_UNWINDING_INFO records in jitdump files.
+//
+// @param out_data         Receives malloc'd .eh_frame data (caller must free).
+// @param out_size         Receives size of the .eh_frame data.
+// @param code_addr        Start address of JIT code.
+// @param code_size        Size of JIT code.
+// @param inst_addrs       Array of instruction addresses.
+// @param instruction_count Number of entries in inst_addrs and stencils.
+// @param stencils         Array of Stencil pointers parallel to inst_addrs.
+// @param base_cfa_offset  Base CFA offset for the JIT function.
+void build_eh_frame(uint8_t **out_data, size_t *out_size,
+					void *code_addr, size_t code_size,
+					uint8_t **inst_addrs, int instruction_count,
+					const Stencil **stencils, int base_cfa_offset);
+
 #endif /* GDB_JIT_H */

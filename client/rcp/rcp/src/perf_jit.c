@@ -31,6 +31,7 @@
 /* Record types */
 #define JIT_CODE_LOAD 0
 #define JIT_CODE_CLOSE 3
+#define JIT_CODE_UNWINDING_INFO 4
 
 /* jitdump file header */
 struct jitdump_header
@@ -157,6 +158,48 @@ void perf_jit_register(const char *func_name, void *code_addr, size_t code_size)
 	ret += write(jitdump_fd, &load, sizeof(load));
 	ret += write(jitdump_fd, func_name, name_len);
 	ret += write(jitdump_fd, code_addr, code_size);
+	(void)ret;
+}
+
+/* JIT_CODE_UNWINDING_INFO record payload (follows record header) */
+struct jitdump_unwinding_info
+{
+	uint64_t unwinding_size;
+	uint64_t eh_frame_hdr_size;
+	uint64_t mapped_size;
+	/* followed by: eh_frame data (unwinding_size bytes) */
+};
+
+void perf_jit_register_unwinding_info(const uint8_t *eh_frame_data,
+									  size_t eh_frame_size)
+{
+	if (jitdump_fd < 0 || !eh_frame_data || eh_frame_size == 0)
+		return;
+
+	long page_size = sysconf(_SC_PAGESIZE);
+	uint64_t mapped_size =
+		(eh_frame_size + page_size - 1) & ~(page_size - 1);
+
+	uint32_t total_size = (uint32_t)(sizeof(struct jitdump_record_header) +
+									 sizeof(struct jitdump_unwinding_info) +
+									 eh_frame_size);
+
+	struct jitdump_record_header rec_header = {
+		.id = JIT_CODE_UNWINDING_INFO,
+		.total_size = total_size,
+		.timestamp = get_timestamp_ns(),
+	};
+
+	struct jitdump_unwinding_info info = {
+		.unwinding_size = eh_frame_size,
+		.eh_frame_hdr_size = 0,
+		.mapped_size = mapped_size,
+	};
+
+	ssize_t ret = 0;
+	ret += write(jitdump_fd, &rec_header, sizeof(rec_header));
+	ret += write(jitdump_fd, &info, sizeof(info));
+	ret += write(jitdump_fd, eh_frame_data, eh_frame_size);
 	(void)ret;
 }
 

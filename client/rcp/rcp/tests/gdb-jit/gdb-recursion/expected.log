@@ -1,0 +1,59 @@
+Breakpoint 1 (__jit_debug_register_code) pending.
+> library(rcp)
+>
+> # Recursive function
+> # test_add(4) -> calls test_add(3) -> calls test_add(2) -> returns 12
+> test_add <- function(x) {
++   if (x > 2) {
++     return(test_add(x - 1))
++   } else {
++     return(x + 10)
++   }
++ }
+>
+> cat("Compiling recursive function...\n")
+Compiling recursive function...
+> # Compile
+> test_add <- rcp::rcp_cmpfun(test_add, list(name="test_add"))
+
+Breakpoint 1, 0xADDR in __jit_debug_register_code () from /mnt/data-1/krikava/rcp/external/rsh/external/R/library/rcp/libs/rcp.so
+0xADDR in gdb_jit_register () from /mnt/data-1/krikava/rcp/external/rsh/external/R/library/rcp/libs/rcp.so
+Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/test_add.S, line 2.
+>
+> cat("Executing recursive function...\n")
+Executing recursive function...
+> res <- test_add(4)
+
+Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
+2	GETVAR_OP_
+[GDB] Hit test_add (1st call). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
+#1  0xADDR in ?? ()
+#2  0xADDR in ?? ()
+#3  0xADDR in ?? ()
+#4  0xADDR in rcpEval ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
+2	GETVAR_OP_
+[GDB] Hit test_add (2nd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
+#1  0xADDR in ?? ()
+#2  0xADDR in ?? ()
+#3  0xADDR in ?? ()
+#4  0xADDR in rcpEval ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+
+Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
+2	GETVAR_OP_
+[GDB] Hit test_add (3rd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
+#1  0xADDR in ?? ()
+#2  0xADDR in ?? ()
+#3  0xADDR in ?? ()
+#4  0xADDR in rcpEval ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+> cat("Result:", res, "\n")
+Result: 12
+>
+>
+
+Breakpoint 1, 0xADDR in __jit_debug_register_code () from /mnt/data-1/krikava/rcp/external/rsh/external/R/library/rcp/libs/rcp.so
+Function "__jit_debug_register_code" not defined.

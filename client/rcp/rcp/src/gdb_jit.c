@@ -3,20 +3,23 @@
 #include <Rinternals.h>
 #include <assert.h>
 
-#ifdef GDB_JIT_SUPPORT
+#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)
 
 #include "shared/dwarf.h"
 #include "shared/opcodes.h"
 #include "stencils.h"
 
-#include <elf.h>
-#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef GDB_JIT_SUPPORT
+#include <elf.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 /*
  * GDB JIT Interface Implementation
@@ -217,6 +220,8 @@ static void copy_cfi_with_adjusted_cfa(Buffer *buf, const uint8_t *start,
 		}
 	}
 }
+
+#ifdef GDB_JIT_SUPPORT
 
 /*
  * Generate a temporary source file with opcode names.
@@ -647,12 +652,8 @@ static void build_debug_frame(Buffer *dbg_frame, void *code_addr,
 
 	uint64_t fde_last_addr = (uint64_t)code_addr;
 
-	// Emit prologue (_RCP_INIT) from stencils[0] This has to exist
-	// because it establishes the initial CFA state for the function,
-	// which we then restore before processing body stencils. If the
-	// prologue stencil doesn't have CFI, we can't reliably unwind from
-	// any instructions in the function.
-	assert(stencils[0]->debug_frame);
+	// Emit prologue from stencils[0]
+	if (stencils[0]->debug_frame)
 	{
 		const uint8_t *frame_data = stencils[0]->debug_frame;
 		// FDE layout:
@@ -662,21 +663,34 @@ static void build_debug_frame(Buffer *dbg_frame, void *code_addr,
 		//   [16-23] PC end (8 bytes)
 		//   [24...] CFI instructions
 		uint32_t length;
-		// Read the FDE length from the first 4 bytes
 		memcpy(&length, frame_data, 4);
-		// Skip header (length+cie+pc_begin+pc_range) to CFI bytes
 		const uint8_t *cfi_start = frame_data + 24;
-		// End pointer of this FDE (start + length)
 		const uint8_t *cfi_end = frame_data + 4 + length;
 
-		// Copy CFI instructions into output and adjust stack offsets for
-		// the JIT frame
 		copy_cfi_with_adjusted_cfa(dbg_frame, cfi_start, cfi_end, &fde_last_addr,
 								   base_cfa_offset);
-
-		// Save the current unwind state for later restoration
-		buf_write_u8(dbg_frame, DW_CFA_remember_state);
 	}
+	else
+	{
+		/* _RCP_PROLOGUE is handwritten assembly without CFI directives.
+		 * Manually emit CFI describing its stack frame:
+		 *   push %rbp          (1 byte)  -> CFA = RSP+16, RBP at CFA-16
+		 *   mov %rsp, %rbp     (3 bytes) -> CFA = RBP+16
+		 *   push %r15..%rbx    (9 bytes) -> no CFA change (RBP-based)
+		 */
+		buf_write_u8(dbg_frame, DW_CFA_advance_loc | 1);
+		buf_write_u8(dbg_frame, DW_CFA_def_cfa_offset);
+		buf_write_uleb128(dbg_frame, 16);
+		buf_write_u8(dbg_frame, DW_CFA_offset | DWARF_REG_RBP);
+		buf_write_uleb128(dbg_frame, 2); /* CFA-16 (factored: 2 * -8) */
+		buf_write_u8(dbg_frame, DW_CFA_advance_loc | 3);
+		buf_write_u8(dbg_frame, DW_CFA_def_cfa_register);
+		buf_write_uleb128(dbg_frame, DWARF_REG_RBP);
+		buf_write_u8(dbg_frame, DW_CFA_advance_loc1);
+		buf_write_u8(dbg_frame, 9);
+		fde_last_addr = (uint64_t)code_addr + stencils[0]->body_size;
+	}
+	buf_write_u8(dbg_frame, DW_CFA_remember_state);
 
 	// Process body stencils
 	for (int i = 1; i < instruction_count; i++)
@@ -1148,3 +1162,184 @@ void gdb_jit_unregister(struct jit_code_entry *entry)
 }
 
 #endif /* GDB_JIT_SUPPORT */
+
+/*
+ * Build .eh_frame data for runtime unwinding (samply, libunwind, etc.)
+ *
+ * Produces .eh_frame format (not .debug_frame) from the same stencil FDE data.
+ * Key differences from .debug_frame:
+ *   - CIE id: 0 (not 0xffffffff)
+ *   - FDE CIE pointer: relative offset from current position (not absolute)
+ *   - Augmentation: "zR" with DW_EH_PE_absptr encoding (not empty)
+ *   - Version: 1 (not 4), no address_size/segment_selector_size fields
+ *
+ * The CFI instruction generation (prologue + body stencils with
+ * remember/restore state) is identical to build_debug_frame().
+ *
+ * @param out_data    Receives malloc'd .eh_frame data (caller must free).
+ * @param out_size    Receives size of the .eh_frame data.
+ * @param code_addr   Start address of JIT code.
+ * @param code_size   Size of JIT code.
+ * @param inst_addrs  Array of instruction addresses (NULL for non-instruction slots).
+ * @param instruction_count  Number of entries in inst_addrs and stencils.
+ * @param stencils    Array of Stencil pointers parallel to inst_addrs.
+ * @param base_cfa_offset    Base CFA offset for the JIT function.
+ */
+void build_eh_frame(uint8_t **out_data, size_t *out_size,
+					void *code_addr, size_t code_size,
+					uint8_t **inst_addrs, int instruction_count,
+					const Stencil **stencils, int base_cfa_offset)
+{
+	*out_data = NULL;
+	*out_size = 0;
+
+	if (instruction_count == 0)
+		return;
+
+	Buffer eh_frame;
+	buf_init(&eh_frame, 512);
+
+	/* CIE (Common Information Entry) - .eh_frame format */
+	size_t cie_start = eh_frame.size;
+	buf_write_u32(&eh_frame, 0);          /* length (placeholder) */
+	buf_write_u32(&eh_frame, 0);          /* CIE_id = 0 for .eh_frame */
+	buf_write_u8(&eh_frame, 1);           /* version 1 */
+	buf_write_u8(&eh_frame, 'z');         /* augmentation string "zR" */
+	buf_write_u8(&eh_frame, 'R');
+	buf_write_u8(&eh_frame, 0);           /* null terminator */
+	buf_write_uleb128(&eh_frame, 1);      /* code_alignment_factor */
+	buf_write_sleb128(&eh_frame, -8);     /* data_alignment_factor */
+	buf_write_u8(&eh_frame, DWARF_REG_RA); /* return_address_register (1 byte for v1) */
+	buf_write_uleb128(&eh_frame, 1);      /* augmentation data length */
+	buf_write_u8(&eh_frame, 0x00);        /* DW_EH_PE_absptr - FDE pointers are absolute */
+
+	/* Initial instructions: DW_CFA_def_cfa(RSP, 8) */
+	buf_write_u8(&eh_frame, DW_CFA_def_cfa);
+	buf_write_uleb128(&eh_frame, DWARF_REG_RSP);
+	buf_write_uleb128(&eh_frame, 8);
+
+	/* DW_CFA_offset(RA, 1) => RA at CFA-8 */
+	buf_write_u8(&eh_frame, DW_CFA_offset | DWARF_REG_RA);
+	buf_write_uleb128(&eh_frame, 1);
+
+	/* Pad CIE to pointer-size alignment */
+	while ((eh_frame.size - cie_start) % 8)
+		buf_write_u8(&eh_frame, DW_CFA_nop);
+
+	/* Fixup CIE length */
+	uint32_t cie_len = eh_frame.size - cie_start - 4;
+	memcpy(eh_frame.data + cie_start, &cie_len, 4);
+
+	/* FDE (Frame Description Entry) - .eh_frame format */
+	size_t fde_start = eh_frame.size;
+	buf_write_u32(&eh_frame, 0);                    /* length (placeholder) */
+	/* CIE pointer: offset from this field back to CIE start */
+	uint32_t cie_ptr = (uint32_t)(fde_start + 4 - cie_start);
+	buf_write_u32(&eh_frame, cie_ptr);
+	buf_write_u64(&eh_frame, (uint64_t)code_addr);  /* initial_location (absptr) */
+	buf_write_u64(&eh_frame, code_size);             /* address_range */
+	buf_write_uleb128(&eh_frame, 0);                 /* augmentation data length (z) */
+
+	/* CFI instructions - identical to build_debug_frame() */
+	uint64_t fde_last_addr = (uint64_t)code_addr;
+
+	/* Emit prologue (_RCP_INIT) from stencils[0] */
+	if (stencils[0]->debug_frame)
+	{
+		const uint8_t *frame_data = stencils[0]->debug_frame;
+		uint32_t length;
+		memcpy(&length, frame_data, 4);
+		const uint8_t *cfi_start = frame_data + 24;
+		const uint8_t *cfi_end = frame_data + 4 + length;
+
+		copy_cfi_with_adjusted_cfa(&eh_frame, cfi_start, cfi_end,
+								   &fde_last_addr, base_cfa_offset);
+	}
+	else
+	{
+		/* _RCP_PROLOGUE is handwritten assembly without CFI directives.
+		 * Manually emit CFI describing its stack frame:
+		 *   push %rbp          (1 byte)  -> CFA = RSP+16, RBP at CFA-16
+		 *   mov %rsp, %rbp     (3 bytes) -> CFA = RBP+16
+		 *   push %r15..%rbx    (9 bytes) -> no CFA change (RBP-based)
+		 */
+		/* After push %rbp */
+		buf_write_u8(&eh_frame, DW_CFA_advance_loc | 1);
+		buf_write_u8(&eh_frame, DW_CFA_def_cfa_offset);
+		buf_write_uleb128(&eh_frame, 16);
+		buf_write_u8(&eh_frame, DW_CFA_offset | DWARF_REG_RBP);
+		buf_write_uleb128(&eh_frame, 2); /* CFA-16 (factored: 2 * -8) */
+		/* After mov %rsp, %rbp */
+		buf_write_u8(&eh_frame, DW_CFA_advance_loc | 3);
+		buf_write_u8(&eh_frame, DW_CFA_def_cfa_register);
+		buf_write_uleb128(&eh_frame, DWARF_REG_RBP);
+		/* After remaining pushes (r15, r14, r13, r12, rbx = 9 bytes) */
+		buf_write_u8(&eh_frame, DW_CFA_advance_loc1);
+		buf_write_u8(&eh_frame, 9);
+		fde_last_addr = (uint64_t)code_addr + stencils[0]->body_size;
+	}
+	buf_write_u8(&eh_frame, DW_CFA_remember_state);
+
+	/* Process body stencils */
+	for (int i = 1; i < instruction_count; i++)
+	{
+		if (!inst_addrs[i])
+			continue;
+
+		uint64_t curr = (uint64_t)inst_addrs[i];
+		uint64_t delta = curr - fde_last_addr;
+		if (delta > 0)
+		{
+			if (delta <= 0xff)
+			{
+				buf_write_u8(&eh_frame, DW_CFA_advance_loc1);
+				buf_write_u8(&eh_frame, (uint8_t)delta);
+			}
+			else if (delta <= 0xffff)
+			{
+				buf_write_u8(&eh_frame, DW_CFA_advance_loc2);
+				buf_write_u16(&eh_frame, (uint16_t)delta);
+			}
+			else
+			{
+				buf_write_u8(&eh_frame, DW_CFA_advance_loc4);
+				buf_write_u32(&eh_frame, (uint32_t)delta);
+			}
+			fde_last_addr = curr;
+		}
+
+		const uint8_t *frame_data = stencils[i]->debug_frame;
+		if (frame_data)
+		{
+			uint32_t length;
+			memcpy(&length, frame_data, 4);
+			const uint8_t *cfi_start = frame_data + 24;
+			const uint8_t *cfi_end = frame_data + 4 + length;
+
+			buf_write_u8(&eh_frame, DW_CFA_restore_state);
+			buf_write_u8(&eh_frame, DW_CFA_remember_state);
+			buf_write_u8(&eh_frame, DW_CFA_def_cfa_offset);
+			buf_write_uleb128(&eh_frame, base_cfa_offset + 8);
+
+			copy_cfi_with_adjusted_cfa(&eh_frame, cfi_start, cfi_end,
+									   &fde_last_addr, base_cfa_offset);
+		}
+	}
+
+	/* Pad FDE to pointer-size alignment */
+	while ((eh_frame.size - fde_start) % 8)
+		buf_write_u8(&eh_frame, DW_CFA_nop);
+
+	/* Fixup FDE length */
+	uint32_t fde_len = eh_frame.size - fde_start - 4;
+	memcpy(eh_frame.data + fde_start, &fde_len, 4);
+
+	/* Zero-length terminator (marks end of .eh_frame) */
+	buf_write_u32(&eh_frame, 0);
+
+	*out_data = eh_frame.data;
+	*out_size = eh_frame.size;
+	/* Caller owns the buffer - must free(*out_data) when done */
+}
+
+#endif /* GDB_JIT_SUPPORT || PERF_SUPPORT */

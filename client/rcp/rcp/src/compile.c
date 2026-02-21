@@ -1312,7 +1312,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
 #endif
 
-#ifdef GDB_JIT_SUPPORT
+#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)
 	if (name)
 	{
 		// +1 for _RCP_PROLOGUE as the first entry
@@ -1336,11 +1336,26 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			instruction_stencils[i + 1] = &stencils[opcode][variant];
 		}
 
-		// No +8 for call return address since _RCP_PROLOGUE falls through
-		// (no call instruction into body stencils)
+#ifdef GDB_JIT_SUPPORT
 		res.jit_entry = gdb_jit_register(name, executable, insts_size,
 										 inst_addrs_packed, count_opcodes + 1,
 										 instruction_stencils, RCP_INIT_CFA_OFFSET);
+#else
+		res.jit_entry = NULL;
+#endif
+
+#ifdef PERF_SUPPORT
+		perf_jit_register(name, executable, insts_size);
+
+		// Build .eh_frame and write JIT_CODE_UNWINDING_INFO
+		uint8_t *eh_frame_data = NULL;
+		size_t eh_frame_size = 0;
+		build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
+					   inst_addrs_packed, count_opcodes + 1,
+					   instruction_stencils, RCP_INIT_CFA_OFFSET);
+		perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
+		free(eh_frame_data);
+#endif
 	}
 	else
 	{
@@ -1348,13 +1363,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	}
 #else
 	res.jit_entry = NULL;
-#endif
-
-#ifdef PERF_SUPPORT
-	if (name)
-	{
-		perf_jit_register(name, executable, insts_size);
-	}
 #endif
 
 	// Debug: dump JIT code to file if RCP_DUMP_DIR is set

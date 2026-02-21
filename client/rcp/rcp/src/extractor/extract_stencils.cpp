@@ -542,7 +542,7 @@ static void print_fde_decoded(std::ostream &os,
 
 // Export a stencil's FDE as a C byte array in the generated code.
 // Emits the decoded CFI table as a block comment for debugging, followed
-// by the raw FDE bytes as a uint8_t array, wrapped in #ifdef GDB_JIT_SUPPORT.
+// by the raw FDE bytes as a uint8_t array, wrapped in #if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT).
 static void export_fde(std::ostream &file, const Stencils &stencils,
 					   const std::string &section_symbol_name,
 					   const std::string &variable_name)
@@ -550,7 +550,7 @@ static void export_fde(std::ostream &file, const Stencils &stencils,
 	auto it = stencils.debug_frames.find(section_symbol_name);
 	if (it != stencils.debug_frames.end())
 	{
-		file << "#ifdef GDB_JIT_SUPPORT\n";
+		file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 		file << "/*\n";
 		print_fde_decoded(file, stencils.debug_frame_cie, it->second);
 		file << "*/\n";
@@ -600,7 +600,7 @@ static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
 static void export_rcp_init_cfa_offset(std::ostream &h_file,
 									   const Stencils &stencils)
 {
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
+	h_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 
 	const StencilExport *rcp_prologue = nullptr;
 	for (const auto &s : stencils.stencils_extra)
@@ -735,7 +735,7 @@ static void export_opcode_stencil_arrays(std::ostream &c_file,
 					std::string(current.name) + '_' + stencil.name, stencil.alignment,
 					std::string(current.name) + '_' + stencil.name);
 
-				c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
+				c_file << "\n#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 				c_file << ", " << debug_frame_ptr << "\n";
 				c_file << "#endif\n";
 				c_file << "},\n";
@@ -770,7 +770,7 @@ static void export_extra_stencil_structs(std::ostream &c_file,
 			current.name, current.body.size(), current.name, current.holes.size(),
 			current.name, current.alignment, current.name);
 
-		c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
+		c_file << "\n#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 		c_file << ", " << debug_frame_ptr << "\n";
 		c_file << "#endif\n";
 		c_file << "};\n";
@@ -806,7 +806,7 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 							  current.holes.size(), current.name, current.alignment,
 							  current.name);
 
-		c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
+		c_file << "\n#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 		c_file << ", " << debug_frame_ptr << "\n";
 		c_file << "#endif\n";
 		c_file << "},\n";
@@ -815,7 +815,7 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 	h_file << "extern const Stencil notinlined_stencils[];\n";
 
 	// Debug frames array
-	c_file << "#ifdef GDB_JIT_SUPPORT\n";
+	c_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 	c_file << "\nconst uint8_t *notinlined_debug_frames[] = {\n";
 	for (const auto &current : stencils.functions_not_inlined)
 	{
@@ -832,7 +832,7 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 	c_file << "};\n";
 	c_file << "#endif\n";
 
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
+	h_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 	h_file << "extern const uint8_t *notinlined_debug_frames[];\n";
 	h_file << "#endif\n";
 
@@ -848,7 +848,7 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 static void export_cie(std::ostream &c_file, std::ostream &h_file,
 					   const Stencils &stencils)
 {
-	c_file << "#ifdef GDB_JIT_SUPPORT\n";
+	c_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 	if (!stencils.debug_frame_cie.empty())
 	{
 		DwarfCIE cie = dwarf_parse_cie(stencils.debug_frame_cie.data(),
@@ -867,7 +867,7 @@ static void export_cie(std::ostream &c_file, std::ostream &h_file,
 	c_file << "};\n";
 	c_file << "#endif\n";
 
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
+	h_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 	h_file << "extern uint8_t __CIE[];\n";
 	h_file << "#endif\n";
 }
@@ -915,7 +915,7 @@ static void export_opcode_debug_frame_arrays(std::ostream &c_file,
 											 std::ostream &h_file,
 											 const Stencils &stencils)
 {
-	c_file << "#ifdef GDB_JIT_SUPPORT\n";
+	c_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 	for (const auto &current : stencils.stencils_opcodes)
 	{
 		if (current.stencils.empty())
@@ -937,7 +937,7 @@ static void export_opcode_debug_frame_arrays(std::ostream &c_file,
 			}
 		}
 		c_file << "};\n";
-		h_file << "#ifdef GDB_JIT_SUPPORT\n";
+		h_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 		h_file << std::format("extern const uint8_t *{}_debug_frames[];\n",
 							  current.name);
 		h_file << "#endif\n";
@@ -992,7 +992,7 @@ static size_t export_stencils_all(std::ostream &c_file, std::ostream &h_file,
 static void export_extra_debug_frame_decls(std::ostream &h_file,
 										   const Stencils &stencils)
 {
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
+	h_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
 	for (const auto &current : stencils.stencils_extra)
 	{
 		auto it = stencils.debug_frames.find(current.section_symbol_name);
