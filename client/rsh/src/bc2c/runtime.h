@@ -1125,7 +1125,10 @@ static INLINE void Rsh_LdNull(Value *stack) {
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
-static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
+#ifdef RSH_EXTERN_HELPERS
+extern void Rsh_Call(Value *stack, SEXP call, SEXP rho);
+#else
+void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
   // stack:
   //  fun
   //  args_head
@@ -1206,6 +1209,7 @@ static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
 
   SET_VAL_N(-3, value);
 }
+#endif
 
 static INLINE void Rsh_CallBuiltin(Value *stack, SEXP call, SEXP rho) {
   // stack:
@@ -3131,12 +3135,16 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
-static NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+#ifdef RSH_EXTERN_HELPERS
+extern NODISCARD Rboolean Rsh_StartLoopCntxt(Value *stack, RCNTXT *cntxt, SEXP rho);
+#else
+NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
                                              SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
   return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
 }
+#endif
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
   Rf_endcontext(ctntxt);
