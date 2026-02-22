@@ -24,6 +24,11 @@ void __assert_fail(const char *assertion, const char *file, unsigned int line,
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;	/* Slot for return-ing values */
 
+#ifdef DWARF_SUPPORT
+static int rcp_gdb_jit_enabled = 0;
+static int rcp_perf_jit_enabled = 0;
+#endif
+
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
 {
@@ -1312,8 +1317,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
 #endif
 
-#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)
-	if (name)
+#ifdef DWARF_SUPPORT
+	if (name && (rcp_gdb_jit_enabled || rcp_perf_jit_enabled))
 	{
 		// +1 for _RCP_PROLOGUE as the first entry
 		uint8_t **inst_addrs_packed =
@@ -1336,26 +1341,26 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			instruction_stencils[i + 1] = &stencils[opcode][variant];
 		}
 
-#ifdef GDB_JIT_SUPPORT
-		res.jit_entry = gdb_jit_register(name, executable, insts_size,
-										 inst_addrs_packed, count_opcodes + 1,
-										 instruction_stencils, RCP_INIT_CFA_OFFSET);
-#else
-		res.jit_entry = NULL;
-#endif
+		if (rcp_gdb_jit_enabled)
+			res.jit_entry = gdb_jit_register(name, executable, insts_size,
+											 inst_addrs_packed, count_opcodes + 1,
+											 instruction_stencils, RCP_INIT_CFA_OFFSET);
+		else
+			res.jit_entry = NULL;
 
-#ifdef PERF_SUPPORT
-		perf_jit_register(name, executable, insts_size);
+		if (rcp_perf_jit_enabled)
+		{
+			perf_jit_register(name, executable, insts_size);
 
-		// Build .eh_frame and write JIT_CODE_UNWINDING_INFO
-		uint8_t *eh_frame_data = NULL;
-		size_t eh_frame_size = 0;
-		build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
-					   inst_addrs_packed, count_opcodes + 1,
-					   instruction_stencils, RCP_INIT_CFA_OFFSET);
-		perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
-		free(eh_frame_data);
-#endif
+			// Build .eh_frame and write JIT_CODE_UNWINDING_INFO
+			uint8_t *eh_frame_data = NULL;
+			size_t eh_frame_size = 0;
+			build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
+						   inst_addrs_packed, count_opcodes + 1,
+						   instruction_stencils, RCP_INIT_CFA_OFFSET);
+			perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
+			free(eh_frame_data);
+		}
 	}
 	else
 	{
@@ -1475,7 +1480,7 @@ static void bytecode_info(const int *bytecode, int bytecode_size,
  */
 static void rcp_finalizer(SEXP ptr)
 {
-#ifdef GDB_JIT_SUPPORT
+#ifdef DWARF_SUPPORT
 	rcp_exec_ptrs *ptrs = (rcp_exec_ptrs *)R_ExternalPtrAddr(ptr);
 	if (ptrs && ptrs->jit_entry)
 	{
@@ -2090,10 +2095,19 @@ SEXP C_rcp_get_profiling(void)
 #endif
 }
 
+SEXP C_rcp_dwarf_support(void)
+{
+#ifdef DWARF_SUPPORT
+	return ScalarLogical(1);
+#else
+	return ScalarLogical(0);
+#endif
+}
+
 SEXP C_rcp_gdb_jit_support(void)
 {
-#ifdef GDB_JIT_SUPPORT
-	return ScalarLogical(1);
+#ifdef DWARF_SUPPORT
+	return ScalarLogical(rcp_gdb_jit_enabled);
 #else
 	return ScalarLogical(0);
 #endif
@@ -2101,14 +2115,14 @@ SEXP C_rcp_gdb_jit_support(void)
 
 SEXP C_rcp_perf_support(void)
 {
-#ifdef PERF_SUPPORT
-	return ScalarLogical(1);
+#ifdef DWARF_SUPPORT
+	return ScalarLogical(rcp_perf_jit_enabled);
 #else
 	return ScalarLogical(0);
 #endif
 }
 
-#ifdef GDB_JIT_SUPPORT
+#ifdef DWARF_SUPPORT
 
 /* Tags from R sources */
 #ifndef ISQSXP
@@ -2156,8 +2170,11 @@ SEXP rcp_init(void)
 {
 	refresh_near_memory_ptr(0);
 
-#ifdef PERF_SUPPORT
-	perf_jit_init();
+#ifdef DWARF_SUPPORT
+	rcp_gdb_jit_enabled = (getenv("RCP_GDB_JIT") != NULL);
+	rcp_perf_jit_enabled = (getenv("RCP_PERF_JIT") != NULL);
+	if (rcp_perf_jit_enabled)
+		perf_jit_init();
 #endif
 
 	prepare_shared_memory();
@@ -2184,8 +2201,9 @@ SEXP rcp_init(void)
 
 void rcp_destr(void)
 {
-#ifdef PERF_SUPPORT
-	perf_jit_close();
+#ifdef DWARF_SUPPORT
+	if (rcp_perf_jit_enabled)
+		perf_jit_close();
 #endif
 
 	if (mem_shared_sexp != NULL)

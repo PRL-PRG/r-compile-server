@@ -18,10 +18,6 @@ endif
 
 CFLAGS += -ffixed-rbp
 
-ifneq ($(PERF_SUPPORT),0)
-  # additional perf flags if needed
-endif
-
 CFLAGS += -Wall \
 					-Os \
 					-I$(R_HOME)/include \
@@ -41,9 +37,9 @@ CFLAGS += -Wall \
 					-mcmodel=$(MCMODEL) \
 					-Wno-unused-function
 
-# When GDB JIT or perf support is enabled, keep .eh_frame for CFI extraction.
+# When DWARF support is enabled, keep .eh_frame for CFI extraction.
 # Otherwise suppress unwind tables to reduce stencil size.
-ifeq ($(GDB_JIT_SUPPORT)$(PERF_SUPPORT),00)
+ifeq ($(DWARF_SUPPORT),0)
   CFLAGS += -fno-asynchronous-unwind-tables
 endif
 
@@ -52,7 +48,7 @@ OBJ = $(notdir $(STENCILS_OBJ))
 # Track flags that affect the .eh_frame content of the stencil object.
 # If these flags change, force a rebuild even if source hasn't changed.
 STENCILS_FLAG_STAMP = .stencils_flags
-CURRENT_FLAGS := GDB_JIT=$(GDB_JIT_SUPPORT) PERF=$(PERF_SUPPORT)
+CURRENT_FLAGS := DWARF=$(DWARF_SUPPORT)
 
 .PHONY: all
 all: $(OBJ)

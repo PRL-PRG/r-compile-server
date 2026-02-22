@@ -63,7 +63,7 @@ typedef struct
 	Hole *holes;
 	uint8_t alignment;
 	const char *name;
-#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)
+#ifdef DWARF_SUPPORT
 	const uint8_t *cfi_data;  // CFI instruction bytes (from .eh_frame FDE)
 	size_t cfi_size;           // Size of CFI instruction bytes
 #endif

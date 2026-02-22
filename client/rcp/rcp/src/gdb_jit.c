@@ -3,23 +3,20 @@
 #include <Rinternals.h>
 #include <assert.h>
 
-#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)
+#ifdef DWARF_SUPPORT
 
 #include "shared/dwarf.h"
 #include "shared/opcodes.h"
 #include "stencils.h"
 
+#include <elf.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef GDB_JIT_SUPPORT
-#include <elf.h>
-#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#endif
 
 /*
  * GDB JIT Interface Implementation
@@ -57,8 +54,6 @@
  *    backtraces, stepping, and variable inspection for JIT code.
  */
 
-#ifdef GDB_JIT_SUPPORT
-
 /* Global descriptor - GDB looks for this symbol */
 struct jit_descriptor __jit_debug_descriptor = {1, JIT_NOACTION, NULL, NULL};
 
@@ -84,8 +79,6 @@ enum
 	SEC_EH_FRAME,
 	SEC_COUNT
 };
-
-#endif /* GDB_JIT_SUPPORT */
 
 /*
  * Buffer helper for building sections
@@ -170,8 +163,6 @@ static void buf_free(Buffer *buf)
 	buf->size = 0;
 	buf->capacity = 0;
 }
-
-#ifdef GDB_JIT_SUPPORT
 
 /*
  * Generate a temporary source file with opcode names.
@@ -887,8 +878,6 @@ void gdb_jit_unregister(struct jit_code_entry *entry)
 	free(entry);
 }
 
-#endif /* GDB_JIT_SUPPORT */
-
 /*
  * Build .eh_frame data for stack unwinding.
  *
@@ -1046,4 +1035,4 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 	/* Caller owns the buffer - must free(*out_data) when done */
 }
 
-#endif /* GDB_JIT_SUPPORT || PERF_SUPPORT */
+#endif /* DWARF_SUPPORT */

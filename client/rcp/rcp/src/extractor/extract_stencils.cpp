@@ -523,7 +523,7 @@ static void print_cfi_decoded(std::ostream &os,
 
 // Export a stencil's CFI instruction bytes as a C byte array in the generated code.
 // Emits the decoded CFI table as a block comment for debugging, followed
-// by the raw CFI bytes as a uint8_t array, wrapped in #if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT).
+// by the raw CFI bytes as a uint8_t array, wrapped in #ifdef DWARF_SUPPORT.
 static void export_cfi(std::ostream &file, const Stencils &stencils,
 					   const std::string &section_symbol_name,
 					   const std::string &variable_name)
@@ -531,7 +531,7 @@ static void export_cfi(std::ostream &file, const Stencils &stencils,
 	auto it = stencils.eh_frame_cfis.find(section_symbol_name);
 	if (it != stencils.eh_frame_cfis.end())
 	{
-		file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
+		file << "#ifdef DWARF_SUPPORT\n";
 		file << "/*\n";
 		print_cfi_decoded(file, stencils.eh_frame_cie, it->second);
 		file << "*/\n";
@@ -594,7 +594,7 @@ static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
 static void export_rcp_init_cfa_offset(std::ostream &h_file,
 									   const Stencils &stencils)
 {
-	h_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
+	h_file << "#ifdef DWARF_SUPPORT\n";
 
 	const StencilExport *rcp_prologue = nullptr;
 	for (const auto &s : stencils.stencils_extra)
@@ -632,7 +632,7 @@ static void export_rcp_init_cfa_offset(std::ostream &h_file,
 // Generated variables (per opcode, per variant):
 //   uint8_t _{OPCODE}_{VARIANT}_BODY[]
 //   Hole _{OPCODE}_{VARIANT}_HOLES[]
-//   uint8_t _{OPCODE}_{VARIANT}_cfi_data[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
+//   uint8_t _{OPCODE}_{VARIANT}_cfi_data[]  (if DWARF_SUPPORT)
 static void export_opcode_stencil_bodies(std::ostream &c_file,
 										 std::ostream &h_file,
 										 const Stencils &stencils)
@@ -662,7 +662,7 @@ static void export_opcode_stencil_bodies(std::ostream &c_file,
 // Generated variables (per stencil):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_cfi_data[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
+//   uint8_t _{NAME}_cfi_data[]  (if DWARF_SUPPORT)
 static void export_extra_stencil_bodies(std::ostream &c_file,
 										const Stencils &stencils)
 {
@@ -681,7 +681,7 @@ static void export_extra_stencil_bodies(std::ostream &c_file,
 // Generated variables (per function):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_cfi_data[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
+//   uint8_t _{NAME}_cfi_data[]  (if DWARF_SUPPORT)
 static size_t export_notinlined_bodies(std::ostream &c_file,
 									   const Stencils &stencils)
 {
@@ -732,7 +732,7 @@ static void export_opcode_stencil_arrays(std::ostream &c_file,
 					std::string(current.name) + '_' + stencil.name, stencil.alignment,
 					std::string(current.name) + '_' + stencil.name);
 
-				c_file << "\n#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
+				c_file << "\n#ifdef DWARF_SUPPORT\n";
 				c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
 				c_file << "#endif\n";
 				c_file << "},\n";
@@ -769,7 +769,7 @@ static void export_extra_stencil_structs(std::ostream &c_file,
 			current.name, current.body.size(), current.name, current.holes.size(),
 			current.name, current.alignment, current.name);
 
-		c_file << "\n#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
+		c_file << "\n#ifdef DWARF_SUPPORT\n";
 		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
 		c_file << "#endif\n";
 		c_file << "};\n";
@@ -806,7 +806,7 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 							  current.holes.size(), current.name, current.alignment,
 							  current.name);
 
-		c_file << "\n#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
+		c_file << "\n#ifdef DWARF_SUPPORT\n";
 		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
 		c_file << "#endif\n";
 		c_file << "},\n";
@@ -822,11 +822,11 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 // Export the DWARF CIE (Common Information Entry) used for all FDEs.
 //
 // Generated variables:
-//   uint8_t __CIE[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
+//   uint8_t __CIE[]  (if DWARF_SUPPORT)
 static void export_cie(std::ostream &c_file, std::ostream &h_file,
 					   const Stencils &stencils)
 {
-	c_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
+	c_file << "#ifdef DWARF_SUPPORT\n";
 	if (!stencils.eh_frame_cie.empty())
 	{
 		DwarfCIE cie = dwarf_parse_cie(stencils.eh_frame_cie.data(),
@@ -845,7 +845,7 @@ static void export_cie(std::ostream &c_file, std::ostream &h_file,
 	c_file << "};\n";
 	c_file << "#endif\n";
 
-	h_file << "#if defined(GDB_JIT_SUPPORT) || defined(PERF_SUPPORT)\n";
+	h_file << "#ifdef DWARF_SUPPORT\n";
 	h_file << "extern uint8_t __CIE[];\n";
 	h_file << "#endif\n";
 }

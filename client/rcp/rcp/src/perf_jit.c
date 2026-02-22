@@ -1,6 +1,6 @@
 #include "perf_jit.h"
 
-#ifdef PERF_SUPPORT
+#ifdef DWARF_SUPPORT
 
 #include <elf.h>
 #include <fcntl.h>
@@ -229,4 +229,4 @@ void perf_jit_close(void)
 	jitdump_fd = -1;
 }
 
-#endif /* PERF_SUPPORT */
+#endif /* DWARF_SUPPORT */

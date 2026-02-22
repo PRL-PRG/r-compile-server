@@ -88,11 +88,14 @@ def normalize_output(content: str) -> str:
 def check_gdb_jit_support(r_home: str) -> bool:
     """Check if GDB JIT support is enabled in rcp."""
     rscript = os.path.join(r_home, "bin", "Rscript")
-    cmd = [rscript, "-e", 
+    cmd = [rscript, "-e",
            "library(rcp); if(!.Call('rcp_gdb_jit_support', PACKAGE='rcp')) quit(status=1)"]
-    
+
+    env = os.environ.copy()
+    env["RCP_GDB_JIT"] = "1"
+
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, timeout=30, env=env)
         return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return False
@@ -132,6 +135,7 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = r_lib
     env["R_HOME"] = r_home
+    env["RCP_GDB_JIT"] = "1"
 
     # Run GDB
     try:
@@ -241,7 +245,7 @@ def main():
     # Check GDB JIT support
     rprint("[bold blue]Checking for GDB JIT support...[/bold blue]")
     if not check_gdb_jit_support(r_home):
-        rprint("[yellow]Skipping debugging tests (GDB_JIT_SUPPORT disabled)[/yellow]")
+        rprint("[yellow]Skipping debugging tests (DWARF_SUPPORT disabled)[/yellow]")
         sys.exit(0)
     rprint("[green]GDB JIT support enabled.[/green]")
 

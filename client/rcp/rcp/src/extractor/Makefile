@@ -1,7 +1,7 @@
 include ../../common.mk
 
-ifneq ($(GDB_JIT_SUPPORT),0)
-  CXXFLAGS += -DGDB_JIT_SUPPORT
+ifneq ($(DWARF_SUPPORT),0)
+  CXXFLAGS += -DDWARF_SUPPORT
 endif
 
 SOURCES = $(wildcard *.cpp)

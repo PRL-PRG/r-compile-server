@@ -8,10 +8,11 @@ DEBUG ?= 0
 CC := gcc-14
 # Need a compiler that supports C++20
 CXX := g++-14
-# Add support for debugging jitted code
-GDB_JIT_SUPPORT ?= 0
-# Add support for perf/samply profiling via jitdump
-PERF_SUPPORT ?= 0
+# Add support for DWARF-based debugging and profiling (GDB JIT + perf jitdump).
+# When enabled, features are selected at runtime via environment variables:
+#   RCP_GDB_JIT=1  -> enable GDB JIT debugging
+#   RCP_PERF_JIT=1 -> enable perf jitdump profiling
+DWARF_SUPPORT ?= 0
 
 # Get the directory of common.mk itself
 COMMON_MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))

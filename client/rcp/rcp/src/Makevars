@@ -7,12 +7,8 @@ ifneq ($(OPENMP),0)
   PKG_LIBS += -fopenmp
 endif
 
-ifneq ($(GDB_JIT_SUPPORT),0)
-  PKG_CFLAGS += -DGDB_JIT_SUPPORT
-endif
-
-ifneq ($(PERF_SUPPORT),0)
-  PKG_CFLAGS += -DPERF_SUPPORT
+ifneq ($(DWARF_SUPPORT),0)
+  PKG_CFLAGS += -DDWARF_SUPPORT
 endif
 
 PKG_CFLAGS += $(DEFINE_FLAGS)
@@ -36,8 +32,7 @@ endif
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
-$(info GDB_JIT_SUPPORT=$(GDB_JIT_SUPPORT))
-$(info PERF_SUPPORT=$(PERF_SUPPORT))
+$(info DWARF_SUPPORT=$(DWARF_SUPPORT))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build
@@ -49,10 +44,10 @@ PKG_LIBS += $(SHARED_LIB)
 SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o
 
-# # FIXME: make this conditional
-# # FIXME: warn if R does not have frame pointers
 # Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
+ifneq ($(DWARF_SUPPORT),0)
 stencils-runtime.o: PKG_CFLAGS += -fno-omit-frame-pointer
+endif
 
 ## ------------------------------------------------------------------------ 
 ## targets

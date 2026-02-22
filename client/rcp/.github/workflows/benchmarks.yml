@@ -97,18 +97,18 @@ jobs:
           cache-to: type=gha,mode=max,scope=rcp
 
   test:
-    name: Test (GDB_JIT=${{ matrix.gdb_jit }})
+    name: Test (DWARF=${{ matrix.dwarf }})
     runs-on: ubuntu-latest
     needs: build-images
     strategy:
       fail-fast: false
       matrix:
-        gdb_jit: [0, 1]
+        dwarf: [0, 1]
     permissions:
       contents: read
       packages: read
     env:
-      TEST_DOCKER_CONTAINER: test-gdb-${{ matrix.gdb_jit }}
+      TEST_DOCKER_CONTAINER: test-dwarf-${{ matrix.dwarf }}
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -123,7 +123,7 @@ jobs:
           docker run \
           --name $TEST_DOCKER_CONTAINER \
           ghcr.io/prl-prg/rcp:${{ github.sha }} \
-          bash -c "make -C /rcp/rcp clean test GDB_JIT_SUPPORT=${{ matrix.gdb_jit }}"
+          bash -c "make -C /rcp/rcp clean test DWARF_SUPPORT=${{ matrix.dwarf }}"
 
       - name: Cleanup
         if: always()

@@ -10,6 +10,8 @@
 #
 set -euo pipefail
 
+export RCP_PERF_JIT=1
+
 R="${R_HOME}/bin/R"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKDIR=$(mktemp -d)
@@ -29,9 +31,9 @@ if ! command -v perf &>/dev/null; then
     exit 0
 fi
 
-# Check that rcp was built with PERF_SUPPORT
+# Check that rcp was built with DWARF_SUPPORT (perf support enabled at runtime via RCP_PERF_JIT=1)
 if ! "$R" --vanilla --slave -e 'library(rcp); stopifnot(.Call("rcp_perf_support", PACKAGE="rcp"))' 2>/dev/null; then
-    echo "Skipping perf tests (PERF_SUPPORT disabled)"
+    echo "Skipping perf tests (DWARF_SUPPORT disabled)"
     exit 0
 fi
 
