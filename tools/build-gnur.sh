@@ -106,7 +106,11 @@ function build {
   fi
 
   echo "-> make"
-  make -j8
+  CMD="make -j8"
+  if command -v bear &>/dev/null; then
+    CMD="bear -- $CMD"
+  fi
+  $CMD
 }
 
 build
