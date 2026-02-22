@@ -15,8 +15,8 @@
 //
 // 2. Runtime (gdb_jit.c): Constructs an in-memory ELF image with DWARF
 //    debug info for JIT-compiled code. Copies CFI instructions from stencil
-//    FDEs into a new .debug_frame section, adjusting CFA offsets, and registers
-//    the result with GDB via the JIT interface.
+//    FDEs into .eh_frame data, adjusting CFA offsets, and registers the
+//    result with GDB via the JIT interface.
 //
 // Both consumers share the dwarf_decode_cfi() function for iterating over CFI
 // instruction streams, avoiding duplicated opcode-parsing logic.
@@ -478,7 +478,7 @@ extern "C"
 	//   - Two operands: first in operand1, second in operand2.
 	//
 	// The raw pointer and raw_size allow callers to copy the instruction
-	// verbatim (useful for re-emitting CFI into a new .debug_frame).
+	// verbatim (useful for re-emitting CFI into .eh_frame data).
 	typedef struct
 	{
 		uint8_t opcode;		// Normalized opcode (base value for compact forms)

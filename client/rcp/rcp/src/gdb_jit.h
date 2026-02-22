@@ -55,7 +55,7 @@ struct jit_descriptor
 // @param stencils Array of pointers to Stencil metadata,
 //                 parallel to inst_addrs.
 // @param base_cfa_offset Base CFA (Canonical Frame Address) stack
-// depth for the function. For JIT functions that use the _RCP_INIT
+// depth for the function. For JIT functions that use the _RCP_PROLOGUE
 // prologue, pass RCP_INIT_CFA_OFFSET + 8 (the +8 accounts for the
 // extra return address pushed by the call into JIT code). For helper
 // functions with a standard prologue, pass 8.
@@ -71,10 +71,10 @@ struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 // Unregister a function.
 void gdb_jit_unregister(struct jit_code_entry *entry);
 
-// Build .eh_frame data for runtime unwinding (samply, libunwind, etc.)
+// Build .eh_frame data for stack unwinding.
 //
-// Produces .eh_frame format from stencil FDE data, suitable for
-// JIT_CODE_UNWINDING_INFO records in jitdump files.
+// Single source of CFI generation, used by both GDB (embedded in
+// the in-memory ELF) and perf/samply (jitdump JIT_CODE_UNWINDING_INFO).
 //
 // @param out_data         Receives malloc'd .eh_frame data (caller must free).
 // @param out_size         Receives size of the .eh_frame data.

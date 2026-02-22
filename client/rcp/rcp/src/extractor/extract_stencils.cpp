@@ -265,7 +265,7 @@ export_body(std::ostream &file, const StencilExport &stencil,
 // The extracted FDE (Frame Description Entry) bytes are stored verbatim as
 // C byte arrays in the generated stencils_data.c. At runtime, gdb_jit.c
 // re-interprets these bytes using the shared dwarf_decode_cfi() decoder to
-// construct the JIT function's .debug_frame section.
+// construct the JIT function's .eh_frame data.
 //
 // The core DWARF parsing and CFI execution logic is implemented in the shared
 // src/shared/dwarf.{c,h} library. This file uses those functions and adds
@@ -638,7 +638,7 @@ static void export_rcp_init_cfa_offset(std::ostream &h_file,
 // Generated variables (per opcode, per variant):
 //   uint8_t _{OPCODE}_{VARIANT}_BODY[]
 //   Hole _{OPCODE}_{VARIANT}_HOLES[]
-//   uint8_t _{OPCODE}_{VARIANT}_debug_frame[]  (if GDB_JIT_SUPPORT)
+//   uint8_t _{OPCODE}_{VARIANT}_debug_frame[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
 static void export_opcode_stencil_bodies(std::ostream &c_file,
 										 std::ostream &h_file,
 										 const Stencils &stencils)
@@ -668,7 +668,7 @@ static void export_opcode_stencil_bodies(std::ostream &c_file,
 // Generated variables (per stencil):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT)
+//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
 static void export_extra_stencil_bodies(std::ostream &c_file,
 										const Stencils &stencils)
 {
@@ -687,7 +687,7 @@ static void export_extra_stencil_bodies(std::ostream &c_file,
 // Generated variables (per function):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT)
+//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
 static size_t export_notinlined_bodies(std::ostream &c_file,
 									   const Stencils &stencils)
 {
@@ -783,7 +783,7 @@ static void export_extra_stencil_structs(std::ostream &c_file,
 //
 // Generated variables:
 //   const Stencil notinlined_stencils[]
-//   const uint8_t *notinlined_debug_frames[]  (if GDB_JIT_SUPPORT)
+//   const uint8_t *notinlined_debug_frames[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
 //   #define notinlined_count <count>
 //   #define notinlined_size <total_size>
 static void export_notinlined_stencil_array(std::ostream &c_file,
@@ -844,7 +844,7 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 // Export the DWARF CIE (Common Information Entry) used for all FDEs.
 //
 // Generated variables:
-//   uint8_t __CIE[]  (if GDB_JIT_SUPPORT)
+//   uint8_t __CIE[]  (if GDB_JIT_SUPPORT || PERF_SUPPORT)
 static void export_cie(std::ostream &c_file, std::ostream &h_file,
 					   const Stencils &stencils)
 {
