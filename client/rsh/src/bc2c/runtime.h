@@ -1002,13 +1002,12 @@ static INLINE void Rsh_SetVar2(Value *stack, SEXP symbol, SEXP rho) {
   Rf_setVar(symbol, val_as_sexp(*r0), rho);
 }
 
-#define Rsh_Return(/* Value* */ stack)                                         \
-  do {                                                                         \
-    Value *__stack__ = (stack - 1);                                            \
-    Value __ret__ = (*__stack__);                                              \
-    R_BCNodeStackTop = __stack__;                                              \
-    return val_as_sexp(__ret__);                                               \
-  } while (0);
+static INLINE SEXP Rsh_Return(Value *stack) {
+    Value *s = stack - 1;
+    Value ret = *s;
+    R_BCNodeStackTop = s;
+    return val_as_sexp(ret);
+}
 
 #define Rsh_ReturnJmp(/* Value* */ stack, rho)                                 \
   do {                                                                         \
