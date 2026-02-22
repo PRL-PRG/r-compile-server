@@ -27,29 +27,26 @@ Executing recursive function...
 Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
 2	GETVAR_OP_
 [GDB] Hit test_add (1st call). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-#1  0xADDR in ?? ()
-#2  0xADDR in ?? ()
-#3  0xADDR in ?? ()
-#4  0xADDR in rcpEval ()
-Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+#1  0xADDR in rcpEval ()
+#2  0xADDR in Rf_eval ()
+#3  0xADDR in R_execClosure ()
+#4  0xADDR in applyClosure_core ()
 
 Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
 2	GETVAR_OP_
 [GDB] Hit test_add (2nd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-#1  0xADDR in ?? ()
-#2  0xADDR in ?? ()
-#3  0xADDR in ?? ()
+#1  0xADDR in rcpEval ()
+#2  0xADDR in Rsh_Call () from /mnt/data-1/krikava/rcp/external/rsh/external/R/library/rcp/libs/rcp.so
+#3  0xADDR in test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:8
 #4  0xADDR in rcpEval ()
-Backtrace stopped: previous frame inner to this frame (corrupt stack?)
 
 Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
 2	GETVAR_OP_
 [GDB] Hit test_add (3rd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-#1  0xADDR in ?? ()
-#2  0xADDR in ?? ()
-#3  0xADDR in ?? ()
+#1  0xADDR in rcpEval ()
+#2  0xADDR in Rsh_Call () from /mnt/data-1/krikava/rcp/external/rsh/external/R/library/rcp/libs/rcp.so
+#3  0xADDR in test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:8
 #4  0xADDR in rcpEval ()
-Backtrace stopped: previous frame inner to this frame (corrupt stack?)
 > cat("Result:", res, "\n")
 Result: 12
 >

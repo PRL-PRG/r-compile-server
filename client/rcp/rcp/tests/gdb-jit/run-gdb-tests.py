@@ -51,6 +51,12 @@ PROCESS_PATTERN = re.compile(r'process \d+')
 THREAD_PATTERN = re.compile(r'Thread \d+')
 C_LINE_PATTERN = re.compile(r' at (.*\.c):\d+')
 
+# Patterns indicating broken backtraces (should never appear in expected output)
+BACKTRACE_BAD_PATTERNS = [
+    re.compile(r'#\d+\s+0xADDR in \?\? \(\)'),
+    re.compile(r'Backtrace stopped:.*corrupt stack'),
+]
+
 # Test timeout in seconds
 TIMEOUT = 60
 
@@ -150,8 +156,23 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     # Normalize output
     normalized_actual = normalize_output(output)
 
+    # Backtrace quality check
+    bad_lines = []
+    for line in normalized_actual.splitlines():
+        for pat in BACKTRACE_BAD_PATTERNS:
+            if pat.search(line):
+                bad_lines.append(line.strip())
+                break
+
     # Update mode: write expected output and return
     if update_mode:
+        if bad_lines:
+            msg = "Updated expected output, but WARNING: broken backtrace detected:\n"
+            for bl in bad_lines:
+                msg += f"    {bl}\n"
+            with open(expected_file, 'w', encoding='utf-8') as f:
+                f.write(normalized_actual)
+            return False, msg
         with open(expected_file, 'w', encoding='utf-8') as f:
             f.write(normalized_actual)
         return True, "Updated expected output"
@@ -163,7 +184,22 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     with open(expected_file, 'r', encoding='utf-8', errors='replace') as f:
         expected_content = f.read()
 
+    # Sanity check: warn if expected.log itself contains broken backtraces
+    for line in expected_content.splitlines():
+        for pat in BACKTRACE_BAD_PATTERNS:
+            if pat.search(line):
+                return False, (
+                    f"expected.log contains broken backtrace pattern:\n"
+                    f"    {line.strip()}\n"
+                    f"Re-record with --update after fixing the backtrace issue."
+                )
+
     if normalized_actual == expected_content:
+        if bad_lines:
+            return False, (
+                "Output matches expected, but backtrace is broken:\n" +
+                "\n".join(f"    {bl}" for bl in bad_lines)
+            )
         return True, "Output matches expected"
     else:
         # Generate diff

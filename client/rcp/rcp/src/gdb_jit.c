@@ -31,10 +31,10 @@
  * Debug Info Data Flow
  * --------------------
  *
- * At build time, `extract_stencils` parses the `.debug_frame` section from the
- * compiled stencils object file and exports the raw FDE (Frame Description
- * Entry) bytes for each stencil as C byte arrays (e.g.
- * `_RETURN_OP__debug_frame[]`). It also computes `RCP_INIT_CFA_OFFSET` -- the
+ * At build time, `extract_stencils` parses the `.eh_frame` section from the
+ * compiled stencils object file and exports the CFI (Call Frame Information)
+ * instruction bytes for each stencil as C byte arrays (e.g.
+ * `_RETURN_OP_cfi_data[]`). It also computes `RCP_INIT_CFA_OFFSET` -- the
  * maximum CFA depth of the `_RCP_PROLOGUE` prologue stencil.
  *
  * At runtime, when a function is JIT-compiled, this module:
@@ -46,19 +46,12 @@
  *    - `.debug_info`:   DIEs describing the function, its parameters, and
  * types.
  *    - `.debug_line`:   Line table mapping machine addresses to opcode lines.
- *    - `.eh_frame`:     CFI for stack unwinding, assembled from stencil FDEs.
+ *    - `.eh_frame`:     CFI for stack unwinding.
  *
- * 3. For `.eh_frame`, it copies CFI instructions from each stencil's
- *    pre-extracted FDE, adjusting `DW_CFA_def_cfa_offset` values.  Each
- *    stencil was compiled as a standalone function with its own 8-byte return
- *    address on the stack.  In the JIT-compiled function, these stencils are
- *    inlined after the `_RCP_PROLOGUE` prologue which establishes a deeper stack
- *    frame.  The adjustment formula is:
- *
- *        new_offset = original_offset - 8 + base_cfa_offset
- *
- *    where `-8` removes the template's implicit return-address push and
- *    `base_cfa_offset` is the actual CFA depth of the JIT function.
+ * 3. For `.eh_frame`, only the prologue (_RCP_PROLOGUE) stencil's CFI is
+ *    emitted verbatim. Since the JIT compiler uses `-ffixed-rbp`, the CFA
+ *    remains RBP+16 throughout the function body (RBP is never modified after
+ *    the prologue), so body stencil CFI is unnecessary.
  *
  * 4. Registers the ELF image with GDB, which reads the debug info to provide
  *    backtraces, stepping, and variable inspection for JIT code.
@@ -176,52 +169,6 @@ static void buf_free(Buffer *buf)
 	buf->data = NULL;
 	buf->size = 0;
 	buf->capacity = 0;
-}
-
-// Copy CFI (Call Frame Information) instructions from a template
-// FDE (Frame Description Entry) into a buffer, adjusting
-// CFA (Canonical Frame Address) offsets.
-//
-// Each stencil was compiled as a standalone function whose CFI assumes an
-// 8-byte return address as the only stack usage. In the JIT function the
-// stencil code runs after a deeper prologue, so DW_CFA_def_cfa_offset values
-// must be rebased:
-//
-//     new_offset = original_offset - 8 + base_cfa_offset
-//
-// All other instructions (advance_loc, register saves, etc.) are copied.
-// Advance-location instructions additionally update *fde_last_addr so the
-// caller can track the current PC position in the FDE.
-//
-static void copy_cfi_with_adjusted_cfa(Buffer *buf, const uint8_t *start,
-									   const uint8_t *end,
-									   uint64_t *fde_last_addr,
-									   int base_cfa_offset)
-{
-	DwarfCFI inst;
-	const uint8_t *p = start;
-	while (dwarf_decode_cfi(&p, end, &inst))
-	{
-		if (inst.opcode == DW_CFA_def_cfa_offset)
-		{
-			// Rebase: remove template's 8-byte RA, add actual stack depth
-			buf_write_u8(buf, DW_CFA_def_cfa_offset);
-			buf_write_uleb128(buf, inst.operand1 + base_cfa_offset);
-		}
-		else
-		{
-			// Copy instruction verbatim
-			buf_write(buf, inst.raw, inst.raw_size);
-			// Track address advances
-			if (inst.opcode == DW_CFA_advance_loc ||
-				inst.opcode == DW_CFA_advance_loc1 ||
-				inst.opcode == DW_CFA_advance_loc2 ||
-				inst.opcode == DW_CFA_advance_loc4)
-			{
-				*fde_last_addr += inst.operand1;
-			}
-		}
-	}
 }
 
 #ifdef GDB_JIT_SUPPORT
@@ -1019,17 +966,13 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 	/* CFI instructions */
 	uint64_t fde_last_addr = (uint64_t)code_addr;
 
-	/* Emit prologue (_RCP_PROLOGUE) from stencils[0] */
-	if (stencils[0]->debug_frame)
+	/* Emit prologue (_RCP_PROLOGUE) CFI from stencils[0].
+	 * Written verbatim -- the prologue CFI describes the actual frame setup
+	 * and establishes CFA = RBP+16 which remains valid for the entire function
+	 * (RBP is never modified after the prologue due to -ffixed-rbp). */
+	if (stencils[0]->cfi_data && stencils[0]->cfi_size > 0)
 	{
-		const uint8_t *frame_data = stencils[0]->debug_frame;
-		uint32_t length;
-		memcpy(&length, frame_data, 4);
-		const uint8_t *cfi_start = frame_data + 24;
-		const uint8_t *cfi_end = frame_data + 4 + length;
-
-		copy_cfi_with_adjusted_cfa(&eh_frame, cfi_start, cfi_end,
-								   &fde_last_addr, base_cfa_offset);
+		buf_write(&eh_frame, stencils[0]->cfi_data, stencils[0]->cfi_size);
 	}
 	else
 	{
@@ -1052,9 +995,8 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 		/* After remaining pushes (r15, r14, r13, r12, rbx = 9 bytes) */
 		buf_write_u8(&eh_frame, DW_CFA_advance_loc1);
 		buf_write_u8(&eh_frame, 9);
-		fde_last_addr = (uint64_t)code_addr + stencils[0]->body_size;
 	}
-	buf_write_u8(&eh_frame, DW_CFA_remember_state);
+	fde_last_addr = (uint64_t)code_addr + stencils[0]->body_size;
 
 	/* Process body stencils */
 	for (int i = 1; i < instruction_count; i++)
@@ -1084,22 +1026,8 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 			fde_last_addr = curr;
 		}
 
-		const uint8_t *frame_data = stencils[i]->debug_frame;
-		if (frame_data)
-		{
-			uint32_t length;
-			memcpy(&length, frame_data, 4);
-			const uint8_t *cfi_start = frame_data + 24;
-			const uint8_t *cfi_end = frame_data + 4 + length;
-
-			buf_write_u8(&eh_frame, DW_CFA_restore_state);
-			buf_write_u8(&eh_frame, DW_CFA_remember_state);
-			buf_write_u8(&eh_frame, DW_CFA_def_cfa_offset);
-			buf_write_uleb128(&eh_frame, base_cfa_offset + 8);
-
-			copy_cfi_with_adjusted_cfa(&eh_frame, cfi_start, cfi_end,
-									   &fde_last_addr, base_cfa_offset);
-		}
+		/* Body stencil CFI is not emitted: CFA = RBP+16 from the prologue
+		 * remains valid throughout (RBP is fixed via -ffixed-rbp). */
 	}
 
 	/* Pad FDE to pointer-size alignment */

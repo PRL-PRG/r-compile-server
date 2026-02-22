@@ -9,9 +9,9 @@
 // This header provides constants, types, and helper functions for working with
 // DWARF debug information. It is used by two consumers in this project:
 //
-// 1. Build-time (extract_stencils.cpp): Parses .debug_frame sections from
-//    compiled stencil object files, extracts raw FDE bytes, computes CFA
-//    offsets, and emits decoded CFI tables as comments in generated C code.
+// 1. Build-time (extract_stencils.cpp): Parses .eh_frame sections from
+//    compiled stencil object files, extracts CFI instruction bytes, computes
+//    CFA offsets, and emits decoded CFI tables as comments in generated C code.
 //
 // 2. Runtime (gdb_jit.c): Constructs an in-memory ELF image with DWARF
 //    debug info for JIT-compiled code. Copies CFI instructions from stencil
@@ -315,6 +315,8 @@ extern "C"
 		uint64_t code_align;		  // Code alignment factor (multiplier for advance_loc)
 		int64_t data_align;			  // Data alignment factor (multiplier for offsets)
 		uint64_t ra_reg;			  // Return address register number
+		uint8_t ptr_encoding;		  // Pointer encoding from "R" augmentation (0 = absptr)
+		int has_z;					  // Non-zero if "z" augmentation present
 		const uint8_t *initial_insts; // Pointer to initial CFI instructions
 		size_t initial_insts_len;	  // Length of initial instructions in bytes
 		int valid;					  // Non-zero if parsing succeeded
@@ -322,14 +324,26 @@ extern "C"
 
 	// Parse a DWARF CIE from raw bytes.
 	//
-	// Extracts code/data alignment factors, return address register, and a
-	// pointer to the initial CFI instructions. The returned DwarfCIE contains
-	// pointers into the input buffer (no allocation is performed).
+	// Supports both .debug_frame (CIE id = 0xffffffff, no augmentation) and
+	// .eh_frame (CIE id = 0, "zR" augmentation with pointer encoding).
+	//
+	// Extracts code/data alignment factors, return address register, pointer
+	// encoding (from "R" augmentation), and a pointer to the initial CFI
+	// instructions. The returned DwarfCIE contains pointers into the input
+	// buffer (no allocation is performed).
 	//
 	// @param data   Pointer to the start of the CIE bytes.
 	// @param len    Length of the CIE data in bytes.
 	// @return       Parsed CIE; check the .valid field for success.
 	DwarfCIE dwarf_parse_cie(const uint8_t *data, size_t len);
+
+	// Returns the byte size of an encoded pointer for the given DWARF
+	// pointer encoding (as found in .eh_frame "R" augmentation).
+	//
+	// @param encoding  Pointer encoding byte (e.g., 0x1b for pcrel+sdata4).
+	// @return          Size in bytes (4 for sdata4, 8 for absptr, etc.),
+	//                  or -1 for unsupported encodings (uleb128, sleb128).
+	int dwarf_encoded_ptr_size(uint8_t encoding);
 
 	// ---------------------------------------------------------------------------
 	// x86-64 Register Names

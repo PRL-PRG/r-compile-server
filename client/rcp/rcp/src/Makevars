@@ -84,5 +84,6 @@ clean:
 	$(MAKE) -C $(STENCILS_DIR) clean
 	$(MAKE) -C $(SHARED_LIB_DIR) clean
 	rm -f *.o *.so
+	rm -rf $(STENCILS_BUILD_DIR)
 
 # vim: ft=make
