@@ -1,4 +1,4 @@
-SUBDIRS = smoketest benchmarks debugging stencils
+SUBDIRS = smoketest benchmarks perf gdb-jit stencils
 
 .PHONY: all test clean $(SUBDIRS)
 
