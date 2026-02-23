@@ -169,8 +169,8 @@ static void buf_free(Buffer *buf)
  * Only instruction positions (where inst_addrs[i] != NULL) are emitted,
  * so argument slots in the bytecode array are skipped.
  */
-static char *write_source_file(const char *func_name, int instruction_count,
-							   const Stencil **stencils, uint8_t **inst_addrs)
+char *write_source_file(const char *func_name, int instruction_count,
+						const Stencil **stencils, uint8_t **inst_addrs)
 {
 	char dir_templ[] = "/tmp/rcp_jit_XXXXXX";
 	if (!mkdtemp(dir_templ))
@@ -913,17 +913,17 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 
 	/* CIE (Common Information Entry) - .eh_frame format */
 	size_t cie_start = eh_frame.size;
-	buf_write_u32(&eh_frame, 0);          /* length (placeholder) */
-	buf_write_u32(&eh_frame, 0);          /* CIE_id = 0 for .eh_frame */
-	buf_write_u8(&eh_frame, 1);           /* version 1 */
-	buf_write_u8(&eh_frame, 'z');         /* augmentation string "zR" */
+	buf_write_u32(&eh_frame, 0);  /* length (placeholder) */
+	buf_write_u32(&eh_frame, 0);  /* CIE_id = 0 for .eh_frame */
+	buf_write_u8(&eh_frame, 1);	  /* version 1 */
+	buf_write_u8(&eh_frame, 'z'); /* augmentation string "zR" */
 	buf_write_u8(&eh_frame, 'R');
-	buf_write_u8(&eh_frame, 0);           /* null terminator */
-	buf_write_uleb128(&eh_frame, 1);      /* code_alignment_factor */
-	buf_write_sleb128(&eh_frame, -8);     /* data_alignment_factor */
+	buf_write_u8(&eh_frame, 0);			   /* null terminator */
+	buf_write_uleb128(&eh_frame, 1);	   /* code_alignment_factor */
+	buf_write_sleb128(&eh_frame, -8);	   /* data_alignment_factor */
 	buf_write_u8(&eh_frame, DWARF_REG_RA); /* return_address_register (1 byte for v1) */
-	buf_write_uleb128(&eh_frame, 1);      /* augmentation data length */
-	buf_write_u8(&eh_frame, 0x00);        /* DW_EH_PE_absptr - FDE pointers are absolute */
+	buf_write_uleb128(&eh_frame, 1);	   /* augmentation data length */
+	buf_write_u8(&eh_frame, 0x00);		   /* DW_EH_PE_absptr - FDE pointers are absolute */
 
 	/* Initial instructions: DW_CFA_def_cfa(RSP, 8) */
 	buf_write_u8(&eh_frame, DW_CFA_def_cfa);
@@ -944,13 +944,13 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 
 	/* FDE (Frame Description Entry) - .eh_frame format */
 	size_t fde_start = eh_frame.size;
-	buf_write_u32(&eh_frame, 0);                    /* length (placeholder) */
+	buf_write_u32(&eh_frame, 0); /* length (placeholder) */
 	/* CIE pointer: offset from this field back to CIE start */
 	uint32_t cie_ptr = (uint32_t)(fde_start + 4 - cie_start);
 	buf_write_u32(&eh_frame, cie_ptr);
-	buf_write_u64(&eh_frame, (uint64_t)code_addr);  /* initial_location (absptr) */
-	buf_write_u64(&eh_frame, code_size);             /* address_range */
-	buf_write_uleb128(&eh_frame, 0);                 /* augmentation data length (z) */
+	buf_write_u64(&eh_frame, (uint64_t)code_addr); /* initial_location (absptr) */
+	buf_write_u64(&eh_frame, code_size);		   /* address_range */
+	buf_write_uleb128(&eh_frame, 0);			   /* augmentation data length (z) */
 
 	/* CFI instructions */
 	uint64_t fde_last_addr = (uint64_t)code_addr;

@@ -1350,6 +1350,18 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 		if (rcp_perf_jit_enabled)
 		{
+			// Generate pseudo-source file with bytecode opcode names
+			char *source_path = write_source_file(name, count_opcodes + 1,
+												  instruction_stencils,
+												  inst_addrs_packed);
+
+			// JIT_CODE_DEBUG_INFO must precede JIT_CODE_LOAD
+			if (source_path)
+			{
+				perf_jit_register_debug_info(executable, inst_addrs_packed,
+											 count_opcodes + 1, source_path);
+			}
+
 			perf_jit_register(name, executable, insts_size);
 
 			// Build .eh_frame and write JIT_CODE_UNWINDING_INFO
@@ -1360,6 +1372,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 						   instruction_stencils, RCP_INIT_CFA_OFFSET);
 			perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
 			free(eh_frame_data);
+
+			free(source_path);
 		}
 	}
 	else

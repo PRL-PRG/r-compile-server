@@ -18,6 +18,13 @@ void perf_jit_register(const char *func_name, void *code_addr, size_t code_size)
 // Must be called immediately after perf_jit_register().
 void perf_jit_register_unwinding_info(const uint8_t *eh_frame_data, size_t eh_frame_size);
 
+// Register debug info for a JIT-compiled function.
+// Writes a JIT_CODE_DEBUG_INFO record mapping instruction addresses to
+// source lines in the given file. Must be called before perf_jit_register().
+void perf_jit_register_debug_info(void *code_addr, uint8_t **inst_addrs,
+								  int instruction_count,
+								  const char *source_path);
+
 // Close the jitdump file. Called at shutdown.
 // Writes a JIT_CODE_CLOSE record and unmaps/closes the file.
 void perf_jit_close(void);

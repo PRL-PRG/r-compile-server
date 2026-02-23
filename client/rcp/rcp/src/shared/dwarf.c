@@ -376,14 +376,22 @@ int dwarf_encoded_ptr_size(uint8_t encoding)
 		return 0;
 	switch (encoding & 0x0f)
 	{
-		case 0x00: return 8; // DW_EH_PE_absptr (64-bit)
-		case 0x02: return 2; // DW_EH_PE_udata2
-		case 0x03: return 4; // DW_EH_PE_udata4
-		case 0x04: return 8; // DW_EH_PE_udata8
-		case 0x0A: return 2; // DW_EH_PE_sdata2
-		case 0x0B: return 4; // DW_EH_PE_sdata4
-		case 0x0C: return 8; // DW_EH_PE_sdata8
-		default:   return -1; // unsupported (uleb128, sleb128)
+		case 0x00:
+			return 8; // DW_EH_PE_absptr (64-bit)
+		case 0x02:
+			return 2; // DW_EH_PE_udata2
+		case 0x03:
+			return 4; // DW_EH_PE_udata4
+		case 0x04:
+			return 8; // DW_EH_PE_udata8
+		case 0x0A:
+			return 2; // DW_EH_PE_sdata2
+		case 0x0B:
+			return 4; // DW_EH_PE_sdata4
+		case 0x0C:
+			return 8; // DW_EH_PE_sdata8
+		default:
+			return -1; // unsupported (uleb128, sleb128)
 	}
 }
 

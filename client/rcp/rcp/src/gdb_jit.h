@@ -89,4 +89,9 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 					uint8_t **inst_addrs, int instruction_count,
 					const Stencil **stencils, int base_cfa_offset);
 
+// Generate a temporary source file with opcode names.
+// Returns malloc'd path to the file (caller must free), or NULL on failure.
+char *write_source_file(const char *func_name, int instruction_count,
+						const Stencil **stencils, uint8_t **inst_addrs);
+
 #endif /* GDB_JIT_H */

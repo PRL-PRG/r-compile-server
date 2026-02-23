@@ -8,7 +8,7 @@
 // Rsh_StartLoopCntxt), resolved at JIT time through the existing
 // RELOC_RUNTIME_SYMBOL / RELOC_RUNTIME_SYMBOL_GOT infrastructure.
 
-#define RSH_INLINE   // INLINE = always_inline (so helpers inline runtime.h internals)
+#define RSH_INLINE // INLINE = always_inline (so helpers inline runtime.h internals)
 #define RCP
 
 #define RSH
@@ -22,7 +22,8 @@
 #include <runtime.h>
 
 #ifdef STEPFOR_SPECIALIZE
-Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho) {
-    return Rsh_StepFor(stack, cell, rho);
+Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho)
+{
+	return Rsh_StepFor(stack, cell, rho);
 }
 #endif

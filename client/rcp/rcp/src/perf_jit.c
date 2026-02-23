@@ -29,8 +29,9 @@
 #define JITDUMP_VERSION 1
 
 /* Record types */
-#define JIT_CODE_LOAD 0
-#define JIT_CODE_CLOSE 3
+#define JIT_CODE_LOAD			0
+#define JIT_CODE_DEBUG_INFO		2
+#define JIT_CODE_CLOSE			3
 #define JIT_CODE_UNWINDING_INFO 4
 
 /* jitdump file header */
@@ -200,6 +201,74 @@ void perf_jit_register_unwinding_info(const uint8_t *eh_frame_data,
 	ret += write(jitdump_fd, &rec_header, sizeof(rec_header));
 	ret += write(jitdump_fd, &info, sizeof(info));
 	ret += write(jitdump_fd, eh_frame_data, eh_frame_size);
+	(void)ret;
+}
+
+/* JIT_CODE_DEBUG_INFO record payload (follows record header) */
+struct jitdump_debug_info
+{
+	uint64_t code_addr;
+	uint64_t nr_entry;
+	/* followed by debug_entry array */
+};
+
+struct jitdump_debug_entry
+{
+	uint64_t addr;
+	int32_t lineno;
+	int32_t discrim;
+	/* followed by null-terminated filename */
+};
+
+void perf_jit_register_debug_info(void *code_addr, uint8_t **inst_addrs,
+								  int instruction_count,
+								  const char *source_path)
+{
+	if (jitdump_fd < 0 || !source_path)
+		return;
+
+	/* Count non-NULL instruction addresses (skipping bytecode arg slots) */
+	int nr_entries = 0;
+	for (int i = 0; i < instruction_count; i++)
+		if (inst_addrs[i])
+			nr_entries++;
+
+	size_t path_len = strlen(source_path) + 1;
+	size_t entry_size = sizeof(struct jitdump_debug_entry) + path_len;
+	size_t entries_size = nr_entries * entry_size;
+
+	uint32_t total_size = (uint32_t)(sizeof(struct jitdump_record_header) +
+									 sizeof(struct jitdump_debug_info) +
+									 entries_size);
+
+	struct jitdump_record_header rec = {
+		.id = JIT_CODE_DEBUG_INFO,
+		.total_size = total_size,
+		.timestamp = get_timestamp_ns(),
+	};
+	ssize_t ret = 0;
+	ret += write(jitdump_fd, &rec, sizeof(rec));
+
+	struct jitdump_debug_info info = {
+		.code_addr = (uint64_t)code_addr,
+		.nr_entry = nr_entries,
+	};
+	ret += write(jitdump_fd, &info, sizeof(info));
+
+	/* Write entries: one per instruction, line numbers match write_source_file() */
+	int line = 1;
+	for (int i = 0; i < instruction_count; i++)
+	{
+		if (!inst_addrs[i])
+			continue;
+		struct jitdump_debug_entry entry = {
+			.addr = (uint64_t)inst_addrs[i],
+			.lineno = line++,
+			.discrim = 0,
+		};
+		ret += write(jitdump_fd, &entry, sizeof(entry));
+		ret += write(jitdump_fd, source_path, path_len);
+	}
 	(void)ret;
 }
 
