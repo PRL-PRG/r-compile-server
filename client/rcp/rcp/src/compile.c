@@ -1371,13 +1371,16 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 
 	// Debug: dump JIT code to file if RCP_DUMP_DIR is set
-	if (name) {
+	if (name)
+	{
 		const char *dump_dir = getenv("RCP_DUMP_DIR");
-		if (dump_dir) {
+		if (dump_dir)
+		{
 			char path[512];
 			snprintf(path, sizeof(path), "%s/%s.bin", dump_dir, name);
 			FILE *fp = fopen(path, "wb");
-			if (fp) {
+			if (fp)
+			{
 				fwrite(executable, 1, insts_size, fp);
 				fclose(fp);
 				fprintf(stderr, "JIT %s: %zu bytes written to %s\n", name, insts_size, path);
@@ -2113,7 +2116,7 @@ SEXP C_rcp_gdb_jit_support(void)
 #endif
 }
 
-SEXP C_rcp_perf_support(void)
+SEXP C_rcp_perf_jit_support(void)
 {
 #ifdef DWARF_SUPPORT
 	return ScalarLogical(rcp_perf_jit_enabled);

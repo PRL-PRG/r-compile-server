@@ -215,7 +215,9 @@ void perf_jit_close(void)
 		.timestamp = get_timestamp_ns(),
 	};
 
-	(void)write(jitdump_fd, &close_rec, sizeof(close_rec));
+	if (write(jitdump_fd, &close_rec, sizeof(close_rec)) !=
+		(ssize_t)sizeof(close_rec))
+		perror("perf_jit_close: write close record");
 
 	/* Unmap and close */
 	if (jitdump_mmap_addr != MAP_FAILED)

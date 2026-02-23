@@ -8,7 +8,6 @@
 # Uses R from R_HOME if set, otherwise from PATH.
 
 set -euo pipefail
-set -x
 
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <script.R> [args...]" >&2
@@ -30,12 +29,14 @@ fi
 
 R="${R:-$R_HOME/bin/R}"
 
-echo "Recording..."
-perf record -k 1 -g -o perf.data -- \
+export RCP_PERF_JIT=1
+
+"$R" -e 'stopifnot(.Call(rcp:::C_rcp_perf_jit_support))' || {
+  echo "Perf support not enabled"
+  exit 1
+}
+
+perf record -k 1 --call-graph dwarf -o perf.data -- \
   "$R" --no-echo --vanilla -f "$SCRIPT" --args "$@"
-
-echo "Injecting JIT symbols..."
 perf inject --jit -i perf.data -o perf.jit.data
-
-echo "Opening perf report..."
 perf report -i perf.jit.data

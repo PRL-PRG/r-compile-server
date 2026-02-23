@@ -5,7 +5,7 @@ include ../../common.mk
 all: test
 
 test:
-	RCP_PERF_JIT=1 R_HOME=$(R_HOME) ./run-perf-tests.sh
+	RCP_PERF_JIT=1 R_HOME=$(R_HOME) python3 ./run-perf-tests.py
 
 clean:
-	@rm -f *.Rout .RData perf.data perf.jit.data jitted-*.so /tmp/jit-*.dump
+	@rm -f *.Rout .RData perf.data perf.jit.data jitted-*.so

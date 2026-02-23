@@ -101,14 +101,17 @@ It returns a list with the number of `compiled` and `failed` functions.
 
 ## Docker images
 
-The project provides three layered Docker images. Each layer adds one component
-so that rebuilds only redo what changed.
+The project builds three layered images that mirror the three system
+components and their change frequency.
 
-| Image | Contents |
-|---|---|
-| `rcp-base` | Ubuntu 24.04, system dependencies, vanilla R 4.3.2 |
-| `rcp-rsh` | + [R compile server](https://github.com/PRL-PRG/r-compile-server) and its custom R build |
-| `rcp` | + this repository, compiled and ready to use |
+| Image | Component(s) inside | Changes how often |
+|---|---|---|
+| `rcp-base` | Ubuntu 24.04, toolchain, vanilla R 4.3.2, `microbenchmark` for `/R-vanilla` | Rarely |
+| `rcp-rsh` | `rcp-base` + [r-compile-server](https://github.com/PRL-PRG/r-compile-server) at `RSH_COMMIT`, custom R build, `microbenchmark` for custom R | Sometimes |
+| `rcp` | `rcp-rsh` + `rcp` at `RCP_COMMIT`, built in two variants: `DWARF_SUPPORT=0` and `DWARF_SUPPORT=1` | Often |
+
+This split keeps rebuilds short: frequent `rcp` edits only rebuild the top
+image, while expensive R builds stay cached in lower layers.
 
 ### Building locally
 
@@ -124,18 +127,66 @@ Or build all three at once (each target depends on the previous):
 make docker-rcp
 ```
 
+### How the build works
+
+1. `make docker-rcp-base` builds `ghcr.io/prl-prg/rcp-base:latest` from
+   `Dockerfile.rcp-base`.
+2. `make docker-rcp-rsh` builds `ghcr.io/prl-prg/rcp-rsh:$RSH_COMMIT` from
+   `Dockerfile.rcp-rsh`.
+3. `make docker-rcp` builds two top images from `Dockerfile.rcp`:
+   - `ghcr.io/prl-prg/rcp:$RCP_COMMIT-dwarf0`
+   - `ghcr.io/prl-prg/rcp:$RCP_COMMIT-dwarf1`
+   and also tags the DWARF=0 image as `ghcr.io/prl-prg/rcp:$RCP_COMMIT` for
+   compatibility.
+
+You can also build one variant explicitly:
+
+```sh
+make docker-rcp-dwarf0
+make docker-rcp-dwarf1
+```
+
+These targets set `DWARF_SUPPORT=0` and `DWARF_SUPPORT=1` respectively for the
+`Dockerfile.rcp` build.
+
+`Dockerfile.rcp` reuses `/rsh` from the parent `rcp-rsh` image and does not
+clone the `external/rsh` submodule again.
+
+### Reproducibility and cache behavior
+
+- `RSH_COMMIT` defaults to the checked-out `external/rsh` submodule commit.
+- `RCP_COMMIT` defaults to `git rev-parse HEAD` of this repository.
+- Docker image source checkouts are pinned to those commit SHAs.
+- Build context is intentionally minimal via `.dockerignore`; Dockerfiles clone
+  exact commits instead of copying the local workspace.
+
+You can override the defaults explicitly:
+
+```sh
+make docker-rcp \
+  RSH_COMMIT=<rsh-commit-sha> \
+  RCP_COMMIT=<rcp-commit-sha> \
+  DOCKER_IMAGE_ORG=ghcr.io/prl-prg
+```
+
 ### Running tests in Docker
 
 ```sh
-docker run --rm prl-prg/rcp:$(git rev-parse HEAD) \
-  bash -c "make -C /rcp/rcp clean test DWARF_SUPPORT=1"
+docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD) \
+  bash -c "make -C /rcp/rcp/tests test DWARF_SUPPORT=0"
+
+docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD)-dwarf1 \
+  bash -c "make -C /rcp/rcp/tests test DWARF_SUPPORT=1"
 ```
 
 ### Running benchmarks in Docker
 
 ```sh
-docker run --rm prl-prg/rcp:$(git rev-parse HEAD) \
-  make -C /rcp/rcp benchmark BENCH_ITER=15
+docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD) \
+  make -C /rcp/rcp benchmark BENCH_ITER=15 BENCH_OPTS=--rcp
+
+docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD)-dwarf1 \
+  make -C /rcp/rcp benchmark BENCH_ITER=15 BENCH_OPTS=--rcp
 ```
 
 ## Benchmarks

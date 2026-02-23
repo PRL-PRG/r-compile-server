@@ -3,9 +3,9 @@
 # Minimal perf JIT profiling test for RCP.
 #
 # Checks only:
-#   1. JIT symbol "fac+" is present.
-#   2. At least one stack has fac+ ... rcpEval ... fac+.
-#   3. [unknown] ratio in JIT-related stacks is below threshold.
+#   1. JIT symbol "fac" is present.
+#   2. At least one stack has rcpEval ... fac call order.
+#   3. Unknown-frame ratio (missing symbol name) is below threshold.
 #
 
 from __future__ import annotations
@@ -61,20 +61,100 @@ def resolve_r_bin() -> str | None:
     return shutil.which("R")
 
 
-def parse_stacks(lines: list[str]) -> list[list[str]]:
-    """Parse perf script output into frame-only stacks."""
-    stacks: list[list[str]] = []
+def check_perf_support(r_bin: str) -> bool:
+    return run_status(
+        [
+            r_bin,
+            "--vanilla",
+            "--slave",
+            "-e",
+            "stopifnot(.Call(rcp:::C_rcp_perf_jit_support))",
+        ]
+    ) == 0
+
+
+def is_fac_symbol(sym: str) -> bool:
+    return sym == "fac" or sym.startswith("fac+")
+
+
+def has_call_order(symbols: list[str]) -> bool:
+    for idx, sym in enumerate(symbols):
+        if "rcpEval" in sym:
+            for later in symbols[idx + 1 :]:
+                if is_fac_symbol(later):
+                    return True
+    return False
+
+
+def load_from_perf_script(perf_script: Path) -> tuple[int, bool, int, int]:
+    lines = perf_script.read_text(encoding="utf-8", errors="replace").splitlines()
+    frame_re = re.compile(r"^\s*[0-9a-f]+\s+(\S+)")
+
+    jit_stack_count = 0
+    call_order_seen = False
+    total_frames = 0
+    unknown_frames = 0
+
     block: list[str] = []
     for line in lines + [""]:
         if line.strip():
             block.append(line)
             continue
-        if block:
-            frames = [entry for entry in block if entry[:1].isspace()]
-            if frames:
-                stacks.append(frames)
-            block = []
-    return stacks
+
+        if not block:
+            continue
+
+        symbols: list[str] = []
+        for entry in block:
+            if not entry[:1].isspace():
+                continue
+            total_frames += 1
+            m = frame_re.match(entry)
+            symbol_text = m.group(1) if m else ""
+            symbols.append(symbol_text)
+            if not symbol_text or symbol_text == "[unknown]":
+                unknown_frames += 1
+
+        if any(is_fac_symbol(sym) for sym in symbols):
+            jit_stack_count += 1
+            if not call_order_seen and has_call_order(symbols):
+                call_order_seen = True
+
+        block = []
+
+    return jit_stack_count, call_order_seen, total_frames, unknown_frames
+
+
+def validate_results(
+    jit_stack_count: int,
+    call_order_seen: bool,
+    total_frames: int,
+    unknown_frames: int,
+) -> None:
+    if jit_stack_count > 0:
+        pass_test("resolved JIT symbol 'fac' in perf output")
+    else:
+        fail_test("no resolved JIT symbol 'fac' found")
+
+    if call_order_seen:
+        pass_test("found stack with rcpEval -> fac call order")
+    else:
+        fail_test("no stack with rcpEval -> fac call order")
+
+    if total_frames > 0:
+        unknown_pct = (unknown_frames * 100) // total_frames
+        if unknown_pct < UNKNOWN_THRESHOLD_PCT:
+            pass_test(
+                f"unknown frames (missing symbol): {unknown_frames}/{total_frames} "
+                f"({unknown_pct}%)"
+            )
+        else:
+            fail_test(
+                f"unknown frames (missing symbol) too high: "
+                f"{unknown_frames}/{total_frames} ({unknown_pct}%)"
+            )
+    else:
+        fail_test("no frames found for unknown-symbol ratio check")
 
 
 def main() -> int:
@@ -87,19 +167,7 @@ def main() -> int:
         print("R binary not found (set R_BIN, R_HOME, or PATH)")
         return 1
 
-    with tempfile.NamedTemporaryFile("w", suffix=".R", delete=False) as f:
-        f.write("library(rcp)\n")
-        f.write('stopifnot(.Call("rcp_perf_support", PACKAGE="rcp"))\n')
-        perf_support_script = f.name
-
-    try:
-        perf_support_status = run_status(
-            [r_bin, "--vanilla", "--slave", "-f", perf_support_script]
-        )
-    finally:
-        Path(perf_support_script).unlink(missing_ok=True)
-
-    if perf_support_status != 0:
+    if not check_perf_support(r_bin):
         print("Skipping perf tests (PERF_SUPPORT disabled)")
         return 0
 
@@ -108,7 +176,7 @@ def main() -> int:
         test_script = workdir_path / "test_fac.R"
         perf_data = workdir_path / "perf.data"
         perf_jit_data = workdir_path / "perf.jit.data"
-        perf_output = workdir_path / "perf_script.txt"
+        perf_script = workdir_path / "perf.script.txt"
 
         test_script.write_text(
             "\n".join(
@@ -131,7 +199,7 @@ def main() -> int:
                 "1",
                 "-g",
                 "--call-graph",
-                "fp",
+                "dwarf",
                 "-o",
                 str(perf_data),
                 "--",
@@ -151,46 +219,25 @@ def main() -> int:
             print("perf inject --jit failed")
             return 1
 
-        with perf_output.open("w", encoding="utf-8") as out:
-            run_status(["perf", "script", "-i", str(perf_jit_data)], stdout=out)
+        with perf_script.open("w", encoding="utf-8") as out:
+            if run_status(["perf", "script", "-i", str(perf_jit_data)], stdout=out) != 0:
+                print("perf script failed")
+                return 1
 
-        if not perf_output.exists() or perf_output.stat().st_size == 0:
-            print("perf script produced no output")
+        if not perf_script.exists() or perf_script.stat().st_size == 0:
+            print("perf script output is empty")
             return 1
 
-        lines = perf_output.read_text(encoding="utf-8", errors="replace").splitlines()
-        stacks = parse_stacks(lines)
-        jit_stacks = [stack for stack in stacks if any("fac+" in frame for frame in stack)]
-        jit_stack_texts = [" ".join(stack) for stack in jit_stacks]
-
-        if jit_stacks:
-            pass_test("resolved JIT symbol 'fac+' in perf output")
-        else:
-            fail_test("no resolved JIT symbol 'fac+' found")
-
-        if any(re.search(r"fac\+.*rcpEval.*fac\+", text) for text in jit_stack_texts):
-            pass_test("found stack with fac+ -> rcpEval -> fac+ call order")
-        else:
-            fail_test("no stack with fac+ -> rcpEval -> fac+ call order")
-
-        total_jit_frames = sum(len(stack) for stack in jit_stacks)
-        unknown_jit_frames = sum(
-            1 for stack in jit_stacks for frame in stack if "[unknown]" in frame
+        jit_stack_count, call_order_seen, total_frames, unknown_frames = load_from_perf_script(
+            perf_script
         )
-        if total_jit_frames > 0:
-            unknown_pct = (unknown_jit_frames * 100) // total_jit_frames
-            if unknown_pct < UNKNOWN_THRESHOLD_PCT:
-                pass_test(
-                    f"[unknown] frames in JIT stacks: {unknown_jit_frames}/{total_jit_frames} "
-                    f"({unknown_pct}%)"
-                )
-            else:
-                fail_test(
-                    f"[unknown] frames in JIT stacks too high: "
-                    f"{unknown_jit_frames}/{total_jit_frames} ({unknown_pct}%)"
-                )
-        else:
-            fail_test("no JIT-related stacks found for [unknown] ratio check")
+
+        validate_results(
+            jit_stack_count=jit_stack_count,
+            call_order_seen=call_order_seen,
+            total_frames=total_frames,
+            unknown_frames=unknown_frames,
+        )
 
     print()
     total = PASS_COUNT + FAIL_COUNT

@@ -1,6 +1,6 @@
 library(rcp)
 
-stopifnot(.Call("rcp_perf_support", PACKAGE = "rcp"))
+stopifnot(.Call("rcp_perf_jit_support", PACKAGE = "rcp"))
 
 fac <- function(n) {
   if (n <= 1) return(1)
