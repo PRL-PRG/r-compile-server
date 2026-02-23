@@ -54,7 +54,7 @@ print(rcp::rcp_get_types_df("f"))
 library(rcp)
 
 g <- function(x, y) {
-  cat(x, y)
+  cat(x, y, "\n")
   x
 }
 g = rcp::rcp_cmpfun(g, list(name = "g"))
@@ -62,3 +62,12 @@ g(34, "hello")
 g(1L, "world!")
 g("Nope", 456)
 print(rcp::rcp_get_types_df("g"))
+
+library(rcp)
+h <- function(a, ...) {
+  cat(a, ..., "\n")
+}
+h = rcp::rcp_cmpfun(h, list(name = "h"))
+h(1, "hello")
+h("world", 4, "three")
+print(rcp::rcp_get_types_df("h"))
