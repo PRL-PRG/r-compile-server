@@ -19,7 +19,7 @@ COMMON_MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 # The root of this project
 ROOT_DIR := $(patsubst %/,%,$(dir $(COMMON_MK_PATH)))
 # From where the runtime.h should be resolved
-RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
+RSH_HOME ?= $(ROOT_DIR)/../external/rsh/client/rsh
 # Which R to use
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 # Which R to use
