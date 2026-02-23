@@ -15,6 +15,8 @@ typedef struct {
     TypeRecord *types;  
     size_t count;
     size_t capacity;
+    SEXP first_arg_sym; // TAG of first formal; R_NilValue if no formals
+    // We use it to identify where the arguments start, as locals are first prepended in the environment
 } TypeTrace;
 
 #endif
