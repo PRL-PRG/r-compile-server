@@ -128,7 +128,7 @@ make docker-rcp
 
 ```sh
 docker run --rm prl-prg/rcp:$(git rev-parse HEAD) \
-  bash -c "make -C /rcp/rcp clean test"
+  bash -c "make -C /rcp/rcp clean test DWARF_SUPPORT=1"
 ```
 
 ### Running benchmarks in Docker
@@ -166,34 +166,86 @@ The underlying script supports additional options:
 Environment variables `FILTER` and `BENCH_OPTS` can further narrow the set of
 benchmarks and select the compilation mode (`--rcp` or `--bc`).
 
-## Debugging JIT-compiled code with GDB
+## Architecture
 
-The compiler can register JIT-compiled functions with GDB so that you can set
-breakpoints, step through bytecode instructions, and inspect the stack -- just
-as you would with native code.
+```
+Build time                          Runtime
+──────────                          ───────
+stencils.c ──[clang]──> stencils.o  R bytecode
+                │                      │
+     extract_stencils                  │
+       │          │                    ▼
+  stencils.h  stencils_data.c ───> compile.c
+  (metadata)  (code + FDEs)        (copy & patch)
+                                       │
+                              ┌────────┼────────┐
+                              ▼        ▼        ▼
+                          JIT code  gdb_jit.c  perf_jit.c
+                                   (ELF+DWARF) (jitdump)
+```
 
-### Enabling GDB JIT support
+1. **Build time**: `extract_stencils` compiles stencil source into an object
+   file, extracts machine code and `.eh_frame` FDE bytes for each stencil,
+   and generates `stencils.h` / `stencils_data.c`.
 
-GDB support is off by default because it adds overhead. Enable it at build
-time:
+2. **Runtime**: `compile.c` concatenates stencil bodies into executable
+   memory, patching relocations. If debug/profiling is enabled (via env vars),
+   it calls `gdb_jit_register()` and/or `perf_jit_*()` to register the
+   compiled code.
+
+## Debugging and profiling JIT-compiled code
+
+Two optional features provide observability into JIT-compiled code, both
+controlled by a single compile-time flag `DWARF_SUPPORT` and selected at
+runtime via environment variables:
+
+- **GDB JIT Interface** (`RCP_GDB_JIT=1`): Registers in-memory ELF objects
+  with GDB, enabling backtraces, stepping, breakpoints, and variable
+  inspection in JIT code.
+
+- **Perf/Samply Profiling** (`RCP_PERF_JIT=1`): Writes a jitdump file that
+  `perf inject` or `samply` can read to resolve JIT code addresses into
+  function names with correct stack unwinding.
+
+When `DWARF_SUPPORT=0` (default): zero overhead -- no `.eh_frame` in stencils,
+no CFI extraction, no dead code.
+
+When `DWARF_SUPPORT=1` but no env var set: only overhead is a slightly larger
+binary (CFI data arrays). No runtime cost (no ELF building, no jitdump I/O).
+
+### Enabling DWARF support
+
+Build with the `DWARF_SUPPORT` flag:
 
 ```sh
 cd rcp
-make clean install GDB_JIT_SUPPORT=1
+DWARF_SUPPORT=1 make clean install
 ```
 
 You can verify it is active from R:
 
 ```r
 library(rcp)
-.Call("C_rcp_gdb_jit_support")
+.Call("C_rcp_dwarf_support")
 #> [1] TRUE
 ```
 
-### How it works
+Then select features at runtime:
 
-When `GDB_JIT_SUPPORT` is enabled and a function is compiled with a `name`,
-the compiler:
+```sh
+RCP_GDB_JIT=1 R -e 'library(rcp); ...'     # GDB JIT debugging
+RCP_PERF_JIT=1 R -e 'library(rcp); ...'    # perf jitdump profiling
+RCP_GDB_JIT=1 RCP_PERF_JIT=1 R -e '...'   # both
+```
+
+### GDB JIT debugging
+
+When `DWARF_SUPPORT=1` and `RCP_GDB_JIT=1`, the compiler registers
+JIT-compiled functions with GDB so that you can set breakpoints, step through
+bytecode instructions, and inspect the stack -- just as you would with native
+code.
+
+For each compiled function, the compiler:
 
 1. Constructs an in-memory ELF object containing DWARF debug sections
    (`.debug_info`, `.debug_line`, `.debug_frame`).
@@ -207,11 +259,12 @@ This enables GDB to map addresses in JIT code back to bytecode instructions,
 show meaningful backtraces, and allow single-stepping through compiled R
 functions.
 
-### Debugging session example
+#### Debugging session example
 
 ```sh
 cd rcp
-make debug GDB_JIT_SUPPORT=1
+DWARF_SUPPORT=1 make clean install
+RCP_GDB_JIT=1 make debug
 ```
 
 Inside GDB:
@@ -240,20 +293,38 @@ R values on the stack:
 (gdb) call rcp_print_stack_val((void*)addr)
 ```
 
-### Running the debugging tests
+### Perf/Samply profiling
 
-The debugging test suite verifies that GDB can step through JIT-compiled
-functions and produce correct backtraces:
+When `DWARF_SUPPORT=1` and `RCP_PERF_JIT=1`, the compiler writes a jitdump
+file (`/tmp/jit-<pid>.dump`) containing:
+
+- `JIT_CODE_LOAD` records mapping address ranges to function names
+- `JIT_CODE_UNWINDING_INFO` records with `.eh_frame` data for stack unwinding
+
+Tools like `perf inject --jit` or `samply` read the jitdump to resolve JIT
+addresses into symbols and produce correct stack traces.
+
+#### Profiling example
 
 ```sh
 cd rcp
-make clean test GDB_JIT_SUPPORT=1
+DWARF_SUPPORT=1 make clean install
+RCP_PERF_JIT=1 perf record -g -k1 R -e 'library(rcp); ...'
+perf inject --jit -i perf.data -o perf.jit.data
+perf report -i perf.jit.data
 ```
 
-To update the expected outputs after intentional changes:
+### Running the debugging and profiling tests
 
 ```sh
-make -C tests/debugging GDB_JIT_SUPPORT=1 re-record
+cd rcp
+DWARF_SUPPORT=1 make clean test
+```
+
+To update the expected GDB test outputs after intentional changes:
+
+```sh
+DWARF_SUPPORT=1 make -C tests/gdb-jit re-record
 ```
 
 ## Project layout
@@ -267,10 +338,14 @@ rcp/                  Root
  external/rsh/        Git submodule: R compile server
  rcp/                 The R package
    src/               C/C++ source
+     compile.c        JIT compiler -- calls debug/profiling hooks
+     gdb_jit.c        ELF construction, build_eh_frame(), GDB registration
+     perf_jit.c       Jitdump file writing
+     shared/dwarf.c   DWARF constants and CFI decoder
      stencils/        Stencil definitions compiled to .o
      extractor/       Tool that extracts stencils from object files
    R/                 R source
    inst/benchmarks/   Benchmark harness and runner script
-   tests/             Test suites (smoketest, benchmarks, debugging)
+   tests/             Test suites (smoketest, benchmarks, gdb-jit, perf, stencils)
    Makefile           Package-level targets: install, test, benchmark, setup
 ```

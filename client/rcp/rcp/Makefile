@@ -37,6 +37,7 @@ BENCH_OUT_DIR ?=
 
 .PHONY: benchmark
 benchmark:
+	@$(call ensure_microbenchmark_installed)
 	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh \
 		--runs $(BENCH_ITER) --parallel $(BENCH_PARALLEL) \
 		$(if $(BENCH_OUT_DIR),--output $(BENCH_OUT_DIR))
