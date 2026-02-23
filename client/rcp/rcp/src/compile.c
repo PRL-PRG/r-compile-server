@@ -1645,6 +1645,9 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 static void type_trace_finalizer(SEXP ext) {
     TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
     if (trace) {
+		if (trace->argument_names) {
+			free(trace->argument_names);
+		}
         for (size_t i = 0; i < trace->count; i++)
             free(trace->types[i].arguments);
         free(trace->types);
@@ -1653,7 +1656,7 @@ static void type_trace_finalizer(SEXP ext) {
     }
 }
 
-static void types_of_function(int bytecode[], int bytecode_size, PluginStencils* plugins, SEXP hooks_registry, const char* func_name) {
+static void types_of_function(int bytecode[], int bytecode_size, PluginStencils* plugins, SEXP hooks_registry, const char* func_name, SEXP formals) {
 	// fun_name will be unknown if we get it from the JIT
 	// TODO: modify cmpfun_call_sexp to get package and function name using match.call and sys.call
 	// For now, we don't instrument functions for which we don't know the name
@@ -1678,6 +1681,28 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils*
 	trace->capacity = 16; // 16 calls should be enough for most functions
 	trace->count = 0;
 	trace->types = malloc(trace->capacity * sizeof(TypeRecord));
+	trace->argument_names = NULL;
+	trace->argument_count = 0;
+	trace->first_arg_sym = R_NilValue;
+
+	if (formals != R_NilValue && TYPEOF(formals) == LISTSXP) {
+		size_t nargs = 0;
+		for (SEXP f = formals; f != R_NilValue; f = CDR(f))
+			nargs++;
+
+		trace->argument_count = nargs;
+		trace->first_arg_sym = TAG(formals);
+		trace->argument_names = malloc(nargs * sizeof(char *));
+
+		size_t i = 0;
+		for (SEXP f = formals; f != R_NilValue; f = CDR(f), i++) {
+			SEXP tag = TAG(f);
+			if (tag != R_NilValue && TYPEOF(tag) == SYMSXP)
+				trace->argument_names[i] = (char *)CHAR(PRINTNAME(tag));
+			else
+				trace->argument_names[i] = NULL;
+		}
+	}
 
 	SEXP ext = PROTECT(R_MakeExternalPtr(trace, R_NilValue, R_NilValue));
     R_RegisterCFinalizerEx(ext, type_trace_finalizer, TRUE);
@@ -1825,7 +1850,8 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 }
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
-						  const char *name, SEXP coverage_registry, SEXP hooks_registry)
+						  const char *name, SEXP coverage_registry, SEXP hooks_registry,
+						  SEXP formals)
 {
 	SEXP bcode_code = BCODE_CODE(bcode);
 	SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -1857,6 +1883,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			if (opcode == MAKECLOSURE_BCOP)
 			{
 				SEXP fb = consts[opargs[0]];
+				SEXP closure_formals = VECTOR_ELT(fb, 0);
 				SEXP body = VECTOR_ELT(fb, 1);
 
 				if (TYPEOF(body) == BCODESXP)
@@ -1869,7 +1896,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, hooks_registry);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, hooks_registry, closure_formals);
 					SET_VECTOR_ELT(fb, 1, res);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
@@ -1899,7 +1926,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
 
 	if(hooks_registry != R_NilValue)
-		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name);
+		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
 
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
@@ -2079,7 +2106,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	PROTECT(compiled);
 
 	clock_gettime(CLOCK_MONOTONIC, &mid);
-	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry);
+	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled));
 	SET_BODY(compiled, ptr);
 	clock_gettime(CLOCK_MONOTONIC, &end);
 	UNPROTECT(1); // compiled
@@ -2598,15 +2625,26 @@ SEXP C_rcp_get_types(void)
 
 			// arguments: integer vector
 			SEXP args_vec = PROTECT(Rf_allocVector(INTSXP, rec->count));
+			SEXP args_names = PROTECT(Rf_allocVector(STRSXP, rec->count));
 			for (size_t k = 0; k < rec->count; k++)
+			{
 				INTEGER(args_vec)[k] = rec->arguments[k];
+				if (k < trace->argument_count && trace->argument_names && trace->argument_names[k])
+					SET_STRING_ELT(args_names, k, Rf_mkChar(trace->argument_names[k]));
+				else {
+					char name_buf[16];
+					snprintf(name_buf, sizeof(name_buf), "arg%zu", k + 1);
+					SET_STRING_ELT(args_names, k, Rf_mkChar(name_buf));
+				}
+			}
+			Rf_setAttrib(args_vec, R_NamesSymbol, args_names);
 			SET_VECTOR_ELT(entry, 0, args_vec);
 
 			// ret: scalar integer
 			SET_VECTOR_ELT(entry, 1, Rf_ScalarInteger(rec->ret));
 
 			SET_VECTOR_ELT(calls_list, j, entry);
-			UNPROTECT(3); // entry, entry_names, args_vec
+			UNPROTECT(4); // entry, entry_names, args_vec, args_names
 		}
 
 		Rf_defineVar(Rf_install(func_name), calls_list, result_env);
@@ -2667,9 +2705,13 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 		SET_VECTOR_ELT(df, c, col);
 		UNPROTECT(1); // col
 
-		char name_buf[16];
-		snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
-		SET_STRING_ELT(col_names, c, Rf_mkChar(name_buf));
+		if (c < trace->argument_count && trace->argument_names && trace->argument_names[c]) {
+			SET_STRING_ELT(col_names, c, Rf_mkChar(trace->argument_names[c]));
+		} else {
+			char name_buf[16];
+			snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
+			SET_STRING_ELT(col_names, c, Rf_mkChar(name_buf));
+		}
 	}
 
 	// ret column

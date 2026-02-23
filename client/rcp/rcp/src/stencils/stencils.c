@@ -208,16 +208,6 @@ RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
 	// later in the function, yes...
 	// But that should be rare.
 	Rprintf("Entry hook\n");
-	SEXP rho = GET_RHO();
-	for (SEXP b = FRAME(rho); b != R_NilValue; b = CDR(b)) {
-		SEXP tag = TAG(b);
-		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
-			Rprintf("Arg %s\n", CHAR(PRINTNAME(tag)));
-		}
-	}
-	// Record the first formal parameter 
-	TypeTrace* trace = (TypeTrace*) GETCUSTOM();
-	trace->first_arg_sym = FRAME(rho) != R_NilValue ? TAG(FRAME(rho)) : R_NilValue;
 	NEXT;
 }
 
@@ -235,21 +225,22 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 
 	TypeRecord *rec = &trace->types[trace->count];
 
-	// Skip locals
+	// Skip locals (arguments are expected to start at first_arg_sym)
 	SEXP b = FRAME(rho);
 	while (b != R_NilValue && TAG(b) != trace->first_arg_sym)
 		b = CDR(b);
 
-	// Count arguments
-	size_t nargs = 0;
-	for (SEXP f = b; f != R_NilValue; f = CDR(f)) nargs++;
+	// Use argument count known at compile time from FORMALS
+	size_t nargs = trace->argument_count;
+	if (b == R_NilValue)
+		nargs = 0;
 
 	rec->count = nargs;
 	rec->arguments = malloc(nargs * sizeof(int));
 
 	// Record argument types (promises are forced by now for used args)
 	size_t i = 0;
-	for (SEXP f = b; f != R_NilValue; f = CDR(f)) {
+	for (SEXP f = b; f != R_NilValue && i < nargs; f = CDR(f)) {
 		SEXP tag = TAG(f);
 
 		if (BNDCELL_TAG(f)) {

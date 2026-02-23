@@ -50,3 +50,15 @@ f <- function(x) {
 f = rcp::rcp_cmpfun(f, list(name="f"))
 f(14)
 print(rcp::rcp_get_types_df("f"))
+
+library(rcp)
+
+g <- function(x, y) {
+  cat(x, y)
+  x
+}
+g = rcp::rcp_cmpfun(g, list(name = "g"))
+g(34, "hello")
+g(1L, "world!")
+g("Nope", 456)
+print(rcp::rcp_get_types_df("g"))
