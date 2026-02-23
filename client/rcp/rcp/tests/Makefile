@@ -1,4 +1,4 @@
-SUBDIRS = smoketest benchmarks debugging
+SUBDIRS = smoketest types benchmarks debugging
 
 .PHONY: all test clean $(SUBDIRS)
 
