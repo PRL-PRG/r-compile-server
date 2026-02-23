@@ -35,7 +35,7 @@ Breakpoint 2, f_jit (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/f_jit.S
 #4  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:XXX
 #5  0xADDR in Rf_applyClosure (call=0xADDR, op=0xADDR, arglist=<optimized out>, rho=0xADDR, suppliedvars=<optimized out>, unpromise=TRUE) at eval.c:XXX
 #6  Rf_eval (e=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
-#7  0xADDR in do_set (call=0xADDR, op=0xADDR, args=0xADDR, rho=0xADDR) at ../../src/include/Rinlinedfuns.h:92
+#7  0xADDR in do_set (call=0xADDR, op=0xADDR, args=0xADDR, rho=0xADDR) at Rinlinedfuns.h:XXX
 #8  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
 #9  0xADDR in Rf_ReplIteration (rho=rho@entry=0xADDR, savestack=savestack@entry=0, browselevel=browselevel@entry=0, state=state@entry=0xADDR) at main.c:XXX
 #10 0xADDR in R_ReplConsole (rho=0xADDR, savestack=savestack@entry=0, browselevel=browselevel@entry=0) at main.c:XXX
