@@ -49,7 +49,7 @@ HEX_PATTERN = re.compile(r'0x[0-9a-fA-F]+')
 JIT_PATH_PATTERN = re.compile(r'/tmp/rcp_jit_[a-zA-Z0-9]+/')
 PROCESS_PATTERN = re.compile(r'process \d+')
 THREAD_PATTERN = re.compile(r'Thread \d+')
-C_LINE_PATTERN = re.compile(r' at (.*\.c):\d+')
+C_LINE_PATTERN = re.compile(r' at (?:.*[/\\])?([^/\\]+\.[ch]):\d+')
 
 # Patterns indicating broken backtraces (should never appear in expected output)
 BACKTRACE_BAD_PATTERNS = [
