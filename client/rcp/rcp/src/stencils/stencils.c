@@ -205,9 +205,15 @@ RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
 {	
 	// do we actually need an entry hook for the types?
 	// If we have evaluated promises, and an argument is assigned with another type
-	// later in teh function, yes...
+	// later in the function, yes...
 	// But that should be rare.
 	Rprintf("Entry hook\n");
+	for (SEXP b = FRAME(GET_RHO()); b != R_NilValue; b = CDR(b)) {
+		SEXP tag = TAG(b);
+		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
+			Rprintf("Arg %s\n", CHAR(PRINTNAME(tag)));
+		}
+	}
 	NEXT;
 }
 
@@ -235,12 +241,24 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 	// Record argument types (promises are forced by now for used args)
 	size_t i = 0;
 	for (SEXP b = FRAME(rho); b != R_NilValue; b = CDR(b)) {
-		SEXP val = CAR(b);
-		if (TYPEOF(val) == PROMSXP) {
-			SEXP prval = PRVALUE(val);
-			rec->arguments[i] = (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
+		SEXP tag = TAG(b);
+
+		if (BNDCELL_TAG(b)) {
+			rec->arguments[i] = BNDCELL_TAG(b);
 		} else {
-			rec->arguments[i] = TYPEOF(val);
+			SEXP val = CAR0(b);
+			if (TYPEOF(val) == PROMSXP) {
+				SEXP prval = PRVALUE(val);
+				rec->arguments[i] = (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
+			} else {
+				rec->arguments[i] = TYPEOF(val);
+			}
+		}
+
+		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
+			Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
+		} else {
+			Rprintf("Arg <non-symbol>: %s\n", type2char(rec->arguments[i]));
 		}
 		i++;
 	}

@@ -34,3 +34,19 @@ repeat {
                               next
                       }
 }
+
+library(rcp)
+f <- function(x) {
+  y <- x + 1 
+  if(y > 0){
+    z <- x - 1
+  }
+  else {
+    z <- x + 1
+  }
+  y <- z / y
+  z
+}
+f = rcp::rcp_cmpfun(f, list(name="f"))
+f(14)
+print(rcp::rcp_get_types_df("f"))
