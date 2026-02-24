@@ -6,6 +6,7 @@ import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfsNoDeopts;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -14,8 +15,6 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.DispatchCallee;
-import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
@@ -24,12 +23,11 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.util.UnreachableError;
 
 /// For each call to a non-effectful function, inlines every non-effectful, singly-used promise
-/// argument before the call, which doesn't contain calls itself (since they may recur). The
-/// callee signature (if dispatch) or version (if static) changes to accommodate the new
-/// (non-promise) parameter types.
+/// argument before the call, which doesn't contain non-stub calls itself (since they may
+/// recur). The callee signature (if dispatch) or version (if static) changes to accommodate the
+/// new (non-promise) parameter types.
 public record StrictifyPromise() implements AbstractionOptimization {
   private record Inlineable(
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
@@ -85,7 +83,11 @@ public record StrictifyPromise() implements AbstractionOptimization {
               || effects.impure()
               || code.bbs().stream()
                   .flatMap(b -> b.statements().stream())
-                  .anyMatch(s -> s.expression() instanceof Call)) {
+                  .anyMatch(
+                      s ->
+                          s.expression() instanceof Call c
+                              && c.callee().function() != null
+                              && !c.callee().function().baseline().isStub())) {
             continue;
           }
 
@@ -118,12 +120,8 @@ public record StrictifyPromise() implements AbstractionOptimization {
                     })
                 .collect(ImmutableList.toImmutableList());
         var fn =
-            switch (call.callee()) {
-              case StaticCallee(var f, var _) -> f;
-              case DispatchCallee(var f, var _) -> f;
-              case DynamicCallee _ ->
-                  throw new UnreachableError("dynamic callees are always reflectful");
-            };
+            Objects.requireNonNull(
+                call.callee().function(), "dynamic callees are always reflectful");
         var newSig =
             new Signature(newArgTypes, callType == null ? Type.ANY_VALUE : callType, callEffects);
         var newCallee = new DispatchCallee(fn, newSig);

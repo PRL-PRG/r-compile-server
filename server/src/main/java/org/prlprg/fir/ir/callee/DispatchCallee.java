@@ -6,7 +6,8 @@ import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record DispatchCallee(Function function, @Nullable Signature signature) implements Callee {
+public record DispatchCallee(@Override Function function, @Nullable Signature signature)
+    implements Callee {
   @Override
   public String toString() {
     return Printer.toString(this);
