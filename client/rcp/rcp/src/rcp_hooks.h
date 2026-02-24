@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <Rinternals.h>
 
 typedef struct {
     int* arguments;

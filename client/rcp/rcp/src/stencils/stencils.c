@@ -229,13 +229,17 @@ RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
 	// If we have evaluated promises, and an argument is assigned with another type
 	// later in the function, yes...
 	// But that should be rare.
-	Rprintf("Entry hook\n");
+	#ifdef RCP_TRACE
+		Rprintf("Entry hook\n");
+	#endif
 	NEXT;
 }
 
 RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 {	
-	Rprintf("Exit hook\n");
+	#ifdef RCP_TRACE
+		Rprintf("Exit hook\n");
+	#endif
 	TypeTrace* trace = (TypeTrace*) GETCUSTOM();
 	SEXP rho = GET_RHO();
 
@@ -298,11 +302,13 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 
 		rec->arguments[i] = rcp_binding_type(f);
 
-		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
-			Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
-		} else {
-			Rprintf("Arg <non-symbol>: %s\n", type2char(rec->arguments[i]));
-		}
+		#ifdef RCP_TRACE
+			if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
+				Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
+			} else {
+				Rprintf("Arg <non-symbol>: %s\n", type2char(rec->arguments[i]));
+			}
+		#endif
 		i++;
 	}
 
