@@ -1002,11 +1002,11 @@ static INLINE void Rsh_SetVar2(Value *stack, SEXP symbol, SEXP rho) {
   Rf_setVar(symbol, val_as_sexp(*r0), rho);
 }
 
-static INLINE SEXP Rsh_Return(Value *stack) {
-    Value *s = stack - 1;
-    Value ret = *s;
-    R_BCNodeStackTop = s;
-    return val_as_sexp(ret);
+static INLINE NODISCARD SEXP Rsh_Return(Value *stack) {
+  Value *s = stack - 1;
+  Value ret = *s;
+  R_BCNodeStackTop = s;
+  return val_as_sexp(ret);
 }
 
 #define Rsh_ReturnJmp(/* Value* */ stack, rho)                                 \
@@ -1128,7 +1128,7 @@ extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 #ifdef RSH_EXTERN_HELPERS
 extern void Rsh_Call(Value *stack, SEXP call, SEXP rho);
 #else
-void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
+static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
   // stack:
   //  fun
   //  args_head
@@ -3136,9 +3136,10 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
 }
 
 #ifdef RSH_EXTERN_HELPERS
-extern NODISCARD Rboolean Rsh_StartLoopCntxt(Value *stack, RCNTXT *cntxt, SEXP rho);
+extern NODISCARD Rboolean Rsh_StartLoopCntxt(Value *stack, RCNTXT *cntxt,
+                                             SEXP rho);
 #else
-NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+static NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
                                              SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
