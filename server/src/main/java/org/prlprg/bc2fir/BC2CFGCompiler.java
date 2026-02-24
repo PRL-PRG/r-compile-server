@@ -1027,7 +1027,7 @@ public class BC2CFGCompiler {
     var cfg = new CFG(scope());
     compile(r, cfg, bc);
 
-    return insertAndReturn("p", new Promise(Type.ANY_VALUE, Effects.ANY, cfg));
+    return insertAndReturn("p", new Promise(Type.ANY_VALUE, Effects.REFLECT, cfg));
   }
 
   /// End the previously-compiled for loop instruction (the latest [#pushWhileOrRepeatLoop(BB,

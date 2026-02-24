@@ -402,7 +402,7 @@ public final class Fir2CCompiler {
         var typeEmit = emitType(cCode, version.returnType());
         var effectsEmit = emitEffects(version.effects());
         cCode.stmt(
-            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type) || (!%s && %s.effects);",
+            "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type) || !Fir_is_subeffects(%s, %s.effects);",
             i, i, typeEmit, VAR_SIGNATURE, effectsEmit, VAR_SIGNATURE);
       }
 
@@ -677,7 +677,7 @@ public final class Fir2CCompiler {
           var valueType = emitType(cCode, promise.valueType());
           var reflect = emitEffects(promise.effects());
           cCode.stmt(
-              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .reflect = %s};",
+              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s};",
               evalCName, valueType, reflect);
         }
 
@@ -1431,7 +1431,11 @@ public final class Fir2CCompiler {
   }
 
   private static String emitEffects(Effects fx) {
-    return Boolean.toString(fx.reflect());
+    return switch (fx) {
+      case NONE -> "FIR_EFFECTS_NONE";
+      case IMPURE -> "FIR_EFFECTS_IMPURE";
+      case REFLECT -> "FIR_EFFECTS_REFLECT";
+    };
   }
 
   // endregion emit types

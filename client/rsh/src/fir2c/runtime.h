@@ -35,6 +35,12 @@ typedef enum {
   FIR_SHARED = 3,
 } Fir_Ownership;
 
+typedef enum {
+  FIR_EFFECTS_NONE = 0,
+  FIR_EFFECTS_IMPURE = 1,
+  FIR_EFFECTS_REFLECT = 2,
+} Fir_Effects;
+
 typedef struct Fir_Type Fir_Type;
 typedef struct {
   Fir_KindTag tag;
@@ -44,7 +50,7 @@ typedef struct {
     } primitive;
     struct {
       Fir_Type const* value_type;
-      bool reflect;
+      Fir_Effects effects;
     } promise;
   } as;
 } Fir_Kind;
@@ -59,7 +65,7 @@ typedef struct Fir_Signature {
   Fir_Type return_type;
   int param_count;
   Fir_Type const *param_types;
-  bool effects;
+  Fir_Effects effects;
 } Fir_Signature;
 
 typedef enum {
@@ -81,7 +87,7 @@ typedef struct Fir_FunctionData {
 typedef struct Fir_PromiseGlobalData {
   Fir_PromiseFn eval;
   Fir_Type value_type;
-  bool reflect;
+  Fir_Effects effects;
 } Fir_PromiseGlobalData;
 
 typedef struct Fir_PromiseLocalData {
@@ -100,20 +106,25 @@ void Fir_print_kind(Fir_Kind kind);
 void Fir_print_primitive_kind(Fir_PrimitiveKind primitive);
 void Fir_print_ownership(Fir_Ownership ownership);
 void Fir_print_concreteness(bool definite);
-void Fir_print_effects(bool reflect);
+void Fir_print_effects(Fir_Effects effects);
+bool Fir_effects_impure(Fir_Effects effects);
+bool Fir_effects_reflect(Fir_Effects effects);
+bool Fir_is_subeffects(Fir_Effects a, Fir_Effects b);
+Fir_Effects Fir_effects_union(Fir_Effects a, Fir_Effects b);
+Fir_Effects Fir_effects_intersect(Fir_Effects a, Fir_Effects b);
 
 bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
 bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data);
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
 Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
-Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect);
+Fir_Kind Fir_kind_promise(Fir_Type const* value_type, Fir_Effects effects);
 
 Fir_Type Fir_type(Fir_Kind kind, Fir_Ownership ownership, bool definite);
 bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type);
 bool Fir_value_matches(SEXP value, Fir_Type type);
 
-Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, bool effects);
+Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects);
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP **captures, SEXP env);

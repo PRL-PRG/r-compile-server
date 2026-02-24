@@ -66,7 +66,7 @@ public final class Abstraction implements Comparable<Abstraction> {
 
     nameToParam = computeNameToParam(parameters);
     returnType = Type.ANY_VALUE;
-    effects = Effects.ANY;
+    effects = Effects.REFLECT;
     cfg = isStub ? null : new CFG(this);
 
     parameters.stream().map(p -> p.variable().name()).forEach(nextLocalDisambiguator::add);

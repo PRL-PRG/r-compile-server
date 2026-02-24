@@ -34,15 +34,15 @@ Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_VECTOR_KINDS[primitive_kind];
 }
 
-Fir_Kind Fir_kind_promise(Fir_Type const* value_type, bool reflect) {
-  return (Fir_Kind) {.tag = FIR_KIND_PROMISE, .as.promise.value_type = value_type, .as.promise.reflect = reflect};
+Fir_Kind Fir_kind_promise(Fir_Type const* value_type, Fir_Effects effects) {
+  return (Fir_Kind) {.tag = FIR_KIND_PROMISE, .as.promise.value_type = value_type, .as.promise.effects = effects};
 }
 
 Fir_Type Fir_type(Fir_Kind kind, Fir_Ownership ownership, bool definite) {
   return (Fir_Type) {.kind = kind, .ownership = ownership, .definite = definite};
 }
 
-Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, bool effects) {
+Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects) {
   return (Fir_Signature) {.return_type = return_type, .param_count = param_count, .param_types = param_types, .effects = effects};
 }
 
@@ -119,11 +119,8 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
     if (this_kind.tag != FIR_KIND_PROMISE) {
       return false;
     }
-    // Check value type is subtype and effects is subset
-    // Note: In Java, effects.isSubsetOf is checked, but in C we only have 'reflect' bool
-    // The Java Effects type has ANY and NONE, where reflect corresponds to whether effects can occur
     return Fir_is_subtype(*this_kind.as.promise.value_type, *other_kind.as.promise.value_type)
-        && (!this_kind.as.promise.reflect || other_kind.as.promise.reflect);
+        && Fir_is_subeffects(this_kind.as.promise.effects, other_kind.as.promise.effects);
   }
   return false;
 }
@@ -183,7 +180,7 @@ bool Fir_value_matches(SEXP value, Fir_Type type) {
       // FIŘ promise
       return
         Fir_is_subtype(global_data->value_type, *type.kind.as.promise.value_type) &&
-        (!global_data->reflect || type.kind.as.promise.reflect);
+        Fir_is_subeffects(global_data->effects, type.kind.as.promise.effects);
     }
 
     // GNU-R promise with eval body.
@@ -695,7 +692,7 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
             Fir_type(Fir_kind_anyValue, FIR_SHARED, true),
             argc,
             any_param_types,
-            true  // effects = true (ANY)
+            FIR_EFFECTS_REFLECT
           );
 
           // This is an ugly way to call a variadic function with a fixed number of arguments,
@@ -898,7 +895,7 @@ void Fir_print_kind(Fir_Kind kind) {
     fprintf(stderr, "p(");
     Fir_print_type(*kind.as.promise.value_type);
     fprintf(stderr, " ");
-    Fir_print_effects(kind.as.promise.reflect);
+    Fir_print_effects(kind.as.promise.effects);
     fprintf(stderr, ")");
     break;
   }
@@ -946,12 +943,38 @@ void Fir_print_concreteness(bool definite) {
   }
 }
 
-void Fir_print_effects(bool reflect) {
-  if (reflect) {
-    fprintf(stderr, "+");
-  } else {
+void Fir_print_effects(Fir_Effects effects) {
+  switch (effects) {
+  case FIR_EFFECTS_NONE:
     fprintf(stderr, "-");
+    break;
+  case FIR_EFFECTS_IMPURE:
+    fprintf(stderr, "~");
+    break;
+  case FIR_EFFECTS_REFLECT:
+    fprintf(stderr, "+");
+    break;
   }
+}
+
+bool Fir_effects_impure(Fir_Effects effects) {
+  return effects >= FIR_EFFECTS_IMPURE;
+}
+
+bool Fir_effects_reflect(Fir_Effects effects) {
+  return effects == FIR_EFFECTS_REFLECT;
+}
+
+bool Fir_is_subeffects(Fir_Effects a, Fir_Effects b) {
+  return a <= b;
+}
+
+Fir_Effects Fir_effects_union(Fir_Effects a, Fir_Effects b) {
+  return a >= b ? a : b;
+}
+
+Fir_Effects Fir_effects_intersect(Fir_Effects a, Fir_Effects b) {
+  return a <= b ? a : b;
 }
 
 void Fir_dbg_signature(Fir_Signature signature) {
