@@ -1,46 +1,38 @@
 package org.prlprg.fir.opt;
 
+import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
+import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfsNoDeopts;
+
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
+import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferEffects;
+import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.cfg.cursor.CFGCopier;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.UnreachableError;
 
 /// For each call to a non-effectful function, inlines every non-effectful, singly-used promise
-/// argument before the call. The callee signature (if dispatch) or version (if static) changes
-/// to accommodate the new (non-promise) parameter types.
-///
-/// For simplicity, currently only inlines promises whose code has a single BB. If necessary it
-/// can be extended to accommodate multiple BBs.
+/// argument before the call, which doesn't contain calls itself (since they may recur). The
+/// callee signature (if dispatch) or version (if static) changes to accommodate the new
+/// (non-promise) parameter types.
 public record StrictifyPromise() implements AbstractionOptimization {
   private record Inlineable(
-      int argIndex,
-      Register promiseReg,
-      BB defBb,
-      int defStmtIndex,
-      List<Statement> promiseStmts,
-      Argument retValue,
-      Type valueType) {}
+      int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
 
   @Override
   public boolean run(AbstractionFeedback feedback, Abstraction scope) {
@@ -49,18 +41,22 @@ public record StrictifyPromise() implements AbstractionOptimization {
     }
 
     var changed = false;
+    var inferType = new InferType(scope);
     var inferEffects = new InferEffects(scope);
     var defUses = new DefUses(scope);
 
-    for (var bb : scope.cfg().bbs()) {
-      for (int callIdx = 0; callIdx < bb.statements().size(); callIdx++) {
+    // Iterate in reverse so inlines don't affect iteration.
+    for (var bb : reverseDfsNoDeopts(scope.cfg())) {
+      for (int callIdx = bb.statements().size() - 1; callIdx >= 0; callIdx--) {
         var stmt = bb.statements().get(callIdx);
         if (!(stmt.expression() instanceof Call call)) {
           continue;
         }
 
         // Only apply to non-reflectful callees
-        if (inferEffects.of(call).reflect()) {
+        var callType = inferType.of(call);
+        var callEffects = inferEffects.of(call);
+        if (callEffects.reflect()) {
           continue;
         }
 
@@ -83,12 +79,13 @@ public record StrictifyPromise() implements AbstractionOptimization {
             continue;
           }
 
-          // Must be a non-effectful Promise
+          // Must be a non-effectful Promise that doesn't contain calls (may recur)
           if (!(defInCfg.instruction() instanceof Statement(var _, var _, var expr))
               || !(expr instanceof Promise(var valueType, var effects, var code))
               || effects.impure()
-              || code.bbs().size() != 1
-              || !(code.entry().jump() instanceof Return(var _, var retValue))) {
+              || code.bbs().stream()
+                  .flatMap(b -> b.statements().stream())
+                  .anyMatch(s -> s.expression() instanceof Call)) {
             continue;
           }
 
@@ -98,95 +95,66 @@ public record StrictifyPromise() implements AbstractionOptimization {
           }
 
           inlineables.add(
-              new Inlineable(
-                  j,
-                  reg,
-                  defInCfg.bb(),
-                  defInCfg.instructionIndex(),
-                  List.copyOf(code.entry().statements()),
-                  retValue,
-                  valueType));
+              new Inlineable(j, reg, defInCfg.bb(), defInCfg.instructionIndex(), code, valueType));
         }
 
         if (inlineables.isEmpty()) {
           continue;
         }
 
-        // Build new argument list: replace each inlinable promise arg with its inlined return value
-        var newArgs = new ArrayList<>(args);
+        // Replace inlined promise register types with their value types.
+        // We're reusing the promise register for the inlined return value.
         for (var il : inlineables) {
-          newArgs.set(il.argIndex(), il.retValue());
+          scope.setLocalType(il.argReg(), il.valueType());
         }
 
         // Compute new callee
         var newArgTypes =
-            newArgs.stream()
+            args.stream()
                 .map(
                     arg -> {
                       var t = scope.typeOf(arg);
                       return t != null ? t : Type.ANY_VALUE;
                     })
                 .collect(ImmutableList.toImmutableList());
-        Callee newCallee;
-        switch (call.callee()) {
-          case StaticCallee(var fn, var _) -> {
-            // Find best version whose parameters accept the new (non-promise) argument types
-            var bestVersion = fn.guess(new Signature(newArgTypes, Type.ANY_VALUE, Effects.REFLECT));
-            if (bestVersion == null) {
-              throw new IllegalStateException(
-                  "No compatible version found for "
-                      + call
-                      + " with "
-                      + newArgTypes
-                      + ", not even baseline:\n"
-                      + fn);
-            }
-            newCallee = new StaticCallee(fn, bestVersion);
-          }
-          case DispatchCallee(var fn, var sig) -> {
-            var newSig =
-                sig == null ? null : new Signature(newArgTypes, sig.returnType(), sig.effects());
-            newCallee = new DispatchCallee(fn, newSig);
-          }
-          case DynamicCallee _ ->
-              throw new UnreachableError("dynamic callees are always reflectful");
-        }
+        var fn =
+            switch (call.callee()) {
+              case StaticCallee(var f, var _) -> f;
+              case DispatchCallee(var f, var _) -> f;
+              case DynamicCallee _ ->
+                  throw new UnreachableError("dynamic callees are always reflectful");
+            };
+        var newSig =
+            new Signature(newArgTypes, callType == null ? Type.ANY_VALUE : callType, callEffects);
+        var newCallee = new DispatchCallee(fn, newSig);
 
-        // Remove promise definitions in this BB (high to low index to avoid index shifting)
-        var sameBbInlineables =
+        // Replace statement with new call.
+        // The promise registers themselves are replaced with the inlined return values,
+        // so call arguments remain unchanged
+        var newCall = new Call(newCallee, args);
+        var newStmt = stmt.withExpression(newCall);
+        bb.replaceStatementAt(callIdx, newStmt);
+
+        // Inline promise definitions
+        var bbInlineables =
             inlineables.stream()
-                .filter(il -> il.defBb() == bb)
+                // high to low index to avoid index shifting
                 .sorted(Comparator.comparingInt(Inlineable::defStmtIndex).reversed())
-                .toList();
-        var otherBbInlineables = inlineables.stream().filter(il -> il.defBb() != bb).toList();
-
-        for (var il : sameBbInlineables) {
-          bb.removeStatementAt(il.defStmtIndex());
-          scope.removeLocal(il.promiseReg());
-          if (il.defStmtIndex() < callIdx) {
-            callIdx--;
+                .collect(Collectors.groupingBy(Inlineable::defBb));
+        for (var entry : bbInlineables.entrySet()) {
+          var inlineableBb = entry.getKey();
+          for (var il : entry.getValue()) {
+            // Add inlined code
+            var succ = inline(il.promiseCode(), inlineableBb, il.defStmtIndex(), il.argReg());
+            // Remove promise constructor
+            inlineableBb.removeStatementAt(il.defStmtIndex());
+            // Fix call index if we inlined before `bb`
+            if (inlineableBb == bb && il.defStmtIndex() < callIdx) {
+              bb = succ;
+              callIdx = 0;
+            }
           }
         }
-        for (var il : otherBbInlineables) {
-          il.defBb().removeStatementAt(il.defStmtIndex());
-          scope.removeLocal(il.promiseReg());
-        }
-
-        // Collect the promise body statements to insert before the call (in argument order)
-        var stmtsToInsert = new ArrayList<Statement>();
-        for (var il : inlineables) {
-          for (var s : il.promiseStmts()) {
-            stmtsToInsert.add(CFGCopier.copy(s, scope));
-          }
-        }
-
-        // Insert the promise body statements before the call
-        bb.insertStatements(callIdx, stmtsToInsert);
-        callIdx += stmtsToInsert.size();
-
-        // Replace the call with the updated callee and arguments
-        var newCall = new Call(newCallee, ImmutableList.copyOf(newArgs));
-        bb.replaceStatementAt(callIdx, new Statement(stmt.comments(), stmt.assignee(), newCall));
 
         changed = true;
       }

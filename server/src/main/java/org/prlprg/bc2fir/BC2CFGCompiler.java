@@ -1145,11 +1145,6 @@ public class BC2CFGCompiler {
 
   // region checkpoints
   void tryAddCheckpoint(boolean afterInstruction) {
-    // Don't add checkpoints/deopts in promises for now
-    if (cfg.isPromise()) {
-      return;
-    }
-
     var deoptBcPos = afterInstruction ? bcPos + 1 : bcPos;
     var deopt = cfg.addBB("D" + numDeopts++);
     deopt.setJump(new Deopt(deoptBcPos, ImmutableList.copyOf(stack)));

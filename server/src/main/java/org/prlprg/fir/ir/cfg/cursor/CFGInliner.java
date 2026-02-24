@@ -21,8 +21,10 @@ public final class CFGInliner {
   /// If `returnDestination` is non-null, it becomes a phi parameter of the split successor and
   /// stores the inlinee's return. Otherwise, the return is discarded.
   ///
+  /// @return The split successor, which runs after the inlined code (is an actual successor of
+  ///  `bb` only iff the inlined code returns).
   /// @throws IndexOutOfBoundsException if `index < -1 || index >= bb.statements.size()`
-  public static void inline(CFG inlinee, BB bb, int index, @Nullable Register returnDestination) {
+  public static BB inline(CFG inlinee, BB bb, int index, @Nullable Register returnDestination) {
     if (index < -1 || index >= bb.statements().size()) {
       throw new IndexOutOfBoundsException("Instruction index out of bounds");
     }
@@ -47,6 +49,8 @@ public final class CFGInliner {
                 new Target(
                     successor,
                     returnDestination == null ? ImmutableList.of() : ImmutableList.of(value))));
+
+    return successor;
   }
 
   private CFGInliner() {}
