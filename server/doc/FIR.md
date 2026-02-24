@@ -76,6 +76,7 @@ A variable of maybe type can hold a value assigned of a different type, but it c
 Effects track potential side effects of expressions. There are 2 kinds of effects:
 
 - `-` - No effects (pure)
+- `~` - Maybe effects, no reflection (impure)
 - `+` - Any effects (reflective)
 
 If an effectful or unknown function is called, the calling version must have effects. If an effectful or unknown promise is forced, the forcing version must have effects. Any version containing reflective operations must have effects.

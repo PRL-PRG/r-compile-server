@@ -131,7 +131,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
         switch (call.callee()) {
           case StaticCallee(var fn, var _) -> {
             // Find best version whose parameters accept the new (non-promise) argument types
-            var bestVersion = fn.guess(new Signature(newArgTypes, Type.ANY_VALUE, Effects.ANY));
+            var bestVersion = fn.guess(new Signature(newArgTypes, Type.ANY_VALUE, Effects.REFLECT));
             if (bestVersion == null) {
               throw new IllegalStateException(
                   "No compatible version found for "

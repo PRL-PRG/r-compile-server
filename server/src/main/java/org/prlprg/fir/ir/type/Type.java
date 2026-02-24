@@ -25,7 +25,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public static final Type ANY = new Type(new Kind.Any(), Ownership.SHARED, Concreteness.MAYBE);
   public static final Type ANY_VALUE =
       new Type(new Kind.AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
-  public static final Type ANY_PROMISE = promise(ANY_VALUE, Effects.ANY);
+  public static final Type ANY_PROMISE = promise(ANY_VALUE, Effects.REFLECT);
   public static final Type INTEGER = primitiveScalar(PrimitiveKind.INTEGER);
   public static final Type LOGICAL = primitiveScalar(PrimitiveKind.LOGICAL);
   public static final Type REAL = primitiveScalar(PrimitiveKind.REAL);
@@ -72,7 +72,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
       case PromSXP p ->
           promise(
               p.isLazy() ? ANY_VALUE : of(Objects.requireNonNull(p.boundVal())),
-              p.isLazy() ? Effects.ANY : Effects.NONE);
+              p.isLazy() ? Effects.REFLECT : Effects.NONE);
       default -> sexp.equals(SEXPs.MISSING_ARG) ? MISSING : ANY_VALUE;
     };
   }

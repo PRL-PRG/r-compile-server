@@ -62,7 +62,8 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
             .filter(
                 parameterTypes -> {
                   var existing =
-                      function.guess(new Signature(parameterTypes, Type.ANY_VALUE, Effects.ANY));
+                      function.guess(
+                          new Signature(parameterTypes, Type.ANY_VALUE, Effects.REFLECT));
                   return existing == null
                       || !Lists.mapLazy(existing.parameters(), Parameter::type)
                           .equals(parameterTypes);

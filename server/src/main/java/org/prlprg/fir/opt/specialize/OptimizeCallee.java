@@ -82,14 +82,17 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
       // An argument is malformed.
       return null;
     }
-    var argumentTypes = Lists.mapLazy(callArguments, scope::typeOf);
+    var argumentTypes = Lists.mapLazy(callArguments, a -> {
+      var type = scope.typeOf(a);
+      return type == null ? Type.ANY : type;
+    });
 
     // Create the best signature that can be called with these argument types.
     var bestSignature =
         new Signature(
             ImmutableList.copyOf(argumentTypes),
             oldSignature == null ? Type.ANY_VALUE : oldSignature.returnType(),
-            oldSignature == null ? Effects.ANY : oldSignature.effects());
+            oldSignature == null ? Effects.REFLECT : oldSignature.effects());
 
     // Look up the best version that can be called with this signature.
     var bestVersion = callFunction.guess(bestSignature);

@@ -73,13 +73,13 @@ public final class InferEffects implements Analysis {
             case StaticCallee(var _, var version) -> version.effects();
             case DispatchCallee(var function, var signature) ->
                 signature == null ? function.baseline().effects() : signature.effects();
-            case DynamicCallee(var _, var _) -> Effects.ANY;
+            case DynamicCallee(var _, var _) -> Effects.REFLECT;
           };
       case Cast(var _, var _), Closure _, Dup(var _) -> Effects.NONE;
       case Force(var value) -> {
         var type = inferType.of(value);
         yield type == null || type.concreteness() == Concreteness.MAYBE
-            ? Effects.ANY
+            ? Effects.REFLECT
             : type.kind() instanceof Kind.Promise(var _, var innerEffects)
                 ? innerEffects
                 : Effects.NONE;
@@ -88,21 +88,21 @@ public final class InferEffects implements Analysis {
       case LoadFun(var _, var env) ->
           switch (env) {
             // Function lookup can force...
-            case LOCAL -> Effects.ANY;
+            case LOCAL -> Effects.REFLECT;
             // ...except in global or base env, those are special lookups for known functions
             case GLOBAL, BASE -> Effects.NONE;
           };
       case MaybeForce(var value) -> {
         var type = inferType.of(value);
         yield type == null || type.concreteness() == Concreteness.MAYBE
-            ? Effects.ANY
+            ? Effects.REFLECT
             : type.kind() instanceof Kind.Promise(var _, var innerEffects)
                 ? innerEffects
                 : Effects.NONE;
       }
       case MkVector(var _, var _), MkEnv(), PopEnv(), Placeholder(), Promise(var _, var _, var _) ->
           Effects.NONE;
-      case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.ANY;
+      case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.REFLECT;
       case Store(var _, var _),
           SubscriptRead(var _, var _),
           SubscriptWrite(var _, var _, var _),

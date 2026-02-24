@@ -1172,7 +1172,7 @@ public final class InternalInterpreter implements Interpreter {
             .map(a -> inferType(a, Ownership.SHARED))
             .collect(ImmutableList.toImmutableList()),
         Type.ANY_VALUE,
-        Effects.ANY);
+        Effects.REFLECT);
   }
 
   /// Infer the type of the [SEXP], giving it the ownership iff permissible.
