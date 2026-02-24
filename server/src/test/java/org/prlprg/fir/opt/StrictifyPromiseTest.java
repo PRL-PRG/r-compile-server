@@ -59,7 +59,7 @@ class StrictifyPromiseTest {
     // The call argument is now the inlined result, not the promise register
     assertFalse(printed.contains("f.1(rx)"), "old promise-taking call should be gone");
     // A suitable non-promise version is used
-    assertTrue(printed.contains("f< I --> I >(ry)"), "call should use the integer-taking version");
+    assertTrue(printed.contains("f< I --> I >(rx)"), "call should use the integer-taking version");
     assertTrue(printed.contains("ry = 1"), "promise body should appear in outer scope");
   }
 

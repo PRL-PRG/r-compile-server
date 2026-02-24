@@ -5,7 +5,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record StaticCallee(Function function, Abstraction version) implements Callee {
+public record StaticCallee(@Override Function function, Abstraction version) implements Callee {
   public StaticCallee {
     if (!function.versions().contains(version)) {
       throw new IllegalArgumentException(
