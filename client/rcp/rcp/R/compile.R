@@ -69,10 +69,12 @@ rcp_get_types <- function() {
 
 #' Get a data frame of traced types for a given function
 #'
-#' Returns a data frame with one row per traced call. Columns are
-#' \code{arg1}, \code{arg2}, ..., \code{argN} for arguments (up to the
-#' maximum number of arguments across all calls), and \code{ret} for the
-#' return value. Types are shown as character strings.
+#' Returns a data frame with one row per traced call. Columns are one per
+#' formal argument of the function (named after those arguments), zero or
+#' more columns for expanded \code{...} arguments (if present), a
+#' \code{dots_count} column giving the number of \code{...} arguments for
+#' that call, and a \code{ret} column for the return type. Types are shown
+#' as character strings.
 #'
 #' @param func_name Character string naming the function to query.
 #' @return A data.frame, or NULL if no type data is available.
