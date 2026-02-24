@@ -102,6 +102,8 @@ reg r:t
 
 Registers are only accessible within the version body and inner promises.
 
+A register name must be a valid identifier: must start with a letter or `_`, be followed by letters, digits, or `_`, and cannot equal `_`.
+
 ### Named Variables (`x`)
 
 Named variables represent R environment bindings:
@@ -111,6 +113,8 @@ var x:t
 ```
 
 All named variable types must be maybe types or `*`.
+
+A variable name must be a valid identifier *or* any non-empty string enclosed in backticks (`` ` ``), where backticks and backslashes within the string are escaped (other scape codes are supported but not necessary).
 
 ### Naming
 
