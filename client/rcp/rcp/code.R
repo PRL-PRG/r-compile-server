@@ -70,4 +70,15 @@ h <- function(a, ...) {
 h = rcp::rcp_cmpfun(h, list(name = "h"))
 h(1, "hello")
 h("world", 4, "three")
+h(4L, t=89)
 print(rcp::rcp_get_types_df("h"))
+
+library(rcp)
+p <- function(x, y) {
+  cat(x, y, "\n")
+  y
+}
+p <- rcp::rcp_cmpfun(p, list(name = "p"))
+p(1, "hello")
+p(y=3, x="world")
+print(rcp::rcp_get_types_df("p"))

@@ -192,6 +192,23 @@ extern const void *const _RCP_EXECUTABLE[];
 		return call(stack, locals);                                                                                                      \
 	}
 
+static __attribute__((always_inline)) inline SEXP rcp_binding_value(SEXP binding_cell)
+{
+	if (BNDCELL_TAG(binding_cell)) {
+		return R_NilValue;
+	}
+	return CAR0(binding_cell);
+}
+
+static __attribute__((always_inline)) inline int rcp_value_type(SEXP val)
+{
+	if (TYPEOF(val) == PROMSXP) {
+		SEXP prval = PRVALUE(val);
+		return (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
+	}
+	return TYPEOF(val);
+}
+
 /**************************************************************************/
 
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
@@ -237,23 +254,44 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 
 	rec->count = nargs;
 	rec->arguments = malloc(nargs * sizeof(int));
+	rec->dots_names = NULL;
+	rec->dots_types = NULL;
+	rec->dots_count = 0;
 
 	// Record argument types (promises are forced by now for used args)
 	size_t i = 0;
-	for (SEXP f = b; f != R_NilValue && i < nargs; f = CDR(f)) {
+	for (SEXP f = b; f != R_NilValue; f = CDR(f)) {
 		SEXP tag = TAG(f);
-
-		if (BNDCELL_TAG(f)) {
-			rec->arguments[i] = BNDCELL_TAG(f);
-		} else {
-			SEXP val = CAR0(f);
-			if (TYPEOF(val) == PROMSXP) {
-				SEXP prval = PRVALUE(val);
-				rec->arguments[i] = (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
-			} else {
-				rec->arguments[i] = TYPEOF(val);
+		if (tag == R_DotsSymbol) {
+			SEXP dots_val = rcp_binding_value(f);
+			if (TYPEOF(dots_val) == PROMSXP) {
+				SEXP prval = PRVALUE(dots_val);
+				if (prval != R_UnboundValue)
+					dots_val = prval;
 			}
+
+			if (dots_val != R_MissingArg && TYPEOF(dots_val) == DOTSXP) {
+				size_t ndots = 0;
+				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d)) ndots++;
+				rec->dots_count = ndots;
+				rec->dots_names = malloc(ndots * sizeof(SEXP));
+				rec->dots_types = malloc(ndots * sizeof(int));
+
+				size_t di = 0;
+				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d), di++) {
+					SEXP dtag = TAG(d);
+					SEXP dval = CAR(d);
+					rec->dots_names[di] = dtag;
+					rec->dots_types[di] = rcp_value_type(dval);
+				}
+			}
+			continue;
 		}
+
+		if (i >= nargs)
+			continue;
+
+		rec->arguments[i] = BNDCELL_TAG(f) ? BNDCELL_TAG(f) : rcp_value_type(CAR0(f));
 
 		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
 			Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));

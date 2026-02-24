@@ -1648,8 +1648,11 @@ static void type_trace_finalizer(SEXP ext) {
 		if (trace->argument_names) {
 			free(trace->argument_names);
 		}
-        for (size_t i = 0; i < trace->count; i++)
+		for (size_t i = 0; i < trace->count; i++) {
+			free(trace->types[i].dots_names);
+			free(trace->types[i].dots_types);
             free(trace->types[i].arguments);
+		}
         free(trace->types);
         free(trace);
         R_ClearExternalPtr(ext);
@@ -1683,24 +1686,29 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils*
 	trace->types = malloc(trace->capacity * sizeof(TypeRecord));
 	trace->argument_names = NULL;
 	trace->argument_count = 0;
+	trace->has_dots = 0;
 	trace->first_arg_sym = R_NilValue;
 
 	if (formals != R_NilValue && TYPEOF(formals) == LISTSXP) {
-		size_t nargs = 0;
+		size_t fixed_nargs = 0;
 		for (SEXP f = formals; f != R_NilValue; f = CDR(f))
-			nargs++;
+		{
+			if (TAG(f) == R_DotsSymbol)
+				trace->has_dots = 1;
+			else
+				fixed_nargs++;
+		}
 
-		trace->argument_count = nargs;
+		trace->argument_count = fixed_nargs;
 		trace->first_arg_sym = TAG(formals);
-		trace->argument_names = malloc(nargs * sizeof(char *));
+		trace->argument_names = malloc(fixed_nargs * sizeof(SEXP));
 
 		size_t i = 0;
-		for (SEXP f = formals; f != R_NilValue; f = CDR(f), i++) {
+		for (SEXP f = formals; f != R_NilValue; f = CDR(f)) {
 			SEXP tag = TAG(f);
-			if (tag != R_NilValue && TYPEOF(tag) == SYMSXP)
-				trace->argument_names[i] = (char *)CHAR(PRINTNAME(tag));
-			else
-				trace->argument_names[i] = NULL;
+			if (tag == R_DotsSymbol)
+				continue;
+			trace->argument_names[i++] = tag;
 		}
 	}
 
@@ -2616,25 +2624,40 @@ SEXP C_rcp_get_types(void)
 		{
 			TypeRecord *rec = &trace->types[j];
 
-			// Create list(arguments = c(...), ret = int)
-			SEXP entry = PROTECT(Rf_allocVector(VECSXP, 2));
-			SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 2));
+			// Create list(arguments = c(...), ret = int, dots_count = int)
+			SEXP entry = PROTECT(Rf_allocVector(VECSXP, 3));
+			SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 3));
 			SET_STRING_ELT(entry_names, 0, Rf_mkChar("arguments"));
 			SET_STRING_ELT(entry_names, 1, Rf_mkChar("ret"));
+			SET_STRING_ELT(entry_names, 2, Rf_mkChar("dots_count"));
 			Rf_setAttrib(entry, R_NamesSymbol, entry_names);
 
 			// arguments: integer vector
-			SEXP args_vec = PROTECT(Rf_allocVector(INTSXP, rec->count));
-			SEXP args_names = PROTECT(Rf_allocVector(STRSXP, rec->count));
+			SEXP args_vec = PROTECT(Rf_allocVector(INTSXP, rec->count + rec->dots_count));
+			SEXP args_names = PROTECT(Rf_allocVector(STRSXP, rec->count + rec->dots_count));
 			for (size_t k = 0; k < rec->count; k++)
 			{
 				INTEGER(args_vec)[k] = rec->arguments[k];
-				if (k < trace->argument_count && trace->argument_names && trace->argument_names[k])
-					SET_STRING_ELT(args_names, k, Rf_mkChar(trace->argument_names[k]));
+				if (k < trace->argument_count && trace->argument_names && trace->argument_names[k] != R_NilValue && TYPEOF(trace->argument_names[k]) == SYMSXP)
+					SET_STRING_ELT(args_names, k, PRINTNAME(trace->argument_names[k]));
 				else {
 					char name_buf[16];
 					snprintf(name_buf, sizeof(name_buf), "arg%zu", k + 1);
 					SET_STRING_ELT(args_names, k, Rf_mkChar(name_buf));
+				}
+			}
+			for (size_t k = 0; k < rec->dots_count; k++)
+			{
+				size_t idx = rec->count + k;
+				INTEGER(args_vec)[idx] = rec->dots_types[k];
+				if (rec->dots_names[k] != R_NilValue && TYPEOF(rec->dots_names[k]) == SYMSXP) {
+					char name_buf[256];
+					snprintf(name_buf, sizeof(name_buf), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[k])), k + 1);
+					SET_STRING_ELT(args_names, idx, Rf_mkChar(name_buf));
+				} else {
+					char name_buf[24];
+					snprintf(name_buf, sizeof(name_buf), "..%zu", k + 1);
+					SET_STRING_ELT(args_names, idx, Rf_mkChar(name_buf));
 				}
 			}
 			Rf_setAttrib(args_vec, R_NamesSymbol, args_names);
@@ -2642,6 +2665,7 @@ SEXP C_rcp_get_types(void)
 
 			// ret: scalar integer
 			SET_VECTOR_ELT(entry, 1, Rf_ScalarInteger(rec->ret));
+			SET_VECTOR_ELT(entry, 2, Rf_ScalarInteger((int)rec->dots_count));
 
 			SET_VECTOR_ELT(calls_list, j, entry);
 			UNPROTECT(4); // entry, entry_names, args_vec, args_names
@@ -2678,20 +2702,70 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 	if (!trace || trace->count == 0)
 		return R_NilValue;
 
-	// Find max number of arguments across all calls
-	size_t max_args = 0;
+	// Build union of dots names across calls
+	size_t max_dots = 0;
 	for (size_t i = 0; i < trace->count; i++)
-		if (trace->types[i].count > max_args)
-			max_args = trace->types[i].count;
+		max_dots += trace->types[i].dots_count;
 
-	size_t ncols = max_args + 1; // arg1..argN + ret
+	char **dots_col_names = max_dots ? malloc(max_dots * sizeof(char *)) : NULL;
+	int *dots_col_owned = max_dots ? malloc(max_dots * sizeof(int)) : NULL;
+	size_t dots_col_count = 0;
+
+	for (size_t r = 0; r < trace->count; r++)
+	{
+		TypeRecord *rec = &trace->types[r];
+		for (size_t d = 0; d < rec->dots_count; d++)
+		{
+			char synthetic[256];
+			const char *key;
+			int owned = 0;
+			if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP) {
+				snprintf(synthetic, sizeof(synthetic), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[d])), d + 1);
+				key = synthetic;
+				owned = 1;
+			} else {
+				snprintf(synthetic, sizeof(synthetic), "..%zu", d + 1);
+				key = synthetic;
+				owned = 1;
+			}
+
+			int found = 0;
+			for (size_t j = 0; j < dots_col_count; j++)
+			{
+				if (!strcmp(dots_col_names[j], key))
+				{
+					found = 1;
+					break;
+				}
+			}
+			if (!found)
+			{
+				if (owned)
+				{
+					size_t len = strlen(key);
+					char *copy = malloc(len + 1);
+					memcpy(copy, key, len + 1);
+					dots_col_names[dots_col_count] = copy;
+					dots_col_owned[dots_col_count] = 1;
+				}
+				else
+				{
+					dots_col_names[dots_col_count] = (char *)key;
+					dots_col_owned[dots_col_count] = 0;
+				}
+				dots_col_count++;
+			}
+		}
+	}
+
+	size_t ncols = trace->argument_count + dots_col_count + 2; // fixed args + dots + dots_count + ret
 	size_t nrows = trace->count;
 
 	// Allocate columns (each is a character vector)
 	SEXP df = PROTECT(Rf_allocVector(VECSXP, ncols));
 	SEXP col_names = PROTECT(Rf_allocVector(STRSXP, ncols));
 
-	for (size_t c = 0; c < max_args; c++)
+	for (size_t c = 0; c < trace->argument_count; c++)
 	{
 		SEXP col = PROTECT(Rf_allocVector(STRSXP, nrows));
 		for (size_t r = 0; r < nrows; r++)
@@ -2705,8 +2779,8 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 		SET_VECTOR_ELT(df, c, col);
 		UNPROTECT(1); // col
 
-		if (c < trace->argument_count && trace->argument_names && trace->argument_names[c]) {
-			SET_STRING_ELT(col_names, c, Rf_mkChar(trace->argument_names[c]));
+		if (trace->argument_names && trace->argument_names[c] != R_NilValue && TYPEOF(trace->argument_names[c]) == SYMSXP) {
+			SET_STRING_ELT(col_names, c, PRINTNAME(trace->argument_names[c]));
 		} else {
 			char name_buf[16];
 			snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
@@ -2714,13 +2788,56 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 		}
 	}
 
+	for (size_t dc = 0; dc < dots_col_count; dc++)
+	{
+		size_t c = trace->argument_count + dc;
+		SEXP col = PROTECT(Rf_allocVector(STRSXP, nrows));
+		for (size_t r = 0; r < nrows; r++)
+		{
+			TypeRecord *rec = &trace->types[r];
+			int found = 0;
+			for (size_t d = 0; d < rec->dots_count; d++)
+			{
+				char synthetic[256];
+				const char *key;
+				if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP) {
+					snprintf(synthetic, sizeof(synthetic), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[d])), d + 1);
+					key = synthetic;
+				} else {
+					snprintf(synthetic, sizeof(synthetic), "..%zu", d + 1);
+					key = synthetic;
+				}
+
+				if (!strcmp(key, dots_col_names[dc]))
+				{
+					SET_STRING_ELT(col, r, Rf_mkChar(Rf_type2char(rec->dots_types[d])));
+					found = 1;
+					break;
+				}
+			}
+			if (!found)
+				SET_STRING_ELT(col, r, NA_STRING);
+		}
+		SET_VECTOR_ELT(df, c, col);
+		UNPROTECT(1); // col
+		SET_STRING_ELT(col_names, c, Rf_mkChar(dots_col_names[dc]));
+	}
+
+	// dots_count column
+	SEXP dots_count_col = PROTECT(Rf_allocVector(INTSXP, nrows));
+	for (size_t r = 0; r < nrows; r++)
+		INTEGER(dots_count_col)[r] = (int)trace->types[r].dots_count;
+	SET_VECTOR_ELT(df, ncols - 2, dots_count_col);
+	UNPROTECT(1); // dots_count_col
+	SET_STRING_ELT(col_names, ncols - 2, Rf_mkChar("dots_count"));
+
 	// ret column
 	SEXP ret_col = PROTECT(Rf_allocVector(STRSXP, nrows));
 	for (size_t r = 0; r < nrows; r++)
 		SET_STRING_ELT(ret_col, r, Rf_mkChar(Rf_type2char(trace->types[r].ret)));
-	SET_VECTOR_ELT(df, max_args, ret_col);
+	SET_VECTOR_ELT(df, ncols - 1, ret_col);
 	UNPROTECT(1); // ret_col
-	SET_STRING_ELT(col_names, max_args, Rf_mkChar("ret"));
+	SET_STRING_ELT(col_names, ncols - 1, Rf_mkChar("ret"));
 
 	// Set column names
 	Rf_setAttrib(df, R_NamesSymbol, col_names);
@@ -2737,6 +2854,15 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 	SET_STRING_ELT(class, 0, Rf_mkChar("data.frame"));
 	Rf_setAttrib(df, R_ClassSymbol, class);
 	UNPROTECT(1); // class
+
+	if (dots_col_names)
+	{
+		for (size_t i = 0; i < dots_col_count; i++)
+			if (dots_col_owned[i])
+				free(dots_col_names[i]);
+		free(dots_col_owned);
+		free(dots_col_names);
+	}
 
 	UNPROTECT(2); // df, col_names
 	return df;

@@ -6,6 +6,9 @@
 
 typedef struct {
     int* arguments;
+    SEXP* dots_names;
+    int* dots_types;
+    size_t dots_count;
     size_t count;// for the number of arguments
     size_t capacity;
     int ret;
@@ -15,8 +18,9 @@ typedef struct {
     TypeRecord *types;  
     size_t count;
     size_t capacity;
-    char **argument_names; // names captured once per function
+    SEXP *argument_names; // fixed formal names captured once per function
     size_t argument_count;
+    int has_dots;
     SEXP first_arg_sym; // TAG of first formal; R_NilValue if no formals
     // We use it to identify where the arguments start, as locals are first prepended in the environment
     
