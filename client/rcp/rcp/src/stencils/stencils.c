@@ -209,6 +209,11 @@ static __attribute__((always_inline)) inline int rcp_value_type(SEXP val)
 	return TYPEOF(val);
 }
 
+static __attribute__((always_inline)) inline int rcp_binding_type(SEXP binding_cell)
+{
+	return BNDCELL_TAG(binding_cell) ? BNDCELL_TAG(binding_cell) : rcp_value_type(CAR0(binding_cell));
+}
+
 /**************************************************************************/
 
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
@@ -291,7 +296,7 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 		if (i >= nargs)
 			continue;
 
-		rec->arguments[i] = BNDCELL_TAG(f) ? BNDCELL_TAG(f) : rcp_value_type(CAR0(f));
+		rec->arguments[i] = rcp_binding_type(f);
 
 		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
 			Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
