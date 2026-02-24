@@ -37,6 +37,10 @@ public record Statement(
     return expression.arguments();
   }
 
+  public Statement withExpression(Expression expression) {
+    return new Statement(comments, assignee, expression);
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);

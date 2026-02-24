@@ -4,15 +4,21 @@ fun main() {
       ry = 1;
       return ry;
     };
-    # after: rz = f.2(ry);
-    rz = f.1(rx);
+    # after: rz = force_.2(ry);
+    rz = force_.1(rx);
     return rz;
   }
 }
 
-fun f(`...`) {
-  (reg r:V) -+> V { ... }
-  (reg r:p(I -)) --> I { ... }
+fun force_(r) {
+  (reg r:*) -+> V { r1:V |
+    r1 = force? r;
+    return r1;
+  }
+  (reg r:p(I -)) --> I { r1:I |
+    r1 = force r;
+    return r1;
+  }
   (reg r:I) --> I { |
     return r;
   }
