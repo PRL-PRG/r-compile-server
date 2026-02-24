@@ -56,15 +56,48 @@ rcp_get_profiling <- function() {
   .Call(C_rcp_get_profiling)
 }
 
+.rcp_resolve_func_name <- function(expr, env) {
+  if (is.symbol(expr)) {
+    symbol_name <- as.character(expr)
+    if (exists(symbol_name, envir = env, inherits = TRUE)) {
+      value <- tryCatch(eval(expr, envir = env), error = function(e) NULL)
+      if (is.character(value) && length(value) == 1L && !is.na(value)) {
+        return(value)
+      }
+    }
+    return(symbol_name)
+  }
+
+  value <- eval(expr, envir = env)
+  if (is.character(value) && length(value) == 1L && !is.na(value)) {
+    return(value)
+  }
+  if (is.symbol(value)) {
+    return(as.character(value))
+  }
+
+  stop("Expected a function name as a string or symbol", call. = FALSE)
+}
+
 #' Get recorded type information from entry/exit hooks
 #'
 #' Returns an environment where each key is a function name and each value
 #' is a list of call records. Each record has \code{arguments} (integer vector
 #' of SEXPTYPEs) and \code{ret} (integer SEXPTYPE of the return value).
 #'
+#' @param func_name Optional function name as a character string or symbol.
+#'   When provided, returns only that function's records.
+#'
 #' @export
-rcp_get_types <- function() {
-  .Call(C_rcp_get_types)
+rcp_get_types <- function(func_name) {
+  all_types <- .Call(C_rcp_get_types)
+  if (missing(func_name)) {
+    return(all_types)
+  }
+
+  func_name_expr <- substitute(func_name)
+  resolved_name <- .rcp_resolve_func_name(func_name_expr, parent.frame())
+  all_types[[resolved_name]]
 }
 
 #' Get a data frame of traced types for a given function
@@ -76,9 +109,11 @@ rcp_get_types <- function() {
 #' that call, and a \code{ret} column for the return type. Types are shown
 #' as character strings.
 #'
-#' @param func_name Character string naming the function to query.
+#' @param func_name Function name to query, as a character string or symbol.
 #' @return A data.frame, or NULL if no type data is available.
 #' @export
 rcp_get_types_df <- function(func_name) {
-  .Call(C_rcp_get_types_df, func_name)
+  func_name_expr <- substitute(func_name)
+  resolved_name <- .rcp_resolve_func_name(func_name_expr, parent.frame())
+  .Call(C_rcp_get_types_df, resolved_name)
 }

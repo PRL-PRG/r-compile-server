@@ -24,7 +24,7 @@ fib <- function(x) {
 fib <- rcp::rcp_cmpfun(fib, list(name = "fib"))
 fib(3)   # double argument -> all recursive args are double
 
-df <- rcp::rcp_get_types_df("fib")
+df <- rcp::rcp_get_types_df(fib)
 stopifnot(!is.null(df))
 stopifnot(is.data.frame(df))
 # Must have columns: x, dots_count, ret
@@ -78,7 +78,7 @@ g(34,     "hello")   # double, character -> double
 g(1L,     "world!")  # integer, character -> integer
 g("Nope", 456)       # character, double -> character
 
-df3 <- rcp::rcp_get_types_df("g")
+df3 <- rcp::rcp_get_types_df(g)
 stopifnot(!is.null(df3))
 stopifnot(is.data.frame(df3))
 stopifnot(identical(names(df3), c("x", "y", "dots_count", "ret")))
@@ -195,6 +195,13 @@ stopifnot(is.integer(first_record$arguments))
 stopifnot(is.integer(first_record$ret))
 stopifnot(is.integer(first_record$dots_count))
 stopifnot(identical(first_record$dots_count, 0L))
+
+fib_only <- rcp::rcp_get_types(fib)
+stopifnot(is.list(fib_only))
+stopifnot(length(fib_only) == 5L)
+
+fib_by_string <- rcp::rcp_get_types("fib")
+stopifnot(identical(fib_by_string, fib_only))
 
 cat("Test 6 (rcp_get_types): OK\n")
 
