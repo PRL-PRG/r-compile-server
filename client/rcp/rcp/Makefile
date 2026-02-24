@@ -15,6 +15,12 @@ clean:
 test: install
 	$(MAKE) -C tests test
 
+.PHONY: test-functional
+test-functional: install
+	$(MAKE) -C tests/smoketest test
+	$(MAKE) -C tests/types test
+	$(MAKE) -C tests/debugging test
+
 .PHONY: run
 run: install
 	$(R)
