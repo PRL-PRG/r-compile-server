@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 import javax.annotation.CheckReturnValue;
 import org.jspecify.annotations.Nullable;
@@ -138,7 +137,11 @@ public abstract class Checker {
   }
 
   protected final void report(Abstraction abstraction, String message) {
-    report(Objects.requireNonNull(abstraction.cfg()).entry(), 0, message);
+    errors.add(
+        new CheckException(
+            function(),
+            abstraction.cfg() == null ? null : new CFGCursor(abstraction.cfg()),
+            message));
   }
 
   protected final void report(ScopePosition position, String message) {

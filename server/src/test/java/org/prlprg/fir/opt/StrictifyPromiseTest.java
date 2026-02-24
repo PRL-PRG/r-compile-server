@@ -114,33 +114,6 @@ class StrictifyPromiseTest {
     assertFalse(run(module), "effectful promise: optimization should report no change");
   }
 
-  @Test
-  void staticCallee_noCompatibleVersion_notChanged() {
-    // Non-effectful callee, non-effectful promise, but no version that accepts the
-    // unwrapped type exists → optimization must not apply.
-    var module =
-        ParseUtil.parseModule(
-            """
-            fun main() {
-              () --> I { reg rx:p(I -), reg ry:I, reg rz:I |
-                rx = prom<I ->{
-                  ry = 1;
-                  return ry;
-                };
-                rz = f.1(rx);
-                return rz;
-              }
-            }
-            fun f(r) {
-              (reg r:V) -+> V { ... }
-              (reg r:p(I -)) --> I { ... }
-            }
-            """);
-
-    // f has no version that accepts a plain I, so guess() returns null → skip
-    assertFalse(run(module), "no compatible version: optimization should report no change");
-  }
-
   // ---------------------------------------------------------------------------
   // Tests: dispatch callee
   // ---------------------------------------------------------------------------

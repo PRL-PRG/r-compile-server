@@ -14,12 +14,13 @@ fun recursive(rm, rn) {
       r5 = recursive.0(r3, r4);
       return r5;
     };
-    result = if0.0(rm, r1, r2);
+    result = if0.1(rm, r1, r2);
     return result;
   }
 }
 
 fun if0(rcond, rtrue, rfalse) {
+  (reg rcond:*, reg rtrue:*, reg rfalse:*) --> I { ... }
   (reg rcond:V, reg rtrue:p(I -), reg rfalse:p(I -)) --> I { ... }
 }
 

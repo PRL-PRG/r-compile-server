@@ -1,4 +1,11 @@
 fun main() {
+  () --> I { reg r:I |
+    r = f(TRUE);
+    return r;
+  }
+}
+
+fun f(cond) {
   (reg cond:L) --> I { reg r:I, reg x:I |
     if cond then BB1() else BB2();
   BB1():
