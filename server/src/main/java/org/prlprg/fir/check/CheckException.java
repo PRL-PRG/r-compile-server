@@ -6,9 +6,9 @@ import org.prlprg.fir.ir.module.Function;
 
 public final class CheckException extends RuntimeException {
   private final @Nullable Function function;
-  private final CFGCursor position;
+  private final @Nullable CFGCursor position;
 
-  public CheckException(@Nullable Function function, CFGCursor position, String message) {
+  public CheckException(@Nullable Function function, @Nullable CFGCursor position, String message) {
     super(message);
     this.function = function;
     this.position = position;
@@ -18,7 +18,7 @@ public final class CheckException extends RuntimeException {
     return function;
   }
 
-  public CFGCursor position() {
+  public @Nullable CFGCursor position() {
     return position;
   }
 
@@ -28,6 +28,9 @@ public final class CheckException extends RuntimeException {
 
   @Override
   public String getMessage() {
-    return mainMessage() + "\nIn " + (function == null ? "" : function.name()) + position;
+    return mainMessage()
+        + "\nIn "
+        + (function == null ? "" : function.name())
+        + (position == null ? "" : position);
   }
 }

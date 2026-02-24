@@ -59,7 +59,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
           continue;
         }
 
-        // Only apply to non-effectful callees
+        // Only apply to non-reflectful callees
         if (inferEffects.of(call).reflect()) {
           continue;
         }
@@ -83,10 +83,10 @@ public record StrictifyPromise() implements AbstractionOptimization {
             continue;
           }
 
-          // Must be a non-reflective Promise
+          // Must be a non-effectful Promise
           if (!(defInCfg.instruction() instanceof Statement(var _, var _, var expr))
               || !(expr instanceof Promise(var valueType, var effects, var code))
-              || effects.reflect()
+              || effects.impure()
               || code.bbs().size() != 1
               || !(code.entry().jump() instanceof Return(var _, var retValue))) {
             continue;
@@ -131,7 +131,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
         switch (call.callee()) {
           case StaticCallee(var fn, var _) -> {
             // Find best version whose parameters accept the new (non-promise) argument types
-            var bestVersion = fn.guess(new Signature(newArgTypes, Type.ANY_VALUE, Effects.NONE));
+            var bestVersion = fn.guess(new Signature(newArgTypes, Type.ANY_VALUE, Effects.ANY));
             if (bestVersion == null) {
               throw new IllegalStateException(
                   "No compatible version found for "
