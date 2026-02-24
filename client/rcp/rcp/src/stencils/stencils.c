@@ -199,7 +199,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 	NEXT;
 }
 
-SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
+RCP_STENCIL_FUNCTION(_RCP_INIT)
 {
 	NEXT;
 }
@@ -207,7 +207,7 @@ SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
 RCP_OP(RETURN,
 	   ,
 	   PUSH_VAL(1); // to hold return value
-	   Rsh_Return(stack);)
+	   return Rsh_Return(stack);)
 
 RCP_OP(GOTO,
 	   ,

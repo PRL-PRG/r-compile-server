@@ -1236,7 +1236,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 	for (size_t i = 0; i < bytecode_size; i++)
 	{
-		if (inst_start[i])
+		if (inst_start[i] || i == 0)
 			inst_start[i] += (ptrdiff_t)executable;
 	}
 
