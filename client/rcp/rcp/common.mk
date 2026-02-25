@@ -5,9 +5,15 @@
 # Should do a debug build
 DEBUG ?= 0
 # Need a compiler that has support for no_callee_saved_registers
-CC := gcc-14
+ifeq ($(origin CC), default)
+  CC := gcc-14
+endif
 # Need a compiler that supports C++20
-CXX := g++-14
+ifeq ($(origin CXX), default)
+  CXX := g++-14
+endif
+C_STD_FLAG ?= -std=gnu17
+CXX_STD_FLAG ?= -std=gnu++20
 # Add support for debugging jitted code
 GDB_JIT_SUPPORT ?= 0
 
@@ -39,6 +45,16 @@ else
     CFLAGS += -g -DNDEBUG
     CXXFLAGS += -g -DNDEBUG
 endif
+
+ifeq (,$(findstring -std=,$(CFLAGS)))
+  CFLAGS += $(C_STD_FLAG)
+endif
+
+ifeq (,$(findstring -std=,$(CXXFLAGS)))
+  CXXFLAGS += $(CXX_STD_FLAG)
+endif
+
+export CC CXX C_STD_FLAG CXX_STD_FLAG
 
 
 ifeq ($(RELOC_MODEL),2)

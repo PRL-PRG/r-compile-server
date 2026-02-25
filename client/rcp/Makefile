@@ -1,6 +1,15 @@
 DOCKER_IMAGE_ORG := prl-prg
 DOCKER_BUILD_CMD := docker build
 
+ifeq ($(origin CC), default)
+CC := gcc-14
+endif
+ifeq ($(origin CXX), default)
+CXX := g++-14
+endif
+CFLAGS ?= -std=gnu17
+CXXFLAGS ?= -std=gnu++20
+
 RSH_COMMIT ?= $(shell git -C external/rsh rev-parse HEAD)
 RCP_COMMIT ?= $(shell git rev-parse HEAD) 
 
@@ -22,12 +31,16 @@ docker-rcp: docker-rcp-rsh
 		--build-arg RCP_COMMIT=$(RCP_COMMIT) \
 		-t $(DOCKER_IMAGE_ORG)/rcp:$(RCP_COMMIT) -f Dockerfile.rcp .
 
-setup:
-	external/rsh/tools/build-gnur.sh external/rsh/external/R
-	$(MAKE) -C rcp setup
+.PHONY: check-toolchain
+check-toolchain:
+	$(MAKE) -C rcp check-toolchain CC="$(CC)" CXX="$(CXX)"
 
-test:
-	$(MAKE) -C rcp test
+setup: check-toolchain
+	CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" external/rsh/tools/build-gnur.sh external/rsh/external/R
+	$(MAKE) -C rcp setup CC="$(CC)" CXX="$(CXX)"
 
-benchmark:
-	$(MAKE) -C rcp benchmark
+test: check-toolchain
+	$(MAKE) -C rcp test CC="$(CC)" CXX="$(CXX)"
+
+benchmark: check-toolchain
+	$(MAKE) -C rcp benchmark CC="$(CC)" CXX="$(CXX)"

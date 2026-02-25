@@ -3,7 +3,7 @@
 This repository implements a copy-and-patch JIT compiler for the R programming
 language.
 
-Copy-and-patch is a JIT compilation technique where machine-code *stencils*
+Copy-and-patch is a JIT compilation technique where machine-code _stencils_
 (templates) are pre-compiled from C and the JIT compiler assembles native code
 by copying these stencils and patching in runtime values such as addresses,
 immediates, and control-flow targets. Because the heavy lifting is done
@@ -36,8 +36,13 @@ cd rcp
 Build R from source and install R package dependencies:
 
 ```sh
+make check-toolchain
 make setup
 ```
+
+`make setup` uses `gcc-14`/`g++-14` by default and enforces `-std=gnu17`
+for C and `-std=gnu++20` for C++. You can override the compilers by setting
+`CC` and `CXX` in the environment.
 
 Build and test the compiler:
 
@@ -104,11 +109,11 @@ It returns a list with the number of `compiled` and `failed` functions.
 The project provides three layered Docker images. Each layer adds one component
 so that rebuilds only redo what changed.
 
-| Image | Contents |
-|---|---|
-| `rcp-base` | Ubuntu 24.04, system dependencies, vanilla R 4.3.2 |
-| `rcp-rsh` | + [R compile server](https://github.com/PRL-PRG/r-compile-server) and its custom R build |
-| `rcp` | + this repository, compiled and ready to use |
+| Image      | Contents                                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| `rcp-base` | Ubuntu 24.04, system dependencies, vanilla R 4.3.2                                       |
+| `rcp-rsh`  | + [R compile server](https://github.com/PRL-PRG/r-compile-server) and its custom R build |
+| `rcp`      | + this repository, compiled and ready to use                                             |
 
 ### Building locally
 
