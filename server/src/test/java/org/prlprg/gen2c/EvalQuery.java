@@ -63,10 +63,21 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   }
 
   @Override
+  public void verifyEqual(
+      EvalOutput expected, EvalOutput actual, Example example, SnapshotStore store) {
+    assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
+    if (!example.hasOption("", "nondeterministic")) {
+      assertEquals(expected.outputLog(), actual.outputLog(), "Output changed");
+    }
+  }
+
+  @Override
   public void verifyNoRegression(
       EvalOutput previous, EvalOutput current, Example example, SnapshotStore store) {
     assertEquals(previous.result(), current.result(), "Return value or crash reason changed");
-    assertEquals(previous.outputLog(), current.outputLog(), "Output changed");
+    if (!example.hasOption("", "nondeterministic")) {
+      assertEquals(previous.outputLog(), current.outputLog(), "Output changed");
+    }
   }
 
   @Override
