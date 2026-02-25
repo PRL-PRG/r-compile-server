@@ -1,8 +1,8 @@
 fun main() {
-  () --> I { reg target0:*, var target1:* |
+  () --> I { reg target0:*, var target:* |
     mkenv;
     target0 = clos target;
-    st target1 = target0;
+    st target = target0;
     check BBopt() else BBdeopt();
   BBopt():
     ldf target ?- target;
