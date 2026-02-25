@@ -30,6 +30,15 @@ public final class CFunction {
     return s;
   }
 
+  /// Prepends
+  ///
+  /// Try to use `add` instead, because this is more expensive
+  public CCode addFirst() {
+    var s = new CCode();
+    sections.addFirst(s);
+    return s;
+  }
+
   public CCode insertAbove(CCode sec) {
     var i = sections.indexOf(sec);
     if (i == -1) {

@@ -113,7 +113,8 @@ public final class Fir2CCompiler {
   private CompiledModule run(Function mainFunction) {
     cUnit.addInclude("runtime.h");
 
-    var cpSxp = new FunctionEmitter(mainFunction).run();
+    var mainEmitter = new FunctionEmitter(mainFunction);
+    mainEmitter.run();
 
     if (options.contains(Option.COMPILE_REFERENCED_FUNCTIONS)) {
       while (!referencedFunctions.isEmpty() || !referencedVersions.isEmpty()) {
@@ -124,13 +125,20 @@ public final class Fir2CCompiler {
         if (compiledFunctions.contains(next)) {
           continue;
         }
-        new FunctionEmitter(next).run();
+        var nextCpSxp = new FunctionEmitter(next).run();
+
+        // We must initialize `next`'s constant pools,
+        // and we must do so *before* `main`'s initialization
+        // (and before referenced functions encountered before).
+        var initCode = mainEmitter.initCFunction.addFirst();
+        var nextInitCName = functionInitCName(next);
+        initCode.stmt("%s(%s);", nextInitCName, constantRef(mainEmitter.fnPool, nextCpSxp));
       }
     } else {
       emitReferencedExternalDeclarations();
     }
 
-    return new CompiledModule(cUnit, cpSxp);
+    return new CompiledModule(cUnit, mainEmitter.fnPool.toSexp());
   }
 
   private void emitReferencedExternalDeclarations() {
@@ -170,7 +178,7 @@ public final class Fir2CCompiler {
     private final Function function;
 
     // Output
-    private final CFunction initCFunction;
+    final CFunction initCFunction;
     private final ConstantPool fnPool = new ConstantPool();
 
     FunctionEmitter(Function function) {
