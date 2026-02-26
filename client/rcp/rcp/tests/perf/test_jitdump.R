@@ -8,7 +8,7 @@ fac <- function(n) {
 }
 
 fac <- rcp::rcp_cmpfun(fac, list(name = "fac"))
-stopifnot(rcp::is_compiled(fac))
+stopifnot(rcp::rcp_is_compiled(fac))
 
 for (i in 1:1000000) fac(10)
 

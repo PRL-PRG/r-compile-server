@@ -1,6 +1,6 @@
 include ../../common.mk
 
-TESTS = basic.R
+TESTS = basic.R pkgcmp.R
 
 .PHONY: all test clean
 

@@ -19,8 +19,8 @@ rcp_cmpfun <- function(f, options = NULL) {
 #' @param f closure to be checked
 #' @return TRUE if the closure is compiled, FALSE otherwise
 #' @export
-is_compiled <- function(f) {
-  .Call(C_is_compiled, f)
+rcp_is_compiled <- function(f) {
+  .Call(C_rcp_is_compiled, f)
 }
 
 #' Activate the RCP JIT

@@ -95,7 +95,7 @@ It returns a list with the number of `compiled` and `failed` functions.
 
 ### Other API functions
 
-- `is_compiled(f)` -- check whether a function has been JIT-compiled
+- `rcp_is_compiled(f)` -- check whether a function has been JIT-compiled
 - `rcp_jit_enable()` / `rcp_jit_disable()` -- hook into R's compiler so that
   every function is JIT-compiled on first call
 

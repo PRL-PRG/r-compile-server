@@ -1599,7 +1599,7 @@ static const char *stats_names[STATS_COUNT] = {"total_size", "executable_size",
 
 static double stats_values[STATS_COUNT];
 
-SEXP C_is_compiled(SEXP closure)
+SEXP C_rcp_is_compiled(SEXP closure)
 {
 	if (TYPEOF(closure) != CLOSXP)
 	{
@@ -1974,9 +1974,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		compiled_functions[i] = compiled;
 		function_symbols[i] = name_sym;
 #else
-		R_unLockBinding(name_sym, pkg_namespace);
-		Rf_defineVar(name_sym, compiled, pkg_namespace);
-		R_LockBinding(name_sym, pkg_namespace);
+		SET_BODY(obj, BODY(compiled));
 		UNPROTECT_SAFE(compiled);
 		UNPROTECT_SAFE(name_sym);
 #endif
@@ -1991,9 +1989,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		if (compiled_functions[i] != R_NilValue &&
 			function_symbols[i] != R_NilValue)
 		{
-			R_unLockBinding(function_symbols[i], pkg_namespace);
-			Rf_defineVar(function_symbols[i], compiled_functions[i], pkg_namespace);
-			R_LockBinding(function_symbols[i], pkg_namespace);
+			SET_BODY(obj, BODY(compiled_functions[i]));
 			UNPROTECT_SAFE(compiled_functions[i]);
 			UNPROTECT_SAFE(function_symbols[i]);
 		}
