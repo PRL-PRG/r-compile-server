@@ -1,5 +1,8 @@
 package org.prlprg.fir.opt;
 
+import org.prlprg.fir.feedback.ModuleFeedback;
+import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
@@ -12,11 +15,25 @@ import org.prlprg.fir.opt.specialize.ResolveLoadFun;
 import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 public class Optimizations {
+  public static Optimization NOOP =
+      new Optimization() {
+        @Override
+        public String name() {
+          return "noop";
+        }
+
+        @Override
+        public void run(ModuleFeedback feedback, Module module) {}
+
+        @Override
+        public void run(ModuleFeedback feedback, Function function) {}
+      };
+
   public static Optimization defaultOptimizations() {
-    return defaultOptimizations(10);
+    return defaultOptimizations(10, true);
   }
 
-  public static Optimization defaultOptimizations(int threshold) {
+  public static Optimization defaultOptimizations(int threshold, boolean affectCheckpoints) {
     return new Sequence(
         "default",
         new SpeculateDispatch(threshold, 3, 9),
@@ -38,8 +55,8 @@ public class Optimizations {
                 new ReturnTypeAndEffects()),
             new Inline(1000),
             new Cleanup()),
-        new MergeConsecutiveCheckpoints(),
-        new ElideUnusedCheckpoints());
+        affectCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
+        affectCheckpoints ? new ElideUnusedCheckpoints() : NOOP);
   }
 
   private Optimizations() {}

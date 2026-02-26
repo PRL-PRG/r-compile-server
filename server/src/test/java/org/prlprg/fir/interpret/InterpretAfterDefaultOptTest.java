@@ -7,6 +7,6 @@ import org.prlprg.fir.opt.Optimization;
 public class InterpretAfterDefaultOptTest implements InterpretAfterGenOptTest {
   @Override
   public Optimization optimization() {
-    return defaultOptimizations();
+    return defaultOptimizations(10, false);
   }
 }

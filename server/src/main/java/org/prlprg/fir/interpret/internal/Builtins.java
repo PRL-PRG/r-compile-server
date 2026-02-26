@@ -14,6 +14,7 @@ import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.IntSXP;
@@ -212,6 +213,12 @@ public final class Builtins {
       throw interpreter.fail("`==` takes 2 arguments");
     }
 
+    var arg0Clo = args.getFirst().as(CloSXP.class);
+    var arg1Clo = args.get(1).as(CloSXP.class);
+    if (arg0Clo.isPresent() && arg1Clo.isPresent()) {
+      return SEXPs.logical(arg0Clo.get() == arg1Clo.get());
+    }
+
     var arg0Double = asScalarDouble(args.getFirst());
     var arg1Double = asScalarDouble(args.get(1));
 
@@ -222,7 +229,7 @@ public final class Builtins {
     }
 
     throw interpreter.failUnsupported(
-        "Mock `==` not implemented for arguments except scalar logicals and numbers");
+        "Mock `==` not implemented for arguments except scalar logicals, numbers, and closures");
   }
 
   private static SEXP notEqual(
