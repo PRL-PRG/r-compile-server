@@ -398,7 +398,7 @@ RCP_OP(GETINTLBUILTIN,
 RCP_OP(CHECKFUN,
 	   Rsh_CheckFun(stack);)
 
-static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho)
+static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho, int code_type)
 {
 	Value *fun = GET_VAL(-3);
 	Value *args_head = GET_VAL(-2);
@@ -413,9 +413,8 @@ static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho)
 			break;
 		}
 		case BUILTINSXP:
-			switch (TYPEOF(code))
+			switch (code_type)
 			{
-#ifdef RCP_COMPILE_PROMISES
 				case EXTPTRSXP:
 				{
 					assert(RSH_IS_CLOSURE_BODY(code));
@@ -423,14 +422,12 @@ static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho)
 					RSH_PUSH_ARG(args_head, args_tail, value);
 					break;
 				}
-#else
 				case BCODESXP:
 				{
 					SEXP value = bcEval(code, rho);
 					RSH_PUSH_ARG(args_head, args_tail, value);
 					break;
 				}
-#endif
 				default:
 				{
 					/* uncommon but possible, the compiler may decide not
@@ -447,8 +444,26 @@ static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho)
 	}
 }
 
+#ifdef MAKEPROM_SPECIALIZE
+RCP_OP_EX(MAKEPROM, 0_DEFAULT)
+{
+	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), -1);
+	NEXT;
+}
+RCP_OP_EX(MAKEPROM, 1_BCODESXP)
+{
+	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), BCODESXP);
+	NEXT;
+}
+RCP_OP_EX(MAKEPROM, 2_EXTPTRSXP)
+{
+	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), EXTPTRSXP);
+	NEXT;
+}
+#else
 RCP_OP(MAKEPROM,
-	   Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO());)
+	   Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), TYPEOF(GETCONST_IMM(0)));)
+#endif
 
 RCP_OP(DOMISSING,
 	   Rsh_DoMissing(stack);)

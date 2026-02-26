@@ -642,6 +642,29 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		}
 		break;
 #endif
+#ifdef MAKEPROM_SPECIALIZE
+		case MAKEPROM_BCOP:
+		{
+			SEXP code = r_constpool[imms[0]];
+			switch (TYPEOF(code))
+			{
+				case BCODESXP:
+					printf("Using specialized version of MAKEPROM_OP: BCODESXP\n");
+					return &stencil_set[1];
+				case EXTPTRSXP:
+					if (RSH_IS_CLOSURE_BODY(code))
+					{
+						printf("Using specialized version of MAKEPROM_OP: EXTPTRSXP\n");
+						return &stencil_set[2];
+					}
+					// Continue to the generic version if it's an external pointer but not ours
+				default:
+					printf("Using specialized version of MAKEPROM_OP: OTHER SEXPs\n");
+					return &stencil_set[0];
+			}
+		}
+		break;
+#endif
 		default:
 			return &stencil_set[0];
 	}
@@ -1832,7 +1855,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				DEBUG_PRINT("**********\nClosure compiled\n");
 			}
-			#ifdef RCP_COMPILE_PROMISES
+#ifdef RCP_COMPILE_PROMISES
 			else if (opcode == MAKEPROM_BCOP)
 			{
 				SEXP body = consts[opargs[0]];
@@ -1860,7 +1883,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				DEBUG_PRINT("**********\nPromise compiled\n");
 			}
-			#endif
+#endif
 		}
 	}
 
@@ -1944,11 +1967,15 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	// Check if "coverage" option in options list is set to TRUE
 	SEXP coverage_option = R_NilValue;
-	if (TYPEOF(options) == VECSXP) {
+	if (TYPEOF(options) == VECSXP)
+	{
 		SEXP names = Rf_getAttrib(options, R_NamesSymbol);
-		if (names != R_NilValue) {
-			for (int i = 0; i < Rf_length(options); i++) {
-				if (strcmp(CHAR(STRING_ELT(names, i)), "coverage") == 0) {
+		if (names != R_NilValue)
+		{
+			for (int i = 0; i < Rf_length(options); i++)
+			{
+				if (strcmp(CHAR(STRING_ELT(names, i)), "coverage") == 0)
+				{
 					coverage_option = VECTOR_ELT(options, i);
 					break;
 				}

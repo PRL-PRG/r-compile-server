@@ -33,6 +33,10 @@ ifneq ($(SPECIALIZE_SWITCH),0)
   PKG_CFLAGS += -DSWITCH_SPECIALIZE
 endif
 
+ifneq ($(SPECIALIZE_MAKEPROM),0)
+  PKG_CFLAGS += -DMAKEPROM_SPECIALIZE
+endif
+
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
