@@ -1003,7 +1003,7 @@ static int unroll_goto(int bytecode[], SEXP *constpool, int index)
 	if (opcode == GOTO_BCOP)
 	{
 		int target = imms[0] - 1;
-		DEBUG_PRINT("Peephole optimization: Simplifying unncessary trampoline jump from bytecode %d to target %d\n", index, target);
+		DEBUG_PRINT("Peephole optimization: Simplifying unnecessary trampoline jump from bytecode %d to target %d\n", index, target);
 		return unroll_goto(bytecode, constpool, target);
 	}
 
