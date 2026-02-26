@@ -16,6 +16,10 @@ ifneq ($(SPECIALIZE_SWITCH),0)
   CFLAGS += -DSWITCH_SPECIALIZE
 endif
 
+ifneq ($(RCP_COMPILE_PROMISES),0)
+  CFLAGS += -DRCP_COMPILE_PROMISES
+endif
+
 CFLAGS += -Wall \
 					-Os \
 					-I$(R_HOME)/include \
