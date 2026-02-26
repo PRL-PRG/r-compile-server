@@ -6,6 +6,6 @@ import org.prlprg.gen2c.Gen2CCompilerTest;
 class FirAfterDefaultOpt2CCompileTest implements Gen2CCompilerTest {
   @Override
   public CompiledModuleQuery moduleQuery() {
-    return Fir2CQuery.FULLY_OPTIMIZED;
+    return Fir2CQuery.OPTIMIZED_ONLY_FIR;
   }
 }

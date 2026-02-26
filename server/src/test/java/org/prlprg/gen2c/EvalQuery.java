@@ -67,7 +67,10 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       EvalOutput expected, EvalOutput actual, Example example, SnapshotStore store) {
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
-      assertEquals(expected.outputLog(), actual.outputLog(), "Output changed");
+      assertEquals(
+          expected.outputLogWithoutAddresses(),
+          actual.outputLogWithoutAddresses(),
+          "Output changed");
     }
   }
 
@@ -76,7 +79,10 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       EvalOutput previous, EvalOutput current, Example example, SnapshotStore store) {
     assertEquals(previous.result(), current.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
-      assertEquals(previous.outputLog(), current.outputLog(), "Output changed");
+      assertEquals(
+          previous.outputLogWithoutAddresses(),
+          current.outputLogWithoutAddresses(),
+          "Output changed");
     }
   }
 

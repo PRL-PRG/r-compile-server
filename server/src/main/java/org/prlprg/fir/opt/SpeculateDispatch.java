@@ -4,7 +4,9 @@ import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
 
 import com.google.common.collect.ImmutableList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
@@ -25,26 +27,28 @@ import org.prlprg.util.Streams;
 public record SpeculateDispatch(int threshold, int parameterLimit, int versionLimit)
     implements Optimization {
   @Override
-  public void run(ModuleFeedback feedback, Function function) {
+  public boolean run(ModuleFeedback feedback, Function function) {
+    var changed = false;
     // Copy `version` because we may modify it.
     for (var version : List.copyOf(function.versions())) {
-      run(feedback, function, version);
+      changed |= run(feedback, function, version);
     }
+    return changed;
   }
 
-  private void run(ModuleFeedback moduleFeedback, Function function, Abstraction version) {
+  private boolean run(ModuleFeedback moduleFeedback, Function function, Abstraction version) {
     // Don't specialize stubs
     if (version.cfg() == null) {
-      return;
+      return false;
     }
 
-    // If the function has too many versions, don't add any more.
+    // If the function has too many versions, don't add any more
     var newVersionLimit = versionLimit - function.versions().size();
     if (newVersionLimit <= 0) {
-      return;
+      return false;
     }
 
-    // See if parameter feedback suggests more specific types.
+    // See if parameter feedback suggests more specific types
     var versionFeedback = moduleFeedback.get(version);
     var candidates =
         version.parameters().stream()
@@ -102,24 +106,36 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
                             }))
             .limit(newVersionLimit);
 
-    // Create each candidate.
+    // Create each candidate
+    boolean[] changed = {false};
     candidates.forEach(
         parameterTypes -> {
-          var copyParameters =
-              Streams.zip(
-                      version.parameters().stream(),
-                      parameterTypes.stream(),
-                      (parameter, type) -> new Parameter(parameter.variable(), type))
-                  .collect(ImmutableList.toImmutableList());
-
-          // Copy `version` except change the parameters.
-          var copy = function.addVersion(copyParameters, false);
-          assert copy.cfg() != null;
-          copy.setReturnType(version.returnType());
-          copy.setEffects(version.effects());
-          copy.addLocals(version.locals());
-          copyTo(copy.cfg(), version.cfg());
-          moduleFeedback.copyTo(copy, version);
+          changed[0] = true;
+          copyVersionWithNewParameterTypes(moduleFeedback, function, version, parameterTypes);
         });
+    return changed[0];
+  }
+
+  public static void copyVersionWithNewParameterTypes(
+      ModuleFeedback feedback,
+      Function function,
+      Abstraction version,
+      Collection<Type> newParameterTypes) {
+    var copyParameters =
+        Streams.zip(
+                version.parameters().stream(),
+                newParameterTypes.stream(),
+                (parameter, type) -> new Parameter(parameter.variable(), type))
+            .collect(ImmutableList.toImmutableList());
+
+    // Copy `version` except change the parameters.
+    var copy = function.addVersion(copyParameters, version.isStub());
+    copy.setReturnType(version.returnType());
+    copy.setEffects(version.effects());
+    copy.addLocals(version.locals());
+    if (version.cfg() != null) {
+      copyTo(Objects.requireNonNull(copy.cfg()), version.cfg());
+    }
+    feedback.copyTo(copy, version);
   }
 }

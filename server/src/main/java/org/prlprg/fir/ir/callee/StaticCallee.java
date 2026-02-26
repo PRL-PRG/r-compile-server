@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.callee;
 
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
@@ -11,6 +12,11 @@ public record StaticCallee(@Override Function function, Abstraction version) imp
       throw new IllegalArgumentException(
           "Function does not contain the specified version: " + version);
     }
+  }
+
+  @Override
+  public Signature signature() {
+    return version.signature();
   }
 
   @Override

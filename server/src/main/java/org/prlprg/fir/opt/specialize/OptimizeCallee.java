@@ -1,14 +1,12 @@
 package org.prlprg.fir.opt.specialize;
 
 import com.google.common.collect.ImmutableList;
-import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.argument.Use;
@@ -18,19 +16,17 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 
 /// Optimization pass that replaces every dispatch and static callee with a better one.
 ///
 /// Specifically, for each dispatch and static call:
 /// - Looks up the best version of the called function that accepts with the arguments' static
-///   types [Function#guess(Signature)].
+///   types ([org.prlprg.fir.ir.module.Function#guess(Signature)]).
 /// - If such a version exists, check if the function has a better version that can be called if
 ///   an argument has a more specific runtime type, *and* that type was recorded enough times.
 ///   - If so, convert into a dispatch call with the guessed (not better) version's signature.
@@ -56,14 +52,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
       return expression;
     }
 
-    var newCallee =
-        switch (call.callee()) {
-          case DispatchCallee(var function, var signature) ->
-              run(scope, feedback, call.callArguments(), function, signature);
-          case StaticCallee(var function, var version) ->
-              run(scope, feedback, call.callArguments(), function, version.signature());
-          default -> null;
-        };
+    var newCallee = run(scope, feedback, call);
     if (newCallee == null) {
       return expression;
     }
@@ -71,42 +60,27 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     return new Call(newCallee, call.callArguments());
   }
 
-  @Nullable Callee run(
-      Abstraction scope,
-      AbstractionFeedback feedback,
-      List<Argument> callArguments,
-      Function callFunction,
-      @Nullable Signature oldSignature) {
-    // Get static types of the call arguments.
-    if (callArguments.stream().anyMatch(arg -> scope.typeOf(arg) == null)) {
-      // An argument is malformed.
+  @Nullable Callee run(Abstraction scope, AbstractionFeedback feedback, Call call) {
+    var callee = call.callee();
+    var callArguments = call.callArguments();
+    var calleeFun = callee.function();
+    if (calleeFun == null || callArguments.stream().anyMatch(arg -> scope.typeOf(arg) == null)) {
       return null;
     }
     var argumentTypes =
-        Lists.mapLazy(
-            callArguments,
-            a -> {
-              var type = scope.typeOf(a);
-              return type == null ? Type.ANY : type;
-            });
-
-    // Create the best signature that can be called with these argument types.
-    var bestSignature =
-        new Signature(
-            ImmutableList.copyOf(argumentTypes),
-            oldSignature == null ? Type.ANY_VALUE : oldSignature.returnType(),
-            oldSignature == null ? Effects.REFLECT : oldSignature.effects());
-
-    // Look up the best version that can be called with this signature.
-    var bestVersion = callFunction.guess(bestSignature);
+        callArguments.stream()
+            .map(a -> Objects.requireNonNull(scope.typeOf(a)))
+            .collect(ImmutableList.toImmutableList());
+    var bestSignature = bestSignature(callee, argumentTypes);
+    var bestVersion = calleeFun.guess(bestSignature);
     if (bestVersion == null) {
-      // No known version, so can't even add a signature.
+      // Invalid, there should always be a possible version
       return null;
     }
 
-    // Check if there are better versions that can be called with recorded runtime types.
+    // Check if there are better versions that can be called with recorded runtime types
     var isBestAtRuntime =
-        callFunction.versionsSorted().headSet(bestVersion).stream()
+        calleeFun.versionsSorted().headSet(bestVersion).stream()
             .noneMatch(
                 better -> {
                   var betterSignature = better.signature();
@@ -130,17 +104,25 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                           .allMatch(b -> b);
                 });
     if (isBestAtRuntime) {
-      return new StaticCallee(callFunction, bestVersion);
+      return new StaticCallee(calleeFun, bestVersion);
     }
 
-    // Improve best signature: keep the better precondition from `argumentTypes`, but add
-    // the postcondition from `bestVersion`.
+    // Improve best signature: keep the better precondition from `argumentTypes`,
+    // but add the postcondition from `bestVersion`
     var bestSignature1 =
         new Signature(
-            ImmutableList.copyOf(argumentTypes),
-            bestVersion.signature().returnType(),
-            bestVersion.signature().effects());
+            argumentTypes, bestVersion.signature().returnType(), bestVersion.signature().effects());
 
-    return new DispatchCallee(callFunction, bestSignature1);
+    return new DispatchCallee(calleeFun, bestSignature1);
+  }
+
+  /// Returns the callee's signature with the types replaced by `argumentTypes`, i.e. the best
+  /// possible signature for a call with these
+  public static Signature bestSignature(Callee callee, ImmutableList<Type> argumentTypes) {
+    var oldSignature = callee.signature();
+    return new Signature(
+        argumentTypes,
+        oldSignature == null ? Type.ANY_VALUE : oldSignature.returnType(),
+        oldSignature == null ? Effects.REFLECT : oldSignature.effects());
   }
 }

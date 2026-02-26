@@ -24,6 +24,12 @@ public record EvalOutput(SexpResult result, String outputLog, PerformanceCounter
     return Objects.hash(result, behaviorOutputLog());
   }
 
+  public String outputLogWithoutAddresses() {
+    return Pattern.compile("0x[0-9a-fA-F]+", Pattern.MULTILINE)
+        .matcher(outputLog)
+        .replaceAll("0x...");
+  }
+
   public String behaviorOutputLog() {
     return Pattern.compile("(\\n|^)[>*+#].*$", Pattern.MULTILINE).matcher(outputLog).replaceAll("");
   }

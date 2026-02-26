@@ -3,6 +3,9 @@ package org.prlprg.fir.opt;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
+import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
+import org.prlprg.fir.opt.sequence.Sequence;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
@@ -23,10 +26,14 @@ public class Optimizations {
         }
 
         @Override
-        public void run(ModuleFeedback feedback, Module module) {}
+        public boolean run(ModuleFeedback feedback, Module module) {
+          return false;
+        }
 
         @Override
-        public void run(ModuleFeedback feedback, Function function) {}
+        public boolean run(ModuleFeedback feedback, Function function) {
+          return false;
+        }
       };
 
   public static Optimization defaultOptimizations() {
@@ -39,22 +46,25 @@ public class Optimizations {
         new SpeculateDispatch(threshold, 3, 9),
         new SpeculateAssume(threshold),
         new MergeAssumeLoadFun(),
-        new FixpointSequence(
-            "defaultFixpoint",
-            new Specialize(
-                "defaultSpecialize",
-                new DefiniteForce(),
-                new ElideDeadStore(),
-                new ElideTrivialAssume(),
-                new ElideTrivialCast(),
-                new ElideUseSubscriptWrite(),
-                new OptimizeCallee(threshold),
-                new ResolveDynamicCallee(),
-                new ResolveLoad(),
-                new ResolveLoadFun(),
-                new ReturnTypeAndEffects()),
-            new Inline(1000),
-            new Cleanup()),
+        new ModuleFixpointSequence(
+            "defaultModuleFixpoint",
+            new AbstractionFixpointSequence(
+                "defaultAbstractionFixpoint",
+                new Specialize(
+                    "defaultSpecialize",
+                    new DefiniteForce(),
+                    new ElideDeadStore(),
+                    new ElideTrivialAssume(),
+                    new ElideTrivialCast(),
+                    new ElideUseSubscriptWrite(),
+                    new OptimizeCallee(threshold),
+                    new ResolveDynamicCallee(),
+                    new ResolveLoad(),
+                    new ResolveLoadFun(),
+                    new ReturnTypeAndEffects()),
+                new Inline(1000),
+                new Cleanup()),
+            new CreateBestVersion(9)),
         affectCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
         affectCheckpoints ? new ElideUnusedCheckpoints() : NOOP);
   }
