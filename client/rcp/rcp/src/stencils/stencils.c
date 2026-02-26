@@ -437,6 +437,7 @@ static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho, int code_type
 					break;
 				}
 			}
+			break;
 		case SPECIALSXP:
 			break;
 		default:
