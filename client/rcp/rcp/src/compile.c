@@ -1642,42 +1642,47 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 }
 
 // Finalizer for our growable type trace
-static void type_trace_finalizer(SEXP ext) {
-    TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
-    if (trace) {
-		if (trace->argument_names) {
+static void type_trace_finalizer(SEXP ext)
+{
+	TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+	if (trace)
+	{
+		if (trace->argument_names)
+		{
 			free(trace->argument_names);
 		}
-		for (size_t i = 0; i < trace->count; i++) {
+		for (size_t i = 0; i < trace->count; i++)
+		{
 			free(trace->types[i].dots_names);
 			free(trace->types[i].dots_types);
-            free(trace->types[i].arguments);
+			free(trace->types[i].arguments);
 		}
-        free(trace->types);
-        free(trace);
-        R_ClearExternalPtr(ext);
-    }
+		free(trace->types);
+		free(trace);
+		R_ClearExternalPtr(ext);
+	}
 }
 
-static void types_of_function(int bytecode[], int bytecode_size, PluginStencils* plugins, SEXP hooks_registry, const char* func_name, SEXP formals) {
+static void types_of_function(int bytecode[], int bytecode_size, PluginStencils *plugins, SEXP hooks_registry, const char *func_name, SEXP formals)
+{
 	// fun_name will be unknown if we get it from the JIT
 	// TODO: modify cmpfun_call_sexp to get package and function name using match.call and sys.call
 	// For now, we don't instrument functions for which we don't know the name
 	// TODO: create names for anonymous closures
-	if(!strcmp(func_name, "<unknown>"))
+	if (!strcmp(func_name, "<unknown>"))
 	{
 		DEBUG_PRINT("Function with unknown name so no creation of entry and exit hooks.\n");
 		return;
 	}
 
-	// get the types environment from the hooks_registry 
+	// get the types environment from the hooks_registry
 	// Should not need to protect as types is already in an enviornment known by the GC
 	SEXP types_env = Rf_findVarInFrame(hooks_registry, Rf_install("types"));
 
 	DEBUG_PRINT("Adding entry and exit type hooks for %s.\n", func_name);
 
 	// Prepare the key and value for that specific function
-	//We don't know yet how many calls we will see and will need to resize.
+	// We don't know yet how many calls we will see and will need to resize.
 	// But we will also need a stable pointer (so not a GC-allocated SEXP).
 
 	TypeTrace *trace = malloc(sizeof(TypeTrace));
@@ -1689,7 +1694,8 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils*
 	trace->has_dots = 0;
 	trace->first_arg_sym = R_NilValue;
 
-	if (formals != R_NilValue && TYPEOF(formals) == LISTSXP) {
+	if (formals != R_NilValue && TYPEOF(formals) == LISTSXP)
+	{
 		size_t fixed_nargs = 0;
 		for (SEXP f = formals; f != R_NilValue; f = CDR(f))
 		{
@@ -1704,7 +1710,8 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils*
 		trace->argument_names = malloc(fixed_nargs * sizeof(SEXP));
 
 		size_t i = 0;
-		for (SEXP f = formals; f != R_NilValue; f = CDR(f)) {
+		for (SEXP f = formals; f != R_NilValue; f = CDR(f))
+		{
 			SEXP tag = TAG(f);
 			if (tag == R_DotsSymbol)
 				continue;
@@ -1713,9 +1720,9 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils*
 	}
 
 	SEXP ext = PROTECT(R_MakeExternalPtr(trace, R_NilValue, R_NilValue));
-    R_RegisterCFinalizerEx(ext, type_trace_finalizer, TRUE);
-    Rf_defineVar(Rf_install(func_name), ext, types_env);
-    UNPROTECT_SAFE(ext);
+	R_RegisterCFinalizerEx(ext, type_trace_finalizer, TRUE);
+	Rf_defineVar(Rf_install(func_name), ext, types_env);
+	UNPROTECT_SAFE(ext);
 
 	// Create the plugin stencils
 	add_plugin_stencil_pos(plugins, 0, &_RCP_ENTRY_HOOK, trace);
@@ -1933,7 +1940,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	if (coverage_registry != R_NilValue)
 		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
 
-	if(hooks_registry != R_NilValue)
+	if (hooks_registry != R_NilValue)
 		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
 
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
@@ -2020,11 +2027,11 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		}
 	}
 
-	// R option "rcp.entry_exit_hooks" 
+	// R option "rcp.entry_exit_hooks"
 	SEXP hooks_registry = R_NilValue;
 	SEXP entry_exit_hooks = Rf_GetOption1(Rf_install("rcp.cmpfun.entry_exit_hooks"));
 	int attach_entry_exit_hooks = (TYPEOF(entry_exit_hooks) == LGLSXP && LOGICAL(entry_exit_hooks)[0] == TRUE);
-	if(attach_entry_exit_hooks) 
+	if (attach_entry_exit_hooks)
 	{
 		// Reuse existing .rcp_hooks environment if already present, otherwise create it
 		SEXP existing_hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
@@ -2346,6 +2353,28 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 
 	PROTECT(pkg_namespace);
 
+	SEXP attached_pkg_env = R_NilValue;
+	{
+		size_t pkg_env_len = strlen("package:") + strlen(pkg) + 1;
+		char *pkg_env_name = (char *)R_alloc(pkg_env_len, 1);
+		snprintf(pkg_env_name, pkg_env_len, "package:%s", pkg);
+
+		SEXP as_env_call =
+			PROTECT(Rf_lang2(Rf_install("as.environment"), Rf_mkString(pkg_env_name)));
+		int attached_env_error = 0;
+		SEXP candidate_env =
+			R_tryEval(as_env_call, R_GlobalEnv, &attached_env_error);
+		UNPROTECT_SAFE(as_env_call);
+
+		if (!attached_env_error && TYPEOF(candidate_env) == ENVSXP)
+		{
+			attached_pkg_env = candidate_env;
+			PROTECT(attached_pkg_env);
+			DEBUG_PRINT("Updating attached package environment '%s' as well...\n",
+						pkg_env_name);
+		}
+	}
+
 	// Get all object names in the namespace
 	SEXP ls_call = Rf_lang3(PROTECT(Rf_install("ls")), pkg_namespace,
 							PROTECT(Rf_ScalarLogical(TRUE)) // all. names = TRUE
@@ -2453,6 +2482,16 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		R_unLockBinding(name_sym, pkg_namespace);
 		Rf_defineVar(name_sym, compiled, pkg_namespace);
 		R_LockBinding(name_sym, pkg_namespace);
+		if (attached_pkg_env != R_NilValue &&
+			Rf_findVarInFrame(attached_pkg_env, name_sym) != R_UnboundValue)
+		{
+			int attached_locked = R_BindingIsLocked(name_sym, attached_pkg_env);
+			if (attached_locked)
+				R_unLockBinding(name_sym, attached_pkg_env);
+			Rf_defineVar(name_sym, compiled, attached_pkg_env);
+			if (attached_locked)
+				R_LockBinding(name_sym, attached_pkg_env);
+		}
 		UNPROTECT_SAFE(compiled);
 		UNPROTECT_SAFE(name_sym);
 #endif
@@ -2470,11 +2509,28 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 			R_unLockBinding(function_symbols[i], pkg_namespace);
 			Rf_defineVar(function_symbols[i], compiled_functions[i], pkg_namespace);
 			R_LockBinding(function_symbols[i], pkg_namespace);
+			if (attached_pkg_env != R_NilValue &&
+				Rf_findVarInFrame(attached_pkg_env, function_symbols[i]) !=
+					R_UnboundValue)
+			{
+				int attached_locked =
+					R_BindingIsLocked(function_symbols[i], attached_pkg_env);
+				if (attached_locked)
+					R_unLockBinding(function_symbols[i], attached_pkg_env);
+				Rf_defineVar(function_symbols[i], compiled_functions[i],
+							 attached_pkg_env);
+				if (attached_locked)
+					R_LockBinding(function_symbols[i], attached_pkg_env);
+			}
 			UNPROTECT_SAFE(compiled_functions[i]);
 			UNPROTECT_SAFE(function_symbols[i]);
 		}
 	}
 #endif
+	if (attached_pkg_env != R_NilValue)
+	{
+		UNPROTECT_SAFE(attached_pkg_env);
+	}
 	UNPROTECT_SAFE(obj_names);
 	UNPROTECT_SAFE(pkg_namespace);
 
@@ -2637,10 +2693,12 @@ SEXP C_rcp_get_types(void)
 			SEXP args_names = PROTECT(Rf_allocVector(STRSXP, rec->count + rec->dots_count));
 			for (size_t k = 0; k < rec->count; k++)
 			{
-				INTEGER(args_vec)[k] = rec->arguments[k];
+				INTEGER(args_vec)
+				[k] = rec->arguments[k];
 				if (k < trace->argument_count && trace->argument_names && trace->argument_names[k] != R_NilValue && TYPEOF(trace->argument_names[k]) == SYMSXP)
 					SET_STRING_ELT(args_names, k, PRINTNAME(trace->argument_names[k]));
-				else {
+				else
+				{
 					char name_buf[16];
 					snprintf(name_buf, sizeof(name_buf), "arg%zu", k + 1);
 					SET_STRING_ELT(args_names, k, Rf_mkChar(name_buf));
@@ -2649,12 +2707,16 @@ SEXP C_rcp_get_types(void)
 			for (size_t k = 0; k < rec->dots_count; k++)
 			{
 				size_t idx = rec->count + k;
-				INTEGER(args_vec)[idx] = rec->dots_types[k];
-				if (rec->dots_names[k] != R_NilValue && TYPEOF(rec->dots_names[k]) == SYMSXP) {
+				INTEGER(args_vec)
+				[idx] = rec->dots_types[k];
+				if (rec->dots_names[k] != R_NilValue && TYPEOF(rec->dots_names[k]) == SYMSXP)
+				{
 					char name_buf[256];
 					snprintf(name_buf, sizeof(name_buf), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[k])), k + 1);
 					SET_STRING_ELT(args_names, idx, Rf_mkChar(name_buf));
-				} else {
+				}
+				else
+				{
 					char name_buf[24];
 					snprintf(name_buf, sizeof(name_buf), "..%zu", k + 1);
 					SET_STRING_ELT(args_names, idx, Rf_mkChar(name_buf));
@@ -2719,11 +2781,14 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 			char synthetic[256];
 			const char *key;
 			int owned = 0;
-			if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP) {
+			if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP)
+			{
 				snprintf(synthetic, sizeof(synthetic), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[d])), d + 1);
 				key = synthetic;
 				owned = 1;
-			} else {
+			}
+			else
+			{
 				snprintf(synthetic, sizeof(synthetic), "..%zu", d + 1);
 				key = synthetic;
 				owned = 1;
@@ -2779,9 +2844,12 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 		SET_VECTOR_ELT(df, c, col);
 		UNPROTECT(1); // col
 
-		if (trace->argument_names && trace->argument_names[c] != R_NilValue && TYPEOF(trace->argument_names[c]) == SYMSXP) {
+		if (trace->argument_names && trace->argument_names[c] != R_NilValue && TYPEOF(trace->argument_names[c]) == SYMSXP)
+		{
 			SET_STRING_ELT(col_names, c, PRINTNAME(trace->argument_names[c]));
-		} else {
+		}
+		else
+		{
 			char name_buf[16];
 			snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
 			SET_STRING_ELT(col_names, c, Rf_mkChar(name_buf));
@@ -2800,10 +2868,13 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 			{
 				char synthetic[256];
 				const char *key;
-				if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP) {
+				if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP)
+				{
 					snprintf(synthetic, sizeof(synthetic), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[d])), d + 1);
 					key = synthetic;
-				} else {
+				}
+				else
+				{
 					snprintf(synthetic, sizeof(synthetic), "..%zu", d + 1);
 					key = synthetic;
 				}
@@ -2826,7 +2897,8 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 	// dots_count column
 	SEXP dots_count_col = PROTECT(Rf_allocVector(INTSXP, nrows));
 	for (size_t r = 0; r < nrows; r++)
-		INTEGER(dots_count_col)[r] = (int)trace->types[r].dots_count;
+		INTEGER(dots_count_col)
+		[r] = (int)trace->types[r].dots_count;
 	SET_VECTOR_ELT(df, ncols - 2, dots_count_col);
 	UNPROTECT(1); // dots_count_col
 	SET_STRING_ELT(col_names, ncols - 2, Rf_mkChar("dots_count"));
@@ -2844,8 +2916,10 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 
 	// Set row.names: 1:nrows
 	SEXP row_names = PROTECT(Rf_allocVector(INTSXP, 2));
-	INTEGER(row_names)[0] = NA_INTEGER;
-	INTEGER(row_names)[1] = -(int)nrows;
+	INTEGER(row_names)
+	[0] = NA_INTEGER;
+	INTEGER(row_names)
+	[1] = -(int)nrows;
 	Rf_setAttrib(df, R_RowNamesSymbol, row_names);
 	UNPROTECT(1); // row_names
 
