@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.support.ParameterDeclarations;
+import org.prlprg.fir.opt.sequence.Sequence;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;

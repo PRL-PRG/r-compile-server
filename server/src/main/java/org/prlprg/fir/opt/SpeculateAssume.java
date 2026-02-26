@@ -55,15 +55,17 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
   }
 
   @Override
-  public void run(ModuleFeedback feedback, Function function) {
+  public boolean run(ModuleFeedback feedback, Function function) {
+    var changed = false;
     for (var version : function.versions()) {
       // Don't run on baseline unless overridden via field
       if (!onBaseline && version == function.baseline()) {
         continue;
       }
 
-      run(feedback.get(version), version);
+      changed |= run(feedback.get(version), version);
     }
+    return changed;
   }
 
   @Override

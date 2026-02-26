@@ -8,10 +8,12 @@ import org.prlprg.fir.ir.module.Function;
 /// An optimization that runs on an [Abstraction].
 public interface AbstractionOptimization extends Optimization {
   @Override
-  default void run(ModuleFeedback feedback, Function function) {
+  default boolean run(ModuleFeedback feedback, Function function) {
+    var changed = false;
     for (var version : function.versions()) {
-      run(feedback.get(version), version);
+      changed |= run(feedback.get(version), version);
     }
+    return changed;
   }
 
   /// Returns `true` if it made progress.

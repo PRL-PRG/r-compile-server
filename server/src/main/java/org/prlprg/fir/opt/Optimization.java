@@ -11,12 +11,14 @@ public interface Optimization {
     return Strings.pascalCaseToCamelCase(getClass().getSimpleName());
   }
 
-  default void run(ModuleFeedback feedback, Module module) {
+  default boolean run(ModuleFeedback feedback, Module module) {
+    var changed = false;
     for (var function : module.localFunctions()) {
       // Check each function
-      run(feedback, function);
+      changed |= run(feedback, function);
     }
+    return changed;
   }
 
-  void run(ModuleFeedback feedback, Function function);
+  boolean run(ModuleFeedback feedback, Function function);
 }
