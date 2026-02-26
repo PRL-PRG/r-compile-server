@@ -2353,28 +2353,6 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 
 	PROTECT(pkg_namespace);
 
-	SEXP attached_pkg_env = R_NilValue;
-	{
-		size_t pkg_env_len = strlen("package:") + strlen(pkg) + 1;
-		char *pkg_env_name = (char *)R_alloc(pkg_env_len, 1);
-		snprintf(pkg_env_name, pkg_env_len, "package:%s", pkg);
-
-		SEXP as_env_call =
-			PROTECT(Rf_lang2(Rf_install("as.environment"), Rf_mkString(pkg_env_name)));
-		int attached_env_error = 0;
-		SEXP candidate_env =
-			R_tryEval(as_env_call, R_GlobalEnv, &attached_env_error);
-		UNPROTECT_SAFE(as_env_call);
-
-		if (!attached_env_error && TYPEOF(candidate_env) == ENVSXP)
-		{
-			attached_pkg_env = candidate_env;
-			PROTECT(attached_pkg_env);
-			DEBUG_PRINT("Updating attached package environment '%s' as well...\n",
-						pkg_env_name);
-		}
-	}
-
 	// Get all object names in the namespace
 	SEXP ls_call = Rf_lang3(PROTECT(Rf_install("ls")), pkg_namespace,
 							PROTECT(Rf_ScalarLogical(TRUE)) // all. names = TRUE
@@ -2482,16 +2460,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		R_unLockBinding(name_sym, pkg_namespace);
 		Rf_defineVar(name_sym, compiled, pkg_namespace);
 		R_LockBinding(name_sym, pkg_namespace);
-		if (attached_pkg_env != R_NilValue &&
-			Rf_findVarInFrame(attached_pkg_env, name_sym) != R_UnboundValue)
-		{
-			int attached_locked = R_BindingIsLocked(name_sym, attached_pkg_env);
-			if (attached_locked)
-				R_unLockBinding(name_sym, attached_pkg_env);
-			Rf_defineVar(name_sym, compiled, attached_pkg_env);
-			if (attached_locked)
-				R_LockBinding(name_sym, attached_pkg_env);
-		}
+		SET_BODY(obj, BODY(compiled));
 		UNPROTECT_SAFE(compiled);
 		UNPROTECT_SAFE(name_sym);
 #endif
@@ -2509,28 +2478,12 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 			R_unLockBinding(function_symbols[i], pkg_namespace);
 			Rf_defineVar(function_symbols[i], compiled_functions[i], pkg_namespace);
 			R_LockBinding(function_symbols[i], pkg_namespace);
-			if (attached_pkg_env != R_NilValue &&
-				Rf_findVarInFrame(attached_pkg_env, function_symbols[i]) !=
-					R_UnboundValue)
-			{
-				int attached_locked =
-					R_BindingIsLocked(function_symbols[i], attached_pkg_env);
-				if (attached_locked)
-					R_unLockBinding(function_symbols[i], attached_pkg_env);
-				Rf_defineVar(function_symbols[i], compiled_functions[i],
-							 attached_pkg_env);
-				if (attached_locked)
-					R_LockBinding(function_symbols[i], attached_pkg_env);
-			}
+			SET_BODY(obj, BODY(compiled));
 			UNPROTECT_SAFE(compiled_functions[i]);
 			UNPROTECT_SAFE(function_symbols[i]);
 		}
 	}
 #endif
-	if (attached_pkg_env != R_NilValue)
-	{
-		UNPROTECT_SAFE(attached_pkg_env);
-	}
 	UNPROTECT_SAFE(obj_names);
 	UNPROTECT_SAFE(pkg_namespace);
 
@@ -2898,7 +2851,7 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 	SEXP dots_count_col = PROTECT(Rf_allocVector(INTSXP, nrows));
 	for (size_t r = 0; r < nrows; r++)
 		INTEGER(dots_count_col)
-		[r] = (int)trace->types[r].dots_count;
+	[r] = (int)trace->types[r].dots_count;
 	SET_VECTOR_ELT(df, ncols - 2, dots_count_col);
 	UNPROTECT(1); // dots_count_col
 	SET_STRING_ELT(col_names, ncols - 2, Rf_mkChar("dots_count"));
