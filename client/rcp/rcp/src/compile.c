@@ -1832,6 +1832,35 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				DEBUG_PRINT("**********\nClosure compiled\n");
 			}
+			#ifdef RCP_COMPILE_PROMISES
+			else if (opcode == MAKEPROM_BCOP)
+			{
+				SEXP body = consts[opargs[0]];
+
+				if (TYPEOF(body) == BCODESXP)
+				{
+					DEBUG_PRINT("**********\nCompiling promise\n");
+					// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
+					// Should not be needed, constpool is ours
+					closure_counter++;
+					char closure_name_buf[256];
+					const char *base_name = name ? name : "promise";
+					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
+							 base_name, closure_counter);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry);
+					consts[opargs[0]] = res;
+				}
+				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
+				{
+					DEBUG_PRINT("Using precompiled promise\n");
+				}
+				else
+				{
+					error("Invalid promise type: %d\n", TYPEOF(body));
+				}
+				DEBUG_PRINT("**********\nPromise compiled\n");
+			}
+			#endif
 		}
 	}
 
