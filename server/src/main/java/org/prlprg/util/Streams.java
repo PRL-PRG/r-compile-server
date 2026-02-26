@@ -195,6 +195,33 @@ public class Streams {
         Characteristics.CONCURRENT);
   }
 
+  /** Same as {@link #oneOrThrow(Supplier)} but throws an error. */
+  public static <T, E extends Error> Collector<T, ?, T> oneOrThrowError(Supplier<E> exception)
+      throws E {
+    class MutableOptional {
+      @Nullable T value = null;
+    }
+
+    return Collector.of(
+        MutableOptional::new,
+        (o, elem) -> {
+          if (o.value != null) {
+            throw exception.get();
+          } else {
+            o.value = elem;
+          }
+        },
+        (o1, o2) -> {
+          if (o1.value != null && o2.value != null) {
+            throw exception.get();
+          } else {
+            return o1.value != null ? o1 : o2;
+          }
+        },
+        o -> Optional.ofNullable(o.value).orElseThrow(exception),
+        Characteristics.CONCURRENT);
+  }
+
   /**
    * Returns the first element of the stream if it exists and equals all other elements, otherwise
    * `Optional.empty()`.

@@ -1,22 +1,25 @@
 package org.prlprg.fir.interpret;
 
-import org.junit.jupiter.api.Disabled;
+import java.util.Objects;
 import org.prlprg.bc2fir.BC2FirCompilerTest;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
 import org.prlprg.fir.ir.FirParseTest;
 import org.prlprg.fir.ir.FirQuery;
+import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.OptimizedFirQuery;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.SnapshotStore;
 import org.prlprg.snapshots.order.OrderAfter;
+import org.prlprg.util.Streams;
 
 /// Test that various optimizations don't change interpreter output.
 @OrderAfter(BC2FirCompilerTest.class)
 @OrderAfter(FirParseTest.class)
 @OrderAfter(InterpretTest.class)
-@Disabled("TODO: find the inner function name for `testDeopt`, fix other tests")
 public interface InterpretAfterGenOptTest {
   Optimization optimization();
 
@@ -59,6 +62,24 @@ public interface InterpretAfterGenOptTest {
     var module = store.load(example, FirQuery.INSTANCE);
     var interpreter = new TestInterpreter(module);
 
+    var deoptFnName =
+        Objects.requireNonNull(
+                Objects.requireNonNull(module.localFunction(Variable.named("main")))
+                    .baseline()
+                    .cfg())
+            .entry()
+            .statements()
+            .stream()
+            .map(Statement::expression)
+            .filter(e -> e instanceof Closure)
+            .map(Closure.class::cast)
+            .map(c -> c.code().name().name())
+            .collect(
+                Streams.oneOrThrowError(
+                    () ->
+                        new AssertionError(
+                            "deopt example doesn't start by declaring a function (the deopt function)")));
+
     // Warmup
     for (int i = 1; i <= 3; i++) {
       store.assumeVerify(example, InterpretQuery.MAIN, interpreter.call("main"));
@@ -72,39 +93,42 @@ public interface InterpretAfterGenOptTest {
       store.verify(
           example,
           InterpretQuery.DEOPT_REAL,
-          interpreter.call("f", SEXPs.real(1)),
+          interpreter.call(deoptFnName, SEXPs.real(1)),
           "phase 1 run " + i);
     }
     optimization.run(interpreter.feedback(), module);
     store.verify(
         example,
         InterpretQuery.DEOPT_REAL,
-        interpreter.call("f", SEXPs.real(1)),
+        interpreter.call(deoptFnName, SEXPs.real(1)),
         "phase 1 post-opt run");
 
     for (int i = 1; i <= 3; i++) {
       store.verify(
           example,
           InterpretQuery.DEOPT_INT,
-          interpreter.call("f", SEXPs.integer(1)),
+          interpreter.call(deoptFnName, SEXPs.integer(1)),
           "phase 2 run " + i);
     }
     optimization.run(interpreter.feedback(), module);
     store.verify(
         example,
         InterpretQuery.DEOPT_INT,
-        interpreter.call("f", SEXPs.integer(1)),
+        interpreter.call(deoptFnName, SEXPs.integer(1)),
         "phase 2 post-opt run");
 
     for (int i = 1; i <= 3; i++) {
       store.verify(
-          example, InterpretQuery.DEOPT_LGL, interpreter.call("f", SEXPs.TRUE), "phase 3 run " + i);
+          example,
+          InterpretQuery.DEOPT_LGL,
+          interpreter.call(deoptFnName, SEXPs.TRUE),
+          "phase 3 run " + i);
     }
     optimization.run(interpreter.feedback(), module);
     store.verify(
         example,
         InterpretQuery.DEOPT_LGL,
-        interpreter.call("f", SEXPs.TRUE),
+        interpreter.call(deoptFnName, SEXPs.TRUE),
         "phase 3 post-opt run");
   }
 }

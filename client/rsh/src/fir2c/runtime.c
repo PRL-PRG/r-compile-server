@@ -1137,6 +1137,11 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) < Rf_asInteger(b));
 }
 
+// <
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 2, SEXP a, SEXP b) {
+  return Rf_ScalarLogical(Rf_asReal(a) < Rf_asReal(b));
+}
+
 // <=
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) <= Rf_asInteger(b));
