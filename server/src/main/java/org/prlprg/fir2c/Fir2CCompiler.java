@@ -1026,6 +1026,9 @@ public final class Fir2CCompiler {
 
           private String emitCall(Call call) {
             return switch (call.callee()) {
+              case DispatchCallee(var calleeFun, var _) when calleeFun.owner() == INTRINSICS ->
+                  throw new IllegalArgumentException(
+                      "Intrinsic should never be dispatched: " + call);
               case DispatchCallee(var calleeFun, var _) when calleeFun.owner() == BUILTINS ->
                   emitBuiltinCall(call, calleeFun);
               case StaticCallee(var calleeFunction, var calleeVersion)
@@ -1033,25 +1036,20 @@ public final class Fir2CCompiler {
                       && calleeFunction.indexOf(calleeVersion) == 0 ->
                   emitBuiltinCall(call, calleeFunction);
               case DispatchCallee(var calleeFun, var signature) -> {
-                // Protect constants (intrinsics have none)
-                if (calleeFun.owner() != INTRINSICS) {
-                  pool.internPatched(
-                      calleeFun,
-                      poolIdx -> {
-                        var constantsCName = functionConstantsCName(calleeFun);
+                // Protect constants
+                pool.internPatched(
+                    calleeFun,
+                    poolIdx -> {
+                      var constantsCName = functionConstantsCName(calleeFun);
 
-                        var initCCode = initCFunction.add();
-                        debugComment(initCCode, "# Protect constants of %s", calleeFun.name());
-                        initCCode.stmt(
-                            "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
-                      });
-                }
+                      var initCCode = initCFunction.add();
+                      debugComment(initCCode, "# Protect constants of %s", calleeFun.name());
+                      initCCode.stmt(
+                          "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
+                    });
 
                 // Defer declare extern for referenced (previously-compiled) function
-                // (without duplicates, builtins, or intrinsics).
-                if (calleeFun.owner() != INTRINSICS) {
-                  referencedFunctions.add(calleeFun);
-                }
+                referencedFunctions.add(calleeFun);
 
                 // The baseline's signature is the default
                 if (signature == null) {
@@ -1064,8 +1062,9 @@ public final class Fir2CCompiler {
                 yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments);
               }
               case StaticCallee(var calleeFunction, var calleeVersion) -> {
-                // Protect constants (builtins and intrinsics have none)
+                // Builtins and intrinsics have no constants and are already declared
                 if (calleeFunction.owner() != BUILTINS && calleeFunction.owner() != INTRINSICS) {
+                  // Protect constants
                   pool.internPatched(
                       calleeVersion,
                       poolIdx -> {
@@ -1080,11 +1079,8 @@ public final class Fir2CCompiler {
                         initCCode.stmt(
                             "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
                       });
-                }
 
-                // Defer declare extern for referenced (previously-compiled) version
-                // (without duplicates, builtins, or intrinsics).
-                if (calleeFunction.owner() != BUILTINS && calleeFunction.owner() != INTRINSICS) {
+                  // Defer declare extern for referenced (previously-compiled) version
                   referencedVersions.put(calleeVersion, calleeFunction);
                 }
 

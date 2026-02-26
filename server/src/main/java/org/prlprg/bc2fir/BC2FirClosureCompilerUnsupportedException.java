@@ -7,14 +7,14 @@ import org.prlprg.sexp.SEXP;
  * {@link UnsupportedOperationException} thrown when encountering a closure or promise whose body is
  * contains unsupported bytecode, or is an AST in a way we don't support.
  */
-public final class BC2ClosureCompilerUnsupportedException extends UnsupportedOperationException {
+public final class BC2FirClosureCompilerUnsupportedException extends UnsupportedOperationException {
   private final SEXP unsupportedBody;
 
-  BC2ClosureCompilerUnsupportedException(String message, SEXP unsupportedBody) {
+  BC2FirClosureCompilerUnsupportedException(String message, SEXP unsupportedBody) {
     this(message, unsupportedBody, null);
   }
 
-  BC2ClosureCompilerUnsupportedException(
+  BC2FirClosureCompilerUnsupportedException(
       String message, SEXP unsupportedBody, @Nullable Throwable cause) {
     super(message, cause);
     this.unsupportedBody = unsupportedBody;

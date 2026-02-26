@@ -167,9 +167,6 @@ void Fir_dbg_signature(Fir_Signature signature);
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
-#define DEFINE_DISPATCH_INTRINSIC(X)\
-  SEXP Fir_fun_dispatch_ ## X(SEXP env, Fir_Signature signature, ...)
-
 #define DEFINE_INTRINSIC(X, n, ...)\
   SEXP Fir_ver_call_ ## X ## _v ## n(SEXP env, ##__VA_ARGS__)
 
@@ -178,17 +175,12 @@ void Fir_dbg_signature(Fir_Signature signature);
 
 #pragma clang diagnostic pop
 
-DEFINE_DISPATCH_INTRINSIC(checkFun);
-DEFINE_DISPATCH_INTRINSIC(checkMissing);
-DEFINE_DISPATCH_INTRINSIC(toForSeq);
-DEFINE_DISPATCH_INTRINSIC(setInvisible);
-DEFINE_DISPATCH_INTRINSIC(setVisible);
-
 DEFINE_INTRINSIC(checkFun, 0, SEXP value);
 DEFINE_INTRINSIC(checkMissing, 0, SEXP value);
 DEFINE_INTRINSIC(toForSeq, 0, SEXP value);
 DEFINE_INTRINSIC(setInvisible, 0);
 DEFINE_INTRINSIC(setVisible, 0);
+DEFINE_INTRINSIC(naToFalse, 0, SEXP value);
 
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b);  // +
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b);  // +

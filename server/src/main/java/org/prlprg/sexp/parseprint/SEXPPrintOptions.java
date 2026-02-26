@@ -11,9 +11,9 @@ package org.prlprg.sexp.parseprint;
 ///
 /// Default: `false`.
 ///
-/// @param printStaticEnvironmentDetails Print the parent and bindings of global environments.
+/// @param printEnvironmentDetails Which environments to print the parent and bindings of.
 ///
-/// Default: `false`.
+/// Default: [PrintEnvironmentDetails#BELOW_GLOBAL].
 ///
 /// @param printBcDetails Print the contents of bytecode objects.
 ///
@@ -50,7 +50,7 @@ package org.prlprg.sexp.parseprint;
 /// Default: `5`.
 public record SEXPPrintOptions(
     boolean printDelimited,
-    boolean printStaticEnvironmentDetails,
+    PrintEnvironmentDetails printEnvironmentDetails,
     boolean printBcDetails,
     boolean printPromiseLazyDetails,
     boolean printMapsSorted,
@@ -61,7 +61,8 @@ public record SEXPPrintOptions(
   /// The default print options that you get when calling
   /// [org.prlprg.parseprint.Printer#print(Object)] and [#toString()].
   public static final SEXPPrintOptions DEFAULT =
-      new SEXPPrintOptions(false, false, false, true, false, 10, 3, 100, 5);
+      new SEXPPrintOptions(
+          false, PrintEnvironmentDetails.BELOW_GLOBAL, false, true, false, 10, 3, 100, 5);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP].
   ///
@@ -69,7 +70,7 @@ public record SEXPPrintOptions(
   public static final SEXPPrintOptions FULL =
       new SEXPPrintOptions(
           false,
-          true,
+          PrintEnvironmentDetails.ALL,
           true,
           true,
           false,
@@ -85,8 +86,7 @@ public record SEXPPrintOptions(
   /// may have the same semantics. But constants do.
   public static final SEXPPrintOptions SEMANTIC =
       SEXPPrintOptions.FULL
-          .withStaticEnvironmentDetails(false)
-          .withPromiseLazyDetails(false)
+          .withEnvironmentDetails(PrintEnvironmentDetails.BELOW_GLOBAL)
           .withPromiseLazyDetails(false)
           .withMapsSorted(true);
 
@@ -101,7 +101,7 @@ public record SEXPPrintOptions(
         ? this
         : new SEXPPrintOptions(
             printDelimited,
-            printStaticEnvironmentDetails,
+            printEnvironmentDetails,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -111,12 +111,12 @@ public record SEXPPrintOptions(
             maxDepth);
   }
 
-  public SEXPPrintOptions withStaticEnvironmentDetails(boolean printStaticEnvironmentDetails) {
-    return printStaticEnvironmentDetails == this.printStaticEnvironmentDetails
+  public SEXPPrintOptions withEnvironmentDetails(PrintEnvironmentDetails printEnvironmentDetails) {
+    return printEnvironmentDetails == this.printEnvironmentDetails
         ? this
         : new SEXPPrintOptions(
             printDelimited,
-            printStaticEnvironmentDetails,
+            printEnvironmentDetails,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -131,7 +131,7 @@ public record SEXPPrintOptions(
         ? this
         : new SEXPPrintOptions(
             printDelimited,
-            printStaticEnvironmentDetails,
+            printEnvironmentDetails,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -146,7 +146,7 @@ public record SEXPPrintOptions(
         ? this
         : new SEXPPrintOptions(
             printDelimited,
-            printStaticEnvironmentDetails,
+            printEnvironmentDetails,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -161,7 +161,7 @@ public record SEXPPrintOptions(
         ? this
         : new SEXPPrintOptions(
             printDelimited,
-            printStaticEnvironmentDetails,
+            printEnvironmentDetails,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -184,5 +184,12 @@ public record SEXPPrintOptions(
     if (maxDepth < 1) {
       throw new IllegalArgumentException("`maxDepth` must be positive (can't be 0)");
     }
+  }
+
+  public enum PrintEnvironmentDetails {
+    NONE,
+    BELOW_GLOBAL,
+    BELOW_BASE,
+    ALL,
   }
 }
