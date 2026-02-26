@@ -983,21 +983,6 @@ void Fir_dbg_signature(Fir_Signature signature) {
   fprintf(stderr, "\n");
 }
 
-#define DEFINE_DISPATCH_INTRINSIC_BODY(X, ...)\
-  DEFINE_DISPATCH_INTRINSIC(X) {\
-    va_list args;\
-    va_start(args, signature);\
-    SEXP result = Fir_ver_call_ ## X ## _v0(env, ##__VA_ARGS__);\
-    va_end(args);\
-    return result;\
-  }
-
-DEFINE_DISPATCH_INTRINSIC_BODY(checkFun, va_arg(args, SEXP))
-DEFINE_DISPATCH_INTRINSIC_BODY(checkMissing, va_arg(args, SEXP))
-DEFINE_DISPATCH_INTRINSIC_BODY(toForSeq, va_arg(args, SEXP))
-DEFINE_DISPATCH_INTRINSIC_BODY(setInvisible)
-DEFINE_DISPATCH_INTRINSIC_BODY(setVisible)
-
 DEFINE_INTRINSIC(checkFun, 0, SEXP value) {
   if (TYPEOF(value) != CLOSXP && TYPEOF(value) != BUILTINSXP &&
       TYPEOF(value) != SPECIALSXP) {
@@ -1028,6 +1013,10 @@ DEFINE_INTRINSIC(setInvisible, 0) {
 DEFINE_INTRINSIC(setVisible, 0) {
   R_Visible = TRUE;
   return R_NilValue;
+}
+
+DEFINE_INTRINSIC(naToFalse, 0, SEXP value) {
+  return Rf_ScalarLogical(value == R_TrueValue);
 }
 
 // +

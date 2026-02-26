@@ -5,8 +5,8 @@ import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import junit.framework.AssertionFailedError;
 import org.prlprg.bc.BCQuery;
-import org.prlprg.bc2fir.BC2CFGCompilerUnsupportedException;
-import org.prlprg.bc2fir.BC2ClosureCompilerUnsupportedException;
+import org.prlprg.bc2fir.BC2FirCFGCompilerUnsupportedException;
+import org.prlprg.bc2fir.BC2FirClosureCompilerUnsupportedException;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.session.gnur.GNUR;
@@ -40,7 +40,8 @@ public class FirQuery implements GenFirQuery {
 
         try {
           yield compile(env, R.getSession());
-        } catch (BC2ClosureCompilerUnsupportedException | BC2CFGCompilerUnsupportedException e) {
+        } catch (BC2FirClosureCompilerUnsupportedException
+            | BC2FirCFGCompilerUnsupportedException e) {
           throw new SkipQueryException(name(), e);
         }
       }

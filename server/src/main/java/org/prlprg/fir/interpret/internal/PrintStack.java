@@ -13,6 +13,7 @@ import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions.PrintEnvironmentDetails;
 
 final class PrintStack {
   public static void printStack(Printer p, List<StackFrame> stack, GlobalEnvSXP globalEnv) {
@@ -20,7 +21,10 @@ final class PrintStack {
     var f = w.formatter();
 
     // Create "global" context that is used to print "local" stack frames
-    var forSexp = new SEXPPrintContext(SEXPPrintOptions.FULL);
+    // Print with max detail, except base-env because it's always the same
+    var forSexp =
+        new SEXPPrintContext(
+            SEXPPrintOptions.FULL.withEnvironmentDetails(PrintEnvironmentDetails.BELOW_BASE));
 
     var frameAppearances = new HashMap<StackFrame, ArrayList<Integer>>(stack.size());
     for (var i = 0; i < stack.size(); i++) {

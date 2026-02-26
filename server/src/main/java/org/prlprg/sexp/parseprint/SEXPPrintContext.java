@@ -20,6 +20,7 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.ExtptrSxp;
+import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
@@ -251,7 +252,15 @@ public class SEXPPrintContext {
                   }
 
                   if (!(sexp instanceof EmptyEnvSXP)) {
-                    if (sexp instanceof UserEnvSXP || options.printStaticEnvironmentDetails()) {
+                    var print =
+                        switch (options.printEnvironmentDetails()) {
+                          case ALL -> true;
+                          case BELOW_GLOBAL -> sexp instanceof UserEnvSXP;
+                          case BELOW_BASE ->
+                              sexp instanceof UserEnvSXP || sexp instanceof GlobalEnvSXP;
+                          case NONE -> false;
+                        };
+                    if (print) {
                       if (!(sexp instanceof BaseEnvSXP)) {
                         w.write(" parent=");
                         w.runIndented(() -> p.print(sexp.parent()));

@@ -13,3 +13,6 @@ fun setInvisible() {
 fun setVisible() {
   () --> V { ... }
 }
+fun naToFalse(r) {
+  (reg r:L) --> L { ... }
+}

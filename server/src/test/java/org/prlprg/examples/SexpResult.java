@@ -55,11 +55,13 @@ public sealed interface SexpResult {
   }
 
   default void check(Example example) {
-    if (example.hasOption("", "crashes") && this instanceof Ok) {
-      fail("Expected **crash**, got success.\n" + this);
-    } else if (this instanceof Error(var message, var isSimplyUnsupported)
-        && !isSimplyUnsupported) {
-      fail("Expected success, got crash.\n" + message);
+    var expectCrash = example.hasOption("", "crashes");
+    switch (this) {
+      case Ok(var value) when expectCrash ->
+          fail("Expected **crash**, got success.\nReturned: " + value);
+      case Error(var message, var isSimplyUnsupported) when !expectCrash && !isSimplyUnsupported ->
+          fail("Expected success, got crash.\n" + message);
+      default -> {}
     }
 
     if (example.hasOption("", "returns")) {

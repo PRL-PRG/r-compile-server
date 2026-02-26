@@ -164,6 +164,7 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.ArgumentMatcher;
 import org.prlprg.sexp.Attributes;
@@ -176,6 +177,7 @@ import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.SymSXP;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.Strings;
@@ -184,7 +186,7 @@ import org.prlprg.util.Strings;
 ///
 /// This could be a set of functions but they would be *very* large and/or pass around lots of
 /// variables. Instead, it's a class and those commonly-passed variables are fields.
-public class BC2CFGCompiler {
+public class BC2FirCFGCompiler {
   /// Compile the given bytecode into the given control-flow-graph
   ///
   /// @throws IllegalArgumentException If the control-flow graph isn't empty
@@ -201,7 +203,7 @@ public class BC2CFGCompiler {
 
   /// Compile the given bytecode into the given control-flow-graph, starting at the cursor
   public static void compile(@Nullable RSession r, CFGCursor cursor, Bc bc) {
-    new BC2CFGCompiler(r, cursor, bc).compileBc();
+    new BC2FirCFGCompiler(r, cursor, bc).compileBc();
   }
 
   // region compiler data
@@ -225,7 +227,7 @@ public class BC2CFGCompiler {
 
   // region constructor
   /// Create the compiler, but don't compile `bc` into `cfg` yet.
-  BC2CFGCompiler(@Nullable RSession r, CFGCursor cursor, Bc bc) {
+  BC2FirCFGCompiler(@Nullable RSession r, CFGCursor cursor, Bc bc) {
     this.r = r;
     cfg = cursor.cfg();
     inferType = new InferType(cfg.scope());
@@ -336,10 +338,11 @@ public class BC2CFGCompiler {
     } catch (Throwable e) {
       // If we get a real error, we still want position information when this gets printed.
       throw switch (e) {
-        case BC2CFGCompilerException e1 -> e1;
-        case BC2ClosureCompilerUnsupportedException e1 ->
-            new BC2CFGCompilerUnsupportedException("can't compile nested", bc, bcPos, cursor, e1);
-        default -> new BC2CFGCompilerException("uncaught exception", bc, bcPos, cursor, e);
+        case BC2FirCFGCompilerException e1 -> e1;
+        case BC2FirClosureCompilerUnsupportedException e1 ->
+            new BC2FirCFGCompilerUnsupportedException(
+                "can't compile nested", bc, bcPos, cursor, e1);
+        default -> new BC2FirCFGCompilerException("uncaught exception", bc, bcPos, cursor, e);
       };
     }
   }
@@ -595,7 +598,7 @@ public class BC2CFGCompiler {
         moveTo(endBb);
       }
       case EndFor() -> compileEndLoop(LoopType.FOR);
-      case Invisible() -> insert(intrinsic("setInvisible", 0));
+      case Invisible() -> insert(intrinsic("setInvisible"));
       case LdConst(var constant) -> push(new Constant(get(constant)));
       case LdNull() -> push(new Constant(SEXPs.NULL));
       case LdTrue() -> push(new Constant(SEXPs.TRUE));
@@ -701,7 +704,8 @@ public class BC2CFGCompiler {
         // This causes snapshots to fail if we change how SEXPs are printed.
         // We just need to update them because the generated names are different.
         // `String#hashCode` is stable, so it shouldn't fail otherwise.
-        var generatedName = "f" + Integer.toHexString(cloSxp.toString().hashCode());
+        var cloHash = Printer.toString(cloSxp, SEXPPrintOptions.FULL).hashCode();
+        var generatedName = "f" + Integer.toHexString(cloHash);
 
         // Since we generate the name from a hash of the closure's body, we may have a name
         // conflict, but it's only with an identical closure we've already compiled.
@@ -710,7 +714,7 @@ public class BC2CFGCompiler {
         var code =
             alreadyGenerated != null
                 ? alreadyGenerated
-                : BC2ClosureCompiler.compile(r, module(), generatedName, cloSxp);
+                : BC2FirClosureCompiler.compile(r, module(), generatedName, cloSxp);
 
         pushInsert(new Closure(code));
       }
@@ -765,7 +769,7 @@ public class BC2CFGCompiler {
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert("c", builtin("as.logical", 1, pop()));
-        var cond = top();
+        var cond = insertAndReturn("c", intrinsic("naToFalse", top()));
         insert(next -> branch(cond, next, shortCircuitBb));
       }
       case And2nd(var _) -> {
@@ -776,7 +780,7 @@ public class BC2CFGCompiler {
       case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
         pushInsert("c", builtin("as.logical", 1, pop()));
-        var cond = top();
+        var cond = insertAndReturn("c", intrinsic("naToFalse", top()));
         insert(next -> branch(cond, shortCircuitBb, next));
       }
       case Or2nd(var _) -> {
@@ -795,7 +799,7 @@ public class BC2CFGCompiler {
         tryAddCheckpoint(false);
         pushInsert(getStr(name), new MaybeForce(pop()));
       }
-      case Visible() -> insert(intrinsic("setVisible", 0));
+      case Visible() -> insert(intrinsic("setVisible"));
       case SetVar2(var name) -> insert(new SuperStore(getVar(name), top()));
       case StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
@@ -1561,17 +1565,10 @@ public class BC2CFGCompiler {
   }
 
   private Expression intrinsic(String name, Argument... args) {
-    return intrinsic(name, -1, args);
-  }
-
-  private Expression intrinsic(String name, int versionIndex, Argument... args) {
     var function =
         Objects.requireNonNull(
             INTRINSICS.localFunction(Variable.named(name)), "missing intrinsic " + name);
-    var callee =
-        versionIndex == -1
-            ? new DispatchCallee(function, null)
-            : new StaticCallee(function, function.version(versionIndex));
+    var callee = new StaticCallee(function, function.baseline());
     return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 
@@ -1598,7 +1595,7 @@ public class BC2CFGCompiler {
   /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to
   /// an intrinsic but usually gets caught and turned into [DynamicCallee].
   private Expression checkFun(Argument fun) {
-    return intrinsic("checkFun", 0, fun);
+    return intrinsic("checkFun", fun);
   }
 
   // endregion expression constructors
@@ -1651,12 +1648,12 @@ public class BC2CFGCompiler {
     }
   }
 
-  private BC2CFGCompilerUnsupportedException failUnsupported(String message) {
-    return new BC2CFGCompilerUnsupportedException(message, bc, bcPos, cursor, null);
+  private BC2FirCFGCompilerUnsupportedException failUnsupported(String message) {
+    return new BC2FirCFGCompilerUnsupportedException(message, bc, bcPos, cursor, null);
   }
 
-  private BC2CFGCompilerException fail(String message) {
-    return new BC2CFGCompilerException(message, bc, bcPos, cursor);
+  private BC2FirCFGCompilerException fail(String message) {
+    return new BC2FirCFGCompilerException(message, bc, bcPos, cursor);
   }
 
   // endregion exceptions
@@ -1689,7 +1686,7 @@ public class BC2CFGCompiler {
     sealed interface Fun {
       record Dynamic(Argument function) implements Fun {}
 
-      record Builtin(BC2CFGCompiler.Builtin builtin) implements Fun {}
+      record Builtin(BC2FirCFGCompiler.Builtin builtin) implements Fun {}
     }
 
     /// Stores information about a call argument: the [Argument] node and optional name.
