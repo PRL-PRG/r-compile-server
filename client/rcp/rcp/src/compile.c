@@ -2098,64 +2098,6 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	return compiled;
 }
 
-static SEXP get_coverage(SEXP coverage_registry)
-{
-	if (coverage_registry == NULL)
-		return R_NilValue;
-
-	// Get all keys from the coverage_registry
-	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), coverage_registry));
-	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
-	int n = LENGTH(keys);
-
-	SEXP result = PROTECT(Rf_allocVector(VECSXP, n));
-	SEXP result_names = PROTECT(Rf_allocVector(STRSXP, n));
-
-	for (int i = 0; i < n; i++)
-	{
-		const char *key = CHAR(STRING_ELT(keys, i));
-		SET_STRING_ELT(result_names, i, STRING_ELT(keys, i));
-
-		SEXP entry = Rf_findVarInFrame(coverage_registry, Rf_install(key));
-		if (entry != R_UnboundValue)
-		{
-			// Values are already up-to-date, just copy the entry
-			SET_VECTOR_ELT(result, i, entry);
-		}
-		else
-		{
-			SET_VECTOR_ELT(result, i, R_NilValue);
-		}
-	}
-
-	Rf_setAttrib(result, R_NamesSymbol, result_names);
-
-	// Set class attribute to "coverage"
-	SEXP class_attr = PROTECT(Rf_allocVector(STRSXP, 1));
-	SET_STRING_ELT(class_attr, 0, Rf_mkChar("coverage"));
-	Rf_setAttrib(result, R_ClassSymbol, class_attr);
-
-	UNPROTECT(5); // class_attr, result_names, result, keys, ls_call
-	return result;
-}
-/*
-SEXP C_rcp_function_coverage(SEXP fun, SEXP code, SEXP env, SEXP enc)
-{
-	if (TYPEOF(fun) == CLOSXP)
-		env = CLOENV(fun);
-
-	SEXP coverage_registry = PROTECT(R_NewEnv(R_EmptyEnv, TRUE, 64));
-	DEBUG_PRINT("Compiling function with coverage instrumentation...\n");
-	SEXP native_code = PROTECT(cmpfun(fun, R_NilValue, coverage_registry));
-	DEBUG_PRINT("Running compiled function with coverage instrumentation...\n");
-	eval(native_code, enc);
-	UNPROTECT_SAFE(native_code);
-	DEBUG_PRINT("Retrieving coverage data...\n");
-	SEXP res = get_coverage(coverage_registry);
-	UNPROTECT_SAFE(coverage_registry);
-	return res;
-}
-*/
 static void save_original_cmpfun(void)
 {
 	// Get the compiler namespace
