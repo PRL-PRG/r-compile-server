@@ -423,13 +423,14 @@ static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho)
 					RSH_PUSH_ARG(args_head, args_tail, value);
 					break;
 				}
-#endif
+#else
 				case BCODESXP:
 				{
 					SEXP value = bcEval(code, rho);
 					RSH_PUSH_ARG(args_head, args_tail, value);
 					break;
 				}
+#endif
 				default:
 				{
 					/* uncommon but possible, the compiler may decide not
