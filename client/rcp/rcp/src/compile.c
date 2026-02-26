@@ -1900,7 +1900,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	if (coverage_registry != R_NilValue)
 		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
 
-	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
+	// Example of adding a plugin stencil to all stencil at beginning and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
 	// add_plugin_stencil_instr(&plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_MYATEXIT, NULL);
 
