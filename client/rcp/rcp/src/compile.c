@@ -649,17 +649,17 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 			switch (TYPEOF(code))
 			{
 				case BCODESXP:
-					printf("Using specialized version of MAKEPROM_OP: BCODESXP\n");
+					DEBUG_PRINT("Using specialized version of MAKEPROM_OP: BCODESXP\n");
 					return &stencil_set[1];
 				case EXTPTRSXP:
 					if (RSH_IS_CLOSURE_BODY(code))
 					{
-						printf("Using specialized version of MAKEPROM_OP: EXTPTRSXP\n");
+						DEBUG_PRINT("Using specialized version of MAKEPROM_OP: EXTPTRSXP\n");
 						return &stencil_set[2];
 					}
 					// Continue to the generic version if it's an external pointer but not ours
 				default:
-					printf("Using specialized version of MAKEPROM_OP: OTHER SEXPs\n");
+					DEBUG_PRINT("Using specialized version of MAKEPROM_OP: OTHER SEXPs\n");
 					return &stencil_set[0];
 			}
 		}
