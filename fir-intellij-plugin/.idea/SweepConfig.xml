@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="dev.sweep.assistant.components.SweepConfig">
+    <option name="disabledMcpTools">
+      <map>
+        <entry key="jetbrains">
+          <value>
+            <set />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

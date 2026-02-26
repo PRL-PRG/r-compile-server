@@ -1,0 +1,26 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="page" x1="2" y1="1" x2="14" y2="15" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EAEAEA"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="10" y1="1" x2="14" y2="5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DADADA"/>
+    </linearGradient>
+    <linearGradient id="label" x1="2" y1="10" x2="14" y2="14" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F2D891"/>
+      <stop offset="1" stop-color="#D7B15F"/>
+    </linearGradient>
+  </defs>
+  <path d="M2.5 1.5H10L13.5 5V14.5H2.5V1.5Z" fill="url(#page)" stroke="#6E6E6E"/>
+  <path d="M10 1.5V5H13.5" fill="url(#fold)" stroke="#6E6E6E"/>
+  <rect x="3" y="3.5" width="6" height="1" rx="0.25" fill="#5D90C6"/>
+  <rect x="3" y="5.5" width="7" height="1" rx="0.25" fill="#9CBBDD"/>
+  <rect x="2.5" y="10.5" width="11" height="4" fill="url(#label)" stroke="#8A6A25"/>
+  <path d="M4 11.2H6.5V12.1H5.1V12.8H6.3V13.7H5.1V15H4V11.2Z" fill="#5C4210"/>
+  <path d="M6.9 11.2H9.1V12H8.5V14.2H9.1V15H6.9V14.2H7.5V12H6.9V11.2Z" fill="#5C4210"/>
+  <path
+      d="M10 11.2H11.8C12.7 11.2 13.2 11.7 13.2 12.5C13.2 13.1 12.9 13.5 12.4 13.7L13.3 15H12.1L11.4 13.9H11.1V15H10V11.2ZM11.1 12.1V13.1H11.7C12 13.1 12.2 12.9 12.2 12.6C12.2 12.3 12 12.1 11.7 12.1H11.1Z"
+      fill="#5C4210"/>
+</svg>
