@@ -99,7 +99,7 @@ public final class InferType implements Analysis {
             ? null
             : switch (type.kind()) {
               case Kind.Promise(var innerTy, var _) -> innerTy;
-              case Kind.Any() -> Type.ANY_VALUE;
+              case Kind.Any(), Kind.AnyNoEffect() -> Type.ANY_VALUE;
               default -> type;
             };
       }

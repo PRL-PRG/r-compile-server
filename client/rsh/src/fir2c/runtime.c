@@ -7,6 +7,7 @@
 #define ASSERT(x, msg, ...) if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
 
 Fir_Kind Fir_kind_any = {.tag = FIR_KIND_ANY};
+Fir_Kind Fir_kind_anyNoEffect = {.tag = FIR_KIND_ANY_NO_EFFECT};
 Fir_Kind Fir_kind_anyValue = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
 Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
@@ -88,8 +89,15 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
   switch (other_kind.tag) {
   case FIR_KIND_ANY:
     return true;
+  case FIR_KIND_ANY_NO_EFFECT:
+    if (this_kind.tag == FIR_KIND_ANY) return false;
+    if (this_kind.tag == FIR_KIND_PROMISE)
+      return this_kind.as.promise.effects == FIR_EFFECTS_NONE;
+    return true;
   case FIR_KIND_ANY_VALUE:
-    return this_kind.tag != FIR_KIND_ANY && this_kind.tag != FIR_KIND_PROMISE;
+    return this_kind.tag != FIR_KIND_ANY
+        && this_kind.tag != FIR_KIND_ANY_NO_EFFECT
+        && this_kind.tag != FIR_KIND_PROMISE;
   case FIR_KIND_PRIMITIVE_VECTOR: {
     int other_primitive = other_kind.as.primitive.primitive;
     switch (this_kind.tag) {
@@ -134,8 +142,26 @@ bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
 bool Fir_value_matches(SEXP value, Fir_Type type) {
   switch (type.kind.tag) {
   case FIR_KIND_ANY:
+  case FIR_KIND_ANY_NO_EFFECT: {
+    // If not a promise, it has no effects
+    if (TYPEOF(value) != PROMSXP) return true;
+
+    // If safe-forceable, it has no effects
+    SEXP forced = Fir_safe_force(value);
+    if (TYPEOF(forced) != PROMSXP) return true;
+
+    // If a FIŘ promise, we can check whether it has effects
+    Fir_PromiseGlobalData *global_data;
+    Fir_PromiseLocalData *local_data;
+    if (Fir_is_compiled_promise(value, &global_data, &local_data)) {
+      return global_data->effects == FIR_EFFECTS_NONE;
+    }
+
+    // Is a promise with effects
+    return false;
+  }
   case FIR_KIND_ANY_VALUE:
-    return true;
+    return TYPEOF(value) != PROMSXP;
   case FIR_KIND_PRIMITIVE_SCALAR: {
       SEXPTYPE expected
           = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
@@ -870,6 +896,9 @@ void Fir_print_kind(Fir_Kind kind) {
   switch (kind.tag) {
   case FIR_KIND_ANY:
     fprintf(stderr, "*");
+    break;
+  case FIR_KIND_ANY_NO_EFFECT:
+    fprintf(stderr, "+");
     break;
   case FIR_KIND_ANY_VALUE:
     fprintf(stderr, "V");
