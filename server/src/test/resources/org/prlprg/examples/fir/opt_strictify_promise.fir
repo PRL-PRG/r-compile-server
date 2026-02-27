@@ -1,5 +1,5 @@
 fun main() {
-  () -+> V { reg p:p(V +), reg r:V, reg res:I |
+  () -+> V { reg p:p(V +), reg r:V, reg res:V |
     p = prom<V +>{
       r = fx.0();
       return r;

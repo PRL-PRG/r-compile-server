@@ -338,8 +338,8 @@ public final class InternalInterpreter implements Interpreter {
       throw failUnsupported("Can't call unregistered stub");
     }
 
-    var frame = mkFrame(abstraction, environment);
-    var feedback = frame.scopeFeedback();
+    var frame = mkFrame(environment);
+    var feedback = feedback().get(abstraction);
 
     // Check number of parameters
     var params = abstraction.parameters();
@@ -384,8 +384,8 @@ public final class InternalInterpreter implements Interpreter {
     }
   }
 
-  private StackFrame mkFrame(Abstraction scope, EnvSXP parentEnv) {
-    return new StackFrame(scope, parentEnv, feedback.get(scope));
+  private StackFrame mkFrame(EnvSXP parentEnv) {
+    return new StackFrame(parentEnv);
   }
 
   /// Interprets the control flow graph starting from the entry block.
@@ -396,7 +396,7 @@ public final class InternalInterpreter implements Interpreter {
     checkStack();
 
     var cursor = new CFGCursor(cfg);
-    frame.enter(cursor);
+    frame.enter(cursor, feedback);
     stack.push(frame);
 
     while (true) {
@@ -413,8 +413,11 @@ public final class InternalInterpreter implements Interpreter {
           frame.exit();
           return value;
         }
-        case ControlFlow.Deopt(var pc, var sexpStack) ->
-            cursor = restoreDeopt(pc, sexpStack, deoptRestoreCfg);
+        case ControlFlow.Deopt(var pc, var sexpStack) -> {
+          cursor = restoreDeopt(pc, sexpStack, deoptRestoreCfg);
+          frame.exit();
+          frame.enter(cursor, feedback);
+        }
       }
     }
   }
