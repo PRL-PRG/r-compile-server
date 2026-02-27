@@ -21,7 +21,7 @@ public sealed interface Kind extends Comparable<Kind> {
     }
   }
 
-  record AnyNoEffect() implements Kind {
+  record MaybePromise(Type value, Effects effects) implements Kind {
     @Override
     public String toString() {
       return Printer.toString(this);
@@ -77,7 +77,7 @@ public sealed interface Kind extends Comparable<Kind> {
   /// ownership, since it's used by subtyping.
   default boolean isWellFormedWithOwnership() {
     return switch (this) {
-      case Any(), AnyValue(), AnyNoEffect(), PrimitiveScalar(var _) -> false;
+      case Any(), AnyValue(), MaybePromise(var _, var _), PrimitiveScalar(var _) -> false;
       case PrimitiveVector(var _) -> true;
       case Closure(), Dots(), Missing(), Promise(var _, var _) -> false;
     };
@@ -86,11 +86,17 @@ public sealed interface Kind extends Comparable<Kind> {
   default boolean isSubtypeOf(Kind other) {
     return switch (other) {
       case Any() -> true;
-      case AnyNoEffect() ->
-          !(this instanceof Any)
-              && !(this instanceof Promise(var _, var effects) && effects != Effects.NONE);
+      case MaybePromise(var otherValue, var otherEffects) ->
+          switch (this) {
+            case Any() -> false;
+            case MaybePromise(var value, var effects) ->
+                value.isSubtypeOf(otherValue) && effects.isSubsetOf(otherEffects);
+            case Promise(var value, var effects) ->
+                value.isSubtypeOf(otherValue) && effects.isSubsetOf(otherEffects);
+            default -> this.isSubtypeOf(otherValue.kind());
+          };
       case AnyValue() ->
-          !(this instanceof Any) && !(this instanceof AnyNoEffect) && !(this instanceof Promise);
+          !(this instanceof Any) && !(this instanceof MaybePromise) && !(this instanceof Promise);
       case PrimitiveVector(var otherPrimitiveKind) ->
           switch (this) {
             case PrimitiveScalar(var primitiveKind) -> primitiveKind == otherPrimitiveKind;
@@ -111,40 +117,44 @@ public sealed interface Kind extends Comparable<Kind> {
   default int compareTo(Kind o) {
     return switch (o) {
       case Any() -> (this instanceof Any) ? 0 : -1;
-      case AnyNoEffect() ->
+      case MaybePromise(var otherValue, var otherEffects) ->
           switch (this) {
             case Any() -> 1;
-            case AnyNoEffect() -> 0;
+            case MaybePromise(var value, var effects) -> {
+              int cmp = value.compareTo(otherValue);
+              if (cmp != 0) yield cmp;
+              yield effects.compareTo(otherEffects);
+            }
             default -> -1;
           };
       case AnyValue() ->
           switch (this) {
-            case Any(), AnyNoEffect() -> 1;
+            case Any(), MaybePromise(_, _) -> 1;
             case AnyValue() -> 0;
             default -> -1;
           };
       case PrimitiveVector(var otherPrimitive) ->
           switch (this) {
-            case Any(), AnyNoEffect(), AnyValue() -> 1;
+            case Any(), MaybePromise(_, _), AnyValue() -> 1;
             case PrimitiveVector(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case PrimitiveScalar(var otherPrimitive) ->
           switch (this) {
-            case Any(), AnyNoEffect(), AnyValue(), PrimitiveVector(_) -> 1;
+            case Any(), MaybePromise(_, _), AnyValue(), PrimitiveVector(_) -> 1;
             case PrimitiveScalar(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case Closure() ->
           switch (this) {
-            case Any(), AnyNoEffect(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_) -> 1;
+            case Any(), MaybePromise(_, _), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_) -> 1;
             case Closure() -> 0;
             default -> -1;
           };
       case Dots() ->
           switch (this) {
             case Any(),
-                AnyNoEffect(),
+                MaybePromise(_, _),
                 AnyValue(),
                 PrimitiveVector(_),
                 PrimitiveScalar(_),
@@ -156,7 +166,7 @@ public sealed interface Kind extends Comparable<Kind> {
       case Missing() ->
           switch (this) {
             case Any(),
-                AnyNoEffect(),
+                MaybePromise(_, _),
                 AnyValue(),
                 PrimitiveVector(_),
                 PrimitiveScalar(_),
@@ -169,7 +179,7 @@ public sealed interface Kind extends Comparable<Kind> {
       case Promise(var otherValue, var otherEffects) ->
           switch (this) {
             case Any(),
-                AnyNoEffect(),
+                MaybePromise(_, _),
                 AnyValue(),
                 PrimitiveVector(_),
                 PrimitiveScalar(_),
@@ -189,17 +199,31 @@ public sealed interface Kind extends Comparable<Kind> {
   default Kind union(Kind other, Runnable onOwnershipMismatch) {
     return switch (other) {
       case Any() -> other;
-      case AnyNoEffect() ->
-          this instanceof Any
-                  || (this instanceof Promise(var _, var effects) && effects != Effects.NONE)
-              ? new Any()
-              : other;
+      case MaybePromise(var otherValue, var otherEffects) ->
+          switch (this) {
+            case Any() -> new Any();
+            case MaybePromise(var value, var effects) ->
+                new MaybePromise(
+                    value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects));
+            case Promise(var value, var effects) ->
+                new MaybePromise(
+                    value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects));
+            default -> {
+              var thisType = new Type(this, Ownership.SHARED, Concreteness.DEFINITE);
+              yield new MaybePromise(thisType.union(otherValue, onOwnershipMismatch), otherEffects);
+            }
+          };
       case AnyValue() ->
           switch (this) {
             case Any() -> new Any();
-            case AnyNoEffect() -> this;
-            case Promise(var _, var effects) ->
-                effects == Effects.NONE ? new AnyNoEffect() : new Any();
+            case MaybePromise(var value, var effects) -> {
+              var otherType = new Type(new AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
+              yield new MaybePromise(value.union(otherType, onOwnershipMismatch), effects);
+            }
+            case Promise(var value, var effects) -> {
+              var otherType = new Type(new AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
+              yield new MaybePromise(value.union(otherType, onOwnershipMismatch), effects);
+            }
             default -> other;
           };
       case PrimitiveScalar(var otherPrimitiveKind) ->
@@ -228,12 +252,19 @@ public sealed interface Kind extends Comparable<Kind> {
               ? this
               : union(new AnyValue(), onOwnershipMismatch);
       case Promise(var otherValue, var otherEffects) ->
-          this instanceof Promise(var value, var effects)
-              ? new Promise(
-                  value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects))
-              : this instanceof Any
-                  ? new Any()
-                  : otherEffects == Effects.NONE ? new AnyNoEffect() : new Any();
+          switch (this) {
+            case Promise(var value, var effects) ->
+                new Promise(
+                    value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects));
+            case Any() -> new Any();
+            case MaybePromise(var value, var effects) ->
+                new MaybePromise(
+                    value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects));
+            default -> {
+              var thisType = new Type(this, Ownership.SHARED, Concreteness.DEFINITE);
+              yield new MaybePromise(thisType.union(otherValue, onOwnershipMismatch), otherEffects);
+            }
+          };
     };
   }
 
@@ -243,7 +274,13 @@ public sealed interface Kind extends Comparable<Kind> {
 
     switch (self) {
       case Any() -> w.write("*");
-      case AnyNoEffect() -> w.write("+");
+      case MaybePromise(var type, var effects) -> {
+        w.write("p?(");
+        p.print(type);
+        w.write(' ');
+        p.print(effects);
+        w.write(')');
+      }
       case AnyValue() -> w.write("V");
       case PrimitiveScalar(var primitive) -> p.print(primitive);
       case PrimitiveVector(var primitive) -> {
@@ -270,8 +307,6 @@ public sealed interface Kind extends Comparable<Kind> {
 
     if (s.trySkip('*')) {
       return new Any();
-    } else if (s.trySkip('+')) {
-      return new AnyNoEffect();
     } else if (s.trySkip('V')) {
       return new AnyValue();
     } else if (s.trySkip('v')) {
@@ -286,17 +321,25 @@ public sealed interface Kind extends Comparable<Kind> {
     } else if (s.trySkip('M')) {
       return new Missing();
     } else if (s.trySkip('p')) {
-      s.assertAndSkip('(');
-      var type = p.parse(Type.class);
-      var effects = p.parse(Effects.class);
-      s.assertAndSkip(')');
-      return new Promise(type, effects);
+      if (s.trySkip('?')) {
+        s.assertAndSkip('(');
+        var type = p.parse(Type.class);
+        var effects = p.parse(Effects.class);
+        s.assertAndSkip(')');
+        return new MaybePromise(type, effects);
+      } else {
+        s.assertAndSkip('(');
+        var type = p.parse(Type.class);
+        var effects = p.parse(Effects.class);
+        s.assertAndSkip(')');
+        return new Promise(type, effects);
+      }
     } else if (s.nextCharSatisfies(c -> c == 'L' || c == 'I' || c == 'R' || c == 'S')) {
       var primitive = p.parse(PrimitiveKind.class);
       return new PrimitiveScalar(primitive);
     } else {
       throw s.fail(
-          "expected '*', '+', 'V', 'v('..., 'cls', 'dots', 'M', 'p('..., or a primitive kind ('L', 'I', 'R', or 'S')");
+          "expected '*', 'V', 'v('..., 'cls', 'dots', 'M', 'p('..., 'p?('..., or a primitive kind ('L', 'I', 'R', or 'S')");
     }
   }
 }

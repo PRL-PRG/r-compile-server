@@ -19,7 +19,7 @@ typedef enum {
 
 typedef enum {
   FIR_KIND_ANY = 0,
-  FIR_KIND_ANY_NO_EFFECT = 1,
+  FIR_KIND_MAYBE_PROMISE = 1,
   FIR_KIND_ANY_VALUE = 2,
   FIR_KIND_PRIMITIVE_SCALAR = 3,
   FIR_KIND_PRIMITIVE_VECTOR = 4,
@@ -96,7 +96,7 @@ typedef struct Fir_PromiseLocalData {
 } Fir_PromiseLocalData;
 
 extern Fir_Kind Fir_kind_any;
-extern Fir_Kind Fir_kind_anyNoEffect;
+Fir_Kind Fir_kind_maybe_promise(Fir_Type const* value_type, Fir_Effects effects);
 extern Fir_Kind Fir_kind_anyValue;
 extern Fir_Kind Fir_kind_closure;
 extern Fir_Kind Fir_kind_dots;
