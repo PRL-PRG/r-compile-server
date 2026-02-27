@@ -9,7 +9,7 @@ import java.util.function.DoubleUnaryOperator;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.type.Kind;
-import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Constants;
@@ -23,6 +23,7 @@ import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.Lists;
 
 /// Java implementations of GNU-R builtins for [InternalInterpreter] (specifically
@@ -694,13 +695,33 @@ public final class Builtins {
       return SEXPs.NULL;
     }
 
-    var inferredKind = Type.of(realArgs.value(0)).kind();
-    if (inferredKind instanceof Kind.PrimitiveScalar(var primitiveKind)) {
-      inferredKind = new Kind.PrimitiveVector(primitiveKind);
+    PrimitiveKind primitiveKind = null;
+    for (var arg : realArgs) {
+      if (arg.hasTag()) {
+        throw interpreter.failUnsupported("Mock `c` doesn't support named arguments");
+      }
+      var argPrimitiveKind =
+          switch (arg.value()) {
+            case LglSXP _ -> PrimitiveKind.LOGICAL;
+            case IntSXP _ -> PrimitiveKind.INTEGER;
+            case RealSXP _ -> PrimitiveKind.REAL;
+            case StrSXP _ -> PrimitiveKind.STRING;
+            default ->
+                throw interpreter.failUnsupported(
+                    "Mock `c` doesn't support non-primitive arguments");
+          };
+      primitiveKind =
+          primitiveKind != null && argPrimitiveKind.ordinal() < primitiveKind.ordinal()
+              ? primitiveKind
+              : argPrimitiveKind;
+    }
+
+    if (primitiveKind == null) {
+      return SEXPs.NULL;
     }
 
     return interpreter.mkVector(
-        inferredKind,
+        new Kind.PrimitiveVector(primitiveKind),
         Lists.mapLazy(
             realArgs.names(),
             name ->
