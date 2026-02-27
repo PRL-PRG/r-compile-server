@@ -3,8 +3,8 @@ package org.prlprg.fir.ir.type;
 import java.util.Objects;
 import java.util.logging.Logger;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.ir.type.Kind.AnyNoEffect;
 import org.prlprg.fir.ir.type.Kind.AnyValue;
+import org.prlprg.fir.ir.type.Kind.MaybePromise;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -24,8 +24,6 @@ import org.prlprg.sexp.StrSXP;
 public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
   public static final Type ANY = new Type(new Kind.Any(), Ownership.SHARED, Concreteness.MAYBE);
-  public static final Type ANY_NO_EFFECT =
-      new Type(new Kind.AnyNoEffect(), Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type ANY_VALUE =
       new Type(new Kind.AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type ANY_PROMISE = promise(ANY_VALUE, Effects.REFLECT);
@@ -64,6 +62,11 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     return new Type(new Kind.Promise(valueType, effects), Ownership.SHARED, Concreteness.DEFINITE);
   }
 
+  public static Type maybePromise(Type valueType, Effects effects) {
+    return new Type(
+        new Kind.MaybePromise(valueType, effects), Ownership.SHARED, Concreteness.DEFINITE);
+  }
+
   public static Type of(SEXP sexp) {
     return switch (sexp) {
       case IntSXP i when !sexp.hasAttributes() -> i.isScalar() ? INTEGER : SHARED_INT_VECTOR;
@@ -97,11 +100,9 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public boolean isDefinitely(Class<? extends Kind> kind) {
     return kind == Kind.Any.class
         || ((kind == AnyValue.class
-                ? !(this.kind instanceof Kind.Promise) && !(this.kind instanceof Kind.AnyNoEffect)
-                : kind == AnyNoEffect.class
+                ? !(this.kind instanceof Kind.Promise) && !(this.kind instanceof Kind.MaybePromise)
+                : kind == MaybePromise.class
                     ? !(this.kind instanceof Kind.Any)
-                        && !(this.kind instanceof Kind.Promise(var _, var effects)
-                            && effects != Effects.NONE)
                     : this.kind.getClass() == kind)
             && concreteness == Concreteness.DEFINITE);
   }

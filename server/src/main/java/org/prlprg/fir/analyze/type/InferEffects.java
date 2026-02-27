@@ -96,9 +96,11 @@ public final class InferEffects implements Analysis {
         var type = inferType.of(value);
         yield type == null || type.concreteness() == Concreteness.MAYBE
             ? Effects.REFLECT
-            : type.kind() instanceof Kind.Promise(var _, var innerEffects)
-                ? innerEffects
-                : Effects.NONE;
+            : switch (type.kind()) {
+              case Kind.Promise(var _, var innerEffects) -> innerEffects;
+              case Kind.MaybePromise(var _, var innerEffects) -> innerEffects;
+              default -> Effects.NONE;
+            };
       }
       case MkVector(var _, var _), MkEnv(), PopEnv(), Placeholder(), Promise(var _, var _, var _) ->
           Effects.NONE;

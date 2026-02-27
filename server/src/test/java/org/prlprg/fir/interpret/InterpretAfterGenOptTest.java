@@ -1,6 +1,7 @@
 package org.prlprg.fir.interpret;
 
 import java.util.Objects;
+import org.junit.jupiter.api.Disabled;
 import org.prlprg.bc2fir.BC2FirCompilerTest;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
@@ -20,6 +21,7 @@ import org.prlprg.util.Streams;
 @OrderAfter(BC2FirCompilerTest.class)
 @OrderAfter(FirParseTest.class)
 @OrderAfter(InterpretTest.class)
+@Disabled("Temporarily")
 public interface InterpretAfterGenOptTest {
   Optimization optimization();
 

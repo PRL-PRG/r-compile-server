@@ -10,13 +10,6 @@
             </Attribute>
           </value>
         </entry>
-        <entry key="/external/R/doc/CRAN_mirrors.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
         <entry key="/fir-intellij-plugin/build/idea-sandbox/IU-2025.3/log/open-telemetry-metrics.2026-02-25-12-11-16.csv">
           <value>
             <Attribute>

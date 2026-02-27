@@ -7,7 +7,9 @@
 #define ASSERT(x, msg, ...) if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
 
 Fir_Kind Fir_kind_any = {.tag = FIR_KIND_ANY};
-Fir_Kind Fir_kind_anyNoEffect = {.tag = FIR_KIND_ANY_NO_EFFECT};
+Fir_Kind Fir_kind_maybe_promise(Fir_Type const* value_type, Fir_Effects effects) {
+  return (Fir_Kind) {.tag = FIR_KIND_MAYBE_PROMISE, .as.promise.value_type = value_type, .as.promise.effects = effects};
+}
 Fir_Kind Fir_kind_anyValue = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
 Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
@@ -89,14 +91,16 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
   switch (other_kind.tag) {
   case FIR_KIND_ANY:
     return true;
-  case FIR_KIND_ANY_NO_EFFECT:
+  case FIR_KIND_MAYBE_PROMISE:
     if (this_kind.tag == FIR_KIND_ANY) return false;
-    if (this_kind.tag == FIR_KIND_PROMISE)
-      return this_kind.as.promise.effects == FIR_EFFECTS_NONE;
-    return true;
+    if (this_kind.tag == FIR_KIND_MAYBE_PROMISE || this_kind.tag == FIR_KIND_PROMISE)
+      return Fir_is_subtype(*this_kind.as.promise.value_type, *other_kind.as.promise.value_type)
+          && Fir_is_subeffects(this_kind.as.promise.effects, other_kind.as.promise.effects);
+    // Value kind: check if it's a subtype of the maybe-promise's value type
+    return Fir_kind_is_subtype(this_kind, other_kind.as.promise.value_type->kind);
   case FIR_KIND_ANY_VALUE:
     return this_kind.tag != FIR_KIND_ANY
-        && this_kind.tag != FIR_KIND_ANY_NO_EFFECT
+        && this_kind.tag != FIR_KIND_MAYBE_PROMISE
         && this_kind.tag != FIR_KIND_PROMISE;
   case FIR_KIND_PRIMITIVE_VECTOR: {
     int other_primitive = other_kind.as.primitive.primitive;
@@ -142,23 +146,30 @@ bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
 bool Fir_value_matches(SEXP value, Fir_Type type) {
   switch (type.kind.tag) {
   case FIR_KIND_ANY:
-  case FIR_KIND_ANY_NO_EFFECT: {
-    // If not a promise, it has no effects
-    if (TYPEOF(value) != PROMSXP) return true;
+    return true;
+  case FIR_KIND_MAYBE_PROMISE: {
+    // If not a promise, check if it matches the inner value type
+    if (TYPEOF(value) != PROMSXP) {
+      return Fir_value_matches(value, *type.kind.as.promise.value_type);
+    }
 
-    // If safe-forceable, it has no effects
+    // If safe-forceable, it's an already-evaluated promise - check inner value type
     SEXP forced = Fir_safe_force(value);
-    if (TYPEOF(forced) != PROMSXP) return true;
+    if (TYPEOF(forced) != PROMSXP) {
+      return Fir_value_matches(forced, *type.kind.as.promise.value_type);
+    }
 
-    // If a FIŘ promise, we can check whether it has effects
+    // If a FIŘ promise, check value type and effects
     Fir_PromiseGlobalData *global_data;
     Fir_PromiseLocalData *local_data;
     if (Fir_is_compiled_promise(value, &global_data, &local_data)) {
-      return global_data->effects == FIR_EFFECTS_NONE;
+      return Fir_is_subtype(global_data->value_type, *type.kind.as.promise.value_type)
+          && Fir_is_subeffects(global_data->effects, type.kind.as.promise.effects);
     }
 
-    // Is a promise with effects
-    return false;
+    // GNU-R promise with eval body.
+    // We have no information except that the inner type is never another promise.
+    return type.kind.as.promise.value_type->kind.tag == FIR_KIND_ANY_VALUE;
   }
   case FIR_KIND_ANY_VALUE:
     return TYPEOF(value) != PROMSXP;
@@ -897,8 +908,12 @@ void Fir_print_kind(Fir_Kind kind) {
   case FIR_KIND_ANY:
     fprintf(stderr, "*");
     break;
-  case FIR_KIND_ANY_NO_EFFECT:
-    fprintf(stderr, "+");
+  case FIR_KIND_MAYBE_PROMISE:
+    fprintf(stderr, "p?(");
+    Fir_print_type(*kind.as.promise.value_type);
+    fprintf(stderr, " ");
+    Fir_print_effects(kind.as.promise.effects);
+    fprintf(stderr, ")");
     break;
   case FIR_KIND_ANY_VALUE:
     fprintf(stderr, "V");

@@ -1405,7 +1405,12 @@ public final class Fir2CCompiler {
   private String emitKind(CCode cCode, Kind kind) {
     return switch (kind) {
       case Kind.Any() -> "Fir_kind_any";
-      case Kind.AnyNoEffect() -> "Fir_kind_anyNoEffect";
+      case Kind.MaybePromise(var valueType, var fx) -> {
+        var tempTypeName = "t_type_%d".formatted(tempTypeDisambiguator++);
+
+        cCode.stmt("Fir_Type %s = %s;", tempTypeName, emitType(cCode, valueType));
+        yield "Fir_kind_maybe_promise(&%s, %s)".formatted(tempTypeName, emitEffects(fx));
+      }
       case Kind.AnyValue() -> "Fir_kind_anyValue";
       case Kind.PrimitiveScalar(var primitiveKind) ->
           "Fir_kind_primitive_scalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
