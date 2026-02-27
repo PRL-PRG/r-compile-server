@@ -1,8 +1,5 @@
 package org.prlprg.fir.opt;
 
-import org.prlprg.fir.feedback.ModuleFeedback;
-import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
@@ -18,29 +15,11 @@ import org.prlprg.fir.opt.specialize.ResolveLoadFun;
 import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 public class Optimizations {
-  public static Optimization NOOP =
-      new Optimization() {
-        @Override
-        public String name() {
-          return "noop";
-        }
-
-        @Override
-        public boolean run(ModuleFeedback feedback, Module module) {
-          return false;
-        }
-
-        @Override
-        public boolean run(ModuleFeedback feedback, Function function) {
-          return false;
-        }
-      };
-
   public static Optimization defaultOptimizations() {
-    return defaultOptimizations(10, true);
+    return defaultOptimizations(10);
   }
 
-  public static Optimization defaultOptimizations(int threshold, boolean affectCheckpoints) {
+  public static Optimization defaultOptimizations(int threshold) {
     return new Sequence(
         "default",
         new SpeculateDispatch(threshold, 3, 9),
@@ -65,8 +44,8 @@ public class Optimizations {
                 new Inline(1000),
                 new Cleanup()),
             new CreateBestVersion(9)),
-        affectCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
-        affectCheckpoints ? new ElideUnusedCheckpoints() : NOOP);
+        new MergeConsecutiveCheckpoints(),
+        new ElideUnusedCheckpoints());
   }
 
   private Optimizations() {}

@@ -29,7 +29,7 @@ import org.prlprg.fir.ir.variable.Register;
 ///
 /// If any non-assumption statement in the first success BB defines a register that is referenced by
 /// a second-checkpoint assumption, the merge is not performed.
-public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
+public record MergeConsecutiveCheckpoints() implements CheckpointAbstractionOptimization {
   @Override
   public boolean run(AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};

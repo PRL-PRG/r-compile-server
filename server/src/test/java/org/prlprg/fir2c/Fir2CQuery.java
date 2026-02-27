@@ -21,7 +21,7 @@ public record Fir2CQuery(
     implements CompiledModuleQuery {
   public static final Fir2CQuery DIRECT = new Fir2CQuery("fir2c", null);
   public static final Fir2CQuery OPTIMIZED_ONLY_FIR =
-      new Fir2CQuery("opt.default.fir2c.opt", defaultOptimizations(10, true));
+      new Fir2CQuery("opt.default.fir2c.opt", defaultOptimizations(10));
   public static final Fir2CQuery FULLY_OPTIMIZED = OPTIMIZED_ONLY_FIR.optimized();
 
   public Fir2CQuery(String name, @Nullable Optimization optimization) {
