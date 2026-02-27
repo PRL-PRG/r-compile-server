@@ -433,7 +433,7 @@ public class BC2FirCFGCompiler {
       case BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
         var cond = pop();
-        var condCasted = insertAndReturn("c", builtin("as.logical", 1, cond));
+        var condCasted = insertAndReturn("_cond", builtin("as.logical", 1, cond));
         insert(next -> branch(condCasted, next, bb));
       }
       case Pop() -> pop();
@@ -509,20 +509,21 @@ public class BC2FirCFGCompiler {
         }
 
         // For loop init
-        var seq = insertAndReturn("s", intrinsic("toForSeq", pop()));
-        var length = insertAndReturn("l", builtin("length", seq));
+        var seq = insertAndReturn("_seq", intrinsic("toForSeq", pop()));
+        var length = insertAndReturn("_len", builtin("length", seq));
         var init = new Constant(SEXPs.integer(0));
-        var index = insertAndReturn("i", new Aea(init));
+        var index = insertAndReturn("_idx", new Aea(init));
         push(index);
         setJump(goto_(stepBb));
 
         // For loop step
         moveTo(stepBb);
         // Increment the index
-        var index1 = insertAndReturn("i", builtin("+", 1, pop(), new Constant(SEXPs.integer(1))));
+        var index1 =
+            insertAndReturn("_idx", builtin("+", 1, pop(), new Constant(SEXPs.integer(1))));
         push(index1);
         // Compare the index to the length
-        var cond = insertAndReturn("c", builtin("<", 1, length, index1));
+        var cond = insertAndReturn("_cond", builtin("<", 1, length, index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         setJump(branch(cond, endBb, forBodyBb));
 
@@ -531,7 +532,7 @@ public class BC2FirCFGCompiler {
         // Extract element at index
         var elem =
             insertAndReturn(
-                "x",
+                getStr(elemName),
                 builtin(
                     "[[",
                     seq,
@@ -653,7 +654,7 @@ public class BC2FirCFGCompiler {
         }
       }
       case DoDots() -> {
-        pushCallArg(insertAndReturn("ddd", new Load(NamedVariable.DOTS)));
+        pushCallArg(insertAndReturn("_ddd", new Load(NamedVariable.DOTS)));
         // This is specially interpreted by FIŘ:
         // it determines that the call's arguments can't be statically matched.
         // That only happens when `...` is a literal argument,
@@ -705,7 +706,7 @@ public class BC2FirCFGCompiler {
         // We just need to update them because the generated names are different.
         // `String#hashCode` is stable, so it shouldn't fail otherwise.
         var cloHash = Printer.toString(cloSxp, SEXPPrintOptions.FULL).hashCode();
-        var generatedName = "f" + Integer.toHexString(cloHash);
+        var generatedName = "%s_%x".formatted(inferDescriptiveName(""), cloHash);
 
         // Since we generate the name from a hash of the closure's body, we may have a name
         // conflict, but it's only with an identical closure we've already compiled.
@@ -738,7 +739,7 @@ public class BC2FirCFGCompiler {
       case Not(var _) -> pushInsert(mkUnop("!"));
       case DotsErr() -> insert(stop("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
-        var lhs = insertAndReturn("l", new Load(getVar(name)));
+        var lhs = insertAndReturn("_lhs", new Load(getVar(name)));
         var rhs = top();
         pushComplexAssign(false, get(name), lhs, rhs);
       }
@@ -757,35 +758,35 @@ public class BC2FirCFGCompiler {
         var target = pop();
         pushInsert(builtin("$<-", target, memberArg, rhs));
       }
-      case IsNull() -> pushInsert("c", builtin("==", pop(), new Constant(SEXPs.NULL)));
-      case IsLogical() -> pushInsert("c", builtin("is.logical", pop()));
-      case IsInteger() -> pushInsert("c", builtin("is.integer", pop()));
-      case IsDouble() -> pushInsert("c", builtin("is.double", pop()));
-      case IsComplex() -> pushInsert("c", builtin("is.complex", pop()));
-      case IsCharacter() -> pushInsert("c", builtin("is.character", pop()));
-      case IsSymbol() -> pushInsert("c", builtin("is.symbol", pop()));
-      case IsObject() -> pushInsert("c", builtin("is.object", pop()));
-      case IsNumeric() -> pushInsert("c", builtin("is.numeric", pop()));
+      case IsNull() -> pushInsertCond(builtin("==", pop(), new Constant(SEXPs.NULL)));
+      case IsLogical() -> pushInsertCond(builtin("is.logical", pop()));
+      case IsInteger() -> pushInsertCond(builtin("is.integer", pop()));
+      case IsDouble() -> pushInsertCond(builtin("is.double", pop()));
+      case IsComplex() -> pushInsertCond(builtin("is.complex", pop()));
+      case IsCharacter() -> pushInsertCond(builtin("is.character", pop()));
+      case IsSymbol() -> pushInsertCond(builtin("is.symbol", pop()));
+      case IsObject() -> pushInsertCond(builtin("is.object", pop()));
+      case IsNumeric() -> pushInsertCond(builtin("is.numeric", pop()));
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert("c", builtin("as.logical", 1, pop()));
-        var cond = insertAndReturn("c", intrinsic("naToFalse", top()));
+        pushInsertCond(builtin("as.logical", 1, pop()));
+        var cond = insertAndReturn("_cond", intrinsic("naToFalse", top()));
         insert(next -> branch(cond, next, shortCircuitBb));
       }
       case And2nd(var _) -> {
-        pushInsert("c", builtin("as.logical", 1, pop()));
-        pushInsert("c", mkBinop("&&"));
+        pushInsertCond(builtin("as.logical", 1, pop()));
+        pushInsertCond(mkBinop("&&"));
         insert(this::goto_);
       }
       case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsert("c", builtin("as.logical", 1, pop()));
-        var cond = insertAndReturn("c", intrinsic("naToFalse", top()));
+        pushInsertCond(builtin("as.logical", 1, pop()));
+        var cond = insertAndReturn("_cond", intrinsic("naToFalse", top()));
         insert(next -> branch(cond, shortCircuitBb, next));
       }
       case Or2nd(var _) -> {
-        pushInsert("c", builtin("as.logical", 1, pop()));
-        pushInsert("c", mkBinop("||"));
+        pushInsertCond(builtin("as.logical", 1, pop()));
+        pushInsertCond(mkBinop("||"));
         insert(this::goto_);
       }
       case GetVarMissOk(var name) -> {
@@ -805,7 +806,7 @@ public class BC2FirCFGCompiler {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
-        var lhs = insertAndReturn("l", new SuperLoad(getVar(name)));
+        var lhs = insertAndReturn("_lhs", new SuperLoad(getVar(name)));
         var rhs = top();
         pushComplexAssign(true, get(name), lhs, rhs);
       }
@@ -850,7 +851,8 @@ public class BC2FirCFGCompiler {
         var value = pop();
 
         var isVector =
-            insertAndReturn("c", builtin("is.vector", value, new Constant(SEXPs.string("any"))));
+            insertAndReturn(
+                "_cond", builtin("is.vector", value, new Constant(SEXPs.string("any"))));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB();
         setJump(branch(isVector, isVectorBb, isNotVectorBb));
@@ -862,7 +864,7 @@ public class BC2FirCFGCompiler {
         moveTo(isVectorBb);
         var isFactor =
             insertAndReturn(
-                "c",
+                "_cond",
                 builtin(
                     "inherits",
                     value,
@@ -879,7 +881,7 @@ public class BC2FirCFGCompiler {
         setJump(goto_(isFactorBb));
 
         moveTo(isFactorBb);
-        var isString = insertAndReturn("c", builtin("is.character", value));
+        var isString = insertAndReturn("_cond", builtin("is.character", value));
         var stringBb = cfg.addBB();
         var asIntegerBb = cfg.addBB();
         setJump(branch(isString, stringBb, asIntegerBb));
@@ -907,10 +909,10 @@ public class BC2FirCFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var asString = insertAndReturn("i", new Cast(value, Type.STRING));
+              var asString = insertAndReturn("_idx", new Cast(value, Type.STRING));
               var cond =
                   insertAndReturn(
-                      "c", builtin("==", 3, asString, new Constant(SEXPs.string(name))));
+                      "_cond", builtin("==", 3, asString, new Constant(SEXPs.string(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -927,12 +929,12 @@ public class BC2FirCFGCompiler {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var asInteger = insertAndReturn("i", builtin("as.integer", 1, value));
+          var asInteger = insertAndReturn("_idx", builtin("as.integer", 1, value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
                 insertAndReturn(
-                    "c", builtin("==", 1, asInteger, new Constant(SEXPs.integer(i + 1))));
+                    "_cond", builtin("==", 1, asInteger, new Constant(SEXPs.integer(i + 1))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.
@@ -960,7 +962,7 @@ public class BC2FirCFGCompiler {
         funAndArgs.clear();
 
         // Insert dots list for arguments
-        var dots = insertAndReturn("vargs", new MkVector(new Kind.Dots(), args));
+        var dots = insertAndReturn("_vargs", new MkVector(new Kind.Dots(), args));
 
         pushInsert(builtin(".Call", fun, dots, new Constant(SEXPs.MISSING_ARG)));
       }
@@ -971,9 +973,9 @@ public class BC2FirCFGCompiler {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
         var fun = Variable.named(((RegSymSXP) expr.fun()).name());
-        var sym = insertAndReturn("sym", new LoadFun(fun, Env.LOCAL));
-        var base = insertAndReturn("base", new LoadFun(fun, Env.BASE));
-        var guard = insertAndReturn("guard", builtin("==", 4, sym, base));
+        var sym = insertAndReturn("_sym", new LoadFun(fun, Env.LOCAL));
+        var base = insertAndReturn("_base", new LoadFun(fun, Env.BASE));
+        var guard = insertAndReturn("_guard", builtin("==", 4, sym, base));
 
         var safeBb = cfg.addBB();
         var fallbackBb = cfg.addBB();
@@ -1031,7 +1033,7 @@ public class BC2FirCFGCompiler {
     var cfg = new CFG(scope());
     compile(r, cfg, bc);
 
-    return insertAndReturn("p", new Promise(Type.ANY_VALUE, Effects.REFLECT, cfg));
+    return insertAndReturn("_p", new Promise(Type.ANY_VALUE, Effects.REFLECT, cfg));
   }
 
   /// End the previously-compiled for loop instruction (the latest [#pushWhileOrRepeatLoop(BB,
@@ -1358,10 +1360,29 @@ public class BC2FirCFGCompiler {
         () -> "call stack isn't empty at end of function: [" + Strings.join(", ", callStack) + "]");
   }
 
+  /// Check if the next instruction is a store, and if so, return the name of the stored
+  /// variable. Otherwise `fallback`.
+  public String inferDescriptiveName(String fallback) {
+    if (bcPos + 1 >= bc.code().size()) {
+      return fallback;
+    }
+    var next = bc.code().get(bcPos + 1);
+    return switch (next) {
+      case SetVar(var name) -> getStr(name);
+      case SetVar2(var name) -> getStr(name);
+      default -> fallback;
+    };
+  }
+
   /// Insert a statement that executes the expression and assigns its result to a fresh
   /// register, and push the register onto the stack.
   private void pushInsert(Expression expression) {
-    pushInsert(Register.DEFAULT_NAME, expression);
+    pushInsert(inferDescriptiveName(Register.DEFAULT_NAME), expression);
+  }
+
+  /// [#pushInsert(Expression)] but with a different default name (`c`), for conditionals
+  private void pushInsertCond(Expression expression) {
+    pushInsert(inferDescriptiveName("_cond"), expression);
   }
 
   private void pushInsert(String name, Expression expression) {

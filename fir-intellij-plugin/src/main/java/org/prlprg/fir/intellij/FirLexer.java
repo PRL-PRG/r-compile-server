@@ -33,7 +33,8 @@ public final class FirLexer extends LexerBase {
           "force",
           "unreachable",
           "TRUE",
-          "FALSE");
+          "FALSE",
+          "NULL");
   private static final Set<String> TYPE_NAMES = Set.of("I", "L", "R", "S", "V", "v", "p");
 
   private @NotNull CharSequence buffer = "";
