@@ -36,7 +36,7 @@ public final class FirAnnotator implements Annotator {
     lintFunctionDeclarations(text, issues);
     lintDelimiters(text, issues);
     lintSemicolons(text, issues);
-    lintMissingDeclarationPrefixes(text, issues);
+    lintMissingDeclarationKinds(text, issues);
     lintDeclarations(text, issues);
 
     var textLength = text.length();
@@ -280,7 +280,7 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static void lintMissingDeclarationPrefixes(String text, ArrayList<Issue> issues) {
+  private static void lintMissingDeclarationKinds(String text, ArrayList<Issue> issues) {
     lintMissingParameterKinds(text, issues);
     lintMissingLocalVariableKinds(text, issues);
   }
