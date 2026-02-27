@@ -19,13 +19,14 @@ typedef enum {
 
 typedef enum {
   FIR_KIND_ANY = 0,
-  FIR_KIND_ANY_VALUE = 1,
-  FIR_KIND_PRIMITIVE_SCALAR = 2,
-  FIR_KIND_PRIMITIVE_VECTOR = 3,
-  FIR_KIND_CLOSURE = 4,
-  FIR_KIND_DOTS = 5,
-  FIR_KIND_MISSING = 6,
-  FIR_KIND_PROMISE = 7,
+  FIR_KIND_ANY_NO_EFFECT = 1,
+  FIR_KIND_ANY_VALUE = 2,
+  FIR_KIND_PRIMITIVE_SCALAR = 3,
+  FIR_KIND_PRIMITIVE_VECTOR = 4,
+  FIR_KIND_CLOSURE = 5,
+  FIR_KIND_DOTS = 6,
+  FIR_KIND_MISSING = 7,
+  FIR_KIND_PROMISE = 8,
 } Fir_KindTag;
 
 typedef enum {
@@ -95,6 +96,7 @@ typedef struct Fir_PromiseLocalData {
 } Fir_PromiseLocalData;
 
 extern Fir_Kind Fir_kind_any;
+extern Fir_Kind Fir_kind_anyNoEffect;
 extern Fir_Kind Fir_kind_anyValue;
 extern Fir_Kind Fir_kind_closure;
 extern Fir_Kind Fir_kind_dots;

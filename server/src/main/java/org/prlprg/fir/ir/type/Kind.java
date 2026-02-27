@@ -21,6 +21,13 @@ public sealed interface Kind extends Comparable<Kind> {
     }
   }
 
+  record AnyNoEffect() implements Kind {
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+  }
+
   record PrimitiveScalar(PrimitiveKind primitive) implements Kind {
     @Override
     public String toString() {
@@ -70,7 +77,7 @@ public sealed interface Kind extends Comparable<Kind> {
   /// ownership, since it's used by subtyping.
   default boolean isWellFormedWithOwnership() {
     return switch (this) {
-      case Any(), AnyValue(), PrimitiveScalar(var _) -> false;
+      case Any(), AnyValue(), AnyNoEffect(), PrimitiveScalar(var _) -> false;
       case PrimitiveVector(var _) -> true;
       case Closure(), Dots(), Missing(), Promise(var _, var _) -> false;
     };
@@ -79,7 +86,11 @@ public sealed interface Kind extends Comparable<Kind> {
   default boolean isSubtypeOf(Kind other) {
     return switch (other) {
       case Any() -> true;
-      case AnyValue() -> !(this instanceof Any) && !(this instanceof Promise);
+      case AnyNoEffect() ->
+          !(this instanceof Any)
+              && !(this instanceof Promise(var _, var effects) && effects != Effects.NONE);
+      case AnyValue() ->
+          !(this instanceof Any) && !(this instanceof AnyNoEffect) && !(this instanceof Promise);
       case PrimitiveVector(var otherPrimitiveKind) ->
           switch (this) {
             case PrimitiveScalar(var primitiveKind) -> primitiveKind == otherPrimitiveKind;
@@ -100,45 +111,65 @@ public sealed interface Kind extends Comparable<Kind> {
   default int compareTo(Kind o) {
     return switch (o) {
       case Any() -> (this instanceof Any) ? 0 : -1;
-      case AnyValue() ->
+      case AnyNoEffect() ->
           switch (this) {
             case Any() -> 1;
+            case AnyNoEffect() -> 0;
+            default -> -1;
+          };
+      case AnyValue() ->
+          switch (this) {
+            case Any(), AnyNoEffect() -> 1;
             case AnyValue() -> 0;
             default -> -1;
           };
       case PrimitiveVector(var otherPrimitive) ->
           switch (this) {
-            case Any(), AnyValue() -> 1;
+            case Any(), AnyNoEffect(), AnyValue() -> 1;
             case PrimitiveVector(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case PrimitiveScalar(var otherPrimitive) ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveVector(_) -> 1;
+            case Any(), AnyNoEffect(), AnyValue(), PrimitiveVector(_) -> 1;
             case PrimitiveScalar(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case Closure() ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_) -> 1;
+            case Any(), AnyNoEffect(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_) -> 1;
             case Closure() -> 0;
             default -> -1;
           };
       case Dots() ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_), Closure() -> 1;
+            case Any(),
+                AnyNoEffect(),
+                AnyValue(),
+                PrimitiveVector(_),
+                PrimitiveScalar(_),
+                Closure() ->
+                1;
             case Dots() -> 0;
             default -> -1;
           };
       case Missing() ->
           switch (this) {
-            case Any(), AnyValue(), PrimitiveVector(_), PrimitiveScalar(_), Closure(), Dots() -> 1;
+            case Any(),
+                AnyNoEffect(),
+                AnyValue(),
+                PrimitiveVector(_),
+                PrimitiveScalar(_),
+                Closure(),
+                Dots() ->
+                1;
             case Missing() -> 0;
             default -> -1;
           };
       case Promise(var otherValue, var otherEffects) ->
           switch (this) {
             case Any(),
+                AnyNoEffect(),
                 AnyValue(),
                 PrimitiveVector(_),
                 PrimitiveScalar(_),
@@ -158,7 +189,19 @@ public sealed interface Kind extends Comparable<Kind> {
   default Kind union(Kind other, Runnable onOwnershipMismatch) {
     return switch (other) {
       case Any() -> other;
-      case AnyValue() -> this instanceof Any || this instanceof Promise ? new Any() : other;
+      case AnyNoEffect() ->
+          this instanceof Any
+                  || (this instanceof Promise(var _, var effects) && effects != Effects.NONE)
+              ? new Any()
+              : other;
+      case AnyValue() ->
+          switch (this) {
+            case Any() -> new Any();
+            case AnyNoEffect() -> this;
+            case Promise(var _, var effects) ->
+                effects == Effects.NONE ? new AnyNoEffect() : new Any();
+            default -> other;
+          };
       case PrimitiveScalar(var otherPrimitiveKind) ->
           switch (this) {
             case PrimitiveScalar(var primitiveKind) when primitiveKind == otherPrimitiveKind ->
@@ -188,7 +231,9 @@ public sealed interface Kind extends Comparable<Kind> {
           this instanceof Promise(var value, var effects)
               ? new Promise(
                   value.union(otherValue, onOwnershipMismatch), effects.union(otherEffects))
-              : new Any();
+              : this instanceof Any
+                  ? new Any()
+                  : otherEffects == Effects.NONE ? new AnyNoEffect() : new Any();
     };
   }
 
@@ -198,6 +243,7 @@ public sealed interface Kind extends Comparable<Kind> {
 
     switch (self) {
       case Any() -> w.write("*");
+      case AnyNoEffect() -> w.write("+");
       case AnyValue() -> w.write("V");
       case PrimitiveScalar(var primitive) -> p.print(primitive);
       case PrimitiveVector(var primitive) -> {
@@ -224,6 +270,8 @@ public sealed interface Kind extends Comparable<Kind> {
 
     if (s.trySkip('*')) {
       return new Any();
+    } else if (s.trySkip('+')) {
+      return new AnyNoEffect();
     } else if (s.trySkip('V')) {
       return new AnyValue();
     } else if (s.trySkip('v')) {
@@ -248,7 +296,7 @@ public sealed interface Kind extends Comparable<Kind> {
       return new PrimitiveScalar(primitive);
     } else {
       throw s.fail(
-          "expected '*', 'V', 'v('..., 'cls', 'dots', 'M', 'p('..., or a primitive kind ('L', 'I', 'R', or 'S')");
+          "expected '*', '+', 'V', 'v('..., 'cls', 'dots', 'M', 'p('..., or a primitive kind ('L', 'I', 'R', or 'S')");
     }
   }
 }
