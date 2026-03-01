@@ -12,7 +12,10 @@ clean:
 	$(MAKE) -C src -f Makevars clean
 
 .PHONY: test
-test: install
+test:
+	$(MAKE) install DWARF_SUPPORT=0
+	$(MAKE) -C tests test
+	$(MAKE) install DWARF_SUPPORT=1
 	$(MAKE) -C tests test
 
 .PHONY: run
@@ -20,8 +23,9 @@ run: install
 	$(R)
 
 .PHONY: debug
-debug: install
-	$(R) -d gdb
+debug:
+	$(MAKE) install DWARF_SUPPORT=1
+	RCP_GDB_JIT=1 $(R) -d gdb
 
 .PHONY: format
 format:

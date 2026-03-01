@@ -16,8 +16,6 @@ ifneq ($(SPECIALIZE_SWITCH),0)
   CFLAGS += -DSWITCH_SPECIALIZE
 endif
 
-CFLAGS += -ffixed-rbp
-
 CFLAGS += -Wall \
 					-Os \
 					-I$(R_HOME)/include \

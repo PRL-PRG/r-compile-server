@@ -219,6 +219,7 @@ extern "C"
 #define DW_TAG_pointer_type		0x0F
 #define DW_TAG_subprogram		0x2e
 #define DW_TAG_structure_type	0x13
+#define DW_TAG_variable			0x34
 
 // Attribute Encodings (properties of a DIE)
 #define DW_AT_location	  0x02
@@ -228,7 +229,6 @@ extern "C"
 #define DW_AT_low_pc	  0x11
 #define DW_AT_high_pc	  0x12
 #define DW_AT_type		  0x49
-#define DW_AT_declaration 0x3c
 
 // Attribute Form Encodings (how an attribute value is stored)
 #define DW_FORM_addr		 0x01
@@ -237,7 +237,6 @@ extern "C"
 #define DW_FORM_block1		 0x0A
 #define DW_FORM_data1		 0x0B
 #define DW_FORM_ref4		 0x13
-#define DW_FORM_flag_present 0x19
 
 // DWARF Expression Operations (location descriptions)
 #define DW_OP_reg4 0x54 // RSI

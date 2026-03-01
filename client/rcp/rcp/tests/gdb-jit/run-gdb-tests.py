@@ -15,6 +15,7 @@ Examples:
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import difflib
@@ -138,6 +139,8 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     env["RCP_GDB_JIT"] = "1"
 
     # Run GDB
+    env_prefix = f"LD_LIBRARY_PATH={shlex.quote(r_lib)} R_HOME={shlex.quote(r_home)} RCP_GDB_JIT=1"
+    print(f"$ {env_prefix} {shlex.join(gdb_cmd)}")
     try:
         result = subprocess.run(
             gdb_cmd,

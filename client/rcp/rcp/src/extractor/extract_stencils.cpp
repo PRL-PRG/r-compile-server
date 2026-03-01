@@ -542,89 +542,12 @@ static void export_cfi(std::ostream &file, const Stencils &stencils,
 	}
 }
 
-// Compute the maximum CFA offset reached by a stencil's CFI instructions.
-// This is the peak stack depth (in bytes from RSP) that the stencil uses,
-// needed at runtime to set RCP_INIT_CFA_OFFSET for GDB JIT registration.
-//
-// The CFA (Canonical Frame Address) is a reference point - typically the stack
-// pointer value at function entry. As the function executes, it may adjust the
-// stack (push/pop), and DWARF records these changes as "CFA offset from
-// register X". We need to find the maximum offset to know the stack depth
-// required.
-static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
-							  const std::vector<uint8_t> &cfi_data)
-{
-	DwarfCIE cie = dwarf_parse_cie(cie_data.data(), cie_data.size());
-	if (!cie.valid)
-		throw std::runtime_error("Failed to parse CIE for CFA offset calculation");
-
-	DwarfCFIState state;
-	dwarf_cfi_state_init(&state);
-	int64_t max_offset = 8; // Minimum is return address
-
-	// Execute CIE initial instructions
-	if (cie.initial_insts && cie.initial_insts_len > 0)
-	{
-		const uint8_t *ip = cie.initial_insts;
-		const uint8_t *ip_end = ip + cie.initial_insts_len;
-		dwarf_execute_cfi(&ip, ip_end, &state, &cie, &max_offset);
-	}
-
-	// Execute CFI instructions directly
-	const uint8_t *p = cfi_data.data();
-	const uint8_t *end = p + cfi_data.size();
-	dwarf_execute_cfi(&p, end, &state, &cie, &max_offset);
-
-	return max_offset;
-}
-
 // =============================================================================
 // Code Generation
 //
 // The following functions generate stencils_data.c and stencils.h, which
 // contain compiled stencil data for the JIT compiler.
 // =============================================================================
-
-// Write the RCP_INIT_CFA_OFFSET macro to the header file.
-// This is the maximum stack depth (CFA offset) of the _RCP_INIT prologue
-// stencil, used at runtime for GDB JIT debug frame generation.
-//
-// Generated variable:
-//   #define RCP_INIT_CFA_OFFSET <offset>
-static void export_rcp_init_cfa_offset(std::ostream &h_file,
-									   const Stencils &stencils)
-{
-	h_file << "#ifdef DWARF_SUPPORT\n";
-
-	const StencilExport *rcp_prologue = nullptr;
-	for (const auto &s : stencils.stencils_extra)
-	{
-		if (s.name == "_RCP_PROLOGUE")
-		{
-			rcp_prologue = &s;
-			break;
-		}
-	}
-	if (!rcp_prologue)
-		throw std::runtime_error("_RCP_PROLOGUE stencil not found");
-
-	auto it = stencils.eh_frame_cfis.find(rcp_prologue->section_symbol_name);
-	if (it != stencils.eh_frame_cfis.end())
-	{
-		int64_t offset = get_cfa_offset(stencils.eh_frame_cie, it->second);
-		h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
-	}
-	else
-	{
-		// Naked functions may not get compiler-generated debug frames.
-		// Hardcode the CFA offset: 6 callee-saved regs + rbp + alignment = 8 pushes
-		// = 64 bytes, but CFA is measured from rbp which is set after 2 pushes,
-		// so max CFA offset = 16 (same as original _RCP_INIT).
-		h_file << "#define RCP_INIT_CFA_OFFSET 16\n";
-	}
-
-	h_file << "#endif\n";
-}
 
 // Export stencil bodies (machine code bytes) and holes (relocations) for
 // opcode stencils. Also exports CFI instruction bytes for each stencil.
@@ -966,9 +889,6 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#undef R_PosInf\n";
 	c_file << "#undef R_NegInf\n";
 	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n\n";
-
-	// Export RCP_INIT_CFA_OFFSET for GDB JIT support
-	export_rcp_init_cfa_offset(h_file, stencils);
 
 	// Export stencil bodies (machine code + holes + FDEs)
 	export_opcode_stencil_bodies(c_file, h_file, stencils);

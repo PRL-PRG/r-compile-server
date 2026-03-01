@@ -5,25 +5,26 @@ set breakpoint pending on
 break __jit_debug_register_code
 run
 
-# test_add registration
+# fac registration
 finish
-break test_add
+break fac
+
 
 # Continue to execution
 continue
 
-# Hit test_add(4)
-echo [GDB] Hit test_add (1st call). Backtrace:
+# Hit fac(3)
+echo [GDB] Hit fac (1st call). Backtrace:
+bt
+continue
+
+# Hit fac(2) - limit bt to avoid broken frames from Rsh_Call trampoline
+echo [GDB] Hit fac (2nd call - recursive). Backtrace:
 bt 5
 continue
 
-# Hit test_add(3)
-echo [GDB] Hit test_add (2nd call - recursive). Backtrace:
-bt 5
-continue
-
-# Hit test_add(2)
-echo [GDB] Hit test_add (3rd call - recursive). Backtrace:
+# Hit fac(1) - same limit
+echo [GDB] Hit fac (3rd call - recursive). Backtrace:
 bt 5
 continue
 

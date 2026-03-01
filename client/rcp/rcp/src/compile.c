@@ -978,7 +978,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 const char *name)
 {
 	rcp_exec_ptrs res;
-	size_t insts_size = _RCP_PROLOGUE.body_size;
+	size_t insts_size = 0;
 	int for_count = 0;
 
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
@@ -1171,11 +1171,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		(StepFor_specialized *)&memory[executable_size_aligned];
 #endif
 
-	for (size_t i = 0; i < bytecode_size; i++)
-	{
-		if (inst_start[i])
-			inst_start[i] += (ptrdiff_t)executable;
-	}
+	for (int j = 0; j < count_opcodes; j++)
+		inst_start[bytecode_lut[j]] += (ptrdiff_t)executable;
 
 	res.eval = (void *)executable;
 	res.bcells_size = bcells_size;
@@ -1202,7 +1199,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 									 // case of non-trivial alignment
 
 	// Start to copy-patch
-	memcpy(executable, _RCP_PROLOGUE.body, _RCP_PROLOGUE.body_size);
 
 #ifdef STEPFOR_SPECIALIZE
 	StepFor_specialized *stepfor_pool = stepfor_storage;
@@ -1320,38 +1316,31 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #ifdef DWARF_SUPPORT
 	if (name && (rcp_gdb_jit_enabled || rcp_perf_jit_enabled))
 	{
-		// +1 for _RCP_PROLOGUE as the first entry
 		uint8_t **inst_addrs_packed =
-			(uint8_t **)S_alloc(count_opcodes + 1, sizeof(uint8_t *));
+			(uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
 		const Stencil **instruction_stencils =
-			(const Stencil **)S_alloc(count_opcodes + 1, sizeof(Stencil *));
+			(const Stencil **)S_alloc(count_opcodes, sizeof(Stencil *));
 
-		// First entry is _RCP_PROLOGUE at offset 0
-		inst_addrs_packed[0] = executable;
-		instruction_stencils[0] = &_RCP_PROLOGUE;
-
-		// Body stencils follow at index 1..count_opcodes
 		for (int i = 0; i < count_opcodes; i++)
 		{
 			int bc_pos = bytecode_lut[i];
 			int opcode = bytecode[bc_pos];
 			int variant = stencil_variants[bc_pos];
-
-			inst_addrs_packed[i + 1] = inst_start[bc_pos];
-			instruction_stencils[i + 1] = &stencils[opcode][variant];
+			inst_addrs_packed[i] = inst_start[bc_pos];
+			instruction_stencils[i] = &stencils[opcode][variant];
 		}
 
 		if (rcp_gdb_jit_enabled)
 			res.jit_entry = gdb_jit_register(name, executable, insts_size,
-											 inst_addrs_packed, count_opcodes + 1,
-											 instruction_stencils, RCP_INIT_CFA_OFFSET);
+											 inst_addrs_packed, count_opcodes,
+											 instruction_stencils);
 		else
 			res.jit_entry = NULL;
 
 		if (rcp_perf_jit_enabled)
 		{
 			// Generate pseudo-source file with bytecode opcode names
-			char *source_path = write_source_file(name, count_opcodes + 1,
+			char *source_path = write_source_file(name, count_opcodes,
 												  instruction_stencils,
 												  inst_addrs_packed);
 
@@ -1359,7 +1348,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			if (source_path)
 			{
 				perf_jit_register_debug_info(executable, inst_addrs_packed,
-											 count_opcodes + 1, source_path);
+											 count_opcodes, source_path);
 			}
 
 			perf_jit_register(name, executable, insts_size);
@@ -1368,8 +1357,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			uint8_t *eh_frame_data = NULL;
 			size_t eh_frame_size = 0;
 			build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
-						   inst_addrs_packed, count_opcodes + 1,
-						   instruction_stencils, RCP_INIT_CFA_OFFSET);
+						   inst_addrs_packed, count_opcodes,
+						   instruction_stencils);
 			perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
 			free(eh_frame_data);
 

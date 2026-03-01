@@ -6,28 +6,25 @@ break __jit_debug_register_code
 run
 finish
 
-# JIT code now registered - set all breakpoints before execution
-break f_jit.S:2
-break f_jit.S:3
-break f_jit.S:4
-break f_jit.S:5
+# JIT code now registered - set breakpoint at function entry
+break f_jit
 continue
 
-# Line 2 (GETVAR)
+# Line 1 (GETVAR) - we just hit the breakpoint
 bt
-continue
+next
 
-# Line 3 (LDCONST)
+# Line 2 (LDCONST) - stepped over GETVAR
 echo Stack Top after GETVAR (should be 10):
 call rcp_print_stack_val((void*)((char*)stack - 16))
-continue
+next
 
-# Line 4 (ADD)
+# Line 3 (ADD) - stepped over LDCONST
 echo Stack Top after LDCONST (should be 1):
 call rcp_print_stack_val((void*)((char*)stack - 16))
-continue
+next
 
-# Line 5 (RETURN)
+# Line 4 (RETURN) - stepped over ADD
 echo Stack Top after ADD (should be 11):
 call rcp_print_stack_val((void*)((char*)stack - 16))
 

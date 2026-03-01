@@ -54,19 +54,13 @@ struct jit_descriptor
 //                          stencils arrays.
 // @param stencils Array of pointers to Stencil metadata,
 //                 parallel to inst_addrs.
-// @param base_cfa_offset Base CFA (Canonical Frame Address) stack
-// depth for the function. For JIT functions that use the _RCP_PROLOGUE
-// prologue, pass RCP_INIT_CFA_OFFSET + 8 (the +8 accounts for the
-// extra return address pushed by the call into JIT code). For helper
-// functions with a standard prologue, pass 8.
 //
 // @return Pointer to the jit_code_entry that can be used for
 //         unregistration, or NULL if registration failed.
 struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 										size_t code_size, uint8_t **inst_addrs,
 										int instruction_count,
-										const Stencil **stencils,
-										int base_cfa_offset);
+										const Stencil **stencils);
 
 // Unregister a function.
 void gdb_jit_unregister(struct jit_code_entry *entry);
@@ -76,6 +70,9 @@ void gdb_jit_unregister(struct jit_code_entry *entry);
 // Single source of CFI generation, used by both GDB (embedded in
 // the in-memory ELF) and perf/samply (jitdump JIT_CODE_UNWINDING_INFO).
 //
+// The CIE sets CFA = RSP+8 as the baseline; per-stencil CFI instructions
+// are emitted into the FDE to track stack adjustments within stencils.
+//
 // @param out_data         Receives malloc'd .eh_frame data (caller must free).
 // @param out_size         Receives size of the .eh_frame data.
 // @param code_addr        Start address of JIT code.
@@ -83,11 +80,10 @@ void gdb_jit_unregister(struct jit_code_entry *entry);
 // @param inst_addrs       Array of instruction addresses.
 // @param instruction_count Number of entries in inst_addrs and stencils.
 // @param stencils         Array of Stencil pointers parallel to inst_addrs.
-// @param base_cfa_offset  Base CFA offset for the JIT function.
 void build_eh_frame(uint8_t **out_data, size_t *out_size,
 					void *code_addr, size_t code_size,
 					uint8_t **inst_addrs, int instruction_count,
-					const Stencil **stencils, int base_cfa_offset);
+					const Stencil **stencils);
 
 // Generate a temporary source file with opcode names.
 // Returns malloc'd path to the file (caller must free), or NULL on failure.

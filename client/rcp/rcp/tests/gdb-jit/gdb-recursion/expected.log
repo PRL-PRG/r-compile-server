@@ -1,59 +1,67 @@
 Breakpoint 1 (__jit_debug_register_code) pending.
 > library(rcp)
 >
-> # Recursive function
-> # test_add(4) -> calls test_add(3) -> calls test_add(2) -> returns 12
-> test_add <- function(x) {
-+   if (x > 2) {
-+     return(test_add(x - 1))
+> # Factorial: fac(3) -> fac(2) -> fac(1) -> returns 6
+> fac <- function(x) {
++   if (x <= 1) {
++     return(1)
 +   } else {
-+     return(x + 10)
++     return(x * fac(x - 1))
 +   }
 + }
 >
 > cat("Compiling recursive function...\n")
 Compiling recursive function...
-> # Compile
-> test_add <- rcp::rcp_cmpfun(test_add, list(name="test_add"))
+> fac <- rcp::rcp_cmpfun(fac, list(name="fac"))
 
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
-62	{
-gdb_jit_register (func_name=func_name@entry=0xADDR "test_add", code_addr=code_addr@entry=0xADDR <test_add>, code_size=code_size@entry=4285, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=13, stencils=stencils@entry=0xADDR, base_cfa_offset=16) at gdb_jit.c:XXX
-851		__jit_debug_descriptor.action_flag = JIT_NOACTION;
-Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/test_add.S, line 2.
+57	{
+gdb_jit_register (func_name=func_name@entry=0xADDR "fac", code_addr=code_addr@entry=0xADDR <fac>, code_size=code_size@entry=4146, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=12, stencils=stencils@entry=0xADDR) at gdb_jit.c:XXX
+893		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/fac.S, line 1.
 >
 > cat("Executing recursive function...\n")
 Executing recursive function...
-> res <- test_add(4)
+> res <- fac(3)
 
-Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-2	GETVAR_OP_
-[GDB] Hit test_add (1st call). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-#1  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
-#2  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
-#3  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:XXX
-#4  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:XXX
+Breakpoint 2, fac (stack=0xADDR, stack@entry=<error reading variable: value has been optimized out>, locals=0xADDR, locals@entry=<error reading variable: value has been optimized out>) at /tmp/rcp_jit_XXXXXX/fac.S:1
+1	GETVAR_OP_
+[GDB] Hit fac (1st call). Backtrace:#0  fac (stack=0xADDR, stack@entry=<error reading variable: value has been optimized out>, locals=0xADDR, locals@entry=<error reading variable: value has been optimized out>) at /tmp/rcp_jit_XXXXXX/fac.S:1
+#1  0xADDR in rcpNativeCaller (stack=stack@entry=0xADDR, locals=<optimized out>, call=<optimized out>) at eval.c:XXX
+#2  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#3  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#4  0xADDR in R_execClosure (call=call@entry=0xADDR, newrho=newrho@entry=0xADDR, sysparent=<optimized out>, rho=rho@entry=0xADDR, arglist=arglist@entry=0xADDR, op=op@entry=0xADDR) at eval.c:XXX
+#5  0xADDR in applyClosure_core (call=call@entry=0xADDR, op=op@entry=0xADDR, arglist=0xADDR, rho=rho@entry=0xADDR, suppliedvars=<optimized out>, unpromise=unpromise@entry=TRUE) at eval.c:XXX
+#6  0xADDR in Rf_applyClosure (call=0xADDR, op=0xADDR, arglist=<optimized out>, rho=0xADDR, suppliedvars=<optimized out>, unpromise=TRUE) at eval.c:XXX
+#7  Rf_eval (e=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#8  0xADDR in do_set (call=0xADDR, op=0xADDR, args=0xADDR, rho=0xADDR) at Rinlinedfuns.h:XXX
+#9  0xADDR in Rf_eval (e=e@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#10 0xADDR in Rf_ReplIteration (rho=rho@entry=0xADDR, savestack=savestack@entry=0, browselevel=browselevel@entry=0, state=state@entry=0xADDR) at main.c:XXX
+#11 0xADDR in R_ReplConsole (rho=0xADDR, savestack=savestack@entry=0, browselevel=browselevel@entry=0) at main.c:XXX
+#12 0xADDR in run_Rmainloop () at main.c:XXX
+#13 0xADDR in Rf_mainloop () at main.c:XXX
+#14 0xADDR in main (ac=<optimized out>, av=<optimized out>) at Rmain.c:XXX
 
-Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-2	GETVAR_OP_
-[GDB] Hit test_add (2nd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-#1  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
-#2  0xADDR in Rsh_Call (stack=0xADDR, call=0xADDR, rho=0xADDR) at runtime.h:XXX
-#3  0xADDR in test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:8
-#4  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+Breakpoint 2, fac (stack=0xADDR, stack@entry=<error reading variable: value has been optimized out>, locals=0xADDR, locals@entry=<error reading variable: value has been optimized out>) at /tmp/rcp_jit_XXXXXX/fac.S:1
+1	GETVAR_OP_
+[GDB] Hit fac (2nd call - recursive). Backtrace:#0  fac (stack=0xADDR, stack@entry=<error reading variable: value has been optimized out>, locals=0xADDR, locals@entry=<error reading variable: value has been optimized out>) at /tmp/rcp_jit_XXXXXX/fac.S:1
+#1  0xADDR in rcpNativeCaller (stack=stack@entry=0xADDR, locals=<optimized out>, call=<optimized out>) at eval.c:XXX
+#2  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#3  0xADDR in Rsh_Call (stack=0xADDR, call=0xADDR, rho=0xADDR) at runtime.h:XXX
+#4  0xADDR in fac (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/fac.S:10
 
-Breakpoint 2, test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-2	GETVAR_OP_
-[GDB] Hit test_add (3rd call - recursive). Backtrace:#0  test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:2
-#1  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
-#2  0xADDR in Rsh_Call (stack=0xADDR, call=0xADDR, rho=0xADDR) at runtime.h:XXX
-#3  0xADDR in test_add (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/test_add.S:8
-#4  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+Breakpoint 2, fac (stack=0xADDR, stack@entry=<error reading variable: value has been optimized out>, locals=0xADDR, locals@entry=<error reading variable: value has been optimized out>) at /tmp/rcp_jit_XXXXXX/fac.S:1
+1	GETVAR_OP_
+[GDB] Hit fac (3rd call - recursive). Backtrace:#0  fac (stack=0xADDR, stack@entry=<error reading variable: value has been optimized out>, locals=0xADDR, locals@entry=<error reading variable: value has been optimized out>) at /tmp/rcp_jit_XXXXXX/fac.S:1
+#1  0xADDR in rcpNativeCaller (stack=stack@entry=0xADDR, locals=<optimized out>, call=<optimized out>) at eval.c:XXX
+#2  0xADDR in rcpEval (body=body@entry=0xADDR, rho=rho@entry=0xADDR) at eval.c:XXX
+#3  0xADDR in Rsh_Call (stack=0xADDR, call=0xADDR, rho=0xADDR) at runtime.h:XXX
+#4  0xADDR in fac (stack=0xADDR, locals=0xADDR) at /tmp/rcp_jit_XXXXXX/fac.S:10
+> stopifnot(res == 6)
 > cat("Result:", res, "\n")
-Result: 12
->
+Result: 6
 >
 
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
-62	{
+57	{
 Function "__jit_debug_register_code" not defined.

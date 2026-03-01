@@ -1,20 +1,18 @@
 library(rcp)
 
-# Recursive function
-# test_add(4) -> calls test_add(3) -> calls test_add(2) -> returns 12
-test_add <- function(x) {
-  if (x > 2) {
-    return(test_add(x - 1))
+# Factorial: fac(3) -> fac(2) -> fac(1) -> returns 6
+fac <- function(x) {
+  if (x <= 1) {
+    return(1)
   } else {
-    return(x + 10)
+    return(x * fac(x - 1))
   }
 }
 
 cat("Compiling recursive function...\n")
-# Compile
-test_add <- rcp::rcp_cmpfun(test_add, list(name="test_add"))
+fac <- rcp::rcp_cmpfun(fac, list(name="fac"))
 
 cat("Executing recursive function...\n")
-res <- test_add(4)
+res <- fac(3)
+stopifnot(res == 6)
 cat("Result:", res, "\n")
-

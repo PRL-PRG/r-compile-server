@@ -1,21 +1,17 @@
 #define _GNU_SOURCE
 #include "gdb_jit.h"
 #include <Rinternals.h>
-#include <assert.h>
 
 #ifdef DWARF_SUPPORT
 
 #include "shared/dwarf.h"
-#include "shared/opcodes.h"
 #include "stencils.h"
 
 #include <elf.h>
-#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 /*
@@ -31,8 +27,7 @@
  * At build time, `extract_stencils` parses the `.eh_frame` section from the
  * compiled stencils object file and exports the CFI (Call Frame Information)
  * instruction bytes for each stencil as C byte arrays (e.g.
- * `_RETURN_OP_cfi_data[]`). It also computes `RCP_INIT_CFA_OFFSET` -- the
- * maximum CFA depth of the `_RCP_PROLOGUE` prologue stencil.
+ * `_RETURN_OP_cfi_data[]`).
  *
  * At runtime, when a function is JIT-compiled, this module:
  *
@@ -45,10 +40,10 @@
  *    - `.debug_line`:   Line table mapping machine addresses to opcode lines.
  *    - `.eh_frame`:     CFI for stack unwinding.
  *
- * 3. For `.eh_frame`, only the prologue (_RCP_PROLOGUE) stencil's CFI is
- *    emitted verbatim. Since the JIT compiler uses `-ffixed-rbp`, the CFA
- *    remains RBP+16 throughout the function body (RBP is never modified after
- *    the prologue), so body stencil CFI is unnecessary.
+ * 3. For `.eh_frame`, the CIE sets CFA = RSP+8 (just the return address) as
+ *    the baseline. Each stencil's pre-extracted CFI instructions are then
+ *    emitted into the FDE, so the CFA tracks stack adjustments within
+ *    stencils (e.g., around calls to R runtime functions).
  *
  * 4. Registers the ELF image with GDB, which reads the debug info to provide
  *    backtraces, stepping, and variable inspection for JIT code.
@@ -186,7 +181,7 @@ char *write_source_file(const char *func_name, int instruction_count,
 		return NULL;
 	}
 
-	// One line per instruction (including _RCP_INIT prologue at index 0)
+	// One line per instruction
 	for (int i = 0; i < instruction_count; i++)
 	{
 		if (!inst_addrs[i])
@@ -314,6 +309,26 @@ static void build_debug_abbrev(Buffer *abbrev)
 	buf_write_uleb128(abbrev, DW_FORM_data1); // 1-byte size (up to 255 bytes)
 	buf_write_u16(abbrev, 0);
 
+	/* Abbrev 6: Variable (same attributes as formal_parameter)
+	 *
+	 * This was a try to go around the problem with missing @entry.
+	 * Using DW_TAG_variable suppresses GDB's @entry resolution
+	 * error for indirect calls, but shows values under `info locals` instead
+	 * of `info args`. Unused — see the comment in build_debug_info()
+	 * for the full explanation and how to switch.
+	 */
+	// buf_write_uleb128(abbrev, 6);
+	// buf_write_uleb128(abbrev, DW_TAG_variable);
+	// buf_write_u8(abbrev, 0); // CHILDREN_NO
+	//
+	// buf_write_uleb128(abbrev, DW_AT_name);
+	// buf_write_uleb128(abbrev, DW_FORM_string);
+	// buf_write_uleb128(abbrev, DW_AT_type);
+	// buf_write_uleb128(abbrev, DW_FORM_ref4);
+	// buf_write_uleb128(abbrev, DW_AT_location);
+	// buf_write_uleb128(abbrev, DW_FORM_block1);
+	// buf_write_u16(abbrev, 0);
+
 	buf_write_u8(abbrev, 0); // End abbrevs
 }
 
@@ -342,12 +357,14 @@ static void build_debug_info(Buffer *dbg_info, const char *func_name,
 	buf_write_u64(dbg_info, (uint64_t)code_addr);			  // DW_AT_low_pc
 	buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
-	/* Type DIEs for function parameters
+	/* Type DIEs for parameters
 	 *
 	 * DIE hierarchy for "R_bcstack_t* stack":
-	 *   - Structure DIE (R_bcstack_t) - forward declaration, just the name
+	 *   - Structure DIE (R_bcstack_t) - just name and size, no members
 	 *   - Pointer DIE (R_bcstack_t*) - points to the structure DIE above
 	 *   - Parameter DIE (stack) - references the pointer DIE
+	 *
+	 * Same pattern for "rcpEval_locals* locals".
 	 *
 	 * The offsets recorded here (e.g., bcstack_struct_offset) are byte offsets
 	 * from the start of .debug_info. DW_FORM_ref4 uses these to link DIEs.
@@ -383,15 +400,41 @@ static void build_debug_info(Buffer *dbg_info, const char *func_name,
 	buf_write_u64(dbg_info, (uint64_t)code_addr);			  // DW_AT_low_pc
 	buf_write_u64(dbg_info, (uint64_t)code_addr + code_size); // DW_AT_high_pc
 
-	/* Formal Parameter: stack (R_bcstack_t*) */
-	buf_write_uleb128(dbg_info, 3);						   // Abbrev 3
+	/*
+	 * Parameters: stack and locals
+	 *
+	 * Until now it seemed all nice, but with the new call via trampoline, it
+	 * seems a bit trickier. The problem is that GDB @entry error for indirect
+	 * calls. I'm not entirely sure why, but here is a hypothesis:
+	 *
+	 * GDB tries to show formal parameter's entry value (the value at function
+	 * entry). To recover it, it walks to the caller's frame and reads
+	 * DW_TAG_call_site data. For direct calls, the call site uses
+	 * DW_AT_call_origin to identify the callee. But for the trampoline it calls
+	 * the JIT function through a function pointer (indirect call), so the
+	 * compiler emits DW_AT_call_target with an expression like entry_value(rdx).
+	 * And it seems that GDB does not go over that. Resulting in:
+	 * stack@entry=<error reading variable: ...>
+	 *
+	 * The current values (stack=0x..., locals=0x...) are fine — GDB reads those
+	 * directly from registers in the current frame. Only @entry fails.
+	 *
+	 * I don't know how to fix. An alternative is to use DW_TAG_variable and
+	 * instead of formals use locals (which is not technically correct as there
+	 * are no such locals). In a backtrace the jitted function will be as `()` no
+	 * args, but `info locals` will show both `stack` and `locals`. To switch:
+	 * To switch, simply change abbrev 3 -> abbrev 6 below.
+	 */
+
+	/* Parameter: stack (R_bcstack_t*) in RDI */
+	buf_write_uleb128(dbg_info, 3);						   // Abbrev 3 (formal_parameter)
 	buf_write_string(dbg_info, "stack");				   // DW_AT_name
 	buf_write_u32(dbg_info, (uint32_t)bcstack_ptr_offset); // DW_AT_type
 	buf_write_u8(dbg_info, 1);							   // Block len
 	buf_write_u8(dbg_info, DW_OP_reg5);					   // DW_AT_location: RDI
 
-	/* Formal Parameter: locals (rcpEval_locals*) */
-	buf_write_uleb128(dbg_info, 3);						  // Abbrev 3
+	/* Parameter: locals (rcpEval_locals*) in RSI */
+	buf_write_uleb128(dbg_info, 3);						  // Abbrev 3 (formal_parameter)
 	buf_write_string(dbg_info, "locals");				  // DW_AT_name
 	buf_write_u32(dbg_info, (uint32_t)locals_ptr_offset); // DW_AT_type
 	buf_write_u8(dbg_info, 1);							  // Block len
@@ -498,7 +541,7 @@ static void build_debug_line(Buffer *dbg_line, void *code_addr,
 static void *create_debug_elf(const char *func_name, void *code_addr,
 							  size_t code_size, uint8_t **inst_addrs,
 							  int instruction_count, const Stencil **stencils,
-							  int base_cfa_offset, size_t *elf_size)
+							  size_t *elf_size)
 {
 
 	/* Generate source file */
@@ -537,7 +580,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
 	uint8_t *eh_frame_data = NULL;
 	size_t eh_frame_size = 0;
 	build_eh_frame(&eh_frame_data, &eh_frame_size, code_addr, code_size,
-				   inst_addrs, instruction_count, stencils, base_cfa_offset);
+				   inst_addrs, instruction_count, stencils);
 
 	/* Section Headers String Table */
 	const char shstrtab_data[] = "\0"
@@ -808,8 +851,7 @@ static void *create_debug_elf(const char *func_name, void *code_addr,
 struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 										size_t code_size, uint8_t **inst_addrs,
 										int instruction_count,
-										const Stencil **stencils,
-										int base_cfa_offset)
+										const Stencil **stencils)
 {
 
 	if (!func_name || !code_addr || code_size == 0)
@@ -819,7 +861,7 @@ struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 	size_t elf_size;
 	void *elf =
 		create_debug_elf(func_name, code_addr, code_size, inst_addrs,
-						 instruction_count, stencils, base_cfa_offset, &elf_size);
+						 instruction_count, stencils, &elf_size);
 	if (!elf)
 		return NULL;
 
@@ -888,6 +930,11 @@ void gdb_jit_unregister(struct jit_code_entry *entry)
  * Uses .eh_frame format (CIE id=0, relative FDE CIE pointer, "zR"
  * augmentation with DW_EH_PE_absptr, version 1).
  *
+ * The CIE sets CFA = RSP+8 as the baseline. Per-stencil CFI instructions
+ * (extracted at build time) are emitted into the FDE so the CFA tracks
+ * stack adjustments within stencils (e.g., around calls to R runtime
+ * functions).
+ *
  * @param out_data    Receives malloc'd .eh_frame data (caller must free).
  * @param out_size    Receives size of the .eh_frame data.
  * @param code_addr   Start address of JIT code.
@@ -895,12 +942,11 @@ void gdb_jit_unregister(struct jit_code_entry *entry)
  * @param inst_addrs  Array of instruction addresses (NULL for non-instruction slots).
  * @param instruction_count  Number of entries in inst_addrs and stencils.
  * @param stencils    Array of Stencil pointers parallel to inst_addrs.
- * @param base_cfa_offset    Base CFA offset for the JIT function.
  */
 void build_eh_frame(uint8_t **out_data, size_t *out_size,
 					void *code_addr, size_t code_size,
 					uint8_t **inst_addrs, int instruction_count,
-					const Stencil **stencils, int base_cfa_offset)
+					const Stencil **stencils)
 {
 	*out_data = NULL;
 	*out_size = 0;
@@ -952,43 +998,23 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 	buf_write_u64(&eh_frame, code_size);		   /* address_range */
 	buf_write_uleb128(&eh_frame, 0);			   /* augmentation data length (z) */
 
-	/* CFI instructions */
+	/* CFI instructions
+	 *
+	 * Each stencil has its own CFI data (extracted at build time from
+	 * .eh_frame) describing how the CFA changes within that stencil
+	 * (e.g., stack adjustments before/after calls). We advance to each
+	 * stencil's address and emit its CFI bytes. The advance_loc deltas
+	 * in the stencil CFI are relative to the stencil start, so they
+	 * work as-is once we've advanced to the right position.
+	 *
+	 * Without per-stencil CFI, GDB's `next` command fails: the CFA
+	 * would be wrong when a stencil calls an R runtime function (e.g.,
+	 * R_findVar), so GDB can't unwind back to the JIT frame to step
+	 * over the call.
+	 */
 	uint64_t fde_last_addr = (uint64_t)code_addr;
 
-	/* Emit prologue (_RCP_PROLOGUE) CFI from stencils[0].
-	 * Written verbatim -- the prologue CFI describes the actual frame setup
-	 * and establishes CFA = RBP+16 which remains valid for the entire function
-	 * (RBP is never modified after the prologue due to -ffixed-rbp). */
-	if (stencils[0]->cfi_data && stencils[0]->cfi_size > 0)
-	{
-		buf_write(&eh_frame, stencils[0]->cfi_data, stencils[0]->cfi_size);
-	}
-	else
-	{
-		/* _RCP_PROLOGUE is handwritten assembly without CFI directives.
-		 * Manually emit CFI describing its stack frame:
-		 *   push %rbp          (1 byte)  -> CFA = RSP+16, RBP at CFA-16
-		 *   mov %rsp, %rbp     (3 bytes) -> CFA = RBP+16
-		 *   push %r15..%rbx    (9 bytes) -> no CFA change (RBP-based)
-		 */
-		/* After push %rbp */
-		buf_write_u8(&eh_frame, DW_CFA_advance_loc | 1);
-		buf_write_u8(&eh_frame, DW_CFA_def_cfa_offset);
-		buf_write_uleb128(&eh_frame, 16);
-		buf_write_u8(&eh_frame, DW_CFA_offset | DWARF_REG_RBP);
-		buf_write_uleb128(&eh_frame, 2); /* CFA-16 (factored: 2 * -8) */
-		/* After mov %rsp, %rbp */
-		buf_write_u8(&eh_frame, DW_CFA_advance_loc | 3);
-		buf_write_u8(&eh_frame, DW_CFA_def_cfa_register);
-		buf_write_uleb128(&eh_frame, DWARF_REG_RBP);
-		/* After remaining pushes (r15, r14, r13, r12, rbx = 9 bytes) */
-		buf_write_u8(&eh_frame, DW_CFA_advance_loc1);
-		buf_write_u8(&eh_frame, 9);
-	}
-	fde_last_addr = (uint64_t)code_addr + stencils[0]->body_size;
-
-	/* Process body stencils */
-	for (int i = 1; i < instruction_count; i++)
+	for (int i = 0; i < instruction_count; i++)
 	{
 		if (!inst_addrs[i])
 			continue;
@@ -1015,8 +1041,15 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 			fde_last_addr = curr;
 		}
 
-		/* Body stencil CFI is not emitted: CFA = RBP+16 from the prologue
-		 * remains valid throughout (RBP is fixed via -ffixed-rbp). */
+		/* Emit this stencil's CFI instructions (CFA adjustments,
+		 * advance_loc within the stencil, etc.). The advance_loc
+		 * totals in the stencil CFI equal the stencil's code size. */
+		if (stencils[i]->cfi_data && stencils[i]->cfi_size > 0)
+		{
+			buf_write(&eh_frame, stencils[i]->cfi_data,
+					  stencils[i]->cfi_size);
+			fde_last_addr = curr + stencils[i]->body_size;
+		}
 	}
 
 	/* Pad FDE to pointer-size alignment */

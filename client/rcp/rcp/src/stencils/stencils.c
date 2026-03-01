@@ -198,52 +198,10 @@ extern const void *const _RCP_EXECUTABLE[];
 
 /**************************************************************************/
 
-// PROLOGUE:
-// The inline assembly is not great, but the alternative of a naked function is not better.
-// As it does emit ud2 at the end which would have to be manually stripped.
-// Or (I don't know how to convince compiler not to emit ud2).
-//
-// The seems to work, the result
-// $ objdump -d src/stencils/stencils.o -j .text._RCP_PROLOGUE
-// is exactly just this
-__asm__(
-	// We compile the stencils with -ffunction-sections
-	// so each stencil has its own section, so we have to do the same here
-	// switching to a custom section (ax = allocatable, executable)
-	".section .text._RCP_PROLOGUE, \"ax\", @progbits\n"
-	".global _RCP_PROLOGUE\n"
-	".type _RCP_PROLOGUE, @function\n"
-
-	"_RCP_PROLOGUE:\n"
-	"  push %rbp\n"
-	"  mov %rsp, %rbp\n"
-	"  push %r15\n"
-	"  push %r14\n"
-	"  push %r13\n"
-	"  push %r12\n"
-	"  push %rbx\n"
-
-	// just in case, switch back so we don't mess up subsequent code
-	".previous\n");
-
-RCP_OP(RETURN, ,
-	   PUSH_VAL(1); // to hold return value
-	   SEXP result = Rsh_Return(stack);
-	   // Restore the callee-saved registers pushed by _RCP_PROLOGUE and return.
-	   // rbp is fixed (-ffixed-rbp) and still points to the prologue's frame base.
-	   // The prologue pushed: rbp (then set rbp=rsp), r15, r14, r13, r12, rbx.
-	   // So saved registers start at rbp - 40 (5 pushes × 8 bytes).
-	   // Use lea to reset rsp regardless of stencil's own stack usage.
-	   __asm__ volatile(
-		   "lea -40(%%rbp), %%rsp\n\t" // reset rsp to prologue's saved regs
-		   "pop %%rbx\n\t"
-		   "pop %%r12\n\t"
-		   "pop %%r13\n\t"
-		   "pop %%r14\n\t"
-		   "pop %%r15\n\t"
-		   "pop %%rbp\n\t"
-		   "ret\n\t" : : "a"(result) : "memory");
-	   __builtin_unreachable();)
+RCP_OP(RETURN,
+       ,
+       PUSH_VAL(1);
+       return Rsh_Return(stack);)
 
 RCP_OP(GOTO,
 	   ,
