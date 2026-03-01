@@ -3,7 +3,7 @@
 This repository implements a copy-and-patch JIT compiler for the R programming
 language.
 
-Copy-and-patch is a JIT compilation technique where machine-code *stencils*
+Copy-and-patch is a JIT compilation technique where machine-code _stencils_
 (templates) are pre-compiled from C and the JIT compiler assembles native code
 by copying these stencils and patching in runtime values such as addresses,
 immediates, and control-flow targets. Because the heavy lifting is done
@@ -104,11 +104,11 @@ It returns a list with the number of `compiled` and `failed` functions.
 The project builds three layered images that mirror the three system
 components and their change frequency.
 
-| Image | Component(s) inside | Changes how often |
-|---|---|---|
-| `rcp-base` | Ubuntu 24.04, toolchain, vanilla R 4.3.2, `microbenchmark` for `/R-vanilla` | Rarely |
-| `rcp-rsh` | `rcp-base` + [r-compile-server](https://github.com/PRL-PRG/r-compile-server) at `RSH_COMMIT`, custom R build, `microbenchmark` for custom R | Sometimes |
-| `rcp` | `rcp-rsh` + `rcp` at `RCP_COMMIT`, built in two variants: `DWARF_SUPPORT=0` and `DWARF_SUPPORT=1` | Often |
+| Image      | Description                                                                                                                                 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rcp-base` | Ubuntu 24.04, toolchain, vanilla R 4.3.2, `microbenchmark` for `/R-vanilla`                                                                 |
+| `rcp-rsh`  | `rcp-base` + [r-compile-server](https://github.com/PRL-PRG/r-compile-server) at `RSH_COMMIT`, custom R build, `microbenchmark` for custom R |
+| `rcp`      | `rcp-rsh` + `rcp` at `RCP_COMMIT`, built in two variants: `DWARF_SUPPORT=0` and `DWARF_SUPPORT=1`                                           |
 
 This split keeps rebuilds short: frequent `rcp` edits only rebuild the top
 image, while expensive R builds stay cached in lower layers.
@@ -136,8 +136,8 @@ make docker-rcp
 3. `make docker-rcp` builds two top images from `Dockerfile.rcp`:
    - `ghcr.io/prl-prg/rcp:$RCP_COMMIT-dwarf0`
    - `ghcr.io/prl-prg/rcp:$RCP_COMMIT-dwarf1`
-   and also tags the DWARF=0 image as `ghcr.io/prl-prg/rcp:$RCP_COMMIT` for
-   compatibility.
+     and also tags the `DWARF_SUPPORT=0` image as `ghcr.io/prl-prg/rcp:$RCP_COMMIT` for
+     compatibility.
 
 You can also build one variant explicitly:
 
