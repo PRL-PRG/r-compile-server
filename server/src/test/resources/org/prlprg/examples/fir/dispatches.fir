@@ -28,8 +28,8 @@ fun f(rx) {
 
 fun g(ra, rb) {
   (reg ra:*, reg rb:*) --> v(I)f { reg r0:p(I -), reg r1:p(I -), reg r2:I, reg r3:I, reg r4:v(I)o |
-    r0 = ra as p(I-);
-    r1 = rb as p(I-);
+    r0 = ra as p(I -);
+    r1 = rb as p(I -);
     r2 = force r0;
     r3 = force r1;
     r4 = v(I)[r2, r3];

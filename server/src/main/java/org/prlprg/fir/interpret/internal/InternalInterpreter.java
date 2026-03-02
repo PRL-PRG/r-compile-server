@@ -98,7 +98,6 @@ import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
@@ -414,6 +413,10 @@ public final class InternalInterpreter implements Interpreter {
           return value;
         }
         case ControlFlow.Deopt(var pc, var sexpStack) -> {
+          if (cfg == deoptRestoreCfg) {
+            throw fail("Can't restore from the same CFG we deoptimized from");
+          }
+
           cursor = restoreDeopt(pc, sexpStack, deoptRestoreCfg);
           frame.exit();
           frame.enter(cursor, feedback);
@@ -945,7 +948,7 @@ public final class InternalInterpreter implements Interpreter {
         var function = af.function();
 
         var value = run(arg);
-        if (!(value instanceof CloSXP cloSXP) || !(cloSXP.env() instanceof StaticEnvSXP)) {
+        if (!(value instanceof CloSXP cloSXP)) {
           return false;
         }
         var sexpFun = extractClosure(cloSXP);
@@ -963,9 +966,6 @@ public final class InternalInterpreter implements Interpreter {
                     variable,
                     _ -> SEXPs.closure(SEXPs.list(), SEXPs.symbol(".stub"), SEXPs.EMPTY_ENV));
         if (value == null) {
-          return false;
-        }
-        if (!(value.env() instanceof StaticEnvSXP)) {
           return false;
         }
         var sexpFun = extractClosure(value);

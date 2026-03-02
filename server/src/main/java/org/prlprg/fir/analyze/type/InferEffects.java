@@ -77,15 +77,19 @@ public final class InferEffects implements Analysis {
       case Cast(var _, var _), Closure _, Dup(var _) -> Effects.NONE;
       case Force(var value) -> {
         var type = inferType.of(value);
-        yield type == null || type.concreteness() == Concreteness.MAYBE
-            ? Effects.REFLECT
-            : type.promisity().effects();
+        yield type == null
+            ? Effects.NONE
+            : type.concreteness() == Concreteness.MAYBE
+                ? Effects.REFLECT
+                : type.promisity().effects();
       }
       case MaybeForce(var value) -> {
         var type = inferType.of(value);
-        yield type == null || type.concreteness() == Concreteness.MAYBE
-            ? Effects.REFLECT
-            : type.promisity().effects();
+        yield type == null
+            ? Effects.NONE
+            : type.concreteness() == Concreteness.MAYBE
+                ? Effects.REFLECT
+                : type.promisity().effects();
       }
       case Load(var _) -> Effects.NONE;
       case LoadFun(var _, var env) ->
