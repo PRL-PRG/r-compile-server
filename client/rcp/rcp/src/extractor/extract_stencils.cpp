@@ -485,12 +485,12 @@ static void print_cfi_decoded(std::ostream &os,
 	DwarfCIE cie = dwarf_parse_cie(cie_data.data(), cie_data.size());
 	if (!cie.valid)
 	{
-		os << "Invalid CIE\n";
+		os << "// Invalid CIE\n";
 		return;
 	}
 
-	os << std::format("CFI instructions: {} bytes\n", cfi_data.size());
-	os << "   LOC           CFA      ra\n";
+	os << std::format("// CFI instructions: {} bytes\n", cfi_data.size());
+	os << "//    LOC           CFA      ra\n";
 
 	DwarfStateFormatter fmt(cie.ra_reg);
 
@@ -505,7 +505,7 @@ static void print_cfi_decoded(std::ostream &os,
 	uint64_t current_pc = 0;
 
 	// Print initial row
-	os << std::format("{:016x} {:<8} {}\n", current_pc, fmt.format_cfa(),
+	os << std::format("// {:016x} {:<8} {}\n", current_pc, fmt.format_cfa(),
 					  fmt.format_rule(cie.ra_reg));
 
 	// Execute CFI instructions
@@ -516,7 +516,7 @@ static void print_cfi_decoded(std::ostream &os,
 
 	for (const auto &row : rows)
 	{
-		os << std::format("{:016x} {:<8} {}\n", row.first, row.second.format_cfa(),
+		os << std::format("// {:016x} {:<8} {}\n", row.first, row.second.format_cfa(),
 						  row.second.format_rule(cie.ra_reg));
 	}
 }
@@ -532,9 +532,9 @@ static void export_cfi(std::ostream &file, const Stencils &stencils,
 	if (it != stencils.eh_frame_cfis.end())
 	{
 		file << "#ifdef DWARF_SUPPORT\n";
-		file << "/*\n";
+		file << "//\n";
 		print_cfi_decoded(file, stencils.eh_frame_cie, it->second);
-		file << "*/\n";
+		file << "//\n";
 		file << std::format("uint8_t {}_cfi_data[] = {{ ", variable_name);
 		print_byte_array(file, it->second.data(), it->second.size());
 		file << "};\n";
@@ -754,13 +754,13 @@ static void export_cie(std::ostream &c_file, std::ostream &h_file,
 	{
 		DwarfCIE cie = dwarf_parse_cie(stencils.eh_frame_cie.data(),
 									   stencils.eh_frame_cie.size());
-		c_file << "/*\n";
-		c_file << std::format("CIE: {}\n", stencils.eh_frame_cie.size());
-		c_file << std::format("- code alignment: {}\n", cie.code_align);
-		c_file << std::format("- data alignment: {}\n", cie.data_align);
-		c_file << std::format("- return address: {}\n",
+		c_file << "//\n";
+		c_file << std::format("// CIE: {}\n", stencils.eh_frame_cie.size());
+		c_file << std::format("// - code alignment: {}\n", cie.code_align);
+		c_file << std::format("// - data alignment: {}\n", cie.data_align);
+		c_file << std::format("// - return address: {}\n",
 							  dwarf_get_x86_64_reg_name(cie.ra_reg));
-		c_file << "*/\n";
+		c_file << "//\n";
 	}
 	c_file << "uint8_t __CIE[] = { ";
 	print_byte_array(c_file, stencils.eh_frame_cie.data(),

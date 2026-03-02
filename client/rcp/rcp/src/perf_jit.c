@@ -11,30 +11,28 @@
 #include <time.h>
 #include <unistd.h>
 
-/*
- * Linux jitdump format implementation for perf/samply profilers.
- *
- * The jitdump format is documented in the Linux kernel sources:
- *   tools/perf/Documentation/jitdump-specification.txt
- *
- * perf detects jitdump files by scanning /proc/<pid>/maps for an mmap
- * of /tmp/jit-<pid>.dump. It then reads the file to map JIT'd code
- * addresses to function names.
- */
+// Linux jitdump format implementation for perf/samply profilers.
+//
+// The jitdump format is documented in the Linux kernel sources:
+//   tools/perf/Documentation/jitdump-specification.txt
+//
+// perf detects jitdump files by scanning /proc/<pid>/maps for an mmap
+// of /tmp/jit-<pid>.dump. It then reads the file to map JIT'd code
+// addresses to function names.
 
-/* jitdump magic: "JiTD" in little-endian */
+// jitdump magic: "JiTD" in little-endian
 #define JITDUMP_MAGIC 0x4A695444
 
-/* jitdump version */
+// jitdump version
 #define JITDUMP_VERSION 1
 
-/* Record types */
+// Record types
 #define JIT_CODE_LOAD			0
 #define JIT_CODE_DEBUG_INFO		2
 #define JIT_CODE_CLOSE			3
 #define JIT_CODE_UNWINDING_INFO 4
 
-/* jitdump file header */
+// jitdump file header
 struct jitdump_header
 {
 	uint32_t magic;
@@ -47,7 +45,7 @@ struct jitdump_header
 	uint64_t flags;
 };
 
-/* Record header (common to all record types) */
+// Record header (common to all record types)
 struct jitdump_record_header
 {
 	uint32_t id;
@@ -55,7 +53,7 @@ struct jitdump_record_header
 	uint64_t timestamp;
 };
 
-/* JIT_CODE_LOAD record (follows record header) */
+// JIT_CODE_LOAD record (follows record header)
 struct jitdump_code_load
 {
 	uint32_t pid;
@@ -64,7 +62,7 @@ struct jitdump_code_load
 	uint64_t code_addr;
 	uint64_t code_size;
 	uint64_t code_index;
-	/* followed by: function name (null-terminated), then raw code bytes */
+	// followed by: function name (null-terminated), then raw code bytes
 };
 
 static int jitdump_fd = -1;
@@ -92,7 +90,7 @@ void perf_jit_init(void)
 		return;
 	}
 
-	/* Write file header */
+	// Write file header
 	struct jitdump_header header = {
 		.magic = JITDUMP_MAGIC,
 		.version = JITDUMP_VERSION,
@@ -112,15 +110,15 @@ void perf_jit_init(void)
 		return;
 	}
 
-	/* mmap the file so perf can find it via /proc/<pid>/maps */
+	// mmap the file so perf can find it via /proc/<pid>/maps
 	long page_size = sysconf(_SC_PAGESIZE);
 	jitdump_mmap_addr =
 		mmap(NULL, page_size, PROT_READ | PROT_EXEC, MAP_PRIVATE, jitdump_fd, 0);
 	if (jitdump_mmap_addr == MAP_FAILED)
 	{
 		perror("perf_jit_init: mmap");
-		/* Continue without mmap - perf won't detect it automatically
-		 * but perf inject --jit can still process the file */
+		// Continue without mmap - perf won't detect it automatically
+		// but perf inject --jit can still process the file
 	}
 }
 
@@ -129,7 +127,7 @@ void perf_jit_register(const char *func_name, void *code_addr, size_t code_size)
 	if (jitdump_fd < 0 || !func_name || !code_addr || code_size == 0)
 		return;
 
-	size_t name_len = strlen(func_name) + 1; /* include null terminator */
+	size_t name_len = strlen(func_name) + 1; // include null terminator
 
 	uint32_t total_size = (uint32_t)(sizeof(struct jitdump_record_header) +
 									 sizeof(struct jitdump_code_load) + name_len +
@@ -145,15 +143,15 @@ void perf_jit_register(const char *func_name, void *code_addr, size_t code_size)
 
 	struct jitdump_code_load load = {
 		.pid = (uint32_t)pid,
-		.tid = (uint32_t)pid, /* R is single-threaded */
+		.tid = (uint32_t)pid, // R is single-threaded
 		.vma = (uint64_t)code_addr,
 		.code_addr = (uint64_t)code_addr,
 		.code_size = (uint64_t)code_size,
 		.code_index = code_index_counter++,
 	};
 
-	/* Write all parts of the record atomically (single writev would be ideal,
-	 * but sequential writes are fine for single-threaded R) */
+	// Write all parts of the record atomically (single writev would be ideal,
+	// but sequential writes are fine for single-threaded R)
 	ssize_t ret = 0;
 	ret += write(jitdump_fd, &rec_header, sizeof(rec_header));
 	ret += write(jitdump_fd, &load, sizeof(load));
@@ -162,13 +160,13 @@ void perf_jit_register(const char *func_name, void *code_addr, size_t code_size)
 	(void)ret;
 }
 
-/* JIT_CODE_UNWINDING_INFO record payload (follows record header) */
+// JIT_CODE_UNWINDING_INFO record payload (follows record header)
 struct jitdump_unwinding_info
 {
 	uint64_t unwinding_size;
 	uint64_t eh_frame_hdr_size;
 	uint64_t mapped_size;
-	/* followed by: eh_frame data (unwinding_size bytes) */
+	// followed by: eh_frame data (unwinding_size bytes)
 };
 
 void perf_jit_register_unwinding_info(const uint8_t *eh_frame_data,
@@ -204,12 +202,12 @@ void perf_jit_register_unwinding_info(const uint8_t *eh_frame_data,
 	(void)ret;
 }
 
-/* JIT_CODE_DEBUG_INFO record payload (follows record header) */
+// JIT_CODE_DEBUG_INFO record payload (follows record header)
 struct jitdump_debug_info
 {
 	uint64_t code_addr;
 	uint64_t nr_entry;
-	/* followed by debug_entry array */
+	// followed by debug_entry array
 };
 
 struct jitdump_debug_entry
@@ -217,7 +215,7 @@ struct jitdump_debug_entry
 	uint64_t addr;
 	int32_t lineno;
 	int32_t discrim;
-	/* followed by null-terminated filename */
+	// followed by null-terminated filename
 };
 
 void perf_jit_register_debug_info(void *code_addr, uint8_t **inst_addrs,
@@ -227,7 +225,7 @@ void perf_jit_register_debug_info(void *code_addr, uint8_t **inst_addrs,
 	if (jitdump_fd < 0 || !source_path)
 		return;
 
-	/* Count non-NULL instruction addresses (skipping bytecode arg slots) */
+	// Count non-NULL instruction addresses (skipping bytecode arg slots)
 	int nr_entries = 0;
 	for (int i = 0; i < instruction_count; i++)
 		if (inst_addrs[i])
@@ -255,7 +253,7 @@ void perf_jit_register_debug_info(void *code_addr, uint8_t **inst_addrs,
 	};
 	ret += write(jitdump_fd, &info, sizeof(info));
 
-	/* Write entries: one per instruction, line numbers match write_source_file() */
+	// Write entries: one per instruction, line numbers match write_source_file()
 	int line = 1;
 	for (int i = 0; i < instruction_count; i++)
 	{
@@ -277,7 +275,7 @@ void perf_jit_close(void)
 	if (jitdump_fd < 0)
 		return;
 
-	/* Write JIT_CODE_CLOSE record */
+	// Write JIT_CODE_CLOSE record
 	struct jitdump_record_header close_rec = {
 		.id = JIT_CODE_CLOSE,
 		.total_size = (uint32_t)sizeof(struct jitdump_record_header),
@@ -288,7 +286,7 @@ void perf_jit_close(void)
 		(ssize_t)sizeof(close_rec))
 		perror("perf_jit_close: write close record");
 
-	/* Unmap and close */
+	// Unmap and close
 	if (jitdump_mmap_addr != MAP_FAILED)
 	{
 		long page_size = sysconf(_SC_PAGESIZE);
@@ -300,4 +298,4 @@ void perf_jit_close(void)
 	jitdump_fd = -1;
 }
 
-#endif /* DWARF_SUPPORT */
+#endif // DWARF_SUPPORT

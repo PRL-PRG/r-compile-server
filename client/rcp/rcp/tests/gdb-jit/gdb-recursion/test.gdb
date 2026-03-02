@@ -18,14 +18,14 @@ echo [GDB] Hit fac (1st call). Backtrace:
 bt
 continue
 
-# Hit fac(2) - limit bt to avoid broken frames from Rsh_Call trampoline
+# Hit fac(2)
 echo [GDB] Hit fac (2nd call - recursive). Backtrace:
-bt 5
+bt
 continue
 
-# Hit fac(1) - same limit
+# Hit fac(1)
 echo [GDB] Hit fac (3rd call - recursive). Backtrace:
-bt 5
+bt
 continue
 
 quit
