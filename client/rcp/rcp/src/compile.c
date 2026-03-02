@@ -1911,7 +1911,13 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, hooks_registry, closure_formals);
+					// By default, only attach entry/exit hooks to top-level closures.
+					// Set option rcp.cmpfun.entry_exit_hooks_inner_closures = TRUE
+					// to also trace inner (dynamically created) closures.
+					SEXP inner_hooks_opt = Rf_GetOption1(Rf_install("rcp.cmpfun.entry_exit_hooks_inner_closures"));
+					int trace_inner = (TYPEOF(inner_hooks_opt) == LGLSXP && LOGICAL(inner_hooks_opt)[0] == TRUE);
+					SEXP inner_hooks = trace_inner ? hooks_registry : R_NilValue;
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals);
 					SET_VECTOR_ELT(fb, 1, res);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
