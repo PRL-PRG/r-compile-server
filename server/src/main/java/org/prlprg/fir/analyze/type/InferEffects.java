@@ -35,7 +35,6 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
-import org.prlprg.fir.ir.type.Kind;
 
 /// Infer the effects of [CFG]s, [Instruction]s, and [Expression]s.
 ///
@@ -80,9 +79,13 @@ public final class InferEffects implements Analysis {
         var type = inferType.of(value);
         yield type == null || type.concreteness() == Concreteness.MAYBE
             ? Effects.REFLECT
-            : type.kind() instanceof Kind.Promise(var _, var innerEffects)
-                ? innerEffects
-                : Effects.NONE;
+            : type.promisity().effects();
+      }
+      case MaybeForce(var value) -> {
+        var type = inferType.of(value);
+        yield type == null || type.concreteness() == Concreteness.MAYBE
+            ? Effects.REFLECT
+            : type.promisity().effects();
       }
       case Load(var _) -> Effects.NONE;
       case LoadFun(var _, var env) ->
@@ -92,16 +95,6 @@ public final class InferEffects implements Analysis {
             // ...except in global or base env, those are special lookups for known functions
             case GLOBAL, BASE -> Effects.NONE;
           };
-      case MaybeForce(var value) -> {
-        var type = inferType.of(value);
-        yield type == null || type.concreteness() == Concreteness.MAYBE
-            ? Effects.REFLECT
-            : switch (type.kind()) {
-              case Kind.Promise(var _, var innerEffects) -> innerEffects;
-              case Kind.MaybePromise(var _, var innerEffects) -> innerEffects;
-              default -> Effects.NONE;
-            };
-      }
       case MkVector(var _, var _), MkEnv(), PopEnv(), Placeholder(), Promise(var _, var _, var _) ->
           Effects.NONE;
       case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.REFLECT;

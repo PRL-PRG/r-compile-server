@@ -6,11 +6,7 @@
 
 #define ASSERT(x, msg, ...) if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
 
-Fir_Kind Fir_kind_any = {.tag = FIR_KIND_ANY};
-Fir_Kind Fir_kind_maybe_promise(Fir_Type const* value_type, Fir_Effects effects) {
-  return (Fir_Kind) {.tag = FIR_KIND_MAYBE_PROMISE, .as.promise.value_type = value_type, .as.promise.effects = effects};
-}
-Fir_Kind Fir_kind_anyValue = {.tag = FIR_KIND_ANY_VALUE};
+Fir_Kind Fir_kind_any_value = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
 Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
 Fir_Kind Fir_kind_missing = {.tag = FIR_KIND_MISSING};
@@ -37,12 +33,18 @@ Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_VECTOR_KINDS[primitive_kind];
 }
 
-Fir_Kind Fir_kind_promise(Fir_Type const* value_type, Fir_Effects effects) {
-  return (Fir_Kind) {.tag = FIR_KIND_PROMISE, .as.promise.value_type = value_type, .as.promise.effects = effects};
+Fir_Promisity Fir_promisity_value = {.tag = FIR_PROMISITY_VALUE, .effects = FIR_EFFECTS_NONE};
+
+Fir_Promisity Fir_promisity_maybe(Fir_Effects effects) {
+  return (Fir_Promisity) {.tag = FIR_PROMISITY_MAYBE, .effects = effects};
 }
 
-Fir_Type Fir_type(Fir_Kind kind, Fir_Ownership ownership, bool definite) {
-  return (Fir_Type) {.kind = kind, .ownership = ownership, .definite = definite};
+Fir_Promisity Fir_promisity_promise(Fir_Effects effects) {
+  return (Fir_Promisity) {.tag = FIR_PROMISITY_PROMISE, .effects = effects};
+}
+
+Fir_Type Fir_type(Fir_Kind kind, Fir_Promisity promisity, Fir_Ownership ownership, bool definite) {
+  return (Fir_Type) {.kind = kind, .promisity = promisity, .ownership = ownership, .definite = definite};
 }
 
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects) {
@@ -89,19 +91,8 @@ bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fi
 
 static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
   switch (other_kind.tag) {
-  case FIR_KIND_ANY:
-    return true;
-  case FIR_KIND_MAYBE_PROMISE:
-    if (this_kind.tag == FIR_KIND_ANY) return false;
-    if (this_kind.tag == FIR_KIND_MAYBE_PROMISE || this_kind.tag == FIR_KIND_PROMISE)
-      return Fir_is_subtype(*this_kind.as.promise.value_type, *other_kind.as.promise.value_type)
-          && Fir_is_subeffects(this_kind.as.promise.effects, other_kind.as.promise.effects);
-    // Value kind: check if it's a subtype of the maybe-promise's value type
-    return Fir_kind_is_subtype(this_kind, other_kind.as.promise.value_type->kind);
   case FIR_KIND_ANY_VALUE:
-    return this_kind.tag != FIR_KIND_ANY
-        && this_kind.tag != FIR_KIND_MAYBE_PROMISE
-        && this_kind.tag != FIR_KIND_PROMISE;
+    return true;
   case FIR_KIND_PRIMITIVE_VECTOR: {
     int other_primitive = other_kind.as.primitive.primitive;
     switch (this_kind.tag) {
@@ -114,7 +105,6 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
   }
   case FIR_KIND_PRIMITIVE_SCALAR:
   case FIR_KIND_CLOSURE:
-    // For these kinds, only exact match is a subtype
     if (this_kind.tag != other_kind.tag) {
       return false;
     }
@@ -123,61 +113,41 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
     }
     return true;
   case FIR_KIND_DOTS:
-    // Missing is a subtype of Dots
     return this_kind.tag == FIR_KIND_DOTS || this_kind.tag == FIR_KIND_MISSING;
   case FIR_KIND_MISSING:
     return this_kind.tag == FIR_KIND_MISSING;
-  case FIR_KIND_PROMISE:
-    if (this_kind.tag != FIR_KIND_PROMISE) {
-      return false;
-    }
-    return Fir_is_subtype(*this_kind.as.promise.value_type, *other_kind.as.promise.value_type)
-        && Fir_is_subeffects(this_kind.as.promise.effects, other_kind.as.promise.effects);
+  }
+  return false;
+}
+
+static bool Fir_promisity_is_subtype(Fir_Promisity this_p, Fir_Promisity other_p) {
+  switch (other_p.tag) {
+  case FIR_PROMISITY_VALUE:
+    return this_p.tag == FIR_PROMISITY_VALUE;
+  case FIR_PROMISITY_MAYBE:
+    return Fir_is_subeffects(this_p.effects, other_p.effects);
+  case FIR_PROMISITY_PROMISE:
+    return this_p.tag == FIR_PROMISITY_PROMISE && Fir_is_subeffects(this_p.effects, other_p.effects);
   }
   return false;
 }
 
 bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type) {
   return Fir_kind_is_subtype(this_type.kind, other_type.kind)
+      && Fir_promisity_is_subtype(this_type.promisity, other_type.promisity)
       && this_type.ownership == other_type.ownership
       && (this_type.definite || !other_type.definite);
 }
 
-bool Fir_value_matches(SEXP value, Fir_Type type) {
-  switch (type.kind.tag) {
-  case FIR_KIND_ANY:
-    return true;
-  case FIR_KIND_MAYBE_PROMISE: {
-    // If not a promise, check if it matches the inner value type
-    if (TYPEOF(value) != PROMSXP) {
-      return Fir_value_matches(value, *type.kind.as.promise.value_type);
-    }
-
-    // If safe-forceable, it's an already-evaluated promise - check inner value type
-    SEXP forced = Fir_safe_force(value);
-    if (TYPEOF(forced) != PROMSXP) {
-      return Fir_value_matches(forced, *type.kind.as.promise.value_type);
-    }
-
-    // If a FIŘ promise, check value type and effects
-    Fir_PromiseGlobalData *global_data;
-    Fir_PromiseLocalData *local_data;
-    if (Fir_is_compiled_promise(value, &global_data, &local_data)) {
-      return Fir_is_subtype(global_data->value_type, *type.kind.as.promise.value_type)
-          && Fir_is_subeffects(global_data->effects, type.kind.as.promise.effects);
-    }
-
-    // GNU-R promise with eval body.
-    // We have no information except that the inner type is never another promise.
-    return type.kind.as.promise.value_type->kind.tag == FIR_KIND_ANY_VALUE;
-  }
+static bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
+  switch (kind.tag) {
   case FIR_KIND_ANY_VALUE:
-    return TYPEOF(value) != PROMSXP;
+    return true;
   case FIR_KIND_PRIMITIVE_SCALAR: {
       SEXPTYPE expected
-          = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
-          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
-          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+          = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+          : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+          : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
           : STRSXP;
       if (TYPEOF(value) != expected) {
         return false;
@@ -186,9 +156,9 @@ bool Fir_value_matches(SEXP value, Fir_Type type) {
   }
   case FIR_KIND_PRIMITIVE_VECTOR: {
       SEXPTYPE expected
-          = type.kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
-          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
-          : type.kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+          = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+          : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+          : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
           : STRSXP;
       return TYPEOF(value) == expected;
   }
@@ -199,31 +169,44 @@ bool Fir_value_matches(SEXP value, Fir_Type type) {
     return TYPEOF(value) == DOTSXP || value == R_MissingArg;
   case FIR_KIND_MISSING:
     return value == R_MissingArg;
-  case FIR_KIND_PROMISE: {
-    if (TYPEOF(value) != PROMSXP) {
-        // Not a promise
-        return false;
-    }
-
-    SEXP forced = Fir_safe_force(value);
-    if (TYPEOF(forced) != PROMSXP) {
-      // Already-evaluated or constant
-      return Fir_value_matches(forced, *type.kind.as.promise.value_type);
-    }
-
-    Fir_PromiseGlobalData *global_data;
-    Fir_PromiseLocalData *local_data;
-    if (Fir_is_compiled_promise(value, &global_data, &local_data)) {
-      // FIŘ promise
-      return
-        Fir_is_subtype(global_data->value_type, *type.kind.as.promise.value_type) &&
-        Fir_is_subeffects(global_data->effects, type.kind.as.promise.effects);
-    }
-
-    // GNU-R promise with eval body.
-    // We have no information except that the inner type is never another promise.
-    return type.kind.as.promise.value_type->kind.tag == FIR_KIND_ANY_VALUE;
   }
+  return false;
+}
+
+static bool Fir_promise_value_matches(SEXP promise, Fir_Type type) {
+  // If safe-forceable, it's an already-evaluated promise - check inner value type
+  SEXP forced = Fir_safe_force(promise);
+  if (TYPEOF(forced) != PROMSXP) {
+    return Fir_value_kind_matches(forced, type.kind);
+  }
+
+  // If a FIŘ promise, check value type and effects
+  Fir_PromiseGlobalData *global_data;
+  Fir_PromiseLocalData *local_data;
+  if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
+    Fir_Type value_type = Fir_type(type.kind, Fir_promisity_value, type.ownership, type.definite);
+    return Fir_is_subtype(global_data->value_type, value_type)
+        && Fir_is_subeffects(global_data->effects, type.promisity.effects);
+  }
+
+  // GNU-R promise with eval body.
+  // We have no information except that the inner type is never another promise.
+  return type.kind.tag == FIR_KIND_ANY_VALUE;
+}
+
+bool Fir_value_matches(SEXP value, Fir_Type type) {
+  switch (type.promisity.tag) {
+  case FIR_PROMISITY_VALUE:
+    if (TYPEOF(value) == PROMSXP) return false;
+    return Fir_value_kind_matches(value, type.kind);
+  case FIR_PROMISITY_MAYBE:
+    if (TYPEOF(value) != PROMSXP) {
+      return Fir_value_kind_matches(value, type.kind);
+    }
+    return Fir_promise_value_matches(value, type);
+  case FIR_PROMISITY_PROMISE:
+    if (TYPEOF(value) != PROMSXP) return false;
+    return Fir_promise_value_matches(value, type);
   }
   return false;
 }
@@ -723,10 +706,10 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
         if (trivial_match) {
           Fir_Type any_param_types[argc];
           for (int i = 0; i < argc; ++i) {
-            any_param_types[i] = Fir_type(Fir_kind_any, FIR_SHARED, false);
+            any_param_types[i] = Fir_type(Fir_kind_any_value, Fir_promisity_maybe(FIR_EFFECTS_REFLECT), FIR_SHARED, false);
           }
           Fir_Signature any_signature = Fir_signature(
-            Fir_type(Fir_kind_anyValue, FIR_SHARED, true),
+            Fir_type(Fir_kind_any_value, Fir_promisity_value, FIR_SHARED, true),
             argc,
             any_param_types,
             FIR_EFFECTS_REFLECT
@@ -892,29 +875,53 @@ void Fir_print_signature(Fir_Signature signature) {
 }
 
 void Fir_print_type(Fir_Type type) {
+  // Print promisity wrapper open
+  switch (type.promisity.tag) {
+  case FIR_PROMISITY_VALUE:
+    break;
+  case FIR_PROMISITY_MAYBE:
+    fprintf(stderr, "p?(");
+    break;
+  case FIR_PROMISITY_PROMISE:
+    fprintf(stderr, "p(");
+    break;
+  default:
+    assert(false && "Malformed promisity");
+    break;
+  }
+
   Fir_print_kind(type.kind);
   if (type.ownership != FIR_SHARED) {
     Fir_print_ownership(type.ownership);
   }
-  // For `Kind.Any`, concreteness is implicit iff `MAYBE`.
-  // For other kinds, concreteness is implicit iff `DEFINITELY`.
-  if ((type.kind.tag == FIR_KIND_ANY) == type.definite) {
+  // For the `ANY - concreteness` (any value + maybe promisity + shared),
+  // concreteness is implicit iff `MAYBE`.
+  // For other types, concreteness is implicit iff `DEFINITELY`.
+  bool is_any_without_concreteness = (type.kind.tag == FIR_KIND_ANY_VALUE
+              && type.promisity.tag == FIR_PROMISITY_MAYBE
+              && type.ownership == FIR_SHARED);
+  if (is_any_without_concreteness == type.definite) {
     Fir_print_concreteness(type.definite);
+  }
+
+  // Print promisity wrapper close
+  switch (type.promisity.tag) {
+  case FIR_PROMISITY_VALUE:
+    break;
+  case FIR_PROMISITY_MAYBE:
+  case FIR_PROMISITY_PROMISE:
+    fprintf(stderr, " ");
+    Fir_print_effects(type.promisity.effects);
+    fprintf(stderr, ")");
+    break;
+  default:
+    assert(false && "Malformed promisity");
+    break;
   }
 }
 
 void Fir_print_kind(Fir_Kind kind) {
   switch (kind.tag) {
-  case FIR_KIND_ANY:
-    fprintf(stderr, "*");
-    break;
-  case FIR_KIND_MAYBE_PROMISE:
-    fprintf(stderr, "p?(");
-    Fir_print_type(*kind.as.promise.value_type);
-    fprintf(stderr, " ");
-    Fir_print_effects(kind.as.promise.effects);
-    fprintf(stderr, ")");
-    break;
   case FIR_KIND_ANY_VALUE:
     fprintf(stderr, "V");
     break;
@@ -935,12 +942,29 @@ void Fir_print_kind(Fir_Kind kind) {
   case FIR_KIND_MISSING:
     fprintf(stderr, "M");
     break;
-  case FIR_KIND_PROMISE:
-    fprintf(stderr, "p(");
-    Fir_print_type(*kind.as.promise.value_type);
-    fprintf(stderr, " ");
-    Fir_print_effects(kind.as.promise.effects);
+  default:
+    assert(false && "Malformed kind");
+    break;
+  }
+}
+
+void Fir_print_promisity(Fir_Promisity promisity) {
+  switch (promisity.tag) {
+  case FIR_PROMISITY_VALUE:
+    fprintf(stderr, "val");
+    break;
+  case FIR_PROMISITY_MAYBE:
+    fprintf(stderr, "p?(_ ");
+    Fir_print_effects(promisity.effects);
     fprintf(stderr, ")");
+    break;
+  case FIR_PROMISITY_PROMISE:
+    fprintf(stderr, "p(_ ");
+    Fir_print_effects(promisity.effects);
+    fprintf(stderr, ")");
+    break;
+  default:
+    assert(false && "Malformed promisity");
     break;
   }
 }
@@ -959,6 +983,8 @@ void Fir_print_primitive_kind(Fir_PrimitiveKind primitive) {
   case FIR_PRIMITIVE_STRING:
     fprintf(stderr, "S");
     break;
+  default:
+    assert(false && "Malformed primitive kind");
   }
 }
 
@@ -976,6 +1002,8 @@ void Fir_print_ownership(Fir_Ownership ownership) {
   case FIR_SHARED:
     fprintf(stderr, "s");
     break;
+  default:
+    assert(false && "Malformed ownership");
   }
 }
 
@@ -998,6 +1026,8 @@ void Fir_print_effects(Fir_Effects effects) {
   case FIR_EFFECTS_REFLECT:
     fprintf(stderr, "+");
     break;
+  default:
+    assert(false && "Malformed effects");
   }
 }
 

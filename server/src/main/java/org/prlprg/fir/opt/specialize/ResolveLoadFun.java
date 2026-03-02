@@ -13,7 +13,7 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
-import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Replaces [LoadFun]s that statically resolve (via [OriginAnalysis]) to registers of closure type.
@@ -44,7 +44,7 @@ public record ResolveLoadFun() implements SpecializeOptimization {
     }
     // LoadFun "sees through" bindings that aren't closures, so we must check the type
     var type = analyses.get(InferType.class).of(origin);
-    if (type == null || !type.isDefinitely(Kind.Closure.class)) {
+    if (type == null || !type.isSubtypeOf(Type.CLOSURE)) {
       return expression;
     }
     return new Aea(origin);

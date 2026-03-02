@@ -52,7 +52,6 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
-import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -322,7 +321,7 @@ public final class TypeAndEffectChecker extends Checker {
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {
                 var calleeType = scope.typeOf(actualCallee);
-                if (calleeType != null && !calleeType.isDefinitely(Kind.Closure.class)) {
+                if (calleeType != null && !calleeType.isSubtypeOf(Type.CLOSURE)) {
                   report(
                       "Dynamic callee must be a closure, got "
                           + actualCallee
@@ -349,7 +348,7 @@ public final class TypeAndEffectChecker extends Checker {
               break;
             }
 
-            if (!type.isDefinitely(PrimitiveVector.class)) {
+            if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
             }
           }
@@ -359,10 +358,8 @@ public final class TypeAndEffectChecker extends Checker {
               break;
             }
 
-            if (!(type.kind() instanceof Kind.Promise(var _, var _))) {
-              report("Can't force non-promise, got " + type);
-            } else if (type.concreteness() == Concreteness.MAYBE) {
-              report("Can't force maybe-non-promise (use maybe-force), got " + type);
+            if (!type.isPromise()) {
+              report("Can't force non-(definite-)promise, got " + type);
             }
           }
           case Load(var _), LoadFun(var _, var _), MaybeForce(var _) -> {}
@@ -408,7 +405,7 @@ public final class TypeAndEffectChecker extends Checker {
           }
           case ReflectiveLoad(var promise, var _) -> {
             var promiseType = scope.typeOf(promise);
-            if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
+            if (promiseType != null && !promiseType.isPromise()) {
               report(
                   "Reflective read target must be a promise, got "
                       + promise
@@ -419,7 +416,7 @@ public final class TypeAndEffectChecker extends Checker {
           }
           case ReflectiveStore(var promise, var _, var _) -> {
             var promiseType = scope.typeOf(promise);
-            if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
+            if (promiseType != null && !promiseType.isPromise()) {
               report(
                   "Reflective write target must be a promise, got "
                       + promise
@@ -443,7 +440,8 @@ public final class TypeAndEffectChecker extends Checker {
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
 
-            if (targetType != null && !targetType.isDefinitely(PrimitiveVector.class)) {
+            if (targetType != null
+                && (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector))) {
               report(
                   "Subscript read target must be a vector, got "
                       + target
@@ -463,7 +461,7 @@ public final class TypeAndEffectChecker extends Checker {
             var valueType = scope.typeOf(value);
 
             if (targetType != null) {
-              if (!targetType.isDefinitely(PrimitiveVector.class)) {
+              if (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector)) {
                 report(
                     "Subscript write target must be a vector, got "
                         + target
@@ -484,7 +482,8 @@ public final class TypeAndEffectChecker extends Checker {
 
             checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
 
-            if (valueType != null && !valueType.isDefinitely(PrimitiveScalar.class)) {
+            if (valueType != null
+                && (!valueType.isValue() || !(valueType.kind() instanceof PrimitiveScalar))) {
               report(
                   "Subscript write value must be a primitive scalar, got "
                       + value
@@ -514,8 +513,8 @@ public final class TypeAndEffectChecker extends Checker {
               break;
             }
 
-            if (!type.isDefinitely(PrimitiveVector.class)) {
-              report("Can't use non-vector, got " + type);
+            if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
+              report("Can't use non-(definite-)vector, got " + type);
             } else if (type.ownership() != Ownership.OWNED) {
               report("Can't use non-owned vector, got " + type);
             }

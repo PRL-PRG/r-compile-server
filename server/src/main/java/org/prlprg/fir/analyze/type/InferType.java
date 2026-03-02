@@ -37,9 +37,9 @@ import org.prlprg.fir.ir.expression.SuperLoad;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.type.Concreteness;
-import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -87,9 +87,7 @@ public final class InferType implements Analysis {
       }
       case Force(var value) -> {
         var type = of(value);
-        yield type == null || !(type.kind() instanceof Kind.Promise(var innerTy, var _))
-            ? null
-            : innerTy;
+        yield type == null || !type.isPromise() ? null : type.withPromisity(Promisity.VALUE);
       }
       case Load(var variable) -> of(variable);
       case LoadFun(var _, var _) -> Type.CLOSURE;
@@ -97,16 +95,14 @@ public final class InferType implements Analysis {
         var type = of(value);
         yield type == null
             ? null
-            : switch (type.kind()) {
-              case Kind.Promise(var innerTy, var _) -> innerTy;
-              case Kind.MaybePromise(var innerTy, var _) -> innerTy;
-              case Kind.Any() -> Type.ANY_VALUE;
-              default -> type;
-            };
+            : type.concreteness() == Concreteness.MAYBE
+                ? Type.ANY_VALUE
+                : type.withPromisity(Promisity.VALUE);
       }
       case MkVector(var kind, var _) ->
           new Type(
               kind,
+              Promisity.VALUE,
               kind.isWellFormedWithOwnership() ? Ownership.FRESH : Ownership.SHARED,
               Concreteness.DEFINITE);
       case MkEnv(), PopEnv() -> Type.ANY;
