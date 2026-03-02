@@ -11,7 +11,6 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.MaybeForce;
-import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that converts [MaybeForce]s whose arguments are statically known to be promises
@@ -42,8 +41,6 @@ public record DefiniteForce() implements SpecializeOptimization {
       return expression;
     }
 
-    return argType.isDefinitely(Kind.Promise.class)
-        ? new Force(value)
-        : argType.isDefinitely(Kind.AnyValue.class) ? new Aea(value) : expression;
+    return argType.isValue() ? new Aea(value) : argType.isPromise() ? new Force(value) : expression;
   }
 }

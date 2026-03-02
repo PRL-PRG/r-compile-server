@@ -18,15 +18,12 @@ typedef enum {
 } Fir_PrimitiveKind;
 
 typedef enum {
-  FIR_KIND_ANY = 0,
-  FIR_KIND_MAYBE_PROMISE = 1,
-  FIR_KIND_ANY_VALUE = 2,
-  FIR_KIND_PRIMITIVE_SCALAR = 3,
-  FIR_KIND_PRIMITIVE_VECTOR = 4,
-  FIR_KIND_CLOSURE = 5,
-  FIR_KIND_DOTS = 6,
-  FIR_KIND_MISSING = 7,
-  FIR_KIND_PROMISE = 8,
+  FIR_KIND_ANY_VALUE = 0,
+  FIR_KIND_PRIMITIVE_SCALAR = 1,
+  FIR_KIND_PRIMITIVE_VECTOR = 2,
+  FIR_KIND_CLOSURE = 3,
+  FIR_KIND_DOTS = 4,
+  FIR_KIND_MISSING = 5,
 } Fir_KindTag;
 
 typedef enum {
@@ -42,22 +39,29 @@ typedef enum {
   FIR_EFFECTS_REFLECT = 2,
 } Fir_Effects;
 
-typedef struct Fir_Type Fir_Type;
 typedef struct {
   Fir_KindTag tag;
   union {
     struct {
       int primitive;
     } primitive;
-    struct {
-      Fir_Type const* value_type;
-      Fir_Effects effects;
-    } promise;
   } as;
 } Fir_Kind;
 
+typedef enum {
+  FIR_PROMISITY_VALUE = 0,
+  FIR_PROMISITY_MAYBE = 1,
+  FIR_PROMISITY_PROMISE = 2,
+} Fir_PromisityTag;
+
+typedef struct {
+  Fir_PromisityTag tag;
+  Fir_Effects effects;
+} Fir_Promisity;
+
 typedef struct Fir_Type {
   Fir_Kind kind;
+  Fir_Promisity promisity;
   Fir_Ownership ownership;
   bool definite;
 } Fir_Type;
@@ -95,9 +99,7 @@ typedef struct Fir_PromiseLocalData {
   SEXP **captures;
 } Fir_PromiseLocalData;
 
-extern Fir_Kind Fir_kind_any;
-Fir_Kind Fir_kind_maybe_promise(Fir_Type const* value_type, Fir_Effects effects);
-extern Fir_Kind Fir_kind_anyValue;
+extern Fir_Kind Fir_kind_any_value;
 extern Fir_Kind Fir_kind_closure;
 extern Fir_Kind Fir_kind_dots;
 extern Fir_Kind Fir_kind_missing;
@@ -106,6 +108,7 @@ void Fir_print_signature(Fir_Signature signature);
 void Fir_print_type(Fir_Type type);
 void Fir_print_kind(Fir_Kind kind);
 void Fir_print_primitive_kind(Fir_PrimitiveKind primitive);
+void Fir_print_promisity(Fir_Promisity promisity);
 void Fir_print_ownership(Fir_Ownership ownership);
 void Fir_print_concreteness(bool definite);
 void Fir_print_effects(Fir_Effects effects);
@@ -120,9 +123,12 @@ bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fi
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
 Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
-Fir_Kind Fir_kind_promise(Fir_Type const* value_type, Fir_Effects effects);
 
-Fir_Type Fir_type(Fir_Kind kind, Fir_Ownership ownership, bool definite);
+extern Fir_Promisity Fir_promisity_value;
+Fir_Promisity Fir_promisity_maybe(Fir_Effects effects);
+Fir_Promisity Fir_promisity_promise(Fir_Effects effects);
+
+Fir_Type Fir_type(Fir_Kind kind, Fir_Promisity promisity, Fir_Ownership ownership, bool definite);
 bool Fir_is_subtype(Fir_Type this_type, Fir_Type other_type);
 bool Fir_value_matches(SEXP value, Fir_Type type);
 

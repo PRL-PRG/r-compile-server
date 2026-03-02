@@ -52,7 +52,7 @@ import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Streams;
@@ -208,7 +208,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             yield null;
           }
           var loadOriginType = inferType.of(loadOrigin);
-          if (loadOriginType == null || !loadOriginType.isDefinitely(Kind.Closure.class)) {
+          if (loadOriginType == null || !loadOriginType.isSubtypeOf(Type.CLOSURE)) {
             yield null;
           }
           yield loadOrigin;
@@ -272,7 +272,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         var subAnalysis = (OnCfg) onCfg(code);
         subAnalysis.run(state());
         return subAnalysis.returnOrigin();
-      } else if (isMaybe && forceeType != null && forceeType.isDefinitely(Kind.AnyValue.class)) {
+      } else if (isMaybe && forceeType != null && forceeType.isValue()) {
         // We're maybe-forcing a value, so just return it.
         return forceeOrigin;
       } else {

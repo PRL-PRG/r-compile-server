@@ -66,6 +66,7 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.PrimitiveKind;
+import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.*;
@@ -100,9 +101,6 @@ public final class Fir2CCompiler {
   private final LinkedHashMap<Abstraction, Function> referencedVersions = new LinkedHashMap<>();
   private final Set<Function> compiledFunctions = new HashSet<>();
   private final Set<Promise> compiledPromises = new HashSet<>();
-
-  // State
-  private int tempTypeDisambiguator = 0;
 
   private Fir2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
     this.module = module;
@@ -323,7 +321,7 @@ public final class Fir2CCompiler {
           for (i = 0, versionIter = versions.iterator(); i < versions.size() - 1; i++) {
             version = versionIter.next();
 
-            var typeEmit = emitType(cCode, version.parameters().get(j).type());
+            var typeEmit = emitType(version.parameters().get(j).type());
 
             var chain = j == 0 ? "" : "incompatible[%d] || ".formatted(i);
             cCode.stmt(
@@ -407,7 +405,7 @@ public final class Fir2CCompiler {
       for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
         version = versionIter.next();
 
-        var typeEmit = emitType(cCode, version.returnType());
+        var typeEmit = emitType(version.returnType());
         var effectsEmit = emitEffects(version.effects());
         cCode.stmt(
             "incompatible[%d] = incompatible[%d] || !Fir_is_subtype(%s, %s.return_type) || !Fir_is_subeffects(%s, %s.effects);",
@@ -434,7 +432,7 @@ public final class Fir2CCompiler {
         version = versionIter.next();
 
         for (var j = 0; j < version.parameters().size(); j++) {
-          var typeEmit = emitType(cCode, version.parameters().get(j).type());
+          var typeEmit = emitType(version.parameters().get(j).type());
 
           if (cases.size() <= j) {
             cases.add(new ArrayList<>());
@@ -682,7 +680,7 @@ public final class Fir2CCompiler {
           cCode.stmt(
               "Fir_PromiseGlobalData *data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(data_sexp);");
           var evalCName = promiseEvalCName(promise);
-          var valueType = emitType(cCode, promise.valueType());
+          var valueType = emitType(promise.valueType());
           var reflect = emitEffects(promise.effects());
           cCode.stmt(
               "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s};",
@@ -954,7 +952,7 @@ public final class Fir2CCompiler {
               case AssumeType(var target, var _) -> emitArgument(target);
               case Call call -> emitCall(call);
               case Cast(var target, var type) ->
-                  "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
+                  "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(type));
               case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
               case Force(var value) -> "Fir_force(%s)".formatted(emitArgument(value));
               // This is an R special case.
@@ -983,7 +981,7 @@ public final class Fir2CCompiler {
                 var namedArrays = emitNamedArgumentArrays(elements);
                 yield "Fir_mk_vector(%s, %d, %s, %s)"
                     .formatted(
-                        emitKind(cCode, kind),
+                        emitKind(kind),
                         namedArrays.values().size(),
                         namedArrays.values().pointer(),
                         namedArrays.names());
@@ -1220,7 +1218,7 @@ public final class Fir2CCompiler {
                         functionDispatchCName(a.function()));
               }
               case AssumeType(var target, var type) ->
-                  "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(cCode, type));
+                  "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
             };
           }
 
@@ -1274,12 +1272,12 @@ public final class Fir2CCompiler {
           }
 
           private String emitSignature(Signature signature) {
-            var returnType = emitType(cCode, signature.returnType());
+            var returnType = emitType(signature.returnType());
             var paramTypes =
                 emitArray(
                     "param_types",
                     "Fir_Type",
-                    Lists.mapLazy(signature.parameterTypes(), t -> emitType(cCode, t)));
+                    Lists.mapLazy(signature.parameterTypes(), Fir2CCompiler.this::emitType));
             var comment =
                 options.contains(Option.EMIT_DEBUG_COMMENTS)
                     ? "/* %s */ ".formatted(signature)
@@ -1392,26 +1390,20 @@ public final class Fir2CCompiler {
   }
 
   // region emit types
-  private String emitType(CCode cCode, Type type) {
+  private String emitType(Type type) {
     var comment = options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(type) : "";
-    return "%sFir_type(%s, %s, %s)"
+    return "%sFir_type(%s, %s, %s, %s)"
         .formatted(
             comment,
-            emitKind(cCode, type.kind()),
+            emitKind(type.kind()),
+            emitPromisity(type.promisity()),
             emitOwnership(type.ownership()),
             emitConcreteness(type.concreteness()));
   }
 
-  private String emitKind(CCode cCode, Kind kind) {
+  private String emitKind(Kind kind) {
     return switch (kind) {
-      case Kind.Any() -> "Fir_kind_any";
-      case Kind.MaybePromise(var valueType, var fx) -> {
-        var tempTypeName = "t_type_%d".formatted(tempTypeDisambiguator++);
-
-        cCode.stmt("Fir_Type %s = %s;", tempTypeName, emitType(cCode, valueType));
-        yield "Fir_kind_maybe_promise(&%s, %s)".formatted(tempTypeName, emitEffects(fx));
-      }
-      case Kind.AnyValue() -> "Fir_kind_anyValue";
+      case Kind.AnyValue() -> "Fir_kind_any_value";
       case Kind.PrimitiveScalar(var primitiveKind) ->
           "Fir_kind_primitive_scalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
       case Kind.PrimitiveVector(var primitiveKind) ->
@@ -1419,17 +1411,19 @@ public final class Fir2CCompiler {
       case Kind.Closure() -> "Fir_kind_closure";
       case Kind.Dots() -> "Fir_kind_dots";
       case Kind.Missing() -> "Fir_kind_missing";
-      case Kind.Promise(var valueType, var fx) -> {
-        var tempTypeName = "t_type_%d".formatted(tempTypeDisambiguator++);
-
-        cCode.stmt("Fir_Type %s = %s;", tempTypeName, emitType(cCode, valueType));
-        yield "Fir_kind_promise(&%s, %s)".formatted(tempTypeName, emitEffects(fx));
-      }
     };
   }
 
   private static String emitPrimitiveKind(PrimitiveKind primitiveKind) {
     return Integer.toString(primitiveKind.ordinal());
+  }
+
+  private String emitPromisity(Promisity promisity) {
+    return promisity.isValue()
+        ? "Fir_promisity_value"
+        : promisity.isPromise()
+            ? "Fir_promisity_promise(%s)".formatted(emitEffects(promisity.effects()))
+            : "Fir_promisity_maybe(%s)".formatted(emitEffects(promisity.effects()));
   }
 
   private static String emitOwnership(Ownership ownership) {

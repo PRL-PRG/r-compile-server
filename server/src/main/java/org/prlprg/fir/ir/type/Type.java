@@ -3,8 +3,6 @@ package org.prlprg.fir.ir.type;
 import java.util.Objects;
 import java.util.logging.Logger;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.ir.type.Kind.AnyValue;
-import org.prlprg.fir.ir.type.Kind.MaybePromise;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -21,11 +19,12 @@ import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 
-public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
+public record Type(Kind kind, Promisity promisity, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
-  public static final Type ANY = new Type(new Kind.Any(), Ownership.SHARED, Concreteness.MAYBE);
+  public static final Type ANY =
+      new Type(new Kind.AnyValue(), Promisity.ANY, Ownership.SHARED, Concreteness.MAYBE);
   public static final Type ANY_VALUE =
-      new Type(new Kind.AnyValue(), Ownership.SHARED, Concreteness.DEFINITE);
+      new Type(new Kind.AnyValue(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type ANY_PROMISE = promise(ANY_VALUE, Effects.REFLECT);
   public static final Type INTEGER = primitiveScalar(PrimitiveKind.INTEGER);
   public static final Type LOGICAL = primitiveScalar(PrimitiveKind.LOGICAL);
@@ -40,31 +39,34 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public static final Type SHARED_STRING_VECTOR =
       primitiveVector(PrimitiveKind.STRING, Ownership.SHARED);
   public static final Type CLOSURE =
-      new Type(new Kind.Closure(), Ownership.SHARED, Concreteness.DEFINITE);
+      new Type(new Kind.Closure(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type BOOLEAN = LOGICAL;
   public static final Type DOTS =
-      new Type(new Kind.Dots(), Ownership.SHARED, Concreteness.DEFINITE);
+      new Type(new Kind.Dots(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
 
   public static final Type MISSING =
-      new Type(new Kind.Missing(), Ownership.SHARED, Concreteness.DEFINITE);
+      new Type(new Kind.Missing(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
 
   private static final Logger LOGGER = Logger.getLogger(Type.class.getName());
 
   public static Type primitiveScalar(PrimitiveKind kind) {
-    return new Type(new Kind.PrimitiveScalar(kind), Ownership.SHARED, Concreteness.DEFINITE);
+    return new Type(
+        new Kind.PrimitiveScalar(kind), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
   }
 
   public static Type primitiveVector(PrimitiveKind kind, Ownership ownership) {
-    return new Type(new Kind.PrimitiveVector(kind), ownership, Concreteness.DEFINITE);
+    return new Type(
+        new Kind.PrimitiveVector(kind), Promisity.VALUE, ownership, Concreteness.DEFINITE);
   }
 
   public static Type promise(Type valueType, Effects effects) {
-    return new Type(new Kind.Promise(valueType, effects), Ownership.SHARED, Concreteness.DEFINITE);
+    return new Type(
+        valueType.kind, Promisity.promise(effects), valueType.ownership, valueType.concreteness);
   }
 
   public static Type maybePromise(Type valueType, Effects effects) {
     return new Type(
-        new Kind.MaybePromise(valueType, effects), Ownership.SHARED, Concreteness.DEFINITE);
+        valueType.kind, Promisity.maybe(effects), valueType.ownership, valueType.concreteness);
   }
 
   public static Type of(SEXP sexp) {
@@ -87,39 +89,50 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     if (ownership == newOwnership) {
       return this;
     }
-    return new Type(kind, newOwnership, concreteness);
+    return new Type(kind, promisity, newOwnership, concreteness);
+  }
+
+  public Type withPromisity(Promisity newPromisity) {
+    if (promisity == newPromisity) {
+      return this;
+    }
+    return new Type(kind, newPromisity, ownership, concreteness);
   }
 
   public Type withConcreteness(Concreteness newConcreteness) {
     if (concreteness == newConcreteness) {
       return this;
     }
-    return new Type(kind, ownership, newConcreteness);
+    return new Type(kind, promisity, ownership, newConcreteness);
   }
 
-  public boolean isDefinitely(Class<? extends Kind> kind) {
-    return kind == Kind.Any.class
-        || ((kind == AnyValue.class
-                ? !(this.kind instanceof Kind.Promise) && !(this.kind instanceof Kind.MaybePromise)
-                : kind == MaybePromise.class
-                    ? !(this.kind instanceof Kind.Any)
-                    : this.kind.getClass() == kind)
-            && concreteness == Concreteness.DEFINITE);
+  /// Whether the type is definitely a value
+  public boolean isValue() {
+    return promisity.isValue() && concreteness == Concreteness.DEFINITE;
+  }
+
+  /// Whether the type is definitely a promise
+  public boolean isPromise() {
+    return promisity.isPromise() && concreteness == Concreteness.DEFINITE;
   }
 
   public boolean isWellFormed() {
-    return !(kind instanceof Kind.Any && concreteness == Concreteness.DEFINITE)
+    return !(kind instanceof Kind.AnyValue
+            && promisity == Promisity.ANY
+            && concreteness == Concreteness.DEFINITE)
         && !(!kind.isWellFormedWithOwnership() && ownership != Ownership.SHARED);
   }
 
   public boolean isSubtypeOf(Type other) {
     return kind.isSubtypeOf(other.kind)
+        && promisity.isSubtypeOf(other.promisity)
         && ownership == other.ownership
         && concreteness.isSubsetOf(other.concreteness);
   }
 
   public boolean matches(Type expected) {
     return kind.isSubtypeOf(expected.kind)
+        && promisity.isSubtypeOf(expected.promisity)
         && switch (expected.ownership) {
           case FRESH -> {
             warn("Parameters can't be fresh: " + expected);
@@ -139,6 +152,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     }
 
     return kind.isSubtypeOf(other.kind)
+        && promisity.isSubtypeOf(other.promisity)
         && switch (other.ownership) {
           case FRESH -> {
             warn("Parameters can't be fresh: " + other);
@@ -153,6 +167,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
 
   public boolean canBeAssignedTo(Type expected) {
     return kind.isSubtypeOf(expected.kind)
+        && promisity.isSubtypeOf(expected.promisity)
         && switch (expected.ownership) {
           case FRESH -> {
             warn("Assignment targets can't be fresh: " + expected);
@@ -172,6 +187,7 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     }
 
     return kind.isSubtypeOf(other.kind)
+        && promisity.isSubtypeOf(other.promisity)
         && switch (other.ownership) {
           case FRESH -> ownership == Ownership.FRESH;
           case OWNED, BORROWED -> {
@@ -187,10 +203,10 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public int compareTo(Type o) {
     int cmp = kind.compareTo(o.kind);
     if (cmp != 0) return cmp;
-
+    cmp = promisity.compareTo(o.promisity);
+    if (cmp != 0) return cmp;
     cmp = ownership.compareTo(o.ownership);
     if (cmp != 0) return cmp;
-
     return concreteness.compareTo(o.concreteness);
   }
 
@@ -204,18 +220,12 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
   public Type union(Type other, Runnable onOwnershipMismatch) {
     if (ownership != other.ownership) {
       onOwnershipMismatch.run();
-      // Don't run it twice.
-      onOwnershipMismatch = () -> {};
-    }
-
-    var newKind = kind.union(other.kind, onOwnershipMismatch);
-    if (newKind instanceof Kind.Any) {
-      return ANY;
     }
 
     return new Type(
-        newKind,
-        // Technically these must be equal, but for graceful recovery and easier type feedback.
+        kind.union(other.kind),
+        promisity.union(other.promisity),
+        // Technically ownerships must be equal, but for graceful recovery and easier type feedback.
         other.ownership == Ownership.SHARED ? Ownership.SHARED : ownership,
         concreteness.union(other.concreteness));
   }
@@ -231,9 +241,10 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     if (ownership != Ownership.SHARED) {
       p.print(ownership);
     }
-    // For `Kind.Any`, concreteness is implicit iff `MAYBE`.
+    // For `ANY - concreteness` concreteness is implicit iff `MAYBE` (and otherwise malformed).
     // For other kinds, concreteness is implicit iff `DEFINITELY`.
-    if ((kind instanceof Kind.Any) == (concreteness == Concreteness.DEFINITE)) {
+    if (this.equals(ANY.withConcreteness(concreteness))
+        == (concreteness == Concreteness.DEFINITE)) {
       p.print(concreteness);
     }
   }
@@ -243,17 +254,37 @@ public record Type(Kind kind, Ownership ownership, Concreteness concreteness)
     var s = p.scanner();
     s.skipWhitespace(true);
 
-    var kind = p.parse(Kind.class);
-    var ownership =
-        (s.nextCharIs('f') || s.nextCharIs('o') || s.nextCharIs('b') || s.nextCharIs('s'))
-            ? p.parse(Ownership.class)
-            : Ownership.SHARED;
-    var concreteness =
-        (s.nextCharIs('?') || s.nextCharIs(':'))
-            ? p.parse(Concreteness.class)
-            : ((kind instanceof Kind.Any) ? Concreteness.MAYBE : Concreteness.DEFINITE);
+    if (s.trySkip('*')) {
+      return ANY;
+    }
 
-    return new Type(kind, ownership, concreteness);
+    var kind = new Kind[1];
+    var ownership = new Ownership[1];
+    var concreteness = new Concreteness[1];
+    var promisity =
+        p.withContext(
+                new Promisity.ParseContext(
+                    p1 -> {
+                      kind[0] = p1.parse(Kind.class);
+                      ownership[0] =
+                          (s.nextCharIs('f')
+                                  || s.nextCharIs('o')
+                                  || s.nextCharIs('b')
+                                  || s.nextCharIs('s'))
+                              ? p.parse(Ownership.class)
+                              : Ownership.SHARED;
+                      concreteness[0] =
+                          (s.nextCharIs('?') || s.nextCharIs('!'))
+                              ? p.parse(Concreteness.class)
+                              : Concreteness.DEFINITE;
+                    }))
+            .parse(Promisity.class);
+
+    return new Type(
+        Objects.requireNonNull(kind[0]),
+        promisity,
+        Objects.requireNonNull(ownership[0]),
+        Objects.requireNonNull(concreteness[0]));
   }
 
   /// The type-checker doesn't avoid calling some methods if the user provides bad code, but
