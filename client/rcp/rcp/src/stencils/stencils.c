@@ -976,7 +976,8 @@ X_MATH1_EXT_OPS
 #undef X
 
 RCP_OP(DOTCALL,
-	   Rsh_DotCall(stack, GET_IMM(1) - 1, GETCONST_IMM(0), GET_RHO());)
+	   Rsh_DotCall(stack, GET_IMM(1) - 1, GETCONST_IMM(0), GET_RHO());
+	   POP_VAL(GET_IMM(1) - 1);)
 
 RCP_OP(COLON,
 	   Rsh_Colon(stack, GETCONST_IMM(0), GET_RHO());)
