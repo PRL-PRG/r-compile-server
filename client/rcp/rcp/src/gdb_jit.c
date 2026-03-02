@@ -830,6 +830,20 @@ struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 	if (!elf)
 		return NULL;
 
+	if (getenv("RCP_DEBUG_JIT"))
+	{
+		char dump_path[256];
+		snprintf(dump_path, sizeof(dump_path), "/tmp/rcp_jit_%s.elf", func_name);
+		FILE *fp = fopen(dump_path, "wb");
+		if (fp)
+		{
+			fwrite(elf, 1, elf_size, fp);
+			fclose(fp);
+			fprintf(stderr, "DEBUG: wrote JIT ELF to %s (%zu bytes)\n",
+					dump_path, elf_size);
+		}
+	}
+
 	// Create JIT code entry
 	struct jit_code_entry *entry = malloc(sizeof(struct jit_code_entry));
 	if (!entry)
@@ -883,6 +897,27 @@ void gdb_jit_unregister(struct jit_code_entry *entry)
 	// Free memory
 	free((void *)entry->symfile_addr);
 	free(entry);
+}
+
+// Compute the total PC advance encoded in a CFI instruction stream.
+// Sums all DW_CFA_advance_loc* deltas (code_alignment_factor is 1).
+static uint64_t cfi_total_advance(const uint8_t *cfi_data, size_t cfi_size)
+{
+	uint64_t total = 0;
+	const uint8_t *p = cfi_data;
+	const uint8_t *end = cfi_data + cfi_size;
+	DwarfCFI inst;
+	while (dwarf_decode_cfi(&p, end, &inst))
+	{
+		if (inst.opcode == DW_CFA_advance_loc ||
+			inst.opcode == DW_CFA_advance_loc1 ||
+			inst.opcode == DW_CFA_advance_loc2 ||
+			inst.opcode == DW_CFA_advance_loc4)
+		{
+			total += inst.operand1;
+		}
+	}
+	return total;
 }
 
 // Build .eh_frame data for stack unwinding.
@@ -942,6 +977,25 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 	// DW_CFA_offset(RA, 1) => RA at CFA-8
 	buf_write_u8(&eh_frame, DW_CFA_offset | DWARF_REG_RA);
 	buf_write_uleb128(&eh_frame, 1);
+
+	// Tell GDB where to find the caller's RBP register value.
+	//
+	// The JIT function uses __attribute__((no_callee_saved_registers)),
+	// so it does not save/restore RBP. However, rcpNativeCaller (which
+	// calls the JIT function) saves all callee-saved registers before
+	// the call. Its layout is:
+	//
+	//   push rbp; mov rsp,rbp; push r15..rbx; sub $8,rsp; call *rdx
+	//
+	// At JIT function entry: RSP = RBP_caller - 56, CFA = RSP + 8.
+	// So RBP_caller = CFA + 48. Without this rule, GDB cannot compute
+	// rcpNativeCaller's CFA (which is RBP + 16) for recursive calls,
+	// because the JIT function may have trashed RBP.
+	//
+	// DW_CFA_val_offset_sf(RBP, -6) => RBP value is CFA + (-6 * -8) = CFA + 48
+	buf_write_u8(&eh_frame, DW_CFA_val_offset_sf);
+	buf_write_uleb128(&eh_frame, DWARF_REG_RBP);
+	buf_write_sleb128(&eh_frame, -6);
 
 	// Pad CIE to pointer-size alignment
 	while ((eh_frame.size - cie_start) % 8)
@@ -1005,12 +1059,16 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 
 		// Emit this stencil's CFI instructions (CFA adjustments,
 		// advance_loc within the stencil, etc.). The advance_loc
-		// totals in the stencil CFI equal the stencil's code size.
+		// totals in the stencil CFI may be less than body_size
+		// (e.g., stencils with no calls have no internal advances).
+		// Track the actual CFI advance so the next delta is correct.
 		if (stencils[i]->cfi_data && stencils[i]->cfi_size > 0)
 		{
 			buf_write(&eh_frame, stencils[i]->cfi_data,
 					  stencils[i]->cfi_size);
-			fde_last_addr = curr + stencils[i]->body_size;
+			uint64_t cfi_advance = cfi_total_advance(
+				stencils[i]->cfi_data, stencils[i]->cfi_size);
+			fde_last_addr = curr + cfi_advance;
 		}
 	}
 
