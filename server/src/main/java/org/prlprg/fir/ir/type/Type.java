@@ -93,7 +93,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
   }
 
   public Type withPromisity(Promisity newPromisity) {
-    if (promisity == newPromisity) {
+    if (promisity.equals(newPromisity)) {
       return this;
     }
     return new Type(kind, newPromisity, ownership, concreteness);
@@ -118,7 +118,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
 
   public boolean isWellFormed() {
     return !(kind instanceof Kind.AnyValue
-            && promisity == Promisity.ANY
+            && promisity.equals(Promisity.ANY)
             && concreteness == Concreteness.DEFINITE)
         && !(!kind.isWellFormedWithOwnership() && ownership != Ownership.SHARED);
   }
@@ -237,13 +237,26 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
 
   @PrintMethod
   private void print(Printer p) {
-    p.print(kind);
-    if (ownership != Ownership.SHARED) {
-      p.print(ownership);
+    if (equals(ANY)) {
+      p.writer().write('*');
+      return;
     }
+
+    p.withContext(
+            new Promisity.PrintContext(
+                p1 -> {
+                  p1.print(kind);
+                  if (ownership != Ownership.SHARED) {
+                    p1.print(ownership);
+                  }
+                }))
+        .print(promisity);
+
     // For `ANY - concreteness` concreteness is implicit iff `MAYBE` (and otherwise malformed).
     // For other kinds, concreteness is implicit iff `DEFINITELY`.
-    if (this.equals(ANY.withConcreteness(concreteness))
+    if ((kind instanceof Kind.AnyValue
+            && promisity.equals(Promisity.ANY)
+            && ownership == Ownership.SHARED)
         == (concreteness == Concreteness.DEFINITE)) {
       p.print(concreteness);
     }
@@ -260,31 +273,32 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
 
     var kind = new Kind[1];
     var ownership = new Ownership[1];
-    var concreteness = new Concreteness[1];
     var promisity =
         p.withContext(
                 new Promisity.ParseContext(
                     p1 -> {
+                      var s1 = p1.scanner();
+
                       kind[0] = p1.parse(Kind.class);
                       ownership[0] =
-                          (s.nextCharIs('f')
-                                  || s.nextCharIs('o')
-                                  || s.nextCharIs('b')
-                                  || s.nextCharIs('s'))
-                              ? p.parse(Ownership.class)
+                          (s1.nextCharIs('f')
+                                  || s1.nextCharIs('o')
+                                  || s1.nextCharIs('b')
+                                  || s1.nextCharIs('s'))
+                              ? p1.parse(Ownership.class)
                               : Ownership.SHARED;
-                      concreteness[0] =
-                          (s.nextCharIs('?') || s.nextCharIs('!'))
-                              ? p.parse(Concreteness.class)
-                              : Concreteness.DEFINITE;
                     }))
             .parse(Promisity.class);
+    var concreteness =
+        (s.nextCharIs('?') || s.nextCharIs('!'))
+            ? p.parse(Concreteness.class)
+            : Concreteness.DEFINITE;
 
     return new Type(
         Objects.requireNonNull(kind[0]),
         promisity,
         Objects.requireNonNull(ownership[0]),
-        Objects.requireNonNull(concreteness[0]));
+        concreteness);
   }
 
   /// The type-checker doesn't avoid calling some methods if the user provides bad code, but
