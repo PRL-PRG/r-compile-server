@@ -125,7 +125,9 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
         Streams.zip(
                 version.parameters().stream(),
                 newParameterTypes.stream(),
-                (parameter, type) -> new Parameter(parameter.variable(), type))
+                (parameter, type) ->
+                    new Parameter(
+                        parameter.variable(), type, parameter.strict() && !type.isValue()))
             .collect(ImmutableList.toImmutableList());
 
     // Copy `version` except change the parameters.

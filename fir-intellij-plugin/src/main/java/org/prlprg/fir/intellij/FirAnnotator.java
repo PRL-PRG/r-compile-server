@@ -268,7 +268,7 @@ public final class FirAnnotator implements Annotator {
       }
 
       if ("var".equals(kind)) {
-        var normalizedType = type.replaceAll("\\s+", "");
+        var normalizedType = type.replaceAll("\\s+", "").split("@")[0];
         if (!normalizedType.equals("*") && !normalizedType.endsWith("?")) {
           issues.add(
               new Issue(
@@ -715,7 +715,7 @@ public final class FirAnnotator implements Annotator {
   }
 
   private static boolean isEffect(char c) {
-    return c == '-' || c == '+' || c == '~';
+    return c == '-' || c == '+' || c == '~' || c == '*';
   }
 
   private static boolean isValidRegisterName(String name) {

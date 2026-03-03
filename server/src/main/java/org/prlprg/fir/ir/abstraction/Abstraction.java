@@ -2,12 +2,14 @@ package org.prlprg.fir.ir.abstraction;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -45,14 +47,14 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   // Data
   private final Comments comments;
-  private final ImmutableList<Parameter> parameters;
+  private final Parameter[] parameters;
   private Type returnType;
   private Effects effects;
   private final Map<Variable, Local> locals = new LinkedHashMap<>();
   private final @Nullable CFG cfg;
 
   // Cached
-  private final ImmutableMap<String, Parameter> nameToParam;
+  private final ImmutableMap<String, Integer> nameToParamIndex;
   private final DisambiguatorMap nextLocalDisambiguator = new DisambiguatorMap();
 
   public Abstraction(Module module, List<Parameter> parameters) {
@@ -62,9 +64,9 @@ public final class Abstraction implements Comparable<Abstraction> {
   public Abstraction(Module module, List<Parameter> parameters, boolean isStub) {
     comments = new Comments();
     this.module = module;
-    this.parameters = ImmutableList.copyOf(parameters);
+    this.parameters = parameters.toArray(Parameter[]::new);
 
-    nameToParam = computeNameToParam(parameters);
+    nameToParamIndex = computeNameToParamIndex(this.parameters);
     returnType = Type.ANY_VALUE;
     effects = Effects.REFLECT;
     cfg = isStub ? null : new CFG(this);
@@ -72,15 +74,19 @@ public final class Abstraction implements Comparable<Abstraction> {
     parameters.stream().map(p -> p.variable().name()).forEach(nextLocalDisambiguator::add);
   }
 
-  private static ImmutableMap<String, Parameter> computeNameToParam(List<Parameter> params) {
-    return params.stream()
+  private static ImmutableMap<String, Integer> computeNameToParamIndex(Parameter[] params) {
+    return IntStream.range(0, params.length)
+        .boxed()
         .collect(
             Streams.toImmutableMap(
-                p -> p.variable().name(),
-                p -> p,
-                (p1, p2) -> {
+                i -> params[i].variable().name(),
+                i -> i,
+                (i1, i2) -> {
                   throw new IllegalArgumentException(
-                      "Duplicate parameter variable: " + p1.variable() + " and " + p2.variable());
+                      "Duplicate parameter variable: "
+                          + params[i1].variable()
+                          + " and "
+                          + params[i2].variable());
                 }));
   }
 
@@ -89,7 +95,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public @Unmodifiable List<Parameter> parameters() {
-    return parameters;
+    return Arrays.asList(parameters);
   }
 
   public Type returnType() {
@@ -239,7 +245,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   /// Every [Binding#variable()] is guaranteed to be a [Register].
   public Stream<Binding> streamRegisterBindings() {
     return Stream.concat(
-        parameters.stream(),
+        Arrays.stream(parameters),
         locals.values().stream().filter(local -> local.variable() instanceof Register));
   }
 
@@ -268,7 +274,28 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public boolean isParameter(Register register) {
-    return nameToParam.containsKey(register.name());
+    return nameToParamIndex.containsKey(register.name());
+  }
+
+  /// Marks the parameter with the given name as strict.
+  public void setParameterStrict(Register name) {
+    module.record(
+        "Abstraction#setParameterStrict",
+        List.of(this, name),
+        () -> {
+          var index = nameToParamIndex.get(name.name());
+          if (index == null) {
+            throw new IllegalArgumentException("No parameter named `" + name + "` in:\n" + this);
+          }
+
+          var param = parameters[index];
+          if (param.strict()) {
+            throw new IllegalArgumentException(
+                "Parameter at already strict `" + param + "` in:\n" + this);
+          }
+
+          parameters[index] = param.withStrict(true);
+        });
   }
 
   public @Nullable Type typeOf(Register register) {
@@ -294,8 +321,9 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   private @Nullable Binding lookup(Variable variable) {
-    var param = variable instanceof Register r ? nameToParam.get(r.name()) : null;
-    return param != null ? param : locals.get(variable);
+    // Try parameter, else try local
+    var paramIndex = variable instanceof Register r ? nameToParamIndex.get(r.name()) : null;
+    return paramIndex != null ? parameters[paramIndex] : locals.get(variable);
   }
 
   /// Converts the string into a register name that is valid and doesn't already exist.
@@ -306,7 +334,8 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   public Signature signature() {
     return new Signature(
-        parameters.stream().map(Parameter::type).collect(ImmutableList.toImmutableList()),
+        Arrays.stream(parameters).map(Parameter::type).collect(ImmutableList.toImmutableList()),
+        Arrays.stream(parameters).map(Parameter::strict).collect(ImmutableList.toImmutableList()),
         returnType,
         effects);
   }
@@ -333,14 +362,14 @@ public final class Abstraction implements Comparable<Abstraction> {
   @Override
   public int compareTo(Abstraction o) {
     // Parameter size (if different, neither is better).
-    var cmp = Integer.compare(parameters.size(), o.parameters.size());
+    var cmp = Integer.compare(parameters.length, o.parameters.length);
     if (cmp != 0) {
       return cmp;
     }
 
     // Parameter types
-    for (var i = 0; i < Math.min(parameters.size(), o.parameters.size()); i++) {
-      cmp = parameters.get(i).type().compareTo(o.parameters.get(i).type());
+    for (var i = 0; i < Math.min(parameters.length, o.parameters.length); i++) {
+      cmp = parameters[i].type().compareTo(o.parameters[i].type());
       if (cmp != 0) {
         return cmp;
       }
@@ -374,7 +403,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     p.print(comments);
 
     w.write('(');
-    p.printSeparated(", ", parameters);
+    p.printSeparated(", ", Arrays.asList(parameters));
     w.write(')');
 
     w.write(" -");
@@ -413,8 +442,8 @@ public final class Abstraction implements Comparable<Abstraction> {
 
     comments = p.parse(Comments.class);
 
-    parameters = p.parseList("(", ")", Parameter.class);
-    nameToParam = computeNameToParam(parameters);
+    parameters = p.parseList("(", ")", Parameter.class).toArray(Parameter[]::new);
+    nameToParamIndex = computeNameToParamIndex(parameters);
 
     s.assertAndSkip('-');
     effects = p.parse(Effects.class);
@@ -439,7 +468,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     }
     s.assertAndSkip('|');
 
-    parameters.stream().map(p2 -> p2.variable().name()).forEach(nextLocalDisambiguator::add);
+    Arrays.stream(parameters).map(p2 -> p2.variable().name()).forEach(nextLocalDisambiguator::add);
     locals.values().stream()
         .filter(l -> l.variable() instanceof Register)
         .map(l -> l.variable().name())

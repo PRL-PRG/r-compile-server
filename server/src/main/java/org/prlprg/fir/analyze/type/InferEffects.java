@@ -57,6 +57,23 @@ public final class InferEffects implements Analysis {
         .orElse(Effects.NONE);
   }
 
+  /// Ignores effects of a static call to the CFG's scope.
+  ///
+  /// TODO: this is hacky, solution for mutual recursion
+  public Effects ofNonRecursive(CFG cfg) {
+    return cfg.bbs().stream()
+        .flatMap(bb -> bb.instructions().stream())
+        .filter(
+            i ->
+                !(i instanceof Statement s
+                    && s.expression() instanceof Call c
+                    && c.callee() instanceof StaticCallee sc
+                    && sc.version() == cfg.scope()))
+        .map(this::of)
+        .reduce(Effects::union)
+        .orElse(Effects.NONE);
+  }
+
   public Effects of(Instruction instruction) {
     return switch (instruction) {
       case Statement(var _, var _, var expression) -> of(expression);

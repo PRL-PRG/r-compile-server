@@ -1,13 +1,14 @@
 package org.prlprg.fir.ir;
 
 import java.util.Formatter;
+import org.intellij.lang.annotations.Language;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.sexp.SEXP;
 
 public class ParseUtil {
-  public static Module parseModule(String firText) {
+  public static Module parseModule(@Language("FIR") String firText) {
     try {
       return Parser.fromString(firText, Module.class);
     } catch (ParseException e) {

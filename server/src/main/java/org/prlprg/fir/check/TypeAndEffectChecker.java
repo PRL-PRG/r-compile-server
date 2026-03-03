@@ -116,7 +116,7 @@ public final class TypeAndEffectChecker extends Checker {
       for (var worse : function.versionsSorted().tailSet(version)) {
         var worseSignature = worse.signature();
         if (signature.hasNarrowerParameters(worseSignature)
-            && !signature.hasNarrowerEffectsAndReturn(worseSignature)) {
+            && !signature.hasNarrowerPostconditions(worseSignature)) {
           report(
               version,
               "Version has strictly narrower parameters than another, but not strictly narrower effects and return type:"

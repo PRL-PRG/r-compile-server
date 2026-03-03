@@ -189,7 +189,7 @@ public final class FirLexer extends LexerBase {
           case ':' -> FirTokenTypes.COLON;
           case ';' -> FirTokenTypes.SEMICOLON;
           case '*' -> FirTokenTypes.TYPE;
-          case '+', '-', '=', '<', '>', '?', '$', '|', '.', '~', '/' -> FirTokenTypes.OPERATOR;
+          case '+', '-', '=', '<', '>', '?', '$', '|', '.', '~', '/', '@', '!' -> FirTokenTypes.OPERATOR;
           default -> TokenType.BAD_CHARACTER;
         };
   }
