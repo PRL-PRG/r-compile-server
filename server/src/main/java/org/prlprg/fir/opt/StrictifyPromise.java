@@ -23,11 +23,17 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.util.Streams;
 
-/// For each call to a non-effectful function, inlines every non-effectful, singly-used promise
-/// argument before the call, which doesn't contain non-stub calls itself (since they may
-/// recur). The callee signature (if dispatch) or version (if static) changes to accommodate the
-/// new (non-promise) parameter types.
+/// Inlines every promise before each non-dynamic call that can.
+///
+/// Specifically, inlines every promise that is:
+/// - Non-effectful
+/// - Singly-used
+/// - Passed to a strict parameter
+///
+/// Affected calls are replaced with dispatch calls, since the argument types (and therefore
+/// signature) changes.
 public record StrictifyPromise() implements AbstractionOptimization {
   private record Inlineable(
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
@@ -52,11 +58,9 @@ public record StrictifyPromise() implements AbstractionOptimization {
         }
 
         // Only apply to non-reflectful callees
+        var calleeSig = call.callee().signature();
         var callType = inferType.of(call);
         var callEffects = inferEffects.of(call);
-        if (callEffects.reflect()) {
-          continue;
-        }
 
         // Find inlinable promise arguments
         var args = call.callArguments();
@@ -77,17 +81,17 @@ public record StrictifyPromise() implements AbstractionOptimization {
             continue;
           }
 
-          // Must be a non-effectful Promise that doesn't contain calls (may recur)
+          // The callee's corresponding parameter must be strict
+          if (calleeSig == null
+              || j >= calleeSig.parameterStrictnesses().size()
+              || !calleeSig.parameterStrictnesses().get(j)) {
+            continue;
+          }
+
+          // Must be a non-effectful Promise
           if (!(defInCfg.instruction() instanceof Statement(var _, var _, var expr))
               || !(expr instanceof Promise(var valueType, var effects, var code))
-              || effects.impure()
-              || code.bbs().stream()
-                  .flatMap(b -> b.statements().stream())
-                  .anyMatch(
-                      s ->
-                          s.expression() instanceof Call c
-                              && c.callee().function() != null
-                              && !c.callee().function().baseline().isStub())) {
+              || effects.impure()) {
             continue;
           }
 
@@ -119,11 +123,21 @@ public record StrictifyPromise() implements AbstractionOptimization {
                       return t != null ? t : Type.ANY_VALUE;
                     })
                 .collect(ImmutableList.toImmutableList());
+        var newStrictnesses =
+            Streams.zip(
+                    newArgTypes.stream(),
+                    calleeSig.parameterStrictnesses().stream(),
+                    (type, strict) -> strict && !type.isValue())
+                .collect(ImmutableList.toImmutableList());
         var fn =
             Objects.requireNonNull(
                 call.callee().function(), "dynamic callees are always reflectful");
         var newSig =
-            new Signature(newArgTypes, callType == null ? Type.ANY_VALUE : callType, callEffects);
+            new Signature(
+                newArgTypes,
+                newStrictnesses,
+                callType == null ? Type.ANY_VALUE : callType,
+                callEffects);
         var newCallee = new DispatchCallee(fn, newSig);
 
         // Replace statement with new call.

@@ -58,6 +58,7 @@ public abstract class Checker {
             new CFGChecker(!exclusionsSet.contains(Exclude.STRICT_CFG)),
             new TypeAndEffectChecker(),
             exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new ProvenanceChecker(),
+            exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new StrictnessChecker(),
             new EnvironmentChecker());
 
     // Don't short-circuit.

@@ -43,8 +43,8 @@ class StrictifyPromiseTest {
               }
             }
             fun f(r) {
-              (reg r:V) -+> V { ... }
-              (reg r:p(I -)) --> I { ... }
+              (reg r:*@!) -+> V { ... }
+              (reg r:p(I -)@!) --> I { ... }
               (reg r:I) --> I { |
                 return r;
               }
@@ -64,31 +64,6 @@ class StrictifyPromiseTest {
   }
 
   @Test
-  void staticCallee_effectfulCallee_notChanged() {
-    var module =
-        ParseUtil.parseModule(
-            """
-            fun main() {
-              () --> V { reg rx:p(I -), reg ry:I, reg rz:V |
-                rx = prom<I ->{
-                  ry = 1;
-                  return ry;
-                };
-                rz = f.0(rx);
-                return rz;
-              }
-            }
-            fun f(r) {
-              (reg r:V) -+> V { |
-                return r;
-              }
-            }
-            """);
-
-    assertFalse(run(module), "effectful callee: optimization should report no change");
-  }
-
-  @Test
   void staticCallee_effectfulPromise_notChanged() {
     var module =
         ParseUtil.parseModule(
@@ -103,8 +78,8 @@ class StrictifyPromiseTest {
               }
             }
             fun f(r) {
-              (reg r:V) -+> V { ... }
-              (reg r:p(I +)) --> I { ... }
+              (reg r:*@!) -+> V { ... }
+              (reg r:p(I +)@!) --> I { ... }
               (reg r:I) --> I { |
                 return r;
               }
@@ -134,14 +109,14 @@ class StrictifyPromiseTest {
                 ry = prom<I +>{
                   return 5;
                 };
-                rz = f< p(I -),p(I +) --> I >(rx, ry);
+                rz = f< p(I -)@!,p(I +)@! --> I >(rx, ry);
                 return rz;
               }
             }
             fun f(r1, r2) {
-              (reg r1:V, reg r2:V) -+> V { ... }
-              (reg r1:p(I -), reg r2:p(I +)) --> I { ... }
-              (reg r1:I, reg r2:p(I +)) --> I { ... }
+              (reg r1:*@!, reg r2:*@!) -+> V { ... }
+              (reg r1:p(I -)@!, reg r2:p(I +)@!) --> I { ... }
+              (reg r1:I, reg r2:p(I +)@!) --> I { ... }
             }
             fun `+`(r1, r2) {
               (reg r1:I, reg r2:I) --> I { ... }
@@ -156,34 +131,9 @@ class StrictifyPromiseTest {
     assertTrue(printed.contains("prom<I +>"), "effectful promise should remain");
     // Dispatch signature updated for the inlined argument
     assertTrue(
-        printed.contains("f< I, p(I +) --> I >"),
+        printed.contains("f< I,p(I +)@! --> I >"),
         "dispatch signature should reflect inlined param type");
     assertTrue(printed.contains("rc = `+`.0(ra, rb)"), "promise body should be inlined");
-  }
-
-  @Test
-  void dispatchCallee_effectfulCallee_notChanged() {
-    var module =
-        ParseUtil.parseModule(
-            """
-            fun main() {
-              () --> V { reg rx:p(I -), reg ry:I, reg rz:V |
-                rx = prom<I ->{
-                  ry = 1;
-                  return ry;
-                };
-                rz = f< p(I -) -+> V >(rx);
-                return rz;
-              }
-            }
-            fun f(r) {
-              (reg r:V) -+> V { |
-                return r;
-              }
-            }
-            """);
-
-    assertFalse(run(module), "effectful dispatch callee: optimization should report no change");
   }
 
   // ---------------------------------------------------------------------------
@@ -209,8 +159,8 @@ class StrictifyPromiseTest {
               }
             }
             fun f(r) {
-              (reg r:V) -+> V { ... }
-              (reg r:p(I -)) --> I { ... }
+              (reg r:*@!) -+> V { ... }
+              (reg r:p(I -)@!) --> I { ... }
               (reg r:I) --> I { |
                 return r;
               }

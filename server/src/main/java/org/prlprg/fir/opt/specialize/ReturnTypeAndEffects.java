@@ -37,7 +37,7 @@ public record ReturnTypeAndEffects() implements SpecializeOptimization {
 
     var newType = analyses.get(InferType.class).of(code);
     newType = newType == null ? null : newType.withOwnership(Ownership.SHARED);
-    var newEffects = analyses.get(InferEffects.class).of(code);
+    var newEffects = analyses.get(InferEffects.class).ofNonRecursive(code);
 
     return new Promise(newType == null ? oldType : newType, newEffects, code);
   }
@@ -49,7 +49,7 @@ public record ReturnTypeAndEffects() implements SpecializeOptimization {
     }
 
     var newReturnType = analyses.get(InferType.class).of(scope.cfg());
-    var newEffects = analyses.get(InferEffects.class).of(scope.cfg());
+    var newEffects = analyses.get(InferEffects.class).ofNonRecursive(scope.cfg());
 
     if (newReturnType != null) {
       scope.setReturnType(newReturnType);

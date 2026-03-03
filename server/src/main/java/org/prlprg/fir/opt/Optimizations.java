@@ -42,7 +42,9 @@ public class Optimizations {
                     new ResolveLoadFun(),
                     new ReturnTypeAndEffects()),
                 new Inline(1000),
+                new StrictifyPromise(),
                 new Cleanup()),
+            new StrictnessOptimization(),
             new CreateBestVersion(9)),
         new MergeConsecutiveCheckpoints(),
         new ElideUnusedCheckpoints());

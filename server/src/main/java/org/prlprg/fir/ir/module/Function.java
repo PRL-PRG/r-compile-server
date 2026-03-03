@@ -157,7 +157,7 @@ public final class Function {
   public @Nullable Abstraction guess(Signature signature) {
     for (var version : versionsSorted) {
       if (signature.hasNarrowerParameters(version.signature())
-          && version.signature().hasNarrowerEffectsAndReturn(signature)) {
+          && version.signature().hasNarrowerPostconditions(signature)) {
         return version;
       }
     }
@@ -176,7 +176,7 @@ public final class Function {
         .filter(
             other ->
                 other.signature().hasNarrowerParameters(version.signature())
-                    && other.signature().hasNarrowerEffectsAndReturn(version.signature()));
+                    && other.signature().hasNarrowerPostconditions(version.signature()));
   }
 
   public Abstraction addVersion(List<Parameter> params, boolean isStub) {

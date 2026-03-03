@@ -1136,16 +1136,23 @@ public final class InternalInterpreter implements Interpreter {
     var numParameters = arguments.size();
 
     var argumentTypes = ImmutableList.<Type>builderWithExpectedSize(numParameters);
+    var parameterStrictnesses = ImmutableList.<Boolean>builderWithExpectedSize(numParameters);
     for (var i = 0; i < numParameters; i++) {
       var parameterType = explicit.parameterTypes().get(i);
+      var parameterStrictness = explicit.parameterStrictnesses().get(i);
       var argument = arguments.get(i);
 
       var argumentType = checkType(argument, parameterType, "argument " + i + " (for signature)");
       argumentTypes.add(argumentType);
+      parameterStrictnesses.add(parameterStrictness && !argumentType.isValue());
     }
 
     // `implicit`'s return type and effects are TOP, since we can't infer anything about them.
-    return new Signature(argumentTypes.build(), explicit.returnType(), explicit.effects());
+    return new Signature(
+        argumentTypes.build(),
+        parameterStrictnesses.build(),
+        explicit.returnType(),
+        explicit.effects());
   }
 
   /// Infer the `value`'s type, check it against `expected`, and return it.
