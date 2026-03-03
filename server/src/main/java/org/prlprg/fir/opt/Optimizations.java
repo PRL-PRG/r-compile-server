@@ -5,6 +5,7 @@ import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
+import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoadFun;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
@@ -34,6 +35,7 @@ public class Optimizations {
                     new DefiniteForce(),
                     new ElideDeadStore(),
                     new ElideTrivialAssume(),
+                    new ElideRedundantAssumeLoadFun(),
                     new ElideTrivialCast(),
                     new ElideUseSubscriptWrite(),
                     new OptimizeCallee(threshold),
