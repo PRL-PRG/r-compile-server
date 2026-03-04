@@ -3,24 +3,13 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Printer;
 
-class ElideUnusedCheckpointsTest {
-  private static final ElideUnusedCheckpoints OPT = new ElideUnusedCheckpoints();
-
-  private static boolean run(Module module) {
-    var changed = false;
-    for (var fn : module.localFunctions()) {
-      for (var version : fn.versions()) {
-        if (OPT.run(new AbstractionFeedback(), version)) {
-          changed = true;
-        }
-      }
-    }
-    return changed;
+class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
+  @Override
+  public Optimization optimization() {
+    return new ElideUnusedCheckpoints();
   }
 
   @Test
@@ -29,6 +18,7 @@ class ElideUnusedCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r:I |
                 r = 0;
                 check L1() else L2();
@@ -56,6 +46,7 @@ class ElideUnusedCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r:L |
                 r = blackBox(TRUE);
                 check L1() else L2();
@@ -84,6 +75,7 @@ class ElideUnusedCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r:I, reg s:I |
                 r = 0;
                 check L1() else L2();

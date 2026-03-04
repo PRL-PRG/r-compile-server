@@ -3,24 +3,13 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Printer;
 
-class ElideEnvTest {
-  private static final ElideEnv OPT = new ElideEnv();
-
-  private static boolean run(Module module) {
-    var changed = false;
-    for (var fn : module.localFunctions()) {
-      for (var version : fn.versions()) {
-        if (OPT.run(new AbstractionFeedback(), version)) {
-          changed = true;
-        }
-      }
-    }
-    return changed;
+class ElideEnvTest implements OptimizationUnitTest {
+  @Override
+  public Optimization optimization() {
+    return new ElideEnv();
   }
 
   @Test
