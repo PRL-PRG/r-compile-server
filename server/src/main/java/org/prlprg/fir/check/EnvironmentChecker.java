@@ -3,7 +3,7 @@ package org.prlprg.fir.check;
 import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
 
 import java.util.Set;
-import org.prlprg.fir.analyze.resolve.EnvironmentCount;
+import org.prlprg.fir.analyze.resolve.EnvironmentLiveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -30,11 +30,11 @@ public class EnvironmentChecker extends Checker {
 
   private class OnAbstraction {
     final Abstraction scope;
-    final EnvironmentCount environmentCount;
+    final EnvironmentLiveness environmentLiveness;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
-      environmentCount = new EnvironmentCount(scope);
+      environmentLiveness = new EnvironmentLiveness(scope);
     }
 
     void run() {
@@ -49,13 +49,14 @@ public class EnvironmentChecker extends Checker {
     }
 
     private void run(BB bb) {
-      var predRanges =
+      var predEnvs =
           bb.predecessors().stream()
               .collect(
                   Streams.toImmutableMap(
-                      BB::label, pred -> environmentCount.rangeAt(pred, pred.statements().size())));
-      if (Set.copyOf(predRanges.values()).size() > 1) {
-        report(bb, 0, "Predecessors have different numbers of environments: " + predRanges);
+                      BB::label,
+                      pred -> environmentLiveness.envsAt(pred, pred.statements().size())));
+      if (Set.copyOf(predEnvs.values()).size() > 1) {
+        report(bb, 0, "Predecessors have different environments: " + predEnvs);
       }
 
       for (int i = 0; i < bb.statements().size(); i++) {
@@ -65,7 +66,7 @@ public class EnvironmentChecker extends Checker {
     }
 
     private void run(BB bb, int instructionIndex, Statement statement) {
-      boolean hasEnv = environmentCount.hasEnvironmentAt(bb, instructionIndex - 1);
+      boolean hasEnv = environmentLiveness.hasEnvironmentAt(bb, instructionIndex - 1);
 
       switch (statement.expression()) {
         case PopEnv() when !hasEnv -> report(bb, instructionIndex, "No environment to pop");
@@ -76,7 +77,7 @@ public class EnvironmentChecker extends Checker {
     }
 
     private void run(BB bb, int instructionIndex, Jump jump) {
-      boolean hasEnv = environmentCount.hasEnvironmentAt(bb, instructionIndex - 1);
+      boolean hasEnv = environmentLiveness.hasEnvironmentAt(bb, instructionIndex - 1);
 
       switch (jump) {
         case Return(var _, var _) when hasEnv && !bb.owner().isPromise() ->

@@ -5,11 +5,9 @@ import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.analyze.resolve.EnvironmentCount.Range;
-import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.variable.Variable;
 
-class EnvironmentCountTest {
+class EnvironmentLivenessTest {
   @Test
   void countsEnvironmentsInSequence() {
     var firText =
@@ -27,20 +25,17 @@ class EnvironmentCountTest {
     var module = parseModule(firText);
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var cfg = Objects.requireNonNull(main.cfg());
-    BB entry = cfg.entry();
+    var entry = cfg.entry();
 
-    var analysis = new EnvironmentCount(main);
-
-    assertEquals(new Range(1, 1), analysis.rangeAt(entry, 0));
-    assertEquals(new Range(1, 1), analysis.rangeAt(entry, 1));
-    assertEquals(new Range(0, 0), analysis.rangeAt(entry, 2));
+    var analysis = new EnvironmentLiveness(main);
 
     assertTrue(analysis.hasEnvironmentAt(entry, 0));
+    assertTrue(analysis.hasEnvironmentAt(entry, 1));
     assertFalse(analysis.hasEnvironmentAt(entry, 2));
   }
 
   @Test
-  void mergesBranchesIntoRange() {
+  void handlesInvalid() {
     var firText =
         """
       fun main() {
@@ -55,6 +50,7 @@ class EnvironmentCountTest {
           r1 = 1;
           goto BB3(r1);
         BB3(r2):
+          popenv;
           return r2;
         }
       }
@@ -64,16 +60,13 @@ class EnvironmentCountTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var cfg = Objects.requireNonNull(main.cfg());
 
-    var analysis = new EnvironmentCount(main);
+    var analysis = new EnvironmentLiveness(main);
 
     var entry = cfg.entry();
-    assertEquals(new Range(1, 1), analysis.rangeAt(entry, 0));
-    assertEquals(new Range(1, 1), analysis.rangeAt(entry, 1));
+    assertTrue(analysis.hasEnvironmentAt(entry, 0));
+    assertTrue(analysis.hasEnvironmentAt(entry, 1));
 
     var bb1 = Objects.requireNonNull(cfg.bb("BB1"));
-    assertEquals(new Range(0, 0), analysis.rangeAt(bb1, 0));
-
-    var bb3 = Objects.requireNonNull(cfg.bb("BB3"));
-    assertEquals(new Range(0, 1), analysis.rangeAt(bb3, 0));
+    assertFalse(analysis.hasEnvironmentAt(bb1, 0));
   }
 }
