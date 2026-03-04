@@ -25,7 +25,7 @@ run: install
 .PHONY: debug
 debug:
 	$(MAKE) install DWARF_SUPPORT=1
-	RCP_GDB_JIT=1 $(R) -d gdb
+	RCP_GDB_JIT=1 RCP_DUMP_DIR=/tmp $(R) -d gdb
 
 .PHONY: format
 format:

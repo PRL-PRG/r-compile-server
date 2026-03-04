@@ -1373,7 +1373,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	res.jit_entry = NULL;
 #endif
 
-	// Debug: dump JIT code to file if RCP_DUMP_DIR is set
+#ifndef DWARF_SUPPORT
+	// dump JIT code to file if RCP_DUMP_DIR is set for local inspection
+	// When DWARF_SUPPORT is enabled,
+	// the full ELF has been already dumped by gdb_jit_register
 	if (name)
 	{
 		const char *dump_dir = getenv("RCP_DUMP_DIR");
@@ -1390,6 +1393,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			}
 		}
 	}
+#endif
 
 	vmaxset(vmax);
 

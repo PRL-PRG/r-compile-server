@@ -830,10 +830,11 @@ struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 	if (!elf)
 		return NULL;
 
-	if (getenv("RCP_DEBUG_JIT"))
+	const char *dump_dir = getenv("RCP_DUMP_DIR");
+	if (dump_dir)
 	{
-		char dump_path[256];
-		snprintf(dump_path, sizeof(dump_path), "/tmp/rcp_jit_%s.elf", func_name);
+		char dump_path[512];
+		snprintf(dump_path, sizeof(dump_path), "%s/%s.o", dump_dir, func_name);
 		FILE *fp = fopen(dump_path, "wb");
 		if (fp)
 		{
