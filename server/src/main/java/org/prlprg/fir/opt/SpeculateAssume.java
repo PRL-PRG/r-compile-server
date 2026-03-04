@@ -25,6 +25,8 @@ import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Concreteness;
+import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Lists;
@@ -104,6 +106,21 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       var calleeFeedback = feedback.callee(register);
       var constantFeedback = feedback.constant(register);
       var typeFeedback = feedback.type(register).union();
+
+      // If type feedback is a promise, speculate on a maybe-promise,
+      // because callees to this closure may inline the promise argument
+      // which would cause deopt.
+      // ???: maybe we should change "promise" to "maybe-promise",
+      // because strict promises are replaced by SEXP values and semantics are equivalent,
+      // and we don't really get optimization since optimized code has minimal promises
+      // (although we do get better correctness, since a value can't be passed to a promise)
+      if (typeFeedback.isPromise()) {
+        typeFeedback =
+            typeFeedback.withPromisity(Promisity.maybe(typeFeedback.promisity().effects()));
+        if (typeFeedback.equals(Type.ANY.withConcreteness(Concreteness.DEFINITE))) {
+          typeFeedback = Type.ANY;
+        }
+      }
 
       // Skip if assumptions won't increase knowledge.
       if (calleeFeedback == null && constantFeedback == null && typeFeedback.equals(local.type())) {

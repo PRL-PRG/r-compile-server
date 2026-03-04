@@ -1,7 +1,5 @@
 package org.prlprg.fir.analyze.cfg;
 
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
-
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -85,8 +83,7 @@ public final class ActiveAssumeLoadFunAnalysis implements CfgAnalysis {
     return bbEntry;
   }
 
-  private void transfer(
-      org.prlprg.fir.ir.expression.Expression expression, Set<Key> active) {
+  private void transfer(org.prlprg.fir.ir.expression.Expression expression, Set<Key> active) {
     // Reflective expressions invalidate all assumptions.
     if (inferEffects.of(expression).reflect()) {
       active.clear();
