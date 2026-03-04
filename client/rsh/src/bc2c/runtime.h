@@ -1128,7 +1128,7 @@ extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 #ifdef RSH_EXTERN_HELPERS
 extern void Rsh_Call(Value *stack, SEXP call, SEXP rho);
 #else
-static void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
+void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
   // stack:
   //  fun
   //  args_head
@@ -3139,8 +3139,8 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
 extern NODISCARD Rboolean Rsh_StartLoopCntxt(Value *stack, RCNTXT *cntxt,
                                              SEXP rho);
 #else
-static NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
-                                             SEXP rho) {
+NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+                                      SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
   return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
