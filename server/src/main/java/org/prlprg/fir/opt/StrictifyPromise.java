@@ -1,7 +1,7 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
-import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfsNoDeopts;
+import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
     var defUses = new DefUses(scope);
 
     // Iterate in reverse so inlines don't affect iteration.
-    for (var bb : reverseDfsNoDeopts(scope.cfg())) {
+    for (var bb : bbReverseDfsNoDeopts(scope.cfg())) {
       for (int callIdx = bb.statements().size() - 1; callIdx >= 0; callIdx--) {
         var stmt = bb.statements().get(callIdx);
         if (!(stmt.expression() instanceof Call call)) {

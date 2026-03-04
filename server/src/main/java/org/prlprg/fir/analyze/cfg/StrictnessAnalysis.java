@@ -1,7 +1,5 @@
 package org.prlprg.fir.analyze.cfg;
 
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
-
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,6 +14,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.instruction.Return;
@@ -104,7 +103,7 @@ public final class StrictnessAnalysis implements CfgAnalysis {
     // expression and every Return, intersect strictCandidates with current mustForced.
     var strictCandidates = new HashSet<>(candidates);
 
-    for (var bb : dfs(cfg)) {
+    for (var bb : BbDfs.bbDfs(cfg)) {
       var mustForced = new HashSet<>(bbEntryMustForced.getOrDefault(bb, Set.of()));
 
       for (var stmt : bb.statements()) {

@@ -11,32 +11,32 @@ import org.prlprg.fir.ir.instruction.Deopt;
 ///
 /// It supports [java.util.Iterator#remove()]. It supports concurrent modification, and only
 /// queues elements when [#next()] or [#remove()] is called.
-public final class ReverseDfs extends Abstract<List<BB>> {
-  /// An [Iterable] that yields [ReverseDfs].
-  public static Iterable<BB> reverseDfs(CFG cfg) {
-    return () -> new ReverseDfs(cfg);
+public final class BbReverseDfs extends Abstract<List<BB>> {
+  /// An [Iterable] that yields [BbReverseDfs].
+  public static Iterable<BB> bbReverseDfs(CFG cfg) {
+    return () -> new BbReverseDfs(cfg);
   }
 
-  /// An [Iterable] that yields [ReverseDfs], starting with all non-deopt exits.
-  public static Iterable<BB> reverseDfsNoDeopts(CFG cfg) {
+  /// An [Iterable] that yields [BbReverseDfs], starting with all non-deopt exits.
+  public static Iterable<BB> bbReverseDfsNoDeopts(CFG cfg) {
     return () ->
-        new ReverseDfs(cfg.exits().stream().filter(bb -> !(bb.jump() instanceof Deopt)).toList());
+        new BbReverseDfs(cfg.exits().stream().filter(bb -> !(bb.jump() instanceof Deopt)).toList());
   }
 
-  /// An [Iterable] that yields [ReverseDfs].
-  public static Iterable<BB> reverseDfs(BB bb) {
-    return () -> new ReverseDfs(bb);
+  /// An [Iterable] that yields [BbReverseDfs].
+  public static Iterable<BB> bbReverseDfs(BB bb) {
+    return () -> new BbReverseDfs(bb);
   }
 
-  public ReverseDfs(CFG cfg) {
+  public BbReverseDfs(CFG cfg) {
     super(new ArrayList<>(), cfg.exits());
   }
 
-  public ReverseDfs(Collection<BB> bbs) {
+  public BbReverseDfs(Collection<BB> bbs) {
     super(new ArrayList<>(), bbs);
   }
 
-  public ReverseDfs(BB bb) {
+  public BbReverseDfs(BB bb) {
     super(new ArrayList<>(), List.of(bb));
   }
 

@@ -1,12 +1,11 @@
 package org.prlprg.fir.check;
 
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
-
 import java.util.Set;
 import org.prlprg.fir.analyze.resolve.EnvironmentLiveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
@@ -43,7 +42,7 @@ public class EnvironmentChecker extends Checker {
 
     private void run(CFG cfg) {
       // Order doesn't matter, but we must only iterate reachable BBs
-      for (var bb : dfs(cfg)) {
+      for (var bb : BbDfs.bbDfs(cfg)) {
         run(bb);
       }
     }

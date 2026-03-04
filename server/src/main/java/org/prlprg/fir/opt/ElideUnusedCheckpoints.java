@@ -1,6 +1,6 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfsNoDeopts;
+import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -24,7 +24,7 @@ public record ElideUnusedCheckpoints() implements CheckpointAbstractionOptimizat
         .forEach(
             cfg -> {
               // Reverse DFS because we delete BBs and merge successors.
-              for (var bb : reverseDfsNoDeopts(cfg)) {
+              for (var bb : bbReverseDfsNoDeopts(cfg)) {
                 if (!(bb.jump() instanceof Checkpoint checkpoint)) {
                   continue;
                 }

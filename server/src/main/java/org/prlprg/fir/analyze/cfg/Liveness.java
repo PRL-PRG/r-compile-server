@@ -1,7 +1,5 @@
 package org.prlprg.fir.analyze.cfg;
 
-import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfs;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,6 +11,7 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.iterator.BbReverseDfs;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.position.CfgPosition;
@@ -112,7 +111,7 @@ public final class Liveness implements CfgAnalysis {
     while (changed) {
       changed = false;
 
-      for (var bb : reverseDfs(cfg)) {
+      for (var bb : BbReverseDfs.bbReverseDfs(cfg)) {
         // Compute liveOut(B) = union for each target T of B.jump():
         var newLiveOut = new HashSet<Register>();
         for (var target : bb.jump().targets()) {
