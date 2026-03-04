@@ -94,6 +94,10 @@ public final class Abstraction implements Comparable<Abstraction> {
     return module;
   }
 
+  public Comments comments() {
+    return comments;
+  }
+
   public @Unmodifiable List<Parameter> parameters() {
     return Arrays.asList(parameters);
   }

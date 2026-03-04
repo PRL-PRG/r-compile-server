@@ -8,7 +8,7 @@ fun main() {
       rx2 = rx1 as V;
       return rx2;
     };
-    # type-and-effect-error: Type mismatch in argument 0 (for signature): p(V +) doesn't match p(V -)
+    # type-error: Type mismatch in argument 0 (for signature): p(V +) doesn't match p(V -)
     r1 = f< p(V -) -+> v(I) >(r0);
     popenv;
     return r1;

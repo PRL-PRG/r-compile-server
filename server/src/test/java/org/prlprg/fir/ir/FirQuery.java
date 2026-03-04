@@ -16,7 +16,6 @@ import org.prlprg.bc.BCQuery;
 import org.prlprg.bc2fir.BC2FirCFGCompilerUnsupportedException;
 import org.prlprg.bc2fir.BC2FirClosureCompilerUnsupportedException;
 import org.prlprg.examples.Example;
-import org.prlprg.fir.check.CFGChecker;
 import org.prlprg.fir.check.Checker;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -27,7 +26,6 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.util.Strings;
 
 public class FirQuery implements GenFirQuery {
   public static final FirQuery INSTANCE = new FirQuery();
@@ -75,9 +73,16 @@ public class FirQuery implements GenFirQuery {
             .flatMap(Abstraction::streamCfgs)
             .mapMulti(
                 (CFG cfg, Consumer<ExpectedError> add) -> {
+                  if (!cfg.isPromise()) {
+                    var entryPos = new CfgPosition(cfg.entry(), -1, null);
+                    for (var expectedError : expectedErrors(entryPos, cfg.scope().comments())) {
+                      add.accept(expectedError);
+                    }
+                  }
+
                   for (var bb : cfg.bbs()) {
-                    var entryPos = new CfgPosition(bb, -1, null);
-                    for (var expectedError : expectedErrors(entryPos, bb.comments())) {
+                    var bbEntryPos = new CfgPosition(bb, -1, null);
+                    for (var expectedError : expectedErrors(bbEntryPos, bb.comments())) {
                       add.accept(expectedError);
                     }
 
@@ -102,19 +107,14 @@ public class FirQuery implements GenFirQuery {
     }
 
     for (var checker : checkers) {
-      var checkerName =
-          checker instanceof CFGChecker
-              ? "cfg"
-              : Strings.camelCaseToKebabCase(
-                  checker.getClass().getSimpleName().replace("Checker", ""));
       checker.removeErrorsIf(
           e ->
               e.position() != null
                   && expectedErrors.remove(
                       new ExpectedError(
                           new CfgPosition(e.position().bb(), e.position().instructionIndex()),
-                          checkerName,
-                          e.mainMessage())));
+                          checker.name(),
+                          e.mainMessage().split("\n")[0].trim())));
     }
 
     for (var checker : checkers) {

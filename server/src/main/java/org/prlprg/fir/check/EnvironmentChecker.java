@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Streams;
 
 /// Verifies the following invariants:
@@ -22,6 +23,11 @@ import org.prlprg.util.Streams;
 /// - At every [Deopt] there's at least 1 environment
 /// ([MkEnv](org.prlprg.fir.ir.expression.MkEnv) adds an environment, [PopEnv] removes one)
 public class EnvironmentChecker extends Checker {
+  @Override
+  public String name() {
+    return "env";
+  }
+
   @Override
   protected void doRun(Abstraction version) {
     new OnAbstraction(version).run();
@@ -55,7 +61,26 @@ public class EnvironmentChecker extends Checker {
                       BB::label,
                       pred -> environmentLiveness.envsAt(pred, pred.statements().size())));
       if (Set.copyOf(predEnvs.values()).size() > 1) {
-        report(bb, 0, "Predecessors have different environments: " + predEnvs);
+        var msg =
+            Printer.use(
+                p -> {
+                  var w = p.writer();
+
+                  w.write("Predecessors have different environments:\n");
+                  for (var entry : predEnvs.entrySet()) {
+                    w.write(entry.getKey());
+                    w.write(':');
+                    w.runIndented(
+                        () -> {
+                          for (var env : entry.getValue()) {
+                            w.write("\n- ");
+                            w.runIndented(() -> p.print(env));
+                          }
+                        });
+                  }
+                });
+
+        report(bb, -1, msg);
       }
 
       for (int i = 0; i < bb.statements().size(); i++) {

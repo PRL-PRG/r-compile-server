@@ -2,7 +2,7 @@ fun main() {
   () -+> v(I) { var x:*, reg rx0:v(I)o, reg rx1:*, reg rx2:V, reg r0:p(V -), reg r1:v(I) |
     mkenv;
     rx0 = v(I)[0, 1, 2];
-    # type-and-effect-error: Never store a `use` because the load can't be optimized. Instead, assign it to a register and store that.
+    # type-error: Never store a `use` because the load can't be optimized. Instead, assign it to a register and store that.
     st x = use rx0;
     r0 = prom<V ->{
       rx1 = ld x;

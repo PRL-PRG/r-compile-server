@@ -4,8 +4,8 @@ fun main() {
     mkenv;
     popenv;
     popenv;
-    popenv;
     # env-error: No environment to pop
+    popenv;
     return 0;
   }
 }

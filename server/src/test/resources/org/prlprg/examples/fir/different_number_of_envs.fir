@@ -5,8 +5,8 @@ fun main() {
   L0():
     mkenv;
     goto L1();
+  # env-error: Predecessors have different environments:
   L1():
-    # env-error: Predecessors have different numbers of environments: {$ENTRY=[0, 0], L0=[1, 1]}
     return 0;
   }
 }

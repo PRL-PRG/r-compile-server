@@ -1,6 +1,6 @@
 fun main() {
+  # cfg-error: Local register r is never assigned
   () --> I { reg r:I |
-    # cfg-error: Local register r is never assigned
     return 42;
   }
 }
