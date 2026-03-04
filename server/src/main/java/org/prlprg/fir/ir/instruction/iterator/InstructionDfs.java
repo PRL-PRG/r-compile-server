@@ -30,7 +30,7 @@ public final class InstructionDfs extends Abstract {
 
   @Override
   protected boolean isAtEndOfBB() {
-    return bb().statements().size() < instructionIndex;
+    return bb().statements().size() == instructionIndex;
   }
 
   @Override

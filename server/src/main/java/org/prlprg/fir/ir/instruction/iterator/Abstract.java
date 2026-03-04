@@ -26,7 +26,7 @@ abstract class Abstract implements InstructionIterator {
   @Override
   public Instruction next() {
     // Advance
-    if (isAtEndOfBB()) {
+    if (bb != null && isAtEndOfBB()) {
       bb = null;
       instructionIndex = -1;
     }
