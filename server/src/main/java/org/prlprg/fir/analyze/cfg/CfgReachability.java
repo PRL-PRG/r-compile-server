@@ -1,7 +1,7 @@
 package org.prlprg.fir.analyze.cfg;
 
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
-import static org.prlprg.fir.ir.cfg.iterator.ReverseDfs.reverseDfs;
+import static org.prlprg.fir.ir.cfg.iterator.BbDfs.bbDfs;
+import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
 
 import com.google.common.collect.Streams;
 import java.util.Collections;
@@ -65,8 +65,8 @@ public final class CfgReachability implements CfgAnalysis {
 
   private void run() {
     for (var bb : cfg.bbs()) {
-      mayPrecede.put(bb, Streams.stream(reverseDfs(bb)).collect(Collectors.toSet()));
-      maySucceed.put(bb, Streams.stream(dfs(bb)).collect(Collectors.toSet()));
+      mayPrecede.put(bb, Streams.stream(bbReverseDfs(bb)).collect(Collectors.toSet()));
+      maySucceed.put(bb, Streams.stream(bbDfs(bb)).collect(Collectors.toSet()));
     }
   }
 }

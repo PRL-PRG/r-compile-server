@@ -48,6 +48,7 @@ abstract class Abstract<Queue extends Collection<BB>> implements BBIterator {
   @Override
   public void prune() {
     last = null;
+    mustPushNext = false;
   }
 
   @Override

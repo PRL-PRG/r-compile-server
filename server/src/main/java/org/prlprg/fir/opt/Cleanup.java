@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
@@ -19,6 +17,7 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
@@ -229,7 +228,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     }
 
     void mergeBlocks(CFG cfg) {
-      for (var bb : dfs(cfg)) {
+      for (var bb : BbDfs.bbDfs(cfg)) {
         while (canMergeWithSuccessor(bb)) {
           mergeWithSuccessor(bb);
         }

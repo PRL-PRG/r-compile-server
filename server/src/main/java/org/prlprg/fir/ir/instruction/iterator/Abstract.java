@@ -26,8 +26,14 @@ abstract class Abstract implements InstructionIterator {
   @Override
   public Instruction next() {
     // Advance
-    if (bb == null || isAtEndOfBB()) {
+    if (isAtEndOfBB()) {
+      bb = null;
+      instructionIndex = -1;
+    }
+    if (bb == null) {
       bb = bbIterator.next();
+    }
+    if (instructionIndex == -1) {
       startInstructionIndex();
     } else {
       advanceInstructionIndex();
@@ -54,9 +60,9 @@ abstract class Abstract implements InstructionIterator {
   }
 
   public void prune() {
+    bbIterator.prune();
     bb = null;
     instructionIndex = -1;
-    bbIterator.prune();
   }
 
   protected abstract boolean isAtEndOfBB();

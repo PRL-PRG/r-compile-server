@@ -2,7 +2,6 @@ package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.analyze.resolve.NamedVariablesOf.namedVariablesOf;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
 
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
@@ -25,6 +24,7 @@ import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGInliner;
+import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
@@ -72,7 +72,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
     void run(CFG cfg) {
       // We run DFS to run inlined instructions, trying to inline recursively.
       // Then we don't need to repeat the analysis to reach a fixpoint.
-      for (var bb : dfs(cfg)) {
+      for (var bb : BbDfs.bbDfs(cfg)) {
         for (int i = 0; i < bb.statements().size(); i++) {
           run(bb, i);
         }

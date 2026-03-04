@@ -2,18 +2,19 @@ package org.prlprg.fir.ir.instruction.iterator;
 
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 
-public final class Dfs extends Abstract {
-  public Dfs(CFG cfg) {
-    super(new org.prlprg.fir.ir.cfg.iterator.Dfs(cfg));
+public final class InstructionDfs extends Abstract {
+  public InstructionDfs(CFG cfg) {
+    super(new BbDfs(cfg));
   }
 
-  public Dfs(BB bb) {
-    super(new org.prlprg.fir.ir.cfg.iterator.Dfs(bb));
+  public InstructionDfs(BB bb) {
+    super(new BbDfs(bb));
   }
 
-  public Dfs(BB bb, int instructionIndex) {
-    super(new org.prlprg.fir.ir.cfg.iterator.Dfs(bb));
+  public InstructionDfs(BB bb, int instructionIndex) {
+    super(new BbDfs(bb));
 
     if (instructionIndex < 0 || instructionIndex >= bb.instructions().size()) {
       throw new IndexOutOfBoundsException(

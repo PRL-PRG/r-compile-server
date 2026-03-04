@@ -9,22 +9,22 @@ import org.prlprg.fir.ir.cfg.CFG;
 ///
 /// It supports [java.util.Iterator#remove()]. It supports concurrent modification, and only
 /// queues elements when [#next()] or [#remove()] is called.
-public final class Dfs extends Abstract<List<BB>> {
-  /// An [Iterable] that yields [Dfs].
-  public static Iterable<BB> dfs(CFG cfg) {
-    return () -> new Dfs(cfg);
+public final class BbDfs extends Abstract<List<BB>> {
+  /// An [Iterable] that yields [BbDfs].
+  public static Iterable<BB> bbDfs(CFG cfg) {
+    return () -> new BbDfs(cfg);
   }
 
-  /// An [Iterable] that yields [Dfs].
-  public static Iterable<BB> dfs(BB bb) {
-    return () -> new Dfs(bb);
+  /// An [Iterable] that yields [BbDfs].
+  public static Iterable<BB> bbDfs(BB bb) {
+    return () -> new BbDfs(bb);
   }
 
-  public Dfs(CFG cfg) {
+  public BbDfs(CFG cfg) {
     super(new ArrayList<>(), List.of(cfg.entry()));
   }
 
-  public Dfs(BB bb) {
+  public BbDfs(BB bb) {
     super(new ArrayList<>(), List.of(bb));
   }
 
