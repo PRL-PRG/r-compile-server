@@ -85,6 +85,12 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 					uint8_t **inst_addrs, int instruction_count,
 					const Stencil **stencils);
 
+// Register .eh_frame data with the C++ runtime unwinder.
+void rcp_register_eh_frame(uint8_t *eh_frame_data);
+
+// Deregister .eh_frame data from the C++ runtime unwinder.
+void rcp_deregister_eh_frame(uint8_t *eh_frame_data);
+
 // Generate a temporary source file with opcode names.
 // Returns malloc'd path to the file (caller must free), or NULL on failure.
 char *write_source_file(const char *func_name, int instruction_count,

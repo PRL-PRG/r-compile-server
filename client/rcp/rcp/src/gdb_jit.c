@@ -1089,4 +1089,19 @@ void build_eh_frame(uint8_t **out_data, size_t *out_size,
 	// Caller owns the buffer - must free(*out_data) when done
 }
 
+extern void __register_frame(void *);
+extern void __deregister_frame(void *);
+
+void rcp_register_eh_frame(uint8_t *eh_frame_data)
+{
+	if (eh_frame_data)
+		__register_frame(eh_frame_data);
+}
+
+void rcp_deregister_eh_frame(uint8_t *eh_frame_data)
+{
+	if (eh_frame_data)
+		__deregister_frame(eh_frame_data);
+}
+
 #endif // DWARF_SUPPORT

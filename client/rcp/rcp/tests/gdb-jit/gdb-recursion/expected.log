@@ -17,7 +17,7 @@ Compiling recursive function...
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
 55	{
 gdb_jit_register (func_name=func_name@entry=0xADDR "fac", code_addr=code_addr@entry=0xADDR <fac>, code_size=code_size@entry=4146, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=12, stencils=stencils@entry=0xADDR) at gdb_jit.c:XXX
-872		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+873		__jit_debug_descriptor.action_flag = JIT_NOACTION;
 Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/fac.S, line 1.
 >
 > cat("Executing recursive function...\n")

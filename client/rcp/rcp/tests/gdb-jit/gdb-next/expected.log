@@ -16,7 +16,7 @@ Compiling minimal function...
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
 55	{
 gdb_jit_register (func_name=func_name@entry=0xADDR "f_jit", code_addr=code_addr@entry=0xADDR <f_jit>, code_size=code_size@entry=1848, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=4, stencils=stencils@entry=0xADDR) at gdb_jit.c:XXX
-872		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+873		__jit_debug_descriptor.action_flag = JIT_NOACTION;
 Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 1.
 >
 > cat("Executing function...\n")

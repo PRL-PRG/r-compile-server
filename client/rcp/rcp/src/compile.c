@@ -1314,7 +1314,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 
 #ifdef DWARF_SUPPORT
-	if (name && (rcp_gdb_jit_enabled || rcp_perf_jit_enabled))
+	if (name)
 	{
 		uint8_t **inst_addrs_packed =
 			(uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
@@ -1329,6 +1329,15 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			inst_addrs_packed[i] = inst_start[bc_pos];
 			instruction_stencils[i] = &stencils[opcode][variant];
 		}
+
+		// Always build .eh_frame and register with C++ unwinder
+		uint8_t *eh_frame_data = NULL;
+		size_t eh_frame_size = 0;
+		build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
+					   inst_addrs_packed, count_opcodes,
+					   instruction_stencils);
+		rcp_register_eh_frame(eh_frame_data);
+		res.eh_frame_data = eh_frame_data;
 
 		if (rcp_gdb_jit_enabled)
 			res.jit_entry = gdb_jit_register(name, executable, insts_size,
@@ -1353,14 +1362,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 			perf_jit_register(name, executable, insts_size);
 
-			// Build .eh_frame and write JIT_CODE_UNWINDING_INFO
-			uint8_t *eh_frame_data = NULL;
-			size_t eh_frame_size = 0;
-			build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
-						   inst_addrs_packed, count_opcodes,
-						   instruction_stencils);
+			// Reuse same eh_frame_data for perf jitdump
 			perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
-			free(eh_frame_data);
 
 			free(source_path);
 		}
@@ -1368,9 +1371,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	else
 	{
 		res.jit_entry = NULL;
+		res.eh_frame_data = NULL;
 	}
 #else
 	res.jit_entry = NULL;
+	res.eh_frame_data = NULL;
 #endif
 
 #ifndef DWARF_SUPPORT
@@ -1492,10 +1497,19 @@ static void rcp_finalizer(SEXP ptr)
 {
 #ifdef DWARF_SUPPORT
 	rcp_exec_ptrs *ptrs = (rcp_exec_ptrs *)R_ExternalPtrAddr(ptr);
-	if (ptrs && ptrs->jit_entry)
+	if (ptrs)
 	{
-		gdb_jit_unregister(ptrs->jit_entry);
-		ptrs->jit_entry = NULL;
+		if (ptrs->jit_entry)
+		{
+			gdb_jit_unregister(ptrs->jit_entry);
+			ptrs->jit_entry = NULL;
+		}
+		if (ptrs->eh_frame_data)
+		{
+			rcp_deregister_eh_frame(ptrs->eh_frame_data);
+			free(ptrs->eh_frame_data);
+			ptrs->eh_frame_data = NULL;
+		}
 	}
 #endif
 	R_RcpFree(ptr);

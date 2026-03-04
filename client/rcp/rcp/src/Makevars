@@ -39,10 +39,10 @@ STENCILS_BUILD_DIR = stencils-build
 STENCILS_H = $(STENCILS_BUILD_DIR)/stencils.h
 
 PKG_CFLAGS += -I$(STENCILS_BUILD_DIR) -I.
-PKG_LIBS += $(SHARED_LIB)
+PKG_LIBS += $(SHARED_LIB) -lstdc++
 
 SOURCES = $(wildcard *.c)
-OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o
+OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o rcp_exceptions.o
 
 # Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
 ifneq ($(DWARF_SUPPORT),0)
