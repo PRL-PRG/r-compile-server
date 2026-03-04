@@ -5,16 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.prlprg.bc2fir.BC2FirCompilerTest;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.snapshots.order.OrderAfter;
 
-@OrderAfter(BC2FirCompilerTest.class)
 @TestMethodOrder(OrderAnnotation.class)
 public class FirParseTest {
   /// Tests that all FIŘ examples not generated from R are parsed the same.

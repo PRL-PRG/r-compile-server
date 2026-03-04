@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.annotation.CheckReturnValue;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -50,16 +51,7 @@ public abstract class Checker {
   /// errors, [prints them to `stderr`][Checker#print] and returns `false`.
   @CheckReturnValue
   private static boolean checkAll(Consumer<Checker> doCheck, Exclude... exclusions) {
-    var exclusionsSet = EnumSet.noneOf(Exclude.class);
-    exclusionsSet.addAll(Arrays.asList(exclusions));
-
-    var checkers =
-        List.of(
-            new CFGChecker(!exclusionsSet.contains(Exclude.STRICT_CFG)),
-            new TypeAndEffectChecker(),
-            exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new ProvenanceChecker(),
-            exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new StrictnessChecker(),
-            new EnvironmentChecker());
+    var checkers = checkers(exclusions);
 
     // Don't short-circuit.
     for (var checker : checkers) {
@@ -71,12 +63,29 @@ public abstract class Checker {
     return checkers.stream().noneMatch(Checker::hasErrors);
   }
 
+  public static List<Checker> checkers(Exclude... exclusions) {
+    var exclusionsSet = EnumSet.noneOf(Exclude.class);
+    exclusionsSet.addAll(Arrays.asList(exclusions));
+
+    return List.of(
+        new CFGChecker(!exclusionsSet.contains(Exclude.STRICT_CFG)),
+        new TypeAndEffectChecker(),
+        exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new ProvenanceChecker(),
+        exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new StrictnessChecker(),
+        new EnvironmentChecker());
+  }
+
   private @Nullable Function function = null;
   private final List<CheckException> errors = new ArrayList<>();
 
   /// Returns all errors found during type-checking.
   public List<CheckException> errors() {
     return errors;
+  }
+
+  /// Filters errors
+  public void removeErrorsIf(Predicate<CheckException> doRemove) {
+    errors.removeIf(doRemove);
   }
 
   /// Check all code in the module.

@@ -1,8 +1,6 @@
 package org.prlprg.fir.ir;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.prlprg.fir.check.Checker.checkAll;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -17,15 +15,6 @@ public interface GenFirQuery extends Query<Module> {
   @Override
   default void verifyEqual(Module expected, Module actual, Example example, SnapshotStore store) {
     assertEquals(expected.toString(), actual.toString());
-  }
-
-  @Override
-  default void verifyExtra(Module data, Example example, SnapshotStore store) {
-    // TODO: Actually check for expected errors (instead of skipping if there are any)
-    if (data.toString().contains("-error:")) {
-      return;
-    }
-    assertTrue(checkAll(data), "Verification failed with unexpected errors");
   }
 
   @Override

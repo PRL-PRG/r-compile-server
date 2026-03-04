@@ -5,7 +5,7 @@ fun main() {
     # env-error: No environment to store into
     st x = r;
     # cfg-error: Local register r assigned after use(s)
-    # type-error: Can't assign it to r: can't assign * to I
+    # type-and-effect-error: Can't assign it to r: can't assign * to I
     r = ld y;
     return r;
   }

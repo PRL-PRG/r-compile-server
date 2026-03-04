@@ -7,7 +7,7 @@ fun main() {
     r1 = prom<I ->{ return 42; };
     f(r1);
 
-    # type-error: Promise effects mismatch: + don't subset -
+    # type-and-effect-error: Promise effects mismatch: + don't subset -
     r2 = prom<I ->{
     r3 = v(I)[3, 4, 5];
     r1$x = r3;

@@ -112,7 +112,7 @@ class ModuleFixpointSequenceTest {
 
     var exception = assertThrows(IllegalStateException.class, () -> fixpoint.run(feedback, module));
 
-    assertTrue(exception.getMessage().contains("Didn't reach a fixpoint after 100000 iterations"));
+    assertTrue(exception.getMessage().contains("Didn't reach a fixpoint after"));
   }
 
   @Test

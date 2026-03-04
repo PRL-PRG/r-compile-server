@@ -24,7 +24,7 @@ fun f(`...`) {
 }
 
 fun g(`...`) {
-  # type-error: Function effects mismatch: + don't subset -
+  # type-and-effect-error: Function effects mismatch: + don't subset -
   (reg r:p(V -)) --> v(I) { reg r0:v(I)o, reg r1:v(I) |
     mkenv;
     r0 = v(I)[3, 4, 5];

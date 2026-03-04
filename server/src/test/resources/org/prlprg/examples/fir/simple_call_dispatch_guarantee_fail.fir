@@ -1,7 +1,7 @@
 fun main() {
-  # type-error: Function effects mismatch: + don't subset -
+  # type-and-effect-error: Function effects mismatch: + don't subset -
   () --> v(I)f { reg r1:v(I)o |
-    # type-error: Can't assign it to r1: can't assign v(I) to v(I)o
+    # type-and-effect-error: Can't assign it to r1: can't assign v(I) to v(I)o
     r1 = g(4);
     return use r1;
   }

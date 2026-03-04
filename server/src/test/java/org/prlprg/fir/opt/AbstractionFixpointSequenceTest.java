@@ -104,7 +104,7 @@ class AbstractionFixpointSequenceTest {
 
     var exception = assertThrows(IllegalStateException.class, () -> runOpt(fixpoint, abstraction));
 
-    assertTrue(exception.getMessage().contains("Didn't reach a fixpoint after 100000 iterations"));
+    assertTrue(exception.getMessage().contains("Didn't reach a fixpoint after"));
   }
 
   @Test

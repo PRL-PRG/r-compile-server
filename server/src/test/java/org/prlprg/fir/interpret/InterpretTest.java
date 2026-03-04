@@ -4,24 +4,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import org.junit.jupiter.api.Disabled;
-import org.prlprg.bc2fir.BC2FirCompilerTest;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
-import org.prlprg.fir.ir.FirParseTest;
 import org.prlprg.fir.ir.FirQuery;
-import org.prlprg.fir2c.Fir2CCompileTest;
 import org.prlprg.gen2c.EvalQuery;
 import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.snapshots.order.OrderAfter;
 
 /// Runs supported FIŘ modules in the internal interpreter, testing the interpreter, BC->FIŘ,
 /// and FIŘ parsing.
-@OrderAfter(BC2FirCompilerTest.class)
-@OrderAfter(FirParseTest.class)
-@OrderAfter(Fir2CCompileTest.class)
 @Disabled
 class InterpretTest {
   /// Call the interpreter once, check output.
