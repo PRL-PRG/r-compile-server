@@ -7,6 +7,11 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 /// to every `return` or reflective operation (whichever comes first).
 public class StrictnessChecker extends Checker {
   @Override
+  public String name() {
+    return "strict";
+  }
+
+  @Override
   protected void doRun(Abstraction version) {
     var cfg = version.cfg();
     if (cfg == null) {

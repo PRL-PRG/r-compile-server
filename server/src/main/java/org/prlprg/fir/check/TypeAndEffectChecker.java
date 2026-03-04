@@ -63,7 +63,12 @@ import org.prlprg.util.Strings;
 /// Checks type and effect soundness.
 public final class TypeAndEffectChecker extends Checker {
   @Override
-  public void doRun(Abstraction version) {
+  public String name() {
+    return "type";
+  }
+
+  @Override
+  protected void doRun(Abstraction version) {
     var function = function();
     if (function != null) {
       // Check guaranteed effects and return type

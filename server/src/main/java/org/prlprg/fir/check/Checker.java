@@ -21,10 +21,17 @@ public abstract class Checker {
   private static final Checker NULL =
       new Checker() {
         @Override
+        public String name() {
+          return "";
+        }
+
+        @Override
         protected void doRun(Abstraction version) {
           // Do nothing
         }
       };
+
+  public abstract String name();
 
   /// Check invariants (CFG, types, effects, provenance, and environments) in the version. If
   /// there are any errors, [prints them to `stderr`][Checker#print] and returns `false`.

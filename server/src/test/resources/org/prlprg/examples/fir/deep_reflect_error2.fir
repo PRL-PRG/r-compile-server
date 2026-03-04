@@ -15,7 +15,7 @@ fun main() {
 }
 
 fun f(`...`) {
-  # type-and-effect-error: Function effects mismatch: + don't subset -
+  # type-error: Function effects mismatch: + don't subset -
   (reg r:p(V -)) --> v(I) { reg r1:v(I) |
     r1 = g< p(V -) -+> v(I) >(r);
     return r1;

@@ -45,6 +45,11 @@ public class CFGChecker extends Checker {
   }
 
   @Override
+  public String name() {
+    return "cfg";
+  }
+
+  @Override
   protected void doRun(Abstraction version) {
     new OnAbstraction(version).run();
   }
