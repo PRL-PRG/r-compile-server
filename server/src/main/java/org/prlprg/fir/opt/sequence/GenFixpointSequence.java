@@ -7,7 +7,7 @@ import org.prlprg.AppConfig.CfgDebugLevel;
 abstract class GenFixpointSequence<Opt, Feedback, Target> {
   /// If more than this many optimizations are run, it's assumed that no fixpoint will be reached,
   /// and an error is thrown.
-  private static final int HARD_LIMIT = 100000;
+  private static final int HARD_LIMIT = 1000;
 
   private final String name;
   private final int maxIterations;
@@ -62,7 +62,10 @@ abstract class GenFixpointSequence<Opt, Feedback, Target> {
       iteration++;
       if (iteration >= HARD_LIMIT) {
         throw new IllegalStateException(
-            "Didn't reach a fixpoint after " + HARD_LIMIT + " iterations, this is likely a bug");
+            "Didn't reach a fixpoint after "
+                + HARD_LIMIT
+                + " iterations, this is likely a bug:\n"
+                + target);
       }
     }
 
