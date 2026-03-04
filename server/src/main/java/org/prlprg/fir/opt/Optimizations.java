@@ -43,6 +43,7 @@ public class Optimizations {
                     new ResolveLoad(),
                     new ResolveLoadFun(),
                     new ReturnTypeAndEffects()),
+                new ElideEnv(),
                 new Inline(1000),
                 new StrictifyPromise(),
                 new Cleanup()),
