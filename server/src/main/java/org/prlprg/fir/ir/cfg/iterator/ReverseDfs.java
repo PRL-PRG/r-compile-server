@@ -11,7 +11,7 @@ import org.prlprg.fir.ir.instruction.Deopt;
 ///
 /// It supports [java.util.Iterator#remove()]. It supports concurrent modification, and only
 /// queues elements when [#next()] or [#remove()] is called.
-public class ReverseDfs extends Abstract<List<BB>> {
+public final class ReverseDfs extends Abstract<List<BB>> {
   /// An [Iterable] that yields [ReverseDfs].
   public static Iterable<BB> reverseDfs(CFG cfg) {
     return () -> new ReverseDfs(cfg);

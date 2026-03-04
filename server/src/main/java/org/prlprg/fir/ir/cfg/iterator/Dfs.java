@@ -9,7 +9,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 ///
 /// It supports [java.util.Iterator#remove()]. It supports concurrent modification, and only
 /// queues elements when [#next()] or [#remove()] is called.
-public class Dfs extends Abstract<List<BB>> {
+public final class Dfs extends Abstract<List<BB>> {
   /// An [Iterable] that yields [Dfs].
   public static Iterable<BB> dfs(CFG cfg) {
     return () -> new Dfs(cfg);
