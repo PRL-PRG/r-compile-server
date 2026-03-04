@@ -1,6 +1,6 @@
 include ../../common.mk
 
-TESTS = basic.R cmppkg-attached-env.R
+TESTS = basic.R cmppkg-attached-env.R cmppkg-dot-functions.R
 
 .PHONY: all test clean
 

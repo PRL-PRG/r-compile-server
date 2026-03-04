@@ -2360,10 +2360,11 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 
 	PROTECT(pkg_namespace);
 
-	// Get all object names in the namespace
+	// Get all object names in the namespace (including hidden names)
 	SEXP ls_call = Rf_lang3(PROTECT(Rf_install("ls")), pkg_namespace,
-							PROTECT(Rf_ScalarLogical(TRUE)) // all. names = TRUE
-	);
+							PROTECT(Rf_ScalarLogical(TRUE)));
+	SET_TAG(CDR(ls_call), Rf_install("envir"));
+	SET_TAG(CDDR(ls_call), Rf_install("all.names"));
 	UNPROTECT(2); // ls and all.names arg
 	PROTECT(ls_call);
 
