@@ -3,24 +3,13 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Printer;
 
-class MergeConsecutiveCheckpointsTest {
-  private static final MergeConsecutiveCheckpoints OPT = new MergeConsecutiveCheckpoints();
-
-  private static boolean run(Module module) {
-    var changed = false;
-    for (var fn : module.localFunctions()) {
-      for (var version : fn.versions()) {
-        if (OPT.run(new AbstractionFeedback(), version)) {
-          changed = true;
-        }
-      }
-    }
-    return changed;
+class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
+  @Override
+  public Optimization optimization() {
+    return new MergeConsecutiveCheckpoints();
   }
 
   @Test
@@ -29,6 +18,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
                 r3 = blackBox(1);
                 check L9() else D4();
@@ -66,6 +56,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
                 r3 = blackBox(1);
                 check L9() else D4();
@@ -94,6 +85,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r4:V, reg r9:R |
                 r3 = blackBox(1);
                 r4 = blackBox(2);
@@ -123,6 +115,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R, reg r10:I |
                 r3 = blackBox(1);
                 check L9() else D4();
@@ -161,6 +154,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R, reg r10:V, reg r11:I |
                 r3 = blackBox(1);
                 check L9() else D4();
@@ -193,6 +187,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
                 r3 = blackBox(1);
                 check L9() else D4();
@@ -227,6 +222,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
                 r3 = blackBox(1);
                 check L9() else D4();
@@ -256,6 +252,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
                 r3 = blackBox(1);
                 check L9() else D4();
@@ -280,6 +277,7 @@ class MergeConsecutiveCheckpointsTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg r3:V, reg r9:R, reg r10:I |
                 r3 = blackBox(1);
                 check L9() else D4();

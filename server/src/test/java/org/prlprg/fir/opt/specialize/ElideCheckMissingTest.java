@@ -3,25 +3,16 @@ package org.prlprg.fir.opt.specialize;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.opt.Optimization;
+import org.prlprg.fir.opt.OptimizationUnitTest;
 import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
-class ElideCheckMissingTest {
-  private static final Specialize OPT = new Specialize(new ElideCheckMissing());
-
-  private static boolean run(Module module) {
-    var changed = false;
-    for (var fn : module.localFunctions()) {
-      for (var version : fn.versions()) {
-        if (OPT.run(new AbstractionFeedback(), version)) {
-          changed = true;
-        }
-      }
-    }
-    return changed;
+class ElideCheckMissingTest implements OptimizationUnitTest {
+  @Override
+  public Optimization optimization() {
+    return new Specialize(new ElideCheckMissing());
   }
 
   @Test

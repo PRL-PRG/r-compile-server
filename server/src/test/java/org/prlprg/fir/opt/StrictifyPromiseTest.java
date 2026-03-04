@@ -3,29 +3,14 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.Printer;
 
-class StrictifyPromiseTest {
-  private static final StrictifyPromise OPT = new StrictifyPromise();
-
-  private static boolean run(Module module) {
-    var changed = false;
-    for (var fn : module.localFunctions()) {
-      for (var version : fn.versions()) {
-        if (OPT.run(new AbstractionFeedback(), version)) {
-          changed = true;
-        }
-      }
-    }
-    return changed;
+class StrictifyPromiseTest implements OptimizationUnitTest {
+  @Override
+  public Optimization optimization() {
+    return new StrictifyPromise();
   }
-
-  // ---------------------------------------------------------------------------
-  // Tests: static callee
-  // ---------------------------------------------------------------------------
 
   @Test
   void staticCallee_nonEffectfulPromise_isInlined() {
@@ -89,10 +74,6 @@ class StrictifyPromiseTest {
     assertFalse(run(module), "effectful promise: optimization should report no change");
   }
 
-  // ---------------------------------------------------------------------------
-  // Tests: dispatch callee
-  // ---------------------------------------------------------------------------
-
   @Test
   void dispatchCallee_mixedArgs_onlyNonEffectfulInlined() {
     var module =
@@ -135,10 +116,6 @@ class StrictifyPromiseTest {
         "dispatch signature should reflect inlined param type");
     assertTrue(printed.contains("rc = `+`.0(ra, rb)"), "promise body should be inlined");
   }
-
-  // ---------------------------------------------------------------------------
-  // Tests: promise used multiple times
-  // ---------------------------------------------------------------------------
 
   @Test
   void promiseUsedMultipleTimes_notInlined() {
