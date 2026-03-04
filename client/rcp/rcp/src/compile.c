@@ -616,8 +616,8 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		case SWITCH_BCOP:
 		{
 			SEXP names = r_constpool[imms[1]];
-			SEXP ioffsets = r_constpool[imms[2]];
-			SEXP coffsets = r_constpool[imms[3]];
+			SEXP coffsets = r_constpool[imms[2]];
+			SEXP ioffsets = r_constpool[imms[3]];
 
 			Rboolean is_names_null = names == R_NilValue;
 			int names_length = LENGTH(names);
@@ -799,13 +799,13 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock *bb,
 
 	if (opcode == SWITCH_BCOP)
 	{
-		SEXP ioffsets_sexp = constpool[imms[2]];
-		int *ioffsets = INTEGER(ioffsets_sexp);
-		int ioffsets_size = LENGTH(ioffsets_sexp);
+		SEXP coffsets_sexp = constpool[imms[2]];
+		SEXP ioffsets_sexp = constpool[imms[3]];
 
-		SEXP coffsets_sexp = constpool[imms[3]];
-		int *coffsets = INTEGER(coffsets_sexp);
-		int coffsets_size = LENGTH(coffsets_sexp);
+		int ioffsets_size = (ioffsets_sexp != R_NilValue) ? LENGTH(ioffsets_sexp) : 0;
+		int coffsets_size = (coffsets_sexp != R_NilValue) ? LENGTH(coffsets_sexp) : 0;
+		int *ioffsets = ioffsets_size ? INTEGER(ioffsets_sexp) : NULL;
+		int *coffsets = coffsets_size ? INTEGER(coffsets_sexp) : NULL;
 
 		bb->next_blocks = (BasicBlock **)S_alloc(ioffsets_size + coffsets_size,
 												 sizeof(BasicBlock *));
@@ -867,13 +867,14 @@ static BasicBlock *build_basic_blocks(int bytecode[], int bytecode_size,
 
 		if (opcode == SWITCH_BCOP)
 		{
-			const SEXP ioffsets = constpool[imms[2]];
-			for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
-				block_lookup[INTEGER(ioffsets)[i] - 1].next_blocks = NULL;
+			const SEXP coffsets = constpool[imms[2]];
+			const SEXP ioffsets = constpool[imms[3]];
 
-			const SEXP coffsets = constpool[imms[3]];
-			if (ioffsets !=
-				coffsets) // Avoid double-marking if both point to the same array
+			if (ioffsets != R_NilValue)
+				for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
+					block_lookup[INTEGER(ioffsets)[i] - 1].next_blocks = NULL;
+
+			if (coffsets != R_NilValue && coffsets != ioffsets)
 			{
 				for (int i = 0, size = LENGTH(coffsets); i < size; i++)
 					block_lookup[INTEGER(coffsets)[i] - 1].next_blocks = NULL;
@@ -1332,24 +1333,24 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 			case SWITCH_BCOP:
 			{
-				SEXP ioffsets_sexp = constpool[opargs[2]];
-				int *ioffsets = INTEGER(ioffsets_sexp);
-				int ioffsets_size = LENGTH(ioffsets_sexp);
+				SEXP coffsets_sexp = constpool[opargs[2]];
+				SEXP ioffsets_sexp = constpool[opargs[3]];
 
-				SEXP coffsets_sexp = constpool[opargs[3]];
-				int *coffsets = INTEGER(coffsets_sexp);
-				int coffsets_size = LENGTH(coffsets_sexp);
-
-				for (int i = 0; i < ioffsets_size; i++)
-					ioffsets[i] = inst_start[ioffsets[i] - 1] - executable;
-
-				if (ioffsets !=
-					coffsets) // Avoid double patching if they point to the same memory
+				if (ioffsets_sexp != R_NilValue)
 				{
+					int *ioffsets = INTEGER(ioffsets_sexp);
+					int ioffsets_size = LENGTH(ioffsets_sexp);
+					for (int i = 0; i < ioffsets_size; i++)
+						ioffsets[i] = inst_start[ioffsets[i] - 1] - executable;
+				}
+
+				if (coffsets_sexp != R_NilValue &&
+					coffsets_sexp != ioffsets_sexp) // Avoid double patching if they point to the same memory
+				{
+					int *coffsets = INTEGER(coffsets_sexp);
+					int coffsets_size = LENGTH(coffsets_sexp);
 					for (int i = 0; i < coffsets_size; i++)
 						coffsets[i] = inst_start[coffsets[i] - 1] - executable;
-					// Possible bug: if some elements of ioffsets and coffsets point to the
-					// same label, it will be patched twice
 				}
 			}
 			break;
@@ -2022,9 +2023,9 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		// Get the covr namespace environment
 		SEXP covr_ns = PROTECT(R_FindNamespace(Rf_mkString("covr")));
 		// Get the .counters variable from covr namespace
-		coverage_registry = PROTECT(Rf_findVarInFrame(covr_ns, Rf_install(".counters")));
-		coverage_registry = eval(coverage_registry, covr_ns); // In case it's a promise
-		UNPROTECT_SAFE(coverage_registry);					  // Is it safe?
+		SEXP counters_promise = PROTECT(Rf_findVarInFrame(covr_ns, Rf_install(".counters")));
+		coverage_registry = eval(counters_promise, covr_ns); // In case it's a promise
+		UNPROTECT_SAFE(counters_promise);
 		UNPROTECT_SAFE(covr_ns);
 
 		if (coverage_registry == R_UnboundValue || coverage_registry == R_NilValue)
@@ -2436,29 +2437,33 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		SET_STRING_ELT(options_names, 0, Rf_mkChar("name"));
 
 		PROTECT(obj);
-		// Try to compile the functi
+		// Stack: [name_sym, options, obj]
 		SEXP cmpfun = PROTECT(Rf_lang3(Rf_install("::"), Rf_install("rcp"),
 									   Rf_install("rcp_cmpfun")));
 		SEXP cmpfun_call = Rf_lang3(cmpfun, obj, options);
 		UNPROTECT(1); // cmpfun
-		UNPROTECT(1); // options
-		UNPROTECT_SAFE(obj);
+		// Stack: [name_sym, options, obj]
 		PROTECT(cmpfun_call);
+		// Stack: [name_sym, options, obj, cmpfun_call]
 		int comp_error = 0;
 		SEXP compiled = R_tryEval(cmpfun_call, R_GlobalEnv, &comp_error);
 		UNPROTECT_SAFE(cmpfun_call);
+		// Stack: [name_sym, options, obj]
 
 		if (comp_error)
 		{
 			Rf_warning("Failed to compile function %s in package %s.",
 					   CHAR(STRING_ELT(obj_names, i)), pkg);
 			failed_count++;
+			UNPROTECT_SAFE(obj);
+			UNPROTECT_SAFE(options);
 			UNPROTECT_SAFE(name_sym);
 			continue;
 		}
 
 		// Store the compiled function and symbol
 		PROTECT(compiled);
+		// Stack: [name_sym, options, obj, compiled]
 #ifdef CMPPKG_WAITALL
 		compiled_functions[i] = compiled;
 		function_symbols[i] = name_sym;
@@ -2468,6 +2473,8 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		R_LockBinding(name_sym, pkg_namespace);
 		SET_BODY(obj, BODY(compiled));
 		UNPROTECT_SAFE(compiled);
+		UNPROTECT_SAFE(obj);
+		UNPROTECT_SAFE(options);
 		UNPROTECT_SAFE(name_sym);
 #endif
 		compiled_count++;
