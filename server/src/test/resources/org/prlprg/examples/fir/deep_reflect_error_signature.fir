@@ -8,8 +8,7 @@ fun main() {
       rx2 = rx1 as V;
       return rx2;
     };
-    # type-error: Type mismatch in argument 0 (for signature): p(V +) doesn't match p(V -)
-    # runtime-error: Type mismatch in argument 0 (for signature): <prom env=<user#0 parent=<global#1 ...> (x=<int 0, 1, 2>)> ⇒ .Interpret(promise(<...>))> {:p(V +)} isn't a(n) p(V -)
+    # type-and-effect-error: Type mismatch in argument 0 (for signature): p(V +) doesn't match p(V -)
     r1 = f< p(V -) -+> v(I) >(r0);
     popenv;
     return r1;

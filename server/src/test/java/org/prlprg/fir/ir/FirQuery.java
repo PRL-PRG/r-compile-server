@@ -1,19 +1,33 @@
 package org.prlprg.fir.ir;
 
+import static org.junit.Assert.fail;
 import static org.prlprg.bc2fir.BC2FirCompilerUtils.compile;
+import static org.prlprg.fir.check.Checker.checkers;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import junit.framework.AssertionFailedError;
 import org.prlprg.bc.BCQuery;
 import org.prlprg.bc2fir.BC2FirCFGCompilerUnsupportedException;
 import org.prlprg.bc2fir.BC2FirClosureCompilerUnsupportedException;
 import org.prlprg.examples.Example;
+import org.prlprg.fir.check.CFGChecker;
+import org.prlprg.fir.check.Checker;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.snapshots.SkipQueryException;
 import org.prlprg.snapshots.SnapshotStore;
+import org.prlprg.util.Strings;
 
 public class FirQuery implements GenFirQuery {
   public static final FirQuery INSTANCE = new FirQuery();
@@ -49,5 +63,96 @@ public class FirQuery implements GenFirQuery {
           throw new AssertionFailedError(
               "Can't get fir module from this type of example: " + example.rpath());
     };
+  }
+
+  @Override
+  public void verifyExtra(Module data, Example example, SnapshotStore store) {
+    // Check that we have expected errors and not unexpected errors
+
+    var expectedErrors =
+        data.localFunctions().stream()
+            .flatMap(f -> f.versions().stream())
+            .flatMap(Abstraction::streamCfgs)
+            .mapMulti(
+                (CFG cfg, Consumer<ExpectedError> add) -> {
+                  for (var bb : cfg.bbs()) {
+                    var entryPos = new CfgPosition(bb, -1, null);
+                    for (var expectedError : expectedErrors(entryPos, bb.comments())) {
+                      add.accept(expectedError);
+                    }
+
+                    for (var instructionIndex = 0;
+                        instructionIndex < bb.instructions().size();
+                        instructionIndex++) {
+                      var instr = bb.instructions().get(instructionIndex);
+
+                      var pos = new CfgPosition(bb, instructionIndex, instr);
+                      for (var expectedError : expectedErrors(pos, instr.comments())) {
+                        add.accept(expectedError);
+                      }
+                    }
+                  }
+                })
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+    var checkers = checkers();
+
+    for (var checker : checkers) {
+      checker.run(data);
+    }
+
+    for (var checker : checkers) {
+      var checkerName =
+          checker instanceof CFGChecker
+              ? "cfg"
+              : Strings.camelCaseToKebabCase(
+                  checker.getClass().getSimpleName().replace("Checker", ""));
+      checker.removeErrorsIf(
+          e ->
+              e.position() != null
+                  && expectedErrors.remove(
+                      new ExpectedError(
+                          new CfgPosition(e.position().bb(), e.position().instructionIndex()),
+                          checkerName,
+                          e.mainMessage())));
+    }
+
+    for (var checker : checkers) {
+      checker.print();
+    }
+
+    var hasExpectedErrors = !expectedErrors.isEmpty();
+    var hasUnexpectedErrors = checkers.stream().anyMatch(Checker::hasErrors);
+
+    if (hasExpectedErrors) {
+      var introduction =
+          hasUnexpectedErrors
+              ? "Verification failed with unexpected errors, while not catching these expected errors:"
+              : "Verification didn't catch these expected errors:";
+      var expectedErrorsList =
+          expectedErrors.stream().map(Object::toString).collect(Collectors.joining("\n"));
+      fail(introduction + "\n" + expectedErrorsList);
+    } else if (hasUnexpectedErrors) {
+      fail("Verification failed with unexpected errors");
+    }
+  }
+
+  private static List<ExpectedError> expectedErrors(CfgPosition pos, Comments comments) {
+    var regex = Pattern.compile("\\s*([\\w-]+)-error:(.*)");
+    var errors = new ArrayList<ExpectedError>();
+    for (var line : comments) {
+      var match = regex.matcher(line);
+      if (match.matches()) {
+        errors.add(new ExpectedError(pos, match.group(1), match.group(2).trim()));
+      }
+    }
+    return errors;
+  }
+
+  private record ExpectedError(CfgPosition pos, String checkerName, String message) {
+    @Override
+    public String toString() {
+      return String.format("at %s%s-error: %s", pos, checkerName, message);
+    }
   }
 }

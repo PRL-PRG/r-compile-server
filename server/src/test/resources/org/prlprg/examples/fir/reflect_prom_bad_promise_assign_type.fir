@@ -7,13 +7,12 @@ fun main() {
     r1 = prom<I ->{ return 42; };
     f(r1);
 
-    # type-error: Can't assign it to r2: can't assign p(I +) to p(I -)
+    # type-and-effect-error: Can't assign it to r2: can't assign p(I +) to p(I -)
     r2 = prom<I +>{
       r3 = v(I)[3, 4, 5];
       r1$x = r3;
       return 42;
     };
-    # runtime-error: No versions match signature and arguments:
     f(r2);
 
     rx0 = ld x;

@@ -2,10 +2,8 @@ package org.prlprg.fir.interpret;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Disabled;
-import org.prlprg.bc2fir.BC2FirCompilerTest;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
-import org.prlprg.fir.ir.FirParseTest;
 import org.prlprg.fir.ir.FirQuery;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -14,13 +12,9 @@ import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.OptimizedFirQuery;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.snapshots.SnapshotStore;
-import org.prlprg.snapshots.order.OrderAfter;
 import org.prlprg.util.Streams;
 
 /// Test that various optimizations don't change interpreter output.
-@OrderAfter(BC2FirCompilerTest.class)
-@OrderAfter(FirParseTest.class)
-@OrderAfter(InterpretTest.class)
 @Disabled("Temporarily")
 public interface InterpretAfterGenOptTest {
   Optimization optimization();

@@ -1,0 +1,10 @@
+BC2CCompilerTest
+BC2FirCompilerTest
+FirParseTest
+InterpretTest
+OptimizationSnapshotTest
+InterpretAfterOptTest
+InterpretAfterDefaultOptTest
+Fir2CCompileTest
+FirAfterOpt2CCompileTest
+FirAfterDefaultOpt2CCompileTest

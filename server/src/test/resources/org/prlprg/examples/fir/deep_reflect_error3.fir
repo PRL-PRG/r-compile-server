@@ -1,5 +1,5 @@
 fun main() {
-  # type-error: Function effects mismatch: + don't subset -
+  # type-and-effect-error: Function effects mismatch: + don't subset -
   () --> v(I) { var x:*, reg rx0:v(I)s, reg rx1:*, reg rx2:V, reg r0:p(V -), reg r1:v(I) |
     mkenv;
     rx0 = v(I)[0, 1, 2];

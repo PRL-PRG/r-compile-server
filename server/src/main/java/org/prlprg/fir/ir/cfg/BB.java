@@ -70,6 +70,10 @@ public final class BB implements Comparable<BB> {
     return owner.module();
   }
 
+  public Comments comments() {
+    return comments;
+  }
+
   public String label() {
     return label;
   }

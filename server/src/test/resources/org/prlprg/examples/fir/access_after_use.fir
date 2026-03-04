@@ -1,8 +1,8 @@
 fun main() {
   () --> I { reg r:v(I)o, reg r1:I |
     r = v(I)[1, 2, 3];
-    # provenance-error: Read after use: r
     use r;
+    # provenance-error: Read after use: r
     r1 = r[0];
     return r1;
   }

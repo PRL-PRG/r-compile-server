@@ -1,5 +1,8 @@
 package org.prlprg.fir.opt;
 
+import static org.junit.Assert.fail;
+import static org.prlprg.fir.check.Checker.checkAll;
+
 import java.util.Objects;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
@@ -54,5 +57,18 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
     optimization.run(feedback, fir);
     return fir;
+  }
+
+  @Override
+  public void verifyExtra(Module data, Example example, SnapshotStore store) {
+    if (data.toString().contains("-error:")) {
+      // There are errors, but they moved
+      // All we want to know is that optimizations didn't crash
+      return;
+    }
+
+    if (!checkAll(data)) {
+      fail("Optimized FIR doesn't match expected FIR");
+    }
   }
 }
