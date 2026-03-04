@@ -541,10 +541,10 @@ public final class TypeAndEffectChecker extends Checker {
         var type = binding.type();
 
         if (!type.isWellFormed()) {
-          report("Variable type is not well-formed: " + binding);
+          report("Binding type is not well-formed: " + binding);
         }
         if (!isNamed && type.ownership() == Ownership.FRESH) {
-          report("Variables can't be fresh: " + binding);
+          report("Registers can't be fresh: " + binding);
         }
         if (isNamed && type.ownership() != Ownership.SHARED) {
           report("Named variables must be shared: " + binding);
