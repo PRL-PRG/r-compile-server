@@ -11,7 +11,6 @@ RCP_IMAGE ?= $(DOCKER_IMAGE_ORG)/rcp
 
 RSH_COMMIT ?= $(shell git -C external/rsh rev-parse HEAD)
 RCP_COMMIT ?= $(shell git rev-parse HEAD)
-DWARF_SUPPORT ?= 0
 
 RCP_MAKE := $(MAKE) -C rcp
 
@@ -32,7 +31,9 @@ RCP_BUILD_ARGS = \
 # Docker targets
 # --------------------------------------------------------------------------- #
 
-.PHONY: docker-rcp-base docker-rcp-rsh docker-rcp docker-rcp-build docker-rcp-dwarf0 docker-rcp-dwarf1
+.PHONY: docker-rcp-base docker-rcp-rsh docker-rcp docker-rcp
+
+all: docker-rcp
 
 docker-rcp-base:
 	$(DOCKER_BUILD_CMD) \
@@ -45,17 +46,11 @@ docker-rcp-rsh: docker-rcp-base
 		-t $(RCP_RSH_IMAGE):$(RSH_COMMIT) \
 		-f Dockerfile.rcp-rsh .
 
-docker-rcp-build:
+docker-rcp: docker-rcp-rsh
 	$(DOCKER_BUILD_CMD) \
 		$(RCP_BUILD_ARGS) \
-		--build-arg DWARF_SUPPORT=$(DWARF_SUPPORT) \
-		-t $(RCP_IMAGE):$(RCP_COMMIT)-dwarf$(DWARF_SUPPORT) \
+		-t $(RCP_IMAGE):$(RCP_COMMIT) \
 		-f Dockerfile.rcp .
-
-docker-rcp: docker-rcp-rsh
-	$(MAKE) docker-rcp-build DWARF_SUPPORT=0
-	$(MAKE) docker-rcp-build DWARF_SUPPORT=1
-	docker tag $(RCP_IMAGE):$(RCP_COMMIT)-dwarf0 $(RCP_IMAGE):$(RCP_COMMIT)
 
 # --------------------------------------------------------------------------- #
 # Local development targets
