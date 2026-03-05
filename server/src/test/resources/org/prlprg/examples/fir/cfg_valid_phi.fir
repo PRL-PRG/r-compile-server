@@ -1,8 +1,8 @@
 fun main() {
-  () -+> I { reg r1:I, reg r2:I, reg r3:I |
-    r1 = f(TRUE);
+  () -+> I { reg r:I, reg r2:I, reg r3:I |
+    r = f(TRUE);
     r2 = f(FALSE);
-    r3 = `+`.1(r1, r2);
+    r3 = `+`.1(r, r2);
     return r3;
   }
 }

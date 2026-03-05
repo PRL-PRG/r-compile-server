@@ -4,15 +4,12 @@ fun main() {
     limit = 10;
     goto LOOP(counter0);
   LOOP(counter1):
-    cond = lt.0(counter1, limit);
+    cond = `<`.1(counter1, limit);
     if cond then BODY() else EXIT();
   BODY():
-    counter2 = add.0(counter1, 1);
+    counter2 = `+`.1(counter1, 1);
     goto LOOP(counter2);
   EXIT():
     return counter1;
   }
 }
-
-fun lt(lhs, rhs) { (reg lhs:I, reg rhs:I) --> L { ... } }
-fun add(lhs, rhs) { (reg lhs:I, reg rhs:I) --> I { ... } }

@@ -230,7 +230,9 @@ public sealed interface Expression
             headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
         // Variable
         default -> {
-          if (!headAsName.startsWith("`") && scope.contains(Variable.register(headAsName))) {
+          if (!headAsName.startsWith("`")
+              && Register.isValid(headAsName)
+              && scope.contains(Variable.register(headAsName))) {
             headAsArg = new Read(Variable.register(headAsName));
           }
         }

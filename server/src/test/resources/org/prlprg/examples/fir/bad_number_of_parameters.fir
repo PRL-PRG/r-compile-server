@@ -5,7 +5,7 @@ fun main() {
   }
 }
 
-fun g(`...`) {
+fun g(r) {
   # type-error: Version has 0 parameters, but function has 1
   () --> I { |
     return 0;

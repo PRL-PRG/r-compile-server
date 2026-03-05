@@ -5,7 +5,7 @@ fun main() {
   }
 }
 
-fun identity(`...`) {
+fun identity(x) {
   (reg x:I) --> I { |
     return x;
   }

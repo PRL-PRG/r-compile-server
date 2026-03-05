@@ -6,7 +6,7 @@ fun main() {
 }
 
 fun f(`...`) {
-  (reg r:M) --> I { |
+  (reg ddd:dots) --> I { |
     return 0;
   }
 }

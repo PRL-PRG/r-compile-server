@@ -53,6 +53,11 @@ public class Specialize implements AbstractionOptimization {
   }
 
   @Override
+  public String toString() {
+    return getClass().getSimpleName() + "[" + name + "]";
+  }
+
+  @Override
   public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =

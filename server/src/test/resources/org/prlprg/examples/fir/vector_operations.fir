@@ -4,12 +4,8 @@ fun main() {
     r0 = r[2];
     r[0] = r0;
     r1 = r[1];
-    r2 = inc.0(r1);
+    r2 = `+`.1(r1, 1);
     r[4] = r2;
     return use r;
   }
-}
-
-fun inc(`...`) {
-  (reg r:I) --> I { ... }
 }

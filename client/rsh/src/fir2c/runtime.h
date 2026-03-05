@@ -258,7 +258,6 @@ DEFINE_OVERRIDDEN_BUILTIN(abs, 2, SEXP value);
 DEFINE_MATH1_BUILTINS(V)
 #undef V
 
-DEFINE_OVERRIDDEN_BUILTIN(missing, 1, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(length, 1, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(as_u2einteger, 1, SEXP value);  // as.integer
 DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, 1, SEXP value);  // as.logical

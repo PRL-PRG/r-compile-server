@@ -291,6 +291,11 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         var register = entry.getKey();
         var origin = entry.getValue();
 
+        // Can't substitute invalid
+        if (!scope.contains(register)) {
+          continue;
+        }
+
         // Can't substitute with `use`, unless there's exactly one occurrence besides this one.
         if (origin instanceof Use(var used) && defUseAnalysis.uses(used).size() > 2) {
           continue;
@@ -305,8 +310,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         // our underapproximate but simpler criteria (promises can never be guaranteed forced).
         var originDef =
             origin.variable() == null ? null : defUseAnalysis.definition(origin.variable());
-        if (originDef != null
-            && defUseAnalysis.uses(register).stream()
+        if (originDef == null
+            || defUseAnalysis.uses(register).stream()
                 .anyMatch(
                     registerUse ->
                         !CfgDominatorTree.dominates(

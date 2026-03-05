@@ -23,7 +23,7 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
   @Override
   public boolean equals(Object o) {
-    if (!(o instanceof OptimizedFirQuery(Optimization o1))) {
+    if (!(o instanceof OptimizedFirQuery(var o1))) {
       return false;
     }
     return Objects.equals(optimization.name(), o1.name());
@@ -36,7 +36,12 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
   @Override
   public Module compute(Example example, SnapshotStore store) {
-    var fir = store.load(example, FirQuery.INSTANCE);
+    if (example.text().contains("-error:")) {
+      // Don't try to optimize invalid FIR, it may crash
+      throw new SkipQueryException(name(), new RuntimeException("Invalid FIR"));
+    }
+
+    var original = store.load(example, FirQuery.INSTANCE);
 
     ModuleFeedback feedback;
     try {
@@ -55,20 +60,16 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
       System.err.println("Using MOCK feedback");
     }
 
-    optimization.run(feedback, fir);
-    return fir;
+    // Optimize a copy, otherwise we'll mutate the original and corrupt other tests
+    var copy = original.deepCopy();
+    optimization.run(feedback, copy);
+    return copy;
   }
 
   @Override
   public void verifyExtra(Module data, Example example, SnapshotStore store) {
-    if (data.toString().contains("-error:")) {
-      // There are errors, but they moved
-      // All we want to know is that optimizations didn't crash
-      return;
-    }
-
     if (!checkAll(data)) {
-      fail("Optimized FIR doesn't match expected FIR");
+      fail("Optimized FIR is invalid");
     }
   }
 }

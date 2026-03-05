@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.observer.Observer;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DeferredCallbacks;
@@ -119,8 +120,12 @@ public final class Module {
         args,
         () -> {
           action.run();
-          return null;
+          return 0;
         });
+  }
+
+  public Module deepCopy() {
+    return Parser.fromString(toString(), Module.class);
   }
 
   @Override

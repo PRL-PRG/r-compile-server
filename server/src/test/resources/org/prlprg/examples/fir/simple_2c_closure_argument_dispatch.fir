@@ -14,9 +14,9 @@ fun build_closure() {
   }
 }
 
-fun apply_closure(`...`) {
-  (reg clos:cls) -+> I { reg base:V, reg base0:I, reg sum:I |
-    base = dyn clos();
+fun apply_closure(closure) {
+  (reg closure:cls) -+> I { reg base:V, reg base0:I, reg sum:I |
+    base = dyn closure();
     base0 = base as I;
     sum = `+`.1(base0, 2);
     return sum;
