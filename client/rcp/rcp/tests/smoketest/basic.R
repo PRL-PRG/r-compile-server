@@ -4,7 +4,6 @@ test_null <- rcp::rcp_cmpfun(function() NULL, list(name="test_null"))
 stopifnot(rcp::rcp_is_compiled(test_null))
 stopifnot(test_null() == 42)
 
-# this already tests the instruction specialization
 test_const <- rcp::rcp_cmpfun(function() 42, list(name="test_const"))
 stopifnot(rcp::rcp_is_compiled(test_const))
 stopifnot(test_const() == 42)

@@ -838,8 +838,24 @@ X_MATH1_EXT_OPS
 
 #undef X
 
+// DOTCALL: .Call(pkg:::C_fun, arg1, ..., argN) with NativeSymbolInfo
+//
+// GET_IMM(1) encodes nargs + 1 (includes the op slot), so nargs = GET_IMM(1) - 1.
+//
+// Stack layout when DOTCALL executes:
+//
+//   stack →  (top)
+//     argN     ← last argument
+//     ...
+//     arg1     ← first argument
+//     op       ← the NativeSymbolInfo (.Call target)
+//
+// Rsh_DotCall calls the C function and writes the result into the op slot,
+// but does not adjust the stack pointer. POP_VAL(nargs) pops the argument
+// slots so that stack[-1] points at the op slot where the result now lives.
 RCP_OP(DOTCALL,
-	   Rsh_DotCall(stack, GET_IMM(1) - 1, GETCONST_IMM(0), GET_RHO());)
+	   Rsh_DotCall(stack, GET_IMM(1) - 1, GETCONST_IMM(0), GET_RHO());
+	   POP_VAL(GET_IMM(1) - 1);)
 
 RCP_OP(COLON,
 	   Rsh_Colon(stack, GETCONST_IMM(0), GET_RHO());)
