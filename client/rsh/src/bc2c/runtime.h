@@ -3077,7 +3077,7 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
   UNPROTECT(1); /* args */
 
   // 5. set the result
-  SET_VAL(stack - 1, val);
+  SET_VAL(dot_call_fun, val);
   R_Visible = TRUE;
   return;
 }
