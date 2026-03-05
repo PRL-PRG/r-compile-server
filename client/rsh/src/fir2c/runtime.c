@@ -1278,10 +1278,6 @@ static double Fir_sign(double x) {
 DEFINE_MATH1_BUILTINS(V)
 #undef V
 
-DEFINE_OVERRIDDEN_BUILTIN(missing, 1, SEXP value) {
-  return value == R_MissingArg ? R_TrueValue : R_FalseValue;
-}
-
 DEFINE_OVERRIDDEN_BUILTIN(length, 1, SEXP value) {
   return Rf_ScalarInteger(LENGTH(value));
 }

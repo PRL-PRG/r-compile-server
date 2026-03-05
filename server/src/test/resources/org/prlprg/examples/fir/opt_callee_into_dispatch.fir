@@ -7,7 +7,7 @@ fun main() {
   }
 }
 
-fun f(`...`) {
+fun f(r) {
   (reg r:V) --> V { |
     return r;
   }

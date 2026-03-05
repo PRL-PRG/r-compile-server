@@ -117,6 +117,11 @@ public class SEXPParsePrintTest {
     assertRoundTrip("NULL", true);
   }
 
+  @Test
+  public void testBlockLangCall() {
+    assertRoundTrip("{\n  foo(bar)\n}(baz(qux))");
+  }
+
   /// Property test that generates random [SEXP]s, prints them, then verifies that when the SEXP
   /// is re-parsed and printed again, both prints are the same.
   @Property(tries = 1000)

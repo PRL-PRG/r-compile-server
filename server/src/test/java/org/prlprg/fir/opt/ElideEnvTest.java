@@ -40,7 +40,7 @@ class ElideEnvTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg r:I, var x:I |
+              () --> I { reg r:I, var x:I? |
                 mkenv;
                 r = 0;
                 st x = r;
@@ -63,7 +63,7 @@ class ElideEnvTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg r:I, var x:I |
+              () --> I { reg r:I, var x:I? |
                 mkenv;
                 r = 0;
                 sst x = r;
@@ -136,7 +136,7 @@ class ElideEnvTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg r:I, var x:I |
+              () --> I { reg r:I, var x:I? |
                 mkenv;
                 r = 0;
                 check L1() else L2();

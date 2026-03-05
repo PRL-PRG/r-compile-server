@@ -82,8 +82,6 @@ public class CFGChecker extends Checker {
 
       // All register assignments (defs) and reads (uses) must be declared
       for (var register : defUses.allRegisters()) {
-        assert register != null;
-
         if (!scope.contains(register)) {
           var occurrence =
               defUses.definitions(register).stream()
@@ -103,10 +101,12 @@ public class CFGChecker extends Checker {
       // Parameters should never be assigned
       for (var parameter : scope.parameters()) {
         var definitions = defUses.definitions(parameter.variable());
-        if (!definitions.isEmpty()) {
-          for (var def : definitions) {
-            report(def, "Parameter " + parameter + " can't be assigned");
+        for (var def : definitions) {
+          if (def.inInnermostCfg().bb() == scope.cfg().entry()
+              && def.inInnermostCfg().instructionIndex() == -1) {
+            continue;
           }
+          report(def, "Parameter " + parameter + " can't be assigned");
         }
       }
 

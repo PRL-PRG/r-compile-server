@@ -8,6 +8,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Characters;
 
 /// An argument with an optional name.
@@ -36,13 +37,30 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
   private static NamedArgument parse(Parser p) {
     var s = p.scanner();
 
-    if (s.nextCharSatisfies(Characters::isIdentifierStart)
-        && !s.nextCharsAre("TRUE")
-        && !s.nextCharsAre("FALSE")
-        && !s.nextCharsAre("NA_")) {
+    if (s.nextCharSatisfies(Characters::isIdentifierStart)) {
       // We don't have lookahead, so we must handle this case where we could parsed a name,
       // or the start of a `use` argument, or a register argument.
       var nameOrUseOrRegister = s.readIdentifierOrKeyword();
+
+      // Handle unnamed arguments that are identifier constants
+      switch (nameOrUseOrRegister) {
+        case "TRUE":
+          return new NamedArgument(new Constant(SEXPs.TRUE));
+        case "FALSE":
+          return new NamedArgument(new Constant(SEXPs.FALSE));
+        case "NULL":
+          return new NamedArgument(new Constant(SEXPs.NULL));
+        case "NA_LGL":
+          return new NamedArgument(new Constant(SEXPs.NA_LOGICAL));
+        case "NA_INT":
+          return new NamedArgument(new Constant(SEXPs.NA_INTEGER));
+        case "NA_REAL":
+          return new NamedArgument(new Constant(SEXPs.NA_REAL));
+        case "NA_STR":
+          return new NamedArgument(new Constant(SEXPs.NA_STRING));
+        case "NA_CPLX":
+          return new NamedArgument(new Constant(SEXPs.NA_COMPLEX));
+      }
 
       if (s.trySkip('=')) {
         var value = p.parse(Argument.class);
@@ -64,7 +82,7 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
     } else {
       // Definitely unnamed
       var value = p.parse(Argument.class);
-      return new NamedArgument(null, value);
+      return new NamedArgument(value);
     }
   }
 }

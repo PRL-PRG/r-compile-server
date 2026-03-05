@@ -103,7 +103,7 @@ reg r:t
 
 Registers are only accessible within the version body and inner promises.
 
-A register name must be a valid identifier: must start with a letter or `_`, be followed by letters, digits, or `_`, and cannot equal `_`.
+A register name must be a valid identifier: must start with a letter or `_`, be followed by letters, digits, or `_`, and cannot equal `_`. A register name also can't start with an uppercase letter.
 
 ### Named Variables (`x`)
 

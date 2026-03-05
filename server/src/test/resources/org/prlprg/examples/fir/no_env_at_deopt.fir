@@ -15,3 +15,4 @@ fun main() {
 fun blackBox(x) {
   (reg x:L) --> L { ... }
 }
+

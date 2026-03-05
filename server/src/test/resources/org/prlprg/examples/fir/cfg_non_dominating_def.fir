@@ -1,7 +1,9 @@
 fun main() {
-  () --> I { reg r:I |
+  () --> I { reg r:I, reg r2:I, reg r3:I |
     r = f(TRUE);
-    return r;
+    r2 = f(FALSE);
+    r3 = `+`.1(r, r2);
+    return r3;
   }
 }
 

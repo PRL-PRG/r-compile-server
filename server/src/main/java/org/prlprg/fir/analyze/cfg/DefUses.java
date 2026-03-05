@@ -31,9 +31,7 @@ public final class DefUses implements Analysis {
 
   @AnalysisConstructor
   public DefUses(Abstraction scope) {
-    if (scope.cfg() != null) {
-      analyze(scope.cfg());
-    }
+    analyze(scope);
   }
 
   /// Get all assignments (defs) of a register.
@@ -68,6 +66,18 @@ public final class DefUses implements Analysis {
     return Sets.union(definitions.keySet(), uses.keySet());
   }
 
+  private void analyze(Abstraction scope) {
+    if (scope.cfg() == null) {
+      return;
+    }
+
+    for (var param : scope.parameters()) {
+      addDef(param.variable(), scopePosition(scope.cfg().entry(), -1, null));
+    }
+
+    analyze(scope.cfg());
+  }
+
   private void analyze(CFG cfg) {
     for (var bb : cfg.bbs()) {
       analyze(bb);
@@ -77,7 +87,7 @@ public final class DefUses implements Analysis {
   private void analyze(BB bb) {
     // Analyze phis
     for (var phi : bb.phiParameters()) {
-      definitions.computeIfAbsent(phi, _ -> new HashSet<>()).add(scopePosition(bb, -1, null));
+      addDef(phi, scopePosition(bb, -1, null));
     }
 
     // Analyze instructions
@@ -91,17 +101,14 @@ public final class DefUses implements Analysis {
   private void analyze(BB bb, int instructionIndex, Instruction instruction) {
     // Add immediate definitions
     if (instruction instanceof Statement stmt && stmt.assignee() != null) {
-      definitions
-          .computeIfAbsent(stmt.assignee(), _ -> new HashSet<>())
-          .add(scopePosition(bb, instructionIndex, instruction));
+      addDef(stmt.assignee(), scopePosition(bb, instructionIndex, instruction));
     }
 
     // Add immediate uses
     if (!(instruction instanceof Statement stmt && stmt.expression() instanceof Promise)) {
       for (var argument : instruction.arguments()) {
         if (argument.variable() != null) {
-          uses.computeIfAbsent(argument.variable(), _ -> new HashSet<>())
-              .add(scopePosition(bb, instructionIndex, instruction));
+          addUse(argument.variable(), scopePosition(bb, instructionIndex, instruction));
         }
       }
     }
@@ -112,6 +119,14 @@ public final class DefUses implements Analysis {
       analyze(promise.code());
       outerPromises.pop();
     }
+  }
+
+  private void addDef(Register register, ScopePosition position) {
+    definitions.computeIfAbsent(register, _ -> new HashSet<>()).add(position);
+  }
+
+  private void addUse(Register register, ScopePosition position) {
+    uses.computeIfAbsent(register, _ -> new HashSet<>()).add(position);
   }
 
   private ScopePosition scopePosition(

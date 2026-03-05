@@ -14,7 +14,8 @@ ppoints(10)
 ppoints(10, a = 1/2)
 
 ## Visualize including the fractions :
-require(graphics)lNs <- loadedNamespaces()
+require(graphics)
+lNs <- loadedNamespaces()
 p.ppoints <- function(n, ..., add = FALSE, col = par("col")) {
   pn <- ppoints(n, ...)
   if(add)

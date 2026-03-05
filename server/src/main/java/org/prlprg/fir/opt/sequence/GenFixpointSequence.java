@@ -30,6 +30,11 @@ abstract class GenFixpointSequence<Opt, Feedback, Target> {
     return name;
   }
 
+  @Override
+  public String toString() {
+    return getClass().getSimpleName() + "[" + name + "]";
+  }
+
   protected final boolean runImpl(Feedback feedback, Target target) {
     var check = AppConfig.CFG_DEBUG_LEVEL.compareTo(CfgDebugLevel.AFTER_STEP) >= 0;
 

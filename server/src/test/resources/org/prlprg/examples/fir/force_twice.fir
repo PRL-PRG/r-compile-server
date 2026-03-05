@@ -6,7 +6,7 @@ fun main() {
     r = prom<I ->{
       rx0 = ld x;
       r1 = rx0 as I;
-      rx1 = inc.0(r1);
+      rx1 = `+`.1(1, r1);
       st x = rx1;
       rx2 = ld x;
       r2 = rx2 as I;
@@ -19,7 +19,7 @@ fun main() {
   }
 }
 
-fun force_twice(`...`) {
+fun force_twice(r) {
   (reg r:p(I -)) --> I { reg r1:I |
     force r;
     r1 = force r;
@@ -27,6 +27,3 @@ fun force_twice(`...`) {
   }
 }
 
-fun inc(`...`) {
-  (reg r:I) --> I { ... }
-}

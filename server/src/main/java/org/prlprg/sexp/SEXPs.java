@@ -460,8 +460,8 @@ public final class SEXPs {
     return new LangSXPImpl(fun, args, attributes);
   }
 
-  public static LangSXP blockLang(List<TaggedElem> args) {
-    return lang(symbol("{"), args);
+  public static LangSXP blockLang(List<SEXP> args) {
+    return lang(symbol("{"), list1(args));
   }
 
   public static RegSymSXP symbol(String name) {

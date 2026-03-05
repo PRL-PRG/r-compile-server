@@ -27,6 +27,11 @@ public class Sequence implements Optimization {
   }
 
   @Override
+  public String toString() {
+    return getClass().getSimpleName() + "[" + name + "]";
+  }
+
+  @Override
   public boolean run(ModuleFeedback feedback, Module module) {
     return runImpl(
         feedback,
@@ -90,10 +95,5 @@ public class Sequence implements Optimization {
     boolean run(Optimization opt, ModuleFeedback feedback, Target target);
 
     boolean check(Target target);
-  }
-
-  @Override
-  public String toString() {
-    return name;
   }
 }

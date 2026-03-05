@@ -9,7 +9,7 @@ fun main() {
   }
 }
 
-fun f(`...`) {
+fun f(r) {
   (reg r:*) --> I { |
     return 24;
   }
