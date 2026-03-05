@@ -569,6 +569,7 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 								  const SEXP *r_constpool)
 {
 	const Stencil *stencil_set = stencils[opcode];
+	
 	// For specialized stencils
 	switch (opcode)
 	{
@@ -1114,7 +1115,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		const int *imms = &bytecode[i + 1];
 		const Stencil *stencil = get_stencil(bytecode[i], imms, constpool);
 		// DEBUG_PRINT("Opcode: %s\n", OPCODES_NAMES[bytecode[i]]);
-		if (stencil == NULL)
+		if (stencil == NULL || stencil->body_size == 0)
 			error("Opcode not implemented: %s\n", OPCODES_NAMES[bytecode[i]]);
 
 		switch (bytecode[i])
@@ -1967,7 +1968,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
 	*res_ptr = res;
 
-	SEXP prot = PROTECT(Rf_allocVector(VECSXP, 3));
+	SEXP prot = PROTECT(Rf_allocVector(VECSXP, 2));
 	SET_VECTOR_ELT(prot, 0, bcode_consts);
 	SET_VECTOR_ELT(prot, 1, mem_shared_sexp);
 
@@ -2469,9 +2470,6 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		compiled_functions[i] = compiled;
 		function_symbols[i] = name_sym;
 #else
-		R_unLockBinding(name_sym, pkg_namespace);
-		Rf_defineVar(name_sym, compiled, pkg_namespace);
-		R_LockBinding(name_sym, pkg_namespace);
 		SET_BODY(obj, BODY(compiled));
 		UNPROTECT_SAFE(compiled);
 		UNPROTECT_SAFE(obj);
@@ -2489,9 +2487,6 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		if (compiled_functions[i] != R_NilValue &&
 			function_symbols[i] != R_NilValue)
 		{
-			R_unLockBinding(function_symbols[i], pkg_namespace);
-			Rf_defineVar(function_symbols[i], compiled_functions[i], pkg_namespace);
-			R_LockBinding(function_symbols[i], pkg_namespace);
 			SET_BODY(obj, BODY(compiled));
 			UNPROTECT_SAFE(compiled_functions[i]);
 			UNPROTECT_SAFE(function_symbols[i]);

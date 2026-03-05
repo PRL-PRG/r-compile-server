@@ -45,7 +45,6 @@ extern const void *const _RCP_CRUNTIME0_R_BaseEnv[];
 extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
 
-
 // #define NO_STACK_OVERFLOW_CHECK
 #include <runtime.h>
 
@@ -325,12 +324,10 @@ SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
 	NEXT;
 }
 
-
 RCP_OP(RETURN,
 	   ,
 	   PUSH_VAL(1); // to hold return value
 	   Rsh_Return(stack);)
-
 
 RCP_OP(GOTO,
 	   ,
@@ -907,7 +904,6 @@ RCP_OP(RETURNJMP,
 	   ,
 	   PUSH_VAL(1); // to hold return value
 	   Rsh_ReturnJmp(stack, GET_RHO());)
-
 
 RCP_OP(STARTSUBSET_N,
 	   Rboolean condition = Rsh_StartSubsetN(stack, GETCONST_IMM(0), GET_RHO());
