@@ -33,10 +33,8 @@ static const Stencil NOP_STENCIL = {
 	.alignment = 1,
 	.name = "NOP_STENCIL"};
 
-#ifdef DWARF_SUPPORT
 static int rcp_gdb_jit_enabled = 0;
 static int rcp_perf_jit_enabled = 0;
-#endif
 
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
@@ -575,7 +573,7 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 								  const SEXP *r_constpool)
 {
 	const Stencil *stencil_set = stencils[opcode];
-	
+
 	// For specialized stencils
 	switch (opcode)
 	{
@@ -1400,7 +1398,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
 #endif
 
-#ifdef DWARF_SUPPORT
 	if (name)
 	{
 		uint8_t **inst_addrs_packed =
@@ -1460,32 +1457,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		res.jit_entry = NULL;
 		res.eh_frame_data = NULL;
 	}
-#else
-	res.jit_entry = NULL;
-	res.eh_frame_data = NULL;
-#endif
-
-#ifndef DWARF_SUPPORT
-	// dump JIT code to file if RCP_DUMP_DIR is set for local inspection
-	// When DWARF_SUPPORT is enabled,
-	// the full ELF has been already dumped by gdb_jit_register
-	if (name)
-	{
-		const char *dump_dir = getenv("RCP_DUMP_DIR");
-		if (dump_dir)
-		{
-			char path[512];
-			snprintf(path, sizeof(path), "%s/%s.bin", dump_dir, name);
-			FILE *fp = fopen(path, "wb");
-			if (fp)
-			{
-				fwrite(executable, 1, insts_size, fp);
-				fclose(fp);
-				fprintf(stderr, "JIT %s: %zu bytes written to %s\n", name, insts_size, path);
-			}
-		}
-	}
-#endif
 
 	vmaxset(vmax);
 
@@ -1582,7 +1553,6 @@ static void bytecode_info(const int *bytecode, int bytecode_size,
  */
 static void rcp_finalizer(SEXP ptr)
 {
-#ifdef DWARF_SUPPORT
 	rcp_exec_ptrs *ptrs = (rcp_exec_ptrs *)R_ExternalPtrAddr(ptr);
 	if (ptrs)
 	{
@@ -1598,7 +1568,6 @@ static void rcp_finalizer(SEXP ptr)
 			ptrs->eh_frame_data = NULL;
 		}
 	}
-#endif
 	R_RcpFree(ptr);
 }
 
@@ -2909,32 +2878,18 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 
 SEXP C_rcp_dwarf_support(void)
 {
-#ifdef DWARF_SUPPORT
 	return ScalarLogical(1);
-#else
-	return ScalarLogical(0);
-#endif
 }
 
 SEXP C_rcp_gdb_jit_support(void)
 {
-#ifdef DWARF_SUPPORT
 	return ScalarLogical(rcp_gdb_jit_enabled);
-#else
-	return ScalarLogical(0);
-#endif
 }
 
 SEXP C_rcp_perf_jit_support(void)
 {
-#ifdef DWARF_SUPPORT
 	return ScalarLogical(rcp_perf_jit_enabled);
-#else
-	return ScalarLogical(0);
-#endif
 }
-
-#ifdef DWARF_SUPPORT
 
 /* Tags from R sources */
 #ifndef ISQSXP
@@ -2976,18 +2931,15 @@ void __attribute__((used)) rcp_print_stack_val(void *p)
 				Rprintf("NULL SEXP\n");
 	}
 }
-#endif
 
 SEXP rcp_init(void)
 {
 	refresh_near_memory_ptr(0);
 
-#ifdef DWARF_SUPPORT
 	rcp_gdb_jit_enabled = (getenv("RCP_GDB_JIT") != NULL);
 	rcp_perf_jit_enabled = (getenv("RCP_PERF_JIT") != NULL);
 	if (rcp_perf_jit_enabled)
 		perf_jit_init();
-#endif
 
 	prepare_shared_memory();
 
@@ -3013,10 +2965,8 @@ SEXP rcp_init(void)
 
 void rcp_destr(void)
 {
-#ifdef DWARF_SUPPORT
 	if (rcp_perf_jit_enabled)
 		perf_jit_close();
-#endif
 
 	if (mem_shared_sexp != NULL)
 	{

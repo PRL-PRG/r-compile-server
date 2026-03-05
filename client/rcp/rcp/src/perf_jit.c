@@ -1,7 +1,5 @@
 #include "perf_jit.h"
 
-#ifdef DWARF_SUPPORT
-
 #include <elf.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -297,5 +295,3 @@ void perf_jit_close(void)
 	close(jitdump_fd);
 	jitdump_fd = -1;
 }
-
-#endif // DWARF_SUPPORT

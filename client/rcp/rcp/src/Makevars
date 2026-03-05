@@ -7,10 +7,6 @@ ifneq ($(OPENMP),0)
   PKG_LIBS += -fopenmp
 endif
 
-ifneq ($(DWARF_SUPPORT),0)
-  PKG_CFLAGS += -DDWARF_SUPPORT
-endif
-
 PKG_CFLAGS += $(DEFINE_FLAGS)
 PKG_CFLAGS += -I$(RSH_HOME)/src/bc2c
 PKG_CFLAGS += -DALIGNMENT_LABELS=$(ALIGNMENT_LABELS)
@@ -32,7 +28,6 @@ endif
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
-$(info DWARF_SUPPORT=$(DWARF_SUPPORT))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build
@@ -45,9 +40,7 @@ SOURCES = $(wildcard *.c)
 OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o rcp_exceptions.o
 
 # Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
-ifneq ($(DWARF_SUPPORT),0)
 stencils-runtime.o: PKG_CFLAGS += -fno-omit-frame-pointer
-endif
 
 ## ------------------------------------------------------------------------ 
 ## targets

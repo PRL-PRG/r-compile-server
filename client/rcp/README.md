@@ -108,7 +108,7 @@ components and their change frequency.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rcp-base` | Ubuntu 24.04, toolchain, vanilla R 4.3.2, `microbenchmark` for `/R-vanilla`                                                                 |
 | `rcp-rsh`  | `rcp-base` + [r-compile-server](https://github.com/PRL-PRG/r-compile-server) at `RSH_COMMIT`, custom R build, `microbenchmark` for custom R |
-| `rcp`      | `rcp-rsh` + `rcp` at `RCP_COMMIT`, built in two variants: `DWARF_SUPPORT=0` and `DWARF_SUPPORT=1`                                           |
+| `rcp`      | `rcp-rsh` + `rcp` at `RCP_COMMIT`, built and installed                                                                                       |
 
 This split keeps rebuilds short: frequent `rcp` edits only rebuild the top
 image, while expensive R builds stay cached in lower layers.
@@ -133,21 +133,8 @@ make docker-rcp
    `Dockerfile.rcp-base`.
 2. `make docker-rcp-rsh` builds `ghcr.io/prl-prg/rcp-rsh:$RSH_COMMIT` from
    `Dockerfile.rcp-rsh`.
-3. `make docker-rcp` builds two top images from `Dockerfile.rcp`:
-   - `ghcr.io/prl-prg/rcp:$RCP_COMMIT-dwarf0`
-   - `ghcr.io/prl-prg/rcp:$RCP_COMMIT-dwarf1`
-     and also tags the `DWARF_SUPPORT=0` image as `ghcr.io/prl-prg/rcp:$RCP_COMMIT` for
-     compatibility.
-
-You can also build one variant explicitly:
-
-```sh
-make docker-rcp-dwarf0
-make docker-rcp-dwarf1
-```
-
-These targets set `DWARF_SUPPORT=0` and `DWARF_SUPPORT=1` respectively for the
-`Dockerfile.rcp` build.
+3. `make docker-rcp` builds `ghcr.io/prl-prg/rcp:$RCP_COMMIT` from
+   `Dockerfile.rcp`.
 
 `Dockerfile.rcp` reuses `/rsh` from the parent `rcp-rsh` image and does not
 clone the `external/rsh` submodule again.
@@ -173,19 +160,13 @@ make docker-rcp \
 
 ```sh
 docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD) \
-  bash -c "make -C /rcp/rcp/tests test DWARF_SUPPORT=0"
-
-docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD)-dwarf1 \
-  bash -c "make -C /rcp/rcp/tests test DWARF_SUPPORT=1"
+  bash -c "make -C /rcp/rcp/tests test"
 ```
 
 ### Running benchmarks in Docker
 
 ```sh
 docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD) \
-  make -C /rcp/rcp benchmark BENCH_ITER=15 BENCH_OPTS=--rcp
-
-docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD)-dwarf1 \
   make -C /rcp/rcp benchmark BENCH_ITER=15 BENCH_OPTS=--rcp
 ```
 
@@ -246,9 +227,8 @@ stencils.c ──[clang]──> stencils.o  R bytecode
 
 ## Debugging and profiling JIT-compiled code
 
-Two optional features provide observability into JIT-compiled code, both
-controlled by a single compile-time flag `DWARF_SUPPORT` and selected at
-runtime via environment variables:
+Two optional features provide observability into JIT-compiled code, selected
+at runtime via environment variables:
 
 - **GDB JIT Interface** (`RCP_GDB_JIT=1`): Registers in-memory ELF objects
   with GDB, enabling backtraces, stepping, breakpoints, and variable
@@ -258,30 +238,10 @@ runtime via environment variables:
   `perf inject` or `samply` can read to resolve JIT code addresses into
   function names with correct stack unwinding.
 
-When `DWARF_SUPPORT=0` (default): zero overhead -- no `.eh_frame` in stencils,
-no CFI extraction, no dead code.
-
-When `DWARF_SUPPORT=1` but no env var set: only overhead is a slightly larger
-binary (CFI data arrays). No runtime cost (no ELF building, no jitdump I/O).
-
-### Enabling DWARF support
-
-Build with the `DWARF_SUPPORT` flag:
-
-```sh
-cd rcp
-DWARF_SUPPORT=1 make clean install
-```
-
-You can verify it is active from R:
-
-```r
-library(rcp)
-.Call("C_rcp_dwarf_support")
-#> [1] TRUE
-```
-
-Then select features at runtime:
+DWARF `.eh_frame` data is always compiled in (needed for C++ exception
+unwinding through JIT frames). When no env var is set, the only overhead is the
+CFI data arrays in the binary. No runtime cost (no ELF building, no jitdump
+I/O) unless explicitly enabled:
 
 ```sh
 RCP_GDB_JIT=1 R -e 'library(rcp); ...'     # GDB JIT debugging
@@ -291,7 +251,7 @@ RCP_GDB_JIT=1 RCP_PERF_JIT=1 R -e '...'   # both
 
 ### GDB JIT debugging
 
-When `DWARF_SUPPORT=1` and `RCP_GDB_JIT=1`, the compiler registers
+When `RCP_GDB_JIT=1`, the compiler registers
 JIT-compiled functions with GDB so that you can set breakpoints, step through
 bytecode instructions, and inspect the stack -- just as you would with native
 code.
@@ -314,7 +274,7 @@ functions.
 
 ```sh
 cd rcp
-DWARF_SUPPORT=1 make clean install
+make install
 RCP_GDB_JIT=1 make debug
 ```
 
@@ -346,7 +306,7 @@ R values on the stack:
 
 ### Perf/Samply profiling
 
-When `DWARF_SUPPORT=1` and `RCP_PERF_JIT=1`, the compiler writes a jitdump
+When `RCP_PERF_JIT=1`, the compiler writes a jitdump
 file (`/tmp/jit-<pid>.dump`) containing:
 
 - `JIT_CODE_LOAD` records mapping address ranges to function names
@@ -359,7 +319,7 @@ addresses into symbols and produce correct stack traces.
 
 ```sh
 cd rcp
-DWARF_SUPPORT=1 make clean install
+make install
 RCP_PERF_JIT=1 perf record -g -k1 R -e 'library(rcp); ...'
 perf inject --jit -i perf.data -o perf.jit.data
 perf report -i perf.jit.data
@@ -369,13 +329,13 @@ perf report -i perf.jit.data
 
 ```sh
 cd rcp
-DWARF_SUPPORT=1 make clean test
+make test
 ```
 
 To update the expected GDB test outputs after intentional changes:
 
 ```sh
-DWARF_SUPPORT=1 make -C tests/gdb-jit re-record
+make -C tests/gdb-jit re-record
 ```
 
 ## Project layout

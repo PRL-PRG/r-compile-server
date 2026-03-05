@@ -523,7 +523,7 @@ static void print_cfi_decoded(std::ostream &os,
 
 // Export a stencil's CFI instruction bytes as a C byte array in the generated code.
 // Emits the decoded CFI table as a block comment for debugging, followed
-// by the raw CFI bytes as a uint8_t array, wrapped in #ifdef DWARF_SUPPORT.
+// by the raw CFI bytes as a uint8_t array.
 static void export_cfi(std::ostream &file, const Stencils &stencils,
 					   const std::string &section_symbol_name,
 					   const std::string &variable_name)
@@ -531,14 +531,12 @@ static void export_cfi(std::ostream &file, const Stencils &stencils,
 	auto it = stencils.eh_frame_cfis.find(section_symbol_name);
 	if (it != stencils.eh_frame_cfis.end())
 	{
-		file << "#ifdef DWARF_SUPPORT\n";
 		file << "//\n";
 		print_cfi_decoded(file, stencils.eh_frame_cie, it->second);
 		file << "//\n";
 		file << std::format("uint8_t {}_cfi_data[] = {{ ", variable_name);
 		print_byte_array(file, it->second.data(), it->second.size());
-		file << "};\n";
-		file << "#endif\n\n";
+		file << "};\n\n";
 	}
 }
 
@@ -555,7 +553,7 @@ static void export_cfi(std::ostream &file, const Stencils &stencils,
 // Generated variables (per opcode, per variant):
 //   uint8_t _{OPCODE}_{VARIANT}_BODY[]
 //   Hole _{OPCODE}_{VARIANT}_HOLES[]
-//   uint8_t _{OPCODE}_{VARIANT}_cfi_data[]  (if DWARF_SUPPORT)
+//   uint8_t _{OPCODE}_{VARIANT}_cfi_data[]
 static void export_opcode_stencil_bodies(std::ostream &c_file,
 										 std::ostream &h_file,
 										 const Stencils &stencils)
@@ -585,7 +583,7 @@ static void export_opcode_stencil_bodies(std::ostream &c_file,
 // Generated variables (per stencil):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_cfi_data[]  (if DWARF_SUPPORT)
+//   uint8_t _{NAME}_cfi_data[]
 static void export_extra_stencil_bodies(std::ostream &c_file,
 										const Stencils &stencils)
 {
@@ -604,7 +602,7 @@ static void export_extra_stencil_bodies(std::ostream &c_file,
 // Generated variables (per function):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_cfi_data[]  (if DWARF_SUPPORT)
+//   uint8_t _{NAME}_cfi_data[]
 static size_t export_notinlined_bodies(std::ostream &c_file,
 									   const Stencils &stencils)
 {
@@ -655,9 +653,7 @@ static void export_opcode_stencil_arrays(std::ostream &c_file,
 					std::string(current.name) + '_' + stencil.name, stencil.alignment,
 					std::string(current.name) + '_' + stencil.name);
 
-				c_file << "\n#ifdef DWARF_SUPPORT\n";
-				c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
-				c_file << "#endif\n";
+				c_file << ", " << cfi_data_ptr << ", " << cfi_size_str;
 				c_file << "},\n";
 			}
 			c_file << "};\n";
@@ -692,9 +688,7 @@ static void export_extra_stencil_structs(std::ostream &c_file,
 			current.name, current.body.size(), current.name, current.holes.size(),
 			current.name, current.alignment, current.name);
 
-		c_file << "\n#ifdef DWARF_SUPPORT\n";
-		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
-		c_file << "#endif\n";
+		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str;
 		c_file << "};\n";
 
 		h_file << std::format("extern const Stencil {};\n", current.name);
@@ -729,9 +723,7 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 							  current.holes.size(), current.name, current.alignment,
 							  current.name);
 
-		c_file << "\n#ifdef DWARF_SUPPORT\n";
-		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
-		c_file << "#endif\n";
+		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str;
 		c_file << "},\n";
 	}
 	c_file << "};\n";
@@ -745,11 +737,10 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 // Export the DWARF CIE (Common Information Entry) used for all FDEs.
 //
 // Generated variables:
-//   uint8_t __CIE[]  (if DWARF_SUPPORT)
+//   uint8_t __CIE[]
 static void export_cie(std::ostream &c_file, std::ostream &h_file,
 					   const Stencils &stencils)
 {
-	c_file << "#ifdef DWARF_SUPPORT\n";
 	if (!stencils.eh_frame_cie.empty())
 	{
 		DwarfCIE cie = dwarf_parse_cie(stencils.eh_frame_cie.data(),
@@ -766,11 +757,8 @@ static void export_cie(std::ostream &c_file, std::ostream &h_file,
 	print_byte_array(c_file, stencils.eh_frame_cie.data(),
 					 stencils.eh_frame_cie.size());
 	c_file << "};\n";
-	c_file << "#endif\n";
 
-	h_file << "#ifdef DWARF_SUPPORT\n";
 	h_file << "extern uint8_t __CIE[];\n";
-	h_file << "#endif\n";
 }
 
 // Export the read-only data section.
@@ -1493,7 +1481,9 @@ static void print_sizes(const Stencils &stencils)
 	{
 		size_t size_specific = 0;
 		for (const auto &current : current.stencils)
+		{
 			size_specific += current.body.size();
+		}
 
 		if (!current.stencils.empty())
 		{
@@ -1501,16 +1491,21 @@ static void print_sizes(const Stencils &stencils)
 			count++;
 		}
 	}
-	/*
-	for (const auto& current : stencils.stencils_extra)
-	{
-	  total_size += current.body.size();
-	  count++;
-	}
-	*/
+
+	std::cerr << std::format("Stencils: {}\n", count);
 	std::cerr << std::format("Total size of stencils: {} bytes\n", total_size);
 	std::cerr << std::format("Average size of stencils: {:.1f} bytes\n",
 							 (double)(total_size) / count);
+
+	size_t dwarf_size = stencils.eh_frame_cie.size();
+	for (auto &[_, cfi] : stencils.eh_frame_cfis)
+	{
+		dwarf_size += cfi.size();
+	}
+
+	std::cerr << std::format("Total size of dwarf data: {} bytes\n", dwarf_size);
+	std::cerr << std::format("Average size of dwarf data: {:.1f} bytes\n",
+							 (double)(dwarf_size) / count);
 }
 
 void count_hole_symbols(const Stencils &stencils, uint8_t stencil_kind,

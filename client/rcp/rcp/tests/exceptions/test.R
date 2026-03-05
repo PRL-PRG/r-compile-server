@@ -1,10 +1,5 @@
 library(rcp)
 
-if (!.Call("rcp_dwarf_support")) {
-    cat("SKIP: DWARF support not enabled\n")
-    quit(status = 0)
-}
-
 # Non-JIT wrapper that calls .Call (avoids issue #12 with .Call from JIT code)
 throw_exc <- function() .Call("__rcp_throw_exception")
 

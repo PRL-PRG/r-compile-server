@@ -4,10 +4,9 @@ ARG RSH_COMMIT=latest
 FROM ${RCP_RSH_IMAGE}:${RSH_COMMIT}
 
 ARG RCP_COMMIT
-ARG DWARF_SUPPORT=0
 RUN git clone https://github.com/PRL-PRG/rcp.git /rcp && \
     git -C /rcp checkout --detach ${RCP_COMMIT}
 
 WORKDIR /rcp/rcp
 
-RUN make DWARF_SUPPORT=${DWARF_SUPPORT}
+RUN make
