@@ -25,7 +25,6 @@ CFLAGS += -Wall \
 					-fno-align-functions \
 					-fno-align-jumps \
 					-fno-align-labels \
-					-fno-asynchronous-unwind-tables \
 					-fno-ipa-cp \
 					-fno-jump-tables \
 					-fno-math-errno \
@@ -36,11 +35,33 @@ CFLAGS += -Wall \
 					-mcmodel=$(MCMODEL) \
 					-Wno-unused-function
 
+# When DWARF support is enabled, keep .eh_frame for CFI extraction.
+# Otherwise suppress unwind tables to reduce stencil size.
+ifeq ($(DWARF_SUPPORT),0)
+  CFLAGS += -fno-asynchronous-unwind-tables
+endif
+
 OBJ = $(notdir $(STENCILS_OBJ))
 
-$(OBJ): $(OBJ:.o=.c)
+# Track flags that affect the .eh_frame content of the stencil object.
+# If these flags change, force a rebuild even if source hasn't changed.
+STENCILS_FLAG_STAMP = .stencils_flags
+CURRENT_FLAGS := DWARF=$(DWARF_SUPPORT)
+
+.PHONY: all
+all: $(OBJ)
+
+$(OBJ): $(OBJ:.o=.c) $(STENCILS_FLAG_STAMP)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(STENCILS_FLAG_STAMP): .FORCE
+	@if [ ! -f $@ ] || [ "$$(cat $@)" != "$(CURRENT_FLAGS)" ]; then \
+		echo "$(CURRENT_FLAGS)" > $@; \
+	fi
+
+.PHONY: .FORCE
+.FORCE:
 
 .PHONY: clean
 clean:
-	rm -f $(OBJ)
+	rm -f $(OBJ) $(STENCILS_FLAG_STAMP)

@@ -1,33 +1,71 @@
-DOCKER_IMAGE_ORG := prl-prg
-DOCKER_BUILD_CMD := docker build
+# --------------------------------------------------------------------------- #
+# Configuration
+# --------------------------------------------------------------------------- #
+
+DOCKER_BUILD_CMD ?= docker build
+DOCKER_IMAGE_ORG ?= ghcr.io/prl-prg
+
+RCP_BASE_IMAGE ?= $(DOCKER_IMAGE_ORG)/rcp-base
+RCP_RSH_IMAGE ?= $(DOCKER_IMAGE_ORG)/rcp-rsh
+RCP_IMAGE ?= $(DOCKER_IMAGE_ORG)/rcp
 
 RSH_COMMIT ?= $(shell git -C external/rsh rev-parse HEAD)
-RCP_COMMIT ?= $(shell git rev-parse HEAD) 
+RCP_COMMIT ?= $(shell git rev-parse HEAD)
+DWARF_SUPPORT ?= 0
 
-.PHONY: docker-rcp-base
+RCP_MAKE := $(MAKE) -C rcp
+
+# --------------------------------------------------------------------------- #
+# Derived command fragments
+# --------------------------------------------------------------------------- #
+
+RSH_BUILD_ARGS = \
+	--build-arg RCP_BASE_IMAGE=$(RCP_BASE_IMAGE):latest \
+	--build-arg RSH_COMMIT=$(RSH_COMMIT)
+
+RCP_BUILD_ARGS = \
+	--build-arg RCP_RSH_IMAGE=$(RCP_RSH_IMAGE) \
+	--build-arg RSH_COMMIT=$(RSH_COMMIT) \
+	--build-arg RCP_COMMIT=$(RCP_COMMIT)
+
+# --------------------------------------------------------------------------- #
+# Docker targets
+# --------------------------------------------------------------------------- #
+
+.PHONY: docker-rcp-base docker-rcp-rsh docker-rcp docker-rcp-build docker-rcp-dwarf0 docker-rcp-dwarf1
+
 docker-rcp-base:
 	$(DOCKER_BUILD_CMD) \
-		-t $(DOCKER_IMAGE_ORG)/rcp-base -f Dockerfile.rcp-base .
+		-t $(RCP_BASE_IMAGE):latest \
+		-f Dockerfile.rcp-base .
 
-.PHONY: docker-rcp-rsh
 docker-rcp-rsh: docker-rcp-base
 	$(DOCKER_BUILD_CMD) \
-		--build-arg RSH_COMMIT=$(RSH_COMMIT) \
-		-t $(DOCKER_IMAGE_ORG)/rcp-rsh:$(RSH_COMMIT) -f Dockerfile.rcp-rsh .
-	
-.PHONY: docker-rcp
-docker-rcp: docker-rcp-rsh
+		$(RSH_BUILD_ARGS) \
+		-t $(RCP_RSH_IMAGE):$(RSH_COMMIT) \
+		-f Dockerfile.rcp-rsh .
+
+docker-rcp-build:
 	$(DOCKER_BUILD_CMD) \
-		--build-arg RSH_COMMIT=$(RSH_COMMIT) \
-		--build-arg RCP_COMMIT=$(RCP_COMMIT) \
-		-t $(DOCKER_IMAGE_ORG)/rcp:$(RCP_COMMIT) -f Dockerfile.rcp .
+		$(RCP_BUILD_ARGS) \
+		--build-arg DWARF_SUPPORT=$(DWARF_SUPPORT) \
+		-t $(RCP_IMAGE):$(RCP_COMMIT)-dwarf$(DWARF_SUPPORT) \
+		-f Dockerfile.rcp .
+
+docker-rcp: docker-rcp-rsh
+	$(MAKE) docker-rcp-build DWARF_SUPPORT=0
+	$(MAKE) docker-rcp-build DWARF_SUPPORT=1
+	docker tag $(RCP_IMAGE):$(RCP_COMMIT)-dwarf0 $(RCP_IMAGE):$(RCP_COMMIT)
+
+# --------------------------------------------------------------------------- #
+# Local development targets
+# --------------------------------------------------------------------------- #
+
+.PHONY: setup test benchmark clean install
 
 setup:
 	external/rsh/tools/build-gnur.sh external/rsh/external/R
-	$(MAKE) -C rcp setup
+	$(RCP_MAKE) setup
 
-test:
-	$(MAKE) -C rcp test
-
-benchmark:
-	$(MAKE) -C rcp benchmark
+test benchmark clean install:
+	$(RCP_MAKE) $@

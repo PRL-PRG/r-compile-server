@@ -8,19 +8,30 @@ DEBUG ?= 0
 CC := gcc-14
 # Need a compiler that supports C++20
 CXX := g++-14
-# Add support for debugging jitted code
-GDB_JIT_SUPPORT ?= 0
+# Add support for DWARF-based debugging and profiling
+# Default as it is needed to support C++ unwinding
+# When enabled, features are selected at runtime via environment variables:
+#   RCP_GDB_JIT=1  -> enable GDB JIT debugging
+#   RCP_PERF_JIT=1 -> enable perf jitdump profiling
+DWARF_SUPPORT ?= 1
 
 # Get the directory of common.mk itself
 COMMON_MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 # The root of this project
 ROOT_DIR := $(patsubst %/,%,$(dir $(COMMON_MK_PATH)))
 # From where the runtime.h should be resolved
-RSH_HOME = $(ROOT_DIR)/../external/rsh/client/rsh
+RSH_HOME ?= $(ROOT_DIR)/../external/rsh/client/rsh
 # Which R to use
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 # Which R to use
 R := $(R_HOME)/bin/R
+
+define ensure_microbenchmark_installed
+if ! $(R) --slave --no-restore -e 'if (!requireNamespace("microbenchmark", quietly=TRUE)) quit(status=1)' >/dev/null 2>&1; then \
+	echo "Error: R package 'microbenchmark' is not installed. Run 'make setup' from the repository root." >&2; \
+	exit 1; \
+fi
+endef
 
 # 0 = relative addressing, 1 = relative addressing with GOT where needed, 2 = absolute addressing
 RELOC_MODEL ?= 1

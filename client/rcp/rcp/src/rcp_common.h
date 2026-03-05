@@ -63,8 +63,9 @@ typedef struct
 	Hole *holes;
 	uint8_t alignment;
 	const char *name;
-#ifdef GDB_JIT_SUPPORT
-	const uint8_t *debug_frame;
+#ifdef DWARF_SUPPORT
+	const uint8_t *cfi_data; // CFI instruction bytes (from .eh_frame FDE)
+	size_t cfi_size;		 // Size of CFI instruction bytes
 #endif
 } Stencil;
 

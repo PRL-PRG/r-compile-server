@@ -1,15 +1,17 @@
-FROM ghcr.io/prl-prg/rcp-base
+ARG RCP_BASE_IMAGE=ghcr.io/prl-prg/rcp-base:latest
+FROM ${RCP_BASE_IMAGE}
 
 ARG RSH_COMMIT
 
-RUN git config --global url."https://github.com/".insteadOf git@github.com:
-
-RUN git clone git@github.com:PRL-PRG/r-compile-server.git /rsh && \
+RUN git clone https://github.com/PRL-PRG/r-compile-server.git /rsh && \
     git -C /rsh checkout --detach ${RSH_COMMIT} && \
     git -C /rsh submodule update --init --depth 1 external/R
 
 RUN cd /rsh && \
     bash -x ./tools/build-gnur.sh external/R
 
+RUN /rsh/external/R/bin/R --quiet -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")'
+
+ENV RSH_HOME=/rsh/client/rsh
 ENV R_HOME=/rsh/external/R
 ENV PATH="${PATH}:${R_HOME}/bin"

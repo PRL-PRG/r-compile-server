@@ -46,7 +46,14 @@ extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
 
 // #define NO_STACK_OVERFLOW_CHECK
+
+#define RSH_EXTERN_HELPERS
 #include <runtime.h>
+#undef RSH_EXTERN_HELPERS
+
+#ifdef STEPFOR_SPECIALIZE
+extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
+#endif
 
 #if __GNUC__ >= 14
 #define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers))
@@ -319,15 +326,11 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 	NEXT;
 }
 
-SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
-{
-	NEXT;
-}
 
 RCP_OP(RETURN,
-	   ,
-	   PUSH_VAL(1); // to hold return value
-	   Rsh_Return(stack);)
+       ,
+       PUSH_VAL(1);
+       return Rsh_Return(stack);)
 
 RCP_OP(GOTO,
 	   ,
@@ -406,13 +409,6 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
 #undef X
 
 #ifdef STEPFOR_SPECIALIZE
-
-static __attribute__((noinline))
-Rboolean
-RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho)
-{
-	return Rsh_StepFor(stack, cell, rho);
-}
 
 #define X(a, b)                                                                 \
 	static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(               \
@@ -971,6 +967,21 @@ X_MATH1_EXT_OPS
 
 #undef X
 
+// DOTCALL: .Call(pkg:::C_fun, arg1, ..., argN) with NativeSymbolInfo
+//
+// GET_IMM(1) encodes nargs + 1 (includes the op slot), so nargs = GET_IMM(1) - 1.
+//
+// Stack layout when DOTCALL executes:
+//
+//   stack →  (top)
+//     argN     ← last argument
+//     ...
+//     arg1     ← first argument
+//     op       ← the NativeSymbolInfo (.Call target)
+//
+// Rsh_DotCall calls the C function and writes the result into the op slot,
+// but does not adjust the stack pointer. POP_VAL(nargs) pops the argument
+// slots so that stack[-1] points at the op slot where the result now lives.
 RCP_OP(DOTCALL,
 	   Rsh_DotCall(stack, GET_IMM(1) - 1, GETCONST_IMM(0), GET_RHO());
 	   POP_VAL(GET_IMM(1) - 1);)

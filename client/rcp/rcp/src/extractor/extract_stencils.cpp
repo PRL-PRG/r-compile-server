@@ -73,8 +73,8 @@ struct Stencils
 	std::array<StencilExportSet, NUM_OPCODES> stencils_opcodes;
 	std::vector<StencilExport> stencils_extra;
 	std::vector<StencilExport> functions_not_inlined;
-	std::unordered_map<std::string, std::vector<uint8_t>> debug_frames;
-	std::vector<uint8_t> debug_frame_cie;
+	std::unordered_map<std::string, std::vector<uint8_t>> eh_frame_cfis;
+	std::vector<uint8_t> eh_frame_cie;
 
 	Stencils()
 	{
@@ -261,11 +261,11 @@ export_body(std::ostream &file, const StencilExport &stencil,
 
 // --- DWARF Decoding ---
 //
-// These functions parse DWARF .debug_frame structures at build time.
-// The extracted FDE (Frame Description Entry) bytes are stored verbatim as
-// C byte arrays in the generated stencils_data.c. At runtime, gdb_jit.c
-// re-interprets these bytes using the shared dwarf_decode_cfi() decoder to
-// construct the JIT function's .debug_frame section.
+// These functions parse DWARF .eh_frame structures at build time.
+// The extracted CFI (Call Frame Information) instruction bytes from each FDE
+// are stored as C byte arrays in the generated stencils_data.c. At runtime,
+// gdb_jit.c uses these bytes directly when constructing the JIT function's
+// .eh_frame data.
 //
 // The core DWARF parsing and CFI execution logic is implemented in the shared
 // src/shared/dwarf.{c,h} library. This file uses those functions and adds
@@ -472,46 +472,25 @@ static void execute_dwarf_insts_with_rows(
 	p = cursor;
 }
 
-// Decode an FDE's CFI instructions and print the resulting register table
+// Decode CFI instructions and print the resulting register table
 // as a human-readable comment. Output shows one row per location advance:
 // address, CFA definition, and the return-address register rule.
-static void print_fde_decoded(std::ostream &os,
+static void print_cfi_decoded(std::ostream &os,
 							  const std::vector<uint8_t> &cie_data,
-							  const std::vector<uint8_t> &fde_data)
+							  const std::vector<uint8_t> &cfi_data)
 {
-	if (fde_data.size() < 8)
+	if (cfi_data.empty())
 		return;
 
 	DwarfCIE cie = dwarf_parse_cie(cie_data.data(), cie_data.size());
 	if (!cie.valid)
 	{
-		os << "Invalid CIE\n";
+		os << "// Invalid CIE\n";
 		return;
 	}
 
-	const uint8_t *p = fde_data.data();
-	const uint8_t *end = p + fde_data.size();
-
-	// Parse FDE Header
-	uint64_t length = dwarf_decode_le32(p);
-	size_t header_len = 4;
-	if (length == 0xffffffff)
-	{
-		length = dwarf_decode_le64(p + 4);
-		header_len = 12;
-	}
-	p += (header_len == 4 ? 8 : 20); // Skip Len + ID
-
-	// PC Begin / Range
-	// In relocatable object, these are usually 0 and Size
-	uint64_t pc_begin = dwarf_decode_le64(p);
-	p += 8;
-	uint64_t pc_range = dwarf_decode_le64(p);
-	p += 8;
-
-	os << std::format("FDE {:x} pc={:x}..{:x}\n", fde_data.size(), pc_begin,
-					  pc_begin + pc_range);
-	os << "   LOC           CFA      ra\n";
+	os << std::format("// CFI instructions: {} bytes\n", cfi_data.size());
+	os << "//    LOC           CFA      ra\n";
 
 	DwarfStateFormatter fmt(cie.ra_reg);
 
@@ -523,65 +502,44 @@ static void print_fde_decoded(std::ostream &os,
 		execute_dwarf_insts_with_rows(ip, ip_end, fmt, cie, nullptr, nullptr);
 	}
 
-	uint64_t current_pc = pc_begin;
+	uint64_t current_pc = 0;
 
 	// Print initial row
-	os << std::format("{:016x} {:<8} {}\n", current_pc, fmt.format_cfa(),
+	os << std::format("// {:016x} {:<8} {}\n", current_pc, fmt.format_cfa(),
 					  fmt.format_rule(cie.ra_reg));
 
-	// Execute FDE instructions
+	// Execute CFI instructions
+	const uint8_t *p = cfi_data.data();
+	const uint8_t *end = p + cfi_data.size();
 	std::vector<std::pair<uint64_t, DwarfStateFormatter>> rows;
 	execute_dwarf_insts_with_rows(p, end, fmt, cie, &rows, &current_pc);
 
 	for (const auto &row : rows)
 	{
-		os << std::format("{:016x} {:<8} {}\n", row.first, row.second.format_cfa(),
+		os << std::format("// {:016x} {:<8} {}\n", row.first, row.second.format_cfa(),
 						  row.second.format_rule(cie.ra_reg));
 	}
 }
 
-// Export a stencil's FDE as a C byte array in the generated code.
+// Export a stencil's CFI instruction bytes as a C byte array in the generated code.
 // Emits the decoded CFI table as a block comment for debugging, followed
-// by the raw FDE bytes as a uint8_t array, wrapped in #ifdef GDB_JIT_SUPPORT.
-static void export_fde(std::ostream &file, const Stencils &stencils,
+// by the raw CFI bytes as a uint8_t array, wrapped in #ifdef DWARF_SUPPORT.
+static void export_cfi(std::ostream &file, const Stencils &stencils,
 					   const std::string &section_symbol_name,
 					   const std::string &variable_name)
 {
-	auto it = stencils.debug_frames.find(section_symbol_name);
-	if (it != stencils.debug_frames.end())
+	auto it = stencils.eh_frame_cfis.find(section_symbol_name);
+	if (it != stencils.eh_frame_cfis.end())
 	{
-		file << "#ifdef GDB_JIT_SUPPORT\n";
-		file << "/*\n";
-		print_fde_decoded(file, stencils.debug_frame_cie, it->second);
-		file << "*/\n";
-		file << std::format("uint8_t {}_debug_frame[] = {{ ", variable_name);
+		file << "#ifdef DWARF_SUPPORT\n";
+		file << "//\n";
+		print_cfi_decoded(file, stencils.eh_frame_cie, it->second);
+		file << "//\n";
+		file << std::format("uint8_t {}_cfi_data[] = {{ ", variable_name);
 		print_byte_array(file, it->second.data(), it->second.size());
 		file << "};\n";
 		file << "#endif\n\n";
 	}
-}
-
-// Compute the maximum CFA offset reached by a stencil's FDE.
-// This is the peak stack depth (in bytes from RSP) that the stencil uses,
-// needed at runtime to set RCP_INIT_CFA_OFFSET for GDB JIT registration.
-//
-// The CFA (Canonical Frame Address) is a reference point - typically the stack
-// pointer value at function entry. As the function executes, it may adjust the
-// stack (push/pop), and DWARF records these changes as "CFA offset from
-// register X". We need to find the maximum offset to know the stack depth
-// required.
-static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
-							  const std::vector<uint8_t> &fde_data)
-{
-	int64_t max_offset = 0;
-	int result = dwarf_get_max_cfa_offset(cie_data.data(), cie_data.size(),
-										  fde_data.data(), fde_data.size(),
-										  &max_offset);
-	if (result != 0)
-	{
-		throw std::runtime_error("Failed to compute CFA offset");
-	}
-	return max_offset;
 }
 
 // =============================================================================
@@ -591,49 +549,13 @@ static int64_t get_cfa_offset(const std::vector<uint8_t> &cie_data,
 // contain compiled stencil data for the JIT compiler.
 // =============================================================================
 
-// Write the RCP_INIT_CFA_OFFSET macro to the header file.
-// This is the maximum stack depth (CFA offset) of the _RCP_INIT prologue
-// stencil, used at runtime for GDB JIT debug frame generation.
-//
-// Generated variable:
-//   #define RCP_INIT_CFA_OFFSET <offset>
-static void export_rcp_init_cfa_offset(std::ostream &h_file,
-									   const Stencils &stencils)
-{
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
-
-	const StencilExport *rcp_init = nullptr;
-	for (const auto &s : stencils.stencils_extra)
-	{
-		if (s.name == "_RCP_INIT")
-		{
-			rcp_init = &s;
-			break;
-		}
-	}
-	if (!rcp_init)
-		throw std::runtime_error("_RCP_INIT stencil not found");
-
-	auto it = stencils.debug_frames.find(rcp_init->section_symbol_name);
-	if (it == stencils.debug_frames.end())
-	{
-		throw std::runtime_error(
-			std::format("_RCP_INIT debug frame not found (searched for {})",
-						rcp_init->section_symbol_name));
-	}
-	int64_t offset = get_cfa_offset(stencils.debug_frame_cie, it->second);
-	h_file << std::format("#define RCP_INIT_CFA_OFFSET {}\n", offset);
-
-	h_file << "#endif\n";
-}
-
 // Export stencil bodies (machine code bytes) and holes (relocations) for
-// opcode stencils. Also exports FDE debug frames for each stencil.
+// opcode stencils. Also exports CFI instruction bytes for each stencil.
 //
 // Generated variables (per opcode, per variant):
 //   uint8_t _{OPCODE}_{VARIANT}_BODY[]
 //   Hole _{OPCODE}_{VARIANT}_HOLES[]
-//   uint8_t _{OPCODE}_{VARIANT}_debug_frame[]  (if GDB_JIT_SUPPORT)
+//   uint8_t _{OPCODE}_{VARIANT}_cfi_data[]  (if DWARF_SUPPORT)
 static void export_opcode_stencil_bodies(std::ostream &c_file,
 										 std::ostream &h_file,
 										 const Stencils &stencils)
@@ -650,20 +572,20 @@ static void export_opcode_stencil_bodies(std::ostream &c_file,
 							(std::string(current.name) + '_' + stencil.name).c_str(),
 							stencils.functions_not_inlined);
 
-				export_fde(c_file, stencils, stencil.section_symbol_name,
+				export_cfi(c_file, stencils, stencil.section_symbol_name,
 						   std::format("_{}_{}", current.name, stencil.name));
 			}
 		}
 	}
 }
 
-// Export stencil bodies and FDEs for extra stencils (non-opcode stencils
-// like _RCP_INIT, _RCP_RETURN, etc.).
+// Export stencil bodies and CFI for extra stencils (non-opcode stencils
+// like _RCP_PROLOGUE, etc.).
 //
 // Generated variables (per stencil):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT)
+//   uint8_t _{NAME}_cfi_data[]  (if DWARF_SUPPORT)
 static void export_extra_stencil_bodies(std::ostream &c_file,
 										const Stencils &stencils)
 {
@@ -671,18 +593,18 @@ static void export_extra_stencil_bodies(std::ostream &c_file,
 	{
 		export_body(c_file, current, current.name.c_str(),
 					stencils.functions_not_inlined);
-		export_fde(c_file, stencils, current.section_symbol_name,
+		export_cfi(c_file, stencils, current.section_symbol_name,
 				   std::format("_{}", current.name));
 	}
 }
 
-// Export stencil bodies and FDEs for functions that couldn't be inlined.
+// Export stencil bodies and CFI for functions that couldn't be inlined.
 // Returns the total size of all not-inlined function bodies.
 //
 // Generated variables (per function):
 //   uint8_t _{NAME}_BODY[]
 //   Hole _{NAME}_HOLES[]
-//   uint8_t _{NAME}_debug_frame[]  (if GDB_JIT_SUPPORT)
+//   uint8_t _{NAME}_cfi_data[]  (if DWARF_SUPPORT)
 static size_t export_notinlined_bodies(std::ostream &c_file,
 									   const Stencils &stencils)
 {
@@ -692,7 +614,7 @@ static size_t export_notinlined_bodies(std::ostream &c_file,
 		notinlined_total_size += current.body.size();
 		export_body(c_file, current, current.name.c_str(),
 					stencils.functions_not_inlined);
-		export_fde(c_file, stencils, current.section_symbol_name,
+		export_cfi(c_file, stencils, current.section_symbol_name,
 				   std::format("_{}", current.name));
 	}
 	return notinlined_total_size;
@@ -715,12 +637,15 @@ static void export_opcode_stencil_arrays(std::ostream &c_file,
 								  current.name);
 			for (const auto &stencil : current.stencils)
 			{
-				std::string debug_frame_ptr = "NULL";
-				auto it = stencils.debug_frames.find(stencil.section_symbol_name);
-				if (it != stencils.debug_frames.end())
+				std::string cfi_data_ptr = "NULL";
+				std::string cfi_size_str = "0";
+				auto it = stencils.eh_frame_cfis.find(stencil.section_symbol_name);
+				if (it != stencils.eh_frame_cfis.end())
 				{
-					debug_frame_ptr =
-						std::format("_{}_{}_debug_frame", current.name, stencil.name);
+					cfi_data_ptr =
+						std::format("_{}_{}_cfi_data", current.name, stencil.name);
+					cfi_size_str =
+						std::format("sizeof(_{}_{}_cfi_data)", current.name, stencil.name);
 				}
 
 				c_file << std::format(
@@ -730,8 +655,8 @@ static void export_opcode_stencil_arrays(std::ostream &c_file,
 					std::string(current.name) + '_' + stencil.name, stencil.alignment,
 					std::string(current.name) + '_' + stencil.name);
 
-				c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
-				c_file << ", " << debug_frame_ptr << "\n";
+				c_file << "\n#ifdef DWARF_SUPPORT\n";
+				c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
 				c_file << "#endif\n";
 				c_file << "},\n";
 			}
@@ -746,18 +671,20 @@ static void export_opcode_stencil_arrays(std::ostream &c_file,
 // Export individual Stencil structs for extra stencils.
 //
 // Generated variables:
-//   const Stencil {NAME}  (e.g., _RCP_INIT, _RCP_RETURN)
+//   const Stencil {NAME}  (e.g., _RCP_PROLOGUE)
 static void export_extra_stencil_structs(std::ostream &c_file,
 										 std::ostream &h_file,
 										 const Stencils &stencils)
 {
 	for (const auto &current : stencils.stencils_extra)
 	{
-		std::string debug_frame_ptr = "NULL";
-		auto it = stencils.debug_frames.find(current.section_symbol_name);
-		if (it != stencils.debug_frames.end())
+		std::string cfi_data_ptr = "NULL";
+		std::string cfi_size_str = "0";
+		auto it = stencils.eh_frame_cfis.find(current.section_symbol_name);
+		if (it != stencils.eh_frame_cfis.end())
 		{
-			debug_frame_ptr = std::format("_{}_debug_frame", current.name);
+			cfi_data_ptr = std::format("_{}_cfi_data", current.name);
+			cfi_size_str = std::format("sizeof(_{}_cfi_data)", current.name);
 		}
 
 		c_file << std::format(
@@ -765,8 +692,8 @@ static void export_extra_stencil_structs(std::ostream &c_file,
 			current.name, current.body.size(), current.name, current.holes.size(),
 			current.name, current.alignment, current.name);
 
-		c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
-		c_file << ", " << debug_frame_ptr << "\n";
+		c_file << "\n#ifdef DWARF_SUPPORT\n";
+		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
 		c_file << "#endif\n";
 		c_file << "};\n";
 
@@ -774,11 +701,10 @@ static void export_extra_stencil_structs(std::ostream &c_file,
 	}
 }
 
-// Export the array of not-inlined function stencils and their debug frames.
+// Export the array of not-inlined function stencils.
 //
 // Generated variables:
 //   const Stencil notinlined_stencils[]
-//   const uint8_t *notinlined_debug_frames[]  (if GDB_JIT_SUPPORT)
 //   #define notinlined_count <count>
 //   #define notinlined_size <total_size>
 static void export_notinlined_stencil_array(std::ostream &c_file,
@@ -789,11 +715,13 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 	c_file << "\nconst Stencil notinlined_stencils[] = {\n";
 	for (const auto &current : stencils.functions_not_inlined)
 	{
-		std::string debug_frame_ptr = "NULL";
-		auto it = stencils.debug_frames.find(current.section_symbol_name);
-		if (it != stencils.debug_frames.end())
+		std::string cfi_data_ptr = "NULL";
+		std::string cfi_size_str = "0";
+		auto it = stencils.eh_frame_cfis.find(current.section_symbol_name);
+		if (it != stencils.eh_frame_cfis.end())
 		{
-			debug_frame_ptr = std::format("_{}_debug_frame", current.name);
+			cfi_data_ptr = std::format("_{}_cfi_data", current.name);
+			cfi_size_str = std::format("sizeof(_{}_cfi_data)", current.name);
 		}
 
 		c_file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"",
@@ -801,35 +729,13 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 							  current.holes.size(), current.name, current.alignment,
 							  current.name);
 
-		c_file << "\n#ifdef GDB_JIT_SUPPORT\n";
-		c_file << ", " << debug_frame_ptr << "\n";
+		c_file << "\n#ifdef DWARF_SUPPORT\n";
+		c_file << ", " << cfi_data_ptr << ", " << cfi_size_str << "\n";
 		c_file << "#endif\n";
 		c_file << "},\n";
 	}
 	c_file << "};\n";
 	h_file << "extern const Stencil notinlined_stencils[];\n";
-
-	// Debug frames array
-	c_file << "#ifdef GDB_JIT_SUPPORT\n";
-	c_file << "\nconst uint8_t *notinlined_debug_frames[] = {\n";
-	for (const auto &current : stencils.functions_not_inlined)
-	{
-		auto it = stencils.debug_frames.find(current.section_symbol_name);
-		if (it != stencils.debug_frames.end())
-		{
-			c_file << std::format("_{}_debug_frame,\n", current.name);
-		}
-		else
-		{
-			c_file << "NULL,\n";
-		}
-	}
-	c_file << "};\n";
-	c_file << "#endif\n";
-
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
-	h_file << "extern const uint8_t *notinlined_debug_frames[];\n";
-	h_file << "#endif\n";
 
 	h_file << std::format("#define notinlined_count {}\n",
 						  stencils.functions_not_inlined.size());
@@ -839,30 +745,30 @@ static void export_notinlined_stencil_array(std::ostream &c_file,
 // Export the DWARF CIE (Common Information Entry) used for all FDEs.
 //
 // Generated variables:
-//   uint8_t __CIE[]  (if GDB_JIT_SUPPORT)
+//   uint8_t __CIE[]  (if DWARF_SUPPORT)
 static void export_cie(std::ostream &c_file, std::ostream &h_file,
 					   const Stencils &stencils)
 {
-	c_file << "#ifdef GDB_JIT_SUPPORT\n";
-	if (!stencils.debug_frame_cie.empty())
+	c_file << "#ifdef DWARF_SUPPORT\n";
+	if (!stencils.eh_frame_cie.empty())
 	{
-		DwarfCIE cie = dwarf_parse_cie(stencils.debug_frame_cie.data(),
-									   stencils.debug_frame_cie.size());
-		c_file << "/*\n";
-		c_file << std::format("CIE: {}\n", stencils.debug_frame_cie.size());
-		c_file << std::format("- code alignment: {}\n", cie.code_align);
-		c_file << std::format("- data alignment: {}\n", cie.data_align);
-		c_file << std::format("- return address: {}\n",
+		DwarfCIE cie = dwarf_parse_cie(stencils.eh_frame_cie.data(),
+									   stencils.eh_frame_cie.size());
+		c_file << "//\n";
+		c_file << std::format("// CIE: {}\n", stencils.eh_frame_cie.size());
+		c_file << std::format("// - code alignment: {}\n", cie.code_align);
+		c_file << std::format("// - data alignment: {}\n", cie.data_align);
+		c_file << std::format("// - return address: {}\n",
 							  dwarf_get_x86_64_reg_name(cie.ra_reg));
-		c_file << "*/\n";
+		c_file << "//\n";
 	}
 	c_file << "uint8_t __CIE[] = { ";
-	print_byte_array(c_file, stencils.debug_frame_cie.data(),
-					 stencils.debug_frame_cie.size());
+	print_byte_array(c_file, stencils.eh_frame_cie.data(),
+					 stencils.eh_frame_cie.size());
 	c_file << "};\n";
 	c_file << "#endif\n";
 
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
+	h_file << "#ifdef DWARF_SUPPORT\n";
 	h_file << "extern uint8_t __CIE[];\n";
 	h_file << "#endif\n";
 }
@@ -900,44 +806,6 @@ static void export_stencils_table(std::ostream &c_file, std::ostream &h_file,
 	c_file << "};\n";
 	h_file << std::format("extern const Stencil* stencils[{}];\n",
 						  stencils.stencils_opcodes.size());
-}
-
-// Export debug frame pointer arrays for each opcode (for GDB JIT support).
-//
-// Generated variables:
-//   const uint8_t *{OPCODE}_debug_frames[]  (one per opcode with variants)
-static void export_opcode_debug_frame_arrays(std::ostream &c_file,
-											 std::ostream &h_file,
-											 const Stencils &stencils)
-{
-	c_file << "#ifdef GDB_JIT_SUPPORT\n";
-	for (const auto &current : stencils.stencils_opcodes)
-	{
-		if (current.stencils.empty())
-			continue;
-
-		c_file << std::format("const uint8_t *{}_debug_frames[] = {{ ",
-							  current.name);
-		for (const auto &stencil : current.stencils)
-		{
-			auto it = stencils.debug_frames.find(stencil.section_symbol_name);
-			if (it != stencils.debug_frames.end())
-			{
-				c_file << std::format("_{}_{}_debug_frame, ", current.name,
-									  stencil.name);
-			}
-			else
-			{
-				c_file << "NULL, ";
-			}
-		}
-		c_file << "};\n";
-		h_file << "#ifdef GDB_JIT_SUPPORT\n";
-		h_file << std::format("extern const uint8_t *{}_debug_frames[];\n",
-							  current.name);
-		h_file << "#endif\n";
-	}
-	c_file << "#endif\n";
 }
 
 // Export the stencils_all array containing pointers to all stencils.
@@ -980,26 +848,6 @@ static size_t export_stencils_all(std::ostream &c_file, std::ostream &h_file,
 	return stencils_all_count;
 }
 
-// Export extern declarations for extra stencil debug frames.
-//
-// Generated declarations:
-//   extern uint8_t _{NAME}_debug_frame[]  (for each extra stencil with FDE)
-static void export_extra_debug_frame_decls(std::ostream &h_file,
-										   const Stencils &stencils)
-{
-	h_file << "#ifdef GDB_JIT_SUPPORT\n";
-	for (const auto &current : stencils.stencils_extra)
-	{
-		auto it = stencils.debug_frames.find(current.section_symbol_name);
-		if (it != stencils.debug_frames.end())
-		{
-			h_file << std::format("extern uint8_t _{}_debug_frame[];\n",
-								  current.name);
-		}
-	}
-	h_file << "#endif\n";
-}
-
 // Create stencils_data.c and stencils.h
 //
 // This is the main export function that coordinates generation of all stencil
@@ -1030,12 +878,17 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#include <R.h>\n";
 	c_file << "#include <Rinternals.h>\n";
 	c_file << "#include <Rmath.h>\n";
+	c_file << "#define RSH_INLINE\n";
 	c_file << "#include \"runtime_internals.h\"\n";
-	c_file << "extern RCNTXT *R_GlobalContext;\n";
-	c_file << "extern SEXP R_ReturnedValue;\n\n";
-
-	// Export RCP_INIT_CFA_OFFSET for GDB JIT support
-	export_rcp_init_cfa_offset(h_file, stencils);
+	c_file << "#define RSH_EXTERN_HELPERS\n";
+	c_file << "#include <runtime.h>\n";
+	c_file << "#undef RSH_EXTERN_HELPERS\n";
+	// runtime.h redefines R_NaInt etc. as macros; undo so &R_NaInt remains an lvalue
+	c_file << "#undef R_NaInt\n";
+	c_file << "#undef R_NaN\n";
+	c_file << "#undef R_PosInf\n";
+	c_file << "#undef R_NegInf\n";
+	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n\n";
 
 	// Export stencil bodies (machine code + holes + FDEs)
 	export_opcode_stencil_bodies(c_file, h_file, stencils);
@@ -1054,11 +907,7 @@ static void export_to_files(const fs::path &output_dir,
 
 	// Export lookup tables
 	export_stencils_table(c_file, h_file, stencils);
-	export_opcode_debug_frame_arrays(c_file, h_file, stencils);
 	export_stencils_all(c_file, h_file, stencils);
-
-	// Export extra stencil debug frame declarations
-	export_extra_debug_frame_decls(h_file, stencils);
 
 	// Close header guard
 	h_file << "#endif\n";
@@ -1455,71 +1304,98 @@ static void process_section(bfd &abfd, asection &section, Stencils &stencils)
 		stencil.holes = std::move(holes);
 		stencil.alignment = 1 << section.alignment_power;
 	}
-	else if (section.flags & SEC_DEBUGGING)
+	else if (strcmp(symbol, ".eh_frame") == 0)
 	{
-		if (strcmp(symbol, ".debug_frame") == 0)
+		// Parse .eh_frame section: extract CIE (full) and per-FDE CFI instruction
+		// bytes only (stripping the FDE header, initial_location, address_range,
+		// and augmentation data).
+		DwarfCIE cie = {0};
+		size_t offset = 0;
+		while (offset < body.size())
 		{
-			size_t offset = 0;
-			while (offset < body.size())
+			if (offset + 4 > body.size())
+				break;
+			uint64_t length = bfd_get_32(&abfd, &body[offset]);
+			size_t len_field_size = 4;
+			if (length == 0xffffffff)
 			{
-				if (offset + 4 > body.size())
+				if (offset + 12 > body.size())
 					break;
-				uint64_t length = bfd_get_32(&abfd, &body[offset]);
-				size_t header_size = 4;
-				if (length == 0xffffffff)
-				{
-					if (offset + 12 > body.size())
-						break;
-					length = bfd_get_64(&abfd, &body[offset + 4]);
-					header_size = 12;
-				}
+				length = bfd_get_64(&abfd, &body[offset + 4]);
+				len_field_size = 12;
+			}
 
-				if (length == 0)
-					break;
+			if (length == 0)
+				break;
 
-				size_t entry_end = offset + header_size + length;
-				if (entry_end > body.size())
-					break;
+			size_t entry_end = offset + len_field_size + length;
+			if (entry_end > body.size())
+				break;
 
-				uint64_t id;
-				bool is_cie = false;
-				if (header_size == 4)
-				{
-					id = bfd_get_32(&abfd, &body[offset + 4]);
-					if (id == 0xffffffff)
-						is_cie = true;
-				}
-				else
-				{
-					id = bfd_get_64(&abfd, &body[offset + 12]);
-					if (id == 0xffffffffffffffffULL)
-						is_cie = true;
-				}
+			// In .eh_frame, CIE has id == 0; FDE has non-zero CIE pointer
+			uint32_t id = bfd_get_32(&abfd, &body[offset + len_field_size]);
+			bool is_cie = (id == 0);
 
-				if (is_cie)
+			if (is_cie)
+			{
+				if (stencils.eh_frame_cie.empty())
 				{
-					if (stencils.debug_frame_cie.empty())
-						stencils.debug_frame_cie.assign(body.begin() + offset,
-														body.begin() + entry_end);
+					stencils.eh_frame_cie.assign(body.begin() + offset,
+												 body.begin() + entry_end);
+					cie = dwarf_parse_cie(stencils.eh_frame_cie.data(),
+										  stencils.eh_frame_cie.size());
+					if (!cie.valid)
+						std::cerr << "Warning: failed to parse .eh_frame CIE\n";
 				}
-				else
+			}
+			else
+			{
+				// FDE: find the stencil it belongs to via relocation on
+				// initial_location field (at offset len_field_size + 4)
+				size_t loc_offset = offset + len_field_size + 4;
+				for (long i = 0; i < reloc_count; i++)
 				{
-					size_t loc_offset = offset + (header_size == 4 ? 8 : 20);
-					for (long i = 0; i < reloc_count; i++)
+					if (relocs[i]->address == loc_offset)
 					{
-						if (relocs[i]->address == loc_offset)
+						std::string key = (*relocs[i]->sym_ptr_ptr)->name;
+
+						// Compute where CFI instructions start within the FDE:
+						//   len_field_size bytes: length field
+						//   4 bytes: CIE pointer
+						//   ptr_size bytes: initial_location
+						//   ptr_size bytes: address_range
+						//   [if 'z': ULEB128 augmentation data length + data]
+						//   remaining: CFI instructions
+						int ptr_size = cie.valid
+										   ? dwarf_encoded_ptr_size(cie.ptr_encoding)
+										   : 8;
+						if (ptr_size <= 0)
+							ptr_size = 8;
+
+						const uint8_t *fde_start =
+							&body[offset + len_field_size + 4];
+						const uint8_t *fde_end = &body[entry_end];
+						const uint8_t *cfi_start =
+							fde_start + ptr_size + ptr_size;
+
+						if (cie.has_z && cfi_start < fde_end)
 						{
-							// uint64_t val = bfd_asymbol_value(*relocs[i]->sym_ptr_ptr) +
-							// relocs[i]->addend;
-							std::string key = (*relocs[i]->sym_ptr_ptr)->name;
-							stencils.debug_frames[key].assign(body.begin() + offset,
-															  body.begin() + entry_end);
-							break;
+							// Skip augmentation data length + data
+							uint64_t aug_data_len =
+								dwarf_decode_uleb128(&cfi_start);
+							cfi_start += aug_data_len;
 						}
+
+						if (cfi_start <= fde_end)
+						{
+							stencils.eh_frame_cfis[key].assign(cfi_start,
+															   fde_end);
+						}
+						break;
 					}
 				}
-				offset = entry_end;
 			}
+			offset = entry_end;
 		}
 	}
 	else if ((section.flags & SEC_READONLY) && (section.flags & BSF_KEEP))

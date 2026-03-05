@@ -15,9 +15,9 @@ if (!target %in% dot_funs) {
   target <- dot_funs[[1L]]
 }
 
-before <- rcp::is_compiled(get(target, envir = ns))
+before <- rcp::rcp_is_compiled(get(target, envir = ns))
 res <- rcp::rcp_cmppkg("splines")
-after <- rcp::is_compiled(get(target, envir = ns))
+after <- rcp::rcp_is_compiled(get(target, envir = ns))
 
 stopifnot(is.list(res))
 stopifnot(res$compiled >= 1L)

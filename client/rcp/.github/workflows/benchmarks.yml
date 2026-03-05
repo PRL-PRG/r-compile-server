@@ -82,7 +82,7 @@ jobs:
           cache-from: type=gha,scope=rcp-rsh
           cache-to: type=gha,mode=max,scope=rcp-rsh
 
-      - name: Build prl-prg/rcp
+      - name: Build prl-prg/rcp (DWARF=0)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -90,25 +90,43 @@ jobs:
           build-args: |
             RSH_COMMIT=${{ steps.vars.outputs.rsh_commit }}
             RCP_COMMIT=${{ steps.vars.outputs.rcp_commit }}
-          tags: ghcr.io/prl-prg/rcp:${{ github.sha }}
+            DWARF_SUPPORT=0
+          tags: |
+            ghcr.io/prl-prg/rcp:${{ github.sha }}
+            ghcr.io/prl-prg/rcp:${{ github.sha }}-dwarf0
           push: true
           platforms: linux/amd64
-          cache-from: type=gha,scope=rcp
-          cache-to: type=gha,mode=max,scope=rcp
+          cache-from: type=gha,scope=rcp-dwarf0
+          cache-to: type=gha,mode=max,scope=rcp-dwarf0
+
+      - name: Build prl-prg/rcp (DWARF=1)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.rcp
+          build-args: |
+            RSH_COMMIT=${{ steps.vars.outputs.rsh_commit }}
+            RCP_COMMIT=${{ steps.vars.outputs.rcp_commit }}
+            DWARF_SUPPORT=1
+          tags: ghcr.io/prl-prg/rcp:${{ github.sha }}-dwarf1
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha,scope=rcp-dwarf1
+          cache-to: type=gha,mode=max,scope=rcp-dwarf1
 
   test:
-    name: Test (GDB_JIT=${{ matrix.gdb_jit }})
+    name: Test (DWARF=${{ matrix.dwarf }})
     runs-on: ubuntu-latest
     needs: build-images
     strategy:
       fail-fast: false
       matrix:
-        gdb_jit: [0, 1]
+        dwarf: [0, 1]
     permissions:
       contents: read
       packages: read
     env:
-      TEST_DOCKER_CONTAINER: test-gdb-${{ matrix.gdb_jit }}
+      TEST_DOCKER_CONTAINER: test-dwarf-${{ matrix.dwarf }}
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -117,13 +135,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and test
+      - name: Run tests against prebuilt image
         shell: bash
         run: |
           docker run \
           --name $TEST_DOCKER_CONTAINER \
-          ghcr.io/prl-prg/rcp:${{ github.sha }} \
-          bash -c "make -C /rcp/rcp clean test GDB_JIT_SUPPORT=${{ matrix.gdb_jit }}"
+          ghcr.io/prl-prg/rcp:${{ github.sha }}-dwarf${{ matrix.dwarf }} \
+          bash -c "make -C /rcp/rcp/tests test DWARF_SUPPORT=${{ matrix.dwarf }}"
 
       - name: Cleanup
         if: always()
@@ -136,7 +154,13 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        bench_type: ['bc', 'rcp']
+        include:
+          - bench_type: bc
+            dwarf: 0
+          - bench_type: rcp
+            dwarf: 0
+          - bench_type: rcp
+            dwarf: 1
     permissions:
       contents: read
       packages: write
@@ -144,7 +168,7 @@ jobs:
       BENCH_DOCKER_CONTAINER: bench-run
       BENCH_RESULT_NAME: benchmark-results
       # note: github workflow does not support variable expansion
-      BENCH_OUT_DIR: /rcp/rcp/benchmark-results/${{ matrix.bench_type}}
+      BENCH_OUT_DIR: /rcp/rcp/benchmark-results/${{ matrix.bench_type }}-dwarf${{ matrix.dwarf }}
       BENCH_ITER: 15
     steps:
       - name: Log in to GitHub Container Registry
@@ -159,7 +183,7 @@ jobs:
         run: |
           docker run \
           --name $BENCH_DOCKER_CONTAINER \
-          ghcr.io/prl-prg/rcp:${{ github.sha }} \
+          ghcr.io/prl-prg/rcp:${{ github.sha }}-dwarf${{ matrix.dwarf }} \
           make benchmark \
             BENCH_OPTS="--${{ matrix.bench_type }}" \
             BENCH_OUT_DIR="$BENCH_OUT_DIR" \
@@ -178,5 +202,5 @@ jobs:
       - name: Archive results
         uses: actions/upload-artifact@v4
         with:
-          name: benchmarks-${{ matrix.bench_type }}
+          name: benchmarks-${{ matrix.bench_type }}-dwarf${{ matrix.dwarf }}
           path: ${{ env.BENCH_RESULT_NAME }}

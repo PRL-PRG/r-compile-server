@@ -15,6 +15,7 @@ Examples:
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import difflib
@@ -49,7 +50,13 @@ HEX_PATTERN = re.compile(r'0x[0-9a-fA-F]+')
 JIT_PATH_PATTERN = re.compile(r'/tmp/rcp_jit_[a-zA-Z0-9]+/')
 PROCESS_PATTERN = re.compile(r'process \d+')
 THREAD_PATTERN = re.compile(r'Thread \d+')
-C_LINE_PATTERN = re.compile(r' at (.*\.c):\d+')
+C_LINE_PATTERN = re.compile(r' at (?:.*[/\\])?([^/\\]+\.[ch]):\d+')
+
+# Patterns indicating broken backtraces (should never appear in expected output)
+BACKTRACE_BAD_PATTERNS = [
+    re.compile(r'#\d+\s+0xADDR in \?\? \(\)'),
+    re.compile(r'Backtrace stopped:.*corrupt stack'),
+]
 
 # Test timeout in seconds
 TIMEOUT = 60
@@ -82,11 +89,14 @@ def normalize_output(content: str) -> str:
 def check_gdb_jit_support(r_home: str) -> bool:
     """Check if GDB JIT support is enabled in rcp."""
     rscript = os.path.join(r_home, "bin", "Rscript")
-    cmd = [rscript, "-e", 
+    cmd = [rscript, "-e",
            "library(rcp); if(!.Call('rcp_gdb_jit_support', PACKAGE='rcp')) quit(status=1)"]
-    
+
+    env = os.environ.copy()
+    env["RCP_GDB_JIT"] = "1"
+
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        result = subprocess.run(cmd, capture_output=True, timeout=30, env=env)
         return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return False
@@ -126,8 +136,11 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = r_lib
     env["R_HOME"] = r_home
+    env["RCP_GDB_JIT"] = "1"
 
     # Run GDB
+    env_prefix = f"LD_LIBRARY_PATH={shlex.quote(r_lib)} R_HOME={shlex.quote(r_home)} RCP_GDB_JIT=1"
+    print(f"$ {env_prefix} {shlex.join(gdb_cmd)}")
     try:
         result = subprocess.run(
             gdb_cmd,
@@ -150,8 +163,23 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     # Normalize output
     normalized_actual = normalize_output(output)
 
+    # Backtrace quality check
+    bad_lines = []
+    for line in normalized_actual.splitlines():
+        for pat in BACKTRACE_BAD_PATTERNS:
+            if pat.search(line):
+                bad_lines.append(line.strip())
+                break
+
     # Update mode: write expected output and return
     if update_mode:
+        if bad_lines:
+            msg = "Updated expected output, but WARNING: broken backtrace detected:\n"
+            for bl in bad_lines:
+                msg += f"    {bl}\n"
+            with open(expected_file, 'w', encoding='utf-8') as f:
+                f.write(normalized_actual)
+            return False, msg
         with open(expected_file, 'w', encoding='utf-8') as f:
             f.write(normalized_actual)
         return True, "Updated expected output"
@@ -163,7 +191,22 @@ def run_single_test(test_dir: Path, r_home: str, update_mode: bool = False) -> t
     with open(expected_file, 'r', encoding='utf-8', errors='replace') as f:
         expected_content = f.read()
 
+    # Sanity check: warn if expected.log itself contains broken backtraces
+    for line in expected_content.splitlines():
+        for pat in BACKTRACE_BAD_PATTERNS:
+            if pat.search(line):
+                return False, (
+                    f"expected.log contains broken backtrace pattern:\n"
+                    f"    {line.strip()}\n"
+                    f"Re-record with --update after fixing the backtrace issue."
+                )
+
     if normalized_actual == expected_content:
+        if bad_lines:
+            return False, (
+                "Output matches expected, but backtrace is broken:\n" +
+                "\n".join(f"    {bl}" for bl in bad_lines)
+            )
         return True, "Output matches expected"
     else:
         # Generate diff
@@ -205,7 +248,7 @@ def main():
     # Check GDB JIT support
     rprint("[bold blue]Checking for GDB JIT support...[/bold blue]")
     if not check_gdb_jit_support(r_home):
-        rprint("[yellow]Skipping debugging tests (GDB_JIT_SUPPORT disabled)[/yellow]")
+        rprint("[yellow]Skipping debugging tests (DWARF_SUPPORT disabled)[/yellow]")
         sys.exit(0)
     rprint("[green]GDB JIT support enabled.[/green]")
 

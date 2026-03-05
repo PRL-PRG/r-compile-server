@@ -2,6 +2,7 @@
 #define RSH
 
 #include "gdb_jit.h"
+#include "perf_jit.h"
 #include "rcp_bc_info.h"
 #include "rcp_common.h"
 #include "runtime_internals.h"
@@ -31,6 +32,11 @@ static const Stencil NOP_STENCIL = {
 	.holes = NULL,
 	.alignment = 1,
 	.name = "NOP_STENCIL"};
+
+#ifdef DWARF_SUPPORT
+static int rcp_gdb_jit_enabled = 0;
+static int rcp_perf_jit_enabled = 0;
+#endif
 
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
@@ -1036,7 +1042,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 const char *name)
 {
 	rcp_exec_ptrs res;
-	size_t insts_size = _RCP_INIT.body_size;
+	size_t insts_size = 0;
 	int for_count = 0;
 
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
@@ -1237,11 +1243,8 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		(StepFor_specialized *)&memory[executable_size_aligned];
 #endif
 
-	for (size_t i = 0; i < bytecode_size; i++)
-	{
-		if (inst_start[i])
-			inst_start[i] += (ptrdiff_t)executable;
-	}
+	for (int j = 0; j < count_opcodes; j++)
+		inst_start[bytecode_lut[j]] += (ptrdiff_t)executable;
 
 	res.eval = (void *)executable;
 	res.bcells_size = bcells_size;
@@ -1266,10 +1269,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 									 // case of non-trivial alignment
 
 	// Start to copy-patch
-	memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
-	for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-		patch(executable, executable, 0, &_RCP_INIT, &_RCP_INIT.holes[j], j, NULL,
-			  0, NULL, &ctx);
 
 #ifdef STEPFOR_SPECIALIZE
 	StepFor_specialized *stepfor_pool = stepfor_storage;
@@ -1401,40 +1400,91 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
 #endif
 
-#ifdef GDB_JIT_SUPPORT
+#ifdef DWARF_SUPPORT
 	if (name)
 	{
-		// +1 for _RCP_INIT prologue as the first entry
 		uint8_t **inst_addrs_packed =
-			(uint8_t **)S_alloc(count_opcodes + 1, sizeof(uint8_t *));
+			(uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
 		const Stencil **instruction_stencils =
-			(const Stencil **)S_alloc(count_opcodes + 1, sizeof(Stencil *));
+			(const Stencil **)S_alloc(count_opcodes, sizeof(Stencil *));
 
-		// First entry is _RCP_INIT at offset 0
-		inst_addrs_packed[0] = executable;
-		instruction_stencils[0] = &_RCP_INIT;
-
-		// Body stencils follow at index 1..count_opcodes
 		for (int i = 0; i < count_opcodes; i++)
 		{
 			int bc_pos = bytecode_lut[i];
 			int opcode = bytecode[bc_pos];
 			int variant = stencil_variants[bc_pos];
-
-			inst_addrs_packed[i + 1] = inst_start[bc_pos];
-			instruction_stencils[i + 1] = &stencils[opcode][variant];
+			inst_addrs_packed[i] = inst_start[bc_pos];
+			instruction_stencils[i] = &stencils[opcode][variant];
 		}
 
-		res.jit_entry = gdb_jit_register(name, executable, insts_size,
-										 inst_addrs_packed, count_opcodes + 1,
-										 instruction_stencils, RCP_INIT_CFA_OFFSET);
+		// Always build .eh_frame and register with C++ unwinder
+		uint8_t *eh_frame_data = NULL;
+		size_t eh_frame_size = 0;
+		build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
+					   inst_addrs_packed, count_opcodes,
+					   instruction_stencils);
+		rcp_register_eh_frame(eh_frame_data);
+		res.eh_frame_data = eh_frame_data;
+
+		if (rcp_gdb_jit_enabled)
+			res.jit_entry = gdb_jit_register(name, executable, insts_size,
+											 inst_addrs_packed, count_opcodes,
+											 instruction_stencils);
+		else
+			res.jit_entry = NULL;
+
+		if (rcp_perf_jit_enabled)
+		{
+			// Generate pseudo-source file with bytecode opcode names
+			char *source_path = write_source_file(name, count_opcodes,
+												  instruction_stencils,
+												  inst_addrs_packed);
+
+			// JIT_CODE_DEBUG_INFO must precede JIT_CODE_LOAD
+			if (source_path)
+			{
+				perf_jit_register_debug_info(executable, inst_addrs_packed,
+											 count_opcodes, source_path);
+			}
+
+			perf_jit_register(name, executable, insts_size);
+
+			// Reuse same eh_frame_data for perf jitdump
+			perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
+
+			free(source_path);
+		}
 	}
 	else
 	{
 		res.jit_entry = NULL;
+		res.eh_frame_data = NULL;
 	}
 #else
 	res.jit_entry = NULL;
+	res.eh_frame_data = NULL;
+#endif
+
+#ifndef DWARF_SUPPORT
+	// dump JIT code to file if RCP_DUMP_DIR is set for local inspection
+	// When DWARF_SUPPORT is enabled,
+	// the full ELF has been already dumped by gdb_jit_register
+	if (name)
+	{
+		const char *dump_dir = getenv("RCP_DUMP_DIR");
+		if (dump_dir)
+		{
+			char path[512];
+			snprintf(path, sizeof(path), "%s/%s.bin", dump_dir, name);
+			FILE *fp = fopen(path, "wb");
+			if (fp)
+			{
+				fwrite(executable, 1, insts_size, fp);
+				fclose(fp);
+				fprintf(stderr, "JIT %s: %zu bytes written to %s\n", name, insts_size, path);
+			}
+		}
+	}
 #endif
 
 	vmaxset(vmax);
@@ -1465,28 +1515,16 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 static const uint8_t *prepare_notinlined_functions(void)
 {
+	// Helpers (Rsh_Call, Rsh_StartLoopCntxt, RCP_STEPFOR_Fallback) are now
+	// compiled as normal functions in the package .so (stencils-runtime.c)
+	// with frame pointers. The stencils reference them as external symbols
+	// resolved via RELOC_RUNTIME_SYMBOL / RELOC_RUNTIME_SYMBOL_GOT.
+	// No extraction or runtime patching needed.
 	if (notinlined_count == 0)
 		return NULL;
 
-	void *notinlined_lut[notinlined_count];
-
-	uint8_t *mem_notinlined =
-		mmap(get_near_memory(notinlined_size), notinlined_size, PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (mem_notinlined == MAP_FAILED)
-		exit(1);
-
-	// Copy ...
-	uint8_t *offset = mem_notinlined;
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		const Stencil *stencil = &notinlined_stencils[i];
-		memcpy(offset, stencil->body, stencil->body_size);
-		notinlined_lut[i] = offset;
-		offset += stencil->body_size;
-	}
-
-	// ... resolve other holes ...
+	// Legacy path: if the extractor still emits non-inlined stencils,
+	// resolve their RELOC_NOTINLINED_FUNCTION holes as before.
 	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
 	{
 		const Stencil *stencil = stencils_all[i];
@@ -1495,56 +1533,12 @@ static const uint8_t *prepare_notinlined_functions(void)
 			Hole *hole = &stencil->holes[j];
 			if (hole->kind == RELOC_NOTINLINED_FUNCTION)
 			{
-				DEBUG_PRINT(
-					"Patching notinlined function hole at imm_pos %d with address %p\n",
-					hole->val.imm_pos, notinlined_lut[hole->val.imm_pos]);
-				hole->val.symbol = notinlined_lut[hole->val.imm_pos];
-				hole->kind = RELOC_RUNTIME_SYMBOL;
+				error("RELOC_NOTINLINED_FUNCTION encountered but helpers are now "
+					  "in the package .so. Rebuild stencils.\n");
 			}
 		}
 	}
-
-	PatchContext ctx = {.shared_near = mem_shared->memory_shared_near,
-						.shared_low = mem_shared->memory_shared_low,
-						.constpool = NULL,
-						.executable_lookup = NULL,
-						.bytecode = NULL,
-						.bcell_lookup = NULL,
-						.loopcntxt_lookup = NULL,
-						.executable_start = NULL};
-
-	// ... and patch holes in notinlined functions
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		const Stencil *stencil = &notinlined_stencils[i];
-		for (size_t j = 0; j < stencil->holes_size; ++j)
-			patch(notinlined_lut[i], notinlined_lut[i], 0, stencil,
-				  &stencil->holes[j], j, NULL, 0, NULL, &ctx);
-	}
-
-#ifdef GDB_JIT_SUPPORT
-	// Register notinlined functions (helpers) with GDB
-	uint8_t **helper_addrs =
-		(uint8_t **)R_alloc(notinlined_count, sizeof(uint8_t *));
-	const Stencil **helper_stencils =
-		(const Stencil **)R_alloc(notinlined_count, sizeof(Stencil *));
-
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		helper_addrs[i] = (uint8_t *)notinlined_lut[i];
-		helper_stencils[i] = &notinlined_stencils[i];
-	}
-
-	gdb_jit_register("__rcp_notinlined_helpers", mem_notinlined, notinlined_size,
-					 helper_addrs, notinlined_count, helper_stencils, 0);
-#endif
-
-	if (mprotect(mem_notinlined, notinlined_size, PROT_EXEC) != 0)
-	{
-		perror("mprotect failed");
-		exit(1);
-	}
-	return mem_notinlined;
+	return NULL;
 }
 
 static SEXP original_cmpfun = NULL;
@@ -1588,12 +1582,21 @@ static void bytecode_info(const int *bytecode, int bytecode_size,
  */
 static void rcp_finalizer(SEXP ptr)
 {
-#ifdef GDB_JIT_SUPPORT
+#ifdef DWARF_SUPPORT
 	rcp_exec_ptrs *ptrs = (rcp_exec_ptrs *)R_ExternalPtrAddr(ptr);
-	if (ptrs && ptrs->jit_entry)
+	if (ptrs)
 	{
-		gdb_jit_unregister(ptrs->jit_entry);
-		ptrs->jit_entry = NULL;
+		if (ptrs->jit_entry)
+		{
+			gdb_jit_unregister(ptrs->jit_entry);
+			ptrs->jit_entry = NULL;
+		}
+		if (ptrs->eh_frame_data)
+		{
+			rcp_deregister_eh_frame(ptrs->eh_frame_data);
+			free(ptrs->eh_frame_data);
+			ptrs->eh_frame_data = NULL;
+		}
 	}
 #endif
 	R_RcpFree(ptr);
@@ -1990,7 +1993,7 @@ static const char *stats_names[STATS_COUNT] = {"total_size", "executable_size",
 
 static double stats_values[STATS_COUNT];
 
-SEXP C_is_compiled(SEXP closure)
+SEXP C_rcp_is_compiled(SEXP closure)
 {
 	if (TYPEOF(closure) != CLOSXP)
 	{
@@ -2904,16 +2907,34 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 	return df;
 }
 
-SEXP C_rcp_gdb_jit_support(void)
+SEXP C_rcp_dwarf_support(void)
 {
-#ifdef GDB_JIT_SUPPORT
+#ifdef DWARF_SUPPORT
 	return ScalarLogical(1);
 #else
 	return ScalarLogical(0);
 #endif
 }
 
-#ifdef GDB_JIT_SUPPORT
+SEXP C_rcp_gdb_jit_support(void)
+{
+#ifdef DWARF_SUPPORT
+	return ScalarLogical(rcp_gdb_jit_enabled);
+#else
+	return ScalarLogical(0);
+#endif
+}
+
+SEXP C_rcp_perf_jit_support(void)
+{
+#ifdef DWARF_SUPPORT
+	return ScalarLogical(rcp_perf_jit_enabled);
+#else
+	return ScalarLogical(0);
+#endif
+}
+
+#ifdef DWARF_SUPPORT
 
 /* Tags from R sources */
 #ifndef ISQSXP
@@ -2961,6 +2982,13 @@ SEXP rcp_init(void)
 {
 	refresh_near_memory_ptr(0);
 
+#ifdef DWARF_SUPPORT
+	rcp_gdb_jit_enabled = (getenv("RCP_GDB_JIT") != NULL);
+	rcp_perf_jit_enabled = (getenv("RCP_PERF_JIT") != NULL);
+	if (rcp_perf_jit_enabled)
+		perf_jit_init();
+#endif
+
 	prepare_shared_memory();
 
 	prepare_active_holes();
@@ -2985,6 +3013,11 @@ SEXP rcp_init(void)
 
 void rcp_destr(void)
 {
+#ifdef DWARF_SUPPORT
+	if (rcp_perf_jit_enabled)
+		perf_jit_close();
+#endif
+
 	if (mem_shared_sexp != NULL)
 	{
 		R_ReleaseObject(mem_shared_sexp);

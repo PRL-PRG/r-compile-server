@@ -5,4 +5,8 @@
 .Rhistory
 .vscode/
 perf.data
-rcp/benchmark-results
+/rcp/benchmark-results
+/rcp/src/stencils/.stencils_flags
+/rcp/tests/perf/*.old
+/rcp/tests/perf/*.data
+/rcp/tests/perf/profile.json.gz
