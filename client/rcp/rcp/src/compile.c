@@ -1960,23 +1960,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	SEXP coverage_registry = R_NilValue;
 
-	// Check if "coverage" option in options list is set to TRUE
-	SEXP coverage_option = R_NilValue;
-	if (TYPEOF(options) == VECSXP)
-	{
-		SEXP names = Rf_getAttrib(options, R_NamesSymbol);
-		if (names != R_NilValue)
-		{
-			for (int i = 0; i < Rf_length(options); i++)
-			{
-				if (strcmp(CHAR(STRING_ELT(names, i)), "coverage") == 0)
-				{
-					coverage_option = VECTOR_ELT(options, i);
-					break;
-				}
-			}
-		}
-	}
+	SEXP coverage_option = Rf_GetOption1(Rf_install("rcp.cmpfun.coverage"));
 	int attach_coverage = (TYPEOF(coverage_option) == LGLSXP && LOGICAL(coverage_option)[0] == TRUE);
 	if (attach_coverage)
 	{
