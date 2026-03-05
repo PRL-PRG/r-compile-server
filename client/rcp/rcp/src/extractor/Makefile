@@ -1,9 +1,5 @@
 include ../../common.mk
 
-ifneq ($(DWARF_SUPPORT),0)
-  CXXFLAGS += -DDWARF_SUPPORT
-endif
-
 SOURCES = $(wildcard *.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 

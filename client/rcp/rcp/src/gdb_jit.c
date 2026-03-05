@@ -2,8 +2,6 @@
 #include "gdb_jit.h"
 #include <Rinternals.h>
 
-#ifdef DWARF_SUPPORT
-
 #include "shared/dwarf.h"
 #include "stencils.h"
 
@@ -1103,5 +1101,3 @@ void rcp_deregister_eh_frame(uint8_t *eh_frame_data)
 	if (eh_frame_data)
 		__deregister_frame(eh_frame_data);
 }
-
-#endif // DWARF_SUPPORT

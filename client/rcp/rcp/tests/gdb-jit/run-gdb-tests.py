@@ -248,7 +248,7 @@ def main():
     # Check GDB JIT support
     rprint("[bold blue]Checking for GDB JIT support...[/bold blue]")
     if not check_gdb_jit_support(r_home):
-        rprint("[yellow]Skipping debugging tests (DWARF_SUPPORT disabled)[/yellow]")
+        rprint("[yellow]Skipping debugging tests (GDB JIT support not available)[/yellow]")
         sys.exit(0)
     rprint("[green]GDB JIT support enabled.[/green]")
 
