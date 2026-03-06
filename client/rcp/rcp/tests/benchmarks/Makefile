@@ -5,6 +5,7 @@ include ../../common.mk
 all: test
 
 test:
+	@$(call ensure_microbenchmark_installed)
 	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ../../inst/benchmarks/run-benchmarks.sh
 	@$(R) --slave --no-restore -f ../../inst/benchmarks/benchmark-compiler.R --args $(RSH_HOME)/inst/benchmarks
 

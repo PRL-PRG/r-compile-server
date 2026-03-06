@@ -11,6 +11,7 @@
 #undef RSH
 
 #include "../rcp_bc_info.h"
+#include "../rcp_hooks.h"
 
 #define CONST_RUNTIME_VAR(symbol, type) ((type const)(void *const)(&_RCP_CRUNTIME0_##symbol))
 
@@ -45,7 +46,14 @@ extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
 #define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
 
 // #define NO_STACK_OVERFLOW_CHECK
+
+#define RSH_EXTERN_HELPERS
 #include <runtime.h>
+#undef RSH_EXTERN_HELPERS
+
+#ifdef STEPFOR_SPECIALIZE
+extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
+#endif
 
 #if __GNUC__ >= 14
 #define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers))
@@ -174,8 +182,9 @@ extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
 #define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
 
-extern const void *const _RCP_PATCHED_VARIANTS[];
-#define GETVARIANTS() (const void *)&_RCP_PATCHED_VARIANTS
+extern void* const _RCP_CUSTOM_DATA[];
+#define GETCUSTOM() (const void*)&_RCP_CUSTOM_DATA
+#define GETVARIANTS() (const void*)&_RCP_CUSTOM_DATA
 
 extern const void *const _RCP_LOOPCNTXT;
 #define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
@@ -189,17 +198,139 @@ extern const void *const _RCP_EXECUTABLE[];
 		return call(stack, locals);                                                                                                      \
 	}
 
+static __attribute__((always_inline)) inline SEXP rcp_binding_value(SEXP binding_cell)
+{
+	if (BNDCELL_TAG(binding_cell)) {
+		return R_NilValue;
+	}
+	return CAR0(binding_cell);
+}
+
+static __attribute__((always_inline)) inline int rcp_value_type(SEXP val)
+{
+	if (TYPEOF(val) == PROMSXP) {
+		SEXP prval = PRVALUE(val);
+		return (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
+	}
+	return TYPEOF(val);
+}
+
+static __attribute__((always_inline)) inline int rcp_binding_type(SEXP binding_cell)
+{
+	return BNDCELL_TAG(binding_cell) ? BNDCELL_TAG(binding_cell) : rcp_value_type(CAR0(binding_cell));
+}
+
 /**************************************************************************/
 
-SEXP _RCP_INIT(Value *restrict stack, rcpEval_locals *restrict locals)
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 {
+  int* coverage_counter = (int*)GETCUSTOM();
+  *coverage_counter += 1;
+  NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
+{	
+	// do we actually need an entry hook for the types?
+	// If we have evaluated promises, and an argument is assigned with another type
+	// later in the function, yes...
+	// But that should be rare.
+	#ifdef RCP_TRACE
+		Rprintf("Entry hook\n");
+	#endif
 	NEXT;
 }
 
+RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
+{	
+	#ifdef RCP_TRACE
+		Rprintf("Exit hook\n");
+	#endif
+	TypeTrace* trace = (TypeTrace*) GETCUSTOM();
+	SEXP rho = GET_RHO();
+
+	// Resize if needed
+	if (trace->count >= trace->capacity) {
+		trace->capacity *= 2;
+		trace->types = realloc(trace->types, trace->capacity * sizeof(TypeRecord));
+	}
+
+	TypeRecord *rec = &trace->types[trace->count];
+
+	// Skip locals (arguments are expected to start at first_arg_sym)
+	SEXP b = FRAME(rho);
+	while (b != R_NilValue && TAG(b) != trace->first_arg_sym)
+		b = CDR(b);
+
+	// Use argument count known at compile time from FORMALS
+	size_t nargs = trace->argument_count;
+	if (b == R_NilValue)
+		nargs = 0;
+
+	rec->count = nargs;
+	rec->arguments = malloc(nargs * sizeof(int));
+	rec->dots_names = NULL;
+	rec->dots_types = NULL;
+	rec->dots_count = 0;
+
+	// Record argument types (promises are forced by now for used args)
+	size_t i = 0;
+	for (SEXP f = b; f != R_NilValue; f = CDR(f)) {
+		SEXP tag = TAG(f);
+		if (tag == R_DotsSymbol) {
+			SEXP dots_val = rcp_binding_value(f);
+			if (TYPEOF(dots_val) == PROMSXP) {
+				SEXP prval = PRVALUE(dots_val);
+				if (prval != R_UnboundValue)
+					dots_val = prval;
+			}
+
+			if (dots_val != R_MissingArg && TYPEOF(dots_val) == DOTSXP) {
+				size_t ndots = 0;
+				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d)) ndots++;
+				rec->dots_count = ndots;
+				rec->dots_names = malloc(ndots * sizeof(SEXP));
+				rec->dots_types = malloc(ndots * sizeof(int));
+
+				size_t di = 0;
+				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d), di++) {
+					SEXP dtag = TAG(d);
+					SEXP dval = CAR(d);
+					rec->dots_names[di] = dtag;
+					rec->dots_types[di] = rcp_value_type(dval);
+				}
+			}
+			continue;
+		}
+
+		if (i >= nargs)
+			continue;
+
+		rec->arguments[i] = rcp_binding_type(f);
+
+		#ifdef RCP_TRACE
+			if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
+				Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
+			} else {
+				Rprintf("Arg <non-symbol>: %s\n", type2char(rec->arguments[i]));
+			}
+		#endif
+		i++;
+	}
+
+	// Record return value type (top of stack before RETURN)
+	SEXP ret = val_as_sexp(*GET_VAL(-1));
+	rec->ret = TYPEOF(ret);
+
+	trace->count++;
+	NEXT;
+}
+
+
 RCP_OP(RETURN,
-	   ,
-	   PUSH_VAL(1); // to hold return value
-	   Rsh_Return(stack);)
+       ,
+       PUSH_VAL(1);
+       return Rsh_Return(stack);)
 
 RCP_OP(GOTO,
 	   ,
@@ -278,13 +409,6 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
 #undef X
 
 #ifdef STEPFOR_SPECIALIZE
-
-static __attribute__((noinline))
-Rboolean
-RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho)
-{
-	return Rsh_StepFor(stack, cell, rho);
-}
 
 #define X(a, b)                                                                 \
 	static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(               \
@@ -843,8 +967,24 @@ X_MATH1_EXT_OPS
 
 #undef X
 
+// DOTCALL: .Call(pkg:::C_fun, arg1, ..., argN) with NativeSymbolInfo
+//
+// GET_IMM(1) encodes nargs + 1 (includes the op slot), so nargs = GET_IMM(1) - 1.
+//
+// Stack layout when DOTCALL executes:
+//
+//   stack →  (top)
+//     argN     ← last argument
+//     ...
+//     arg1     ← first argument
+//     op       ← the NativeSymbolInfo (.Call target)
+//
+// Rsh_DotCall calls the C function and writes the result into the op slot,
+// but does not adjust the stack pointer. POP_VAL(nargs) pops the argument
+// slots so that stack[-1] points at the op slot where the result now lives.
 RCP_OP(DOTCALL,
-	   Rsh_DotCall(stack, GET_IMM(1) - 1, GETCONST_IMM(0), GET_RHO());)
+	   Rsh_DotCall(stack, GET_IMM(1) - 1, GETCONST_IMM(0), GET_RHO());
+	   POP_VAL(GET_IMM(1) - 1);)
 
 RCP_OP(COLON,
 	   Rsh_Colon(stack, GETCONST_IMM(0), GET_RHO());)

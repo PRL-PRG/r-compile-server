@@ -1,9 +1,5 @@
 include ../../common.mk
 
-ifneq ($(GDB_JIT_SUPPORT),0)
-  CXXFLAGS += -DGDB_JIT_SUPPORT
-endif
-
 SOURCES = $(wildcard *.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 

@@ -32,13 +32,19 @@ clean:
 test: check-toolchain install
 	$(MAKE) -C tests test
 
+.PHONY: test-functional
+test-functional: install
+	$(MAKE) -C tests/smoketest test
+	$(MAKE) -C tests/types test
+	$(MAKE) -C tests/gdb-jit test
+
 .PHONY: run
 run: install
 	$(R)
 
 .PHONY: debug
 debug: install
-	$(R) -d gdb
+	RCP_GDB_JIT=1 RCP_DUMP_DIR=/tmp $(R) -d gdb
 
 .PHONY: format
 format:
@@ -54,9 +60,7 @@ BENCH_OUT_DIR ?=
 
 .PHONY: benchmark
 benchmark: check-toolchain
-	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh \
-		--runs $(BENCH_ITER) --parallel $(BENCH_PARALLEL) \
-		$(if $(BENCH_OUT_DIR),--output $(BENCH_OUT_DIR))
+	@$(call ensure_microbenchmark_installed)
 
 compile_commands.json:
 	bear -- $(MAKE) clean install

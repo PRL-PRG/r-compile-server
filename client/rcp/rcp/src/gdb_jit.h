@@ -54,21 +54,46 @@ struct jit_descriptor
 //                          stencils arrays.
 // @param stencils Array of pointers to Stencil metadata,
 //                 parallel to inst_addrs.
-// @param base_cfa_offset Base CFA (Canonical Frame Address) stack
-// depth for the function. For JIT functions that use the _RCP_INIT
-// prologue, pass RCP_INIT_CFA_OFFSET + 8 (the +8 accounts for the
-// extra return address pushed by the call into JIT code). For helper
-// functions with a standard prologue, pass 8.
 //
 // @return Pointer to the jit_code_entry that can be used for
 //         unregistration, or NULL if registration failed.
 struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 										size_t code_size, uint8_t **inst_addrs,
 										int instruction_count,
-										const Stencil **stencils,
-										int base_cfa_offset);
+										const Stencil **stencils);
 
 // Unregister a function.
 void gdb_jit_unregister(struct jit_code_entry *entry);
+
+// Build .eh_frame data for stack unwinding.
+//
+// Single source of CFI generation, used by both GDB (embedded in
+// the in-memory ELF) and perf/samply (jitdump JIT_CODE_UNWINDING_INFO).
+//
+// The CIE sets CFA = RSP+8 as the baseline; per-stencil CFI instructions
+// are emitted into the FDE to track stack adjustments within stencils.
+//
+// @param out_data         Receives malloc'd .eh_frame data (caller must free).
+// @param out_size         Receives size of the .eh_frame data.
+// @param code_addr        Start address of JIT code.
+// @param code_size        Size of JIT code.
+// @param inst_addrs       Array of instruction addresses.
+// @param instruction_count Number of entries in inst_addrs and stencils.
+// @param stencils         Array of Stencil pointers parallel to inst_addrs.
+void build_eh_frame(uint8_t **out_data, size_t *out_size,
+					void *code_addr, size_t code_size,
+					uint8_t **inst_addrs, int instruction_count,
+					const Stencil **stencils);
+
+// Register .eh_frame data with the C++ runtime unwinder.
+void rcp_register_eh_frame(uint8_t *eh_frame_data);
+
+// Deregister .eh_frame data from the C++ runtime unwinder.
+void rcp_deregister_eh_frame(uint8_t *eh_frame_data);
+
+// Generate a temporary source file with opcode names.
+// Returns malloc'd path to the file (caller must free), or NULL on failure.
+char *write_source_file(const char *func_name, int instruction_count,
+						const Stencil **stencils, uint8_t **inst_addrs);
 
 #endif /* GDB_JIT_H */

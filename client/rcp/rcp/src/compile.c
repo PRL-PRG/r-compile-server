@@ -2,9 +2,11 @@
 #define RSH
 
 #include "gdb_jit.h"
+#include "perf_jit.h"
 #include "rcp_bc_info.h"
 #include "rcp_common.h"
 #include "runtime_internals.h"
+#include "rcp_hooks.h"
 #include <assert.h>
 #include <omp.h>
 #include <R.h>
@@ -22,6 +24,17 @@ void __assert_fail(const char *assertion, const char *file, unsigned int line,
 				   const char *function);
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;	/* Slot for return-ing values */
+
+static const Stencil NOP_STENCIL = {
+	.body_size = 0,
+	.body = NULL,
+	.holes_size = 0,
+	.holes = NULL,
+	.alignment = 1,
+	.name = "NOP_STENCIL"};
+
+static int rcp_gdb_jit_enabled = 0;
+static int rcp_perf_jit_enabled = 0;
 
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
@@ -389,7 +402,7 @@ typedef struct
 
 static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 				  const Hole *hole, int hole_id, int *imms, int nextop,
-				  void *smc_variants, const PatchContext *ctx)
+				  void *custom_ptr, const PatchContext *ctx)
 {
 	ptrdiff_t ptr;
 	const mem_shared_data *shared;
@@ -517,14 +530,12 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 					 // allow value of 0)
 		}
 		break;
-#ifdef STEPFOR_SPECIALIZE
-		case RELOC_RCP_PATCHED_VARIANTS:
+		case RELOC_RCP_CUSTOM:
 		{
-			assert(smc_variants != NULL);
-			ptr = (ptrdiff_t)smc_variants;
+			assert(custom_ptr != NULL);
+			ptr = (ptrdiff_t)custom_ptr;
 		}
 		break;
-#endif
 		case RELOC_RCP_EXECUTABLE_START:
 		{
 			assert(ctx->executable_start != NULL);
@@ -562,7 +573,8 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 								  const SEXP *r_constpool)
 {
 	const Stencil *stencil_set = stencils[opcode];
-	// For speciailized stencils
+
+	// For specialized stencils
 	switch (opcode)
 	{
 		case MATH1_BCOP:
@@ -609,8 +621,8 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		case SWITCH_BCOP:
 		{
 			SEXP names = r_constpool[imms[1]];
-			SEXP ioffsets = r_constpool[imms[2]];
-			SEXP coffsets = r_constpool[imms[3]];
+			SEXP coffsets = r_constpool[imms[2]];
+			SEXP ioffsets = r_constpool[imms[3]];
 
 			Rboolean is_names_null = names == R_NilValue;
 			int names_length = LENGTH(names);
@@ -792,13 +804,13 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock *bb,
 
 	if (opcode == SWITCH_BCOP)
 	{
-		SEXP ioffsets_sexp = constpool[imms[2]];
-		int *ioffsets = INTEGER(ioffsets_sexp);
-		int ioffsets_size = LENGTH(ioffsets_sexp);
+		SEXP coffsets_sexp = constpool[imms[2]];
+		SEXP ioffsets_sexp = constpool[imms[3]];
 
-		SEXP coffsets_sexp = constpool[imms[3]];
-		int *coffsets = INTEGER(coffsets_sexp);
-		int coffsets_size = LENGTH(coffsets_sexp);
+		int ioffsets_size = (ioffsets_sexp != R_NilValue) ? LENGTH(ioffsets_sexp) : 0;
+		int coffsets_size = (coffsets_sexp != R_NilValue) ? LENGTH(coffsets_sexp) : 0;
+		int *ioffsets = ioffsets_size ? INTEGER(ioffsets_sexp) : NULL;
+		int *coffsets = coffsets_size ? INTEGER(coffsets_sexp) : NULL;
 
 		bb->next_blocks = (BasicBlock **)S_alloc(ioffsets_size + coffsets_size,
 												 sizeof(BasicBlock *));
@@ -860,13 +872,14 @@ static BasicBlock *build_basic_blocks(int bytecode[], int bytecode_size,
 
 		if (opcode == SWITCH_BCOP)
 		{
-			const SEXP ioffsets = constpool[imms[2]];
-			for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
-				block_lookup[INTEGER(ioffsets)[i] - 1].next_blocks = NULL;
+			const SEXP coffsets = constpool[imms[2]];
+			const SEXP ioffsets = constpool[imms[3]];
 
-			const SEXP coffsets = constpool[imms[3]];
-			if (ioffsets !=
-				coffsets) // Avoid double-marking if both point to the same array
+			if (ioffsets != R_NilValue)
+				for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
+					block_lookup[INTEGER(ioffsets)[i] - 1].next_blocks = NULL;
+
+			if (coffsets != R_NilValue && coffsets != ioffsets)
 			{
 				for (int i = 0, size = LENGTH(coffsets); i < size; i++)
 					block_lookup[INTEGER(coffsets)[i] - 1].next_blocks = NULL;
@@ -966,13 +979,68 @@ static int calculate_max_stack_depth(int bytecode[], int bytecode_size,
 	return max_depth;
 }
 
+static int unroll_goto(int bytecode[], SEXP *constpool, int index)
+{
+	RCP_BC_OPCODES opcode = bytecode[index];
+	int *imms = &bytecode[index + 1];
+
+	if (opcode == GOTO_BCOP)
+	{
+		int target = imms[0] - 1;
+		DEBUG_PRINT("Peephole optimization: Simplifying unncessary trampoline jump from bytecode %d to target %d\n", index, target);
+		return unroll_goto(bytecode, constpool, target);
+	}
+
+	return index;
+}
+
+static void peephole_goto(int bytecode[], int bytecode_size, SEXP *constpool)
+{
+	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		RCP_BC_OPCODES opcode = bytecode[i];
+		int *imms = &bytecode[i + 1];
+
+		int *jmp_target = jump_target_ref(bytecode[i], imms);
+
+		if (jmp_target != NULL)
+			*jmp_target = unroll_goto(bytecode, constpool, *jmp_target - 1) + 1; // +1 to convert back to 1-based index
+	}
+}
+
+typedef struct PluginStencil
+{
+	int pos;
+	const Stencil *stencil;
+	void *data;
+} PluginStencil;
+
+typedef struct PluginStencils
+{
+	size_t sparse_stencils_count;
+	size_t sparse_stencils_capacity;
+	PluginStencil *sparse_stencils;
+} PluginStencils;
+
+static int plugin_stencil_pos_cmp(const void *a, const void *b)
+{
+	const PluginStencil *pa = (const PluginStencil *)a;
+	const PluginStencil *pb = (const PluginStencil *)b;
+	if (pa->pos < pb->pos)
+		return -1;
+	if (pa->pos > pb->pos)
+		return 1;
+	return 0;
+}
+
 static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 SEXP *constpool, int constpool_size,
+										 const PluginStencil *plugins, int plugin_size, BasicBlock *bbs,
 										 CompilationStats *stats,
 										 const char *name)
 {
 	rcp_exec_ptrs res;
-	size_t insts_size = _RCP_INIT.body_size;
+	size_t insts_size = 0;
 	int for_count = 0;
 
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
@@ -1036,11 +1104,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			}
 		}
 
-		// Update alignment based on stencil requirements
-		bytecode_alignment[i] =
-			MAX(bytecode_alignment[i],
-				get_stencil(bytecode[i], imms, constpool)->alignment);
-
 		// Determine whether the next instruction can be jumped to directly or not
 		can_fallthrough = can_fallthrough_from_opcode(bytecode[i]);
 	}
@@ -1051,7 +1114,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 	int loopcntxts_size = 0;
 	// First pass to calculate the sizes
-	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	for (int i = 0, p = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		const int *imms = &bytecode[i + 1];
 		const Stencil *stencil = get_stencil(bytecode[i], imms, constpool);
@@ -1069,14 +1132,27 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				break;
 		}
 
-		size_t aligned_size = align_to_higher(insts_size, bytecode_alignment[i]);
-		size_t aligned_diff = aligned_size - insts_size;
-		// DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff:
-		// %zu\n", OPCODES_NAMES[bytecode[i]], insts_size, aligned_size,
-		// aligned_diff);
+		{
+			size_t aligned_size = align_to_higher(insts_size, bytecode_alignment[i]);
+			size_t aligned_diff = aligned_size - insts_size;
+			// DEBUG_PRINT("Opcode: %s, size: %zu, aligned_size: %zu, aligned_diff: %zu\n", OPCODES_NAMES[bytecode[i]], insts_size, aligned_size, aligned_diff);
 
-		inst_start[i] = (uint8_t *)aligned_size;
-		insts_size += stencil->body_size + aligned_diff;
+			insts_size = aligned_size;
+			inst_start[i] = (uint8_t *)insts_size;
+		}
+
+		for (; p < plugin_size && plugins[p].pos == i; p++)
+		{
+			const PluginStencil *plugin = &plugins[p];
+			const Stencil *plugin_stencil = plugin->stencil;
+			size_t aligned_size = align_to_higher(insts_size, plugin_stencil->alignment);
+			insts_size = aligned_size + plugin_stencil->body_size;
+		}
+
+		size_t aligned_size = align_to_higher(insts_size, stencil->alignment);
+		size_t aligned_diff = aligned_size - insts_size;
+
+		insts_size = aligned_size + stencil->body_size;
 		bytecode_lut[count_opcodes++] = i;
 
 		for (size_t j = 0; j < stencil->holes_size; ++j)
@@ -1165,17 +1241,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		(StepFor_specialized *)&memory[executable_size_aligned];
 #endif
 
-	for (size_t i = 0; i < bytecode_size; i++)
-	{
-		if (inst_start[i])
-			inst_start[i] += (ptrdiff_t)executable;
-	}
+	for (int j = 0; j < count_opcodes; j++)
+		inst_start[bytecode_lut[j]] += (ptrdiff_t)executable;
 
 	res.eval = (void *)executable;
 	res.bcells_size = bcells_size;
 	res.rcntxts_size = loopcntxts_size;
-
-	BasicBlock *bbs = build_basic_blocks(bytecode, bytecode_size, constpool);
 
 	res.max_stack_size = calculate_max_stack_depth(bytecode, bytecode_size, bbs);
 	DEBUG_PRINT("Max stack size needed: %d\n", res.max_stack_size);
@@ -1196,10 +1267,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 									 // case of non-trivial alignment
 
 	// Start to copy-patch
-	memcpy(executable, _RCP_INIT.body, _RCP_INIT.body_size);
-	for (size_t j = 0; j < _RCP_INIT.holes_size; ++j)
-		patch(executable, executable, 0, &_RCP_INIT, &_RCP_INIT.holes[j], j, NULL,
-			  0, NULL, &ctx);
 
 #ifdef STEPFOR_SPECIALIZE
 	StepFor_specialized *stepfor_pool = stepfor_storage;
@@ -1211,7 +1278,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 
 #pragma omp parallel for
-	for (int i = 0; i < count_opcodes; i++)
+	for (int i = 0, p = 0; i < count_opcodes; i++)
 	{
 		int bc_pos = bytecode_lut[i];
 		int opcode = bytecode[bc_pos];
@@ -1264,24 +1331,24 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 			case SWITCH_BCOP:
 			{
-				SEXP ioffsets_sexp = constpool[opargs[2]];
-				int *ioffsets = INTEGER(ioffsets_sexp);
-				int ioffsets_size = LENGTH(ioffsets_sexp);
+				SEXP coffsets_sexp = constpool[opargs[2]];
+				SEXP ioffsets_sexp = constpool[opargs[3]];
 
-				SEXP coffsets_sexp = constpool[opargs[3]];
-				int *coffsets = INTEGER(coffsets_sexp);
-				int coffsets_size = LENGTH(coffsets_sexp);
-
-				for (int i = 0; i < ioffsets_size; i++)
-					ioffsets[i] = inst_start[ioffsets[i] - 1] - executable;
-
-				if (ioffsets !=
-					coffsets) // Avoid double patching if they point to the same memory
+				if (ioffsets_sexp != R_NilValue)
 				{
+					int *ioffsets = INTEGER(ioffsets_sexp);
+					int ioffsets_size = LENGTH(ioffsets_sexp);
+					for (int i = 0; i < ioffsets_size; i++)
+						ioffsets[i] = inst_start[ioffsets[i] - 1] - executable;
+				}
+
+				if (coffsets_sexp != R_NilValue &&
+					coffsets_sexp != ioffsets_sexp) // Avoid double patching if they point to the same memory
+				{
+					int *coffsets = INTEGER(coffsets_sexp);
+					int coffsets_size = LENGTH(coffsets_sexp);
 					for (int i = 0; i < coffsets_size; i++)
 						coffsets[i] = inst_start[coffsets[i] - 1] - executable;
-					// Possible bug: if some elements of ioffsets and coffsets point to the
-					// same label, it will be patched twice
 				}
 			}
 			break;
@@ -1296,15 +1363,32 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 		const Stencil *stencil = get_stencil(opcode, opargs, constpool);
 
-		stencil_variants[bc_pos] = (int)(stencil - stencils[opcode]);
+		uint8_t *pos = inst_start[bc_pos];
+		// pos is already aligned in context of native code generation, but stencils might require additional alignment, so we need to align it again here
 
-		memcpy(inst_start[bc_pos], stencil->body, stencil->body_size);
+		for (; p < plugin_size && plugins[p].pos == bc_pos; p++)
+		{
+			DEBUG_PRINT("Patching plugin %d at bytecode position %d\n", p, bc_pos);
+			const PluginStencil *plugin = &plugins[p];
+			const Stencil *plugin_stencil = plugin->stencil;
+
+			pos = (uint8_t *)align_to_higher((uintptr_t)pos, plugin_stencil->alignment);
+
+			memcpy(pos, plugin_stencil->body, plugin_stencil->body_size);
+			for (size_t k = 0; k < plugin_stencil->holes_size; ++k)
+				patch(pos, pos, bc_pos, plugin_stencil, &plugin_stencil->holes[k], k, opargs, bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, plugin->data, &ctx);
+			pos += plugin_stencil->body_size;
+		}
+
+		pos = (uint8_t *)align_to_higher((uintptr_t)pos, stencil->alignment);
+
+		memcpy(pos, stencil->body, stencil->body_size);
 
 		// Patch the holes
 		for (size_t j = 0; j < stencil->holes_size; ++j)
-			patch(inst_start[bc_pos], inst_start[bc_pos], bc_pos, stencil,
-				  &stencil->holes[j], j, opargs,
-				  bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+			patch(pos, pos, bc_pos, stencil, &stencil->holes[j], j, opargs, bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+
+		pos += stencil->body_size;
 	}
 
 #ifdef DEBUG_MODE
@@ -1314,41 +1398,65 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	fprintf(stderr, "Copy-patching took %.3f ms\n", elapsed_time);
 #endif
 
-#ifdef GDB_JIT_SUPPORT
 	if (name)
 	{
-		// +1 for _RCP_INIT prologue as the first entry
 		uint8_t **inst_addrs_packed =
-			(uint8_t **)S_alloc(count_opcodes + 1, sizeof(uint8_t *));
+			(uint8_t **)S_alloc(count_opcodes, sizeof(uint8_t *));
 		const Stencil **instruction_stencils =
-			(const Stencil **)S_alloc(count_opcodes + 1, sizeof(Stencil *));
+			(const Stencil **)S_alloc(count_opcodes, sizeof(Stencil *));
 
-		// First entry is _RCP_INIT at offset 0
-		inst_addrs_packed[0] = executable;
-		instruction_stencils[0] = &_RCP_INIT;
-
-		// Body stencils follow at index 1..count_opcodes
 		for (int i = 0; i < count_opcodes; i++)
 		{
 			int bc_pos = bytecode_lut[i];
 			int opcode = bytecode[bc_pos];
 			int variant = stencil_variants[bc_pos];
-
-			inst_addrs_packed[i + 1] = inst_start[bc_pos];
-			instruction_stencils[i + 1] = &stencils[opcode][variant];
+			inst_addrs_packed[i] = inst_start[bc_pos];
+			instruction_stencils[i] = &stencils[opcode][variant];
 		}
 
-		res.jit_entry = gdb_jit_register(name, executable, insts_size,
-										 inst_addrs_packed, count_opcodes + 1,
-										 instruction_stencils, RCP_INIT_CFA_OFFSET);
+		// Always build .eh_frame and register with C++ unwinder
+		uint8_t *eh_frame_data = NULL;
+		size_t eh_frame_size = 0;
+		build_eh_frame(&eh_frame_data, &eh_frame_size, executable, insts_size,
+					   inst_addrs_packed, count_opcodes,
+					   instruction_stencils);
+		rcp_register_eh_frame(eh_frame_data);
+		res.eh_frame_data = eh_frame_data;
+
+		if (rcp_gdb_jit_enabled)
+			res.jit_entry = gdb_jit_register(name, executable, insts_size,
+											 inst_addrs_packed, count_opcodes,
+											 instruction_stencils);
+		else
+			res.jit_entry = NULL;
+
+		if (rcp_perf_jit_enabled)
+		{
+			// Generate pseudo-source file with bytecode opcode names
+			char *source_path = write_source_file(name, count_opcodes,
+												  instruction_stencils,
+												  inst_addrs_packed);
+
+			// JIT_CODE_DEBUG_INFO must precede JIT_CODE_LOAD
+			if (source_path)
+			{
+				perf_jit_register_debug_info(executable, inst_addrs_packed,
+											 count_opcodes, source_path);
+			}
+
+			perf_jit_register(name, executable, insts_size);
+
+			// Reuse same eh_frame_data for perf jitdump
+			perf_jit_register_unwinding_info(eh_frame_data, eh_frame_size);
+
+			free(source_path);
+		}
 	}
 	else
 	{
 		res.jit_entry = NULL;
+		res.eh_frame_data = NULL;
 	}
-#else
-	res.jit_entry = NULL;
-#endif
 
 	vmaxset(vmax);
 
@@ -1378,28 +1486,16 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 static const uint8_t *prepare_notinlined_functions(void)
 {
+	// Helpers (Rsh_Call, Rsh_StartLoopCntxt, RCP_STEPFOR_Fallback) are now
+	// compiled as normal functions in the package .so (stencils-runtime.c)
+	// with frame pointers. The stencils reference them as external symbols
+	// resolved via RELOC_RUNTIME_SYMBOL / RELOC_RUNTIME_SYMBOL_GOT.
+	// No extraction or runtime patching needed.
 	if (notinlined_count == 0)
 		return NULL;
 
-	void *notinlined_lut[notinlined_count];
-
-	uint8_t *mem_notinlined =
-		mmap(get_near_memory(notinlined_size), notinlined_size, PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (mem_notinlined == MAP_FAILED)
-		exit(1);
-
-	// Copy ...
-	uint8_t *offset = mem_notinlined;
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		const Stencil *stencil = &notinlined_stencils[i];
-		memcpy(offset, stencil->body, stencil->body_size);
-		notinlined_lut[i] = offset;
-		offset += stencil->body_size;
-	}
-
-	// ... resolve other holes ...
+	// Legacy path: if the extractor still emits non-inlined stencils,
+	// resolve their RELOC_NOTINLINED_FUNCTION holes as before.
 	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
 	{
 		const Stencil *stencil = stencils_all[i];
@@ -1408,56 +1504,12 @@ static const uint8_t *prepare_notinlined_functions(void)
 			Hole *hole = &stencil->holes[j];
 			if (hole->kind == RELOC_NOTINLINED_FUNCTION)
 			{
-				DEBUG_PRINT(
-					"Patching notinlined function hole at imm_pos %d with address %p\n",
-					hole->val.imm_pos, notinlined_lut[hole->val.imm_pos]);
-				hole->val.symbol = notinlined_lut[hole->val.imm_pos];
-				hole->kind = RELOC_RUNTIME_SYMBOL;
+				error("RELOC_NOTINLINED_FUNCTION encountered but helpers are now "
+					  "in the package .so. Rebuild stencils.\n");
 			}
 		}
 	}
-
-	PatchContext ctx = {.shared_near = mem_shared->memory_shared_near,
-						.shared_low = mem_shared->memory_shared_low,
-						.constpool = NULL,
-						.executable_lookup = NULL,
-						.bytecode = NULL,
-						.bcell_lookup = NULL,
-						.loopcntxt_lookup = NULL,
-						.executable_start = NULL};
-
-	// ... and patch holes in notinlined functions
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		const Stencil *stencil = &notinlined_stencils[i];
-		for (size_t j = 0; j < stencil->holes_size; ++j)
-			patch(notinlined_lut[i], notinlined_lut[i], 0, stencil,
-				  &stencil->holes[j], j, NULL, 0, NULL, &ctx);
-	}
-
-#ifdef GDB_JIT_SUPPORT
-	// Register notinlined functions (helpers) with GDB
-	uint8_t **helper_addrs =
-		(uint8_t **)R_alloc(notinlined_count, sizeof(uint8_t *));
-	const Stencil **helper_stencils =
-		(const Stencil **)R_alloc(notinlined_count, sizeof(Stencil *));
-
-	for (size_t i = 0; i < notinlined_count; i++)
-	{
-		helper_addrs[i] = (uint8_t *)notinlined_lut[i];
-		helper_stencils[i] = &notinlined_stencils[i];
-	}
-
-	gdb_jit_register("__rcp_notinlined_helpers", mem_notinlined, notinlined_size,
-					 helper_addrs, notinlined_count, helper_stencils, 0);
-#endif
-
-	if (mprotect(mem_notinlined, notinlined_size, PROT_EXEC) != 0)
-	{
-		perror("mprotect failed");
-		exit(1);
-	}
-	return mem_notinlined;
+	return NULL;
 }
 
 static SEXP original_cmpfun = NULL;
@@ -1501,19 +1553,294 @@ static void bytecode_info(const int *bytecode, int bytecode_size,
  */
 static void rcp_finalizer(SEXP ptr)
 {
-#ifdef GDB_JIT_SUPPORT
 	rcp_exec_ptrs *ptrs = (rcp_exec_ptrs *)R_ExternalPtrAddr(ptr);
-	if (ptrs && ptrs->jit_entry)
+	if (ptrs)
 	{
-		gdb_jit_unregister(ptrs->jit_entry);
-		ptrs->jit_entry = NULL;
+		if (ptrs->jit_entry)
+		{
+			gdb_jit_unregister(ptrs->jit_entry);
+			ptrs->jit_entry = NULL;
+		}
+		if (ptrs->eh_frame_data)
+		{
+			rcp_deregister_eh_frame(ptrs->eh_frame_data);
+			free(ptrs->eh_frame_data);
+			ptrs->eh_frame_data = NULL;
+		}
 	}
-#endif
 	R_RcpFree(ptr);
 }
 
+SEXP get_attribute(SEXP list, const char *attr_name)
+{
+	R_xlen_t n = XLENGTH(list); // Use XLENGTH for long vectors
+
+	for (R_xlen_t i = 0; i < n; i++)
+	{
+		SEXP element = VECTOR_ELT(list, i);
+
+		if (inherits(element, attr_name))
+		{
+			return element;
+		}
+	}
+
+	return R_NilValue;
+}
+
+static PluginStencil *add_plugin_stencil_pos(PluginStencils *stencils, int pos, const Stencil *stencil, void *data)
+{
+	if (stencils->sparse_stencils_count >= stencils->sparse_stencils_capacity)
+	{
+		if (stencils->sparse_stencils_capacity == 0)
+			stencils->sparse_stencils_capacity = 4; // initial capacity
+		stencils->sparse_stencils = (PluginStencil *)realloc(stencils->sparse_stencils, stencils->sparse_stencils_capacity * 2 * sizeof(PluginStencil));
+		stencils->sparse_stencils_capacity *= 2;
+	}
+
+	stencils->sparse_stencils[stencils->sparse_stencils_count].pos = pos;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].stencil = stencil;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].data = data;
+	stencils->sparse_stencils_count++;
+
+	return &stencils->sparse_stencils[stencils->sparse_stencils_count - 1];
+}
+
+static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], int bytecode_size, RCP_BC_OPCODES instr, const Stencil *stencil, void *data)
+{
+	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		if (bytecode[i] == instr)
+			add_plugin_stencil_pos(stencils, i, stencil, data);
+	}
+}
+
+// Finalizer for our growable type trace
+static void type_trace_finalizer(SEXP ext)
+{
+	TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+	if (trace)
+	{
+		if (trace->argument_names)
+		{
+			free(trace->argument_names);
+		}
+		for (size_t i = 0; i < trace->count; i++)
+		{
+			free(trace->types[i].dots_names);
+			free(trace->types[i].dots_types);
+			free(trace->types[i].arguments);
+		}
+		free(trace->types);
+		free(trace);
+		R_ClearExternalPtr(ext);
+	}
+}
+
+static void types_of_function(int bytecode[], int bytecode_size, PluginStencils *plugins, SEXP hooks_registry, const char *func_name, SEXP formals)
+{
+	// fun_name will be unknown if we get it from the JIT
+	// TODO: modify cmpfun_call_sexp to get package and function name using match.call and sys.call
+	// For now, we don't instrument functions for which we don't know the name
+	// TODO: create names for anonymous closures
+	if (!strcmp(func_name, "<unknown>"))
+	{
+		DEBUG_PRINT("Function with unknown name so no creation of entry and exit hooks.\n");
+		return;
+	}
+
+	// get the types environment from the hooks_registry
+	// Should not need to protect as types is already in an enviornment known by the GC
+	SEXP types_env = Rf_findVarInFrame(hooks_registry, Rf_install("types"));
+
+	DEBUG_PRINT("Adding entry and exit type hooks for %s.\n", func_name);
+
+	// Prepare the key and value for that specific function
+	// We don't know yet how many calls we will see and will need to resize.
+	// But we will also need a stable pointer (so not a GC-allocated SEXP).
+
+	TypeTrace *trace = malloc(sizeof(TypeTrace));
+	trace->capacity = 16; // 16 calls should be enough for most functions
+	trace->count = 0;
+	trace->types = malloc(trace->capacity * sizeof(TypeRecord));
+	trace->argument_names = NULL;
+	trace->argument_count = 0;
+	trace->has_dots = 0;
+	trace->first_arg_sym = R_NilValue;
+
+	if (formals != R_NilValue && TYPEOF(formals) == LISTSXP)
+	{
+		size_t fixed_nargs = 0;
+		for (SEXP f = formals; f != R_NilValue; f = CDR(f))
+		{
+			if (TAG(f) == R_DotsSymbol)
+				trace->has_dots = 1;
+			else
+				fixed_nargs++;
+		}
+
+		trace->argument_count = fixed_nargs;
+		trace->first_arg_sym = TAG(formals);
+		trace->argument_names = malloc(fixed_nargs * sizeof(SEXP));
+
+		size_t i = 0;
+		for (SEXP f = formals; f != R_NilValue; f = CDR(f))
+		{
+			SEXP tag = TAG(f);
+			if (tag == R_DotsSymbol)
+				continue;
+			trace->argument_names[i++] = tag;
+		}
+	}
+
+	SEXP ext = PROTECT(R_MakeExternalPtr(trace, R_NilValue, R_NilValue));
+	R_RegisterCFinalizerEx(ext, type_trace_finalizer, TRUE);
+	Rf_defineVar(Rf_install(func_name), ext, types_env);
+	UNPROTECT_SAFE(ext);
+
+	// Create the plugin stencils
+	add_plugin_stencil_pos(plugins, 0, &_RCP_ENTRY_HOOK, trace);
+	add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_EXIT_HOOK, trace);
+	add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURNJMP_BCOP, &_RCP_EXIT_HOOK, trace);
+}
+
+static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, const char *func_name)
+{
+	SEXP expressionsIndex = get_attribute(constpool, "srcrefsIndex");
+	if (TYPEOF(expressionsIndex) != INTSXP)
+		error("srcref attribute in constpool is not an integer vector.");
+	int *expr_index = INTEGER(expressionsIndex);
+	int len = LENGTH(bytecode);
+
+	int used_expressions[len];
+	int used_expr_ids[len]; // store expr_ids in discovery order
+	int expressions_count = 0;
+
+	SEXP *consts = (SEXP *)DATAPTR(constpool);
+
+	// First pass: discover unique expressions and record stencil positions
+	for (int i = 1; i < len; i++)
+	{
+		int expr_id = expr_index[i];
+
+		for (int j = 0; j < expressions_count; j++)
+		{
+			if (used_expressions[j] == expr_id)
+				goto next_expr;
+		}
+		DEBUG_PRINT("Sourceref %d used first at bytecode %d\n", expr_id, i);
+		used_expressions[expressions_count] = expr_id;
+		used_expr_ids[expressions_count] = expr_id;
+		expressions_count++;
+
+		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COVERAGE, NULL);
+	next_expr:
+	}
+
+	if (func_name == NULL)
+		func_name = "";
+
+	// For each unique expression, add an entry to coverage_registry
+	for (int i = 0; i < expressions_count; i++)
+	{
+		SEXP srcref = consts[used_expr_ids[i]];
+
+		if (TYPEOF(srcref) == INTSXP && LENGTH(srcref) >= 8)
+		{
+			// Extract srcref data
+			int *srcref_data = INTEGER(srcref);
+
+			// Get the filename from srcfile attribute
+			SEXP srcfile = Rf_getAttrib(srcref, Rf_install("srcfile"));
+			const char *filename = "<text>";
+			if (TYPEOF(srcfile) == ENVSXP)
+			{
+				SEXP filename_sexp = Rf_findVar(Rf_install("filename"), srcfile);
+				if (TYPEOF(filename_sexp) == STRSXP && LENGTH(filename_sexp) > 0)
+				{
+					const char *filename_char = CHAR(STRING_ELT(filename_sexp, 0));
+					if (strlen(filename_char) > 0) // To protect from empty filenames
+					{
+						filename = filename_char;
+					}
+				}
+			}
+
+			// Build the key string: "filename:l1:c1:l2:c2:b1:b2:l3:c3"
+			char key[1024];
+			snprintf(key, sizeof(key), "%s:%d:%d:%d:%d:%d:%d:%d:%d",
+					 filename,
+					 srcref_data[0], srcref_data[1], srcref_data[2], srcref_data[3],
+					 srcref_data[4], srcref_data[5], srcref_data[6], srcref_data[7]);
+
+			SEXP key_symbol = Rf_install(key);
+
+			// Check if this key already exists in the registry
+			SEXP existing = Rf_findVarInFrame(coverage_registry, key_symbol);
+
+			SEXP entry;
+			int *value_ptr;
+
+			if (existing == R_UnboundValue)
+			{
+				// Create a new list with: value, srcref, functions
+				entry = PROTECT(Rf_allocVector(VECSXP, 3));
+				SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 3));
+
+				// Set names: value, srcref, functions
+				SET_STRING_ELT(entry_names, 0, Rf_mkChar("value"));
+				SET_STRING_ELT(entry_names, 1, Rf_mkChar("srcref"));
+				SET_STRING_ELT(entry_names, 2, Rf_mkChar("functions"));
+				Rf_setAttrib(entry, R_NamesSymbol, entry_names);
+
+				// Create an integer value that the stencil will increment directly
+				SEXP value_num = PROTECT(Rf_ScalarInteger(0));
+				SET_VECTOR_ELT(entry, 0, value_num);
+				value_ptr = INTEGER(value_num);
+
+				// Add the srcref object
+				SET_VECTOR_ELT(entry, 1, srcref);
+
+				// Add the function name as a character vector
+				SEXP func_vec = PROTECT(Rf_allocVector(STRSXP, 1));
+				SET_STRING_ELT(func_vec, 0, Rf_mkChar(func_name));
+				SET_VECTOR_ELT(entry, 2, func_vec);
+
+				// Define in coverage_registry
+				Rf_defineVar(key_symbol, entry, coverage_registry);
+
+				UNPROTECT(4); // func_vec, value_num, entry_names, entry
+			}
+			else
+			{
+				entry = existing;
+				// Entry exists - append this function to the functions list
+				SEXP funcs = VECTOR_ELT(entry, 2);
+				int n_funcs = LENGTH(funcs);
+				SEXP new_funcs = PROTECT(Rf_allocVector(STRSXP, n_funcs + 1));
+				for (int j = 0; j < n_funcs; j++)
+				{
+					SET_STRING_ELT(new_funcs, j, STRING_ELT(funcs, j));
+				}
+				SET_STRING_ELT(new_funcs, n_funcs, Rf_mkChar(func_name));
+				SET_VECTOR_ELT(entry, 2, new_funcs);
+				UNPROTECT(1); // new_funcs
+
+				// Get pointer to the existing value
+				SEXP value_num = VECTOR_ELT(entry, 0);
+				value_ptr = INTEGER(value_num);
+			}
+
+			// Point the stencil at this expression's value field
+			PluginStencil *ps = (PluginStencil *)&plugins->sparse_stencils[i];
+			ps->data = value_ptr;
+		}
+	}
+}
+
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
-						  const char *name)
+						  const char *name, SEXP coverage_registry, SEXP hooks_registry,
+						  SEXP formals)
 {
 	SEXP bcode_code = BCODE_CODE(bcode);
 	SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -1545,6 +1872,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			if (opcode == MAKECLOSURE_BCOP)
 			{
 				SEXP fb = consts[opargs[0]];
+				SEXP closure_formals = VECTOR_ELT(fb, 0);
 				SEXP body = VECTOR_ELT(fb, 1);
 
 				if (TYPEOF(body) == BCODESXP)
@@ -1557,7 +1885,13 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf);
+					// By default, only attach entry/exit hooks to top-level closures.
+					// Set option rcp.cmpfun.entry_exit_hooks_inner_closures = TRUE
+					// to also trace inner (dynamically created) closures.
+					SEXP inner_hooks_opt = Rf_GetOption1(Rf_install("rcp.cmpfun.entry_exit_hooks_inner_closures"));
+					int trace_inner = (TYPEOF(inner_hooks_opt) == LGLSXP && LOGICAL(inner_hooks_opt)[0] == TRUE);
+					SEXP inner_hooks = trace_inner ? hooks_registry : R_NilValue;
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals);
 					SET_VECTOR_ELT(fb, 1, res);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
@@ -1574,9 +1908,34 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	}
 
 	bytecode_info(bytecode, bytecode_size, consts, consts_size);
-	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts,
-											consts_size, stats, name);
-	UNPROTECT(1); // code
+	peephole_goto(bytecode, bytecode_size, consts);
+
+	const void *vmax = vmaxget();
+	BasicBlock *bbs = build_basic_blocks(bytecode, bytecode_size, consts);
+
+	PluginStencils plugins = {0};
+
+	/* ALL PLUGINS MUST BE ADDED HERE */
+
+	if (coverage_registry != R_NilValue)
+		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
+
+	if (hooks_registry != R_NilValue)
+		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
+
+	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
+	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
+	// add_plugin_stencil_instr(&plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_MYATEXIT, NULL);
+
+	/******************************** */
+
+	qsort((void *)plugins.sparse_stencils, plugins.sparse_stencils_count, sizeof(PluginStencil), plugin_stencil_pos_cmp);
+
+	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, plugins.sparse_stencils, plugins.sparse_stencils_count, bbs, stats, name);
+	UNPROTECT_SAFE(code);
+	free(plugins.sparse_stencils);
+
+	vmaxset(vmax);
 
 	rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
 	*res_ptr = res;
@@ -1586,10 +1945,10 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	SET_VECTOR_ELT(prot, 1, mem_shared_sexp);
 
 	SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
-	UNPROTECT(1); // prot
+	UNPROTECT_SAFE(prot); // prot
 	PROTECT(ptr);
 	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, TRUE);
-	UNPROTECT(1); // ptr
+	UNPROTECT_SAFE(ptr); // ptr
 	return ptr;
 }
 
@@ -1603,7 +1962,7 @@ static const char *stats_names[STATS_COUNT] = {"total_size", "executable_size",
 
 static double stats_values[STATS_COUNT];
 
-SEXP C_is_compiled(SEXP closure)
+SEXP C_rcp_is_compiled(SEXP closure)
 {
 	if (TYPEOF(closure) != CLOSXP)
 	{
@@ -1627,6 +1986,52 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	if (TYPEOF(f) != CLOSXP)
 		error("The first argument must be a closure.");
 
+	SEXP coverage_registry = R_NilValue;
+
+	// Check if R option "rcp.cmpfun.stats" is set to TRUE
+	SEXP coverage_option = Rf_GetOption1(Rf_install("rcp.cmpfun.coverage"));
+	int attach_coverage = (TYPEOF(coverage_option) == LGLSXP && LOGICAL(coverage_option)[0] == TRUE);
+	if (attach_coverage)
+	{
+		// Get the covr namespace environment
+		SEXP covr_ns = PROTECT(R_FindNamespace(Rf_mkString("covr")));
+		// Get the .counters variable from covr namespace
+		SEXP counters_promise = PROTECT(Rf_findVarInFrame(covr_ns, Rf_install(".counters")));
+		coverage_registry = eval(counters_promise, covr_ns); // In case it's a promise
+		UNPROTECT_SAFE(counters_promise);
+		UNPROTECT_SAFE(covr_ns);
+
+		if (coverage_registry == R_UnboundValue || coverage_registry == R_NilValue)
+		{
+			error("covr package not found or .counters variable not found. Coverage data will not be attached.\n");
+		}
+	}
+
+	// R option "rcp.entry_exit_hooks"
+	SEXP hooks_registry = R_NilValue;
+	SEXP entry_exit_hooks = Rf_GetOption1(Rf_install("rcp.cmpfun.entry_exit_hooks"));
+	int attach_entry_exit_hooks = (TYPEOF(entry_exit_hooks) == LGLSXP && LOGICAL(entry_exit_hooks)[0] == TRUE);
+	if (attach_entry_exit_hooks)
+	{
+		// Reuse existing .rcp_hooks environment if already present, otherwise create it
+		SEXP existing_hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+		if (existing_hooks != R_UnboundValue && existing_hooks != R_NilValue)
+		{
+			hooks_registry = existing_hooks;
+		}
+		else
+		{
+			hooks_registry = PROTECT(R_NewEnv(R_EmptyEnv, 1, 1));
+			Rf_defineVar(Rf_install(".rcp_hooks"), hooks_registry, R_GlobalEnv);
+			// Another environment to store the types:
+			// key: pkg_name:fun_name ; value: list of list(args=list(...), ret_val=)
+			SEXP types = PROTECT(R_NewEnv(R_EmptyEnv, 1, 8));
+			Rf_defineVar(Rf_install("types"), types, hooks_registry);
+			UNPROTECT_SAFE(types);
+			UNPROTECT_SAFE(hooks_registry);
+		}
+	}
+
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
 	if (options == R_NilValue)
 	{
@@ -1649,7 +2054,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	struct timespec start, mid, end;
 	clock_gettime(CLOCK_MONOTONIC, &start);
 	CompilationStats stats = {0, 0};
-	const char *name = NULL;
+	const char *name = "<unknown>";
 
 	if (options != R_NilValue)
 	{
@@ -1663,16 +2068,12 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 				{
 					if (strcmp(CHAR(STRING_ELT(name_element, i)), "name") == 0)
 					{
-						name_index = i;
+						SEXP name_sexp = VECTOR_ELT(options, i);
+						if (TYPEOF(name_sexp) == STRSXP && LENGTH(name_sexp) == 1)
+						{
+							name = CHAR(STRING_ELT(name_sexp, 0));
+						}
 						break;
-					}
-				}
-				if (name_index != -1)
-				{
-					SEXP name_sexp = VECTOR_ELT(options, name_index);
-					if (TYPEOF(name_sexp) == STRSXP && LENGTH(name_sexp) == 1)
-					{
-						name = CHAR(STRING_ELT(name_sexp, 0));
 					}
 				}
 			}
@@ -1683,7 +2084,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		}
 	}
 
-	DEBUG_PRINT("Compiling %s to bytecode...\n", name ? name : "<unknown>");
+	DEBUG_PRINT("Compiling %s to bytecode...\n", name);
 	SEXP compiled = compile_to_bc(f, options);
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
 	UNPROTECT(1); // options
@@ -1700,7 +2101,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	PROTECT(compiled);
 
 	clock_gettime(CLOCK_MONOTONIC, &mid);
-	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name);
+	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled));
 	SET_BODY(compiled, ptr);
 	clock_gettime(CLOCK_MONOTONIC, &end);
 	UNPROTECT(1); // compiled
@@ -1757,6 +2158,64 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	return compiled;
 }
 
+static SEXP get_coverage(SEXP coverage_registry)
+{
+	if (coverage_registry == NULL)
+		return R_NilValue;
+
+	// Get all keys from the coverage_registry
+	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), coverage_registry));
+	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
+	int n = LENGTH(keys);
+
+	SEXP result = PROTECT(Rf_allocVector(VECSXP, n));
+	SEXP result_names = PROTECT(Rf_allocVector(STRSXP, n));
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *key = CHAR(STRING_ELT(keys, i));
+		SET_STRING_ELT(result_names, i, STRING_ELT(keys, i));
+
+		SEXP entry = Rf_findVarInFrame(coverage_registry, Rf_install(key));
+		if (entry != R_UnboundValue)
+		{
+			// Values are already up-to-date, just copy the entry
+			SET_VECTOR_ELT(result, i, entry);
+		}
+		else
+		{
+			SET_VECTOR_ELT(result, i, R_NilValue);
+		}
+	}
+
+	Rf_setAttrib(result, R_NamesSymbol, result_names);
+
+	// Set class attribute to "coverage"
+	SEXP class_attr = PROTECT(Rf_allocVector(STRSXP, 1));
+	SET_STRING_ELT(class_attr, 0, Rf_mkChar("coverage"));
+	Rf_setAttrib(result, R_ClassSymbol, class_attr);
+
+	UNPROTECT(5); // class_attr, result_names, result, keys, ls_call
+	return result;
+}
+/*
+SEXP C_rcp_function_coverage(SEXP fun, SEXP code, SEXP env, SEXP enc)
+{
+	if (TYPEOF(fun) == CLOSXP)
+		env = CLOENV(fun);
+
+	SEXP coverage_registry = PROTECT(R_NewEnv(R_EmptyEnv, TRUE, 64));
+	DEBUG_PRINT("Compiling function with coverage instrumentation...\n");
+	SEXP native_code = PROTECT(cmpfun(fun, R_NilValue, coverage_registry));
+	DEBUG_PRINT("Running compiled function with coverage instrumentation...\n");
+	eval(native_code, enc);
+	UNPROTECT_SAFE(native_code);
+	DEBUG_PRINT("Retrieving coverage data...\n");
+	SEXP res = get_coverage(coverage_registry);
+	UNPROTECT_SAFE(coverage_registry);
+	return res;
+}
+*/
 static void save_original_cmpfun(void)
 {
 	// Get the compiler namespace
@@ -1874,10 +2333,11 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 
 	PROTECT(pkg_namespace);
 
-	// Get all object names in the namespace
+	// Get all object names in the namespace (including hidden names)
 	SEXP ls_call = Rf_lang3(PROTECT(Rf_install("ls")), pkg_namespace,
-							PROTECT(Rf_ScalarLogical(TRUE)) // all. names = TRUE
-	);
+							PROTECT(Rf_ScalarLogical(TRUE)));
+	SET_TAG(CDR(ls_call), Rf_install("envir"));
+	SET_TAG(CDDR(ls_call), Rf_install("all.names"));
 	UNPROTECT(2); // ls and all.names arg
 	PROTECT(ls_call);
 
@@ -1951,37 +2411,41 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		SET_STRING_ELT(options_names, 0, Rf_mkChar("name"));
 
 		PROTECT(obj);
-		// Try to compile the functi
+		// Stack: [name_sym, options, obj]
 		SEXP cmpfun = PROTECT(Rf_lang3(Rf_install("::"), Rf_install("rcp"),
 									   Rf_install("rcp_cmpfun")));
 		SEXP cmpfun_call = Rf_lang3(cmpfun, obj, options);
 		UNPROTECT(1); // cmpfun
-		UNPROTECT(1); // options
-		UNPROTECT_SAFE(obj);
+		// Stack: [name_sym, options, obj]
 		PROTECT(cmpfun_call);
+		// Stack: [name_sym, options, obj, cmpfun_call]
 		int comp_error = 0;
 		SEXP compiled = R_tryEval(cmpfun_call, R_GlobalEnv, &comp_error);
 		UNPROTECT_SAFE(cmpfun_call);
+		// Stack: [name_sym, options, obj]
 
 		if (comp_error)
 		{
 			Rf_warning("Failed to compile function %s in package %s.",
 					   CHAR(STRING_ELT(obj_names, i)), pkg);
 			failed_count++;
+			UNPROTECT_SAFE(obj);
+			UNPROTECT_SAFE(options);
 			UNPROTECT_SAFE(name_sym);
 			continue;
 		}
 
 		// Store the compiled function and symbol
 		PROTECT(compiled);
+		// Stack: [name_sym, options, obj, compiled]
 #ifdef CMPPKG_WAITALL
 		compiled_functions[i] = compiled;
 		function_symbols[i] = name_sym;
 #else
-		R_unLockBinding(name_sym, pkg_namespace);
-		Rf_defineVar(name_sym, compiled, pkg_namespace);
-		R_LockBinding(name_sym, pkg_namespace);
+		SET_BODY(obj, BODY(compiled));
 		UNPROTECT_SAFE(compiled);
+		UNPROTECT_SAFE(obj);
+		UNPROTECT_SAFE(options);
 		UNPROTECT_SAFE(name_sym);
 #endif
 		compiled_count++;
@@ -1995,9 +2459,7 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 		if (compiled_functions[i] != R_NilValue &&
 			function_symbols[i] != R_NilValue)
 		{
-			R_unLockBinding(function_symbols[i], pkg_namespace);
-			Rf_defineVar(function_symbols[i], compiled_functions[i], pkg_namespace);
-			R_LockBinding(function_symbols[i], pkg_namespace);
+			SET_BODY(obj, BODY(compiled));
 			UNPROTECT_SAFE(compiled_functions[i]);
 			UNPROTECT_SAFE(function_symbols[i]);
 		}
@@ -2116,16 +2578,318 @@ SEXP C_rcp_get_profiling(void)
 #endif
 }
 
-SEXP C_rcp_gdb_jit_support(void)
+SEXP C_rcp_get_types(void)
 {
-#ifdef GDB_JIT_SUPPORT
-	return ScalarLogical(1);
-#else
-	return ScalarLogical(0);
-#endif
+	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+	if (hooks == R_UnboundValue || hooks == R_NilValue)
+		return R_NilValue;
+
+	SEXP types_env = Rf_findVarInFrame(hooks, Rf_install("types"));
+	if (types_env == R_UnboundValue || types_env == R_NilValue)
+		return R_NilValue;
+
+	// Create a new environment with the same bindings but converted values
+	SEXP result_env = PROTECT(R_NewEnv(R_EmptyEnv, 1, 8));
+
+	// List all keys in types_env
+	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), types_env));
+	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
+	int n = LENGTH(keys);
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *func_name = CHAR(STRING_ELT(keys, i));
+		SEXP ext = Rf_findVarInFrame(types_env, Rf_install(func_name));
+		if (ext == R_UnboundValue || TYPEOF(ext) != EXTPTRSXP)
+			continue;
+
+		TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+		if (!trace || trace->count == 0)
+			continue;
+
+		// Create a list with one entry per call
+		SEXP calls_list = PROTECT(Rf_allocVector(VECSXP, trace->count));
+
+		for (size_t j = 0; j < trace->count; j++)
+		{
+			TypeRecord *rec = &trace->types[j];
+
+			// Create list(arguments = c(...), ret = int, dots_count = int)
+			SEXP entry = PROTECT(Rf_allocVector(VECSXP, 3));
+			SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 3));
+			SET_STRING_ELT(entry_names, 0, Rf_mkChar("arguments"));
+			SET_STRING_ELT(entry_names, 1, Rf_mkChar("ret"));
+			SET_STRING_ELT(entry_names, 2, Rf_mkChar("dots_count"));
+			Rf_setAttrib(entry, R_NamesSymbol, entry_names);
+
+			// arguments: integer vector
+			SEXP args_vec = PROTECT(Rf_allocVector(INTSXP, rec->count + rec->dots_count));
+			SEXP args_names = PROTECT(Rf_allocVector(STRSXP, rec->count + rec->dots_count));
+			for (size_t k = 0; k < rec->count; k++)
+			{
+				INTEGER(args_vec)
+				[k] = rec->arguments[k];
+				if (k < trace->argument_count && trace->argument_names && trace->argument_names[k] != R_NilValue && TYPEOF(trace->argument_names[k]) == SYMSXP)
+					SET_STRING_ELT(args_names, k, PRINTNAME(trace->argument_names[k]));
+				else
+				{
+					char name_buf[16];
+					snprintf(name_buf, sizeof(name_buf), "arg%zu", k + 1);
+					SET_STRING_ELT(args_names, k, Rf_mkChar(name_buf));
+				}
+			}
+			for (size_t k = 0; k < rec->dots_count; k++)
+			{
+				size_t idx = rec->count + k;
+				INTEGER(args_vec)
+				[idx] = rec->dots_types[k];
+				if (rec->dots_names[k] != R_NilValue && TYPEOF(rec->dots_names[k]) == SYMSXP)
+				{
+					char name_buf[256];
+					snprintf(name_buf, sizeof(name_buf), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[k])), k + 1);
+					SET_STRING_ELT(args_names, idx, Rf_mkChar(name_buf));
+				}
+				else
+				{
+					char name_buf[24];
+					snprintf(name_buf, sizeof(name_buf), "..%zu", k + 1);
+					SET_STRING_ELT(args_names, idx, Rf_mkChar(name_buf));
+				}
+			}
+			Rf_setAttrib(args_vec, R_NamesSymbol, args_names);
+			SET_VECTOR_ELT(entry, 0, args_vec);
+
+			// ret: scalar integer
+			SET_VECTOR_ELT(entry, 1, Rf_ScalarInteger(rec->ret));
+			SET_VECTOR_ELT(entry, 2, Rf_ScalarInteger((int)rec->dots_count));
+
+			SET_VECTOR_ELT(calls_list, j, entry);
+			UNPROTECT(4); // entry, entry_names, args_vec, args_names
+		}
+
+		Rf_defineVar(Rf_install(func_name), calls_list, result_env);
+		UNPROTECT(1); // calls_list
+	}
+
+	UNPROTECT(3); // result_env, ls_call, keys
+	return result_env;
 }
 
-#ifdef GDB_JIT_SUPPORT
+SEXP C_rcp_get_types_df(SEXP func_name_sexp)
+{
+	if (TYPEOF(func_name_sexp) != STRSXP || LENGTH(func_name_sexp) != 1)
+		error("func_name must be a single character string.");
+
+	const char *func_name = CHAR(STRING_ELT(func_name_sexp, 0));
+
+	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+	if (hooks == R_UnboundValue || hooks == R_NilValue)
+		return R_NilValue;
+
+	SEXP types_env = Rf_findVarInFrame(hooks, Rf_install("types"));
+	if (types_env == R_UnboundValue || types_env == R_NilValue)
+		return R_NilValue;
+
+	SEXP ext = Rf_findVarInFrame(types_env, Rf_install(func_name));
+	if (ext == R_UnboundValue || TYPEOF(ext) != EXTPTRSXP)
+		return R_NilValue;
+
+	TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+	if (!trace || trace->count == 0)
+		return R_NilValue;
+
+	// Build union of dots names across calls
+	size_t max_dots = 0;
+	for (size_t i = 0; i < trace->count; i++)
+		max_dots += trace->types[i].dots_count;
+
+	char **dots_col_names = max_dots ? malloc(max_dots * sizeof(char *)) : NULL;
+	int *dots_col_owned = max_dots ? malloc(max_dots * sizeof(int)) : NULL;
+	size_t dots_col_count = 0;
+
+	for (size_t r = 0; r < trace->count; r++)
+	{
+		TypeRecord *rec = &trace->types[r];
+		for (size_t d = 0; d < rec->dots_count; d++)
+		{
+			char synthetic[256];
+			const char *key;
+			int owned = 0;
+			if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP)
+			{
+				snprintf(synthetic, sizeof(synthetic), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[d])), d + 1);
+				key = synthetic;
+				owned = 1;
+			}
+			else
+			{
+				snprintf(synthetic, sizeof(synthetic), "..%zu", d + 1);
+				key = synthetic;
+				owned = 1;
+			}
+
+			int found = 0;
+			for (size_t j = 0; j < dots_col_count; j++)
+			{
+				if (!strcmp(dots_col_names[j], key))
+				{
+					found = 1;
+					break;
+				}
+			}
+			if (!found)
+			{
+				if (owned)
+				{
+					size_t len = strlen(key);
+					char *copy = malloc(len + 1);
+					memcpy(copy, key, len + 1);
+					dots_col_names[dots_col_count] = copy;
+					dots_col_owned[dots_col_count] = 1;
+				}
+				else
+				{
+					dots_col_names[dots_col_count] = (char *)key;
+					dots_col_owned[dots_col_count] = 0;
+				}
+				dots_col_count++;
+			}
+		}
+	}
+
+	size_t ncols = trace->argument_count + dots_col_count + 2; // fixed args + dots + dots_count + ret
+	size_t nrows = trace->count;
+
+	// Allocate columns (each is a character vector)
+	SEXP df = PROTECT(Rf_allocVector(VECSXP, ncols));
+	SEXP col_names = PROTECT(Rf_allocVector(STRSXP, ncols));
+
+	for (size_t c = 0; c < trace->argument_count; c++)
+	{
+		SEXP col = PROTECT(Rf_allocVector(STRSXP, nrows));
+		for (size_t r = 0; r < nrows; r++)
+		{
+			TypeRecord *rec = &trace->types[r];
+			if (c < rec->count)
+				SET_STRING_ELT(col, r, Rf_mkChar(Rf_type2char(rec->arguments[c])));
+			else
+				SET_STRING_ELT(col, r, NA_STRING);
+		}
+		SET_VECTOR_ELT(df, c, col);
+		UNPROTECT(1); // col
+
+		if (trace->argument_names && trace->argument_names[c] != R_NilValue && TYPEOF(trace->argument_names[c]) == SYMSXP)
+		{
+			SET_STRING_ELT(col_names, c, PRINTNAME(trace->argument_names[c]));
+		}
+		else
+		{
+			char name_buf[16];
+			snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
+			SET_STRING_ELT(col_names, c, Rf_mkChar(name_buf));
+		}
+	}
+
+	for (size_t dc = 0; dc < dots_col_count; dc++)
+	{
+		size_t c = trace->argument_count + dc;
+		SEXP col = PROTECT(Rf_allocVector(STRSXP, nrows));
+		for (size_t r = 0; r < nrows; r++)
+		{
+			TypeRecord *rec = &trace->types[r];
+			int found = 0;
+			for (size_t d = 0; d < rec->dots_count; d++)
+			{
+				char synthetic[256];
+				const char *key;
+				if (rec->dots_names[d] != R_NilValue && TYPEOF(rec->dots_names[d]) == SYMSXP)
+				{
+					snprintf(synthetic, sizeof(synthetic), "%s..%zu", CHAR(PRINTNAME(rec->dots_names[d])), d + 1);
+					key = synthetic;
+				}
+				else
+				{
+					snprintf(synthetic, sizeof(synthetic), "..%zu", d + 1);
+					key = synthetic;
+				}
+
+				if (!strcmp(key, dots_col_names[dc]))
+				{
+					SET_STRING_ELT(col, r, Rf_mkChar(Rf_type2char(rec->dots_types[d])));
+					found = 1;
+					break;
+				}
+			}
+			if (!found)
+				SET_STRING_ELT(col, r, NA_STRING);
+		}
+		SET_VECTOR_ELT(df, c, col);
+		UNPROTECT(1); // col
+		SET_STRING_ELT(col_names, c, Rf_mkChar(dots_col_names[dc]));
+	}
+
+	// dots_count column
+	SEXP dots_count_col = PROTECT(Rf_allocVector(INTSXP, nrows));
+	for (size_t r = 0; r < nrows; r++)
+		INTEGER(dots_count_col)
+	[r] = (int)trace->types[r].dots_count;
+	SET_VECTOR_ELT(df, ncols - 2, dots_count_col);
+	UNPROTECT(1); // dots_count_col
+	SET_STRING_ELT(col_names, ncols - 2, Rf_mkChar("dots_count"));
+
+	// ret column
+	SEXP ret_col = PROTECT(Rf_allocVector(STRSXP, nrows));
+	for (size_t r = 0; r < nrows; r++)
+		SET_STRING_ELT(ret_col, r, Rf_mkChar(Rf_type2char(trace->types[r].ret)));
+	SET_VECTOR_ELT(df, ncols - 1, ret_col);
+	UNPROTECT(1); // ret_col
+	SET_STRING_ELT(col_names, ncols - 1, Rf_mkChar("ret"));
+
+	// Set column names
+	Rf_setAttrib(df, R_NamesSymbol, col_names);
+
+	// Set row.names: 1:nrows
+	SEXP row_names = PROTECT(Rf_allocVector(INTSXP, 2));
+	INTEGER(row_names)
+	[0] = NA_INTEGER;
+	INTEGER(row_names)
+	[1] = -(int)nrows;
+	Rf_setAttrib(df, R_RowNamesSymbol, row_names);
+	UNPROTECT(1); // row_names
+
+	// Set class to "data.frame"
+	SEXP class = PROTECT(Rf_allocVector(STRSXP, 1));
+	SET_STRING_ELT(class, 0, Rf_mkChar("data.frame"));
+	Rf_setAttrib(df, R_ClassSymbol, class);
+	UNPROTECT(1); // class
+
+	if (dots_col_names)
+	{
+		for (size_t i = 0; i < dots_col_count; i++)
+			if (dots_col_owned[i])
+				free(dots_col_names[i]);
+		free(dots_col_owned);
+		free(dots_col_names);
+	}
+
+	UNPROTECT(2); // df, col_names
+	return df;
+}
+
+SEXP C_rcp_dwarf_support(void)
+{
+	return ScalarLogical(1);
+}
+
+SEXP C_rcp_gdb_jit_support(void)
+{
+	return ScalarLogical(rcp_gdb_jit_enabled);
+}
+
+SEXP C_rcp_perf_jit_support(void)
+{
+	return ScalarLogical(rcp_perf_jit_enabled);
+}
 
 /* Tags from R sources */
 #ifndef ISQSXP
@@ -2167,11 +2931,15 @@ void __attribute__((used)) rcp_print_stack_val(void *p)
 				Rprintf("NULL SEXP\n");
 	}
 }
-#endif
 
 SEXP rcp_init(void)
 {
 	refresh_near_memory_ptr(0);
+
+	rcp_gdb_jit_enabled = (getenv("RCP_GDB_JIT") != NULL);
+	rcp_perf_jit_enabled = (getenv("RCP_PERF_JIT") != NULL);
+	if (rcp_perf_jit_enabled)
+		perf_jit_init();
 
 	prepare_shared_memory();
 
@@ -2197,6 +2965,9 @@ SEXP rcp_init(void)
 
 void rcp_destr(void)
 {
+	if (rcp_perf_jit_enabled)
+		perf_jit_close();
+
 	if (mem_shared_sexp != NULL)
 	{
 		R_ReleaseObject(mem_shared_sexp);

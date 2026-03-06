@@ -28,7 +28,7 @@ typedef enum
 	RELOC_RCP_CONSTCELL_AT_IMM,
 	RELOC_RCP_CONSTCELL_AT_LABEL_IMM,
 	RELOC_RCP_LOOPCNTXT,
-	RELOC_RCP_PATCHED_VARIANTS,
+	RELOC_RCP_CUSTOM,
 	RELOC_RCP_EXECUTABLE_START
 } RELOC_KIND;
 
@@ -63,9 +63,8 @@ typedef struct
 	Hole *holes;
 	uint8_t alignment;
 	const char *name;
-#ifdef GDB_JIT_SUPPORT
-	const uint8_t *debug_frame;
-#endif
+	const uint8_t *cfi_data; // CFI instruction bytes (from .eh_frame FDE)
+	size_t cfi_size;		 // Size of CFI instruction bytes
 } Stencil;
 
 typedef struct
