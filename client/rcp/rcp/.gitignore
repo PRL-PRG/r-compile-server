@@ -4,4 +4,4 @@ src/**/*.a
 compile_commands.json
 src/extractor/extractor
 src/stencils-build/
-tests/debugging/*/actual.log
+tests/gdb-jit/*/actual.log

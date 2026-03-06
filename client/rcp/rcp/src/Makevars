@@ -7,10 +7,6 @@ ifneq ($(OPENMP),0)
   PKG_LIBS += -fopenmp
 endif
 
-ifneq ($(GDB_JIT_SUPPORT),0)
-  PKG_CFLAGS += -DGDB_JIT_SUPPORT
-endif
-
 ifneq ($(RCP_COMPILE_PROMISES),0)
   PKG_CFLAGS += -DRCP_COMPILE_PROMISES
 endif
@@ -40,17 +36,19 @@ endif
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
-$(info GDB_JIT_SUPPORT=$(GDB_JIT_SUPPORT))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build
 STENCILS_H = $(STENCILS_BUILD_DIR)/stencils.h
 
 PKG_CFLAGS += -I$(STENCILS_BUILD_DIR) -I.
-PKG_LIBS += $(SHARED_LIB)
+PKG_LIBS += $(SHARED_LIB) -lstdc++
 
 SOURCES = $(wildcard *.c)
-OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o
+OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o rcp_exceptions.o
+
+# Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
+stencils-runtime.o: PKG_CFLAGS += -fno-omit-frame-pointer
 
 ## ------------------------------------------------------------------------ 
 ## targets
@@ -82,5 +80,6 @@ clean:
 	$(MAKE) -C $(STENCILS_DIR) clean
 	$(MAKE) -C $(SHARED_LIB_DIR) clean
 	rm -f *.o *.so
+	rm -rf $(STENCILS_BUILD_DIR)
 
 # vim: ft=make

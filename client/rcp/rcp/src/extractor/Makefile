@@ -1,13 +1,8 @@
 include ../../common.mk
 
-ifneq ($(GDB_JIT_SUPPORT),0)
-  CXXFLAGS += -DGDB_JIT_SUPPORT
-endif
-
 SOURCES = $(wildcard *.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-CXXFLAGS += -std=c++20
 EXT_LIBS = -lbfd
 
 $(EXTRACTOR_BIN): $(OBJECTS) $(SHARED_LIB)

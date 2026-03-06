@@ -33,7 +33,6 @@ CFLAGS += -Wall \
 					-fno-align-functions \
 					-fno-align-jumps \
 					-fno-align-labels \
-					-fno-asynchronous-unwind-tables \
 					-fno-ipa-cp \
 					-fno-jump-tables \
 					-fno-math-errno \
@@ -44,7 +43,11 @@ CFLAGS += -Wall \
 					-mcmodel=$(MCMODEL) \
 					-Wno-unused-function
 
+
 OBJ = $(notdir $(STENCILS_OBJ))
+
+.PHONY: all
+all: $(OBJ)
 
 $(OBJ): $(OBJ:.o=.c)
 	$(CC) $(CFLAGS) -c $< -o $@

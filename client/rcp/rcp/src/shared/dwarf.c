@@ -257,6 +257,8 @@ DwarfCIE dwarf_parse_cie(const uint8_t *data, size_t len)
 	result.code_align = 1;
 	result.data_align = -8;
 	result.ra_reg = DWARF_REG_RA;
+	result.ptr_encoding = 0x00; // DW_EH_PE_absptr
+	result.has_z = 0;
 	result.valid = 0;
 
 	if (len < 4)
@@ -284,13 +286,22 @@ DwarfCIE dwarf_parse_cie(const uint8_t *data, size_t len)
 	// Version byte
 	uint8_t version = *p++;
 
-	// Augmentation string - we only support empty augmentation
-	if (p < end && *p != 0)
+	// Parse augmentation string
+	const char *aug_str = (const char *)p;
+	int has_z = 0;
+	int has_R = 0;
+	while (p < end && *p != 0)
 	{
-		// Non-empty augmentation string not supported
-		return result;
+		if (*p == 'z')
+			has_z = 1;
+		else if (*p == 'R')
+			has_R = 1;
+		p++;
 	}
-	p++; // Skip null terminator
+	if (p < end)
+		p++; // Skip null terminator
+
+	result.has_z = has_z;
 
 	if (p >= end)
 		return result;
@@ -304,13 +315,43 @@ DwarfCIE dwarf_parse_cie(const uint8_t *data, size_t len)
 	// Return address register
 	if (version == 1)
 	{
-		// DWARF 1: single byte
+		// DWARF 1 / .eh_frame v1: single byte
 		result.ra_reg = *p++;
 	}
 	else
 	{
 		// DWARF 2+: ULEB128
 		result.ra_reg = dwarf_decode_uleb128(&p);
+	}
+
+	// Parse augmentation data (if 'z' was present)
+	if (has_z)
+	{
+		uint64_t aug_data_len = dwarf_decode_uleb128(&p);
+		const uint8_t *aug_data_end = p + aug_data_len;
+
+		// Walk augmentation string to interpret each character's data
+		const char *a = aug_str;
+		while (*a && p < aug_data_end)
+		{
+			if (*a == 'z')
+			{
+				// 'z' itself has no data (it just enables the length prefix)
+			}
+			else if (*a == 'R')
+			{
+				result.ptr_encoding = *p++;
+			}
+			else
+			{
+				// Unknown augmentation character - skip remaining data
+				break;
+			}
+			a++;
+		}
+
+		// Ensure we advance past the full augmentation data
+		p = aug_data_end;
 	}
 
 	// Remaining bytes are initial instructions
@@ -327,6 +368,31 @@ DwarfCIE dwarf_parse_cie(const uint8_t *data, size_t len)
 
 	result.valid = 1;
 	return result;
+}
+
+int dwarf_encoded_ptr_size(uint8_t encoding)
+{
+	if (encoding == 0xff) // DW_EH_PE_omit
+		return 0;
+	switch (encoding & 0x0f)
+	{
+		case 0x00:
+			return 8; // DW_EH_PE_absptr (64-bit)
+		case 0x02:
+			return 2; // DW_EH_PE_udata2
+		case 0x03:
+			return 4; // DW_EH_PE_udata4
+		case 0x04:
+			return 8; // DW_EH_PE_udata8
+		case 0x0A:
+			return 2; // DW_EH_PE_sdata2
+		case 0x0B:
+			return 4; // DW_EH_PE_sdata4
+		case 0x0C:
+			return 8; // DW_EH_PE_sdata8
+		default:
+			return -1; // unsupported (uleb128, sleb128)
+	}
 }
 
 // Static register name table for x86-64

@@ -14,3 +14,6 @@ RoxygenNote: 7.0.0
 NeedsCompilation: yes
 OS_type: unix
 Imports: compiler
+Suggests:
+       ggplot2,
+       splines
