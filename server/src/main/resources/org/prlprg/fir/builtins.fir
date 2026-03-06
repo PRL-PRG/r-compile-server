@@ -4,9 +4,9 @@ fun `+`(lhs, rhs) {
   (reg lhs:I, reg rhs:R) --> R { ... }
   (reg lhs:R, reg rhs:I) --> R { ... }
   (reg lhs:R, reg rhs:R) --> R { ... }
-  (reg unary:*, reg rhs:M) -+> V { ... }
-  (reg unary:I, reg rhs:M) --> I { ... }
-  (reg unary:R, reg rhs:M) --> R { ... }
+  (reg unary:*, reg rhs:miss) -+> V { ... }
+  (reg unary:I, reg rhs:miss) --> I { ... }
+  (reg unary:R, reg rhs:miss) --> R { ... }
 }
 
 fun `-`(lhs, rhs) {
@@ -15,9 +15,9 @@ fun `-`(lhs, rhs) {
   (reg lhs:I, reg rhs:R) --> R { ... }
   (reg lhs:R, reg rhs:I) --> R { ... }
   (reg lhs:R, reg rhs:R) --> R { ... }
-  (reg unary:*, reg rhs:M) -+> V { ... }
-  (reg unary:I, reg rhs:M) --> I { ... }
-  (reg unary:R, reg rhs:M) --> R { ... }
+  (reg unary:*, reg rhs:miss) -+> V { ... }
+  (reg unary:I, reg rhs:miss) --> I { ... }
+  (reg unary:R, reg rhs:miss) --> R { ... }
 }
 
 fun `*`(lhs, rhs) {
@@ -128,26 +128,26 @@ fun `:`(lhs, rhs) {
 
 fun `[`(x, i, `...`, drop) {
   (reg x:*, reg i:*, reg ddd:dots, reg drop:*) -+> V { ... }
-  (reg x:v(L), reg i:I, reg ddd:M, reg drop:M) --> L { ... }
-  (reg x:v(I), reg i:I, reg ddd:M, reg drop:M) --> I { ... }
-  (reg x:v(R), reg i:I, reg ddd:M, reg drop:M) --> R { ... }
-  (reg x:v(S), reg i:I, reg ddd:M, reg drop:M) --> S { ... }
+  (reg x:v(L), reg i:I, reg ddd:miss, reg drop:miss) --> L { ... }
+  (reg x:v(I), reg i:I, reg ddd:miss, reg drop:miss) --> I { ... }
+  (reg x:v(R), reg i:I, reg ddd:miss, reg drop:miss) --> R { ... }
+  (reg x:v(S), reg i:I, reg ddd:miss, reg drop:miss) --> S { ... }
 }
 
 fun `[[`(x, i, `...`, exact) {
   (reg x:*, reg i:*, reg ddd:dots, reg exact:*) -+> V { ... }
-  (reg x:v(L), reg i:I, reg ddd:M, reg drop:M) --> L { ... }
-  (reg x:v(I), reg i:I, reg ddd:M, reg drop:M) --> I { ... }
-  (reg x:v(R), reg i:I, reg ddd:M, reg drop:M) --> R { ... }
-  (reg x:v(S), reg i:I, reg ddd:M, reg drop:M) --> S { ... }
+  (reg x:v(L), reg i:I, reg ddd:miss, reg drop:miss) --> L { ... }
+  (reg x:v(I), reg i:I, reg ddd:miss, reg drop:miss) --> I { ... }
+  (reg x:v(R), reg i:I, reg ddd:miss, reg drop:miss) --> R { ... }
+  (reg x:v(S), reg i:I, reg ddd:miss, reg drop:miss) --> S { ... }
 }
 
 fun `[<-`(x, i, value, `...`) {
   (reg x:*, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
-  (reg x:v(L), reg i:I, reg value:L, reg ddd:M) --> v(L) { ... }
-  (reg x:v(I), reg i:I, reg value:I, reg ddd:M) --> v(I) { ... }
-  (reg x:v(R), reg i:I, reg value:R, reg ddd:M) --> v(R) { ... }
-  (reg x:v(S), reg i:I, reg value:S, reg ddd:M) --> v(S) { ... }
+  (reg x:v(L), reg i:I, reg value:L, reg ddd:miss) --> v(L) { ... }
+  (reg x:v(I), reg i:I, reg value:I, reg ddd:miss) --> v(I) { ... }
+  (reg x:v(R), reg i:I, reg value:R, reg ddd:miss) --> v(R) { ... }
+  (reg x:v(S), reg i:I, reg value:S, reg ddd:miss) --> v(S) { ... }
 }
 
 fun `[[<-`(x, i, value) {
@@ -178,9 +178,9 @@ fun rep(x, `...`) {
 
 fun sum(`...`, `na.rm`) {
   (reg ddd:dots, reg naRm:*) -+> V { ... }
-  (reg x:v(L), reg naRm:M) --> I { ... }
-  (reg x:v(I), reg naRm:M) --> I { ... }
-  (reg x:v(R), reg naRm:M) --> R { ... }
+  (reg x:v(L), reg naRm:miss) --> I { ... }
+  (reg x:v(I), reg naRm:miss) --> I { ... }
+  (reg x:v(R), reg naRm:miss) --> R { ... }
 }
 
 fun `.Call`(`.NAME`, `...`, PACKAGE) {
@@ -411,10 +411,10 @@ fun stopifnot(`...`, exprs, exprObject, local) {
 
 fun print(x, `...`) {
   (reg x:*, reg ddd:dots) -+> V { ... }
-  (reg x:v(L), reg ddd:M) --> v(L) { ... }
-  (reg x:v(I), reg ddd:M) --> v(I) { ... }
-  (reg x:v(R), reg ddd:M) --> v(R) { ... }
-  (reg x:v(S), reg ddd:M) --> v(S) { ... }
+  (reg x:v(L), reg ddd:miss) --> v(L) { ... }
+  (reg x:v(I), reg ddd:miss) --> v(I) { ... }
+  (reg x:v(R), reg ddd:miss) --> v(R) { ... }
+  (reg x:v(S), reg ddd:miss) --> v(S) { ... }
 }
 
 fun unclass(x) {
@@ -424,7 +424,7 @@ fun unclass(x) {
 
 fun `is.vector`(x, mode) {
   (reg x:*, reg mode:*) -+> L { ... }
-  (reg x:V, reg mode:M) --> L { ... }
+  (reg x:V, reg mode:miss) --> L { ... }
 }
 
 fun `is.numeric`(x) {
@@ -474,12 +474,12 @@ fun `is.list`(x) {
 
 fun inherits(x, what, which) {
   (reg x:*, reg what:*, reg which:*) -+> L { ... }
-  (reg x:V, reg what:V, reg which:M) --> L { ... }
+  (reg x:V, reg what:V, reg which:miss) --> L { ... }
 }
 
 fun attr(x, which, exact, value) {
   (reg x:*, reg which:*, reg exact:*, reg value:*) -+> V { ... }
-  (reg x:V, reg which:S, reg exact:M, reg value:M) --> V { ... }
+  (reg x:V, reg which:S, reg exact:miss, reg value:miss) --> V { ... }
 }
 
 fun `is.character`(x) {
