@@ -1,4 +1,10 @@
 library(rcp)
+
+if (!requireNamespace("splines", quietly = TRUE)) {
+	cat("SKIP: package 'splines' is not installed\n")
+	quit(status = 0)
+}
+
 library(splines)
 
 stopifnot(!rcp::rcp_is_compiled(splines::bs))

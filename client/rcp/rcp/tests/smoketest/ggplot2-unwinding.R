@@ -1,7 +1,13 @@
 # See https://github.com/PRL-PRG/rcp/issues/13
 
 library(rcp)
+
+if (!requireNamespace('ggplot2', quietly=TRUE)) {
+    cat("SKIP: package 'ggplot2' is not installed\n")
+    quit(status=0)
+}
 library(ggplot2)
+
 
 
 # Compile only ggplot2::ggproto and patch it into namespace.

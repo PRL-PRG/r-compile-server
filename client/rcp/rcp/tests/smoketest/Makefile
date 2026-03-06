@@ -1,6 +1,6 @@
 include ../../common.mk
 
-TESTS = basic.R pkgcmp.R cmppkg-dot-functions.R ggplot2-unwinding.R
+TESTS = basic.R pkgcmp.R cmppkg-dot-functions.R dotcall-issue-12.R ggplot2-unwinding.R
 
 .PHONY: all test clean
 

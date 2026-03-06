@@ -1,4 +1,10 @@
 library(rcp)
+
+if (!requireNamespace("splines", quietly = TRUE)) {
+  cat("SKIP: package 'splines' is not installed\n")
+  quit(status = 0)
+}
+
 library(splines)
 
 ns <- asNamespace("splines")
