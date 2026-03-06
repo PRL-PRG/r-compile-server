@@ -1937,7 +1937,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "promise";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, hooks_registry, formals);
 					consts[opargs[0]] = res;
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
