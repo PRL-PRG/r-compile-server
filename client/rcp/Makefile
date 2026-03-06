@@ -66,15 +66,6 @@ docker-rcp: docker-rcp-rsh
 # --------------------------------------------------------------------------- #
 
 .PHONY: setup test benchmark clean install
-
-<<<<<<< entry-exit-hooks
-setup:
-	external/rsh/tools/build-gnur.sh external/rsh/external/R
-	$(RCP_MAKE) setup
-
-test benchmark clean install:
-	$(RCP_MAKE) $@
-=======
 .PHONY: check-toolchain
 check-toolchain:
 	$(MAKE) -C rcp check-toolchain CC="$(CC)" CXX="$(CXX)"
@@ -88,4 +79,6 @@ test: check-toolchain
 
 benchmark: check-toolchain
 	$(MAKE) -C rcp benchmark CC="$(CC)" CXX="$(CXX)"
->>>>>>> main
+
+clean install:
+	$(MAKE) -C rcp $@ CC="$(CC)" CXX="$(CXX)"

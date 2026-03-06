@@ -22,8 +22,7 @@ all: install
 
 .PHONY: install
 install: check-toolchain
-	CC="$(CC)" CXX="$(CXX)" $(R) CMD INSTALL .
-	$(R) CMD INSTALL .
+	MAKEFLAGS="$(MAKEFLAGS) CC=$(CC) CXX=$(CXX)" $(R) CMD INSTALL .
 
 .PHONY: clean
 clean:

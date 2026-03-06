@@ -5,17 +5,15 @@
 # Should do a debug build
 DEBUG ?= 0
 # Need a compiler that has support for no_callee_saved_registers
-ifeq ($(origin CC), default)
+ifneq ($(origin CC), command line)
   CC := gcc-14
 endif
 # Need a compiler that supports C++20
-ifeq ($(origin CXX), default)
+ifneq ($(origin CXX), command line)
   CXX := g++-14
 endif
 C_STD_FLAG ?= -std=gnu17
 CXX_STD_FLAG ?= -std=gnu++20
-# Add support for debugging jitted code
-GDB_JIT_SUPPORT ?= 0
 
 # Get the directory of common.mk itself
 COMMON_MK_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
