@@ -3,7 +3,6 @@ include ../../common.mk
 SOURCES = $(wildcard *.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-CXXFLAGS += -std=c++20
 EXT_LIBS = -lbfd
 
 $(EXTRACTOR_BIN): $(OBJECTS) $(SHARED_LIB)
