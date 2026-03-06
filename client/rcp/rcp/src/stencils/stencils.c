@@ -182,9 +182,9 @@ extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
 #define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
 
-extern void* const _RCP_CUSTOM_DATA[];
-#define GETCUSTOM() (const void*)&_RCP_CUSTOM_DATA
-#define GETVARIANTS() (const void*)&_RCP_CUSTOM_DATA
+extern void *const _RCP_CUSTOM_DATA[];
+#define GETCUSTOM()	  (const void *)&_RCP_CUSTOM_DATA
+#define GETVARIANTS() (const void *)&_RCP_CUSTOM_DATA
 
 extern const void *const _RCP_LOOPCNTXT;
 #define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
@@ -224,9 +224,9 @@ static __attribute__((always_inline)) inline int rcp_binding_type(SEXP binding_c
 
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 {
-  int* coverage_counter = (int*)GETCUSTOM();
-  *coverage_counter += 1;
-  NEXT;
+	int *coverage_counter = (int *)GETCUSTOM();
+	*coverage_counter += 1;
+	NEXT;
 }
 
 RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
@@ -514,8 +514,73 @@ RCP_OP(GETINTLBUILTIN,
 RCP_OP(CHECKFUN,
 	   Rsh_CheckFun(stack);)
 
+static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho, int code_type)
+{
+	Value *fun = GET_VAL(-3);
+	Value *args_head = GET_VAL(-2);
+	Value *args_tail = GET_VAL(-1);
+
+	switch (TYPEOF(VAL_SXP(*fun)))
+	{
+		case CLOSXP:
+		{
+			SEXP value = Rf_mkPROMISE(code, rho);
+			RSH_PUSH_ARG(args_head, args_tail, value);
+			break;
+		}
+		case BUILTINSXP:
+			switch (code_type)
+			{
+				case EXTPTRSXP:
+				{
+					assert(RSH_IS_CLOSURE_BODY(code));
+					SEXP value = rcpEval(code, rho);
+					RSH_PUSH_ARG(args_head, args_tail, value);
+					break;
+				}
+				case BCODESXP:
+				{
+					SEXP value = bcEval(code, rho);
+					RSH_PUSH_ARG(args_head, args_tail, value);
+					break;
+				}
+				default:
+				{
+					/* uncommon but possible, the compiler may decide not
+					to compile an argument expression */
+					SEXP value = Rf_eval(code, rho);
+					RSH_PUSH_ARG(args_head, args_tail, value);
+					break;
+				}
+			}
+			break;
+		case SPECIALSXP:
+			break;
+		default:
+			Rf_error("bad function");
+	}
+}
+
+#ifdef MAKEPROM_SPECIALIZE
+RCP_OP_EX(MAKEPROM, 0_DEFAULT)
+{
+	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), -1);
+	NEXT;
+}
+RCP_OP_EX(MAKEPROM, 1_BCODESXP)
+{
+	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), BCODESXP);
+	NEXT;
+}
+RCP_OP_EX(MAKEPROM, 2_EXTPTRSXP)
+{
+	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), EXTPTRSXP);
+	NEXT;
+}
+#else
 RCP_OP(MAKEPROM,
-	   Rsh_MakeProm(stack, GETCONST_IMM(0), GET_RHO());)
+	   Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), TYPEOF(GETCONST_IMM(0)));)
+#endif
 
 RCP_OP(DOMISSING,
 	   Rsh_DoMissing(stack);)

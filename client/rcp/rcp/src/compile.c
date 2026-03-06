@@ -648,6 +648,29 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		}
 		break;
 #endif
+#ifdef MAKEPROM_SPECIALIZE
+		case MAKEPROM_BCOP:
+		{
+			SEXP code = r_constpool[imms[0]];
+			switch (TYPEOF(code))
+			{
+				case BCODESXP:
+					DEBUG_PRINT("Using specialized version of MAKEPROM_OP: BCODESXP\n");
+					return &stencil_set[1];
+				case EXTPTRSXP:
+					if (RSH_IS_CLOSURE_BODY(code))
+					{
+						DEBUG_PRINT("Using specialized version of MAKEPROM_OP: EXTPTRSXP\n");
+						return &stencil_set[2];
+					}
+					// Continue to the generic version if it's an external pointer but not ours
+				default:
+					DEBUG_PRINT("Using specialized version of MAKEPROM_OP: OTHER SEXPs\n");
+					return &stencil_set[0];
+			}
+		}
+		break;
+#endif
 		default:
 			return &stencil_set[0];
 	}
@@ -987,7 +1010,7 @@ static int unroll_goto(int bytecode[], SEXP *constpool, int index)
 	if (opcode == GOTO_BCOP)
 	{
 		int target = imms[0] - 1;
-		DEBUG_PRINT("Peephole optimization: Simplifying unncessary trampoline jump from bytecode %d to target %d\n", index, target);
+		DEBUG_PRINT("Peephole optimization: Simplifying unnecessary trampoline jump from bytecode %d to target %d\n", index, target);
 		return unroll_goto(bytecode, constpool, target);
 	}
 
@@ -1706,136 +1729,131 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils 
 
 static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, const char *func_name)
 {
-	SEXP expressionsIndex = get_attribute(constpool, "srcrefsIndex");
-	if (TYPEOF(expressionsIndex) != INTSXP)
-		error("srcref attribute in constpool is not an integer vector.");
-	int *expr_index = INTEGER(expressionsIndex);
-	int len = LENGTH(bytecode);
-
-	int used_expressions[len];
-	int used_expr_ids[len]; // store expr_ids in discovery order
-	int expressions_count = 0;
-
-	SEXP *consts = (SEXP *)DATAPTR(constpool);
-
-	// First pass: discover unique expressions and record stencil positions
-	for (int i = 1; i < len; i++)
-	{
-		int expr_id = expr_index[i];
-
-		for (int j = 0; j < expressions_count; j++)
-		{
-			if (used_expressions[j] == expr_id)
-				goto next_expr;
-		}
-		DEBUG_PRINT("Sourceref %d used first at bytecode %d\n", expr_id, i);
-		used_expressions[expressions_count] = expr_id;
-		used_expr_ids[expressions_count] = expr_id;
-		expressions_count++;
-
-		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COVERAGE, NULL);
-	next_expr:
-	}
+	SEXP srcrefs_index_sexp = get_attribute(constpool, "srcrefsIndex");
+	if (TYPEOF(srcrefs_index_sexp) != INTSXP)
+		error("srcrefsIndex attribute in constpool is missing or is not an integer vector.");
+	int *srcrefs_index = INTEGER(srcrefs_index_sexp);
+	const int len = LENGTH(bytecode);
 
 	if (func_name == NULL)
 		func_name = "";
 
-	// For each unique expression, add an entry to coverage_registry
-	for (int i = 0; i < expressions_count; i++)
+	void *vmax = vmaxget();
+	int *used_srcrefs = (int *)R_alloc(len, sizeof(int));
+	int used_srcrefs_count = 0;
+
+	const SEXP *consts = (SEXP *)DATAPTR(constpool);
+
+	// First pass: discover unique expressions and record stencil positions
+	for (int i = 1; i < len; i++)
 	{
-		SEXP srcref = consts[used_expr_ids[i]];
+		int expr_id = srcrefs_index[i];
 
-		if (TYPEOF(srcref) == INTSXP && LENGTH(srcref) >= 8)
+		for (int j = used_srcrefs_count - 1; j >= 0; j--)
 		{
-			// Extract srcref data
-			int *srcref_data = INTEGER(srcref);
-
-			// Get the filename from srcfile attribute
-			SEXP srcfile = Rf_getAttrib(srcref, Rf_install("srcfile"));
-			const char *filename = "<text>";
-			if (TYPEOF(srcfile) == ENVSXP)
-			{
-				SEXP filename_sexp = Rf_findVar(Rf_install("filename"), srcfile);
-				if (TYPEOF(filename_sexp) == STRSXP && LENGTH(filename_sexp) > 0)
-				{
-					const char *filename_char = CHAR(STRING_ELT(filename_sexp, 0));
-					if (strlen(filename_char) > 0) // To protect from empty filenames
-					{
-						filename = filename_char;
-					}
-				}
-			}
-
-			// Build the key string: "filename:l1:c1:l2:c2:b1:b2:l3:c3"
-			char key[1024];
-			snprintf(key, sizeof(key), "%s:%d:%d:%d:%d:%d:%d:%d:%d",
-					 filename,
-					 srcref_data[0], srcref_data[1], srcref_data[2], srcref_data[3],
-					 srcref_data[4], srcref_data[5], srcref_data[6], srcref_data[7]);
-
-			SEXP key_symbol = Rf_install(key);
-
-			// Check if this key already exists in the registry
-			SEXP existing = Rf_findVarInFrame(coverage_registry, key_symbol);
-
-			SEXP entry;
-			int *value_ptr;
-
-			if (existing == R_UnboundValue)
-			{
-				// Create a new list with: value, srcref, functions
-				entry = PROTECT(Rf_allocVector(VECSXP, 3));
-				SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 3));
-
-				// Set names: value, srcref, functions
-				SET_STRING_ELT(entry_names, 0, Rf_mkChar("value"));
-				SET_STRING_ELT(entry_names, 1, Rf_mkChar("srcref"));
-				SET_STRING_ELT(entry_names, 2, Rf_mkChar("functions"));
-				Rf_setAttrib(entry, R_NamesSymbol, entry_names);
-
-				// Create an integer value that the stencil will increment directly
-				SEXP value_num = PROTECT(Rf_ScalarInteger(0));
-				SET_VECTOR_ELT(entry, 0, value_num);
-				value_ptr = INTEGER(value_num);
-
-				// Add the srcref object
-				SET_VECTOR_ELT(entry, 1, srcref);
-
-				// Add the function name as a character vector
-				SEXP func_vec = PROTECT(Rf_allocVector(STRSXP, 1));
-				SET_STRING_ELT(func_vec, 0, Rf_mkChar(func_name));
-				SET_VECTOR_ELT(entry, 2, func_vec);
-
-				// Define in coverage_registry
-				Rf_defineVar(key_symbol, entry, coverage_registry);
-
-				UNPROTECT(4); // func_vec, value_num, entry_names, entry
-			}
-			else
-			{
-				entry = existing;
-				// Entry exists - append this function to the functions list
-				SEXP funcs = VECTOR_ELT(entry, 2);
-				int n_funcs = LENGTH(funcs);
-				SEXP new_funcs = PROTECT(Rf_allocVector(STRSXP, n_funcs + 1));
-				for (int j = 0; j < n_funcs; j++)
-				{
-					SET_STRING_ELT(new_funcs, j, STRING_ELT(funcs, j));
-				}
-				SET_STRING_ELT(new_funcs, n_funcs, Rf_mkChar(func_name));
-				SET_VECTOR_ELT(entry, 2, new_funcs);
-				UNPROTECT(1); // new_funcs
-
-				// Get pointer to the existing value
-				SEXP value_num = VECTOR_ELT(entry, 0);
-				value_ptr = INTEGER(value_num);
-			}
-
-			// Point the stencil at this expression's value field
-			PluginStencil *ps = (PluginStencil *)&plugins->sparse_stencils[i];
-			ps->data = value_ptr;
+			if (used_srcrefs[j] == expr_id)
+				goto next_expr;
 		}
+		DEBUG_PRINT("Sourceref %d used first at bytecode %d\n", expr_id, i);
+		used_srcrefs[used_srcrefs_count] = expr_id;
+		used_srcrefs_count++;
+
+		SEXP srcref = consts[expr_id];
+
+		if (TYPEOF(srcref) != INTSXP || LENGTH(srcref) < 8)
+			error("Invalid srcref data for expression with id %d", expr_id);
+
+		// Extract srcref data
+		int *srcref_data = INTEGER(srcref);
+
+		// Get the filename from srcfile attribute
+		SEXP filename_sexp = R_GetSrcFilename(srcref);
+		const char *filename = "<text>";
+		if (TYPEOF(filename_sexp) == STRSXP && LENGTH(filename_sexp) > 0)
+		{
+			const char *filename_char = CHAR(STRING_ELT(filename_sexp, 0));
+			if (strlen(filename_char) > 0) // To protect from empty filenames
+			{
+				filename = filename_char;
+			}
+		}
+
+		// Build the key string: "filename:l1:c1:l2:c2:b1:b2:l3:c3"
+		char key[1024];
+		snprintf(key, sizeof(key), "%s:%d:%d:%d:%d:%d:%d:%d:%d",
+				 filename,
+				 srcref_data[0], srcref_data[1], srcref_data[2], srcref_data[3],
+				 srcref_data[4], srcref_data[5], srcref_data[6], srcref_data[7]);
+
+		DEBUG_PRINT("Registering coverage for expression with key: %s\n", key);
+		SEXP key_symbol = PROTECT(Rf_install(key));
+
+		// Check if this key already exists in the registry
+		SEXP existing = Rf_findVarInFrame(coverage_registry, key_symbol);
+
+		int *value_ptr;
+
+		if (existing == R_UnboundValue)
+		{
+			// Create a new list with: value, srcref, functions
+			SEXP entry = PROTECT(Rf_allocVector(VECSXP, 3));
+			SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 3));
+
+			// Set names: value, srcref, functions
+			SET_STRING_ELT(entry_names, 0, Rf_mkChar("value"));
+			SET_STRING_ELT(entry_names, 1, Rf_mkChar("srcref"));
+			SET_STRING_ELT(entry_names, 2, Rf_mkChar("functions"));
+			Rf_setAttrib(entry, R_NamesSymbol, entry_names);
+			UNPROTECT_SAFE(entry_names);
+
+			// Create an integer value that the stencil will increment directly
+			SEXP value_num = PROTECT(Rf_ScalarInteger(0));
+			SET_VECTOR_ELT(entry, 0, value_num);
+			value_ptr = INTEGER(value_num);
+			UNPROTECT_SAFE(value_num);
+
+			// Add the srcref object
+			SET_VECTOR_ELT(entry, 1, srcref);
+
+			// Add the function name as a character vector
+			SEXP func_vec = PROTECT(Rf_allocVector(STRSXP, 1));
+			SET_STRING_ELT(func_vec, 0, Rf_mkChar(func_name));
+			SET_VECTOR_ELT(entry, 2, func_vec);
+			UNPROTECT_SAFE(func_vec);
+
+			// Define in coverage_registry
+			Rf_defineVar(key_symbol, entry, coverage_registry);
+
+			UNPROTECT_SAFE(entry);
+		}
+		else
+		{
+			SEXP entry = existing;
+			// Entry exists - append this function to the functions list
+			SEXP funcs = VECTOR_ELT(entry, 2);
+			int n_funcs = LENGTH(funcs);
+			SEXP new_funcs = PROTECT(Rf_allocVector(STRSXP, n_funcs + 1));
+			for (int j = 0; j < n_funcs; j++)
+			{
+				SET_STRING_ELT(new_funcs, j, STRING_ELT(funcs, j));
+			}
+			SET_STRING_ELT(new_funcs, n_funcs, Rf_mkChar(func_name));
+			SET_VECTOR_ELT(entry, 2, new_funcs);
+			UNPROTECT_SAFE(new_funcs);
+
+			// Get pointer to the existing value
+			SEXP value_num = VECTOR_ELT(entry, 0);
+			value_ptr = INTEGER(value_num);
+		}
+		UNPROTECT_SAFE(key_symbol);
+
+		// Point the stencil at this expression's value field
+		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COVERAGE, value_ptr);
+	next_expr:
 	}
+
+	DEBUG_PRINT("Total unique sourcerefs: %d\n", used_srcrefs_count);
+	vmaxset(vmax);
 }
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
@@ -1904,6 +1922,35 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				DEBUG_PRINT("**********\nClosure compiled\n");
 			}
+#ifdef RCP_COMPILE_PROMISES
+			else if (opcode == MAKEPROM_BCOP)
+			{
+				SEXP body = consts[opargs[0]];
+
+				if (TYPEOF(body) == BCODESXP)
+				{
+					DEBUG_PRINT("**********\nCompiling promise\n");
+					// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
+					// Should not be needed, constpool is ours
+					closure_counter++;
+					char closure_name_buf[256];
+					const char *base_name = name ? name : "promise";
+					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
+							 base_name, closure_counter);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry);
+					consts[opargs[0]] = res;
+				}
+				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
+				{
+					DEBUG_PRINT("Using precompiled promise\n");
+				}
+				else
+				{
+					error("Invalid promise type: %d\n", TYPEOF(body));
+				}
+				DEBUG_PRINT("**********\nPromise compiled\n");
+			}
+#endif
 		}
 	}
 
@@ -1988,7 +2035,6 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	SEXP coverage_registry = R_NilValue;
 
-	// Check if R option "rcp.cmpfun.stats" is set to TRUE
 	SEXP coverage_option = Rf_GetOption1(Rf_install("rcp.cmpfun.coverage"));
 	int attach_coverage = (TYPEOF(coverage_option) == LGLSXP && LOGICAL(coverage_option)[0] == TRUE);
 	if (attach_coverage)
@@ -2158,64 +2204,6 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	return compiled;
 }
 
-static SEXP get_coverage(SEXP coverage_registry)
-{
-	if (coverage_registry == NULL)
-		return R_NilValue;
-
-	// Get all keys from the coverage_registry
-	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), coverage_registry));
-	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
-	int n = LENGTH(keys);
-
-	SEXP result = PROTECT(Rf_allocVector(VECSXP, n));
-	SEXP result_names = PROTECT(Rf_allocVector(STRSXP, n));
-
-	for (int i = 0; i < n; i++)
-	{
-		const char *key = CHAR(STRING_ELT(keys, i));
-		SET_STRING_ELT(result_names, i, STRING_ELT(keys, i));
-
-		SEXP entry = Rf_findVarInFrame(coverage_registry, Rf_install(key));
-		if (entry != R_UnboundValue)
-		{
-			// Values are already up-to-date, just copy the entry
-			SET_VECTOR_ELT(result, i, entry);
-		}
-		else
-		{
-			SET_VECTOR_ELT(result, i, R_NilValue);
-		}
-	}
-
-	Rf_setAttrib(result, R_NamesSymbol, result_names);
-
-	// Set class attribute to "coverage"
-	SEXP class_attr = PROTECT(Rf_allocVector(STRSXP, 1));
-	SET_STRING_ELT(class_attr, 0, Rf_mkChar("coverage"));
-	Rf_setAttrib(result, R_ClassSymbol, class_attr);
-
-	UNPROTECT(5); // class_attr, result_names, result, keys, ls_call
-	return result;
-}
-/*
-SEXP C_rcp_function_coverage(SEXP fun, SEXP code, SEXP env, SEXP enc)
-{
-	if (TYPEOF(fun) == CLOSXP)
-		env = CLOENV(fun);
-
-	SEXP coverage_registry = PROTECT(R_NewEnv(R_EmptyEnv, TRUE, 64));
-	DEBUG_PRINT("Compiling function with coverage instrumentation...\n");
-	SEXP native_code = PROTECT(cmpfun(fun, R_NilValue, coverage_registry));
-	DEBUG_PRINT("Running compiled function with coverage instrumentation...\n");
-	eval(native_code, enc);
-	UNPROTECT_SAFE(native_code);
-	DEBUG_PRINT("Retrieving coverage data...\n");
-	SEXP res = get_coverage(coverage_registry);
-	UNPROTECT_SAFE(coverage_registry);
-	return res;
-}
-*/
 static void save_original_cmpfun(void)
 {
 	// Get the compiler namespace

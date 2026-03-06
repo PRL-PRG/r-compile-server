@@ -39,6 +39,9 @@ endef
 RELOC_MODEL ?= 1
 ALIGN_INSTRUCTIONS ?= 1
 
+# Whether to compile promises to native code
+RCP_COMPILE_PROMISES ?= 0
+
 ## ------------------------------------------------------------------------ 
 ## END OF SETTINGS
 ## ------------------------------------------------------------------------ 
@@ -86,6 +89,7 @@ endif
 
 SPECIALIZE_STEPFOR ?= 1
 SPECIALIZE_SWITCH ?= 1
+SPECIALIZE_MAKEPROM ?= 1
 
 EXTRACTOR_BIN = extractor
 EXTRACTOR_DIR = extractor
