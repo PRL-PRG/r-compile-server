@@ -23,6 +23,7 @@ all: install
 .PHONY: install
 install: check-toolchain
 	CC="$(CC)" CXX="$(CXX)" $(R) CMD INSTALL .
+	$(R) CMD INSTALL .
 
 .PHONY: clean
 clean:
@@ -61,6 +62,9 @@ BENCH_OUT_DIR ?=
 .PHONY: benchmark
 benchmark: check-toolchain
 	@$(call ensure_microbenchmark_installed)
+	@RSH_HOME=$(RSH_HOME) R_HOME=$(R_HOME) ./inst/benchmarks/run-benchmarks.sh \
+		--runs $(BENCH_ITER) --parallel $(BENCH_PARALLEL) \
+		$(if $(BENCH_OUT_DIR),--output $(BENCH_OUT_DIR))
 
 compile_commands.json:
 	bear -- $(MAKE) clean install
