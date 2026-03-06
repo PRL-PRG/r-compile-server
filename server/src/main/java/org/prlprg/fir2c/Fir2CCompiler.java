@@ -22,6 +22,7 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
@@ -39,6 +40,7 @@ import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -64,6 +66,7 @@ import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Kind.AnySexp;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Promisity;
@@ -71,6 +74,8 @@ import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.*;
 import org.prlprg.gen2c.*;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Constants;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Collections2;
@@ -986,9 +991,10 @@ public final class Fir2CCompiler {
                         namedArrays.values().pointer(),
                         namedArrays.names());
               }
+              case Noop() -> "NULL";
               case Placeholder() -> {
                 cCode.stmt("Rf_error(\"FIŘ placeholder reached\");");
-                yield "R_NilValue";
+                yield "NULL";
               }
               case PopEnv() -> {
                 cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
@@ -1177,7 +1183,7 @@ public final class Fir2CCompiler {
             return switch (assume) {
               case AssumeConstant(var target, var constant) ->
                   "Fir_assume_constant(%s, %s)"
-                      .formatted(emitArgument(target), constantRef(pool, constant.sexp()));
+                      .formatted(emitArgument(target), constantRef(pool, constant.value()));
               case AssumeFunction a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =
                     Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
@@ -1403,14 +1409,15 @@ public final class Fir2CCompiler {
 
   private String emitKind(Kind kind) {
     return switch (kind) {
-      case Kind.AnyValue() -> "Fir_kind_any_value";
-      case Kind.PrimitiveScalar(var primitiveKind) ->
-          "Fir_kind_primitive_scalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
+      case AnySexp() -> "Fir_kind_any_value";
       case Kind.PrimitiveVector(var primitiveKind) ->
           "Fir_kind_primitive_vector(%s)".formatted(emitPrimitiveKind(primitiveKind));
       case Kind.Closure() -> "Fir_kind_closure";
       case Kind.Dots() -> "Fir_kind_dots";
       case Kind.Missing() -> "Fir_kind_missing";
+      case Kind.PrimitiveScalar(var primitiveKind) ->
+          "Fir_kind_primitive_scalar(%s)".formatted(emitPrimitiveKind(primitiveKind));
+      case Kind.Boolean() -> "Fir_kind_boolean";
     };
   }
 
@@ -1552,6 +1559,21 @@ public final class Fir2CCompiler {
 
   private static String nvSymbolRef(ConstantPool pool, NamedVariable nv) {
     return nv == NamedVariable.DOTS ? "R_DotsSymbol" : constantRef(pool, SEXPs.symbol(nv.name()));
+  }
+
+  private static String constantRef(ConstantPool pool, Value constant) {
+    return switch (constant) {
+      case Value.Sexp(var sexp) -> constantRef(pool, sexp);
+      case Value.Int(var i) -> i == Constants.NA_INT ? "NA_INT" : Integer.toString(i);
+      case Value.Real(var d) -> Double.isNaN(d) ? "NA_REAL" : Double.toString(d);
+      case Value.Str(var s) -> Printer.use(p -> p.writer().writeQuoted('"', s));
+      case Value.Lgl(var l) -> switch (l) {
+        case TRUE -> "(Rboolean)true";
+        case FALSE -> "(Rboolean)false";
+        case NA -> "NA_LGL";
+      };
+      case Value.Bool(var b) -> b ? "true" : "false";
+    };
   }
 
   private static String constantRef(ConstantPool pool, SEXP sexp) {

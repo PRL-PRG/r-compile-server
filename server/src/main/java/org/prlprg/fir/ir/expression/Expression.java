@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
@@ -30,8 +31,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Names;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Characters;
 import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
@@ -50,6 +49,7 @@ public sealed interface Expression
         MaybeForce,
         MkEnv,
         MkVector,
+        Noop,
         Placeholder,
         PopEnv,
         Promise,
@@ -60,8 +60,6 @@ public sealed interface Expression
         SubscriptWrite,
         SuperLoad,
         SuperStore {
-  Expression NOOP = new Aea(new Constant(SEXPs.NULL));
-
   @UnmodifiableView
   Collection<Argument> arguments();
 
@@ -100,6 +98,7 @@ public sealed interface Expression
 
     if (headAsName != null) {
       switch (headAsName) {
+        case "noop" -> new Noop();
         case "clos" -> {
           var functionName = p.parse(NamedVariable.class);
 
@@ -227,7 +226,7 @@ public sealed interface Expression
         }
         // Constant
         case String headAsName1 when Names.isReserved(headAsName1) ->
-            headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
+            headAsArg = new Constant(Parser.fromString(headAsName, Value.class));
         // Variable
         default -> {
           if (!headAsName.startsWith("`")

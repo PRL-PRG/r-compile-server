@@ -32,6 +32,7 @@ import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -143,7 +144,7 @@ public final class TypeAndEffectChecker extends Checker {
     var requiredType =
         switch (assume) {
           case AssumeType(var _, var type) -> type;
-          case AssumeConstant(var _, var constant) -> Type.of(constant.sexp());
+          case AssumeConstant(var _, var constant) -> constant.value().type();
           case AssumeFunction _ -> Type.CLOSURE;
           case AssumeLoadFun _ ->
               throw new IllegalArgumentException(
@@ -388,7 +389,7 @@ public final class TypeAndEffectChecker extends Checker {
               default -> report("Can't create a vector of kind " + kind);
             }
           }
-          case MkEnv(), PopEnv(), Placeholder() -> {}
+          case MkEnv(), Noop(), PopEnv(), Placeholder() -> {}
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
             if (expectedInnerType.ownership() != Ownership.SHARED) {

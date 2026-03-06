@@ -2,10 +2,10 @@ package org.prlprg.fir.ir.argument;
 
 import javax.annotation.concurrent.Immutable;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Characters;
 
 /// A statement or jump argument. Essentially a "zero cost" instruction,
@@ -18,16 +18,15 @@ public sealed interface Argument permits Constant, Read, Use {
   private static Argument parse(Parser p) {
     var s = p.scanner();
 
-    if (s.nextCharsAre("NULL")
+    if (s.nextCharIs('<')
         || s.nextCharsAre("TRUE")
         || s.nextCharsAre("FALSE")
         || s.nextCharsAre("NA_")
         || s.nextCharSatisfies(Character::isDigit)
         || s.nextCharIs('+')
         || s.nextCharIs('-')
-        || s.nextCharIs('\"')
-        || s.nextCharIs('<')) {
-      var value = p.parse(SEXP.class);
+        || s.nextCharIs('\"')) {
+      var value = p.parse(Value.class);
       return new Constant(value);
     } else if (s.trySkip("use ")) {
       var register = p.parse(Register.class);

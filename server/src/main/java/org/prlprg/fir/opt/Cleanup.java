@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
@@ -32,6 +33,7 @@ import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -53,7 +55,6 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.primitive.Logical;
 
 /// Cleanup optimizations:
 /// - Basic blocks
@@ -146,18 +147,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     void simplifyBranches(BB bb) {
       if (bb.jump() instanceof If(var comments, var cond, var ifTrue, var ifFalse)) {
         // Case 1: Condition is a constant
-        if (cond instanceof Constant literal) {
-          var target =
-              switch (truthiness(literal)) {
-                case TRUE -> ifTrue;
-                case FALSE -> ifFalse;
-                case NA -> null;
-              };
-          if (target == null) {
-            // If the condition is not a boolean logical, this is a type error.
-            return;
-          }
-
+        if (cond instanceof Constant(var c) && c instanceof Value.Bool(var b)) {
+          var target = b ? ifTrue : ifFalse;
           bb.setJump(new Goto(comments, target));
           changed = true;
           return;
@@ -169,10 +160,6 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
           changed = true;
         }
       }
-    }
-
-    static Logical truthiness(Constant constant) {
-      return constant.sexp().asScalarLogical().orElse(Logical.NA);
     }
 
     void removeSinglePredecessorPhis(BB bb) {
@@ -401,7 +388,9 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case LoadFun(var _, var env) -> env != Env.LOCAL;
         case MaybeForce _ -> false;
         case MkVector _ -> true;
-        case MkEnv _, Placeholder _, PopEnv _ -> false;
+        case MkEnv _ -> false;
+        case Noop _ -> true;
+        case Placeholder _, PopEnv _ -> false;
         case Promise _ -> true;
         case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
         // May error

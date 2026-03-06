@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.argument;
 
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
@@ -8,7 +9,8 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.SEXPs;
+import org.prlprg.primitive.Constants;
+import org.prlprg.primitive.Logical;
 import org.prlprg.util.Characters;
 
 /// An argument with an optional name.
@@ -45,21 +47,23 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
       // Handle unnamed arguments that are identifier constants
       switch (nameOrUseOrRegister) {
         case "TRUE":
-          return new NamedArgument(new Constant(SEXPs.TRUE));
+          return new NamedArgument(new Constant(new Value.Bool(true)));
         case "FALSE":
-          return new NamedArgument(new Constant(SEXPs.FALSE));
-        case "NULL":
-          return new NamedArgument(new Constant(SEXPs.NULL));
+          return new NamedArgument(new Constant(new Value.Bool(false)));
+        case "TRUE_LGL":
+          return new NamedArgument(new Constant(new Value.Lgl(Logical.TRUE)));
+        case "FALSE_LGL":
+          return new NamedArgument(new Constant(new Value.Lgl(Logical.FALSE)));
         case "NA_LGL":
-          return new NamedArgument(new Constant(SEXPs.NA_LOGICAL));
+          return new NamedArgument(new Constant(new Value.Lgl(Logical.NA)));
         case "NA_INT":
-          return new NamedArgument(new Constant(SEXPs.NA_INTEGER));
+          return new NamedArgument(new Constant(new Value.Int(Constants.NA_INT)));
         case "NA_REAL":
-          return new NamedArgument(new Constant(SEXPs.NA_REAL));
+          return new NamedArgument(new Constant(new Value.Real(Constants.NA_REAL)));
         case "NA_STR":
-          return new NamedArgument(new Constant(SEXPs.NA_STRING));
-        case "NA_CPLX":
-          return new NamedArgument(new Constant(SEXPs.NA_COMPLEX));
+          return new NamedArgument(new Constant(new Value.Str(Constants.NA_STRING)));
+        case "NULL", "NA_CPLX":
+          throw s.fail("Constant '" + nameOrUseOrRegister + "' not implemented");
       }
 
       if (s.trySkip('=')) {

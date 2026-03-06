@@ -315,7 +315,7 @@ public final class Abstraction implements Comparable<Abstraction> {
 
   public @Nullable Type typeOf(Argument argument) {
     return switch (argument) {
-      case Constant(var constant) -> Type.of(constant);
+      case Constant(var constant) -> constant.type();
       case Read(var register) -> typeOf(register);
       case Use(var register) -> {
         var type = typeOf(register);

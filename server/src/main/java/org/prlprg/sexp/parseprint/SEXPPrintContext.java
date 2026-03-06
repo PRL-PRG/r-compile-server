@@ -104,8 +104,15 @@ public class SEXPPrintContext {
 
   @PrintMethod
   private void print(NilSXP sexp, Printer p) {
-    // `NULL`
-    handleDepth(p, () -> p.writer().write(sexp.toString()));
+    handleDepth(p, () -> {
+      if (options.printDelimited()) {
+        printGeneralStart(sexp.type(), p);
+        p.writer().write(sexp.toString());
+        printGeneralEnd(p);
+      } else {
+        p.writer().write(sexp.toString());
+      }
+    });
   }
 
   @PrintMethod
@@ -172,7 +179,7 @@ public class SEXPPrintContext {
     handleDepth(
         p,
         () -> {
-          if (sexp.isSimpleScalar()) {
+          if (sexp.isSimpleScalar() && !options.printDelimited()) {
             printStringElem(sexp.get(0), options.maxStringLength(), p.withContext(forVectorElem));
           } else {
             printGeneralStart(sexp.type(), p);
@@ -192,7 +199,7 @@ public class SEXPPrintContext {
         p,
         () -> {
           // RAWSXP are simple scalars, but can't be printed inline because they conflict with ints.
-          if (sexp.isSimpleScalar() && sexp.type() != SEXPType.RAW) {
+          if (sexp.isSimpleScalar() && sexp.type() != SEXPType.RAW && !options.printDelimited()) {
             p.withContext(forVectorElem).print(sexp.get(0));
           } else {
             printGeneralStart(sexp.type(), p);
@@ -211,21 +218,21 @@ public class SEXPPrintContext {
     handleDepth(
         p,
         () ->
-            runNotDelimited(
-                () -> {
-                  var w = p.writer();
+          runNotDelimited(
+              () -> {
+                var w = p.writer();
 
-                  printGeneralStart(sexp.type(), p);
+                printGeneralStart(sexp.type(), p);
 
-                  printList(sexp.parameters(), p.withContext(forBindings));
-                  w.write(" env=");
-                  w.runIndented(() -> p.print(sexp.env()));
-                  printAttributes(sexp, p);
-                  w.write(" ⇒ ");
-                  w.runIndented(() -> p.print(sexp.body()));
+                printList(sexp.parameters(), p.withContext(forBindings));
+                w.write(" env=");
+                w.runIndented(() -> p.print(sexp.env()));
+                printAttributes(sexp, p);
+                w.write(" ⇒ ");
+                w.runIndented(() -> p.print(sexp.body()));
 
-                  printGeneralEnd(p);
-                }));
+                printGeneralEnd(p);
+              }));
   }
 
   @PrintMethod

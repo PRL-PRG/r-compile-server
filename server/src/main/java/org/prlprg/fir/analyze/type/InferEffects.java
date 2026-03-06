@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -116,7 +117,7 @@ public final class InferEffects implements Analysis {
             // ...except in global or base env, those are special lookups for known functions
             case GLOBAL, BASE -> Effects.NONE;
           };
-      case MkVector(var _, var _), MkEnv(), PopEnv(), Placeholder(), Promise(var _, var _, var _) ->
+      case MkVector(var _, var _), MkEnv(), Noop(), PopEnv(), Placeholder(), Promise(var _, var _, var _) ->
           Effects.NONE;
       case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.REFLECT;
       case Store(var _, var _),
