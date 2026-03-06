@@ -153,7 +153,7 @@ public sealed interface Kind extends Comparable<Kind> {
       }
       case Closure() -> w.write("cls");
       case Dots() -> w.write("dots");
-      case Missing() -> w.write("M");
+      case Missing() -> w.write("miss");
     }
   }
 
@@ -172,7 +172,7 @@ public sealed interface Kind extends Comparable<Kind> {
       return new Closure();
     } else if (s.trySkip("dots")) {
       return new Dots();
-    } else if (s.trySkip('M')) {
+    } else if (s.trySkip("miss")) {
       return new Missing();
     } else if (s.nextCharSatisfies(c -> c == 'L' || c == 'I' || c == 'R' || c == 'S')) {
       var primitive = p.parse(PrimitiveKind.class);
@@ -181,7 +181,7 @@ public sealed interface Kind extends Comparable<Kind> {
       // Also has the starting characters for parsing a promise,
       // because in practice it's parsed that way.
       throw s.fail(
-          "expected '*', 'V', 'v('..., 'cls', 'dots', 'M', 'p('..., 'p?('..., or a primitive kind ('L', 'I', 'R', or 'S')");
+          "expected '*', 'V', 'v('..., 'cls', 'dots', 'miss', 'p('..., 'p?('..., or a primitive kind ('L', 'I', 'R', or 'S')");
     }
   }
 }

@@ -940,7 +940,7 @@ void Fir_print_kind(Fir_Kind kind) {
     fprintf(stderr, "dots");
     break;
   case FIR_KIND_MISSING:
-    fprintf(stderr, "M");
+    fprintf(stderr, "miss");
     break;
   default:
     assert(false && "Malformed kind");

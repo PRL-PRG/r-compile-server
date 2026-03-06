@@ -63,7 +63,7 @@ class ElideCheckMissingTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
-              (reg x:M) --> V { |
+              (reg x:miss) --> V { |
                 checkMissing.0(x);
                 return x;
               }
