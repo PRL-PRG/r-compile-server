@@ -24,6 +24,7 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
@@ -704,7 +705,7 @@ public final class InternalInterpreter implements Interpreter {
   /// Evaluates an [Argument] and returns its value, e.g. [#read(Register)] if it's a [Register].
   ///
   /// @throws IllegalStateException If called outside of evaluation.
-  public SEXP run(Argument argument) {
+  public Value run(Argument argument) {
     checkEvaluation();
     return switch (argument) {
       case Constant(var constant) -> constant;
@@ -717,7 +718,7 @@ public final class InternalInterpreter implements Interpreter {
   /// Lookup the register (on the stack) and crash if it's not defined.
   ///
   /// @throws IllegalStateException If called outside of evaluation.
-  public SEXP read(Register register) {
+  public Value read(Register register) {
     checkEvaluation();
     var value = topFrame().get(register);
     if (value == null) {

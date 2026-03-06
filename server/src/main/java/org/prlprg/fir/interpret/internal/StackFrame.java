@@ -11,6 +11,7 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
@@ -26,7 +27,7 @@ import org.prlprg.util.Lists;
 final class StackFrame {
   /// If there are multiple, that's because we're in a promise being forced.
   private final List<SubFrame> subFrames = new ArrayList<>();
-  private final Map<Register, SEXP> registers = new LinkedHashMap<>();
+  private final Map<Register, Value> registers = new LinkedHashMap<>();
   private EnvSXP environment;
   private int numEnvsPushed = 0;
 
@@ -60,7 +61,7 @@ final class StackFrame {
     subFrames.removeLast();
   }
 
-  public @UnmodifiableView Map<Register, SEXP> registers() {
+  public @UnmodifiableView Map<Register, Value> registers() {
     return registers;
   }
 
@@ -76,10 +77,10 @@ final class StackFrame {
   }
 
   /// Lookup register or named variable.
-  public @Nullable SEXP get(Variable variable) {
+  public @Nullable Value get(Variable variable) {
     return switch (variable) {
       case Register r -> registers.get(r);
-      case NamedVariable nv -> environment.get(nv.name()).orElse(null);
+      case NamedVariable nv -> environment.get(nv.name()).map(Value.Sexp::new).orElse(null);
     };
   }
 
@@ -90,10 +91,15 @@ final class StackFrame {
   }
 
   /// Set local register or store named variable.
-  public void put(Variable variable, SEXP value) {
+  public void put(Variable variable, Value value) {
     switch (variable) {
       case Register r -> registers.put(r, value);
-      case NamedVariable nv -> environment.set(nv.name(), value);
+      case NamedVariable nv -> {
+        if (!(value instanceof Value.Sexp(var sexp))) {
+          throw new IllegalArgumentException("Can't store " + value + " in " + nv);
+        }
+        environment.set(nv.name(), sexp);
+      }
     }
   }
 

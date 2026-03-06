@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.type;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.ParseMethod;
@@ -22,9 +23,9 @@ import org.prlprg.sexp.StrSXP;
 public record Type(Kind kind, Promisity promisity, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
   public static final Type ANY =
-      new Type(new Kind.AnyValue(), Promisity.ANY, Ownership.SHARED, Concreteness.MAYBE);
+      new Type(new Kind.AnySexp(), Promisity.ANY, Ownership.SHARED, Concreteness.MAYBE);
   public static final Type ANY_VALUE =
-      new Type(new Kind.AnyValue(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
+      new Type(new Kind.AnySexp(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type ANY_PROMISE = promise(ANY_VALUE, Effects.REFLECT);
   public static final Type INTEGER = primitiveScalar(PrimitiveKind.INTEGER);
   public static final Type LOGICAL = primitiveScalar(PrimitiveKind.LOGICAL);
@@ -40,7 +41,8 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
       primitiveVector(PrimitiveKind.STRING, Ownership.SHARED);
   public static final Type CLOSURE =
       new Type(new Kind.Closure(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
-  public static final Type BOOLEAN = LOGICAL;
+  public static final Type BOOLEAN =
+      new Type(new Kind.Boolean(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type DOTS =
       new Type(new Kind.Dots(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
 
@@ -71,10 +73,10 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
 
   public static Type of(SEXP sexp) {
     return switch (sexp) {
-      case IntSXP i when !sexp.hasAttributes() -> i.isScalar() ? INTEGER : SHARED_INT_VECTOR;
-      case LglSXP l when !sexp.hasAttributes() -> l.isScalar() ? LOGICAL : SHARED_LOGICAL_VECTOR;
-      case RealSXP r when !sexp.hasAttributes() -> r.isScalar() ? REAL : SHARED_REAL_VECTOR;
-      case StrSXP s when !sexp.hasAttributes() -> s.isScalar() ? STRING : SHARED_STRING_VECTOR;
+      case IntSXP _ when !sexp.hasAttributes() -> SHARED_INT_VECTOR;
+      case LglSXP _ when !sexp.hasAttributes() -> SHARED_LOGICAL_VECTOR;
+      case RealSXP _ when !sexp.hasAttributes() -> SHARED_REAL_VECTOR;
+      case StrSXP _ when !sexp.hasAttributes() -> SHARED_STRING_VECTOR;
       case DotsListSXP _ -> DOTS;
       case CloSXP _, BuiltinOrSpecialSXP _ -> CLOSURE;
       case PromSXP p ->
@@ -117,7 +119,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
   }
 
   public boolean isWellFormed() {
-    return !(kind instanceof Kind.AnyValue
+    return !(kind instanceof Kind.AnySexp
             && promisity.equals(Promisity.ANY)
             && concreteness == Concreteness.DEFINITE)
         && !(!kind.isWellFormedWithOwnership() && ownership != Ownership.SHARED);
@@ -214,16 +216,16 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
   public static @Nullable Type union(@Nullable Type lhs, @Nullable Type rhs) {
     if (lhs == null) return rhs;
     if (rhs == null) return lhs;
-    return lhs.union(rhs, () -> {});
+    return lhs.union(rhs, _ -> {});
   }
 
-  public Type union(Type other, Runnable onOwnershipMismatch) {
+  public Type union(Type other, Consumer<String> onMismatch) {
     if (ownership != other.ownership) {
-      onOwnershipMismatch.run();
+      onMismatch.accept("ownership");
     }
 
     return new Type(
-        kind.union(other.kind),
+        kind.union(other.kind, onMismatch),
         promisity.union(other.promisity),
         // Technically ownerships must be equal, but for graceful recovery and easier type feedback.
         other.ownership == Ownership.SHARED ? Ownership.SHARED : ownership,
@@ -254,7 +256,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
 
     // For `ANY - concreteness` concreteness is implicit iff `MAYBE` (and otherwise malformed).
     // For other kinds, concreteness is implicit iff `DEFINITELY`.
-    if ((kind instanceof Kind.AnyValue
+    if ((kind instanceof Kind.AnySexp
             && promisity.equals(Promisity.ANY)
             && ownership == Ownership.SHARED)
         == (concreteness == Concreteness.DEFINITE)) {

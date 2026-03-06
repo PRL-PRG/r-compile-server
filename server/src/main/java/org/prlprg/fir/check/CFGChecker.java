@@ -9,8 +9,10 @@ import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.If;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
@@ -37,6 +39,7 @@ import org.prlprg.fir.ir.variable.Register;
 ///     same control-flow graph of the definition. In other words, during execution, the
 ///     definition must be guaranteed to occur before all promises containing the read (which
 ///     ensures it occurs before the read itself).
+/// - Registers aren't assigned NOOPs.
 public class CFGChecker extends Checker {
   private final boolean isStrict;
 
@@ -124,6 +127,15 @@ public class CFGChecker extends Checker {
         } else if (definitions.size() > 1) {
           for (var def : definitions) {
             report(def, "Local register " + localReg + " assigned multiple times");
+          }
+        }
+      }
+
+      // Registers aren't assigned NOOPs
+      for (var reg : defUses.definedRegisters()) {
+        for (var def : defUses.definitions(reg)) {
+          if (def.inInnermostCfg().instruction() instanceof Statement s && s.expression() instanceof Noop) {
+            report(def, "Register " + reg + " assigned a `noop`");
           }
         }
       }

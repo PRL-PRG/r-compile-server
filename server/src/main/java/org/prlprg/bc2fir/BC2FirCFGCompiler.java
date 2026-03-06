@@ -909,7 +909,8 @@ public class BC2FirCFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var asString = insertAndReturn("_idx", new Cast(value, Type.STRING));
+              // TODO: use unboxed string (need to create constant and equals)
+              var asString = insertAndReturn("_idx", new Cast(value, Type.SHARED_STRING_VECTOR));
               var cond =
                   insertAndReturn(
                       "_cond", builtin("==", 3, asString, new Constant(SEXPs.string(name))));
@@ -1257,8 +1258,8 @@ public class BC2FirCFGCompiler {
                 phi,
                 oldType.union(
                     argType,
-                    () -> {
-                      throw new AssertionError("ownership mismatch between phi arguments");
+                    desc -> {
+                      throw new AssertionError(desc + " mismatch between phi arguments");
                     }));
       }
     }

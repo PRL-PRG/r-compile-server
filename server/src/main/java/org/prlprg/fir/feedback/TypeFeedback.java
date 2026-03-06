@@ -39,7 +39,7 @@ public class TypeFeedback {
 
   void record(Type type) {
     hits.merge(type, 1, Integer::sum);
-    union = union == null ? type : union.union(type, () -> {});
+    union = union == null ? type : union.union(type, _ -> {});
   }
 
   @Override
@@ -68,7 +68,7 @@ public class TypeFeedback {
 
         hits.put(type, count);
         // Update union to include this type
-        union = union.union(type, () -> {});
+        union = union.union(type, _ -> {});
       } while (s.trySkip(", "));
       s.assertAndSkip(')');
     } else {
