@@ -18,23 +18,16 @@ if (!dir.exists(directory)) {
     pattern = "\\.R$",
     recursive = TRUE,
     full.names = TRUE,
-    ignore.case = TRUE
+    ignore.case = FALSE
   )
   
   # Filter to only include files at depth >= 2
   # Depth is calculated relative to the base directory
   base_path <- normalizePath(directory)
-  
-  filter_by_depth <- function(file_path, min_depth = 2) {
-    # Get relative path from base directory
-    rel_path <- sub(paste0("^", gsub("([\\\\])", "\\\\\\1", base_path), "/? "), "", 
-                    normalizePath(file_path))
-    # Count directory separators to determine depth
-    depth <- length(strsplit(rel_path, "/|\\\\")[[1]]) - 1  # -1 because last element is filename
-    return(depth >= min_depth)
-  }
-  
-  r_files <- all_files[sapply(all_files, filter_by_depth, min_depth = 2)]
+
+  rel_paths <- substring(normalizePath(all_files), nchar(base_path) + 2L)
+  depths    <- lengths(strsplit(rel_paths, .Platform$file.sep, fixed = TRUE)) - 1L
+  r_files   <- all_files[depths >= 1L]
   
   if (length(r_files) == 0) {
     message("No R files found at depth >= 2 in directory: ", directory)
@@ -77,9 +70,9 @@ if (!dir.exists(directory)) {
   message("Starting benchmark...\n")
   library(rcp)
 
-rcp:::rcp_cmppkg("compiler")
-rcp:::rcp_cmppkg("base")
-rcp:::rcp_cmppkg("utils")
+  rcp:::rcp_cmppkg("compiler")
+  rcp:::rcp_cmppkg("base")
+  rcp:::rcp_cmppkg("utils")
   
   # Initialize results storage
   results <- data.frame(
