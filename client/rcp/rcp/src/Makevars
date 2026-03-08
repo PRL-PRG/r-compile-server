@@ -36,6 +36,7 @@ endif
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
+$(info RCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build
