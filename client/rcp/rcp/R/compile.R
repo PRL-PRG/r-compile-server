@@ -46,7 +46,7 @@ rcp_jit_disable <- function() {
 #' @return A list with counts of successfully compiled and failed functions
 #' @export
 rcp_cmppkg <- function(package) {
-  .Call(C_rcp_cmppkg, package)
+  invisible(.Call(C_rcp_cmppkg, package))
 }
 
 #' Get profiling data from RCP
