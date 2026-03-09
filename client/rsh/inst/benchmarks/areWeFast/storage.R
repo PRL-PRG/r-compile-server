@@ -18,7 +18,7 @@ execute <- function(size) {
 
     count <<- 0
     resetSeed()
-    buildTreeDepth(7, nextRandom())
+    buildTreeDepth(10, nextRandom())
     return (count) 
 }
 
