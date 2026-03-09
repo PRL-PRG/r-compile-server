@@ -512,6 +512,9 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 			int label_pos = imms[hole->val.imm_pos] - 1;
 			while (ctx->executable_lookup[label_pos] == NULL || ctx->bytecode[label_pos] != opcode_to_find)
 			{
+				if(ctx->executable_lookup[label_pos] != NULL)
+					DEBUG_PRINT("Looking for opcode %d at position %d, found %d\n", opcode_to_find, label_pos, ctx->bytecode[label_pos]);
+
 				label_pos--;
 				if (label_pos < 0)
 					error("Could not find corresponding BC instruction for indirect BCell patching in stencil %s\n", stencil->name);
@@ -1324,6 +1327,22 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				*stepfor_mem = stepfor_data; // Copy the specialized StepFor data
 
 				int stepfor_bc = bytecode[bc_pos + 1 + 2] - 1;
+				DEBUG_PRINT("Looking for STEPFOR_BCOP at position %d\n", stepfor_bc);
+				while(bytecode[stepfor_bc] != STEPFOR_BCOP)
+				{
+					// We need to find the corresponding STEPFOR_BCOP instruction to know where to copy the specialized code to
+					DEBUG_PRINT("Not found, found %s instead. Following this instruction.\n", OPCODES_NAMES[bytecode[stepfor_bc]]);
+
+					if(bytecode[stepfor_bc] == GOTO_BCOP)
+						stepfor_bc = bytecode[stepfor_bc + 1] - 1;
+					else
+						stepfor_bc += RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1;
+
+					if (stepfor_bc >= bytecode_size || stepfor_bc < 0)
+						error("Could not find corresponding STEPFOR_BCOP for STARTFOR_BCOP at bytecode position %d\n", bc_pos);
+				}
+				DEBUG_PRINT("Found corresponding STEPFOR_BCOP at position %d\n", stepfor_bc);
+
 				uint8_t *stepfor_code = inst_start[stepfor_bc];
 
 				// Set the destination pointer to point to where the stepfor code should
