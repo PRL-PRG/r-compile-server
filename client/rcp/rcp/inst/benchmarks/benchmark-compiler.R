@@ -46,7 +46,7 @@ if (!dir.exists(directory)) {
     env <- new.env(parent = globalenv())
     
     tryCatch({
-      source(file, local = env)
+      source(file, local = env, chdir = TRUE)
       
       # Check if execute function exists
       if (exists("execute", envir = env) && is.function(get("execute", envir = env))) {
@@ -82,14 +82,14 @@ if (!dir.exists(directory)) {
     stringsAsFactors = FALSE
   )
   
-  # Start timing and run rcp:::rcp_cmppkg for each execute function
+  # Start timing and BC compile each execute function
   total_start_time <- Sys.time()
   
   for (i in seq_along(execute_functions)) {
     file <- file_paths[i]
     execute_fn <- execute_functions[[i]]
     
-    message("Running rcp_cmppkg for:  ", basename(file))
+    message("BC compiling function:  ", basename(file))
     
     start_time <- Sys.time()
     
