@@ -766,6 +766,7 @@ static int8_t stack_effect(RCP_BC_OPCODES opcode, int *imms)
 		case (SUBSET2_N_BCOP):
 		case (SUBASSIGN_N_BCOP):
 		case (SUBASSIGN2_N_BCOP):
+		case (DOTCALL_BCOP):
 			res -= imms[1];
 	}
 	return res;
