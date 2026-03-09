@@ -27,4 +27,6 @@ typedef struct {
     
 } TypeTrace;
 
+#define DEACTIVATE_S3_GENERICS
+
 #endif

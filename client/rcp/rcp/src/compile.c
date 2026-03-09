@@ -254,6 +254,45 @@ static const void **prepare_got_table(size_t *got_size)
 	return got_table_tmp;
 }
 
+static int contains_symbol_call(SEXP expr, SEXP symbol)
+{
+	if (expr == R_NilValue)
+		return 0;
+
+	switch (TYPEOF(expr))
+	{
+		case BCODESXP:
+			return contains_symbol_call(R_BytecodeExpr(expr), symbol);
+		case LANGSXP:
+			if (CAR(expr) == symbol)
+				return 1;
+			for (SEXP node = expr; node != R_NilValue; node = CDR(node))
+			{
+				if (contains_symbol_call(CAR(node), symbol))
+					return 1;
+			}
+			return 0;
+		case LISTSXP:
+		case DOTSXP:
+			for (SEXP node = expr; node != R_NilValue; node = CDR(node))
+			{
+				if (contains_symbol_call(CAR(node), symbol))
+					return 1;
+			}
+			return 0;
+		case EXPRSXP:
+		case VECSXP:
+			for (R_xlen_t i = 0; i < XLENGTH(expr); i++)
+			{
+				if (contains_symbol_call(VECTOR_ELT(expr, i), symbol))
+					return 1;
+			}
+			return 0;
+		default:
+			return 0;
+	}
+}
+
 static void prepare_active_holes(void)
 {
 	for (size_t i = 0; i < sizeof(stencils_all) / sizeof(*stencils_all); i++)
@@ -2408,6 +2447,19 @@ SEXP C_rcp_cmppkg(SEXP package_name)
 			continue;
 		}
 
+#ifdef DEACTIVATE_S3_GENERICS
+		// Skip S3 generics.
+		// They are usually skipped for the exit hooks because they do not reach
+		// their exit after reaching UseMethod.
+		// We conservatively detect them by looking for UseMethod calls in the body.
+		if (contains_symbol_call(BODY_EXPR(obj), Rf_install("UseMethod")))
+		{
+			DEBUG_PRINT("  Skipping %s (S3 generic)\n", CHAR(STRING_ELT(obj_names, i)));
+			UNPROTECT_SAFE(name_sym);
+			continue;
+		}
+#endif
+
 		SEXP options = PROTECT(Rf_allocVector(VECSXP, 1));
 		SEXP options_names = PROTECT(Rf_allocVector(STRSXP, 1));
 		Rf_setAttrib(options, R_NamesSymbol, options_names);
@@ -2586,6 +2638,15 @@ SEXP C_rcp_get_profiling(void)
 	Rf_warning("Profiling is not available. Recompile RCP with PROFILE_STENCILS "
 			   "defined to enable profiling.");
 	return R_NilValue;
+#endif
+}
+
+SEXP C_rcp_s3_generics_deactivated(void)
+{
+#ifdef DEACTIVATE_S3_GENERICS
+	return Rf_ScalarLogical(1);
+#else
+	return Rf_ScalarLogical(0);
 #endif
 }
 
