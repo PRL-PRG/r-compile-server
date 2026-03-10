@@ -10,6 +10,7 @@ Fir_Kind Fir_kind_any_value = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
 Fir_Kind Fir_kind_dots = {.tag = FIR_KIND_DOTS};
 Fir_Kind Fir_kind_missing = {.tag = FIR_KIND_MISSING};
+Fir_Kind Fir_kind_boolean = {.tag = FIR_KIND_BOOLEAN};
 
 static Fir_Kind const PRIMITIVE_SCALAR_KINDS[4] = {
   {.tag = FIR_KIND_PRIMITIVE_SCALAR, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
@@ -92,26 +93,21 @@ bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fi
 static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
   switch (other_kind.tag) {
   case FIR_KIND_ANY_VALUE:
-    return true;
+    // AnySexp is the top type for SEXP (boxed) values only
+    return this_kind.tag != FIR_KIND_PRIMITIVE_SCALAR && this_kind.tag != FIR_KIND_BOOLEAN;
   case FIR_KIND_PRIMITIVE_VECTOR: {
     int other_primitive = other_kind.as.primitive.primitive;
-    switch (this_kind.tag) {
-    case FIR_KIND_PRIMITIVE_SCALAR:
-    case FIR_KIND_PRIMITIVE_VECTOR:
-      return this_kind.as.primitive.primitive == other_primitive;
-    default:
-      return false;
-    }
+    // PrimitiveScalar is NOT a subtype of PrimitiveVector (different repr)
+    return this_kind.tag == FIR_KIND_PRIMITIVE_VECTOR
+        && this_kind.as.primitive.primitive == other_primitive;
   }
   case FIR_KIND_PRIMITIVE_SCALAR:
+    return this_kind.tag == FIR_KIND_PRIMITIVE_SCALAR
+        && this_kind.as.primitive.primitive == other_kind.as.primitive.primitive;
+  case FIR_KIND_BOOLEAN:
+    return this_kind.tag == FIR_KIND_BOOLEAN;
   case FIR_KIND_CLOSURE:
-    if (this_kind.tag != other_kind.tag) {
-      return false;
-    }
-    if (this_kind.tag == FIR_KIND_PRIMITIVE_SCALAR) {
-      return this_kind.as.primitive.primitive == other_kind.as.primitive.primitive;
-    }
-    return true;
+    return this_kind.tag == FIR_KIND_CLOSURE;
   case FIR_KIND_DOTS:
     return this_kind.tag == FIR_KIND_DOTS || this_kind.tag == FIR_KIND_MISSING;
   case FIR_KIND_MISSING:
@@ -144,6 +140,7 @@ static bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
   case FIR_KIND_ANY_VALUE:
     return true;
   case FIR_KIND_PRIMITIVE_SCALAR: {
+      // Unboxed scalars are represented as length-1 SEXP vectors at the C level (for now)
       SEXPTYPE expected
           = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
           : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
@@ -162,6 +159,10 @@ static bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
           : STRSXP;
       return TYPEOF(value) == expected;
   }
+  case FIR_KIND_BOOLEAN:
+    // A boolean is a logical scalar that is not NA
+    return TYPEOF(value) == LGLSXP && Rf_length(value) == 1
+        && LOGICAL(value)[0] != NA_LOGICAL;
   case FIR_KIND_CLOSURE:
     return TYPEOF(value) == CLOSXP || TYPEOF(value) == BUILTINSXP ||
            TYPEOF(value) == SPECIALSXP;
@@ -487,7 +488,6 @@ SEXP Fir_subscript_read(SEXP vector, SEXP index) {
   ASSERT(idx != NA_INTEGER, "Subscript index cannot be NA");
   ASSERT(idx >= 0 && (R_xlen_t)idx < XLENGTH(vector), "Subscript index out of bounds");
 
-  SEXP res;
   switch (TYPEOF(vector)) {
   case LGLSXP:
     return Rf_ScalarLogical(LOGICAL(vector)[idx]);
@@ -925,9 +925,6 @@ void Fir_print_kind(Fir_Kind kind) {
   case FIR_KIND_ANY_VALUE:
     fprintf(stderr, "V");
     break;
-  case FIR_KIND_PRIMITIVE_SCALAR:
-    Fir_print_primitive_kind(kind.as.primitive.primitive);
-    break;
   case FIR_KIND_PRIMITIVE_VECTOR:
     fprintf(stderr, "v(");
     Fir_print_primitive_kind(kind.as.primitive.primitive);
@@ -941,6 +938,12 @@ void Fir_print_kind(Fir_Kind kind) {
     break;
   case FIR_KIND_MISSING:
     fprintf(stderr, "miss");
+    break;
+  case FIR_KIND_PRIMITIVE_SCALAR:
+    Fir_print_primitive_kind(kind.as.primitive.primitive);
+    break;
+  case FIR_KIND_BOOLEAN:
+    fprintf(stderr, "B");
     break;
   default:
     assert(false && "Malformed kind");
@@ -1093,97 +1096,285 @@ DEFINE_INTRINSIC(naToFalse, 0, SEXP value) {
   return Rf_ScalarLogical(value == R_TrueValue);
 }
 
-// +
+// === Vector operation helpers ===
+
+// Binary vector op: int OP int → int (with recycling)
+static SEXP Fir_vec_binop_ii_i(SEXP a, SEXP b, int (*op)(int, int)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(INTSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    INTEGER(res)[i] = op(INTEGER(a)[i % na], INTEGER(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Binary vector op: real OP real → real (with recycling)
+static SEXP Fir_vec_binop_rr_r(SEXP a, SEXP b, double (*op)(double, double)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = op(REAL(a)[i % na], REAL(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Binary vector op: int OP real → real (with recycling)
+static SEXP Fir_vec_binop_ir_r(SEXP a, SEXP b, double (*op)(double, double)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = op((double)INTEGER(a)[i % na], REAL(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Binary vector op: real OP int → real (with recycling)
+static SEXP Fir_vec_binop_ri_r(SEXP a, SEXP b, double (*op)(double, double)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = op(REAL(a)[i % na], (double)INTEGER(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Binary vector comparison: int CMP int → logical (with recycling)
+static SEXP Fir_vec_cmpop_ii_l(SEXP a, SEXP b, int (*op)(int, int)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(LGLSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    LOGICAL(res)[i] = op(INTEGER(a)[i % na], INTEGER(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Binary vector comparison: real CMP real → logical (with recycling)
+static SEXP Fir_vec_cmpop_rr_l(SEXP a, SEXP b, int (*op)(double, double)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(LGLSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    LOGICAL(res)[i] = op(REAL(a)[i % na], REAL(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Binary vector comparison: int CMP real → logical (with recycling)
+static SEXP Fir_vec_cmpop_ir_l(SEXP a, SEXP b, int (*op)(double, double)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(LGLSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    LOGICAL(res)[i] = op((double)INTEGER(a)[i % na], REAL(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Binary vector comparison: real CMP int → logical (with recycling)
+static SEXP Fir_vec_cmpop_ri_l(SEXP a, SEXP b, int (*op)(double, double)) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(LGLSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    LOGICAL(res)[i] = op(REAL(a)[i % na], (double)INTEGER(b)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Unary vector op: int → real
+static SEXP Fir_vec_unaryop_i_r(SEXP v, double (*op)(double)) {
+  R_xlen_t n = XLENGTH(v);
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = op((double)INTEGER(v)[i]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Unary vector op: real → real
+static SEXP Fir_vec_unaryop_r_r(SEXP v, double (*op)(double)) {
+  R_xlen_t n = XLENGTH(v);
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = op(REAL(v)[i]);
+  UNPROTECT(1);
+  return res;
+}
+
+// Arithmetic operation wrappers for function pointers
+static int Fir_add_i(int a, int b) { return a + b; }
+static int Fir_sub_i(int a, int b) { return a - b; }
+static int Fir_mul_i(int a, int b) { return a * b; }
+static double Fir_add_r(double a, double b) { return a + b; }
+static double Fir_sub_r(double a, double b) { return a - b; }
+static double Fir_mul_r(double a, double b) { return a * b; }
+static double Fir_div_r(double a, double b) { return a / b; }
+
+// Comparison operation wrappers
+static int Fir_lt_i(int a, int b) { return a < b; }
+static int Fir_le_i(int a, int b) { return a <= b; }
+static int Fir_eq_i(int a, int b) { return a == b; }
+static int Fir_lt_r(double a, double b) { return a < b; }
+static int Fir_le_r(double a, double b) { return a <= b; }
+static int Fir_eq_r(double a, double b) { return a == b; }
+
+// === + ===
+// v1: I+I→I
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b) {
   return Rf_ScalarInteger(Rf_asInteger(a) + Rf_asInteger(b));
 }
-
-// +
+// v2: R+R→R
 DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asInteger(a) + Rf_asReal(b));
-}
-
-// +
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 3, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asReal(a) + Rf_asInteger(b));
-}
-
-// +
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 4, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) + Rf_asReal(b));
 }
+// v3: I+R→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) + Rf_asReal(b));
+}
+// v4: R+I→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 4, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) + Rf_asInteger(b));
+}
+// v5: v(I)+v(I)→v(I)
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 5, SEXP a, SEXP b) {
+  return Fir_vec_binop_ii_i(a, b, Fir_add_i);
+}
+// v6: v(R)+v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 6, SEXP a, SEXP b) {
+  return Fir_vec_binop_rr_r(a, b, Fir_add_r);
+}
+// v7: v(I)+v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 7, SEXP a, SEXP b) {
+  return Fir_vec_binop_ir_r(a, b, Fir_add_r);
+}
+// v8: v(R)+v(I)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, 8, SEXP a, SEXP b) {
+  return Fir_vec_binop_ri_r(a, b, Fir_add_r);
+}
 
-// -
+// === - ===
+// v1: I-I→I
 DEFINE_OVERRIDDEN_BUILTIN(_u2d, 1, SEXP a, SEXP b) {
   return Rf_ScalarInteger(Rf_asInteger(a) - Rf_asInteger(b));
 }
-
-// -
+// v2: R-R→R
 DEFINE_OVERRIDDEN_BUILTIN(_u2d, 2, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asInteger(a) - Rf_asReal(b));
-}
-
-// -
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 3, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asReal(a) - Rf_asInteger(b));
-}
-
-// -
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 4, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) - Rf_asReal(b));
 }
+// v3: I-R→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) - Rf_asReal(b));
+}
+// v4: R-I→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 4, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) - Rf_asInteger(b));
+}
+// v5: v(I)-v(I)→v(I)
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 5, SEXP a, SEXP b) {
+  return Fir_vec_binop_ii_i(a, b, Fir_sub_i);
+}
+// v6: v(R)-v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 6, SEXP a, SEXP b) {
+  return Fir_vec_binop_rr_r(a, b, Fir_sub_r);
+}
+// v7: v(I)-v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 7, SEXP a, SEXP b) {
+  return Fir_vec_binop_ir_r(a, b, Fir_sub_r);
+}
+// v8: v(R)-v(I)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, 8, SEXP a, SEXP b) {
+  return Fir_vec_binop_ri_r(a, b, Fir_sub_r);
+}
 
-// *
+// === * ===
+// v1: I*I→I
 DEFINE_OVERRIDDEN_BUILTIN(_u2a, 1, SEXP a, SEXP b) {
   return Rf_ScalarInteger(Rf_asInteger(a) * Rf_asInteger(b));
 }
-
-// *
+// v2: R*R→R
 DEFINE_OVERRIDDEN_BUILTIN(_u2a, 2, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asInteger(a) * Rf_asReal(b));
-}
-
-// *
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 3, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asReal(a) * Rf_asInteger(b));
-}
-
-// *
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 4, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) * Rf_asReal(b));
 }
+// v3: I*R→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) * Rf_asReal(b));
+}
+// v4: R*I→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 4, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) * Rf_asInteger(b));
+}
+// v5: v(I)*v(I)→v(I)
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 5, SEXP a, SEXP b) {
+  return Fir_vec_binop_ii_i(a, b, Fir_mul_i);
+}
+// v6: v(R)*v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 6, SEXP a, SEXP b) {
+  return Fir_vec_binop_rr_r(a, b, Fir_mul_r);
+}
+// v7: v(I)*v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 7, SEXP a, SEXP b) {
+  return Fir_vec_binop_ir_r(a, b, Fir_mul_r);
+}
+// v8: v(R)*v(I)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, 8, SEXP a, SEXP b) {
+  return Fir_vec_binop_ri_r(a, b, Fir_mul_r);
+}
 
-// /
+// === / ===
+// v1: I/I→R
 DEFINE_OVERRIDDEN_BUILTIN(_u2f, 1, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asInteger(a) / Rf_asInteger(b));
+  return Rf_ScalarReal((double)Rf_asInteger(a) / (double)Rf_asInteger(b));
 }
-
-// /
+// v2: R/R→R
 DEFINE_OVERRIDDEN_BUILTIN(_u2f, 2, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asInteger(a) / Rf_asReal(b));
-}
-
-// /
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 3, SEXP a, SEXP b) {
-  return Rf_ScalarReal(Rf_asReal(a) / Rf_asInteger(b));
-}
-
-// /
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 4, SEXP a, SEXP b) {
   return Rf_ScalarReal(Rf_asReal(a) / Rf_asReal(b));
 }
+// v3: I/R→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 3, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asInteger(a) / Rf_asReal(b));
+}
+// v4: R/I→R
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 4, SEXP a, SEXP b) {
+  return Rf_ScalarReal(Rf_asReal(a) / Rf_asInteger(b));
+}
+// v5: v(I)/v(I)→v(R) — always returns real for division
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 5, SEXP a, SEXP b) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = (double)INTEGER(a)[i % na] / (double)INTEGER(b)[i % nb];
+  UNPROTECT(1);
+  return res;
+}
+// v6: v(R)/v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 6, SEXP a, SEXP b) {
+  return Fir_vec_binop_rr_r(a, b, Fir_div_r);
+}
+// v7: v(I)/v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 7, SEXP a, SEXP b) {
+  return Fir_vec_binop_ir_r(a, b, Fir_div_r);
+}
+// v8: v(R)/v(I)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, 8, SEXP a, SEXP b) {
+  return Fir_vec_binop_ri_r(a, b, Fir_div_r);
+}
 
-// :
+// === : ===
+// v1: I:I→v(I)
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 1, SEXP a, SEXP b) {
   return R_compact_intrange((R_xlen_t) Rf_asInteger(a), (R_xlen_t) Rf_asInteger(b));
 }
-
-// :
+// v2: I:R→v(I)
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 2, SEXP a, SEXP b) {
   return R_compact_intrange((R_xlen_t) Rf_asInteger(a), (R_xlen_t) Rf_asReal(b));
 }
-
-// :
+// v3: R:R→V (may return int or real range)
 DEFINE_OVERRIDDEN_BUILTIN(_u3a, 3, SEXP a, SEXP b) {
   double n1 = Rf_asReal(a);
   double n2 = Rf_asReal(b);
@@ -1194,79 +1385,227 @@ DEFINE_OVERRIDDEN_BUILTIN(_u3a, 3, SEXP a, SEXP b) {
   // Copied from GNU-R
   double r = fabs(n2 - n1);
   if (r >= R_XLEN_T_MAX) Rf_error("result would be too long a vector");
-  R_xlen_t n = r + 1 + FLT_EPSILON;
-	SEXP ans = allocVector(REALSXP, n);
-	if (n1 <= n2) {
+  R_xlen_t n = (R_xlen_t)(r + 1 + FLT_EPSILON);
+  SEXP ans = allocVector(REALSXP, n);
+  if (n1 <= n2) {
     for (R_xlen_t i = 0; i < n; i++)
-		  REAL(ans)[i] = n1 + (double)i;
-	} else {
-	  for (R_xlen_t i = 0; i < n; i++)
-		  REAL(ans)[i] = n1 - (double)i;
+      REAL(ans)[i] = n1 + (double)i;
+  } else {
+    for (R_xlen_t i = 0; i < n; i++)
+      REAL(ans)[i] = n1 - (double)i;
+  }
+  return ans;
+}
+// v4: v(I):v(I)→v(I) — uses first elements (scalar semantics on vectors)
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 4, SEXP a, SEXP b) {
+  return R_compact_intrange((R_xlen_t) INTEGER(a)[0], (R_xlen_t) INTEGER(b)[0]);
+}
+// v5: v(I):v(R)→v(I)
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 5, SEXP a, SEXP b) {
+  return R_compact_intrange((R_xlen_t) INTEGER(a)[0], (R_xlen_t) REAL(b)[0]);
+}
+// v6: v(R):v(R)→V
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, 6, SEXP a, SEXP b) {
+  double n1 = REAL(a)[0];
+  double n2 = REAL(b)[0];
+  if (n1 == (R_xlen_t) n1) {
+      return R_compact_intrange((R_xlen_t) n1, (R_xlen_t) n2);
+  }
+  double r = fabs(n2 - n1);
+  if (r >= R_XLEN_T_MAX) Rf_error("result would be too long a vector");
+  R_xlen_t n = (R_xlen_t)(r + 1 + FLT_EPSILON);
+  SEXP ans = allocVector(REALSXP, n);
+  if (n1 <= n2) {
+    for (R_xlen_t i = 0; i < n; i++)
+      REAL(ans)[i] = n1 + (double)i;
+  } else {
+    for (R_xlen_t i = 0; i < n; i++)
+      REAL(ans)[i] = n1 - (double)i;
   }
   return ans;
 }
 
-// <
+// === < ===
+// v1: I<I→L
 DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) < Rf_asInteger(b));
 }
-
-// <
+// v2: R<R→L
 DEFINE_OVERRIDDEN_BUILTIN(_u3c, 2, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asReal(a) < Rf_asReal(b));
 }
+// v3: I<R→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 3, SEXP a, SEXP b) {
+  return Rf_ScalarLogical((double)Rf_asInteger(a) < Rf_asReal(b));
+}
+// v4: R<I→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 4, SEXP a, SEXP b) {
+  return Rf_ScalarLogical(Rf_asReal(a) < (double)Rf_asInteger(b));
+}
+// v5: v(I)<v(I)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 5, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_ii_l(a, b, Fir_lt_i);
+}
+// v6: v(R)<v(R)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 6, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_rr_l(a, b, Fir_lt_r);
+}
+// v7: v(I)<v(R)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 7, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_ir_l(a, b, Fir_lt_r);
+}
+// v8: v(R)<v(I)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, 8, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_ri_l(a, b, Fir_lt_r);
+}
 
-// <=
+// === <= ===
+// v1: I<=I→L
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) <= Rf_asInteger(b));
 }
-
-// <=
+// v2: R<=R→L
 DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 2, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asReal(a) <= Rf_asReal(b));
 }
+// v3: I<=R→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 3, SEXP a, SEXP b) {
+  return Rf_ScalarLogical((double)Rf_asInteger(a) <= Rf_asReal(b));
+}
+// v4: R<=I→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 4, SEXP a, SEXP b) {
+  return Rf_ScalarLogical(Rf_asReal(a) <= (double)Rf_asInteger(b));
+}
+// v5: v(I)<=v(I)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 5, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_ii_l(a, b, Fir_le_i);
+}
+// v6: v(R)<=v(R)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 6, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_rr_l(a, b, Fir_le_r);
+}
+// v7: v(I)<=v(R)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 7, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_ir_l(a, b, Fir_le_r);
+}
+// v8: v(R)<=v(I)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 8, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_ri_l(a, b, Fir_le_r);
+}
 
-// ==
+// === == ===
+// v1: L==L→L
 DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b) {
+  return Rf_ScalarLogical(Rf_asLogical(a) == Rf_asLogical(b));
+}
+// v2: I==I→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asInteger(a) == Rf_asInteger(b));
 }
-
-// ==
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b) {
+// v3: R==R→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asReal(a) == Rf_asReal(b));
 }
-
-// ==
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b) {
+// v4: S==S→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b) {
   return Rf_ScalarLogical(Rf_asChar(STRING_ELT(a, 0)) == Rf_asChar(STRING_ELT(b, 0)));
 }
-
-// ==
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b) {
+// v5: v(L)==v(L)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 5, SEXP a, SEXP b) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(LGLSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    LOGICAL(res)[i] = LOGICAL(a)[i % na] == LOGICAL(b)[i % nb];
+  UNPROTECT(1);
+  return res;
+}
+// v6: v(I)==v(I)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 6, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_ii_l(a, b, Fir_eq_i);
+}
+// v7: v(R)==v(R)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 7, SEXP a, SEXP b) {
+  return Fir_vec_cmpop_rr_l(a, b, Fir_eq_r);
+}
+// v8: v(S)==v(S)→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 8, SEXP a, SEXP b) {
+  R_xlen_t na = XLENGTH(a), nb = XLENGTH(b);
+  R_xlen_t n = na > nb ? na : nb;
+  SEXP res = PROTECT(Rf_allocVector(LGLSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    LOGICAL(res)[i] = Rf_asChar(STRING_ELT(a, i % na)) == Rf_asChar(STRING_ELT(b, i % nb));
+  UNPROTECT(1);
+  return res;
+}
+// v9: cls==cls→L
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 9, SEXP a, SEXP b) {
   return Rf_ScalarLogical(a == b);
 }
 
+// === log ===
+// v1: I,R→R
 DEFINE_OVERRIDDEN_BUILTIN(log, 1, SEXP value, SEXP base) {
   return Rf_ScalarReal(R_logbase(Rf_asInteger(value), Rf_asReal(base)));
 }
-
+// v2: R,R→R
 DEFINE_OVERRIDDEN_BUILTIN(log, 2, SEXP value, SEXP base) {
   return Rf_ScalarReal(R_logbase(Rf_asReal(value), Rf_asReal(base)));
 }
+// v3: v(I),v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(log, 3, SEXP value, SEXP base) {
+  R_xlen_t nv = XLENGTH(value), nb = XLENGTH(base);
+  R_xlen_t n = nv > nb ? nv : nb;
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = R_logbase((double)INTEGER(value)[i % nv], REAL(base)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
+// v4: v(R),v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(log, 4, SEXP value, SEXP base) {
+  R_xlen_t nv = XLENGTH(value), nb = XLENGTH(base);
+  R_xlen_t n = nv > nb ? nv : nb;
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = R_logbase(REAL(value)[i % nv], REAL(base)[i % nb]);
+  UNPROTECT(1);
+  return res;
+}
 
-
+// === abs ===
+// v1: I→I
 DEFINE_OVERRIDDEN_BUILTIN(abs, 1, SEXP value) {
   return Rf_ScalarInteger(abs(Rf_asInteger(value)));
 }
-
+// v2: R→R
 DEFINE_OVERRIDDEN_BUILTIN(abs, 2, SEXP value) {
   return Rf_ScalarReal(fabs(Rf_asReal(value)));
+}
+// v3: v(I)→v(I)
+DEFINE_OVERRIDDEN_BUILTIN(abs, 3, SEXP value) {
+  R_xlen_t n = XLENGTH(value);
+  SEXP res = PROTECT(Rf_allocVector(INTSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    INTEGER(res)[i] = abs(INTEGER(value)[i]);
+  UNPROTECT(1);
+  return res;
+}
+// v4: v(R)→v(R)
+DEFINE_OVERRIDDEN_BUILTIN(abs, 4, SEXP value) {
+  R_xlen_t n = XLENGTH(value);
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, n));
+  for (R_xlen_t i = 0; i < n; i++)
+    REAL(res)[i] = fabs(REAL(value)[i]);
+  UNPROTECT(1);
+  return res;
 }
 
 static double Fir_sign(double x) {
   return x == 0 ? 0 : x > 0 ? 1 : -1;
 }
 
+// math1: v1=I→R, v2=R→R, v3=v(I)→v(R), v4=v(R)→v(R)
 #define V(name, func) \
   DEFINE_OVERRIDDEN_BUILTIN(name, 1, SEXP value) {\
     return Rf_ScalarReal(func(Rf_asInteger(value)));\
@@ -1274,6 +1613,14 @@ static double Fir_sign(double x) {
   \
   DEFINE_OVERRIDDEN_BUILTIN(name, 2, SEXP value) {\
     return Rf_ScalarReal(func(Rf_asReal(value)));\
+  }\
+  \
+  DEFINE_OVERRIDDEN_BUILTIN(name, 3, SEXP value) {\
+    return Fir_vec_unaryop_i_r(value, func);\
+  }\
+  \
+  DEFINE_OVERRIDDEN_BUILTIN(name, 4, SEXP value) {\
+    return Fir_vec_unaryop_r_r(value, func);\
   }
 DEFINE_MATH1_BUILTINS(V)
 #undef V
