@@ -551,7 +551,7 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 			int label_pos = imms[hole->val.imm_pos] - 1;
 			while (ctx->executable_lookup[label_pos] == NULL || ctx->bytecode[label_pos] != opcode_to_find)
 			{
-				if(ctx->executable_lookup[label_pos] != NULL)
+				if (ctx->executable_lookup[label_pos] != NULL)
 					DEBUG_PRINT("Looking for opcode %d at position %d, found %d\n", opcode_to_find, label_pos, ctx->bytecode[label_pos]);
 
 				label_pos--;
@@ -1075,6 +1075,19 @@ static void peephole_goto(int bytecode[], int bytecode_size, SEXP *constpool)
 	}
 }
 
+static void dump_compiled_binary(const char *dump_dir, const char *name, const uint8_t *executable, size_t size)
+{
+	char dump_path[512];
+	snprintf(dump_path, sizeof(dump_path), "%s/%s.o", dump_dir, name);
+	FILE *fp = fopen(dump_path, "wb");
+	if (fp)
+	{
+		fwrite(executable, 1, size, fp);
+		fclose(fp);
+		fprintf(stderr, "RCP: wrote binary to %s (%zu bytes)\n", dump_path, size);
+	}
+}
+
 typedef struct PluginStencil
 {
 	int pos;
@@ -1368,12 +1381,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 				int stepfor_bc = bytecode[bc_pos + 1 + 2] - 1;
 				DEBUG_PRINT("Looking for STEPFOR_BCOP at position %d\n", stepfor_bc);
-				while(bytecode[stepfor_bc] != STEPFOR_BCOP)
+				while (bytecode[stepfor_bc] != STEPFOR_BCOP)
 				{
 					// We need to find the corresponding STEPFOR_BCOP instruction to know where to copy the specialized code to
 					DEBUG_PRINT("Not found, found %s instead. Following this instruction.\n", OPCODES_NAMES[bytecode[stepfor_bc]]);
 
-					if(bytecode[stepfor_bc] == GOTO_BCOP)
+					if (bytecode[stepfor_bc] == GOTO_BCOP)
 						stepfor_bc = bytecode[stepfor_bc + 1] - 1;
 					else
 						stepfor_bc += RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1;
@@ -1507,11 +1520,20 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		res.eh_frame_data = eh_frame_data;
 
 		if (rcp_gdb_jit_enabled)
+		{
 			res.jit_entry = gdb_jit_register(name, executable, insts_size,
 											 inst_addrs_packed, count_opcodes,
 											 instruction_stencils);
+		}
 		else
+		{
 			res.jit_entry = NULL;
+			const char *dump_dir = getenv("RCP_DUMP_DIR");
+			if (dump_dir)
+			{
+				dump_compiled_binary(dump_dir, name, executable, insts_size);
+			}
+		}
 
 		if (rcp_perf_jit_enabled)
 		{
@@ -2088,6 +2110,64 @@ SEXP C_rcp_is_compiled(SEXP closure)
 	return Rf_ScalarLogical(TRUE);
 }
 
+static const char *guess_closure_name(SEXP f)
+{
+	SEXP env = CLOENV(f);
+	if (env == R_EmptyEnv || env == R_NilValue)
+		return NULL;
+
+	SEXP names = PROTECT(R_lsInternal3(env, TRUE, FALSE));
+	int n = LENGTH(names);
+	const char *sym_name = NULL;
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *s = CHAR(STRING_ELT(names, i));
+		SEXP val = Rf_findVarInFrame(env, Rf_install(s));
+		if (val == f)
+		{
+			sym_name = s;
+			break;
+		}
+	}
+	UNPROTECT(1); // names
+
+	if (sym_name == NULL)
+		return NULL;
+
+	const char *prefix = NULL;
+	int prefix_len = 0;
+	char env_buf[32];
+
+	if (R_IsNamespaceEnv(env))
+	{
+		prefix = CHAR(STRING_ELT(R_NamespaceEnvSpec(env), 0));
+		prefix_len = strlen(prefix) + 2; // "pkg::"
+	}
+	else if (env == R_GlobalEnv)
+	{
+		prefix = NULL;
+		prefix_len = 0;
+	}
+	else
+	{
+		snprintf(env_buf, sizeof(env_buf), "__%p", (void *)env);
+		prefix = env_buf;
+		prefix_len = strlen(env_buf) + 2; // "__0x...::sym"
+	}
+
+	int sym_len = strlen(sym_name);
+	int total = (prefix ? prefix_len : 0) + sym_len + 1;
+	char *result = R_alloc(total, 1);
+
+	if (prefix && env != R_GlobalEnv)
+		snprintf(result, total, "%s::%s", prefix, sym_name);
+	else
+		snprintf(result, total, "%s", sym_name);
+
+	return result;
+}
+
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
 	DEBUG_PRINT("Starting to JIT a function...\n");
@@ -2189,6 +2269,15 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		else
 		{
 			Rf_error("options must be either NULL or a list");
+		}
+	}
+
+	if (strcmp(name, "<unknown>") == 0)
+	{
+		const char *guessed = guess_closure_name(f);
+		if (guessed != NULL)
+		{
+			name = guessed;
 		}
 	}
 
@@ -2705,7 +2794,7 @@ SEXP C_rcp_get_types(void)
 					SET_STRING_ELT(args_names, k, PRINTNAME(trace->argument_names[k]));
 				else
 				{
-					char name_buf[16];
+					char name_buf[32];
 					snprintf(name_buf, sizeof(name_buf), "arg%zu", k + 1);
 					SET_STRING_ELT(args_names, k, Rf_mkChar(name_buf));
 				}
@@ -2856,7 +2945,7 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 		}
 		else
 		{
-			char name_buf[16];
+			char name_buf[32];
 			snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
 			SET_STRING_ELT(col_names, c, Rf_mkChar(name_buf));
 		}
