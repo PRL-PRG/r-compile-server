@@ -76,7 +76,7 @@ is_system_dso <- function(dso) {
 parse_perf_script <- function(perf_data_file) {
   # Check if a cached perf script text file exists
   txt_file <- sub("\\.[^.]+$", ".txt", perf_data_file)
-  if (file.exists(txt_file)) {
+  if (file.exists(txt_file) && file.mtime(txt_file) >= file.mtime(perf_data_file)) {
     message("Reading cached perf script output from ", txt_file, " ...")
     lines <- readLines(txt_file)
   } else {
