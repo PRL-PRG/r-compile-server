@@ -3051,17 +3051,10 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
     return;
   }
 
-  // TODO: ugly - there should be a better API
-
-  // build a temporary argument list
-  // btw: this is quite unfortunate that the calling convention is not
-  // compatible and we have to move from stack based arguments to the list
-  // based arguments
-
   // 1. allocate a space on the stack to protect it
   SEXP args = R_NilValue;
-  // 2. fill it from the args passed on the stack
-  for (int i = 0; i < nargs; i++) {
+  // 2. fill it from the args passed on the stack (nargs+1 items: op + args)
+  for (int i = 0; i <= nargs; i++) {
     PROTECT(args);
     args = CONS_NR(val_as_sexp(*(stack - 1 - i)), args);
     UNPROTECT(1); /* old args */
@@ -3069,7 +3062,7 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
   PROTECT(args);
 
   // 3. call the builtin
-  SEXP sym = CADR(call);
+  SEXP sym = CAR(call);
   SEXP opPrim = getPrimitive(sym, BUILTINSXP);
   SEXP val = do_dotcall(call, opPrim, args, rho);
 

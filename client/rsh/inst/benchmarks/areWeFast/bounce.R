@@ -1,18 +1,16 @@
-print(getwd())
 source('random.r')
 
-execute <- function (unused) {
-    ballCount <- 100
+execute <- function (ballCount = 3000L) {
     bounces   <- 0
     balls     = vector("list", length = ballCount)
     resetSeed()
 
     for (i in 1:ballCount) {
-        balls[[i]] = c(nextRandom() %% 500, nextRandom() %% 500, 
+        balls[[i]] = c(nextRandom() %% 500, nextRandom() %% 500,
                              (nextRandom() %% 300) - 150, (nextRandom() %% 300) - 150)
-                      names(balls[[i]]) = c("x", "y", "xVel", "yVel")        
+                      names(balls[[i]]) = c("x", "y", "xVel", "yVel")
     }
-    
+
     ball <- function(ball) {
         results <- bounce(ball)
         if (results[[2]]) bounces <<- bounces + 1
