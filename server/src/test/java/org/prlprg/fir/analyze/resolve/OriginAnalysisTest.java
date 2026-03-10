@@ -7,8 +7,8 @@ import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Variable;
-import org.prlprg.sexp.SEXPs;
 
 class OriginAnalysisTest {
   @Test
@@ -18,7 +18,7 @@ class OriginAnalysisTest {
       fun main() {
         () --> I { reg r0:I, reg r1:I |
           mkenv;
-              r0 = 42;
+          r0 = 42;
           r1 = r0;
           return r1;
         }
@@ -31,7 +31,7 @@ class OriginAnalysisTest {
     var analysis = new OriginAnalysis(main);
 
     var r0Origin = analysis.get(Variable.register("r0"));
-    assertEquals(new Constant(SEXPs.integer(42)), r0Origin);
+    assertEquals(new Constant(new Value.Int(42)), r0Origin);
 
     var r1Origin = analysis.get(Variable.register("r1"));
     assertEquals(r0Origin, r1Origin);
@@ -62,7 +62,7 @@ class OriginAnalysisTest {
 
     // After store statement, variable x should have r0's origin
     var xOrigin = analysis.get(bb, 2, Variable.named("x"));
-    assertEquals(new Constant(SEXPs.integer(42)), xOrigin);
+    assertEquals(new Constant(new Value.Int(42)), xOrigin);
 
     // After load statement, r1 should have x's origin (the constant)
     var r1Origin = analysis.get(Variable.register("r1"));
@@ -99,6 +99,6 @@ class OriginAnalysisTest {
     var r4Origin = analysis.get(Variable.register("r4"));
     var r5Origin = analysis.get(Variable.register("r5"));
     assertEquals(new Read(Variable.register("r4")), r4Origin);
-    assertEquals(new Constant(SEXPs.integer(42)), r5Origin);
+    assertEquals(new Constant(new Value.Int(42)), r5Origin);
   }
 }
