@@ -20,13 +20,21 @@ check-toolchain:
 .PHONY: all
 all: install
 
+STAMP := .install-stamp
+
 .PHONY: install
 install: check-toolchain
-	MAKEFLAGS="$(MAKEFLAGS) CC=$(CC) CXX=$(CXX)" $(R) CMD INSTALL .
+	@if [ ! -f $(STAMP) ] || \
+	    [ -n "$$(find src R DESCRIPTION NAMESPACE common.mk -newer $(STAMP) 2>/dev/null | head -1)" ]; then \
+		MAKEFLAGS="$(MAKEFLAGS) CC=$(CC) CXX=$(CXX)" $(R) CMD INSTALL . && touch $(STAMP); \
+	else \
+		echo "Nothing changed, skipping install."; \
+	fi
 
 .PHONY: clean
 clean:
 	$(MAKE) -C src -f Makevars clean
+	rm -f $(STAMP)
 
 .PHONY: test
 test: check-toolchain install

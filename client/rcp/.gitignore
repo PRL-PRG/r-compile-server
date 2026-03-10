@@ -10,3 +10,4 @@ perf.data
 /rcp/tests/perf/*.old
 /rcp/tests/perf/*.data
 /rcp/tests/perf/profile.json.gz
+/rcp/.install-stamp
