@@ -257,7 +257,7 @@ static void printSexpInternal(SEXP s, int indent) {
         fprintf(stderr, "p(");
         Fir_print_type(global_data->value_type);
         fprintf(stderr, " ");
-        Fir_print_effects(global_data->reflect);
+        Fir_print_effects(global_data->effects);
         fprintf(stderr, ")");
       } else {
         fprintf(stderr, "promise");
