@@ -1,30 +1,17 @@
 package org.prlprg.fir.interpret.internal;
 
-import static org.prlprg.primitive.Constants.NA_INT;
-
-import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
+import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
-import org.prlprg.fir.interpret.Interpreter;
+import java.util.stream.IntStream;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.type.Kind;
-import org.prlprg.fir.ir.type.PrimitiveKind;
-import org.prlprg.fir.ir.variable.OptionalNamedVariable;
-import org.prlprg.fir.ir.variable.Variable;
-import org.prlprg.primitive.Constants;
-import org.prlprg.primitive.Logical;
-import org.prlprg.sexp.CloSXP;
-import org.prlprg.sexp.DotsListSXP;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.IntSXP;
-import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.StrSXP;
-import org.prlprg.util.Lists;
 
 /// Java implementations of GNU-R builtins for [InternalInterpreter] (specifically
 /// [InternalInterpreter#registerExternal(String, ExternalVersion)]).
@@ -40,19 +27,16 @@ public final class Builtins {
     //  - Abstract builtins like `+`, similar to how `abs` is abstracted via `registerMathBuiltin`
     //  - Give other builtins some specific versions. Also requires modifying `builtins.fir`
     // Builtins
-    interpreter.registerExternal("+", 0, ExternalVersion.strict(Builtins::add));
-    interpreter.registerExternal("+", 1, ExternalVersion.strict(Builtins::addInts));
-    interpreter.registerExternal("+", 2, ExternalVersion.strict(Builtins::addIntAndReal));
-    interpreter.registerExternal("+", 3, ExternalVersion.strict(Builtins::addRealAndInt));
-    interpreter.registerExternal("+", 4, ExternalVersion.strict(Builtins::addReals));
-    interpreter.registerExternal("-", 0, ExternalVersion.strict(Builtins::subtract));
-    interpreter.registerExternal("-", 1, ExternalVersion.strict(Builtins::subtract));
-    interpreter.registerExternal("-", 2, ExternalVersion.strict(Builtins::subtract));
-    interpreter.registerExternal("-", 3, ExternalVersion.strict(Builtins::subtract));
-    interpreter.registerExternal("-", 4, ExternalVersion.strict(Builtins::subtract));
-    interpreter.registerExternal("*", ExternalVersion.strict(Builtins::multiply));
-    interpreter.registerExternal("/", ExternalVersion.strict(Builtins::divide));
-    interpreter.registerExternal("==", ExternalVersion.strict(Builtins::equal));
+    registerBinaryMathBuiltin(interpreter, "+", Double::sum);
+    registerBinaryMathBuiltin(interpreter, "-", (a, b) -> a - b);
+    registerBinaryMathBuiltin(interpreter, "*", (a, b) -> a * b);
+    registerBinaryMathToRealBuiltin(interpreter, "/", (a, b) -> a / b);
+    registerBinaryMathToRealBuiltin(interpreter, "^", Math::pow);
+    registerUnaryMath1Builtin(interpreter, "abs", Math::abs);
+    registerUnaryMath1Builtin(interpreter, "sqrt", Math::sqrt);
+    registerUnaryMath1Builtin(interpreter, "floor", Math::floor);
+    // TODO: Abstract these where possible, and convert them to take `Value`
+    /*interpreter.registerExternal("==", ExternalVersion.strict(Builtins::equal));
     interpreter.registerExternal("!=", ExternalVersion.strict(Builtins::notEqual));
     interpreter.registerExternal("<", ExternalVersion.strict(Builtins::less));
     interpreter.registerExternal("<=", ExternalVersion.strict(Builtins::lessEqual));
@@ -66,16 +50,13 @@ public final class Builtins {
     interpreter.registerExternal(":", ExternalVersion.strict(Builtins::colon));
     interpreter.registerExternal("c", ExternalVersion.strict(Builtins::c));
     interpreter.registerExternal("length", ExternalVersion.strict(Builtins::length));
-    registerMathBuiltin(interpreter, "abs", Math::abs);
-    registerMathBuiltin(interpreter, "sqrt", Math::sqrt);
-    registerMathBuiltin(interpreter, "floor", Math::floor);
     interpreter.registerExternal("sum", Builtins::sum);
     interpreter.registerExternal("as.logical", ExternalVersion.strict(Builtins::asLogical));
     interpreter.registerExternal("is.object", ExternalVersion.strict(Builtins::isObject));
     interpreter.registerExternal("stop", ExternalVersion.strict(Builtins::stop));
     interpreter.registerExternal("warning", ExternalVersion.strict(Builtins::warning));
     interpreter.registerExternal("stopifnot", ExternalVersion.strict(Builtins::stopifnot));
-    interpreter.registerExternal("print", ExternalVersion.strict(Builtins::print));
+    interpreter.registerExternal("print", ExternalVersion.strict(Builtins::print)); */
 
     // Intrinsics
     interpreter.registerExternal("setInvisible", 0, Builtins::setInvisible);
@@ -84,22 +65,363 @@ public final class Builtins {
     interpreter.registerExternal("toForSeq", 0, Builtins::toForSeq);
   }
 
-  private static void registerMathBuiltin(
+  private static void registerBinaryMathBuiltin(
+      InternalInterpreter interpreter, String name, DoubleBinaryOperator javaFunction) {
+    interpreter.registerExternal(
+        name,
+        0,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(SEXP sexp1)
+                      && args.get(1) instanceof Value.Sexp(SEXP sexp2))) {
+                throw interpreter.fail("`" + name + "`.0 takes 2 sexp-scalar numbers");
+              }
+              if (sexp1.asScalarInteger().isPresent() && sexp2.asScalarInteger().isPresent()) {
+                int arg0 = sexp1.asScalarInteger().get();
+                int arg1 = sexp2.asScalarInteger().get();
+                return new Value.Sexp(SEXPs.integer((int) javaFunction.applyAsDouble(arg0, arg1)));
+              } else if (sexp1.asScalarReal().isPresent() && sexp2.asScalarReal().isPresent()) {
+                double arg0 = sexp1.asScalarReal().get();
+                double arg1 = sexp2.asScalarReal().get();
+                return new Value.Sexp(SEXPs.real(javaFunction.applyAsDouble(arg0, arg1)));
+              } else if (sexp1.asScalarInteger().isPresent() && sexp2.asScalarReal().isPresent()) {
+                return new Value.Sexp(
+                    SEXPs.real(
+                        javaFunction.applyAsDouble(
+                            sexp1.asScalarInteger().get(), sexp2.asScalarReal().get())));
+              } else if (sexp1.asScalarReal().isPresent() && sexp2.asScalarInteger().isPresent()) {
+                return new Value.Sexp(
+                    SEXPs.real(
+                        javaFunction.applyAsDouble(
+                            sexp1.asScalarReal().get(), sexp2.asScalarInteger().get())));
+              } else {
+                throw interpreter.fail("`" + name + "`.0 takes 2 scalar integers or reals");
+              }
+            }));
+    interpreter.registerExternal(
+        name,
+        1,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Int(var int1)
+                      && args.get(1) instanceof Value.Int(var int2))) {
+                throw interpreter.fail("`" + name + "`.1 takes 2 scalar integers");
+              }
+              return new Value.Int((int) javaFunction.applyAsDouble(int1, int2));
+            }));
+    interpreter.registerExternal(
+        name,
+        2,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Real(var real1)
+                      && args.get(1) instanceof Value.Real(var real2))) {
+                throw interpreter.fail("`" + name + "`.2 takes 2 scalar reals");
+              }
+              return new Value.Real(javaFunction.applyAsDouble(real1, real2));
+            }));
+    interpreter.registerExternal(
+        name,
+        3,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Int(var int1)
+                      && args.get(1) instanceof Value.Real(var real2))) {
+                throw interpreter.fail("`" + name + "`.3 takes a scalar integer and scalar real");
+              }
+              return new Value.Real(javaFunction.applyAsDouble(int1, real2));
+            }));
+    interpreter.registerExternal(
+        name,
+        4,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Real(var real1)
+                      && args.get(1) instanceof Value.Int(var int2))) {
+                throw interpreter.fail("`" + name + "`.4 takes a scalar real and scalar integer");
+              }
+              return new Value.Real(javaFunction.applyAsDouble(real1, int2));
+            }));
+    interpreter.registerExternal(
+        name,
+        5,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof IntSXP int1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof IntSXP int2)) {
+                throw interpreter.fail("`" + name + "`.5 takes 2 int vectors");
+              }
+              return new Value.Sexp(
+                  SEXPs.integer(
+                      IntStream.range(0, Math.max(int1.size(), int2.size()))
+                          .map(
+                              i ->
+                                  (int)
+                                      javaFunction.applyAsDouble(
+                                          int1.get(i % int1.size()), int2.get(i % int2.size())))
+                          .toArray()));
+            }));
+    interpreter.registerExternal(
+        name,
+        6,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof RealSXP real1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof RealSXP real2)) {
+                throw interpreter.fail("`" + name + "`.6 takes 2 real vectors");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, Math.max(real1.size(), real2.size()))
+                          .mapToDouble(
+                              i ->
+                                  javaFunction.applyAsDouble(
+                                      real1.get(i % real1.size()), real2.get(i % real2.size())))
+                          .toArray()));
+            }));
+    interpreter.registerExternal(
+        name,
+        7,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof IntSXP int1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof RealSXP real2)) {
+                throw interpreter.fail(
+                    "`" + name + "`.7 takes an integer vector and a real vector");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, Math.max(int1.size(), real2.size()))
+                          .mapToDouble(
+                              i ->
+                                  javaFunction.applyAsDouble(
+                                      int1.get(i % int1.size()), real2.get(i % real2.size())))
+                          .toArray()));
+            }));
+    interpreter.registerExternal(
+        name,
+        8,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof RealSXP real1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof IntSXP int2)) {
+                throw interpreter.fail(
+                    "`" + name + "`.8 takes a real vector and an integer vector");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, Math.max(real1.size(), int2.size()))
+                          .mapToDouble(
+                              i ->
+                                  javaFunction.applyAsDouble(
+                                      real1.get(i % real1.size()), int2.get(i % int2.size())))
+                          .toArray()));
+            }));
+  }
+
+  private static void registerBinaryMathToRealBuiltin(
+      InternalInterpreter interpreter, String name, DoubleBinaryOperator javaFunction) {
+    interpreter.registerExternal(
+        name,
+        0,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(SEXP sexp1)
+                      && args.get(1) instanceof Value.Sexp(SEXP sexp2))) {
+                throw interpreter.fail("`" + name + "`.0 takes 2 sexp-scalar numbers");
+              }
+              if (sexp1.asScalarInteger().isPresent() && sexp2.asScalarInteger().isPresent()) {
+                int arg0 = sexp1.asScalarInteger().get();
+                int arg1 = sexp2.asScalarInteger().get();
+                return new Value.Sexp(SEXPs.real(javaFunction.applyAsDouble(arg0, arg1)));
+              } else if (sexp1.asScalarReal().isPresent() && sexp2.asScalarReal().isPresent()) {
+                double arg0 = sexp1.asScalarReal().get();
+                double arg1 = sexp2.asScalarReal().get();
+                return new Value.Sexp(SEXPs.real(javaFunction.applyAsDouble(arg0, arg1)));
+              } else if (sexp1.asScalarInteger().isPresent() && sexp2.asScalarReal().isPresent()) {
+                return new Value.Sexp(
+                    SEXPs.real(
+                        javaFunction.applyAsDouble(
+                            sexp1.asScalarInteger().get(), sexp2.asScalarReal().get())));
+              } else if (sexp1.asScalarReal().isPresent() && sexp2.asScalarInteger().isPresent()) {
+                return new Value.Sexp(
+                    SEXPs.real(
+                        javaFunction.applyAsDouble(
+                            sexp1.asScalarReal().get(), sexp2.asScalarInteger().get())));
+              } else {
+                throw interpreter.fail("`" + name + "`.0 takes 2 scalar integers or reals");
+              }
+            }));
+    interpreter.registerExternal(
+        name,
+        1,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Int(var int1)
+                      && args.get(1) instanceof Value.Int(var int2))) {
+                throw interpreter.fail("`" + name + "`.1 takes 2 scalar integers");
+              }
+              return new Value.Real(javaFunction.applyAsDouble(int1, int2));
+            }));
+    interpreter.registerExternal(
+        name,
+        2,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Real(var real1)
+                      && args.get(1) instanceof Value.Real(var real2))) {
+                throw interpreter.fail("`" + name + "`.2 takes 2 scalar reals");
+              }
+              return new Value.Real(javaFunction.applyAsDouble(real1, real2));
+            }));
+    interpreter.registerExternal(
+        name,
+        3,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Int(var int1)
+                      && args.get(1) instanceof Value.Real(var real2))) {
+                throw interpreter.fail("`" + name + "`.3 takes a scalar integer and scalar real");
+              }
+              return new Value.Real(javaFunction.applyAsDouble(int1, real2));
+            }));
+    interpreter.registerExternal(
+        name,
+        4,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Real(var real1)
+                      && args.get(1) instanceof Value.Int(var int2))) {
+                throw interpreter.fail("`" + name + "`.4 takes a scalar real and scalar integer");
+              }
+              return new Value.Real(javaFunction.applyAsDouble(real1, int2));
+            }));
+    interpreter.registerExternal(
+        name,
+        5,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof IntSXP int1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof IntSXP int2)) {
+                throw interpreter.fail("`" + name + "`.5 takes 2 int vectors");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, Math.max(int1.size(), int2.size()))
+                          .mapToDouble(
+                              i ->
+                                  javaFunction.applyAsDouble(
+                                      int1.get(i % int1.size()), int2.get(i % int2.size())))
+                          .toArray()));
+            }));
+    interpreter.registerExternal(
+        name,
+        6,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof RealSXP real1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof RealSXP real2)) {
+                throw interpreter.fail("`" + name + "`.6 takes 2 real vectors");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, Math.max(real1.size(), real2.size()))
+                          .mapToDouble(
+                              i ->
+                                  javaFunction.applyAsDouble(
+                                      real1.get(i % real1.size()), real2.get(i % real2.size())))
+                          .toArray()));
+            }));
+    interpreter.registerExternal(
+        name,
+        7,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof IntSXP int1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof RealSXP real2)) {
+                throw interpreter.fail(
+                    "`" + name + "`.7 takes an integer vector and a real vector");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, Math.max(int1.size(), real2.size()))
+                          .mapToDouble(
+                              i ->
+                                  javaFunction.applyAsDouble(
+                                      int1.get(i % int1.size()), real2.get(i % real2.size())))
+                          .toArray()));
+            }));
+    interpreter.registerExternal(
+        name,
+        8,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof RealSXP real1
+                      && args.get(1) instanceof Value.Sexp(var sexp2)
+                      && sexp2 instanceof IntSXP int2)) {
+                throw interpreter.fail(
+                    "`" + name + "`.8 takes a real vector and an integer vector");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(
+                      IntStream.range(0, Math.max(real1.size(), int2.size()))
+                          .mapToDouble(
+                              i ->
+                                  javaFunction.applyAsDouble(
+                                      real1.get(i % real1.size()), int2.get(i % int2.size())))
+                          .toArray()));
+            }));
+  }
+
+  private static void registerUnaryMath1Builtin(
       InternalInterpreter interpreter, String name, DoubleUnaryOperator javaFunction) {
     interpreter.registerExternal(
         name,
         0,
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              if (args.size() != 1) {
-                throw interpreter.fail("`" + name + "`.0 takes 1 scalar integer or real");
+              if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(SEXP sexp))) {
+                throw interpreter.fail("`" + name + "`.0 takes 1 sexp-scalar number");
               }
-              if (args.getFirst().asScalarInteger().isPresent()) {
-                int value = args.getFirst().asScalarInteger().get();
-                return SEXPs.integer((int) javaFunction.applyAsDouble(value));
-              } else if (args.getFirst().asScalarReal().isPresent()) {
-                double value = args.getFirst().asScalarReal().get();
-                return SEXPs.real(javaFunction.applyAsDouble(value));
+              if (sexp.asScalarInteger().isPresent()) {
+                int value = sexp.asScalarInteger().get();
+                return new Value.Sexp(SEXPs.integer((int) javaFunction.applyAsDouble(value)));
+              } else if (sexp.asScalarReal().isPresent()) {
+                double value = sexp.asScalarReal().get();
+                return new Value.Sexp(SEXPs.real(javaFunction.applyAsDouble(value)));
               } else {
                 throw interpreter.fail("`" + name + "`.0 takes 1 scalar integer or real");
               }
@@ -109,107 +431,52 @@ public final class Builtins {
         1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              if (args.size() != 1 || args.getFirst().asScalarInteger().isEmpty()) {
-                throw interpreter.fail("`" + name + "`.0 takes 1 scalar integer");
+              if (args.size() != 1 || !(args.getFirst() instanceof Value.Int(var intValue))) {
+                throw interpreter.fail("`" + name + "`.1 takes 1 scalar integer");
               }
-              int value = args.getFirst().asScalarInteger().get();
-              return SEXPs.integer((int) javaFunction.applyAsDouble(value));
+              return new Value.Int((int) javaFunction.applyAsDouble(intValue));
             }));
     interpreter.registerExternal(
         name,
         2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              if (args.size() != 1 || args.getFirst().asScalarReal().isEmpty()) {
-                throw interpreter.fail("`" + name + "`.1 takes 1 scalar real");
+              if (args.size() != 1 || !(args.getFirst() instanceof Value.Real(var realValue))) {
+                throw interpreter.fail("`" + name + "`.2 takes 1 scalar real");
               }
-              double value = args.getFirst().asScalarReal().get();
-              return SEXPs.real(javaFunction.applyAsDouble(value));
+              return new Value.Real(javaFunction.applyAsDouble(realValue));
+            }));
+    interpreter.registerExternal(
+        name,
+        3,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof IntSXP intSxp)) {
+                throw interpreter.fail("`" + name + "`.3 takes 1 integer vector");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(intSxp.stream().mapToDouble(javaFunction::applyAsDouble).toArray()));
+            }));
+    interpreter.registerExternal(
+        name,
+        4,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1
+                  || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof RealSXP realSxp)) {
+                throw interpreter.fail("`" + name + "`.4 takes 1 real vector");
+              }
+              return new Value.Sexp(
+                  SEXPs.real(realSxp.stream().mapToDouble(javaFunction::applyAsDouble).toArray()));
             }));
   }
 
-  private static SEXP add(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 2) {
-      throw interpreter.fail("`+` takes 2 arguments");
-    }
-
-    var arg0Int = asScalarIntegerOrLogical(args.getFirst());
-    var arg1Int = asScalarIntegerOrLogical(args.get(1));
-
-    if (arg0Int.isPresent() && arg1Int.isPresent()) {
-      int arg0 = arg0Int.get();
-      int arg1 = arg1Int.get();
-      return SEXPs.integer(arg0 + arg1);
-    }
-
-    var arg0Double = asScalarDouble(args.getFirst());
-    var arg1Double = asScalarDouble(args.get(1));
-
-    if (arg0Double.isPresent() && arg1Double.isPresent()) {
-      double arg0 = arg0Double.get();
-      double arg1 = arg1Double.get();
-      return SEXPs.real(arg0 + arg1);
-    }
-
-    throw interpreter.failUnsupported(
-        "Mock `+` not implemented for arguments except integers, reals, or logicals");
-  }
-
-  private static SEXP addInts(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 2
-        || args.getFirst().asScalarInteger().isEmpty()
-        || args.get(1).asScalarInteger().isEmpty()) {
-      throw interpreter.fail("`+`.0 takes 2 scalar integers");
-    }
-
-    int arg0 = args.getFirst().asScalarInteger().get();
-    int arg1 = args.get(1).asScalarInteger().get();
-    return SEXPs.integer(arg0 + arg1);
-  }
-
-  private static SEXP addIntAndReal(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 2
-        || args.getFirst().asScalarInteger().isEmpty()
-        || args.get(1).asScalarReal().isEmpty()) {
-      throw interpreter.fail("`+`.0 takes a scalar integer and real");
-    }
-
-    int arg0 = args.getFirst().asScalarInteger().get();
-    double arg1 = args.get(1).asScalarReal().get();
-    return SEXPs.real(arg0 + arg1);
-  }
-
-  private static SEXP addRealAndInt(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 2
-        || args.getFirst().asScalarReal().isEmpty()
-        || args.get(1).asScalarInteger().isEmpty()) {
-      throw interpreter.fail("`+`.0 takes a scalar real and integer");
-    }
-
-    double arg0 = args.getFirst().asScalarReal().get();
-    int arg1 = args.get(1).asScalarInteger().get();
-    return SEXPs.real(arg0 + arg1);
-  }
-
-  private static SEXP addReals(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
-    if (args.size() != 2
-        || args.getFirst().asScalarReal().isEmpty()
-        || args.get(1).asScalarReal().isEmpty()) {
-      throw interpreter.fail("`+`.0 takes 2 scalar reals");
-    }
-
-    double arg0 = args.getFirst().asScalarReal().get();
-    double arg1 = args.get(1).asScalarReal().get();
-    return SEXPs.real(arg0 + arg1);
-  }
-
-  private static SEXP equal(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  // TODO: abstract these where possible, and finish covnerting to take `Value` instead of `SEXP`
+  /* private static Value equal(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`==` takes 2 arguments");
     }
@@ -233,8 +500,8 @@ public final class Builtins {
         "Mock `==` not implemented for arguments except scalar logicals, numbers, and closures");
   }
 
-  private static SEXP notEqual(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value notEqual(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`!=` takes 2 arguments");
     }
@@ -252,8 +519,8 @@ public final class Builtins {
         "Mock `!=` not implemented for arguments except scalar logicals and numbers");
   }
 
-  private static SEXP subtract(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value subtract(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`-` takes 2 arguments");
     }
@@ -280,8 +547,8 @@ public final class Builtins {
         "Mock `-` not implemented for arguments except integers, reals, or logicals");
   }
 
-  private static SEXP multiply(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value multiply(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`*` takes 2 arguments");
     }
@@ -308,8 +575,8 @@ public final class Builtins {
         "Mock `*` not implemented for arguments except integers, reals, or logicals");
   }
 
-  private static SEXP divide(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value divide(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`/` takes 2 arguments");
     }
@@ -348,8 +615,8 @@ public final class Builtins {
         "Mock `/` not implemented for arguments except integers, reals, or logicals");
   }
 
-  private static SEXP less(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value less(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`<` takes 2 arguments");
     }
@@ -376,8 +643,8 @@ public final class Builtins {
         "Mock `<` not implemented for arguments except integers, reals, or logicals");
   }
 
-  private static SEXP lessEqual(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value lessEqual(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`<=` takes 2 arguments");
     }
@@ -404,8 +671,8 @@ public final class Builtins {
         "Mock `<=` not implemented for arguments except integers, reals, or logicals");
   }
 
-  private static SEXP greater(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value greater(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`>` takes 2 arguments");
     }
@@ -432,8 +699,8 @@ public final class Builtins {
         "Mock `>` not implemented for arguments except integers, reals, or logicals");
   }
 
-  private static SEXP greaterEqual(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value greaterEqual(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`>=` takes 2 arguments");
     }
@@ -470,8 +737,8 @@ public final class Builtins {
         .or(() -> sexp.asScalarLogical().map(logical -> (double) logical.toInt()));
   }
 
-  private static SEXP rep(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value rep(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`rep` takes 2 arguments");
     }
@@ -529,14 +796,14 @@ public final class Builtins {
     }
   }
 
-  private static SEXP index(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value index(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     // Mock [ behaves the same as [[
     return index2(interpreter, callee, args, env);
   }
 
-  private static SEXP subAssign(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value subAssign(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 4) {
       throw interpreter.fail("`[<-` takes 4 arguments (last is a dots list)");
     }
@@ -551,8 +818,8 @@ public final class Builtins {
     return subAssign2(interpreter, callee, args.subList(0, 3), env);
   }
 
-  private static SEXP index2(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value index2(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 4) {
       throw interpreter.fail("`[` and `[[` take 4 arguments");
     }
@@ -583,8 +850,8 @@ public final class Builtins {
     return interpreter.subscriptLoad(vector, index0);
   }
 
-  private static SEXP subAssign2(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value subAssign2(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 3) {
       throw interpreter.fail("`[<-` takes 3 arguments");
     }
@@ -621,8 +888,8 @@ public final class Builtins {
     return result;
   }
 
-  private static SEXP colon(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value colon(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`:` takes 2 arguments");
     }
@@ -682,8 +949,8 @@ public final class Builtins {
     }
   }
 
-  private static SEXP c(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value c(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`c` takes 1 argument (a dots list)");
     }
@@ -692,7 +959,7 @@ public final class Builtins {
     }
 
     if (realArgs.isEmpty()) {
-      return SEXPs.NULL;
+      return Value.NULL;
     }
 
     PrimitiveKind primitiveKind = null;
@@ -717,7 +984,7 @@ public final class Builtins {
     }
 
     if (primitiveKind == null) {
-      return SEXPs.NULL;
+      return Value.NULL;
     }
 
     return interpreter.mkVector(
@@ -731,8 +998,8 @@ public final class Builtins {
         realArgs.values());
   }
 
-  private static SEXP length(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value length(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`length` takes 1 argument");
     }
@@ -744,8 +1011,8 @@ public final class Builtins {
     return SEXPs.integer(vector.size());
   }
 
-  private static SEXP sum(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value sum(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`sum` takes 2 arguments");
     }
@@ -801,8 +1068,8 @@ public final class Builtins {
     };
   }
 
-  private static SEXP asLogical(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value asLogical(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`as.logical` takes 1 argument");
     }
@@ -835,14 +1102,14 @@ public final class Builtins {
     }
   }
 
-  private static SEXP isObject(
+  private static Value isObject(
       Interpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
     // Currently there's no object support, so this is always `FALSE`.
     return SEXPs.FALSE;
   }
 
-  private static SEXP stop(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value stop(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 3) {
       throw interpreter.fail("`stop` takes 3 arguments");
     }
@@ -866,8 +1133,8 @@ public final class Builtins {
     throw interpreter.fail(message);
   }
 
-  private static SEXP warning(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value warning(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 5) {
       throw interpreter.fail("`warning` takes 5 arguments");
     }
@@ -895,11 +1162,11 @@ public final class Builtins {
 
     var message = dots.value(0).asScalarString().get();
     System.err.println("Warning: " + message);
-    return SEXPs.NULL;
+    return Value.NULL;
   }
 
-  private static SEXP stopifnot(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value stopifnot(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 4) {
       throw interpreter.fail("`stopifnot` takes 4 arguments");
     }
@@ -932,11 +1199,11 @@ public final class Builtins {
       throw interpreter.fail(message);
     }
 
-    return SEXPs.NULL;
+    return Value.NULL;
   }
 
-  private static SEXP print(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value print(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 2) {
       throw interpreter.fail("`print` takes 2 arguments");
     }
@@ -949,52 +1216,53 @@ public final class Builtins {
 
     var toPrint = args.getFirst();
     System.out.println(toPrint);
-    return SEXPs.NULL;
-  }
+    return Value.NULL;
+  } */
 
-  private static SEXP setInvisible(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value setInvisible(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (!args.isEmpty()) {
       throw interpreter.fail("`setInvisible` takes 0 arguments");
     }
 
     // The interpreter doesn't have visibility
-    return SEXPs.NULL;
+    return Value.NULL;
   }
 
-  private static SEXP setVisible(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value setVisible(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (!args.isEmpty()) {
       throw interpreter.fail("`setVisible` takes 0 arguments");
     }
 
     // The interpreter doesn't have visibility
-    return SEXPs.NULL;
+    return Value.NULL;
   }
 
-  private static SEXP checkMissing(
-      InternalInterpreter interpreter, Abstraction callee, List<SEXP> args, EnvSXP env) {
+  private static Value checkMissing(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`checkMissing` takes 1 argument");
     }
-    if (args.getFirst().equals(SEXPs.MISSING_ARG)) {
+    if (args.getFirst().equals(new Value.Sexp(SEXPs.MISSING_ARG))) {
       throw interpreter.fail("Argument is missing, with no default");
     }
-    return SEXPs.NULL;
+    return Value.NULL;
   }
 
-  private static SEXP toForSeq(
-      InternalInterpreter interpreter, Abstraction version, List<SEXP> args, EnvSXP env) {
+  private static Value toForSeq(
+      InternalInterpreter interpreter, Abstraction version, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`toForSeq` takes 1 argument");
     }
 
-    if (!(args.getFirst() instanceof ListOrVectorSXP<?> vector)) {
+    if (!(args.getFirst() instanceof Value.Sexp(var sexp)
+        && sexp instanceof ListOrVectorSXP<?> vector)) {
       throw interpreter.fail("`toForSeq` requires a vector argument");
     }
 
     // Simply return the vector as-is after validation
-    return vector;
+    return new Value.Sexp(vector);
   }
 
   private Builtins() {}

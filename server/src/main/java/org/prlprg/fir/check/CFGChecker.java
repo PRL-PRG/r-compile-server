@@ -134,7 +134,8 @@ public class CFGChecker extends Checker {
       // Registers aren't assigned NOOPs
       for (var reg : defUses.definedRegisters()) {
         for (var def : defUses.definitions(reg)) {
-          if (def.inInnermostCfg().instruction() instanceof Statement s && s.expression() instanceof Noop) {
+          if (def.inInnermostCfg().instruction() instanceof Statement s
+              && s.expression() instanceof Noop) {
             report(def, "Register " + reg + " assigned a `noop`");
           }
         }

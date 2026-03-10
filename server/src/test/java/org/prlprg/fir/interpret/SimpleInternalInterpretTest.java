@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
 
@@ -48,7 +49,7 @@ class SimpleInternalInterpretTest {
     var result = interpreter.call("test");
 
     // Verify result
-    assertEquals(42, result.asScalarInteger().orElseThrow());
+    assertEquals(new Value.Int(42), result);
   }
 
   @Test
@@ -69,11 +70,11 @@ class SimpleInternalInterpretTest {
     entry.setJump(returnInstr);
 
     // Interpret the function with argument 123
-    var result = interpreter.call("test", SEXPs.integer(123));
+    var result = interpreter.call("test", new Value.Int(123));
 
     // Verify result
     assertNotNull(result);
-    assertEquals(123, result.asScalarInteger().orElseThrow());
+    assertEquals(new Value.Int(123), result);
   }
 
   @Test
@@ -91,7 +92,7 @@ class SimpleInternalInterpretTest {
 
     assertThrows(
         InterpretException.class,
-        () -> interpreter.call("test", SEXPs.integer(1), SEXPs.integer(2)));
+        () -> interpreter.call("test", new Value.Int(1), new Value.Int(2)));
   }
 
   @Test

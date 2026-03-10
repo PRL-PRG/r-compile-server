@@ -6,6 +6,7 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
@@ -18,7 +19,7 @@ import org.prlprg.util.Characters;
 public record Statement(
     @Override Comments comments, @Nullable Register assignee, Expression expression)
     implements Instruction {
-  public static final Statement NOOP = new Statement(Expression.NOOP);
+  public static final Statement NOOP = new Statement(new Noop());
 
   public Statement(@Nullable Register assignee, Expression expression) {
     this(new Comments(), assignee, expression);

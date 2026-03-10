@@ -15,7 +15,6 @@ import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
@@ -23,6 +22,7 @@ import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -358,7 +358,7 @@ public sealed interface Expression
           throw s.fail("In 'a ?= t', 'a' must be a register or constant");
         }
 
-        var constant = p.parse(Constant.class);
+        var constant = p.parse(Value.class);
         return new AssumeConstant(headAsArg, constant);
       } else if (headAsArg != null) {
         return new Aea(headAsArg);

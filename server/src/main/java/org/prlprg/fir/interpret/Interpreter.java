@@ -3,7 +3,7 @@ package org.prlprg.fir.interpret;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.sexp.SEXP;
+import org.prlprg.fir.ir.value.Value;
 
 /// FIŘ interpreter interface. Both the internal hardcoded interpreter ([internal](
 /// org.prlprg.fir.interpret)) and GNU-R compile-service inherit it.
@@ -14,7 +14,7 @@ public interface Interpreter {
 
   /// Looks up the function, gets the best applicable version, and calls it with the arguments
   /// in the global environment.
-  SEXP call(String functionName, SEXP... arguments);
+  Value call(String functionName, Value... arguments);
 
   /// Create an [InterpretException] at the current evaluation position.
   default InterpretException fail(String message) {

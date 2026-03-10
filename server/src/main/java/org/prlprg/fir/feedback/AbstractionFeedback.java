@@ -8,13 +8,13 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
@@ -36,7 +36,7 @@ public class AbstractionFeedback {
   /// `null` = nothing recorded, `Optional.empty()` = different things recorded. Both are
   /// equivalent to `null` when checked, but only the former lets something be recorded
   /// eventually.
-  public final Map<Register, Optional<SEXP>> constants = new HashMap<>();
+  public final Map<Register, Optional<Value>> constants = new HashMap<>();
   /// All registers we recorded any feedback for, and how much times we recorded for each.
   ///
   /// Note that some registers' returned feedback may be equivalent to if we recorded nothing,
@@ -64,7 +64,7 @@ public class AbstractionFeedback {
     recordCommon(register);
   }
 
-  public void recordConstant(Register register, SEXP value) {
+  public void recordConstant(Register register, Value value) {
     var oldConstant = constants.get(register);
     var updatedConstant =
         oldConstant == null
@@ -91,7 +91,7 @@ public class AbstractionFeedback {
     return callees.getOrDefault(register, Optional.empty()).orElse(null);
   }
 
-  public @Nullable SEXP constant(Register register) {
+  public @Nullable Value constant(Register register) {
     return constants.getOrDefault(register, Optional.empty()).orElse(null);
   }
 
@@ -147,7 +147,7 @@ public class AbstractionFeedback {
       if (s.trySkip('_')) {
         constants.put(register, Optional.empty());
       } else {
-        var value = p2.parse(SEXP.class);
+        var value = p2.parse(Value.class);
         constants.put(register, Optional.of(value));
       }
     }

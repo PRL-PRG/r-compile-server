@@ -13,6 +13,8 @@ import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 public sealed interface Value {
+  public static Value NULL = new Sexp(SEXPs.NULL);
+
   record Sexp(SEXP value) implements Value {
     public Sexp {
       if (value instanceof UserEnvSXP) {
@@ -89,12 +91,13 @@ public sealed interface Value {
 
     if (s.nextCharIs('<')) {
       return new Sexp(p.parse(SEXP.class));
-    } else if (s.nextCharSatisfies(Character::isDigit) || s.nextCharIs('+') || s.nextCharIs('-')
-        ||
-        s.nextCharsAre("NA_LGL") ||
-        s.nextCharsAre("NA_INT") ||
-        s.nextCharsAre("NA_REAL") ||
-        s.nextCharsAre("NA_CPLX")) {
+    } else if (s.nextCharSatisfies(Character::isDigit)
+        || s.nextCharIs('+')
+        || s.nextCharIs('-')
+        || s.nextCharsAre("NA_LGL")
+        || s.nextCharsAre("NA_INT")
+        || s.nextCharsAre("NA_REAL")
+        || s.nextCharsAre("NA_CPLX")) {
       var sexp = p.parse(SEXP.class);
       if (sexp.asScalarInteger().isPresent()) {
         return new Int(sexp.asScalarInteger().get());
@@ -114,9 +117,8 @@ public sealed interface Value {
       return new Bool(true);
     } else if (s.trySkip("FALSE")) {
       return new Bool(false);
-    } else {
-      throw s.fail("expected '<', digit, '+', '-', '\"', \"TRUE\", or \"FALSE\"");
     }
+    throw s.fail("expected '<', digit, '+', '-', '\"', \"TRUE\", or \"FALSE\"");
   }
 
   @PrintMethod

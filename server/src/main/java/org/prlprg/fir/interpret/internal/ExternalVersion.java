@@ -2,8 +2,8 @@ package org.prlprg.fir.interpret.internal;
 
 import java.util.List;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.sexp.EnvSXP;
-import org.prlprg.sexp.SEXP;
 
 /// Function version that executes Java code which can be called from the interpreter.
 ///
@@ -23,6 +23,6 @@ public interface ExternalVersion {
     };
   }
 
-  SEXP call(
-      InternalInterpreter runtime, Abstraction hijacked, List<SEXP> arguments, EnvSXP environment);
+  Value call(
+      InternalInterpreter runtime, Abstraction hijacked, List<Value> arguments, EnvSXP environment);
 }

@@ -162,8 +162,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
           var assumeCallee = new AssumeFunction(new Read(register), calleeFeedback);
           assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeCallee);
         } else if (constantFeedback != null) {
-          var assumeConstant =
-              new AssumeConstant(new Read(register), new Constant(constantFeedback));
+          var assumeConstant = new AssumeConstant(new Read(register), constantFeedback);
           assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeConstant);
         } else if (!typeFeedback.equals(local.type())) {
           var assumeType = new AssumeType(new Read(register), typeFeedback);
@@ -202,7 +201,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
             assumeSubsts.stage(target, new Read(globalLookup), successBb);
           }
           case AssumeConstant(var _, var constant) ->
-              assumeSubsts.stage(target, constant, successBb);
+              assumeSubsts.stage(target, new Constant(constant), successBb);
           case AssumeLoadFun _ ->
               throw new IllegalStateException("SpeculateAssume never creates AssumeLoadFun");
         }

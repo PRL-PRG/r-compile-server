@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt.specialize;
 
-import static org.prlprg.fir.ir.expression.Expression.NOOP;
-
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
@@ -11,6 +9,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that removes [AssumeLoadFun] instructions that are dominated by an identical
@@ -39,7 +38,7 @@ public record ElideRedundantAssumeLoadFun() implements SpecializeOptimization {
 
     var analysis = analyses.get(bb.owner(), ActiveAssumeLoadFunAnalysis.class);
     if (analysis.isRedundant(bb, index, a.variable(), a.function())) {
-      return NOOP;
+      return new Noop();
     }
 
     return expression;

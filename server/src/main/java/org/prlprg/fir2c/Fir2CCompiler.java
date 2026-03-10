@@ -22,7 +22,6 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
@@ -72,6 +71,7 @@ import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.*;
 import org.prlprg.gen2c.*;
 import org.prlprg.parseprint.Printer;
@@ -1183,7 +1183,7 @@ public final class Fir2CCompiler {
             return switch (assume) {
               case AssumeConstant(var target, var constant) ->
                   "Fir_assume_constant(%s, %s)"
-                      .formatted(emitArgument(target), constantRef(pool, constant.value()));
+                      .formatted(emitArgument(target), constantRef(pool, constant));
               case AssumeFunction a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =
                     Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
@@ -1567,11 +1567,12 @@ public final class Fir2CCompiler {
       case Value.Int(var i) -> i == Constants.NA_INT ? "NA_INT" : Integer.toString(i);
       case Value.Real(var d) -> Double.isNaN(d) ? "NA_REAL" : Double.toString(d);
       case Value.Str(var s) -> Printer.use(p -> p.writer().writeQuoted('"', s));
-      case Value.Lgl(var l) -> switch (l) {
-        case TRUE -> "(Rboolean)true";
-        case FALSE -> "(Rboolean)false";
-        case NA -> "NA_LGL";
-      };
+      case Value.Lgl(var l) ->
+          switch (l) {
+            case TRUE -> "(Rboolean)true";
+            case FALSE -> "(Rboolean)false";
+            case NA -> "NA_LGL";
+          };
       case Value.Bool(var b) -> b ? "true" : "false";
     };
   }
