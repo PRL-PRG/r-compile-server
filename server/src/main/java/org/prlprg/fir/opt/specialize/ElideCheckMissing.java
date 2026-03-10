@@ -1,7 +1,6 @@
 package org.prlprg.fir.opt.specialize;
 
 import static org.prlprg.fir.GlobalModules.INTRINSICS;
-import static org.prlprg.fir.ir.expression.Expression.NOOP;
 
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
@@ -12,6 +11,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 
@@ -53,6 +53,6 @@ public record ElideCheckMissing() implements SpecializeOptimization {
     }
 
     // Elide
-    return NOOP;
+    return new Noop();
   }
 }

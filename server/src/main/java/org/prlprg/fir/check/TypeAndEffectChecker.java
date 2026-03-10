@@ -144,7 +144,7 @@ public final class TypeAndEffectChecker extends Checker {
     var requiredType =
         switch (assume) {
           case AssumeType(var _, var type) -> type;
-          case AssumeConstant(var _, var constant) -> constant.value().type();
+          case AssumeConstant(var _, var constant) -> constant.type();
           case AssumeFunction _ -> Type.CLOSURE;
           case AssumeLoadFun _ ->
               throw new IllegalArgumentException(

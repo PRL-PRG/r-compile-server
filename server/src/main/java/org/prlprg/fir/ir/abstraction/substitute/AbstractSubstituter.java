@@ -34,6 +34,7 @@ import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -181,14 +182,15 @@ abstract class AbstractSubstituter {
       case LoadFun(var variable, var env) -> new LoadFun(variable, env);
       case MaybeForce(var value) -> new MaybeForce(substitute(bb, value));
       case MkEnv() -> new MkEnv();
-      case PopEnv() -> new PopEnv();
       case MkVector(var kind, var elements) ->
           new MkVector(
               kind,
               elements.stream()
                   .map(ne -> new NamedArgument(ne.name(), substitute(bb, ne.argument())))
                   .collect(ImmutableList.toImmutableList()));
+      case Noop() -> new Noop();
       case Placeholder() -> new Placeholder();
+      case PopEnv() -> new PopEnv();
       case Promise(var valueType, var effects, var code) -> new Promise(valueType, effects, code);
       case ReflectiveLoad(var promise, var variable) ->
           new ReflectiveLoad(substitute(bb, promise), variable);

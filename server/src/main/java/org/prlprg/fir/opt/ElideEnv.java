@@ -8,8 +8,8 @@ import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Deopt;
@@ -90,9 +90,9 @@ public record ElideEnv() implements AbstractionOptimization {
 
   private static void elide(EnvRange range, Set<BB> deoptBBs) {
     // Replace mk and pops with NOOP
-    range.mk().replaceWith(Expression.NOOP);
+    range.mk().replaceWith(new Noop());
     for (var pop : range.pops()) {
-      pop.replaceWith(Expression.NOOP);
+      pop.replaceWith(new Noop());
     }
 
     // Prepend MkEnv to deopt branches

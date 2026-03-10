@@ -24,7 +24,6 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
-import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.AssumeConstant;
@@ -42,6 +41,7 @@ import org.prlprg.fir.ir.expression.LoadFun;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -71,6 +71,7 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -138,18 +139,10 @@ public final class InternalInterpreter implements Interpreter {
   /// New functions added to the module are automatically added to the interpreter's environment
   /// thanks to [org.prlprg.fir.ir.observer.Observer].
   public InternalInterpreter(Module module) {
-    this(module, Map.of());
-  }
-
-  /// Interpret the module in a global environment containing its functions and the given bindings.
-  ///
-  /// New functions added to the module are automatically added to the interpreter's environment
-  /// thanks to [org.prlprg.fir.ir.observer.Observer].
-  public InternalInterpreter(Module module, Map<String, SEXP> bindings) {
     this.module = module;
 
     var baseEnv = new BaseEnvSXP();
-    globalEnv = new GlobalEnvSXP(baseEnv, bindings);
+    globalEnv = new GlobalEnvSXP(baseEnv);
     // Add module functions, including those in parents to the environment.
     addModuleToEnv(module, globalEnv);
     addModuleToEnv(GlobalModules.BASE, baseEnv);
@@ -272,7 +265,7 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   @Override
-  public SEXP call(String functionName, SEXP... arguments) {
+  public Value call(String functionName, Value... arguments) {
     try {
       var function = module.lookupFunction(Variable.named(functionName));
       if (function == null) {
@@ -289,10 +282,10 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Gets the function's best applicable version, and calls it with the arguments in the
   /// environment.
-  public SEXP call(
+  public Value call(
       Function function,
       @Nullable Signature explicitSignature,
-      List<SEXP> arguments,
+      List<Value> arguments,
       EnvSXP environment) {
     var signature = computeSignature(explicitSignature, arguments);
 
@@ -322,9 +315,9 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   /// Calls the function version with the arguments in the environment.
-  public SEXP call(
+  public Value call(
       Abstraction abstraction,
-      List<SEXP> arguments,
+      List<Value> arguments,
       EnvSXP environment,
       @Nullable CFG deoptRestoreCfg) {
     // Hijack if we registered external code for this version
@@ -368,8 +361,8 @@ public final class InternalInterpreter implements Interpreter {
     return result;
   }
 
-  private SEXP callExternal(
-      ExternalVersion hijacker, Abstraction hijacked, List<SEXP> arguments, EnvSXP environment) {
+  private Value callExternal(
+      ExternalVersion hijacker, Abstraction hijacked, List<Value> arguments, EnvSXP environment) {
     checkStack();
 
     try {
@@ -392,7 +385,7 @@ public final class InternalInterpreter implements Interpreter {
   ///
   /// Also pushes/pops `frame`; every [CFG] runs at its own stack frame index (the frame itself
   /// is reused across all CFGs in the [Abstraction]).
-  private SEXP run(StackFrame frame, CFG cfg, @Nullable CFG deoptRestoreCfg) {
+  private Value run(StackFrame frame, CFG cfg, @Nullable CFG deoptRestoreCfg) {
     checkStack();
 
     var cursor = new CFGCursor(cfg);
@@ -413,12 +406,12 @@ public final class InternalInterpreter implements Interpreter {
           frame.exit();
           return value;
         }
-        case ControlFlow.Deopt(var pc, var sexpStack) -> {
+        case ControlFlow.Deopt(var pc, var deoptStack) -> {
           if (cfg == deoptRestoreCfg) {
             throw fail("Can't restore from the same CFG we deoptimized from");
           }
 
-          cursor = restoreDeopt(pc, sexpStack, deoptRestoreCfg);
+          cursor = restoreDeopt(pc, deoptStack, deoptRestoreCfg);
           frame.exit();
           frame.enter(cursor, feedback);
         }
@@ -451,13 +444,16 @@ public final class InternalInterpreter implements Interpreter {
     return switch (jump) {
       case Goto(var _, var next) -> new ControlFlow.Goto(next);
       case If(var _, var condition, var ifTrue, var ifFalse) -> {
-        var condSexp = run(condition);
-
-        if (condition instanceof Read(var conditionReg)) {
-          topFrame().scopeFeedback().recordConstant(conditionReg, condSexp);
+        var condValue = run(condition);
+        if (!(condValue instanceof Value.Bool(var condBool))) {
+          throw fail("Condition is not a boolean: " + condValue);
         }
 
-        yield new ControlFlow.Goto(isTrue(condSexp) ? ifTrue : ifFalse);
+        if (condition instanceof Read(var conditionReg)) {
+          topFrame().scopeFeedback().recordConstant(conditionReg, condValue);
+        }
+
+        yield new ControlFlow.Goto(condBool ? ifTrue : ifFalse);
       }
       case Return(var _, var ret) -> new ControlFlow.Return(run(ret));
       case Checkpoint(var _, var ok, var deopt) -> {
@@ -466,7 +462,17 @@ public final class InternalInterpreter implements Interpreter {
         yield new ControlFlow.Goto(check(ok) ? ok : deopt);
       }
       case Deopt(var _, var pc, var argStack) -> {
-        var valueStack = argStack.stream().map(this::run).collect(ImmutableList.toImmutableList());
+        var valueStack =
+            argStack.stream()
+                .map(this::run)
+                .map(
+                    value -> {
+                      if (!(value instanceof Value.Sexp(var valueSexp))) {
+                        throw fail("Deopt argument is not a SEXP: " + value);
+                      }
+                      return valueSexp;
+                    })
+                .collect(ImmutableList.toImmutableList());
         yield new ControlFlow.Deopt(pc, valueStack);
       }
       case Unreachable(var _) -> throw fail("Reached unimplemented or \"unreachable\" code");
@@ -496,7 +502,7 @@ public final class InternalInterpreter implements Interpreter {
   /// Evaluates an expression and returns its value.
   ///
   /// @throws IllegalStateException If called outside of evaluation.
-  public SEXP run(Expression expression) {
+  public Value run(Expression expression) {
     checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
@@ -505,7 +511,7 @@ public final class InternalInterpreter implements Interpreter {
         checkType(value, type, "assume-type");
         yield value;
       }
-      case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> SEXPs.NULL;
+      case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
@@ -517,9 +523,10 @@ public final class InternalInterpreter implements Interpreter {
           case DispatchCallee(var function, var signature) ->
               call(function, signature, arguments, environment);
           case DynamicCallee(var actualCallee, var argumentNames) -> {
-            var calleeSexp = run(actualCallee);
-            if (!(calleeSexp instanceof CloSXP cloSXP)) {
-              throw fail("Not a function: " + calleeSexp);
+            var calleeValue = run(actualCallee);
+            if (!(calleeValue instanceof Value.Sexp(var calleeSexp)
+                && calleeSexp instanceof CloSXP cloSXP)) {
+              throw fail("Not a function: " + calleeValue);
             }
 
             var function = extractClosure(cloSXP);
@@ -531,20 +538,31 @@ public final class InternalInterpreter implements Interpreter {
               topFrame().scopeFeedback().recordCallee(calleeReg, function);
             }
 
-            List<SEXP> matchedArguments;
+            var argumentSexps =
+                arguments.stream()
+                    .map(
+                        argValue -> {
+                          if (!(argValue instanceof Value.Sexp(var argSexp))) {
+                            throw fail("Dynamic function argument not SEXP: " + argValue);
+                          }
+                          return argSexp;
+                        });
+
+            List<SEXP> matchedArgumentSexps;
             try {
               var namedArguments =
                   Streams.zip(
                           Stream.concat(
                               argumentNames.stream(),
                               Stream.generate(OptionalNamedVariable::empty)),
-                          arguments.stream(),
+                          argumentSexps,
                           OptionalNamedVariable::taggedElem)
                       .collect(SEXPs.toList());
-              matchedArguments = matchArguments(cloSXP.parameters(), namedArguments);
+              matchedArgumentSexps = matchArguments(cloSXP.parameters(), namedArguments);
             } catch (MatchException e) {
               throw fail(e.getMessage());
             }
+            List<Value> matchedArguments = Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new);
 
             yield call(function, null, matchedArguments, environment);
           }
@@ -555,58 +573,60 @@ public final class InternalInterpreter implements Interpreter {
         checkType(value, type, "cast");
         yield value;
       }
-      case Closure closure -> closureStub(closure.code(), topFrame().environment());
-      case Dup(var value) -> {
-        var sexp = run(value);
+      case Closure closure -> new Value.Sexp(closureStub(closure.code(), topFrame().environment()));
+      case Dup(var arg) -> {
+        var value = run(arg);
 
-        if (!(sexp instanceof ListOrVectorSXP<?> s)) {
-          throw fail("Can't duplicate: " + sexp);
+        if (!(value instanceof Value.Sexp(var sexp) && sexp instanceof ListOrVectorSXP<?> s)) {
+          throw fail("Can't duplicate: " + value);
         }
 
-        yield s.copy();
+        yield new Value.Sexp(s.copy());
       }
-      case Force(var promArg) -> {
-        var promValue = run(promArg);
-        if (!(promValue instanceof PromSXP promSXP)) {
-          throw fail("Can't force non-promise: " + promValue);
+      case Force(var arg) -> {
+        var value = run(arg);
+        if (!(value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promise)) {
+          throw fail("Can't force non-promise: " + value);
         }
 
-        yield force(promSXP);
+        yield new Value.Sexp(force(promise));
       }
-      case Load(var variable) -> load(variable);
+      case Load(var variable) -> new Value.Sexp(load(variable));
       case LoadFun(var variable, var env) -> {
-        var value =
+        var valueCls =
             switch (env) {
               case LOCAL -> topFrame().getFunction(variable, this::force);
               case GLOBAL -> globalEnv.getFunction(variable.name(), this::force).orElse(null);
               case BASE -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
             };
-        if (value == null) {
+        if (valueCls == null) {
           // TODO: Find which non-builtin functions are included in the GNU-R standard library
           throw failUnsupported(
               "Unbound function: "
                   + variable.name()
                   + "\n\"Unsupported\" because it may be a library function");
         }
-        yield value;
+        yield new Value.Sexp(valueCls);
       }
-      case MaybeForce(var value) -> {
-        var sexp = run(value);
-        if (!(sexp instanceof PromSXP promSXP)) {
-          yield sexp;
+      case MaybeForce(var arg) -> {
+        var value = run(arg);
+        if (!(value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promise)) {
+          yield value;
         }
 
-        yield force(promSXP);
+        yield new Value.Sexp(force(promise));
       }
       case MkVector(var kind, var elements) ->
-          mkVector(
-              kind,
-              Lists.mapLazy(elements, e -> OptionalNamedVariable.ofNullable(e.name())),
-              Lists.mapLazy(elements, e -> run(e.argument())));
+          new Value.Sexp(
+              mkVector(
+                  kind,
+                  Lists.mapLazy(elements, e -> OptionalNamedVariable.ofNullable(e.name())),
+                  Lists.mapLazy(elements, e -> run(e.argument()))));
       case MkEnv() -> {
         topFrame().mkEnv();
-        yield SEXPs.NULL;
+        yield Value.NULL;
       }
+      case Noop() -> Value.NULL;
       case Placeholder() -> throw fail("Can't evaluate placeholder");
       case PopEnv() -> {
         try {
@@ -615,85 +635,93 @@ public final class InternalInterpreter implements Interpreter {
           // There was no pushed env
           throw fail(e.getMessage());
         }
-        yield SEXPs.NULL;
+        yield Value.NULL;
       }
-      case Promise promise -> promiseStub(promise);
+      case Promise promise -> new Value.Sexp(promiseStub(promise));
       case ReflectiveLoad(var promArg, var variable) -> {
-        var promSxp = run(promArg);
+        var promValue = run(promArg);
 
-        if (!(promSxp instanceof PromSXP promise)) {
-          throw fail("Can't reflective load in non-promise: " + promSxp);
+        if (!(promValue instanceof Value.Sexp(var promSexp)
+            && promSexp instanceof PromSXP promise)) {
+          throw fail("Can't reflective load in non-promise: " + promValue);
         }
         var env = promise.env();
 
         yield env.getLocal(variable.name())
+            .map(Value.Sexp::new)
             .orElseThrow(() -> fail("Unbound variable in promise environment: " + variable.name()));
       }
       case ReflectiveStore(var promArg, var variable, var valueArg) -> {
-        var promSxp = run(promArg);
-        var valueSxp = run(valueArg);
+        var promValue = run(promArg);
+        var valueValue = run(valueArg);
 
-        if (!(promSxp instanceof PromSXP promise)) {
-          throw fail("Can't reflective load in non-promise: " + promSxp);
+        if (!(promValue instanceof Value.Sexp(var promSexp)
+            && promSexp instanceof PromSXP promise)) {
+          throw fail("Can't reflective store in non-promise: " + promValue);
+        }
+        if (!(valueValue instanceof Value.Sexp(var valueSexp))) {
+          throw fail("Can't reflective store non-SEXP value: " + valueValue);
         }
         var env = promise.env();
 
-        env.set(variable.name(), valueSxp);
-        yield valueSxp;
+        env.set(variable.name(), valueSexp);
+        yield valueValue;
       }
-      case Store(var variable, var value) -> {
-        var sexp = run(value);
-        topFrame().put(variable, sexp);
-        yield sexp;
+      case Store(var variable, var arg) -> {
+        var value = run(arg);
+        topFrame().put(variable, value);
+        yield value;
       }
       case SubscriptRead(var vectorArg, var indexArg) -> {
-        var vectorSxp = run(vectorArg);
-        var indexSxp = run(indexArg);
+        var vectorValue = run(vectorArg);
+        var indexValue = run(indexArg);
 
-        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
-          throw fail("Can't subscript non-vector: " + vectorSxp);
+        if (!(vectorValue instanceof Value.Sexp(var vectorSexp)
+            && vectorSexp instanceof ListOrVectorSXP<?> vector)) {
+          throw fail("Can't subscript non-vector: " + vectorValue);
         }
-
-        var index = indexSxp.asScalarInteger().orElse(null);
-        if (index == null) {
-          throw fail("Can't subscript with non-integer index: " + indexSxp);
+        if (!(indexValue instanceof Value.Int(var index))) {
+          throw fail("Can't subscript with non-integer index: " + indexValue);
         }
 
         yield subscriptLoad(vector, index);
       }
       case SubscriptWrite(var vectorArg, var indexArg, var valueArg) -> {
-        var vectorSxp = run(vectorArg);
-        var indexSxp = run(indexArg);
-        var value = run(valueArg);
+        var vectorValue = run(vectorArg);
+        var indexValue = run(indexArg);
+        var valueValue = run(valueArg);
 
-        if (!(vectorSxp instanceof ListOrVectorSXP<?> vector)) {
-          throw fail("Can't subscript non-vector: " + vectorSxp);
+        if (!(vectorValue instanceof Value.Sexp(var vectorSexp)
+            && vectorSexp instanceof ListOrVectorSXP<?> vector)) {
+          throw fail("Can't subscript non-vector: " + vectorValue);
+        }
+        if (!(indexValue instanceof Value.Int(var index))) {
+          throw fail("Can't subscript with non-integer index: " + indexValue);
         }
 
-        var index = indexSxp.asScalarInteger().orElse(null);
-        if (index == null) {
-          throw fail("Can't subscript with non-integer index: " + indexSxp);
-        }
-
-        yield subscriptStore(vector, index, value);
+        yield subscriptStore(vector, index, valueValue);
       }
       case SuperLoad(var variable) -> {
         var parentEnv = topFrame().environment().parent();
-        var value = parentEnv.get(variable.name()).orElse(null);
-        if (value == null) {
+        var valueSexp = parentEnv.get(variable.name()).orElse(null);
+        if (valueSexp == null) {
           throw fail("Unbound variable in parent environment: " + variable.name());
         }
-        yield value;
+        yield new Value.Sexp(valueSexp);
       }
-      case SuperStore(var variable, var value) -> {
+      case SuperStore(var variable, var arg) -> {
         var parentEnv = topFrame().environment().parent();
-        var sexp = run(value);
+        var value = run(arg);
+
+        if (!(value instanceof Value.Sexp(var valueSexp))) {
+          throw fail("Can't super-store non-SEXP: " + value);
+        }
 
         // Super-store implementation
         while (!(parentEnv instanceof EmptyEnvSXP)) {
           if (parentEnv.getLocal(variable.name()).isPresent()) {
-            parentEnv.set(variable.name(), sexp);
-            yield sexp;
+            parentEnv.set(variable.name(), valueSexp);
+            yield value;
           }
           parentEnv = parentEnv.parent();
         }
@@ -739,36 +767,37 @@ public final class InternalInterpreter implements Interpreter {
         throw fail("Error: indexing '...' with non-positive index 0");
       }
 
-      var dots = topFrame().get(NamedVariable.DOTS);
-      if (dots == null) {
+      var dotsValue = topFrame().get(NamedVariable.DOTS);
+      if (dotsValue == null) {
         throw fail("Error: '" + nv + "' used in an incorrect context, no ... to look in");
       }
+      var dotsSexp = ((Value.Sexp) dotsValue).value();
 
       // Missing value is semantically equivalent to an empty dots list
-      if (dots.equals(SEXPs.MISSING_ARG)) {
+      if (dotsSexp.equals(SEXPs.MISSING_ARG)) {
+        throw fail("Error: the ... list contains fewer than " + n + " element(s)");
+      }
+      var dots = (DotsListSXP) dotsSexp;
+      if (n > dots.size()) {
         throw fail("Error: the ... list contains fewer than " + n + " element(s)");
       }
 
-      var dots1 = (DotsListSXP) dots;
-
-      if (n > dots1.size()) {
-        throw fail("Error: the ... list contains fewer than " + n + " element(s)");
-      }
-      return dots1.value(n - 1);
+      return dots.value(n - 1);
     }
 
     var value = topFrame().get(nv);
     if (value == null) {
       throw fail("Unbound variable: " + nv.name());
     }
-    return value;
+    return ((Value.Sexp) value).value();
   }
 
   /// Create a vector of the correct type to hold `values`
   ///
   /// @throws IllegalArgumentException If `names` and `values` are different sizes.
   /// @throws InternalInterpretException If `values` aren't elements of `kind`
-  public SEXP mkVector(Kind kind, List<OptionalNamedVariable> elementNames, List<SEXP> elements) {
+  public ListOrVectorSXP<?> mkVector(
+      Kind kind, List<OptionalNamedVariable> elementNames, List<Value> elements) {
     if (elementNames.size() != elements.size()) {
       throw new IllegalArgumentException(
           "Element names and values count mismatch: "
@@ -796,38 +825,70 @@ public final class InternalInterpreter implements Interpreter {
               SEXPs.integer(
                   elements.stream()
                       .mapToInt(
-                          v -> v.asScalarInteger().orElseThrow(() -> fail("Not an integer: " + v)))
+                          value -> {
+                            if (!(value instanceof Value.Int(var value1))) {
+                              throw fail("Not an int (for int vector): " + value);
+                            }
+                            return value1;
+                          })
                       .toArray(),
                   attrs);
           case PrimitiveKind.REAL ->
               SEXPs.real(
                   elements.stream()
                       .mapToDouble(
-                          v -> v.asScalarReal().orElseThrow(() -> fail("Not a real: " + v)))
+                          value -> {
+                            if (!(value instanceof Value.Real(var value1))) {
+                              throw fail("Not a real (for real vector): " + value);
+                            }
+                            return value1;
+                          })
                       .toArray(),
                   attrs);
           case PrimitiveKind.LOGICAL ->
               SEXPs.logical(
                   elements.stream()
-                      .map(v -> v.asScalarLogical().orElseThrow(() -> fail("Not a logical: " + v)))
+                      .map(
+                          value -> {
+                            if (!(value instanceof Value.Lgl(var value1))) {
+                              throw fail("Not a logical (for logical vector): " + value);
+                            }
+                            return value1;
+                          })
                       .toArray(Logical[]::new),
                   attrs);
           case PrimitiveKind.STRING ->
               SEXPs.string(
                   elements.stream()
-                      .map(v -> v.asScalarString().orElseThrow(() -> fail("Not a string: " + v)))
+                      .map(
+                          value -> {
+                            if (!(value instanceof Value.Str(var value1))) {
+                              throw fail("Not a string (for string vector): " + value);
+                            }
+                            return value1;
+                          })
                       .toArray(String[]::new),
                   attrs);
         };
       }
       case Dots() ->
-          Streams.zip(elementNames.stream(), elements.stream(), OptionalNamedVariable::taggedElem)
+          Streams.zip(
+                  elementNames.stream(),
+                  elements.stream()
+                      .map(
+                          value -> {
+                            if (!(value instanceof Value.Sexp(var valueSexp))) {
+                              throw fail("Not an SEXP (for dots list): " + value);
+                            }
+                            return valueSexp;
+                          }),
+                  OptionalNamedVariable::taggedElem)
               .collect(SEXPs.toDots());
       default -> throw fail("Unsupported vector kind: " + kind);
     };
   }
 
-  public SEXP subscriptLoad(ListOrVectorSXP<?> vector, int index) {
+  public Value subscriptLoad(ListOrVectorSXP<?> vector, int index) {
     if (index < 0 || index >= vector.size()) {
       throw fail(
           "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
@@ -835,20 +896,20 @@ public final class InternalInterpreter implements Interpreter {
 
     // Get scalar SEXP from vector SEXP
     return switch (vector) {
-      case LglSXP l -> SEXPs.logical(l.get(index));
-      case IntSXP i -> SEXPs.integer(i.get(index));
-      case RealSXP r -> SEXPs.real(r.get(index));
-      case ComplexSXP c -> SEXPs.complex(c.get(index));
-      case StrSXP s -> SEXPs.string(s.get(index));
-      case RawSXP r -> SEXPs.raw(r.get(index));
-      case VecSXP v -> v.get(index);
-      case ListSXP l -> l.get(index).value();
-      case DotsListSXP d -> d.get(index).value();
-      case ExprSXP e -> e.get(index);
+      case LglSXP l -> new Value.Lgl(l.get(index));
+      case IntSXP i -> new Value.Int(i.get(index));
+      case RealSXP r -> new Value.Real(r.get(index));
+      case ComplexSXP _ -> throw failUnsupported("Complex scalars");
+      case StrSXP s -> new Value.Str(s.get(index));
+      case RawSXP _ -> throw failUnsupported("Raw scalars");
+      case VecSXP v -> new Value.Sexp(v.get(index));
+      case ListSXP l -> new Value.Sexp(l.get(index).value());
+      case DotsListSXP d -> new Value.Sexp(d.get(index).value());
+      case ExprSXP e -> new Value.Sexp(e.get(index));
     };
   }
 
-  public SEXP subscriptStore(ListOrVectorSXP<?> vector, int index, SEXP value) {
+  public Value subscriptStore(ListOrVectorSXP<?> vector, int index, Value value) {
     if (!vector.getCanonicalType().isInstance(value)) {
       throw fail("Can't store " + value.type() + " value in " + vector.type() + " vector");
     }
@@ -860,15 +921,50 @@ public final class InternalInterpreter implements Interpreter {
 
     // Set scalar SEXP in vector SEXP
     switch (vector) {
-      case LglSXP l -> l.set(index, value.asScalarLogical().orElseThrow());
-      case IntSXP i -> i.set(index, value.asScalarInteger().orElseThrow());
-      case RealSXP r -> r.set(index, value.asScalarReal().orElseThrow());
-      case ComplexSXP c -> c.set(index, value.asScalarComplex().orElseThrow());
-      case StrSXP s -> s.set(index, value.asScalarString().orElseThrow());
-      case RawSXP r -> r.set(index, value.asScalarRaw().orElseThrow());
-      case VecSXP v -> v.set(index, value);
-      case ListSXP l -> l.set(index, value);
-      case DotsListSXP d -> d.set(index, value);
+      case LglSXP l -> {
+        if (!(value instanceof Value.Lgl(var value1))) {
+          throw fail("Not a logical (for logical vector): " + value);
+        }
+        l.set(index, value1);
+      }
+      case IntSXP i -> {
+        if (!(value instanceof Value.Int(var value1))) {
+          throw fail("Not an int (for int vector): " + value);
+        }
+        i.set(index, value1);
+      }
+      case RealSXP r -> {
+        if (!(value instanceof Value.Real(var value1))) {
+          throw fail("Not a real (for real vector): " + value);
+        }
+        r.set(index, value1);
+      }
+      case ComplexSXP _ -> throw failUnsupported("Complex scalars");
+      case StrSXP s -> {
+        if (!(value instanceof Value.Str(var value1))) {
+          throw fail("Not a string (for string vector): " + value);
+        }
+        s.set(index, value1);
+      }
+      case RawSXP _ -> throw failUnsupported("Raw scalars");
+      case VecSXP v -> {
+        if (!(value instanceof Value.Sexp(var valueSexp))) {
+          throw fail("Not an SEXP (for generic vector): " + value);
+        }
+        v.set(index, valueSexp);
+      }
+      case ListSXP l -> {
+        if (!(value instanceof Value.Sexp(var valueSexp))) {
+          throw fail("Not an SEXP (for list): " + value);
+        }
+        l.set(index, valueSexp);
+      }
+      case DotsListSXP d -> {
+        if (!(value instanceof Value.Sexp(var valueSexp))) {
+          throw fail("Not an SEXP (for dots list): " + value);
+        }
+        d.set(index, valueSexp);
+      }
       case ExprSXP e -> e.get(index);
     }
 
@@ -892,18 +988,29 @@ public final class InternalInterpreter implements Interpreter {
 
     // No restore CFG = can't deopt in promises, at least for now.
     var value = run(promCode.frame, promExpr.code(), null);
-    promSXP.bind(value);
+    if (!(value instanceof Value.Sexp(var valueSexp))) {
+      throw fail("Not an SEXP (for promise eval): " + value);
+    }
+    promSXP.bind(valueSexp);
 
     checkType(value, promExpr.valueType(), "promise");
-    return value;
+    return valueSexp;
   }
 
   /// Force if promise, load if variable, and evaluate children.
   ///
   /// @throws UnsupportedOperationException if given `LangSXP`; evaluation of those isn't
-  // implemented.
-  public SEXP eval(SEXP sexp) {
-    return switch (sexp) {
+  /// implemented.
+  public Value eval(Value value) {
+    if (!(value instanceof Value.Sexp(var valueSexp))) {
+      return value;
+    }
+
+    return new Value.Sexp(eval(valueSexp));
+  }
+
+  private SEXP eval(SEXP valueSexp) {
+    return switch (valueSexp) {
       case PromSXP promSxp -> eval(force(promSxp));
       case RegSymSXP symSxp -> eval(load(Variable.named(symSxp.name())));
       case ListSXP listSxp ->
@@ -917,7 +1024,7 @@ public final class InternalInterpreter implements Interpreter {
       case LangSXP langSxp ->
           throw new UnsupportedOperationException(
               "Evaluation of LangSXP not implemented: " + langSxp);
-      default -> sexp;
+      default -> valueSexp;
     };
   }
 
@@ -942,18 +1049,18 @@ public final class InternalInterpreter implements Interpreter {
     switch (assume) {
       case AssumeConstant(var arg, var constant) -> {
         var value = run(arg);
-        return Objects.equals(value, constant.sexp());
+        return Objects.equals(value, constant);
       }
       case AssumeFunction af -> {
         var arg = af.target();
         var function = af.function();
 
         var value = run(arg);
-        if (!(value instanceof CloSXP cloSXP)) {
+        if (!(value instanceof Value.Sexp(var valueSexp) && valueSexp instanceof CloSXP valueCls)) {
           return false;
         }
-        var sexpFun = extractClosure(cloSXP);
-        return sexpFun == function;
+        var valueFun = extractClosure(valueCls);
+        return valueFun == function;
       }
       case AssumeLoadFun alf -> {
         var variable = alf.variable();
@@ -961,16 +1068,16 @@ public final class InternalInterpreter implements Interpreter {
 
         // Returns `false` when an unevaluated promise is encountered,
         // by returning a stub so that `extractClosure` never returns `function`
-        var value =
+        var valueCls =
             topFrame()
                 .getFunction(
                     variable,
                     _ -> SEXPs.closure(SEXPs.list(), SEXPs.symbol(".stub"), SEXPs.EMPTY_ENV));
-        if (value == null) {
+        if (valueCls == null) {
           return false;
         }
-        var sexpFun = extractClosure(value);
-        return sexpFun == function;
+        var valueFun = extractClosure(valueCls);
+        return valueFun == function;
       }
       case AssumeType(var arg, var type) -> {
         var value = run(arg);
@@ -981,9 +1088,9 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   /// Simulate deoptless: go to the [Deopt] in `deoptRestoreCfg` at `pc`, assign deopt stack
-  /// arguments `sexpStack` values, then "reverse-evaluate" until the checkpoint (pop env for
+  /// arguments `deoptStack` values, then "reverse-evaluate" until the checkpoint (pop env for
   /// each [MkEnv]).
-  private CFGCursor restoreDeopt(int pc, List<SEXP> sexpStack, @Nullable CFG deoptRestoreCfg) {
+  private CFGCursor restoreDeopt(int pc, List<SEXP> deoptStack, @Nullable CFG deoptRestoreCfg) {
     CFGCursor cursor;
     if (deoptRestoreCfg == null) {
       throw fail("can't deopt without restore CFG");
@@ -1012,32 +1119,32 @@ public final class InternalInterpreter implements Interpreter {
     if (!(checkBc.jump() instanceof Checkpoint)) {
       throw fail("deopt branch predecessor is not a checkpoint?\n" + deoptRestoreCfg);
     }
-    if (argStack.size() != sexpStack.size()) {
+    if (argStack.size() != deoptStack.size()) {
       throw fail(
-          "deopt stack size mismatch: expected " + argStack.size() + ", got " + sexpStack.size());
+          "deopt stack size mismatch: expected " + argStack.size() + ", got " + deoptStack.size());
     }
 
     // Replace arguments
     for (var i = 0; i < argStack.size(); i++) {
       var arg = argStack.get(i);
-      var sexp = sexpStack.get(i);
+      var value = new Value.Sexp(deoptStack.get(i));
       switch (arg) {
         case Constant(var constant) -> {
-          if (!sexp.equals(constant)) {
+          if (!value.equals(constant)) {
             throw fail(
                 "constant in one restore branch is different than the register in deopt: expected "
                     + constant
                     + ", got "
-                    + sexp);
+                    + value);
           }
         }
         case Read(var variable) -> {
-          topFrame().put(variable, sexp);
-          recordTypeFeedback(topFrame().scopeFeedback(), variable, sexp);
+          topFrame().put(variable, value);
+          recordTypeFeedback(topFrame().scopeFeedback(), variable, value);
         }
         case Use(var variable) -> {
-          topFrame().put(variable, sexp);
-          recordTypeFeedback(topFrame().scopeFeedback(), variable, sexp);
+          topFrame().put(variable, value);
+          recordTypeFeedback(topFrame().scopeFeedback(), variable, value);
         }
       }
     }
@@ -1083,8 +1190,11 @@ public final class InternalInterpreter implements Interpreter {
       var stmt = deopt.bb().statements().get(i);
       switch (stmt.expression()) {
         case MkEnv() -> env = new UserEnvSXP(env);
-        case Store(var variable, var value) -> {
-          var valueSexp = run(value);
+        case Store(var variable, var arg) -> {
+          var value = run(arg);
+          if (!(value instanceof Value.Sexp(var valueSexp))) {
+            throw fail("Can't store non-SEXP in environment: " + value);
+          }
           env.set(variable.name(), valueSexp);
         }
         default ->
@@ -1099,22 +1209,21 @@ public final class InternalInterpreter implements Interpreter {
     var deoptJump = (Deopt) deopt.bb().jump();
     var pc = deoptJump.pc();
     var bcStack =
-        deoptJump.stack().stream().map(this::run).collect(ImmutableList.toImmutableList());
+        deoptJump.stack().stream()
+            .map(this::run)
+            .map(
+                value -> {
+                  if (!(value instanceof Value.Sexp(var sexp))) {
+                    throw fail("Deopt stack value not SEXP: " + value);
+                  }
+                  return sexp;
+                })
+            .collect(ImmutableList.toImmutableList());
 
     return new DeoptSnapshot(pc, bcStack, env, stackToString());
   }
 
-  /// Casts the value to a boolean and returns it, throws if not a boolean.
-  private boolean isTrue(SEXP value) {
-    return switch (value.asScalarLogical().orElse(null)) {
-      case TRUE -> true;
-      case FALSE -> false;
-      case NA -> throw fail("Booleans can't be NA");
-      case null -> throw fail("Booleans must be scalar logicals");
-    };
-  }
-
-  private void recordTypeFeedback(AbstractionFeedback feedback, Register variable, SEXP value) {
+  private void recordTypeFeedback(AbstractionFeedback feedback, Register variable, Value value) {
     feedback.recordType(variable, inferType(value, Ownership.SHARED));
   }
 
@@ -1122,7 +1231,7 @@ public final class InternalInterpreter implements Interpreter {
   ///
   /// In the process, checks that `arguments` are instances of `explicit`'s parameter types, and
   /// throws [InternalInterpretException] if they don't.
-  private Signature computeSignature(@Nullable Signature explicit, List<SEXP> arguments) {
+  private Signature computeSignature(@Nullable Signature explicit, List<Value> arguments) {
     if (explicit == null) {
       return inferSignature(arguments);
     }
@@ -1159,7 +1268,7 @@ public final class InternalInterpreter implements Interpreter {
   /// Infer the `value`'s type, check it against `expected`, and return it.
   ///
   /// @throws InternalInterpretException if `value` isn't an instance.
-  private Type checkType(SEXP value, Type expected, String context) {
+  private Type checkType(Value value, Type expected, String context) {
     var actual = inferType(value, expected.ownership());
     if (!actual.isSubtypeOf(expected)) {
       // Give these shared ownerships in the error message, since ownerships aren't the problem.
@@ -1177,7 +1286,7 @@ public final class InternalInterpreter implements Interpreter {
     return actual;
   }
 
-  private Signature inferSignature(List<SEXP> arguments) {
+  private Signature inferSignature(List<Value> arguments) {
     return new Signature(
         arguments.stream()
             .map(a -> inferType(a, Ownership.SHARED))
@@ -1186,22 +1295,21 @@ public final class InternalInterpreter implements Interpreter {
         Effects.REFLECT);
   }
 
-  /// Infer the type of the [SEXP], giving it the ownership iff permissible.
+  /// Infer the type of the value, giving it the ownership iff permissible.
   ///
-  /// Ownership of the outermost type doesn't exist at runtime, so expected ownership must be
-  /// provided. Note that ownership of inner promise types DOES exist. Also, if the type is only
-  /// well-formed iff shared and the given ownership isn't, it's returned as shared.
-  public Type inferType(SEXP sexp, Ownership ownership) {
+  /// If the type is only well-formed as shared, it's returned as shared regardless of the given
+  /// ownership.
+  public Type inferType(Value value, Ownership ownership) {
     // We can do better than `Type.of` for promises,
     // since we create promises with stub code.
-    if (sexp instanceof PromSXP promSxp) {
+    if (value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promSxp) {
       var promise = promises.get(promSxp);
       if (promise != null) {
         return Type.promise(promise.expression.valueType(), promise.expression.effects());
       }
     }
 
-    var type = Type.of(sexp);
+    var type = value.type();
     // Set ownership only if the type is well-formed with it.
     return type.kind().isWellFormedWithOwnership() ? type.withOwnership(ownership) : type;
   }
@@ -1282,7 +1390,7 @@ public final class InternalInterpreter implements Interpreter {
   private sealed interface ControlFlow {
     record Goto(Target next) implements ControlFlow {}
 
-    record Return(SEXP value) implements ControlFlow {}
+    record Return(Value value) implements ControlFlow {}
 
     record Deopt(int pc, List<SEXP> stack) implements ControlFlow {}
   }

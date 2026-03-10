@@ -81,7 +81,8 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (other) {
       case AnySexp() -> true;
       case Dots() -> this instanceof Dots || this instanceof Missing;
-      case PrimitiveVector(_), Closure(), Missing(), PrimitiveScalar(_), Boolean() -> this.equals(other);
+      case PrimitiveVector(_), Closure(), Missing(), PrimitiveScalar(_), Boolean() ->
+          this.equals(other);
     };
   }
 
@@ -138,7 +139,8 @@ public sealed interface Kind extends Comparable<Kind> {
           };
       case Boolean() ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), Closure(), Dots(), Missing(), PrimitiveScalar(_) -> 1;
+            case AnySexp(), PrimitiveVector(_), Closure(), Dots(), Missing(), PrimitiveScalar(_) ->
+                1;
             case Boolean() -> 0;
           };
     };

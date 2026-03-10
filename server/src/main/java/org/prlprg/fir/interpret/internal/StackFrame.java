@@ -96,7 +96,8 @@ final class StackFrame {
       case Register r -> registers.put(r, value);
       case NamedVariable nv -> {
         if (!(value instanceof Value.Sexp(var sexp))) {
-          throw new IllegalArgumentException("Can't store " + value + " in " + nv);
+          throw new IllegalArgumentException(
+              "Can't store non-SEXP (" + value + ") under named variable (" + nv + ")");
         }
         environment.set(nv.name(), sexp);
       }

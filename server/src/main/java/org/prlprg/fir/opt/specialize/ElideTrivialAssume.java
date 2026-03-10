@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt.specialize;
 
-import static org.prlprg.fir.ir.expression.Expression.NOOP;
-
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
@@ -10,6 +8,7 @@ import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.AssumeConstant;
@@ -18,6 +17,7 @@ import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that removes [Assume](org.prlprg.fir.ir.expression.Assume)s that statically
@@ -54,15 +54,15 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield NOOP;
+        yield new Noop();
       }
       case AssumeConstant(var value, var constant) -> {
         var origin = analyses.get(OriginAnalysis.class).resolve(value);
-        if (origin != constant) {
+        if (!origin.equals(new Constant(constant))) {
           yield expression;
         }
 
-        yield NOOP;
+        yield new Noop();
       }
       case AssumeLoadFun a -> {
         var originAnalysis = analyses.get(OriginAnalysis.class);
@@ -75,7 +75,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield NOOP;
+        yield new Noop();
       }
       default -> expression;
     };

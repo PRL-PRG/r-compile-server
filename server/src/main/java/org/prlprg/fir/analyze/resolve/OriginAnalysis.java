@@ -39,6 +39,7 @@ import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -248,6 +249,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             Dup _,
             MkVector _,
             MkEnv _,
+            Noop _,
             Placeholder _,
             PopEnv _,
             ReflectiveLoad _,

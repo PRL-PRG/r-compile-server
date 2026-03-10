@@ -2,6 +2,7 @@ package org.prlprg.fir.interpret;
 
 import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import java.util.Arrays;
 import org.prlprg.examples.SexpResult;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
@@ -9,6 +10,7 @@ import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.interpret.internal.InternalInterpretUnsupportedException;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.util.Strings;
 
@@ -30,7 +32,13 @@ final class TestInterpreter {
             .track(
                 () -> {
                   try {
-                    result[0] = new Ok(interpreter.call(functionName, arguments));
+                    var argValues =
+                        Arrays.stream(arguments).map(Value.Sexp::new).toArray(Value[]::new);
+                    var resultValue = interpreter.call(functionName, argValues);
+                    if (!(resultValue instanceof Value.Sexp(var resultSexp))) {
+                      throw new AssertionError("Interpreter returned non-SEXP: " + resultValue);
+                    }
+                    result[0] = new Ok(resultSexp);
                   } catch (InterpretException e) {
                     result[0] = new Error(e, e instanceof InternalInterpretUnsupportedException);
                   }
