@@ -3035,6 +3035,24 @@ SEXP rcp_init(void)
 	return R_NilValue;
 }
 
+#ifndef RCP_GIT_COMMIT
+#define RCP_GIT_COMMIT "NA"
+#endif
+
+SEXP C_rcp_build_info(void)
+{
+	const char *names[] = {"git_commit", "compile_promises", ""};
+	SEXP info = PROTECT(Rf_mkNamed(VECSXP, names));
+	SET_VECTOR_ELT(info, 0, mkString(RCP_GIT_COMMIT));
+#ifdef RCP_COMPILE_PROMISES
+	SET_VECTOR_ELT(info, 1, ScalarLogical(1));
+#else
+	SET_VECTOR_ELT(info, 1, ScalarLogical(0));
+#endif
+	UNPROTECT(1);
+	return info;
+}
+
 void rcp_destr(void)
 {
 	if (rcp_perf_jit_enabled)

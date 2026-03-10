@@ -17,6 +17,7 @@ extern SEXP C_rcp_gdb_jit_support(void);
 extern SEXP C_rcp_perf_jit_support(void);
 extern SEXP rcp_init(void);
 extern void rcp_destr(void);
+extern SEXP C_rcp_build_info(void);
 extern SEXP __rcp_throw_exception(void);
 extern SEXP __rcp_test_catch(SEXP expr, SEXP env);
 
@@ -34,6 +35,7 @@ static const R_CallMethodDef CallEntries[] = {
 	{"rcp_dwarf_support", (DL_FUNC)&C_rcp_dwarf_support, 0},
 	{"rcp_gdb_jit_support", (DL_FUNC)&C_rcp_gdb_jit_support, 0},
 	{"rcp_perf_jit_support", (DL_FUNC)&C_rcp_perf_jit_support, 0},
+	{"C_rcp_build_info", (DL_FUNC)&C_rcp_build_info, 0},
 	{"rcp_init", (DL_FUNC)&rcp_init, 0},
 	{"__rcp_throw_exception", (DL_FUNC)&__rcp_throw_exception, 0},
 	{"__rcp_test_catch", (DL_FUNC)&__rcp_test_catch, 2},
