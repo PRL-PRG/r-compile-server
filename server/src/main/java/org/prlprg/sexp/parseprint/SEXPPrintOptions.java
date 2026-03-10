@@ -91,7 +91,7 @@ public record SEXPPrintOptions(
           .withMapsSorted(true);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP], and guarantee it's surrounded by
-  /// `<` and `>` if not `NULL` or scalar.
+  /// `<` and `>`.
   ///
   /// This or [#FULL] is required for the string to be parse-able.
   public static final SEXPPrintOptions FULL_DELIMITED = FULL.withDelimited(true);

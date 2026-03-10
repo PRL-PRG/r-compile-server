@@ -18,9 +18,9 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg rx:p(I -), reg ry:I, reg rz:I |
-                rx = prom<I ->{
-                  ry = 1;
+              () --> I { reg rx:p(v(I) -), reg ry:v(I), reg rz:v(I) |
+                rx = prom<v(I) ->{
+                  ry = v(I)[1];
                   return ry;
                 };
                 rz = f.1(rx);
@@ -29,8 +29,8 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
             }
             fun f(r) {
               (reg r:*@!) -+> V { ... }
-              (reg r:p(I -)@!) --> I { ... }
-              (reg r:I) --> I { |
+              (reg r:p(v(I) -)@!) --> v(I) { ... }
+              (reg r:v(I)) --> v(I) { |
                 return r;
               }
             }
@@ -44,8 +44,9 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
     // The call argument is now the inlined result, not the promise register
     assertFalse(printed.contains("f.1(rx)"), "old promise-taking call should be gone");
     // A suitable non-promise version is used
-    assertTrue(printed.contains("f< I --> I >(rx)"), "call should use the integer-taking version");
-    assertTrue(printed.contains("ry = 1"), "promise body should appear in outer scope");
+    assertTrue(
+        printed.contains("f< v(I) --> v(I) >(rx)"), "call should use the integer-taking version");
+    assertTrue(printed.contains("ry = v(I)[1]"), "promise body should appear in outer scope");
   }
 
   @Test
@@ -54,9 +55,9 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg rx:p(I +), reg rz:I |
-                rx = prom<I +>{
-                  return 42;
+              () --> I { reg rx:p(v(I) +), reg rz:v(I) |
+                rx = prom<v(I) +>{
+                  return v(I)[42];
                 };
                 rz = f.1(rx);
                 return rz;
@@ -64,8 +65,8 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
             }
             fun f(r) {
               (reg r:*@!) -+> V { ... }
-              (reg r:p(I +)@!) --> I { ... }
-              (reg r:I) --> I { |
+              (reg r:p(v(I) +)@!) --> v(I) { ... }
+              (reg r:v(I)) --> v(I) { |
                 return r;
               }
             }
@@ -80,27 +81,24 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg ra:I, reg rb:I, reg rc:I, reg rx:p(I -), reg ry:p(I +), reg rz:I |
-                ra = 1;
-                rb = 2;
-                rx = prom<I ->{
-                  rc = `+`.0(ra, rb);
+              () --> I { reg ra:v(I), reg rb:v(I), reg rc:v(I), reg rx:p(v(I) -), reg ry:p(v(I) +), reg rz:v(I) |
+                ra = v(I)[1];
+                rb = v(I)[2];
+                rx = prom<v(I) ->{
+                  rc = `+`.5(ra, rb);
                   return rc;
                 };
-                ry = prom<I +>{
-                  return 5;
+                ry = prom<v(I) +>{
+                  return v(I)[5];
                 };
-                rz = f< p(I -)@!,p(I +)@! --> I >(rx, ry);
+                rz = f< p(v(I) -)@!,p(v(I) +)@! --> v(I) >(rx, ry);
                 return rz;
               }
             }
             fun f(r1, r2) {
               (reg r1:*@!, reg r2:*@!) -+> V { ... }
-              (reg r1:p(I -)@!, reg r2:p(I +)@!) --> I { ... }
-              (reg r1:I, reg r2:p(I +)@!) --> I { ... }
-            }
-            fun `+`(r1, r2) {
-              (reg r1:I, reg r2:I) --> I { ... }
+              (reg r1:p(v(I) -)@!, reg r2:p(v(I) +)@!) --> v(I) { ... }
+              (reg r1:v(I), reg r2:p(v(I) +)@!) --> v(I) { ... }
             }
             """);
 
@@ -114,7 +112,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
     assertTrue(
         printed.contains("f< I,p(I +)@! --> I >"),
         "dispatch signature should reflect inlined param type");
-    assertTrue(printed.contains("rc = `+`.0(ra, rb)"), "promise body should be inlined");
+    assertTrue(printed.contains("rc = `+`.5(ra, rb)"), "promise body should be inlined");
   }
 
   @Test
@@ -125,9 +123,9 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg rx:p(I -), reg ry:I, reg rz:I, reg rw:I |
-                rx = prom<I ->{
-                  ry = 1;
+              () --> I { reg rx:p(v(I) -), reg ry:v(I), reg rz:v(I), reg rw:v(I) |
+                rx = prom<v(I) ->{
+                  ry = v(I)[1];
                   return ry;
                 };
                 rz = f.1(rx);
@@ -137,8 +135,8 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
             }
             fun f(r) {
               (reg r:*@!) -+> V { ... }
-              (reg r:p(I -)@!) --> I { ... }
-              (reg r:I) --> I { |
+              (reg r:p(v(I) -)@!) --> v(I) { ... }
+              (reg r:v(I)) --> v(I) { |
                 return r;
               }
             }
