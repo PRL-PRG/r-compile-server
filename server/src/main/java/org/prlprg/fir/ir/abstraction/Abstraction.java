@@ -17,13 +17,15 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
@@ -36,7 +38,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.DisambiguatorMap;
 import org.prlprg.util.Streams;
 
@@ -316,8 +317,9 @@ public final class Abstraction implements Comparable<Abstraction> {
   public @Nullable Type typeOf(Argument argument) {
     return switch (argument) {
       case Constant(var constant) -> constant.type();
+      case Noop() -> null;
       case Read(var register) -> typeOf(register);
-      case Use(var register) -> {
+      case Consume(var register) -> {
         var type = typeOf(register);
         yield type == null ? null : type.withOwnership(Ownership.FRESH);
       }
@@ -435,7 +437,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public record ParseContext(
-      Module module, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
+      Module module, FunctionRef.ParseContext forFunctionRef, @Nullable Object inner) {}
 
   @ParseMethod
   private Abstraction(Parser p1, ParseContext ctx) {
@@ -478,7 +480,7 @@ public final class Abstraction implements Comparable<Abstraction> {
         .map(l -> l.variable().name())
         .forEach(nextLocalDisambiguator::add);
 
-    var p2 = p.withContext(new CFG.ParseContext(this, ctx.postModule, p.context()));
+    var p2 = p.withContext(new CFG.ParseContext(this, ctx.forFunctionRef, p.context()));
     cfg = p2.parse(CFG.class);
 
     s.assertAndSkip('}');

@@ -14,7 +14,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
-import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
@@ -27,13 +27,8 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Noop;
-import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -41,8 +36,6 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.expression.SuperLoad;
-import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -283,8 +276,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
           continue;
         }
 
-        // Can't substitute with `use`, unless there's exactly one occurrence besides this one.
-        if (origin instanceof Use(var used) && defUseAnalysis.uses(used).size() > 2) {
+        // Can't substitute with `consume`, unless there's exactly one other occurrence.
+        if (origin instanceof Consume(var used) && defUseAnalysis.uses(used).size() > 2) {
           continue;
         }
 
@@ -388,9 +381,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case LoadFun(var _, var env) -> env != Env.LOCAL;
         case MaybeForce _ -> false;
         case MkVector _ -> true;
-        case MkEnv _ -> false;
-        case Noop _ -> true;
-        case Placeholder _, PopEnv _ -> false;
+        case MkEnv _, PopEnv _ -> false;
         case Promise _ -> true;
         case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
         // May error

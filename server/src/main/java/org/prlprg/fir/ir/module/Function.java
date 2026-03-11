@@ -27,7 +27,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 
 public final class Function {
   // Backlink
@@ -245,13 +244,13 @@ public final class Function {
   }
 
   public record ParseContext(
-      Module owner, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
+      Module owner, FunctionRef.ParseContext forRef, @Nullable Object inner) {}
 
   @ParseMethod
   private Function(Parser p1, ParseContext ctx) {
     owner = ctx.owner;
     var p = p1.withContext(ctx.inner);
-    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
+    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.forRef, p.context()));
 
     var s = p.scanner();
 

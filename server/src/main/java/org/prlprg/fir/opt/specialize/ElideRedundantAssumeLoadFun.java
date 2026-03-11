@@ -6,10 +6,10 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.cfg.ActiveAssumeLoadFunAnalysis;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Noop;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that removes [AssumeLoadFun] instructions that are dominated by an identical

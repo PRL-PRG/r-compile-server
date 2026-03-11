@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
@@ -23,7 +24,6 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Collections2;
-import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Lists;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
@@ -389,14 +389,13 @@ public final class BB implements Comparable<BB> {
   public record ParseContext(
       boolean isEntry,
       CFG owner,
-      DeferredCallbacks<CFG> postOwner,
-      DeferredCallbacks<Module> oostModule,
+      BBRef.ParseContext forRef,
+      FunctionRef.ParseContext forFunctionRef,
       @Nullable Object inner) {}
 
   @ParseMethod
   private BB(Parser p1, ParseContext ctx) {
     owner = ctx.owner;
-    var postOwner = ctx.postOwner;
     var p = p1.withContext(ctx.inner);
 
     var s = p.scanner();
@@ -412,12 +411,12 @@ public final class BB implements Comparable<BB> {
       s.assertAndSkip(':');
     }
 
-    var p2 =
+    var p3 =
         p.withContext(
-            new Instruction.ParseContext(owner, ctx.postOwner, ctx.oostModule, p.context()));
+            new Instruction.ParseContext(owner, ctx.forRef, ctx.forFunctionRef, p.context()));
     Instruction instr;
     do {
-      instr = p2.parse(Instruction.class);
+      instr = p3.parse(Instruction.class);
       switch (instr) {
         case Statement expr -> statements.add(expr);
         case Jump jmp -> jump = jmp;
@@ -426,17 +425,19 @@ public final class BB implements Comparable<BB> {
     } while (!(instr instanceof Jump));
 
     // Need target's `postCfg` to run before `target.bb()` is called.
-    postOwner.add(
-        _ -> {
-          for (var targetBb : jump.targetBBs()) {
-            var added = targetBb.predecessors.add(this);
-            assert added
-                : "BB " + label + " was already a predecessor of target '" + targetBb + "'.";
-          }
-          if (jump.targetBBs().isEmpty()) {
-            var added = owner.exits.add(this);
-            assert added : "BB " + label + " was already an exit of the CFG.";
-          }
-        });
+    ctx.forRef
+        .fixPredecessors()
+        .add(
+            () -> {
+              for (var targetBb : jump.targetBBs()) {
+                var added = targetBb.predecessors.add(this);
+                assert added
+                    : "BB " + label + " was already a predecessor of target '" + targetBb + "'.";
+              }
+              if (jump.targetBBs().isEmpty()) {
+                var added = owner.exits.add(this);
+                assert added : "BB " + label + " was already an exit of the CFG.";
+              }
+            });
   }
 }

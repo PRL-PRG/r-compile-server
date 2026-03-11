@@ -7,9 +7,9 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-/// "Argument->Expression Adapter": an [Expression] which is just an [Argument].
+/// "Argument->Expression Adapter": an [Expression] that is just an [Argument].
 ///
-/// Necessary for `r = 5` and `r1 = r2`.
+/// Necessary for `r = 5`, `r1 = r2`, and `noop`.
 public record Aea(Argument value) implements Expression {
   @Override
   public String toString() {

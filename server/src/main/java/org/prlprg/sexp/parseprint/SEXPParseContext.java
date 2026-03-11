@@ -397,6 +397,11 @@ public class SEXPParseContext {
               var expr = p.parse(SEXP.class);
               yield SEXPs.promise(expr, val, env);
             }
+            case SEXPType.NIL -> {
+              // Consume "NULL" text within delimited form "<NIL NULL>"
+              s.trySkip("NULL");
+              yield SEXPs.NULL;
+            }
             case SEXPType.BUILTIN, SEXPType.SPECIAL -> {
               var id = p.parse(BuiltinId.class);
               if (type == SEXPType.BUILTIN && id.isSpecial()) {

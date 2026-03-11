@@ -8,8 +8,8 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.StaticCallee;
@@ -92,7 +92,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                                   switch (argument) {
                                     case Constant(var constant) ->
                                         constant.type().isSubtypeOf(parameterType);
-                                    case Read(var _), Use(var _) -> {
+                                    case Read(var _), Consume(var _) -> {
                                       var register = Objects.requireNonNull(argument.variable());
                                       yield feedback
                                           .type(register)

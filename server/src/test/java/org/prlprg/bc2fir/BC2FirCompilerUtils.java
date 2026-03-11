@@ -43,7 +43,7 @@ public final class BC2FirCompilerUtils {
       BC2FirClosureCompiler.compile(session, firModule, funName, funSexp);
       cleanup(firModule, false);
 
-      // Don't check flow, because it's trivial (no `use` annotations) but expensive.
+      // Don't check flow, because it's trivial (no `consume` annotations) but expensive.
       if (!checkAll(firModule, Exclude.PROVENANCE)) {
         fail("Compiled FIŘ failed verification\n" + firModule);
       }

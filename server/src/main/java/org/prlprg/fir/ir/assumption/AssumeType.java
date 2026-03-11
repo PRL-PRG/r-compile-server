@@ -1,16 +1,15 @@
-package org.prlprg.fir.ir.expression;
+package org.prlprg.fir.ir.assumption;
 
 import java.util.Collection;
 import java.util.List;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-/// Assume that an argument equals a specific constant.
-/// This is a no-op when evaluated, but is checked when reaching a checkpoint.
-public record AssumeConstant(@Override Argument target, Value constant) implements Assume {
+/// Assume that an argument has a certain type.
+public record AssumeType(@Override Argument target, Type type) implements Assumption {
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(target);
@@ -24,7 +23,7 @@ public record AssumeConstant(@Override Argument target, Value constant) implemen
   @PrintMethod
   private void print(Printer p) {
     p.print(target);
-    p.writer().write(" ?= ");
-    p.print(constant);
+    p.writer().write(" ?: ");
+    p.print(type);
   }
 }

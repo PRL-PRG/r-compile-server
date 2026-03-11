@@ -8,15 +8,19 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.NamedArgument;
+import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
-import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
-import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.Store.StoreType;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.PrimitiveKind;
@@ -32,8 +36,8 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Names;
 import org.prlprg.util.Characters;
-import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Either;
+import org.prlprg.util.NotImplementedError;
 
 @Immutable
 public sealed interface Expression
@@ -45,21 +49,17 @@ public sealed interface Expression
         Dup,
         Force,
         Load,
-        LoadFun,
-        MaybeForce,
         MkEnv,
         MkVector,
-        Noop,
-        Placeholder,
         PopEnv,
         Promise,
         ReflectiveLoad,
         ReflectiveStore,
         Store,
         SubscriptRead,
-        SubscriptWrite,
-        SuperLoad,
-        SuperStore {
+        SubscriptWrite {
+  Expression NOOP = new Aea(new Noop());
+
   @UnmodifiableView
   Collection<Argument> arguments();
 
@@ -69,7 +69,7 @@ public sealed interface Expression
   record ParseContext(
       @Nullable String headAsName,
       CFG cfg,
-      DeferredCallbacks<Module> postModule,
+      FunctionRef.ParseContext forFunctionRef,
       @Nullable Object inner) {}
 
   @ParseMethod
@@ -79,8 +79,8 @@ public sealed interface Expression
     var cfg = ctx.cfg;
     var scope = cfg.scope();
     var module = scope.module();
-    var postModule = ctx.postModule;
-    var p = p1.withContext(ctx.inner());
+    var p = p1.withContext(ctx.inner);
+    var p2 = p.withContext(ctx.forFunctionRef);
 
     var s = p.scanner();
 
@@ -99,27 +99,7 @@ public sealed interface Expression
     if (headAsName != null) {
       switch (headAsName) {
         case "noop" -> new Noop();
-        case "clos" -> {
-          var functionName = p.parse(NamedVariable.class);
-
-          // We must defer setting the function in case it's a forward reference.
-          @SuppressWarnings("DataFlowIssue")
-          var result = new Closure(null);
-
-          postModule.add(
-              m -> {
-                assert m == module;
-
-                var function = m.lookupFunction(functionName);
-                if (function == null) {
-                  throw s.fail("Callee references a function that wasn't defined: " + functionName);
-                }
-
-                result.unsafeSetCode(function);
-              });
-
-          return result;
-        }
+        case "clos" -> new Closure(p2.parse(FunctionRef.class));
         case "dup" -> {
           var value = p.parse(Argument.class);
           return new Dup(value);
@@ -136,50 +116,38 @@ public sealed interface Expression
         case "force" -> {
           var isMaybe = s.trySkip('?');
           var value = p.parse(Argument.class);
-          return isMaybe ? new MaybeForce(value) : new Force(value);
+          return new Force(isMaybe, value);
         }
         case "ldf" -> {
+          var type = LoadType.LOCAL_FUN;
+          if (s.trySkip("-glob")) {
+            type = LoadType.GLOBAL_FUN;
+          } else if (s.trySkip("-base")) {
+            type = LoadType.BASE_FUN;
+          }
+
           var variable = p.parse(NamedVariable.class);
 
           // Check for AssumeLoadFun syntax: `ldf <variable> ?- <functionName>`
-          if (s.runWithWhitespacePolicy(
-              SkipWhitespace.ALL_EXCEPT_NEWLINES, () -> s.trySkip("?- "))) {
-            var functionName = p.parse(NamedVariable.class);
-
-            // We must defer setting the function in case it's a forward reference.
-            @SuppressWarnings("DataFlowIssue")
-            var assume = new AssumeLoadFun(variable, null);
-            postModule.add(
-                m -> {
-                  assert m == module;
-
-                  var function = m.lookupFunction(functionName);
-                  if (function == null) {
-                    throw s.fail(
-                        "AssumeLoadFun references a function that wasn't defined: " + functionName);
-                  }
-                  assume.unsafeSetFunction(function);
-                });
-
-            return assume;
+          if (type == LoadType.LOCAL_FUN
+              && s.runWithWhitespacePolicy(
+                  SkipWhitespace.ALL_EXCEPT_NEWLINES, () -> s.trySkip("?- "))) {
+            return new Assume(new AssumeLoadFun(variable, p2.parse(FunctionRef.class)));
           }
 
-          var env =
-              s.runWithWhitespacePolicy(
-                  SkipWhitespace.ALL_EXCEPT_NEWLINES,
-                  () -> s.trySkip("in ") ? p.parse(Env.class) : Env.LOCAL);
-          return new LoadFun(variable, env);
+          return new Load(type, variable);
         }
         case "ld" -> {
+          var type = LoadType.LOCAL_VAR;
+          if (s.trySkip("-super")) {
+            type = LoadType.SUPER_VAR;
+          }
+
           var variable = p.parse(NamedVariable.class);
-          return new Load(variable);
+          return new Load(type, variable);
         }
-        case "mkenv" -> {
-          return new MkEnv();
-        }
-        case "popenv" -> {
-          return new PopEnv();
-        }
+        case "mkenv" -> new MkEnv();
+        case "popenv" -> new PopEnv();
         case "prom" -> {
           s.assertAndSkip('<');
           var valueType = p.parse(Type.class);
@@ -188,30 +156,26 @@ public sealed interface Expression
 
           s.assertAndSkip('{');
           var code =
-              p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner())).parse(CFG.class);
+              p.withContext(new CFG.ParseContext(scope, ctx.forFunctionRef, ctx.inner()))
+                  .parse(CFG.class);
           s.assertAndSkip('}');
 
           return new Promise(valueType, effects, code);
         }
-        case "sld" -> {
-          var variable = p.parse(NamedVariable.class);
-          return new SuperLoad(variable);
-        }
         case "st" -> {
+          var type = StoreType.LOCAL_VAR;
+          if (s.trySkip("-super")) {
+            type = StoreType.SUPER_VAR;
+          }
+
           var variable = p.parse(NamedVariable.class);
           s.assertAndSkip('=');
           var value = p.parse(Argument.class);
-          return new Store(variable, value);
+          return new Store(type, variable, value);
         }
-        case "sst" -> {
-          var variable = p.parse(NamedVariable.class);
-          s.assertAndSkip('=');
-          var value = p.parse(Argument.class);
-          return new SuperStore(variable, value);
-        }
-        case "use" -> {
+        case "consume" -> {
           var variable = p.parse(Register.class);
-          headAsArg = new Use(variable);
+          headAsArg = new Consume(variable);
         }
         case "v" -> {
           s.assertAndSkip('(');
@@ -238,14 +202,7 @@ public sealed interface Expression
       }
     }
 
-    if (headAsName == null && headAsArg == null) {
-      // Parse what doesn't start with a constant or identifier
-
-      if (s.trySkip('_')) {
-        return new Placeholder();
-      }
-
-    } else {
+    if (headAsName != null || headAsArg != null) {
       // Parse what starts with a constant or identifier.
       // `headAsName != null` iff it starts with an identifier.
       // `headAsArg != null` iff it starts with an argument, which may be a constant or
@@ -268,11 +225,12 @@ public sealed interface Expression
         } else {
           version = Either.left(Optional.empty());
         }
-        var arguments = p.parseList("(", ")", Argument.class);
+        // TODO: maybe refactor versions
+        throw new NotImplementedError();
 
-        // We must defer setting the function in case it's a forward reference.
-        @SuppressWarnings("DataFlowIssue")
-        var result = new Call(null, arguments);
+        /* var arguments = p.parseList("(", ")", Argument.class);
+
+        var result = new Call(callee, arguments);
 
         postModule.add(
             m -> {
@@ -290,7 +248,7 @@ public sealed interface Expression
               result.unsafeSetCallee(callee);
             });
 
-        return result;
+        return result; */
       } else if (s.trySkip('$')) {
         if (headAsArg == null) {
           throw s.fail("In 'a$...', 'a' must be a register (or constant)");
@@ -329,37 +287,20 @@ public sealed interface Expression
         }
 
         var type = p.parse(Type.class);
-        return new AssumeType(headAsArg, type);
+        return new Assume(new AssumeType(headAsArg, type));
       } else if (s.trySkip("?- ")) {
         if (headAsArg == null) {
           throw s.fail("In 'a ?- t', 'a' must be a register or constant");
         }
 
-        var functionName = p.parse(NamedVariable.class);
-
-        // We must defer setting the function in case it's a forward reference.
-        @SuppressWarnings("DataFlowIssue")
-        var assume = new AssumeFunction(headAsArg, null);
-        postModule.add(
-            m -> {
-              assert m == module;
-
-              var function = m.lookupFunction(functionName);
-              if (function == null) {
-                throw s.fail(
-                    "Assumption references a function that wasn't defined: " + functionName);
-              }
-              assume.unsafeSetFunction(function);
-            });
-
-        return assume;
+        return new Assume(new AssumeFunction(headAsArg, p2.parse(FunctionRef.class)));
       } else if (s.trySkip("?= ")) {
         if (headAsArg == null) {
           throw s.fail("In 'a ?= t', 'a' must be a register or constant");
         }
 
         var constant = p.parse(Value.class);
-        return new AssumeConstant(headAsArg, constant);
+        return new Assume(new AssumeConstant(headAsArg, constant));
       } else if (headAsArg != null) {
         return new Aea(headAsArg);
       } else {

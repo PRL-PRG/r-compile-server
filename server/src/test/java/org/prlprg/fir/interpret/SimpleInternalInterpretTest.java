@@ -42,7 +42,7 @@ class SimpleInternalInterpretTest {
     var entry = cfg.entry();
 
     // Add return instruction: return 42
-    var returnInstr = new Return(new Constant(SEXPs.integer(42)));
+    var returnInstr = new Return(new Constant(new Value.Int(42)));
     entry.setJump(returnInstr);
 
     // Interpret the function

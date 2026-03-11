@@ -18,15 +18,16 @@ import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
-import org.prlprg.fir.ir.expression.AssumeConstant;
-import org.prlprg.fir.ir.expression.AssumeFunction;
-import org.prlprg.fir.ir.expression.AssumeLoadFun;
-import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -34,13 +35,8 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Noop;
-import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -48,8 +44,6 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.expression.SuperLoad;
-import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -116,18 +110,19 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         : new Read(register);
   }
 
-  /// If the argument is a [Read] or [Use], looks up its origin.
+  /// If the argument is a [Read] or [Consume], looks up its origin.
   public Argument resolve(Argument arg) {
     return switch (arg) {
       case Constant c -> c;
       case Read(var register) -> get(register);
       // Note that `a = <const>; ...; use a` and `b = use a; ...; use b` are invalid IR, since
       // they use a register multiple times, so after `:` can be anything.
-      case Use(var register) -> resolve(get(register)) instanceof Read(var r) ? new Use(r) : arg;
+      case Consume(var register) ->
+          resolve(get(register)) instanceof Read(var r) ? new Consume(r) : arg;
     };
   }
 
-  /// If the argument is a [Read] or [Use], looks up the expression it's assigned to.
+  /// If the argument is a [Read] or [Consume], looks up the expression it's assigned to.
   public @Nullable Expression resolveExpression(Argument arg) {
     return definitionExpression(resolve(arg));
   }

@@ -8,11 +8,10 @@ import java.util.Set;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.NamedVariable;
 

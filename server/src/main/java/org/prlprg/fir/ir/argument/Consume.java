@@ -4,7 +4,9 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record Use(@Override Register variable) implements Argument {
+/// Register argument ([Read]) that additionally guarantees the register will not be used
+/// afterward, so this has fresh ownership
+public record Consume(@Override Register variable) implements Argument {
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -12,7 +14,7 @@ public record Use(@Override Register variable) implements Argument {
 
   @PrintMethod
   private void print(Printer p) {
-    p.writer().write("use ");
+    p.writer().write("consume ");
     p.print(variable);
   }
 }

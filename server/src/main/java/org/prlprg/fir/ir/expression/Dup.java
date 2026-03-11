@@ -9,6 +9,11 @@ import org.prlprg.parseprint.Printer;
 
 public record Dup(Argument value) implements Expression {
   @Override
+  public @UnmodifiableView Collection<Argument> arguments() {
+    return List.of(value);
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }
@@ -17,10 +22,5 @@ public record Dup(Argument value) implements Expression {
   private void print(Printer p) {
     p.writer().write("dup ");
     p.print(value);
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
-    return List.of(value);
   }
 }

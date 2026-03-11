@@ -55,9 +55,10 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg rx:p(v(I) +), reg rz:v(I) |
+              () --> I { reg rx:p(v(I) +), reg ry:v(I), reg rz:v(I) |
                 rx = prom<v(I) +>{
-                  return v(I)[42];
+                  ry = v(I)[42];
+                  return ry;
                 };
                 rz = f.1(rx);
                 return rz;
@@ -81,15 +82,16 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { reg ra:v(I), reg rb:v(I), reg rc:v(I), reg rx:p(v(I) -), reg ry:p(v(I) +), reg rz:v(I) |
+              () --> I { reg ra:v(I), reg rb:v(I), reg rc:v(I), reg rx:p(v(I) -), reg ry:p(v(I) +), reg rs:v(I), reg rz:v(I) |
                 ra = v(I)[1];
                 rb = v(I)[2];
                 rx = prom<v(I) ->{
-                  rc = `+`.5(ra, rb);
+                  rc = `+`.0(ra, rb);
                   return rc;
                 };
                 ry = prom<v(I) +>{
-                  return v(I)[5];
+                  rs = v(I)[5];
+                  return rs;
                 };
                 rz = f< p(v(I) -)@!,p(v(I) +)@! --> v(I) >(rx, ry);
                 return rz;
@@ -100,19 +102,22 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
               (reg r1:p(v(I) -)@!, reg r2:p(v(I) +)@!) --> v(I) { ... }
               (reg r1:v(I), reg r2:p(v(I) +)@!) --> v(I) { ... }
             }
+            fun `+`(a, b) {
+              (reg a:v(I), reg b:v(I)) --> v(I) { ... }
+            }
             """);
 
     assertTrue(run(module), "optimization should report a change");
 
     var printed = Printer.toString(module);
     // rx (non-effectful) is inlined; ry (effectful) stays
-    assertFalse(printed.contains("prom<I ->"), "non-effectful promise should be inlined");
-    assertTrue(printed.contains("prom<I +>"), "effectful promise should remain");
+    assertFalse(printed.contains("prom<v(I) ->"), "non-effectful promise should be inlined");
+    assertTrue(printed.contains("prom<v(I) +>"), "effectful promise should remain");
     // Dispatch signature updated for the inlined argument
     assertTrue(
-        printed.contains("f< I,p(I +)@! --> I >"),
+        printed.contains("f< v(I),p(v(I) +)@! --> v(I) >"),
         "dispatch signature should reflect inlined param type");
-    assertTrue(printed.contains("rc = `+`.5(ra, rb)"), "promise body should be inlined");
+    assertTrue(printed.contains("rc = `+`.0(ra, rb)"), "promise body should be inlined");
   }
 
   @Test

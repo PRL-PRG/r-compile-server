@@ -85,6 +85,18 @@ public sealed interface Value {
     };
   }
 
+  public static boolean peek(Parser p) {
+    var s = p.scanner();
+    return s.nextCharIs('<')
+        || s.nextCharsAre("TRUE")
+        || s.nextCharsAre("FALSE")
+        || s.nextCharsAre("NA_")
+        || s.nextCharSatisfies(Character::isDigit)
+        || s.nextCharIs('+')
+        || s.nextCharIs('-')
+        || s.nextCharIs('\"');
+  }
+
   @ParseMethod
   private static Value parse(Parser p) {
     var s = p.scanner();
