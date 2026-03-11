@@ -19,9 +19,9 @@ set -euo pipefail
 # Defaults
 # ---------------------------------------------------------------------------
 ITERATIONS=15
-STACK_SIZE=16384
-FREQUENCY=999
-OUTPUT_DIR="results"
+STACK_SIZE=32768
+FREQUENCY=99
+OUTPUT_DIR="results-$FREQUENCY-$STACK_SIZE"
 VANILLA_R_DIR="/mnt/data-1/krikava/R-4.3.2/bin"
 PROJECT_R_DIR=""
 USER_MODES=""
@@ -222,6 +222,36 @@ run_mode() {
     perf inject --jit \
       -i "$out/rcp-perf/perf.data" \
       -o "$out/rcp-perf/perf.jit.data"
+
+    echo "    Exporting perf script to CSV..."
+    perf script -i "$out/rcp-perf/perf.jit.data" 2>/dev/null | awk '
+BEGIN { OFS=","; print "sample_id,timestamp,frame_pos,sym,dso"; sid=0 }
+/^[^ \t]/ {
+    sid++
+    # Extract timestamp: matches digits.digits followed by colon
+    ts = ""
+    for (i = 1; i <= NF; i++) {
+        if ($i ~ /^[0-9]+\.[0-9]+:$/) { ts = $i; sub(/:$/, "", ts); break }
+    }
+    fpos = 0
+    next
+}
+/^\s+[0-9a-f]+ / {
+    fpos++
+    # Parse: addr sym+0xoffset (dso)
+    addr = $1
+    # DSO is last field in parens
+    dso = $NF; gsub(/[()]/, "", dso)
+    # Symbol is everything between addr and (dso), minus offset
+    sym = ""
+    for (i = 2; i < NF; i++) sym = (sym == "" ? $i : sym " " $i)
+    sub(/\+0x[0-9a-fA-F]+$/, "", sym)
+    # CSV-escape fields that might contain commas or quotes
+    gsub(/"/, "\"\"", sym)
+    gsub(/"/, "\"\"", dso)
+    print sid, ts, fpos, "\"" sym "\"", "\"" dso "\""
+}
+' >"$out/rcp-perf/frames.csv"
     ;;
   esac
 }
