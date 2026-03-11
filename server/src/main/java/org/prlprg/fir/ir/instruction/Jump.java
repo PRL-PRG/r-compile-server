@@ -19,9 +19,8 @@ public sealed interface Jump extends Instruction
 
   @ParseMethod
   private static Jump parse(Parser p1, Instruction.ParseContext ctx) {
-    var postCfg = ctx.postCfg();
     var p = p1.withContext(ctx.inner());
-    var p2 = p.withContext(new Target.ParseContext(postCfg, ctx));
+    var p2 = p.withContext(new Target.ParseContext(ctx.forBbRef(), ctx));
 
     var s = p.scanner();
 

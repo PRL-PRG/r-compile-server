@@ -7,8 +7,13 @@ import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -17,10 +22,6 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.AssumeConstant;
-import org.prlprg.fir.ir.expression.AssumeFunction;
-import org.prlprg.fir.ir.expression.AssumeLoadFun;
-import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -28,12 +29,8 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Noop;
-import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -41,8 +38,6 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.expression.SuperLoad;
-import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -143,8 +138,8 @@ public final class TypeAndEffectChecker extends Checker {
   public static boolean assumeCanSucceed(Assume assume, Type argType) {
     var requiredType =
         switch (assume) {
-          case AssumeType(var _, var type) -> type;
-          case AssumeConstant(var _, var constant) -> constant.type();
+          case AssumeType(_, var type) -> type;
+          case AssumeConstant(_, var constant) -> constant.type();
           case AssumeFunction _ -> Type.CLOSURE;
           case AssumeLoadFun _ ->
               throw new IllegalArgumentException(
@@ -236,7 +231,7 @@ public final class TypeAndEffectChecker extends Checker {
         }
 
         switch (expression) {
-          case Aea(var _) -> {}
+          case Aea _ -> {}
           case Assume assume -> {
             var target = assume.target();
             if (target == null) {
@@ -257,7 +252,7 @@ public final class TypeAndEffectChecker extends Checker {
             var argumentTypes = call.callArguments().stream().map(inferType::of).toList();
 
             switch (call.callee()) {
-              case StaticCallee(var _, var callee) -> {
+              case StaticCallee(_, var callee) -> {
                 if (callee.parameters().size() != argumentTypes.size()) {
                   report(
                       "Call expects "
@@ -347,7 +342,7 @@ public final class TypeAndEffectChecker extends Checker {
               }
             }
           }
-          case Cast(var _, var _), Closure _ -> {}
+          case Cast _, Closure _ -> {}
           case Dup(var value) -> {
             var type = scope.typeOf(value);
             if (type == null) {
@@ -368,7 +363,7 @@ public final class TypeAndEffectChecker extends Checker {
               report("Can't force non-(definite-)promise, got " + type);
             }
           }
-          case Load(var _), LoadFun(var _, var _), MaybeForce(var _) -> {}
+          case Load _, LoadFun _, MaybeForce _ -> {}
           case MkVector(var kind, var elements) -> {
             switch (kind) {
               case PrimitiveVector(var primitiveKind) -> {
@@ -385,11 +380,11 @@ public final class TypeAndEffectChecker extends Checker {
                   checkSubtype(type, elementType, "Type mismatch in element " + i);
                 }
               }
-              case Dots() -> {}
+              case Dots _ -> {}
               default -> report("Can't create a vector of kind " + kind);
             }
           }
-          case MkEnv(), Noop(), PopEnv(), Placeholder() -> {}
+          case MkEnv(), PopEnv _ -> {}
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
             if (expectedInnerType.ownership() != Ownership.SHARED) {
@@ -409,7 +404,7 @@ public final class TypeAndEffectChecker extends Checker {
             checkAssignment(actualInnerType, expectedInnerType, "Promise inner type mismatch");
             checkSubEffects(actualEffects, expectedEffects, "Promise effects mismatch");
           }
-          case ReflectiveLoad(var promise, var _) -> {
+          case ReflectiveLoad(var promise, _) -> {
             var promiseType = scope.typeOf(promise);
             if (promiseType != null && !promiseType.isPromise()) {
               report(
@@ -420,7 +415,7 @@ public final class TypeAndEffectChecker extends Checker {
                       + "}");
             }
           }
-          case ReflectiveStore(var promise, var _, var _) -> {
+          case ReflectiveStore(var promise, _, _) -> {
             var promiseType = scope.typeOf(promise);
             if (promiseType != null && !promiseType.isPromise()) {
               report(
@@ -437,9 +432,9 @@ public final class TypeAndEffectChecker extends Checker {
 
             checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
 
-            if (value instanceof Use) {
+            if (value instanceof Consume) {
               report(
-                  "Never store a `use` because the load can't be optimized. Instead, assign it to a register and store that.");
+                  "Never store a `consume` because the load can't be optimized. Instead, assign it to a register and store that.");
             }
           }
           case SubscriptRead(var target, var index) -> {
@@ -506,23 +501,23 @@ public final class TypeAndEffectChecker extends Checker {
                   "Subscript write kind mismatch: expected " + targetKind + ", got " + valueKind);
             }
           }
-          case SuperLoad(var _), SuperStore(var _, var _) -> {}
+          case SuperLoad _, SuperStore _ -> {}
         }
       }
 
       void run(Argument argument) {
         switch (argument) {
-          case Constant(var _), Read(var _) -> {}
-          case Use(var register) -> {
+          case Constant _, Read _, Noop _ -> {}
+          case Consume(var register) -> {
             var type = scope.typeOf(register);
             if (type == null) {
               break;
             }
 
             if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
-              report("Can't use non-(definite-)vector, got " + type);
+              report("Can't consume non-(definite-)vector, got " + type);
             } else if (type.ownership() != Ownership.OWNED) {
-              report("Can't use non-owned vector, got " + type);
+              report("Can't consume non-owned vector, got " + type);
             }
           }
         }
@@ -530,12 +525,8 @@ public final class TypeAndEffectChecker extends Checker {
 
       void run(Jump jump) {
         switch (jump) {
-          case Checkpoint(var _, var _, var _),
-              Deopt(var _, var _, var _),
-              Goto(var _, var _),
-              Return(var _, var _),
-              Unreachable(var _) -> {}
-          case If(var _, var condition, var _, var _) -> {
+          case Checkpoint _, Deopt _, Goto _, Return _, Unreachable _ -> {}
+          case If(_, var condition, _, _) -> {
             var condType = scope.typeOf(condition);
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");
           }

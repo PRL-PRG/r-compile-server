@@ -1,4 +1,4 @@
-package org.prlprg.fir.ir.expression;
+package org.prlprg.fir.ir.assumption;
 
 import java.util.Collection;
 import java.util.List;
@@ -9,18 +9,19 @@ import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record Closure(FunctionRef codeRef) implements Expression {
-  public Closure(Function code) {
-    this(new FunctionRef(code));
+/// Assume that an argument is a closure of the specific function and a global environment.
+public record AssumeFunction(Argument target, FunctionRef functionRef) implements Assumption {
+  public AssumeFunction(Argument target, Function function) {
+    this(target, new FunctionRef(function));
   }
 
-  public Function code() {
-    return codeRef.get();
+  public Function function() {
+    return functionRef.get();
   }
 
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
-    return List.of();
+    return List.of(target);
   }
 
   @Override
@@ -30,9 +31,8 @@ public record Closure(FunctionRef codeRef) implements Expression {
 
   @PrintMethod
   private void print(Printer p) {
-    var w = p.writer();
-
-    w.write("clos ");
-    p.print(code().name());
+    p.print(target);
+    p.writer().write(" ?- ");
+    p.print(function().name());
   }
 }

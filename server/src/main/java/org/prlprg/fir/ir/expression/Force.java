@@ -7,7 +7,12 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record Force(Argument value) implements Expression {
+public record Force(boolean isMaybe, Argument value) implements Expression {
+  @Override
+  public @UnmodifiableView Collection<Argument> arguments() {
+    return List.of(value);
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -15,12 +20,7 @@ public record Force(Argument value) implements Expression {
 
   @PrintMethod
   private void print(Printer p) {
-    p.writer().write("force ");
+    p.writer().write(isMaybe ? "force? " : "force ");
     p.print(value);
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
-    return List.of(value);
   }
 }

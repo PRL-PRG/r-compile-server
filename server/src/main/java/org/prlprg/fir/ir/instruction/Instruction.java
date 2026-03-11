@@ -6,11 +6,11 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.util.DeferredCallbacks;
 
 @Immutable
 public sealed interface Instruction permits Statement, Jump {
@@ -21,20 +21,20 @@ public sealed interface Instruction permits Statement, Jump {
 
   record ParseContext(
       CFG cfg,
-      DeferredCallbacks<CFG> postCfg,
-      DeferredCallbacks<Module> postModule,
+      BBRef.ParseContext forBbRef,
+      FunctionRef.ParseContext forFunctionRef,
       @Nullable Object inner,
       @Nullable Comments comments) {
     public ParseContext(
         CFG cfg,
-        DeferredCallbacks<CFG> postCfg,
-        DeferredCallbacks<Module> postModule,
+        BBRef.ParseContext forBbRef,
+        FunctionRef.ParseContext forFunctionRef,
         @Nullable Object inner) {
-      this(cfg, postCfg, postModule, inner, null);
+      this(cfg, forBbRef, forFunctionRef, inner, null);
     }
 
     private ParseContext withComments(Comments comments) {
-      return new ParseContext(cfg, postCfg, postModule, inner, comments);
+      return new ParseContext(cfg, forBbRef, forFunctionRef, inner, comments);
     }
   }
 

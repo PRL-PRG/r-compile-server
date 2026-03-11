@@ -40,12 +40,20 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
     var s = p.scanner();
 
     if (s.nextCharSatisfies(Characters::isIdentifierStart)) {
-      // We don't have lookahead, so we must handle this case where we could parsed a name,
-      // or the start of a `use` argument, or a register argument.
-      var nameOrUseOrRegister = s.readIdentifierOrKeyword();
+      // We don't have lookahead, so we must handle this case where we could parse a name or
+      // part of an argument, both of which are identifiers
+      var nameOrArgumentPart = s.readIdentifierOrKeyword();
 
-      // Handle unnamed arguments that are identifier constants
-      switch (nameOrUseOrRegister) {
+      if (s.trySkip('=')) {
+        // Definitely named
+        var value = p.parse(Argument.class);
+        return new NamedArgument(Variable.named(nameOrArgumentPart), value);
+      }
+      // Definitely unnamed
+      // Since we read some input, we must finish parsing the argument manually
+
+      // Constant that is also an identifier
+      switch (nameOrArgumentPart) {
         case "TRUE":
           return new NamedArgument(new Constant(new Value.Bool(true)));
         case "FALSE":
@@ -63,20 +71,22 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
         case "NA_STR":
           return new NamedArgument(new Constant(new Value.Str(Constants.NA_STRING)));
         case "NULL", "NA_CPLX":
-          throw s.fail("Constant '" + nameOrUseOrRegister + "' not implemented");
+          throw s.fail("Constant '" + nameOrArgumentPart + "' not implemented");
       }
 
-      if (s.trySkip('=')) {
-        var value = p.parse(Argument.class);
-        return new NamedArgument(Variable.named(nameOrUseOrRegister), value);
+      // `noop`
+      if (nameOrArgumentPart.equals("noop")) {
+        return new NamedArgument(new Noop());
       }
 
-      if (nameOrUseOrRegister.equals("use")) {
+      // `consume`
+      if (nameOrArgumentPart.equals("consume")) {
         var register = p.parse(Register.class);
-        return new NamedArgument(new Use(register));
-      } else {
-        return new NamedArgument(new Read(Variable.register(nameOrUseOrRegister)));
+        return new NamedArgument(new Consume(register));
       }
+
+      // read
+      return new NamedArgument(new Read(Variable.register(nameOrArgumentPart)));
     } else if (s.nextCharIs('`')) {
       // Definitely named
       var name = p.parse(NamedVariable.class);

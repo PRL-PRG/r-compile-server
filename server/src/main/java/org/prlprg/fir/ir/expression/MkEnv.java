@@ -8,6 +8,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 /// Creates a closure environment.
+///
 /// Every closure compiled from GNU-R bytecode starts with mkenv, because
 /// every GNU-R call implicitly creates an environment, but we may delay or
 /// elide it if we remove stores and disprove reflection.

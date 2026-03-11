@@ -7,8 +7,8 @@ import java.util.Map.Entry;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.variable.Register;
@@ -26,7 +26,7 @@ import org.prlprg.fir.ir.variable.Register;
 ///   substituted are removed from the scope, unless they're the target of another substitution).
 /// - Doesn't do transitive substitutions.
 ///
-/// Like [Substituter], `use`-ness is preserved at substitution sites.
+/// Like [Substituter], `consume`-ness is preserved at substitution sites.
 public class InlineSubstituter extends AbstractSubstituter {
   private final Map<Register, Argument> locals = new LinkedHashMap<>();
 
@@ -97,8 +97,8 @@ public class InlineSubstituter extends AbstractSubstituter {
   protected Argument substitute(BB bb, Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
-      // Preserve `use`-ness of substituted
-      case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
+      // Preserve `consume`-ness of substituted
+      case Consume(var r) when locals.containsKey(r) -> convertIntoConsume(locals.get(r));
       default -> argument;
     };
   }

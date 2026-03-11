@@ -10,8 +10,9 @@ import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
@@ -25,7 +26,7 @@ import org.prlprg.util.UnreachableError;
 /// - Trying to substitute an assignee will raise an exception
 /// - No registers are removed from or added to the scope
 ///
-/// Like [Substituter], `use`-ness is preserved at substitution sites.
+/// Like [Substituter], `consume`-ness is preserved at substitution sites.
 public class DomineeSubstituter extends AbstractSubstituter {
   private final DominatorTree domTree;
   private final Multimap<Register, DomSubst> domSubsts = ArrayListMultimap.create();
@@ -99,9 +100,9 @@ public class DomineeSubstituter extends AbstractSubstituter {
     }
 
     return switch (argument) {
-      case Constant _ -> throw new UnreachableError();
+      case Constant _, Noop _ -> throw new UnreachableError();
       case Read _ -> subst;
-      case Use _ -> convertIntoUse(subst);
+      case Consume _ -> convertIntoConsume(subst);
     };
   }
 
@@ -109,11 +110,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
     return local == null
         ? null
         : domSubsts.get(local).stream()
-            .filter(
-                ds -> {
-                  assert ds != null;
-                  return domTree.dominates(ds.dominator, bb);
-                })
+            .filter(ds -> domTree.dominates(ds.dominator, bb))
             .findAny()
             .map(DomSubst::substitution)
             .orElse(null);

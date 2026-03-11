@@ -15,12 +15,8 @@ import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Placeholder;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -28,8 +24,6 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.expression.SuperLoad;
-import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.variable.NamedVariable;
 
 /// Simple analysis that gets all named variables that are loaded or stored in a scope.

@@ -133,7 +133,7 @@ Typically, register names start with `r` and named variable names are `x`, `y`, 
 
 - Constants
 - Reads: `r`
-- Register "use"s: `use r`. `r` can't be read or used in any instruction reachable from the `use`.
+- Register consumes: `consume r`. `r` can't be read or used in any instruction reachable from the `consume`.
 
 Arguments are the only sub-expressions. e.g. `v(I)[v(I)[1]]` isn't allowed, but `r = v(I)[1]; v(I)[r]` is.
 

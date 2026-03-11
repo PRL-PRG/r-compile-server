@@ -10,7 +10,6 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that converts [MaybeForce]s whose arguments are statically known to be promises

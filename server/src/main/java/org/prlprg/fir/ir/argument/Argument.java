@@ -11,31 +11,27 @@ import org.prlprg.util.Characters;
 /// A statement or jump argument. Essentially a "zero cost" instruction,
 /// because we want to reuse instructions that aren't zero-cost (CSE, GVN).
 @Immutable
-public sealed interface Argument permits Constant, Read, Use {
+public sealed interface Argument permits Constant, Consume, Noop, Read {
   @Nullable Register variable();
 
   @ParseMethod
   private static Argument parse(Parser p) {
     var s = p.scanner();
 
-    if (s.nextCharIs('<')
-        || s.nextCharsAre("TRUE")
-        || s.nextCharsAre("FALSE")
-        || s.nextCharsAre("NA_")
-        || s.nextCharSatisfies(Character::isDigit)
-        || s.nextCharIs('+')
-        || s.nextCharIs('-')
-        || s.nextCharIs('\"')) {
+    if (Value.peek(p)) {
       var value = p.parse(Value.class);
       return new Constant(value);
-    } else if (s.trySkip("use ")) {
+    } else if (s.nextCharsAre("noop ") || s.nextCharsAre("noop;")) {
+      s.assertAndSkip("noop");
+      return new Noop();
+    } else if (s.trySkip("consume ")) {
       var register = p.parse(Register.class);
-      return new Use(register);
+      return new Consume(register);
     } else if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
       var register = p.parse(Register.class);
       return new Read(register);
     }
 
-    throw s.fail("expected SEXP, register, or 'use'");
+    throw s.fail("expected value, register, `consume`, or 'noop'");
   }
 }

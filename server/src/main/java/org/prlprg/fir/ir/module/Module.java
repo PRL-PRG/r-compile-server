@@ -20,7 +20,6 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 
 public final class Module {
   // Observers
@@ -33,7 +32,7 @@ public final class Module {
     return Collections.unmodifiableCollection(functions.values());
   }
 
-  /// Lookup a function in this module or enclosing modules (the intrinsic and builtin modules).
+  /// Lookup a function in this module or enclosing modules (the builtin and intrinsic modules).
   public @Nullable Function lookupFunction(NamedVariable name) {
     var f = functions.get(name);
     if (f != null) {
@@ -95,6 +94,11 @@ public final class Module {
     observers.remove(observer);
   }
 
+  /// Run all observers associated with the given function and arguments, before and after
+  /// `action`
+  ///
+  /// All mutating IR operations (except deferred initialization) must be wrapped in
+  /// `module.record`
   public <T> T record(String func, List<Object> args, Supplier<T> action) {
     for (var observer : observers) {
       observer.before(func, args);
@@ -143,9 +147,12 @@ public final class Module {
     var s = p.scanner();
     var module = new Module();
 
-    var postModule = new DeferredCallbacks<Module>();
+    var deferredFunctions = new LinkedHashMap<NamedVariable, FunctionRef>();
+    var p1 =
+        p.withContext(
+            new Function.ParseContext(
+                module, new FunctionRef.ParseContext(deferredFunctions), p.context()));
 
-    var p1 = p.withContext(new Function.ParseContext(module, postModule, p.context()));
     while (!s.isAtEof() && !s.nextCharIs('}')) {
       var function = p1.parse(Function.class);
       if (module.functions.put(function.name(), function) != null) {
@@ -154,7 +161,15 @@ public final class Module {
       }
     }
 
-    postModule.run(module);
+    for (var entry : deferredFunctions.entrySet()) {
+      var name = entry.getKey();
+      var deferred = entry.getValue();
+      var function = module.functions.get(name);
+      if (function == null) {
+        throw s.fail("Function not found: " + name);
+      }
+      deferred.set(function);
+    }
 
     return module;
   }

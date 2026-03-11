@@ -28,7 +28,6 @@ import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -88,10 +87,10 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       switch (expr) {
         case Force(var value) -> tryInlineForce(bb, statementIndex, assignee, value);
         case MaybeForce(var value) -> tryInlineForce(bb, statementIndex, assignee, value);
-        case Call call when call.callee() instanceof StaticCallee(var _, var version) ->
+        case Call call when call.callee() instanceof StaticCallee(_, var version) ->
             tryInlineCall(bb, statementIndex, assignee, version, call.callArguments());
         // Inline within the promise
-        case Promise(var _, var _, var code) -> run(code);
+        case Promise(_, _, var code) -> run(code);
         default -> {}
       }
     }
@@ -124,8 +123,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           continue;
         }
 
-        if (!(use2.instruction()
-                instanceof Statement(var useComments, var useAssignee, var useExpr))
+        if (!(use2.instruction() instanceof Statement(_, var useAssignee, var useExpr))
             || !(useExpr instanceof Force)) {
           continue;
         }
@@ -218,7 +216,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               .anyMatch(
                   s ->
                       s.expression() instanceof Call call
-                          && call.callee() instanceof StaticCallee(var _, var target)
+                          && call.callee() instanceof StaticCallee(_, var target)
                           && target == callee);
       var variablesClash =
           !Sets.intersection(
