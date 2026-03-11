@@ -836,10 +836,37 @@ struct jit_code_entry *gdb_jit_register(const char *func_name, void *code_addr,
 		FILE *fp = fopen(dump_path, "wb");
 		if (fp)
 		{
-			fwrite(elf, 1, elf_size, fp);
+			// Create a copy with embedded code bytes so the ELF is
+			// self-contained for standalone inspection (e.g. gdb f.o).
+			// The in-memory ELF uses SHT_NOBITS for .text since GDB's
+			// JIT interface reads code from process memory directly.
+			size_t text_offset = (elf_size + 15) & ~15; // align to 16
+			size_t dump_size = text_offset + code_size;
+			uint8_t *dump_elf = malloc(dump_size);
+			if (dump_elf)
+			{
+				memcpy(dump_elf, elf, elf_size);
+				memcpy(dump_elf + text_offset, code_addr, code_size);
+
+				// Patch .text: SHT_NOBITS -> SHT_PROGBITS
+				Elf64_Ehdr *dehdr = (Elf64_Ehdr *)dump_elf;
+				Elf64_Shdr *dshdrs =
+					(Elf64_Shdr *)(dump_elf + dehdr->e_shoff);
+				dshdrs[SEC_TEXT].sh_type = SHT_PROGBITS;
+				dshdrs[SEC_TEXT].sh_offset = text_offset;
+
+				// Patch program header so the segment maps file data
+				Elf64_Phdr *dphdr =
+					(Elf64_Phdr *)(dump_elf + dehdr->e_phoff);
+				dphdr->p_offset = text_offset;
+				dphdr->p_filesz = code_size;
+
+				fwrite(dump_elf, 1, dump_size, fp);
+				free(dump_elf);
+			}
 			fclose(fp);
 			fprintf(stderr, "DEBUG: wrote JIT ELF to %s (%zu bytes)\n",
-					dump_path, elf_size);
+					dump_path, dump_size);
 		}
 	}
 
