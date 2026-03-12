@@ -3,8 +3,8 @@ package org.prlprg.fir.analyze.type;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -61,8 +62,8 @@ public final class InferEffects implements Analysis {
             i ->
                 !(i instanceof Statement s
                     && s.expression() instanceof Call c
-                    && c.callee() instanceof StaticCallee sc
-                    && sc.version() == cfg.scope()))
+                    && c.callee() instanceof StaticFnCallee sc
+                    && sc.exactVersion() == cfg.scope()))
         .map(this::of)
         .reduce(Effects::union)
         .orElse(Effects.NONE);
@@ -80,13 +81,11 @@ public final class InferEffects implements Analysis {
       case Aea(_), Assume _ -> Effects.NONE;
       case Call call ->
           switch (call.callee()) {
-            case StaticCallee(_, var version) -> version.effects();
-            case DispatchCallee(var function, var signature) ->
-                signature == null ? function.baseline().effects() : signature.effects();
+            case StaticFnCallee(_, _, var signature) -> signature.effects();
             case DynamicCallee(_, _) -> Effects.REFLECT;
           };
       case Cast(_, _), Closure _, Dup(_) -> Effects.NONE;
-      case Force(var value) -> {
+      case Force(_, var value) -> {
         var type = inferType.of(value);
         yield type == null
             ? Effects.NONE
@@ -94,31 +93,11 @@ public final class InferEffects implements Analysis {
                 ? Effects.REFLECT
                 : type.promisity().effects();
       }
-      case MaybeForce(var value) -> {
-        var type = inferType.of(value);
-        yield type == null
-            ? Effects.NONE
-            : type.concreteness() == Concreteness.MAYBE
-                ? Effects.REFLECT
-                : type.promisity().effects();
-      }
-      case Load(_) -> Effects.NONE;
-      case LoadFun(_, var env) ->
-          switch (env) {
-            // Function lookup can force...
-            case LOCAL -> Effects.REFLECT;
-            // ...except in global or base env, those are special lookups for known functions
-            case GLOBAL, BASE -> Effects.NONE;
-          };
-      case MkVector(_, _), MkEnv(), Noop(), PopEnv(), Placeholder(), Promise(_, _, _) ->
-          Effects.NONE;
+      // Local function lookup can force
+      case Load(var loadType, _) -> loadType == LoadType.LOCAL_FUN ? Effects.REFLECT : Effects.NONE;
+      case MkVector(_, _), MkEnv(), PopEnv(), Promise(_, _, _) -> Effects.NONE;
       case ReflectiveLoad(_, _), ReflectiveStore(_, _, _) -> Effects.REFLECT;
-      case Store(_, _),
-          SubscriptRead(_, _),
-          SubscriptWrite(_, _, _),
-          SuperLoad(_),
-          SuperStore(_, _) ->
-          Effects.NONE;
+      case Store(_, _, _), SubscriptRead(_, _), SubscriptWrite(_, _, _) -> Effects.NONE;
     };
   }
 }
