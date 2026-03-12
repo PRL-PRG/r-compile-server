@@ -7,8 +7,8 @@ import org.prlprg.fir.analyze.resolve.EnvironmentLiveness.EnvRange;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
@@ -16,8 +16,8 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.iterator.InstructionDfs;
 import org.prlprg.fir.ir.position.CfgPosition;
 
-/// Removes unnecessary environments: those whose range contains no [Store], [SuperStore], or
-/// reflective instructions (ignoring deopt branches).
+/// Removes unnecessary environments: those whose range contains no [Store] (nor super-store)
+/// nor reflective instructions (ignoring deopt branches).
 public record ElideEnv() implements AbstractionOptimization {
   @Override
   public boolean run(AbstractionFeedback feedback, Abstraction scope) {
@@ -77,9 +77,7 @@ public record ElideEnv() implements AbstractionOptimization {
 
       // Check if this instruction requires an environment
       if (instruction instanceof Statement(var _, var _, var expr)
-          && (expr instanceof Store
-              || expr instanceof SuperStore
-              || inferEffects.of(expr).reflect())) {
+          && (expr instanceof Store || inferEffects.of(expr).reflect())) {
         return new AnalysisResult(false, Set.of());
       }
     }
@@ -89,9 +87,9 @@ public record ElideEnv() implements AbstractionOptimization {
 
   private static void elide(EnvRange range, Set<BB> deoptBBs) {
     // Replace mk and pops with NOOP
-    range.mk().replaceWith(new Noop());
+    range.mk().replaceWith(Expression.NOOP);
     for (var pop : range.pops()) {
-      pop.replaceWith(new Noop());
+      pop.replaceWith(Expression.NOOP);
     }
 
     // Prepend MkEnv to deopt branches

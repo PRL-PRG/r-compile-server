@@ -24,6 +24,7 @@ import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -45,6 +46,7 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Checkpoint;
@@ -610,11 +612,12 @@ public final class InternalInterpreter implements Interpreter {
         var valueSxp =
             switch (loadType) {
               case LOCAL_VAR -> load(variable);
-              case SUPER_VAR -> todo;
+              case SUPER_VAR -> topFrame().environment().parent().get(variable.name()).orElse(null);
               case LOCAL_FUN -> topFrame().getFunction(variable, this::force);
               case GLOBAL_FUN -> globalEnv.getFunction(variable.name(), this::force).orElse(null);
               case BASE_FUN -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
             };
+
         if (valueSxp == null) {
           if (loadType == LoadType.LOCAL_FUN
               || loadType == LoadType.GLOBAL_FUN
@@ -639,8 +642,6 @@ public final class InternalInterpreter implements Interpreter {
         topFrame().mkEnv();
         yield Value.NULL;
       }
-      case Noop() -> Value.NULL;
-      case Placeholder() -> throw fail("Can't evaluate placeholder");
       case PopEnv() -> {
         try {
           topFrame().popEnv();
@@ -680,11 +681,32 @@ public final class InternalInterpreter implements Interpreter {
         env.set(variable.name(), valueSexp);
         yield valueValue;
       }
-      case Store(var variable, var arg) -> {
-        var value = run(arg);
-        topFrame().put(variable, value);
-        yield value;
-      }
+      case Store(var storeType, var variable, var arg) ->
+          switch (storeType) {
+            case LOCAL_VAR -> {
+              var value = run(arg);
+              topFrame().put(variable, value);
+              yield value;
+            }
+            case SUPER_VAR -> {
+              var parentEnv = topFrame().environment().parent();
+              var value = run(arg);
+
+              if (!(value instanceof Value.Sexp(var valueSexp))) {
+                throw fail("Can't super-store non-SEXP: " + value);
+              }
+
+              // Super-store implementation
+              while (!(parentEnv instanceof EmptyEnvSXP)) {
+                if (parentEnv.getLocal(variable.name()).isPresent()) {
+                  parentEnv.set(variable.name(), valueSexp);
+                  yield value;
+                }
+                parentEnv = parentEnv.parent();
+              }
+              throw fail("Unbound variable in parent environment: " + variable.name());
+            }
+          };
       case SubscriptRead(var vectorArg, var indexArg) -> {
         var vectorValue = run(vectorArg);
         var indexValue = run(indexArg);
@@ -714,32 +736,6 @@ public final class InternalInterpreter implements Interpreter {
 
         yield subscriptStore(vector, index, valueValue);
       }
-      case SuperLoad(var variable) -> {
-        var parentEnv = topFrame().environment().parent();
-        var valueSexp = parentEnv.get(variable.name()).orElse(null);
-        if (valueSexp == null) {
-          throw fail("Unbound variable in parent environment: " + variable.name());
-        }
-        yield new Value.Sexp(valueSexp);
-      }
-      case SuperStore(var variable, var arg) -> {
-        var parentEnv = topFrame().environment().parent();
-        var value = run(arg);
-
-        if (!(value instanceof Value.Sexp(var valueSexp))) {
-          throw fail("Can't super-store non-SEXP: " + value);
-        }
-
-        // Super-store implementation
-        while (!(parentEnv instanceof EmptyEnvSXP)) {
-          if (parentEnv.getLocal(variable.name()).isPresent()) {
-            parentEnv.set(variable.name(), valueSexp);
-            yield value;
-          }
-          parentEnv = parentEnv.parent();
-        }
-        throw fail("Unbound variable in parent environment: " + variable.name());
-      }
     };
   }
 
@@ -750,6 +746,7 @@ public final class InternalInterpreter implements Interpreter {
     checkEvaluation();
     return switch (argument) {
       case Constant(var constant) -> constant;
+      case Noop() -> Value.NULL;
       case Read(var register) -> read(register);
       // `Read` and `Use` are evaluated the same, the only difference is in the type system.
       case Consume(var register) -> read(register);
@@ -1048,25 +1045,24 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     for (var stmt : target.bb().statements()) {
-      if (!(stmt.expression() instanceof Assume assume)) {
+      if (!(stmt.expression() instanceof Assume(var assumption))) {
         break;
       }
-      if (!check(assume)) {
+      if (!check(assumption)) {
         return false;
       }
     }
     return true;
   }
 
-  private boolean check(Assume assume) {
-    switch (assume) {
+  private boolean check(Assumption assumption) {
+    switch (assumption) {
       case AssumeConstant(var arg, var constant) -> {
         var value = run(arg);
         return Objects.equals(value, constant);
       }
-      case AssumeFunction af -> {
-        var arg = af.target();
-        var function = af.function();
+      case AssumeFunction(var arg, var functionRef) -> {
+        var function = functionRef.get();
 
         var value = run(arg);
         if (!(value instanceof Value.Sexp(var valueSexp) && valueSexp instanceof CloSXP valueCls)) {
@@ -1075,9 +1071,8 @@ public final class InternalInterpreter implements Interpreter {
         var valueFun = extractClosure(valueCls);
         return valueFun == function;
       }
-      case AssumeLoadFun alf -> {
-        var variable = alf.variable();
-        var function = alf.function();
+      case AssumeLoadFun(var variable, var functionRef) -> {
+        var function = functionRef.get();
 
         // Returns `false` when an unevaluated promise is encountered,
         // by returning a stub so that `extractClosure` never returns `function`
@@ -1112,7 +1107,7 @@ public final class InternalInterpreter implements Interpreter {
     // Get corresponding deopt BC and run sanity checks
     var deoptBc =
         deoptRestoreCfg.bbs().stream()
-            .filter(bb -> bb.jump() instanceof Deopt(_, var pc1, var _) && pc == pc1)
+            .filter(bb -> bb.jump() instanceof Deopt(_, var pc1, _) && pc == pc1)
             .collect(
                 Streams.zeroOneOrThrow(() -> fail("multiple deopt branches with the same pc?")))
             .orElseThrow(
@@ -1122,7 +1117,7 @@ public final class InternalInterpreter implements Interpreter {
                             + pc
                             + "\n"
                             + deoptRestoreCfg));
-    if (!(deoptBc.jump() instanceof Deopt(var _, var _, var argStack))) {
+    if (!(deoptBc.jump() instanceof Deopt(_, _, var argStack))) {
       throw new UnreachableError();
     }
     var checkBc =
@@ -1151,6 +1146,7 @@ public final class InternalInterpreter implements Interpreter {
                     + value);
           }
         }
+        case Noop() -> throw fail("unexpected noop in deopt branch");
         case Read(var variable) -> {
           topFrame().put(variable, value);
           recordTypeFeedback(topFrame().scopeFeedback(), variable, value);
@@ -1175,7 +1171,7 @@ public final class InternalInterpreter implements Interpreter {
             throw fail(e.getMessage());
           }
         }
-        case Store(var _, var _) -> {}
+        case Store(var storeType, _, _) when storeType == StoreType.LOCAL_VAR -> {}
         default ->
             throw fail(
                 "unexpected expression in deopt branch: "
@@ -1203,7 +1199,7 @@ public final class InternalInterpreter implements Interpreter {
       var stmt = deopt.bb().statements().get(i);
       switch (stmt.expression()) {
         case MkEnv() -> env = new UserEnvSXP(env);
-        case Store(var variable, var arg) -> {
+        case Store(var storeType, var variable, var arg) when storeType == StoreType.LOCAL_VAR -> {
           var value = run(arg);
           if (!(value instanceof Value.Sexp(var valueSexp))) {
             throw fail("Can't store non-SEXP in environment: " + value);
