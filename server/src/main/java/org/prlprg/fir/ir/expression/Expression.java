@@ -2,7 +2,6 @@ package org.prlprg.fir.ir.expression;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
-import java.util.Optional;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -17,6 +16,7 @@ import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Store.StoreType;
@@ -36,8 +36,6 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Names;
 import org.prlprg.util.Characters;
-import org.prlprg.util.Either;
-import org.prlprg.util.NotImplementedError;
 
 @Immutable
 public sealed interface Expression
@@ -208,47 +206,22 @@ public sealed interface Expression
       // `headAsArg != null` iff it starts with an argument, which may be a constant or
       // identifier which happens to be a register.
 
-      if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
+      if (s.nextCharIs('?') || s.nextCharIs('<')) {
         if (headAsName == null) {
           throw s.fail("in 'f...(...)', 'f' must be a valid variable name");
         }
 
-        // Static or dispatch call
-        var functionName = Variable.named(headAsName);
-        Either<Optional<Signature>, Integer> version;
-        if (s.trySkip('.')) {
-          version = Either.right(s.readUInt());
-        } else if (s.trySkip('<')) {
-          var signature = p.parse(Signature.class);
-          s.assertAndSkip('>');
-          version = Either.left(Optional.of(signature));
-        } else {
-          version = Either.left(Optional.empty());
-        }
-        // TODO: maybe refactor versions
-        throw new NotImplementedError();
+        // Static function call
+        var functionRef = ctx.forFunctionRef.deferredLookup(Variable.named(headAsName));
+        var isDispatch = s.trySkip('?');
+        s.assertAndSkip('<');
+        var signature = p.parse(Signature.class);
+        s.assertAndSkip('>');
+        var callee = new StaticFnCallee(isDispatch, functionRef, signature);
 
-        /* var arguments = p.parseList("(", ")", Argument.class);
+        var arguments = p.parseList("(", ")", Argument.class);
 
-        var result = new Call(callee, arguments);
-
-        postModule.add(
-            m -> {
-              assert m == module;
-
-              var function = m.lookupFunction(functionName);
-              if (function == null) {
-                throw s.fail("Callee references a function that wasn't defined: " + functionName);
-              }
-              var callee =
-                  version.destruct(
-                      signature -> new DispatchCallee(function, signature.orElse(null)),
-                      index -> new StaticCallee(function, function.version(index)));
-
-              result.unsafeSetCallee(callee);
-            });
-
-        return result; */
+        return new Call(callee, arguments);
       } else if (s.trySkip('$')) {
         if (headAsArg == null) {
           throw s.fail("In 'a$...', 'a' must be a register (or constant)");

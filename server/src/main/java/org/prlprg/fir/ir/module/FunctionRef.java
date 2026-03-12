@@ -16,11 +16,15 @@ public final class FunctionRef extends ForwardRef<Function> {
     super(function);
   }
 
-  public record ParseContext(HashMap<NamedVariable, FunctionRef> deferred) {}
+  public record ParseContext(HashMap<NamedVariable, FunctionRef> deferred) {
+    public FunctionRef deferredLookup(NamedVariable name) {
+      return deferred.computeIfAbsent(name, _ -> new FunctionRef());
+    }
+  }
 
   @ParseMethod
   private static FunctionRef parse(Parser p, ParseContext ctx) {
     var name = p.parse(NamedVariable.class);
-    return ctx.deferred.computeIfAbsent(name, _ -> new FunctionRef());
+    return ctx.deferredLookup(name);
   }
 }
