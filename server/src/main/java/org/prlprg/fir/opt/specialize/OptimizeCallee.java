@@ -90,7 +90,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                                   switch (argument) {
                                     case Constant(var constant) ->
                                         constant.type().isSubtypeOf(parameterType);
-                                    case Read(var _), Consume(var _) -> {
+                                    case Read(_), Consume(_) -> {
                                       var register = Objects.requireNonNull(argument.variable());
                                       yield feedback
                                           .type(register)

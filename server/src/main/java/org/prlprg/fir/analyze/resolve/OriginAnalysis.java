@@ -137,8 +137,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     var def = defUses.definition(originReg);
-    if (def == null
-        || !(def.inInnermostCfg().instruction() instanceof Statement(var _, var _, var expr))) {
+    if (def == null || !(def.inInnermostCfg().instruction() instanceof Statement(_, _, var expr))) {
       return null;
     }
 
@@ -246,7 +245,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         case Force(var isMaybe, var value) -> {
           var forceeOrigin = resolve(value);
           var forceeType = inferType.of(forceeOrigin);
-          if (definitionExpression(forceeOrigin) instanceof Promise(var _, var _, var code)) {
+          if (definitionExpression(forceeOrigin) instanceof Promise(_, _, var code)) {
             // We're forcing this promise, so run it's sub-analysis and return the return.
             var subAnalysis = (OnCfg) onCfg(code);
             subAnalysis.run(state());
@@ -263,7 +262,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           }
         }
         // We must run promises because `AbstractInterpretation` doesn't.
-        case Promise(var _, var _, var code) -> {
+        case Promise(_, _, var code) -> {
           runSubAnalysis(code, state()::merge);
           yield null;
         }
@@ -288,7 +287,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     @Override
     protected void run(Jump jump) {
-      if (jump instanceof Return(var _, var value)) {
+      if (jump instanceof Return(_, var value)) {
         returnOrigin = new ReturnOrigin(value).merge(returnOrigin);
       }
 

@@ -185,7 +185,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       for (var assume : assumes) {
         var target = Objects.requireNonNull((Read) assume.target()).variable();
         switch (assume) {
-          case AssumeType(var _, var type) -> {
+          case AssumeType(_, var type) -> {
             var improvedType = scope.addLocal(target.name(), type);
             assumeSubsts.stage(target, new Read(improvedType), successBb);
             assumeDsts.put(Pair.of(assume, successBb), improvedType);
@@ -198,7 +198,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
                 successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
             assumeSubsts.stage(target, new Read(globalLookup), successBb);
           }
-          case AssumeConstant(var _, var constant) ->
+          case AssumeConstant(_, var constant) ->
               assumeSubsts.stage(target, new Constant(constant), successBb);
           case AssumeLoadFun _ ->
               throw new IllegalStateException("SpeculateAssume never creates AssumeLoadFun");

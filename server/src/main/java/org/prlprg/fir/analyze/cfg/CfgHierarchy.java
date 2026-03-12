@@ -57,7 +57,7 @@ public final class CfgHierarchy implements Analysis {
     for (var bb : cfg.bbs()) {
       for (var i = 0; i < bb.statements().size(); i++) {
         var stmt = bb.statements().get(i);
-        if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
+        if (!(stmt.expression() instanceof Promise(_, _, var code))) {
           continue;
         }
 

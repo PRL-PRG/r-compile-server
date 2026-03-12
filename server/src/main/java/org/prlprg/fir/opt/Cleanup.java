@@ -219,7 +219,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       // Can merge if:
 
       // 1. Block has exactly one successor ([Goto])
-      if (!(bb.jump() instanceof Goto(var _, var target))) {
+      if (!(bb.jump() instanceof Goto(_, var target))) {
         return false;
       }
       var successor = target.bb();
@@ -378,7 +378,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         // May error
         case Load _ -> false;
         // May force iff `env == Env.LOCAL`
-        case LoadFun(var _, var env) -> env != Env.LOCAL;
+        case LoadFun(_, var env) -> env != Env.LOCAL;
         case MaybeForce _ -> false;
         case MkVector _ -> true;
         case MkEnv _, PopEnv _ -> false;

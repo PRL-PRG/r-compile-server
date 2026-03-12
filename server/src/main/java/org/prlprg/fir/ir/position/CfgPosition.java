@@ -29,7 +29,7 @@ public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction ins
 
   /// @throws IllegalArgumentException If this is a phi group or [Jump].
   public void replaceWith(Expression replacement) {
-    if (!(instruction instanceof Statement(var comments, var assignee, var _))) {
+    if (!(instruction instanceof Statement(var comments, var assignee, _))) {
       throw new IllegalArgumentException("Can't replace a phi group or jump:\n" + this);
     }
 
