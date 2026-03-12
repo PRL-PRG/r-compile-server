@@ -9,8 +9,11 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.Callee;
+import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
@@ -59,24 +62,30 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
   }
 
   @Nullable Callee run(Abstraction scope, AbstractionFeedback feedback, Call call) {
-    var callee = call.callee();
-    var callArguments = call.callArguments();
-    var calleeFun = callee.function();
-    if (calleeFun == null || callArguments.stream().anyMatch(arg -> scope.typeOf(arg) == null)) {
+    if (!(call.callee() instanceof StaticFnCallee callee)) {
       return null;
     }
+    var calleeFun = callee.function();
     var argumentTypes =
-        callArguments.stream()
-            .map(a -> Objects.requireNonNull(scope.typeOf(a)))
-            .collect(ImmutableList.toImmutableList());
-    var bestSignature = bestSignature(callee, argumentTypes);
+        call.callArguments().stream().map(scope::typeOf).collect(ImmutableList.toImmutableList());
+    if (argumentTypes.contains(null)) {
+      return null;
+    }
+    @SuppressWarnings("RedundantCast")
+    var bestSignature = bestSignature(callee, (ImmutableList<Type>) argumentTypes);
     var bestVersion = calleeFun.guess(bestSignature);
     if (bestVersion == null) {
       // Invalid, there should always be a possible version
       return null;
     }
 
-    // Check if there are better versions that can be called with recorded runtime types
+    // Improve best signature: keep the better precondition from `argumentTypes`,
+    // but add the postcondition from `bestVersion`
+    var newBestSignature =
+        new Signature(
+            argumentTypes, bestVersion.signature().returnType(), bestVersion.signature().effects());
+
+    // Check if there are better versions that can be called with recorded runtime types...
     var isBestAtRuntime =
         calleeFun.versionsSorted().headSet(bestVersion).stream()
             .noneMatch(
@@ -85,12 +94,13 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                   return betterSignature.hasNarrowerParameters(bestSignature)
                       && Streams.zip(
                               betterSignature.parameterTypes().stream(),
-                              callArguments.stream(),
+                              call.callArguments().stream(),
                               (parameterType, argument) ->
                                   switch (argument) {
                                     case Constant(var constant) ->
                                         constant.type().isSubtypeOf(parameterType);
-                                    case Read(_), Consume(_) -> {
+                                    case Noop() -> false;
+                                    case Read _, Consume _ -> {
                                       var register = Objects.requireNonNull(argument.variable());
                                       yield feedback
                                           .type(register)
@@ -101,23 +111,19 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                                   })
                           .allMatch(b -> b);
                 });
-    if (isBestAtRuntime) {
-      return new StaticCallee(calleeFun, bestVersion);
-    }
 
-    // Improve best signature: keep the better precondition from `argumentTypes`,
-    // but add the postcondition from `bestVersion`
-    var bestSignature1 =
-        new Signature(
-            argumentTypes, bestVersion.signature().returnType(), bestVersion.signature().effects());
-
-    return new DispatchCallee(calleeFun, bestSignature1);
+    // ...if so (`!isBestAtRuntime`), use dynamic dispatch
+    return new StaticFnCallee(!isBestAtRuntime, calleeFun, newBestSignature);
   }
 
   /// Returns the callee's signature with the types replaced by `argumentTypes`, i.e. the best
   /// possible signature for a call with these
   public static Signature bestSignature(Callee callee, ImmutableList<Type> argumentTypes) {
-    var oldSignature = callee.signature();
+    var oldSignature =
+        switch (callee) {
+          case StaticFnCallee(_, _, var signature) -> signature;
+          case DynamicCallee _ -> null;
+        };
     return new Signature(
         argumentTypes,
         oldSignature == null ? Type.ANY_VALUE : oldSignature.returnType(),
