@@ -25,6 +25,7 @@ import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
@@ -499,22 +500,25 @@ public final class InternalInterpreter implements Interpreter {
     checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
-      case AssumeType(var arg, var type) -> {
-        var value = run(arg);
-        checkType(value, type, "assume-type");
-        yield value;
-      }
-      case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
+      case Assume(var assumption) -> switch (assumption) {
+        case AssumeType(var arg, var type) -> {
+          var value = run(arg);
+          checkType(value, type, "assume-type");
+          yield value;
+        }
+        case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
+      };
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
         var environment = topFrame().environment();
 
         yield switch (callee) {
-          case StaticCallee(var function, var version) ->
-              call(version, arguments, environment, function.baseline().cfg());
-          case DispatchCallee(var function, var signature) ->
-              call(function, signature, arguments, environment);
+          case StaticFnCallee c -> c.isDispatch() ?
+              call(c.function(), c.signature(), arguments, environment) :
+              c.exactVersion() != null ?
+              call(c.exactVersion(), arguments, environment, c.function().baseline().cfg()) :
+              throw fail("No versions of " + c.function().name() + " match signature: " + c.signature());
           case DynamicCallee(var actualCallee, var argumentNames) -> {
             var calleeValue = run(actualCallee);
             if (!(calleeValue instanceof Value.Sexp(var calleeSexp)

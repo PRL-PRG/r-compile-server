@@ -19,9 +19,11 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -155,12 +157,18 @@ abstract class AbstractSubstituter {
   private Expression substitute(BB bb, Expression expression) {
     return switch (expression) {
       case Aea(var value) -> new Aea(substitute(bb, value));
-      case AssumeConstant(var target, var constant) ->
-          new AssumeConstant(substitute(bb, target), constant);
-      case AssumeFunction assume ->
-          new AssumeFunction(substitute(bb, assume.target()), assume.function());
-      case AssumeLoadFun assume -> new AssumeLoadFun(assume.variable(), assume.function());
-      case AssumeType(var target, var type) -> new AssumeType(substitute(bb, target), type);
+      case Assume(var assumption) ->
+          new Assume(
+              switch (assumption) {
+                case AssumeType(var target, var type) ->
+                    new AssumeType(substitute(bb, target), type);
+                case AssumeConstant(var target, var constant) ->
+                    new AssumeConstant(substitute(bb, target), constant);
+                case AssumeFunction assume ->
+                    new AssumeFunction(substitute(bb, assume.target()), assume.function());
+                case AssumeLoadFun assume ->
+                    new AssumeLoadFun(assume.variable(), assume.function());
+              });
       case Call call ->
           new Call(
               substitute(bb, call.callee()),
@@ -170,10 +178,8 @@ abstract class AbstractSubstituter {
       case Cast(var target, var type) -> new Cast(substitute(bb, target), type);
       case Closure closure -> closure;
       case Dup(var value) -> new Dup(substitute(bb, value));
-      case Force(var value) -> new Force(substitute(bb, value));
-      case Load(var variable) -> new Load(variable);
-      case LoadFun(var variable, var env) -> new LoadFun(variable, env);
-      case MaybeForce(var value) -> new MaybeForce(substitute(bb, value));
+      case Force(var isMaybe, var value) -> new Force(isMaybe, substitute(bb, value));
+      case Load(var loadType, var variable) -> new Load(loadType, variable);
       case MkEnv() -> new MkEnv();
       case MkVector(var kind, var elements) ->
           new MkVector(
@@ -181,30 +187,27 @@ abstract class AbstractSubstituter {
               elements.stream()
                   .map(ne -> new NamedArgument(ne.name(), substitute(bb, ne.argument())))
                   .collect(ImmutableList.toImmutableList()));
-      case Noop() -> new Noop();
-      case Placeholder() -> new Placeholder();
       case PopEnv() -> new PopEnv();
       case Promise(var valueType, var effects, var code) -> new Promise(valueType, effects, code);
       case ReflectiveLoad(var promise, var variable) ->
           new ReflectiveLoad(substitute(bb, promise), variable);
       case ReflectiveStore(var promise, var variable, var value) ->
           new ReflectiveStore(substitute(bb, promise), variable, substitute(bb, value));
-      case Store(var variable, var value) -> new Store(variable, substitute(bb, value));
+      case Store(var storeType, var variable, var value) ->
+          new Store(storeType, variable, substitute(bb, value));
       case SubscriptRead(var target, var index) ->
           new SubscriptRead(substitute(bb, target), substitute(bb, index));
       case SubscriptWrite(var target, var index, var value) ->
           new SubscriptWrite(substitute(bb, target), substitute(bb, index), substitute(bb, value));
-      case SuperLoad(var variable) -> new SuperLoad(variable);
-      case SuperStore(var variable, var value) -> new SuperStore(variable, substitute(bb, value));
     };
   }
 
   private Callee substitute(BB bb, Callee callee) {
     return switch (callee) {
-      case DispatchCallee(var function, var signature) -> new DispatchCallee(function, signature);
+      case StaticFnCallee(var isDispatch, var function, var version) ->
+          new StaticFnCallee(isDispatch, function, version);
       case DynamicCallee(var calleeArg, var argumentNames) ->
           new DynamicCallee(substitute(bb, calleeArg), argumentNames);
-      case StaticCallee(var function, var version) -> new StaticCallee(function, version);
     };
   }
 
@@ -246,9 +249,9 @@ abstract class AbstractSubstituter {
     return switch (argument) {
       case Read(var r) -> new Consume(r);
       case Consume(_) -> argument;
-      case Constant(_) ->
+      case Constant(_), Noop() ->
           throw new IllegalStateException(
-              "can't substitute use with constant:\n" + this + "\n" + scope);
+              "can't substitute use with constant or noop:\n" + this + "\n" + scope);
     };
   }
 

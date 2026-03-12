@@ -6,7 +6,6 @@ import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -14,6 +13,7 @@ import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
@@ -52,12 +52,13 @@ public record StrictifyPromise() implements AbstractionOptimization {
     for (var bb : bbReverseDfsNoDeopts(scope.cfg())) {
       for (int callIdx = bb.statements().size() - 1; callIdx >= 0; callIdx--) {
         var stmt = bb.statements().get(callIdx);
-        if (!(stmt.expression() instanceof Call call)) {
+        if (!(stmt.expression() instanceof Call call
+            && call.callee() instanceof StaticFnCallee callee)) {
           continue;
         }
 
         // Only apply to non-reflectful callees
-        var calleeSig = call.callee().signature();
+        var calleeSig = callee.signature();
         var callType = inferType.of(call);
         var callEffects = inferEffects.of(call);
 
@@ -75,14 +76,13 @@ public record StrictifyPromise() implements AbstractionOptimization {
             continue;
           }
 
-          var defInCfg = def.inCfg(scope.cfg());
-          if (defInCfg == null) {
+          var defInCfg = def.inInnermostCfg();
+          if (defInCfg.cfg() != scope.cfg()) {
             continue;
           }
 
           // The callee's corresponding parameter must be strict
-          if (calleeSig == null
-              || j >= calleeSig.parameterStrictnesses().size()
+          if (j >= calleeSig.parameterStrictnesses().size()
               || !calleeSig.parameterStrictnesses().get(j)) {
             continue;
           }
@@ -128,16 +128,14 @@ public record StrictifyPromise() implements AbstractionOptimization {
                     calleeSig.parameterStrictnesses().stream(),
                     (type, strict) -> strict && !type.isValue())
                 .collect(ImmutableList.toImmutableList());
-        var fn =
-            Objects.requireNonNull(
-                call.callee().function(), "dynamic callees are always reflectful");
+        var fn = callee.function();
         var newSig =
             new Signature(
                 newArgTypes,
                 newStrictnesses,
                 callType == null ? Type.ANY_VALUE : callType,
                 callEffects);
-        var newCallee = new DispatchCallee(fn, newSig);
+        var newCallee = new StaticFnCallee(true, fn, newSig);
 
         // Replace statement with new call.
         // The promise registers themselves are replaced with the inlined return values,

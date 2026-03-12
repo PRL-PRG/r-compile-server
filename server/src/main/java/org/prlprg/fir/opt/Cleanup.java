@@ -27,6 +27,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -368,6 +369,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     }
 
     boolean isTriviallyPure(Expression expression) {
+      // ???: probably should separate the error from error instructions
+      // so it doesn't affect strictness and other guarantees that rely on normal control-flow
       return switch (expression) {
         case Aea _ -> true;
         case Assume _, Call _ -> false;
@@ -375,11 +378,9 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case Cast _ -> false;
         case Closure _, Dup _ -> true;
         case Force _ -> false;
-        // May error
-        case Load _ -> false;
+        // May error iff base lookup
         // May force iff `env == Env.LOCAL`
-        case LoadFun(_, var env) -> env != Env.LOCAL;
-        case MaybeForce _ -> false;
+        case Load(var loadType, _) -> loadType != LoadType.BASE_FUN;
         case MkVector _ -> true;
         case MkEnv _, PopEnv _ -> false;
         case Promise _ -> true;
@@ -387,9 +388,6 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         // May error
         case SubscriptRead _ -> false;
         case SubscriptWrite _ -> false;
-        // May error
-        case SuperLoad _ -> false;
-        case SuperStore _ -> false;
       };
     }
   }

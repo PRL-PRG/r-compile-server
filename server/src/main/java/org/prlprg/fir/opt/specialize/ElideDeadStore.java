@@ -7,10 +7,10 @@ import org.prlprg.fir.analyze.cfg.CfgReachability;
 import org.prlprg.fir.analyze.cfg.Loads;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Register;
@@ -40,7 +40,8 @@ public record ElideDeadStore() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Store(var variable, _))) {
+    if (!(expression instanceof Store(var storeType, var variable, _))
+        || storeType != StoreType.LOCAL_VAR) {
       return expression;
     }
 
@@ -70,6 +71,6 @@ public record ElideDeadStore() implements SpecializeOptimization {
       defer.stage(() -> reachableBb.appendStatement(new Statement(expression)));
     }
 
-    return new Noop();
+    return Expression.NOOP;
   }
 }
