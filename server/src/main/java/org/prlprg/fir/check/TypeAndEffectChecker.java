@@ -14,8 +14,10 @@ import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
@@ -133,9 +135,9 @@ public final class TypeAndEffectChecker extends Checker {
     new OnAbstraction(version).run();
   }
 
-  public static boolean assumeCanSucceed(Assume assume, Type argType) {
+  public static boolean assumeCanSucceed(Assumption assumption, Type argType) {
     var requiredType =
-        switch (assume) {
+        switch (assumption) {
           case AssumeType(_, var type) -> type;
           case AssumeConstant(_, var constant) -> constant.type();
           case AssumeFunction _ -> Type.CLOSURE;
@@ -230,14 +232,14 @@ public final class TypeAndEffectChecker extends Checker {
 
         switch (expression) {
           case Aea _ -> {}
-          case Assume assume -> {
-            var target = assume.target();
+          case Assume(var assumption) -> {
+            var target = assumption.target();
             if (target == null) {
               break;
             }
             var argType = scope.typeOf(target);
 
-            if (argType != null && !assumeCanSucceed(assume, argType)) {
+            if (argType != null && !assumeCanSucceed(assumption, argType)) {
               report(
                   "Assumption can't succeed, clearly we never recorded it ("
                       + target
@@ -250,24 +252,9 @@ public final class TypeAndEffectChecker extends Checker {
             var argumentTypes = call.callArguments().stream().map(inferType::of).toList();
 
             switch (call.callee()) {
-              case StaticCallee(_, var callee) -> {
-                if (callee.parameters().size() != argumentTypes.size()) {
-                  report(
-                      "Call expects "
-                          + callee.parameters().size()
-                          + " arguments, got "
-                          + argumentTypes.size());
-                }
-                for (int i = 0;
-                    i < Math.min(callee.parameters().size(), argumentTypes.size());
-                    i++) {
-                  var param = callee.parameters().get(i);
-                  var argType = argumentTypes.get(i);
-                  checkMatches(argType, param.type(), "Type mismatch in argument " + i);
-                }
-              }
-              case DispatchCallee(var function, var signature) -> {
-                var version = signature == null ? function.baseline() : function.guess(signature);
+              case StaticFnCallee(_, var functionRef, var signature) -> {
+                var function = functionRef.get();
+                var version = function.guess(signature);
 
                 // If there's no explicit version, the actual version is unknown, but this is
                 // also an error: an explicit signature means we expect a known version, though
@@ -281,41 +268,21 @@ public final class TypeAndEffectChecker extends Checker {
                           + " has no matching version");
                 }
 
-                // Check arguments against baseline or signature parameters.
-                if (signature == null) {
-                  if (version.parameters().size() != argumentTypes.size()) {
-                    report(
-                        "Baseline expects "
-                            + version.parameters().size()
-                            + " arguments, got "
-                            + argumentTypes.size());
-                  }
-                  for (int i = 0;
-                      i < Math.min(version.parameters().size(), argumentTypes.size());
-                      i++) {
-                    var param = version.parameters().get(i);
-                    var argType = argumentTypes.get(i);
-                    checkMatches(
-                        argType,
-                        param.type(),
-                        "Type mismatch in argument " + i + " (for baseline)");
-                  }
-                } else {
-                  if (signature.parameterTypes().size() != argumentTypes.size()) {
-                    report(
-                        "Signature expects "
-                            + signature.parameterTypes().size()
-                            + " arguments, got "
-                            + argumentTypes.size());
-                  }
-                  for (int i = 0;
-                      i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
-                      i++) {
-                    var paramType = signature.parameterTypes().get(i);
-                    var argType = argumentTypes.get(i);
-                    checkMatches(
-                        argType, paramType, "Type mismatch in argument " + i + " (for signature)");
-                  }
+                // Check arguments against signature parameters.
+                if (signature.parameterTypes().size() != argumentTypes.size()) {
+                  report(
+                      "Signature expects "
+                          + signature.parameterTypes().size()
+                          + " arguments, got "
+                          + argumentTypes.size());
+                }
+                for (int i = 0;
+                    i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
+                    i++) {
+                  var paramType = signature.parameterTypes().get(i);
+                  var argType = argumentTypes.get(i);
+                  checkMatches(
+                      argType, paramType, "Type mismatch in argument " + i + " (for signature)");
                 }
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {

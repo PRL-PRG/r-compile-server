@@ -1716,6 +1716,11 @@ public class BCCompiler {
           SEXPs.lang(
               SEXPs.symbol("stop"),
               SEXPs.list(SEXPs.string("empty alternative in numeric switch"))));
+      // Ensure the stack is consistent for FIR
+      // It doesn't matter in GNU-R because control-flow exits after the `stop` call
+      if (optimizationLevel == BcOptLevel.FIR) {
+        cb.addInstr(new Pop());
+      }
     }
 
     // code for the default case

@@ -192,8 +192,9 @@ public record MergeConsecutiveCheckpoints() implements CheckpointAbstractionOpti
     for (var stmts : List.of(assumes1, assumes2)) {
       for (var stmt : stmts) {
         if (stmt.assignee() != null
-            && stmt.expression() instanceof AssumeType at
-            && at.target() instanceof Read(var targetReg)) {
+            && stmt.expression() instanceof Assume(var assumption)
+            && assumption instanceof AssumeType(var target, _)
+            && target instanceof Read(var targetReg)) {
           map.put(stmt.assignee(), targetReg);
         }
       }

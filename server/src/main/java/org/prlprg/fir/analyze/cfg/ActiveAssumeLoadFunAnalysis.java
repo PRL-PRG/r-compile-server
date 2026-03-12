@@ -11,6 +11,7 @@ import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -90,9 +91,10 @@ public final class ActiveAssumeLoadFunAnalysis implements CfgAnalysis {
     }
 
     switch (expression) {
-      case AssumeLoadFun a -> active.add(new Key(a.variable(), a.function()));
-      case Store(var variable, var _) -> active.removeIf(k -> k.variable().equals(variable));
-      case SuperStore(var variable, var _) -> active.removeIf(k -> k.variable().equals(variable));
+      case Assume(var assumption)
+          when assumption instanceof AssumeLoadFun(var variable, var functionRef) ->
+          active.add(new Key(variable, functionRef.get()));
+      case Store(_, var variable, var _) -> active.removeIf(k -> k.variable().equals(variable));
       default -> {}
     }
   }

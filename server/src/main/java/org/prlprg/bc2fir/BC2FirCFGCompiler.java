@@ -124,6 +124,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -132,12 +133,15 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
@@ -214,7 +218,6 @@ public class BC2FirCFGCompiler {
   private final List<Loop> loopStack = new ArrayList<>();
   private final List<ComplexAssign> complexAssignStack = new ArrayList<>();
   private final List<Call> callStack = new ArrayList<>();
-  private @Nullable String lastLoadedFunName;
 
   // endregion compiler data
 
@@ -257,7 +260,7 @@ public class BC2FirCFGCompiler {
     // Compile "compute default" if necessary, then "store parameter"
     if (parameterDefault == SEXPs.MISSING_ARG) {
       // The parameter never has a default, so just compile "store provided parameter"
-      insert(new Store(parameterName, new Read(parameter.variable())));
+      insert(new Store(StoreType.LOCAL_VAR, parameterName, new Read(parameter.variable())));
     } else {
       // Compile "compute default if missing, otherwise store provided parameter"
 
@@ -298,7 +301,7 @@ public class BC2FirCFGCompiler {
 
       cursor.moveToStart(afterBb);
       afterBb.appendParameter(parameterPhi);
-      insert(new Store(parameterName, new Read(parameterPhi)));
+      insert(new Store(StoreType.LOCAL_VAR, parameterName, new Read(parameterPhi)));
     }
   }
 
@@ -533,7 +536,7 @@ public class BC2FirCFGCompiler {
                     new Constant(SEXPs.dots()),
                     new Constant(SEXPs.logical(true))));
         // Store in the element variable
-        insert(new Store(getVar(elemName), elem));
+        insert(new Store(StoreType.LOCAL_VAR, getVar(elemName), elem));
         // Now we compile the rest of the body...
         // When we encounter `StepFor`, we know that the body is over. Note that we may no longer be
         // in `forBodyBb`: that is just the first BB in the for body, there may be more.
@@ -598,30 +601,28 @@ public class BC2FirCFGCompiler {
       case LdTrue() -> push(new Constant(SEXPs.TRUE));
       case LdFalse() -> push(new Constant(SEXPs.FALSE));
       case GetVar(var name) -> {
-        pushInsert(getStr(name), new Load(getVar(name)));
+        pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false);
-        pushInsert(getStr(name), new MaybeForce(pop()));
+        pushInsert(getStr(name), new Force(true, pop()));
         insert(intrinsic("checkMissing", top()));
       }
       case DdVal(var name) -> {
         var ddIndex = NamedVariable.ddNum(get(name).ddNum());
-        pushInsert(getStr(name), new Load(ddIndex));
+        pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, ddIndex));
         tryAddCheckpoint(false);
-        pushInsert(getStr(name), new MaybeForce(pop()));
+        pushInsert(getStr(name), new Force(true, pop()));
         insert(intrinsic("checkMissing", top()));
       }
-      case SetVar(var name) -> insert(new Store(getVar(name), top()));
+      case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name), top()));
       case GetFun(var name) -> {
         tryAddCheckpoint(false);
-        var fun = insertAndReturn(getStr(name), new LoadFun(getVar(name), Env.LOCAL));
+        var fun = insertAndReturn(getStr(name), new Load(LoadType.LOCAL_FUN, getVar(name)));
         pushCall(fun);
-        lastLoadedFunName = getStr(name);
         tryAddCheckpoint(true);
       }
       case GetGlobFun(var name) -> {
-        var fun = insertAndReturn(getStr(name), new LoadFun(getVar(name), Env.GLOBAL));
+        var fun = insertAndReturn(getStr(name), new Load(LoadType.GLOBAL_FUN, getVar(name)));
         pushCall(fun);
-        lastLoadedFunName = getStr(name);
         tryAddCheckpoint(true);
       }
       case GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
@@ -647,7 +648,7 @@ public class BC2FirCFGCompiler {
         }
       }
       case DoDots() -> {
-        pushCallArg(insertAndReturn("_ddd", new Load(NamedVariable.DOTS)));
+        pushCallArg(insertAndReturn("_ddd", new Load(LoadType.LOCAL_VAR, NamedVariable.DOTS)));
         // This is specially interpreted by FIŘ:
         // it determines that the call's arguments can't be statically matched.
         // That only happens when `...` is a literal argument,
@@ -683,7 +684,7 @@ public class BC2FirCFGCompiler {
         // REACH: Like `compileCall`, we must insert a dynamic call, because we don't have the
         // formal parameters of all specials, and some arguments may be `...`.
         var loadFun =
-            insertAndReturn(builtinName, new LoadFun(Variable.named(builtinName), Env.BASE));
+            insertAndReturn(builtinName, new Load(LoadType.BASE_FUN, Variable.named(builtinName)));
         pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args));
       }
       case MakeClosure(var arg) -> {
@@ -732,13 +733,13 @@ public class BC2FirCFGCompiler {
       case Not(var _) -> pushInsert(mkUnop("!"));
       case DotsErr() -> insert(stop("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
-        var lhs = insertAndReturn("_lhs", new Load(getVar(name)));
+        var lhs = insertAndReturn("_lhs", new Load(LoadType.LOCAL_VAR, getVar(name)));
         var rhs = top();
         pushComplexAssign(false, get(name), lhs, rhs);
       }
       case EndAssign(var name) -> {
         var lhs = popComplexAssign(false, get(name));
-        insert(new Store(getVar(name), lhs));
+        insert(new Store(StoreType.LOCAL_VAR, getVar(name), lhs));
       }
       case Dollar(var _, var member) -> {
         var memberArg = new Constant(get(member));
@@ -783,29 +784,29 @@ public class BC2FirCFGCompiler {
         insert(this::goto_);
       }
       case GetVarMissOk(var name) -> {
-        pushInsert(getStr(name), new Load(getVar(name)));
+        pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false);
-        pushInsert(getStr(name), new MaybeForce(pop()));
+        pushInsert(getStr(name), new Force(true, pop()));
       }
       case DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
-        pushInsert(getStr(name), new Load(NamedVariable.ddNum(ddIndex)));
+        pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, NamedVariable.ddNum(ddIndex)));
         tryAddCheckpoint(false);
-        pushInsert(getStr(name), new MaybeForce(pop()));
+        pushInsert(getStr(name), new Force(true, pop()));
       }
       case Visible() -> insert(intrinsic("setVisible"));
-      case SetVar2(var name) -> insert(new SuperStore(getVar(name), top()));
+      case SetVar2(var name) -> insert(new Store(StoreType.SUPER_VAR, getVar(name), top()));
       case StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
         // own stack.
-        var lhs = insertAndReturn("_lhs", new SuperLoad(getVar(name)));
+        var lhs = insertAndReturn("_lhs", new Load(LoadType.SUPER_VAR, getVar(name)));
         var rhs = top();
         pushComplexAssign(true, get(name), lhs, rhs);
       }
       case EndAssign2(var name) -> {
         var lhs = popComplexAssign(true, get(name));
-        insert(new SuperStore(getVar(name), lhs));
+        insert(new Store(StoreType.SUPER_VAR, getVar(name), lhs));
       }
       case SetterCall(var _, var _) -> {
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
@@ -967,8 +968,8 @@ public class BC2FirCFGCompiler {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
         var fun = Variable.named(((RegSymSXP) expr.fun()).name());
-        var sym = insertAndReturn("_sym", new LoadFun(fun, Env.LOCAL));
-        var base = insertAndReturn("_base", new LoadFun(fun, Env.BASE));
+        var sym = insertAndReturn("_sym", new Load(LoadType.LOCAL_FUN, fun));
+        var base = insertAndReturn("_base", new Load(LoadType.BASE_FUN, fun));
         var guard = insertAndReturn("_guard", builtin("==", 4, sym, base));
 
         var safeBb = cfg.addBB();
@@ -1094,7 +1095,8 @@ public class BC2FirCFGCompiler {
                       .collect(ImmutableList.toImmutableList());
 
               yield new org.prlprg.fir.ir.expression.Call(
-                  new DispatchCallee(builtinFun, null), arguments);
+                  new StaticFnCallee(true, builtinFun, builtinFun.baseline().signature()),
+                  arguments);
             } catch (IllegalArgumentException | MatchException e) {
               // We can't statically match the arguments,
               // and FIR builtins require statically matched arguments,
@@ -1110,35 +1112,14 @@ public class BC2FirCFGCompiler {
               // hopefully, in all cases an error would happen anyways.
               var loadFun =
                   insertAndReturn(
-                      builtin.name, new LoadFun(Variable.named(builtin.name), Env.BASE));
+                      builtin.name, new Load(LoadType.BASE_FUN, Variable.named(builtin.name)));
               yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun, names), args);
             }
           }
         };
     pushInsert(callInstr);
 
-    // Special-case due to weird and possibly buggy (GNU-R) bytecode compiler behavior:
-    // when the bytecode compiler compiles a `switch` with a missing label, it inserts a branch that
-    // ends with `stop("empty alternative in numeric switch")`. This call pushes an extra value
-    // (call return) onto the stack. When interpreted, the call to `stop` usually\* exits the
-    // function, so the stack no longer matters. But when we compile to IR, we still expect the
-    // stack to be balanced, and this call return is unaccounted for. Therefore, we have to special-
-    // case, and we do so by checking a) the exact function and b) we're about to go to another
-    // label without any phis. If both these conditions are met, we're guaranteed to be in this
-    // special-case (unless there's another compiler bug causing stack imbalances, and even then,
-    // very unlikely), so we pop the result of the call to re-balance the stack.
-    //
-    // \* If `stop` is overridden in the function, the bytecode compiler will use the overridden
-    // call, which is different than the AST interpreter which errors regardless. This and the fact
-    // that the stack now has an extra value until the function returns, are why it may be a bug.
-    if (Objects.equals(lastLoadedFunName, "stop")
-        && args.size() == 1
-        && args.getFirst().equals(new Constant(SEXPs.string("empty alternative in numeric switch")))
-        && !(bc.code().get(bcPos + 1) instanceof BcInstr.Return)) {
-      pop();
-    } else {
-      tryAddCheckpoint(true);
-    }
+    tryAddCheckpoint(true);
   }
 
   // endregion compile instructions
@@ -1502,13 +1483,11 @@ public class BC2FirCFGCompiler {
   /// Begin a new call of the given function (abstract value).
   private void pushCall(Argument fun) {
     callStack.add(new Call(new Call.Fun.Dynamic(fun)));
-    lastLoadedFunName = null;
   }
 
   /// Begin a new call of the given function (statically known builtin).
   private void pushCall(Builtin fun) {
     callStack.add(new Call(new Call.Fun.Builtin(fun)));
-    lastLoadedFunName = null;
   }
 
   /// Get the current call (the one that was pushed by the last call to `pushCall`).
@@ -1574,8 +1553,8 @@ public class BC2FirCFGCompiler {
             BUILTINS.localFunction(Variable.named(name)), "missing builtin " + name);
     var callee =
         versionIndex == -1
-            ? new DispatchCallee(function, null)
-            : new StaticCallee(function, function.version(versionIndex));
+            ? new StaticFnCallee(true, function, function.baseline().signature())
+            : new StaticFnCallee(false, function, function.version(versionIndex).signature());
     return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 
@@ -1583,7 +1562,7 @@ public class BC2FirCFGCompiler {
     var function =
         Objects.requireNonNull(
             INTRINSICS.localFunction(Variable.named(name)), "missing intrinsic " + name);
-    var callee = new StaticCallee(function, function.baseline());
+    var callee = new StaticFnCallee(false, function, function.baseline().signature());
     return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 
