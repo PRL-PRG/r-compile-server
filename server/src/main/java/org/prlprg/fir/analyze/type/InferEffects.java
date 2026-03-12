@@ -70,22 +70,22 @@ public final class InferEffects implements Analysis {
 
   public Effects of(Instruction instruction) {
     return switch (instruction) {
-      case Statement(var _, var _, var expression) -> of(expression);
+      case Statement(_, _, var expression) -> of(expression);
       case Jump _ -> Effects.NONE;
     };
   }
 
   public Effects of(Expression expression) {
     return switch (expression) {
-      case Aea(var _), Assume _ -> Effects.NONE;
+      case Aea(_), Assume _ -> Effects.NONE;
       case Call call ->
           switch (call.callee()) {
-            case StaticCallee(var _, var version) -> version.effects();
+            case StaticCallee(_, var version) -> version.effects();
             case DispatchCallee(var function, var signature) ->
                 signature == null ? function.baseline().effects() : signature.effects();
-            case DynamicCallee(var _, var _) -> Effects.REFLECT;
+            case DynamicCallee(_, _) -> Effects.REFLECT;
           };
-      case Cast(var _, var _), Closure _, Dup(var _) -> Effects.NONE;
+      case Cast(_, _), Closure _, Dup(_) -> Effects.NONE;
       case Force(var value) -> {
         var type = inferType.of(value);
         yield type == null
@@ -102,27 +102,22 @@ public final class InferEffects implements Analysis {
                 ? Effects.REFLECT
                 : type.promisity().effects();
       }
-      case Load(var _) -> Effects.NONE;
-      case LoadFun(var _, var env) ->
+      case Load(_) -> Effects.NONE;
+      case LoadFun(_, var env) ->
           switch (env) {
             // Function lookup can force...
             case LOCAL -> Effects.REFLECT;
             // ...except in global or base env, those are special lookups for known functions
             case GLOBAL, BASE -> Effects.NONE;
           };
-      case MkVector(var _, var _),
-          MkEnv(),
-          Noop(),
-          PopEnv(),
-          Placeholder(),
-          Promise(var _, var _, var _) ->
+      case MkVector(_, _), MkEnv(), Noop(), PopEnv(), Placeholder(), Promise(_, _, _) ->
           Effects.NONE;
-      case ReflectiveLoad(var _, var _), ReflectiveStore(var _, var _, var _) -> Effects.REFLECT;
-      case Store(var _, var _),
-          SubscriptRead(var _, var _),
-          SubscriptWrite(var _, var _, var _),
-          SuperLoad(var _),
-          SuperStore(var _, var _) ->
+      case ReflectiveLoad(_, _), ReflectiveStore(_, _, _) -> Effects.REFLECT;
+      case Store(_, _),
+          SubscriptRead(_, _),
+          SubscriptWrite(_, _, _),
+          SuperLoad(_),
+          SuperStore(_, _) ->
           Effects.NONE;
     };
   }

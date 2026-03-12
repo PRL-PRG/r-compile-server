@@ -5,14 +5,15 @@ import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -54,7 +55,7 @@ public final class InferType implements Analysis {
   public @Nullable Type of(CFG cfg) {
     Type result = null;
     for (var bb : cfg.bbs()) {
-      if (bb.jump() instanceof Return(var _, var value)) {
+      if (bb.jump() instanceof Return(_, var value)) {
         result = Type.union(result, of(value));
       }
     }
@@ -64,65 +65,53 @@ public final class InferType implements Analysis {
   public @Nullable Type of(Expression expression) {
     return switch (expression) {
       case Aea(var value) -> of(value);
-      case AssumeType(var _, var type) -> type;
-      case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> Type.ANY_VALUE;
+      case Assume(var assumption) ->
+          switch (assumption) {
+            case AssumeType(_, var type) -> type;
+            case AssumeConstant _, AssumeFunction _, AssumeLoadFun _ -> null;
+          };
       case Call call ->
           switch (call.callee()) {
-            case StaticCallee(var _, var version) -> version.returnType();
-            case DispatchCallee(var function, var signature) ->
-                signature == null ? function.baseline().returnType() : signature.returnType();
-            case DynamicCallee(var _, var _) -> Type.ANY_VALUE;
+            case StaticFnCallee(_, _, var signature) -> signature.returnType();
+            case DynamicCallee _ -> Type.ANY_VALUE;
           };
-      case Cast(var _, var castType) -> castType;
+      case Cast(_, var castType) -> castType;
       case Closure _ -> Type.CLOSURE;
       case Dup(var value) -> {
         var type = of(value);
         yield type == null ? null : type.withOwnership(Ownership.FRESH);
       }
-      case Force(var value) -> {
+      case Force(var isMaybe, var value) -> {
         var type = of(value);
-        yield type == null || !type.isPromise() ? null : type.withPromisity(Promisity.VALUE);
-      }
-      case Load(var variable) -> of(variable);
-      case LoadFun(var _, var _) -> Type.CLOSURE;
-      case MaybeForce(var value) -> {
-        var type = of(value);
-        yield type == null
+        yield type == null || (!isMaybe && !type.isPromise())
             ? null
             : type.concreteness() == Concreteness.MAYBE
                 ? Type.ANY_VALUE
                 : type.withPromisity(Promisity.VALUE);
       }
-      case MkVector(var kind, var _) ->
+      case Load(var loadType, var variable) ->
+          switch (loadType) {
+            case LOCAL_VAR -> of(variable);
+            case SUPER_VAR -> Type.ANY;
+            case LOCAL_FUN, GLOBAL_FUN, BASE_FUN -> Type.CLOSURE;
+          };
+      case MkVector(var kind, _) ->
           new Type(
               kind,
               Promisity.VALUE,
               kind.isWellFormedWithOwnership() ? Ownership.FRESH : Ownership.SHARED,
               Concreteness.DEFINITE);
-      case MkEnv(), Noop(), PopEnv() -> Type.ANY;
-      case Placeholder() -> null;
-      case Promise(var valueType, var effects, var _) -> Type.promise(valueType, effects);
-      case ReflectiveLoad(var _, var _) -> Type.ANY;
-      case ReflectiveStore(var _, var _, var value) -> {
-        var valueType = of(value);
-        yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
-      }
-      case Store(var variable, var _) -> of(variable);
-      case SubscriptRead(var target, var _) -> {
+      case MkEnv _, PopEnv _ -> Type.ANY;
+      case Promise(var valueType, var effects, _) -> Type.promise(valueType, effects);
+      case ReflectiveLoad _ -> Type.ANY;
+      case ReflectiveStore _, Store _ -> null;
+      case SubscriptRead(var target, _) -> {
         var targetType = of(target);
         yield targetType != null && targetType.kind() instanceof PrimitiveVector(var kind)
             ? Type.primitiveScalar(kind)
             : null;
       }
-      case SubscriptWrite(var _, var _, var value) -> {
-        var valueType = of(value);
-        yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
-      }
-      case SuperLoad(var _) -> Type.ANY;
-      case SuperStore(var _, var value) -> {
-        var valueType = of(value);
-        yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
-      }
+      case SubscriptWrite _ -> null;
     };
   }
 

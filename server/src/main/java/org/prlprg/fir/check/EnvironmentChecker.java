@@ -94,7 +94,7 @@ public class EnvironmentChecker extends Checker {
 
       switch (statement.expression()) {
         case PopEnv() when !hasEnv -> report(bb, instructionIndex, "No environment to pop");
-        case Store(var _, var _) when !hasEnv ->
+        case Store(_, _) when !hasEnv ->
             report(bb, instructionIndex, "No environment to store into");
         default -> {}
       }
@@ -104,9 +104,9 @@ public class EnvironmentChecker extends Checker {
       boolean hasEnv = environmentLiveness.hasEnvironmentAt(bb, instructionIndex - 1);
 
       switch (jump) {
-        case Return(var _, var _) when hasEnv && !bb.owner().isPromise() ->
+        case Return(_, _) when hasEnv && !bb.owner().isPromise() ->
             report(bb, instructionIndex, "Closure version return must exit with 0 environments");
-        case Deopt(var _, var _, var _) when !hasEnv ->
+        case Deopt(_, _, _) when !hasEnv ->
             report(bb, instructionIndex, "Deopt must exit with at least 1 environment");
         default -> {}
       }

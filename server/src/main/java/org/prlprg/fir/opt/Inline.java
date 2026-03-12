@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Local;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGInliner;
@@ -84,10 +85,14 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
 
       // Step 3: Check for inlining opportunities
       switch (expr) {
-        case Force(var value) -> tryInlineForce(bb, statementIndex, assignee, value);
-        case MaybeForce(var value) -> tryInlineForce(bb, statementIndex, assignee, value);
-        case Call call when call.callee() instanceof StaticCallee(_, var version) ->
-            tryInlineCall(bb, statementIndex, assignee, version, call.callArguments());
+        case Force(_, var value) -> tryInlineForce(bb, statementIndex, assignee, value);
+        case Call call
+            when call.callee()
+                    instanceof StaticFnCallee(var isDispatch, var functionRef, var version)
+                && !isDispatch -> {
+          // TODO: Get version (and abort if it does't exist)
+          tryInlineCall(bb, statementIndex, assignee, version, call.callArguments());
+        }
         // Inline within the promise
         case Promise(_, _, var code) -> run(code);
         default -> {}

@@ -40,7 +40,7 @@ public record ElideDeadStore() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Store(var variable, var _))) {
+    if (!(expression instanceof Store(var variable, _))) {
       return expression;
     }
 

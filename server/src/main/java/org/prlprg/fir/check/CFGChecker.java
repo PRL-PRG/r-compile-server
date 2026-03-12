@@ -189,7 +189,7 @@ public class CFGChecker extends Checker {
         for (var bb : cfg.bbs()) {
           for (var i = 0; i < bb.statements().size(); i++) {
             var stmt = bb.statements().get(i);
-            if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
+            if (!(stmt.expression() instanceof Promise(_, _, var code))) {
               continue;
             }
 
@@ -211,7 +211,7 @@ public class CFGChecker extends Checker {
         for (var bb : cfg.bbs()) {
           for (var i = 0; i < bb.statements().size(); i++) {
             var stmt = bb.statements().get(i);
-            if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
+            if (!(stmt.expression() instanceof Promise(_, _, var code))) {
               continue;
             }
             var pos = new CfgPosition(bb, i, stmt);
@@ -246,7 +246,7 @@ public class CFGChecker extends Checker {
 
               if (bb.predecessors().size() == 1) {
                 var predecessor = Iterables.getOnlyElement(bb.predecessors());
-                if (!(predecessor.jump() instanceof If(var _, var _, var ifTrue, var ifFalse)
+                if (!(predecessor.jump() instanceof If(_, _, var ifTrue, var ifFalse)
                     && ifTrue.bb() == bb
                     && ifFalse.bb() == bb
                     && !ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {

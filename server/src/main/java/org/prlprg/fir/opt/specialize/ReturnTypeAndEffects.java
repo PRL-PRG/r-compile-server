@@ -31,7 +31,7 @@ public record ReturnTypeAndEffects() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Promise(var oldType, var _, var code))) {
+    if (!(expression instanceof Promise(var oldType, _, var code))) {
       return expression;
     }
 

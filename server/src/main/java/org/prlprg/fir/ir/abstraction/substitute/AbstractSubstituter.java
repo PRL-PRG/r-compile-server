@@ -245,8 +245,8 @@ abstract class AbstractSubstituter {
   protected final Argument convertIntoConsume(Argument argument) {
     return switch (argument) {
       case Read(var r) -> new Consume(r);
-      case Consume(var _) -> argument;
-      case Constant(var _) ->
+      case Consume(_) -> argument;
+      case Constant(_) ->
           throw new IllegalStateException(
               "can't substitute use with constant:\n" + this + "\n" + scope);
     };

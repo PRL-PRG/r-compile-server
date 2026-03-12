@@ -435,8 +435,8 @@ public final class InternalInterpreter implements Interpreter {
   /// Executes a jump instruction and returns the next control-flow action.
   private ControlFlow run(Jump jump) {
     return switch (jump) {
-      case Goto(var _, var next) -> new ControlFlow.Goto(next);
-      case If(var _, var condition, var ifTrue, var ifFalse) -> {
+      case Goto(_, var next) -> new ControlFlow.Goto(next);
+      case If(_, var condition, var ifTrue, var ifFalse) -> {
         var condValue = run(condition);
         if (!(condValue instanceof Value.Bool(var condBool))) {
           throw fail("Condition is not a boolean: " + condValue);
@@ -448,13 +448,13 @@ public final class InternalInterpreter implements Interpreter {
 
         yield new ControlFlow.Goto(condBool ? ifTrue : ifFalse);
       }
-      case Return(var _, var ret) -> new ControlFlow.Return(run(ret));
-      case Checkpoint(var _, var ok, var deopt) -> {
+      case Return(_, var ret) -> new ControlFlow.Return(run(ret));
+      case Checkpoint(_, var ok, var deopt) -> {
         // TODO: refactor lambda into method for readability.
         checkpointTrace.record(() -> snapshotAtCheckpoint(deopt));
         yield new ControlFlow.Goto(check(ok) ? ok : deopt);
       }
-      case Deopt(var _, var pc, var argStack) -> {
+      case Deopt(_, var pc, var argStack) -> {
         var valueStack =
             argStack.stream()
                 .map(this::run)
@@ -468,7 +468,7 @@ public final class InternalInterpreter implements Interpreter {
                 .collect(ImmutableList.toImmutableList());
         yield new ControlFlow.Deopt(pc, valueStack);
       }
-      case Unreachable(var _) -> throw fail("Reached unimplemented or \"unreachable\" code");
+      case Unreachable(_) -> throw fail("Reached unimplemented or \"unreachable\" code");
     };
   }
 
@@ -504,7 +504,7 @@ public final class InternalInterpreter implements Interpreter {
         checkType(value, type, "assume-type");
         yield value;
       }
-      case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
+      case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
@@ -1092,7 +1092,7 @@ public final class InternalInterpreter implements Interpreter {
     // Get corresponding deopt BC and run sanity checks
     var deoptBc =
         deoptRestoreCfg.bbs().stream()
-            .filter(bb -> bb.jump() instanceof Deopt(var _, var pc1, var _) && pc == pc1)
+            .filter(bb -> bb.jump() instanceof Deopt(_, var pc1, var _) && pc == pc1)
             .collect(
                 Streams.zeroOneOrThrow(() -> fail("multiple deopt branches with the same pc?")))
             .orElseThrow(

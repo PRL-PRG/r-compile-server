@@ -51,7 +51,7 @@ public final class Loads implements Analysis {
       case Load(var variable) -> loads.put(variable, scopePosition);
       case LoadFun(var variable, var env) when env == Env.LOCAL ->
           loads.put(variable, scopePosition);
-      case Promise(var _, var _, var code) -> {
+      case Promise(_, _, var code) -> {
         parents.add(cfgPosition);
         run(parents, code);
         parents.removeLast();
