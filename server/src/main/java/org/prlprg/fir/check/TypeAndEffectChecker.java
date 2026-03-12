@@ -36,6 +36,7 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Checkpoint;
@@ -57,6 +58,9 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.util.Strings;
 
 /// Checks type and effect soundness.
+///
+/// Also checks that untyped expressions (e.g. stores) aren't assigned, and no-ops aren't in
+/// non-no-op statements.
 public final class TypeAndEffectChecker extends Checker {
   @Override
   public String name() {
@@ -207,13 +211,21 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void run(Statement statement) {
+        if (statement.equals(Statement.NOOP)) {
+          return;
+        }
+
         var expr = statement.expression();
         var assignee = statement.assignee();
 
         run(expr);
 
         var type = inferType.of(expr);
-        if (type != null && assignee != null) {
+        if (assignee != null) {
+          if (type == null) {
+            report("Can't assign this, it doesn't output a value: " + expr);
+          }
+
           var assigneeType = scope.typeOf(assignee);
           if (assigneeType == null) {
             report("Undeclared register: " + assignee);
@@ -248,10 +260,10 @@ public final class TypeAndEffectChecker extends Checker {
                       + ")");
             }
           }
-          case Call call -> {
-            var argumentTypes = call.callArguments().stream().map(inferType::of).toList();
+          case Call(var callee, var callArguments) -> {
+            var argumentTypes = callArguments.stream().map(inferType::of).toList();
 
-            switch (call.callee()) {
+            switch (callee) {
               case StaticFnCallee(_, var functionRef, var signature) -> {
                 var function = functionRef.get();
                 var version = function.guess(signature);
@@ -318,7 +330,11 @@ public final class TypeAndEffectChecker extends Checker {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
             }
           }
-          case Force(var value) -> {
+          case Force(var isMaybe, var value) -> {
+            if (isMaybe) {
+              break;
+            }
+
             var type = scope.typeOf(value);
             if (type == null) {
               break;
@@ -328,7 +344,7 @@ public final class TypeAndEffectChecker extends Checker {
               report("Can't force non-(definite-)promise, got " + type);
             }
           }
-          case Load _, LoadFun _, MaybeForce _ -> {}
+          case Load _ -> {}
           case MkVector(var kind, var elements) -> {
             switch (kind) {
               case PrimitiveVector(var primitiveKind) -> {
@@ -391,7 +407,11 @@ public final class TypeAndEffectChecker extends Checker {
                       + "}");
             }
           }
-          case Store(var variable, var value) -> {
+          case Store(var storeType, var variable, var value) -> {
+            if (storeType == StoreType.SUPER_VAR) {
+              break;
+            }
+
             var type = scope.typeOf(variable);
             var valueType = scope.typeOf(value);
 
@@ -466,13 +486,13 @@ public final class TypeAndEffectChecker extends Checker {
                   "Subscript write kind mismatch: expected " + targetKind + ", got " + valueKind);
             }
           }
-          case SuperLoad _, SuperStore _ -> {}
         }
       }
 
       void run(Argument argument) {
         switch (argument) {
-          case Constant _, Read _, Noop _ -> {}
+          case Constant _, Read _ -> {}
+          case Noop() -> report("No-op in non-no-op statement");
           case Consume(var register) -> {
             var type = scope.typeOf(register);
             if (type == null) {
