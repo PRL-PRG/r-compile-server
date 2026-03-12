@@ -37,6 +37,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -500,25 +501,39 @@ public final class InternalInterpreter implements Interpreter {
     checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
-      case Assume(var assumption) -> switch (assumption) {
-        case AssumeType(var arg, var type) -> {
-          var value = run(arg);
-          checkType(value, type, "assume-type");
-          yield value;
-        }
-        case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
-      };
+      case Assume(var assumption) ->
+          switch (assumption) {
+            case AssumeType(var arg, var type) -> {
+              var value = run(arg);
+              checkType(value, type, "assume-type");
+              yield value;
+            }
+            case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
+          };
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
         var environment = topFrame().environment();
 
         yield switch (callee) {
-          case StaticFnCallee c -> c.isDispatch() ?
-              call(c.function(), c.signature(), arguments, environment) :
-              c.exactVersion() != null ?
-              call(c.exactVersion(), arguments, environment, c.function().baseline().cfg()) :
-              throw fail("No versions of " + c.function().name() + " match signature: " + c.signature());
+          case StaticFnCallee(var isDispatch, var functionRef, var signature) -> {
+            var function = functionRef.get();
+            if (isDispatch) {
+              // Dispatch call
+              yield call(function, signature, arguments, environment);
+            }
+
+            // Static call
+            var exactVersion = function.guess(signature);
+            if (exactVersion == null) {
+              throw fail("No versions of " + function.name() + " match signature: " + signature);
+            }
+            yield call(
+                Objects.requireNonNull(exactVersion),
+                arguments,
+                environment,
+                function.baseline().cfg());
+          }
           case DynamicCallee(var actualCallee, var argumentNames) -> {
             var calleeValue = run(actualCallee);
             if (!(calleeValue instanceof Value.Sexp(var calleeSexp)
@@ -580,38 +595,39 @@ public final class InternalInterpreter implements Interpreter {
 
         yield new Value.Sexp(s.copy());
       }
-      case Force(var arg) -> {
+      case Force(var isMaybe, var arg) -> {
         var value = run(arg);
         if (!(value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promise)) {
-          throw fail("Can't force non-promise: " + value);
-        }
-
-        yield new Value.Sexp(force(promise));
-      }
-      case Load(var variable) -> new Value.Sexp(load(variable));
-      case LoadFun(var variable, var env) -> {
-        var valueCls =
-            switch (env) {
-              case LOCAL -> topFrame().getFunction(variable, this::force);
-              case GLOBAL -> globalEnv.getFunction(variable.name(), this::force).orElse(null);
-              case BASE -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
-            };
-        if (valueCls == null) {
-          // TODO: Find which non-builtin functions are included in the GNU-R standard library
-          throw failUnsupported(
-              "Unbound function: "
-                  + variable.name()
-                  + "\n\"Unsupported\" because it may be a library function");
-        }
-        yield new Value.Sexp(valueCls);
-      }
-      case MaybeForce(var arg) -> {
-        var value = run(arg);
-        if (!(value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promise)) {
+          if (!isMaybe) {
+            throw fail("Can't force non-promise: " + value);
+          }
           yield value;
         }
 
         yield new Value.Sexp(force(promise));
+      }
+      case Load(var loadType, var variable) -> {
+        var valueSxp =
+            switch (loadType) {
+              case LOCAL_VAR -> load(variable);
+              case SUPER_VAR -> todo;
+              case LOCAL_FUN -> topFrame().getFunction(variable, this::force);
+              case GLOBAL_FUN -> globalEnv.getFunction(variable.name(), this::force).orElse(null);
+              case BASE_FUN -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
+            };
+        if (valueSxp == null) {
+          if (loadType == LoadType.LOCAL_FUN
+              || loadType == LoadType.GLOBAL_FUN
+              || loadType == LoadType.BASE_FUN) {
+            throw failUnsupported(
+                "Unbound function: "
+                    + variable.name()
+                    + "\n\"Unsupported\" because it may be a library function");
+          } else {
+            throw fail("Unbound variable: " + variable.name());
+          }
+        }
+        yield new Value.Sexp(valueSxp);
       }
       case MkVector(var kind, var elements) ->
           new Value.Sexp(
