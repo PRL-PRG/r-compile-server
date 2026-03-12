@@ -18,7 +18,6 @@ import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
-import org.prlprg.fir.opt.specialize.ResolveLoadFun;
 import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 /// Record or class that takes one parameter, an [Optimization], and is instantiated with
@@ -46,8 +45,7 @@ final class OptimizationProvider implements ArgumentsProvider {
         new Specialize(new ReturnTypeAndEffects()),
         new Sequence(
             "optimizeOrigins",
-            new Specialize(
-                "resolve", new ResolveLoad(), new ResolveLoadFun(), new ResolveDynamicCallee()),
+            new Specialize("resolve", new ResolveLoad(), new ResolveDynamicCallee()),
             new Inline(10000),
             new Cleanup(true)),
         new SpeculateAssume(1, true),

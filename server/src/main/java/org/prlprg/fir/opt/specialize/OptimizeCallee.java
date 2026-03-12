@@ -11,8 +11,6 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.Callee;
-import org.prlprg.fir.ir.callee.DispatchCallee;
-import org.prlprg.fir.ir.callee.StaticCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;

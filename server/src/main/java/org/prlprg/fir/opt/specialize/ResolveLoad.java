@@ -14,6 +14,8 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Replaces [Load]s that statically resolve (via [OriginAnalysis]) to registers or constants.
+///
+/// Currently only resolves loads in the local environment.
 public record ResolveLoad() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
@@ -31,7 +33,7 @@ public record ResolveLoad() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Load(var variable))) {
+    if (!(expression instanceof Load(_, var variable))) {
       return expression;
     }
     var origin = analyses.get(OriginAnalysis.class).get(bb, index, variable);

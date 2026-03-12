@@ -28,6 +28,7 @@ import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -35,6 +36,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -42,6 +44,7 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Jump;
@@ -113,7 +116,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// If the argument is a [Read] or [Consume], looks up its origin.
   public Argument resolve(Argument arg) {
     return switch (arg) {
-      case Constant c -> c;
+      case Constant _, Noop _ -> arg;
       case Read(var register) -> get(register);
       // Note that `a = <const>; ...; use a` and `b = use a; ...; use b` are invalid IR, since
       // they use a register multiple times, so after `:` can be anything.
@@ -189,23 +192,31 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     private @Nullable Argument run(Expression expr) {
       return switch (expr) {
-        case Store(var variable, var value) -> {
+        case Store(var storeType, var variable, var value) -> {
+          if (storeType != StoreType.LOCAL_VAR) {
+            // Currently not tracking non-local store (not even in local parent environments)
+            yield null;
+          }
+
           var o = resolve(value);
           put(variable, o);
           yield o;
         }
-        case Load(var variable) -> get(variable);
-        case LoadFun(var variable, var env) -> {
-          if (env != Env.LOCAL) {
+        case Load(var loadType, var variable) -> {
+          if (loadType != LoadType.LOCAL_VAR && loadType != LoadType.LOCAL_FUN) {
+            // Currently not tracking non-local load (not even in local parent environments)
             yield null;
           }
           var loadOrigin = get(variable);
           if (loadOrigin == null) {
             yield null;
           }
-          var loadOriginType = inferType.of(loadOrigin);
-          if (loadOriginType == null || !loadOriginType.isSubtypeOf(Type.CLOSURE)) {
-            yield null;
+          if (loadType == LoadType.LOCAL_FUN) {
+            var loadOriginType = inferType.of(loadOrigin);
+            if (loadOriginType == null || !loadOriginType.isSubtypeOf(Type.CLOSURE)) {
+              // Lookup (maybe) goes through (maybe-)non-function into parent
+              yield null;
+            }
           }
           yield loadOrigin;
         }
@@ -219,66 +230,60 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           var valueType = inferType.of(valueOrigin);
           yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
         }
-        case AssumeType(var value, var type) -> {
-          var valueOrigin = resolve(value);
-          // Only see through the assumption if it's guaranteed to succeed.
-          // Otherwise we'll get a type error substituting,
-          // and a deopt iff the instruction gets rearranged before the assumption
-          // and the assumption fails.
-          var valueType = inferType.of(valueOrigin);
-          yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
+        case Assume(var assumption) ->
+            switch (assumption) {
+              case AssumeType(var value, var type) -> {
+                var valueOrigin = resolve(value);
+                // Only see through the assumption if it's guaranteed to succeed.
+                // Otherwise we'll get a type error substituting,
+                // and a deopt iff the instruction gets rearranged before the assumption
+                // and the assumption fails.
+                var valueType = inferType.of(valueOrigin);
+                yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
+              }
+              case AssumeConstant _, AssumeFunction _, AssumeLoadFun _ -> null;
+            };
+        case Force(var isMaybe, var value) -> {
+          var forceeOrigin = resolve(value);
+          var forceeType = inferType.of(forceeOrigin);
+          if (definitionExpression(forceeOrigin) instanceof Promise(var _, var _, var code)) {
+            // We're forcing this promise, so run it's sub-analysis and return the return.
+            var subAnalysis = (OnCfg) onCfg(code);
+            subAnalysis.run(state());
+            yield subAnalysis.returnOrigin();
+          } else if (isMaybe && forceeType != null && forceeType.isValue()) {
+            // We're maybe-forcing a value, so just return it.
+            yield forceeOrigin;
+          } else {
+            // We're forcing an unknown thing.
+            // We can't keep named variable origins:
+            // even if its type has no reflection, it may be a local promise, which may mutate them.
+            clearNamedVariables();
+            yield null;
+          }
         }
-        case Force(var value) -> runForce(value, false);
-        case MaybeForce(var value) -> runForce(value, true);
         // We must run promises because `AbstractInterpretation` doesn't.
         case Promise(var _, var _, var code) -> {
           runSubAnalysis(code, state()::merge);
           yield null;
         }
         // TODO: Constant-fold some calls.
-        case AssumeConstant _,
-            AssumeFunction _,
-            AssumeLoadFun _,
-            Call _,
+        case Call _,
             Closure _,
             Dup _,
             MkVector _,
             MkEnv _,
-            Noop _,
-            Placeholder _,
             PopEnv _,
             ReflectiveLoad _,
             ReflectiveStore _,
             SubscriptRead _,
-            SubscriptWrite _,
-            SuperLoad _,
-            SuperStore _ -> {
+            SubscriptWrite _ -> {
           if (inferEffects.of(expr).reflect()) {
             clearNamedVariables();
           }
           yield null;
         }
       };
-    }
-
-    private @Nullable Argument runForce(Argument forced, boolean isMaybe) {
-      var forceeOrigin = resolve(forced);
-      var forceeType = inferType.of(forceeOrigin);
-      if (definitionExpression(forceeOrigin) instanceof Promise(var _, var _, var code)) {
-        // We're forcing this promise, so run it's sub-analysis and return the return.
-        var subAnalysis = (OnCfg) onCfg(code);
-        subAnalysis.run(state());
-        return subAnalysis.returnOrigin();
-      } else if (isMaybe && forceeType != null && forceeType.isValue()) {
-        // We're maybe-forcing a value, so just return it.
-        return forceeOrigin;
-      } else {
-        // We're forcing an unknown thing.
-        // We can't keep named variable origins:
-        // even if its type has no reflection, it may be a local promise, which may mutate them.
-        clearNamedVariables();
-        return null;
-      }
     }
 
     @Override

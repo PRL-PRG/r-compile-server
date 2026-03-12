@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Parameter;
-import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Module;

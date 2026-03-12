@@ -13,7 +13,6 @@ import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
-import org.prlprg.fir.opt.specialize.ResolveLoadFun;
 import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 public class Optimizations {
@@ -43,7 +42,6 @@ public class Optimizations {
                     new OptimizeCallee(threshold),
                     new ResolveDynamicCallee(),
                     new ResolveLoad(),
-                    new ResolveLoadFun(),
                     new ReturnTypeAndEffects()),
                 new ElideEnv(),
                 new Inline(1000),
