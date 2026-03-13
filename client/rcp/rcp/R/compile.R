@@ -100,6 +100,16 @@ rcp_get_types <- function(func_name) {
   all_types[[resolved_name]]
 }
 
+#' Reset recorded type information from entry/exit hooks
+#'
+#' Clears all accumulated type traces stored in \.rcp_hooks$types without
+#' disabling future tracing for already compiled functions.
+#'
+#' @export
+rcp_reset_types <- function() {
+  invisible(.Call(C_rcp_reset_types))
+}
+
 #' Get a data frame of traced types for a given function
 #'
 #' Returns a data frame with one row per traced call. Columns are one per

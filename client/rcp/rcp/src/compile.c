@@ -551,7 +551,7 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 			int label_pos = imms[hole->val.imm_pos] - 1;
 			while (ctx->executable_lookup[label_pos] == NULL || ctx->bytecode[label_pos] != opcode_to_find)
 			{
-				if(ctx->executable_lookup[label_pos] != NULL)
+				if (ctx->executable_lookup[label_pos] != NULL)
 					DEBUG_PRINT("Looking for opcode %d at position %d, found %d\n", opcode_to_find, label_pos, ctx->bytecode[label_pos]);
 
 				label_pos--;
@@ -1368,12 +1368,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 				int stepfor_bc = bytecode[bc_pos + 1 + 2] - 1;
 				DEBUG_PRINT("Looking for STEPFOR_BCOP at position %d\n", stepfor_bc);
-				while(bytecode[stepfor_bc] != STEPFOR_BCOP)
+				while (bytecode[stepfor_bc] != STEPFOR_BCOP)
 				{
 					// We need to find the corresponding STEPFOR_BCOP instruction to know where to copy the specialized code to
 					DEBUG_PRINT("Not found, found %s instead. Following this instruction.\n", OPCODES_NAMES[bytecode[stepfor_bc]]);
 
-					if(bytecode[stepfor_bc] == GOTO_BCOP)
+					if (bytecode[stepfor_bc] == GOTO_BCOP)
 						stepfor_bc = bytecode[stepfor_bc + 1] - 1;
 					else
 						stepfor_bc += RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1;
@@ -1698,21 +1698,37 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 	}
 }
 
+static void reset_type_trace(TypeTrace *trace)
+{
+	if (!trace)
+		return;
+
+	for (size_t i = 0; i < trace->count; i++)
+	{
+		free(trace->types[i].dots_names);
+		free(trace->types[i].dots_types);
+		free(trace->types[i].arguments);
+		trace->types[i].dots_names = NULL;
+		trace->types[i].dots_types = NULL;
+		trace->types[i].arguments = NULL;
+		trace->types[i].dots_count = 0;
+		trace->types[i].count = 0;
+		trace->types[i].ret = NILSXP;
+	}
+
+	trace->count = 0;
+}
+
 // Finalizer for our growable type trace
 static void type_trace_finalizer(SEXP ext)
 {
 	TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
 	if (trace)
 	{
+		reset_type_trace(trace);
 		if (trace->argument_names)
 		{
 			free(trace->argument_names);
-		}
-		for (size_t i = 0; i < trace->count; i++)
-		{
-			free(trace->types[i].dots_names);
-			free(trace->types[i].dots_types);
-			free(trace->types[i].arguments);
 		}
 		free(trace->types);
 		free(trace);
@@ -2745,6 +2761,35 @@ SEXP C_rcp_get_types(void)
 
 	UNPROTECT(3); // result_env, ls_call, keys
 	return result_env;
+}
+
+SEXP C_rcp_reset_types(void)
+{
+	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+	if (hooks == R_UnboundValue || hooks == R_NilValue)
+		return R_NilValue;
+
+	SEXP types_env = Rf_findVarInFrame(hooks, Rf_install("types"));
+	if (types_env == R_UnboundValue || types_env == R_NilValue)
+		return R_NilValue;
+
+	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), types_env));
+	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
+	int n = LENGTH(keys);
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *func_name = CHAR(STRING_ELT(keys, i));
+		SEXP ext = Rf_findVarInFrame(types_env, Rf_install(func_name));
+		if (ext == R_UnboundValue || TYPEOF(ext) != EXTPTRSXP)
+			continue;
+
+		TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+		reset_type_trace(trace);
+	}
+
+	UNPROTECT(2); // ls_call, keys
+	return R_NilValue;
 }
 
 SEXP C_rcp_get_types_df(SEXP func_name_sexp)

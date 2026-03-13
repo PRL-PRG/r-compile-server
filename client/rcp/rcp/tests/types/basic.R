@@ -205,4 +205,29 @@ stopifnot(identical(fib_by_string, fib_only))
 
 cat("Test 6 (rcp_get_types): OK\n")
 
+# ---------------------------------------------------------------------------
+# Test 7: reset recorded type traces and ensure tracing resumes afterwards
+# ---------------------------------------------------------------------------
+stopifnot(!is.null(rcp::rcp_get_types_df("fib")))
+
+reset_result <- rcp::rcp_reset_types()
+stopifnot(is.null(reset_result))
+
+all_types_reset <- rcp::rcp_get_types()
+stopifnot(is.environment(all_types_reset))
+stopifnot(identical(ls(all_types_reset), character(0)))
+stopifnot(is.null(rcp::rcp_get_types_df("fib")))
+stopifnot(is.null(rcp::rcp_get_types("fib")))
+
+fib(2)
+df_reset <- rcp::rcp_get_types_df("fib")
+stopifnot(!is.null(df_reset))
+stopifnot(is.data.frame(df_reset))
+stopifnot(nrow(df_reset) == 3L)
+stopifnot(all(df_reset$x == "double"))
+stopifnot(all(df_reset$dots_count == 0L))
+stopifnot(all(df_reset$ret == "double"))
+
+cat("Test 7 (rcp_reset_types): OK\n")
+
 cat("All type-tracing tests passed.\n")
