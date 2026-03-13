@@ -74,12 +74,6 @@ typedef struct Fir_Signature {
   Fir_Effects effects;
 } Fir_Signature;
 
-typedef enum {
-  FIR_LOADFUN_LOCAL = 0,
-  FIR_LOADFUN_GLOBAL = 1,
-  FIR_LOADFUN_BASE = 2,
-} Fir_LoadFun;
-
 typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
 typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
 typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP **captures);
@@ -145,8 +139,6 @@ SEXP Fir_force(SEXP promise);
 SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_safe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
-SEXP Fir_load_dots(int ddIndex, SEXP env);
-SEXP Fir_load_fun(Fir_LoadFun env_selector, SEXP symbol, SEXP env);
 void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 void Fir_push_env(SEXP *env);
@@ -154,7 +146,6 @@ void Fir_pop_env(SEXP *env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);
-void Fir_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Fir_subscript_read(SEXP vector, SEXP index);
 SEXP Fir_subscript_write(SEXP vector, SEXP index, SEXP value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);

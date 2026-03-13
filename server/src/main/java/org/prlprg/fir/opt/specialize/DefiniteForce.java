@@ -12,8 +12,8 @@ import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Optimization that converts [MaybeForce]s whose arguments are statically known to be promises
-/// into [Force]s, and statically known to be values into no-ops.
+/// Optimization that converts maybe-[Force]s whose arguments are statically known to be
+/// promises into definite-[Force]s, and statically known to be values into (no-op) assignments.
 public record DefiniteForce() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
@@ -31,7 +31,7 @@ public record DefiniteForce() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof MaybeForce(var value))) {
+    if (!(expression instanceof Force(var isMaybe, var value) && isMaybe)) {
       return expression;
     }
 
@@ -40,6 +40,8 @@ public record DefiniteForce() implements SpecializeOptimization {
       return expression;
     }
 
-    return argType.isValue() ? new Aea(value) : argType.isPromise() ? new Force(value) : expression;
+    return argType.isValue()
+        ? new Aea(value)
+        : argType.isPromise() ? new Force(true, value) : expression;
   }
 }

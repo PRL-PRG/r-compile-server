@@ -9,13 +9,13 @@ import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.variable.Register;
@@ -39,7 +39,11 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    return switch (expression) {
+    if (!(expression instanceof Assume(var assumption))) {
+      return expression;
+    }
+
+    return switch (assumption) {
       case AssumeType(var value, var type) -> {
         var valueType = analyses.get(InferType.class).of(value);
         if (valueType == null || !valueType.isSubtypeOf(type)) {
@@ -54,7 +58,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield new Noop();
+        yield Expression.NOOP;
       }
       case AssumeConstant(var value, var constant) -> {
         var origin = analyses.get(OriginAnalysis.class).resolve(value);
@@ -62,7 +66,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield new Noop();
+        yield Expression.NOOP;
       }
       case AssumeLoadFun a -> {
         var originAnalysis = analyses.get(OriginAnalysis.class);
@@ -75,9 +79,8 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield new Noop();
+        yield Expression.NOOP;
       }
-      default -> expression;
     };
   }
 }

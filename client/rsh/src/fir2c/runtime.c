@@ -261,31 +261,6 @@ SEXP Fir_load(SEXP symbol, SEXP env) {
   return value;
 }
 
-SEXP Fir_load_dots(int ddIndex, SEXP env) {
-  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load");
-  return Rf_ddfind(ddIndex, env);
-}
-
-SEXP Fir_load_fun(Fir_LoadFun env_selector, SEXP symbol, SEXP env) {
-  Fir_assert_symbol(symbol, "load_fun");
-  switch (env_selector) {
-  case FIR_LOADFUN_LOCAL:
-    return Rf_findFun(symbol, env);
-  case FIR_LOADFUN_GLOBAL:
-    return Rf_findFun(symbol, R_GlobalEnv);
-  case FIR_LOADFUN_BASE:
-    return Rf_findFun(symbol, R_BaseEnv);
-  default:
-    Rf_error("Invalid environment selector for load_fun");
-  }
-}
-
-void Fir_store(SEXP symbol, SEXP value, SEXP env) {
-  Fir_assert_symbol(symbol, "store");
-  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for store");
-  Rf_defineVar(symbol, value, env);
-}
-
 static SEXP Fir_env_pushed_from_r = NULL;
 static bool Fir_env_push_suppressed = false;
 

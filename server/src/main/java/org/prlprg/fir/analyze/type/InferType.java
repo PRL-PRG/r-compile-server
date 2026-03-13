@@ -101,7 +101,7 @@ public final class InferType implements Analysis {
               Promisity.VALUE,
               kind.isWellFormedWithOwnership() ? Ownership.FRESH : Ownership.SHARED,
               Concreteness.DEFINITE);
-      case MkEnv _, PopEnv _ -> Type.ANY;
+      case MkEnv _, PopEnv _ -> null;
       case Promise(var valueType, var effects, _) -> Type.promise(valueType, effects);
       case ReflectiveLoad _ -> Type.ANY;
       case ReflectiveStore _, Store _ -> null;
