@@ -2209,7 +2209,17 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	}
 
 	DEBUG_PRINT("Compiling %s to bytecode...\n", name);
-	SEXP compiled = compile_to_bc(f, options);
+
+	SEXP compiled;
+	if (TYPEOF(BODY(f)) == BCODESXP)
+	{
+		DEBUG_PRINT("Function is already bytecode, skipping compilation.\n");
+		compiled = f;
+	}
+	else
+	{
+		compiled = compile_to_bc(f, options);
+	}
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
 	UNPROTECT(1); // options
 #endif
