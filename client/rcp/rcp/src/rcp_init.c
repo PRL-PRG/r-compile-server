@@ -10,6 +10,7 @@ extern SEXP C_rcp_jit_disable(void);
 extern SEXP C_rcp_cmppkg(SEXP pkg);
 extern SEXP C_rcp_get_profiling(void);
 extern SEXP C_rcp_s3_generics_deactivated(void);
+extern SEXP C_rcp_reset_types(void);
 extern SEXP C_rcp_get_types(void);
 extern SEXP C_rcp_get_types_df(SEXP func_name);
 extern SEXP C_rcp_dwarf_support(void);
@@ -29,6 +30,7 @@ static const R_CallMethodDef CallEntries[] = {
 	{"rcp_cmppkg", (DL_FUNC)&C_rcp_cmppkg, 1},
 	{"rcp_get_profiling", (DL_FUNC)&C_rcp_get_profiling, 0},
 	{"rcp_s3_generics_deactivated", (DL_FUNC)&C_rcp_s3_generics_deactivated, 0},
+	{"rcp_reset_types", (DL_FUNC)&C_rcp_reset_types, 0},
 	{"rcp_get_types", (DL_FUNC)&C_rcp_get_types, 0},
 	{"rcp_get_types_df", (DL_FUNC)&C_rcp_get_types_df, 1},
 	{"rcp_dwarf_support", (DL_FUNC)&C_rcp_dwarf_support, 0},

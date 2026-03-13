@@ -2650,6 +2650,44 @@ SEXP C_rcp_s3_generics_deactivated(void)
 #endif
 }
 
+SEXP C_rcp_reset_types(void)
+{
+	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+	if (hooks == R_UnboundValue || hooks == R_NilValue)
+		return R_NilValue;
+
+	SEXP types_env = Rf_findVarInFrame(hooks, Rf_install("types"));
+	if (types_env == R_UnboundValue || types_env == R_NilValue)
+		return R_NilValue;
+
+	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), types_env));
+	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
+	int n = LENGTH(keys);
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *func_name = CHAR(STRING_ELT(keys, i));
+		SEXP ext = Rf_findVarInFrame(types_env, Rf_install(func_name));
+		if (ext == R_UnboundValue || TYPEOF(ext) != EXTPTRSXP)
+			continue;
+
+		TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+		if (!trace)
+			continue;
+
+		for (size_t j = 0; j < trace->count; j++)
+		{
+			free(trace->types[j].dots_names);
+			free(trace->types[j].dots_types);
+			free(trace->types[j].arguments);
+		}
+		trace->count = 0;
+	}
+
+	UNPROTECT(2);
+	return R_NilValue;
+}
+
 SEXP C_rcp_get_types(void)
 {
 	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
