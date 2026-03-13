@@ -79,6 +79,16 @@ rcp_get_profiling <- function() {
   stop("Expected a function name as a string or symbol", call. = FALSE)
 }
 
+#' Reset accumulated type trace data
+#'
+#' Clears all recorded type observations without deallocating the
+#' underlying storage, so subsequent calls reuse the existing capacity.
+#'
+#' @export
+rcp_reset_types <- function() {
+  invisible(.Call(C_rcp_reset_types))
+}
+
 #' Get recorded type information from entry/exit hooks
 #'
 #' Returns an environment where each key is a function name and each value
@@ -98,16 +108,6 @@ rcp_get_types <- function(func_name) {
   func_name_expr <- substitute(func_name)
   resolved_name <- .rcp_resolve_func_name(func_name_expr, parent.frame())
   all_types[[resolved_name]]
-}
-
-#' Reset recorded type information from entry/exit hooks
-#'
-#' Clears all accumulated type traces stored in \.rcp_hooks$types without
-#' disabling future tracing for already compiled functions.
-#'
-#' @export
-rcp_reset_types <- function() {
-  invisible(.Call(C_rcp_reset_types))
 }
 
 #' Get a data frame of traced types for a given function
