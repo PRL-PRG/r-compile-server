@@ -18,8 +18,11 @@ import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -81,7 +84,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
     var domTree = new DominatorTree(scope);
 
     // Find assumptions
-    var assumesToInsert = new LinkedHashMap<BB, List<Assume>>();
+    var assumptionsToInsert = new LinkedHashMap<BB, List<Assumption>>();
     for (var local : scope.locals()) {
       if (!(local.variable() instanceof Register register)) {
         continue;
@@ -158,70 +161,72 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
         // and we can't substitute multiple times.
         if (calleeFeedback != null) {
           var assumeCallee = new AssumeFunction(new Read(register), calleeFeedback);
-          assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeCallee);
+          assumptionsToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeCallee);
         } else if (constantFeedback != null) {
           var assumeConstant = new AssumeConstant(new Read(register), constantFeedback);
-          assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeConstant);
+          assumptionsToInsert
+              .computeIfAbsent(successBb, _ -> new ArrayList<>())
+              .add(assumeConstant);
         } else if (!typeFeedback.equals(local.type())) {
           var assumeType = new AssumeType(new Read(register), typeFeedback);
-          assumesToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeType);
+          assumptionsToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeType);
         }
       }
     }
 
     // Stop unless we have changes
-    if (assumesToInsert.isEmpty()) {
+    if (assumptionsToInsert.isEmpty()) {
       return false;
     }
 
     // Substitute assumed registers
-    var assumeSubsts = new DomineeSubstituter(domTree, scope);
-    var assumeDsts = new HashMap<Pair<Assume, BB>, Register>();
-    var afterAssumeStmts = ArrayListMultimap.<BB, Statement>create();
-    for (var entry : assumesToInsert.entrySet()) {
+    var assumptionSubsts = new DomineeSubstituter(domTree, scope);
+    var assumptionDsts = new HashMap<Pair<Assumption, BB>, Register>();
+    var afterAssumptions = ArrayListMultimap.<BB, Statement>create();
+    for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
-      var assumes = entry.getValue();
+      var assumptions = entry.getValue();
 
-      for (var assume : assumes) {
-        var target = Objects.requireNonNull((Read) assume.target()).variable();
-        switch (assume) {
+      for (var assumption : assumptions) {
+        var target = Objects.requireNonNull((Read) assumption.target()).variable();
+        switch (assumption) {
           case AssumeType(_, var type) -> {
             var improvedType = scope.addLocal(target.name(), type);
-            assumeSubsts.stage(target, new Read(improvedType), successBb);
-            assumeDsts.put(Pair.of(assume, successBb), improvedType);
+            assumptionSubsts.stage(target, new Read(improvedType), successBb);
+            assumptionDsts.put(Pair.of(assumption, successBb), improvedType);
           }
           case AssumeFunction af -> {
             var fun = af.function();
 
             var globalLookup = scope.addLocal(target.name(), Type.CLOSURE);
-            afterAssumeStmts.put(
-                successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
-            assumeSubsts.stage(target, new Read(globalLookup), successBb);
+            afterAssumptions.put(
+                successBb, new Statement(globalLookup, new Load(LoadType.GLOBAL_FUN, fun.name())));
+            assumptionSubsts.stage(target, new Read(globalLookup), successBb);
           }
           case AssumeConstant(_, var constant) ->
-              assumeSubsts.stage(target, new Constant(constant), successBb);
+              assumptionSubsts.stage(target, new Constant(constant), successBb);
           case AssumeLoadFun _ ->
               throw new IllegalStateException("SpeculateAssume never creates AssumeLoadFun");
         }
       }
     }
-    assumeSubsts.commit();
+    assumptionSubsts.commit();
 
-    for (var entry : assumesToInsert.entrySet()) {
+    for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
-      var assumes = entry.getValue();
+      var assumptions = entry.getValue();
 
-      var assumeStmts =
+      var assumptionStmts =
           Lists.concatLazy(
               Lists.mapLazy(
-                  assumes,
-                  assume -> {
-                    var dst = assumeDsts.get(Pair.of(assume, successBb));
-                    return new Statement(dst, assume);
+                  assumptions,
+                  assumption -> {
+                    var dst = assumptionDsts.get(Pair.of(assumption, successBb));
+                    return new Statement(dst, new Assume(assumption));
                   }),
-              afterAssumeStmts.get(successBb));
+              afterAssumptions.get(successBb));
 
-      successBb.insertStatements(0, assumeStmts);
+      successBb.insertStatements(0, assumptionStmts);
     }
 
     return true;

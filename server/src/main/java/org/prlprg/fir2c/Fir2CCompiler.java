@@ -8,6 +8,7 @@ import com.google.common.collect.*;
 import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -21,8 +22,10 @@ import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DynamicCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -34,6 +37,7 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -828,7 +832,14 @@ public final class Fir2CCompiler {
           private void emitStatement(Statement statement) {
             debugInstr(cCode, statement);
 
+            if (statement.equals(Statement.NOOP)) {
+              return;
+            }
+
             var expr = emitExpression(statement.expression());
+            if (expr == null) {
+              return;
+            }
 
             if (statement.assignee() == null) {
               cCode.stmt("(void)(%s);", expr);
@@ -838,7 +849,7 @@ public final class Fir2CCompiler {
             }
           }
 
-          private String emitExpression(Expression expression) {
+          private @Nullable String emitExpression(Expression expression) {
             return switch (expression) {
               case Closure closure -> {
                 var function = closure.code();
@@ -946,34 +957,40 @@ public final class Fir2CCompiler {
                 yield "Fir_mk_promise(%s, %s, %s, %s)".formatted(fromRCName, cp, captures, VAR_ENV);
               }
               case Aea(var arg) -> emitArgument(arg);
-              case AssumeConstant(var _, var _), AssumeFunction _, AssumeLoadFun _ -> "R_NilValue";
-              case AssumeType(var target, var _) -> emitArgument(target);
+              case Assume(var assumption) ->
+                  switch (assumption) {
+                    case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> null;
+                    case AssumeType(var target, _) -> emitArgument(target);
+                  };
               case Call call -> emitCall(call);
               case Cast(var target, var type) ->
                   "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(type));
               case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
-              case Force(var value) -> "Fir_force(%s)".formatted(emitArgument(value));
+              case Force(var isMaybe, var value) ->
+                  (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
+                      .formatted(emitArgument(value));
               // This is an R special case.
               // There's no equivalent for `Store`, `LoadFun`, etc.
               // their behavior is inconsistent.
-              case Load(var variable) when variable.isDdNum() ->
+              case Load(var loadType, var variable)
+                  when loadType == LoadType.LOCAL_VAR && variable.isDdNum() ->
                   "Fir_load_dots(%d, %s)".formatted(variable.ddIndex(), VAR_ENV);
-              case Load(var variable) ->
-                  "Fir_load(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
-              case LoadFun(var variable, var env) -> {
-                var envSelector =
-                    switch (env) {
-                      case LoadFun.Env.LOCAL -> "FIR_LOADFUN_LOCAL";
-                      case LoadFun.Env.GLOBAL -> "FIR_LOADFUN_GLOBAL";
-                      case LoadFun.Env.BASE -> "FIR_LOADFUN_BASE";
-                    };
-                yield "Fir_load_fun(%s, %s, %s)"
-                    .formatted(envSelector, nvSymbolRef(pool, variable), VAR_ENV);
-              }
-              case MaybeForce(var value) -> "Fir_maybe_force(%s)".formatted(emitArgument(value));
+              case Load(var loadType, var variable) ->
+                  switch (loadType) {
+                    case LOCAL_VAR ->
+                        "Fir_load(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
+                    case SUPER_VAR ->
+                        "Fir_super_load(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
+                    case LOCAL_FUN ->
+                        "Rf_findFun(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
+                    case GLOBAL_FUN ->
+                        "Rf_findFun(%s, R_GlobalEnv)".formatted(nvSymbolRef(pool, variable));
+                    case BASE_FUN ->
+                        "Rf_findFun(%s, R_BaseEnv)".formatted(nvSymbolRef(pool, variable));
+                  };
               case MkEnv() -> {
                 cCode.stmt("Fir_push_env(&%s);", VAR_ENV);
-                yield "R_NilValue";
+                yield null;
               }
               case MkVector(var kind, var elements) -> {
                 var namedArrays = emitNamedArgumentArrays(elements);
@@ -984,106 +1001,109 @@ public final class Fir2CCompiler {
                         namedArrays.values().pointer(),
                         namedArrays.names());
               }
-              case Noop() -> "NULL";
-              case Placeholder() -> {
-                cCode.stmt("Rf_error(\"FIŘ placeholder reached\");");
-                yield "NULL";
-              }
               case PopEnv() -> {
                 cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
-                yield "R_NilValue";
+                yield null;
               }
               case ReflectiveLoad(var promArg, var variable) ->
                   "Fir_reflective_load(%s, %s)"
                       .formatted(emitArgument(promArg), nvSymbolRef(pool, variable));
-              case ReflectiveStore(var promArg, var variable, var value) ->
-                  "Fir_reflective_store(%s, %s, %s)"
-                      .formatted(
-                          emitArgument(promArg), nvSymbolRef(pool, variable), emitArgument(value));
-              case Store(var variable, var value) -> {
+              case ReflectiveStore(var promArg, var variable, var value) -> {
+                cCode.stmt(
+                    "Fir_reflective_store(%s, %s, %s)",
+                    emitArgument(promArg), nvSymbolRef(pool, variable), emitArgument(value));
+                yield null;
+              }
+              case Store(var storeType, var variable, var value) -> {
                 var arg = emitArgument(value);
-                cCode.stmt("Fir_store(%s, %s, %s);", nvSymbolRef(pool, variable), arg, VAR_ENV);
-                yield arg;
+                switch (storeType) {
+                  case LOCAL_VAR ->
+                      cCode.stmt(
+                          "Rf_defineVar(%s, %s, %s);", nvSymbolRef(pool, variable), arg, VAR_ENV);
+                  case SUPER_VAR ->
+                      cCode.stmt(
+                          "Fir_super_store(%s, %s, %s);",
+                          nvSymbolRef(pool, variable), arg, VAR_ENV);
+                }
+                yield null;
               }
               case SubscriptRead(var vector, var index) ->
                   "Fir_subscript_read(%s, %s)".formatted(emitArgument(vector), emitArgument(index));
-              case SubscriptWrite(var vector, var index, var value) ->
-                  "Fir_subscript_write(%s, %s, %s)"
-                      .formatted(emitArgument(vector), emitArgument(index), emitArgument(value));
-              case SuperLoad(var variable) ->
-                  "Fir_super_load(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
-              case SuperStore(var variable, var value) -> {
-                var arg = emitArgument(value);
+              case SubscriptWrite(var vector, var index, var value) -> {
                 cCode.stmt(
-                    "Fir_super_store(%s, %s, %s);", nvSymbolRef(pool, variable), arg, VAR_ENV);
-                yield arg;
+                    "Fir_subscript_write(%s, %s, %s)",
+                    emitArgument(vector), emitArgument(index), emitArgument(value));
+                yield null;
               }
             };
           }
 
           private String emitCall(Call call) {
             return switch (call.callee()) {
-              case DispatchCallee(var calleeFun, var _) when calleeFun.owner() == INTRINSICS ->
+              case StaticFnCallee(var isDispatch, var calleeFunRef, var signature) -> {
+                var calleeFun = calleeFunRef.get();
+                var calleeModule = calleeFun.owner();
+                if (calleeModule == INTRINSICS && isDispatch) {
                   throw new IllegalArgumentException(
                       "Intrinsic should never be dispatched: " + call);
-              case DispatchCallee(var calleeFun, var _) when calleeFun.owner() == BUILTINS ->
-                  emitBuiltinCall(call, calleeFun);
-              case StaticCallee(var calleeFunction, var calleeVersion)
-                  when calleeFunction.owner() == BUILTINS
-                      && calleeFunction.indexOf(calleeVersion) == 0 ->
-                  emitBuiltinCall(call, calleeFunction);
-              case DispatchCallee(var calleeFun, var signature) -> {
-                // Protect constants
-                pool.internPatched(
-                    calleeFun,
-                    poolIdx -> {
-                      var constantsCName = functionConstantsCName(calleeFun);
-
-                      var initCCode = initCFunction.add();
-                      debugComment(initCCode, "# Protect constants of %s", calleeFun.name());
-                      initCCode.stmt(
-                          "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
-                    });
-
-                // Defer declare extern for referenced (previously-compiled) function
-                referencedFunctions.add(calleeFun);
-
-                // The baseline's signature is the default
-                if (signature == null) {
-                  signature = calleeFun.baseline().signature();
+                } else if (calleeModule == BUILTINS
+                    && (isDispatch || calleeFun.guess(signature) == calleeFun.baseline())) {
+                  yield emitBuiltinCall(call, calleeFun);
                 }
-                var cSignature = emitSignature(signature);
 
-                var cName = functionDispatchCName(calleeFun);
-                var arguments = emitArgumentSplice(call.callArguments());
-                yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments);
-              }
-              case StaticCallee(var calleeFunction, var calleeVersion) -> {
-                // Builtins and intrinsics have no constants and are already declared
-                if (calleeFunction.owner() != BUILTINS && calleeFunction.owner() != INTRINSICS) {
+                if (isDispatch) {
                   // Protect constants
                   pool.internPatched(
-                      calleeVersion,
+                      calleeFun,
                       poolIdx -> {
-                        var constantsCName = versionConstantsCName(calleeFunction, calleeVersion);
+                        var constantsCName = functionConstantsCName(calleeFun);
 
                         var initCCode = initCFunction.add();
-                        debugComment(
-                            initCCode,
-                            "# Protect constants of %s version %s",
-                            calleeFunction.name(),
-                            calleeFunction.indexOf(calleeVersion));
+                        debugComment(initCCode, "# Protect constants of %s", calleeFun.name());
                         initCCode.stmt(
                             "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
                       });
 
-                  // Defer declare extern for referenced (previously-compiled) version
-                  referencedVersions.put(calleeVersion, calleeFunction);
-                }
+                  // Defer declare extern for referenced (previously-compiled) function
+                  referencedFunctions.add(calleeFun);
 
-                var cName = versionCallCName(calleeFunction, calleeVersion);
-                var arguments = emitArgumentSplice(call.callArguments());
-                yield "%s(%s%s)".formatted(cName, VAR_ENV, arguments);
+                  var cName = functionDispatchCName(calleeFun);
+                  var cSignature = emitSignature(signature);
+                  var arguments = emitArgumentSplice(call.callArguments());
+                  yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments);
+                } else {
+                  var calleeVersion = calleeFun.guess(signature);
+                  if (calleeVersion == null) {
+                    throw new IllegalArgumentException(
+                        "In " + call + ", no version matches signature:\n" + calleeFun);
+                  }
+
+                  // Builtins and intrinsics have no constants and are already declared
+                  if (calleeFun.owner() != BUILTINS && calleeFun.owner() != INTRINSICS) {
+                    // Protect constants
+                    pool.internPatched(
+                        calleeVersion,
+                        poolIdx -> {
+                          var constantsCName = versionConstantsCName(calleeFun, calleeVersion);
+
+                          var initCCode = initCFunction.add();
+                          debugComment(
+                              initCCode,
+                              "# Protect constants of %s version %s",
+                              calleeFun.name(),
+                              calleeFun.indexOf(calleeVersion));
+                          initCCode.stmt(
+                              "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
+                        });
+
+                    // Defer declare extern for referenced (previously-compiled) version
+                    referencedVersions.put(calleeVersion, calleeFun);
+                  }
+
+                  var cName = versionCallCName(calleeFun, calleeVersion);
+                  var arguments = emitArgumentSplice(call.callArguments());
+                  yield "%s(%s%s)".formatted(cName, VAR_ENV, arguments);
+                }
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {
                 var arguments = emitArgumentArray("args", call.callArguments());
@@ -1126,20 +1146,20 @@ public final class Fir2CCompiler {
             debugInstr(cCode, jump);
 
             switch (jump) {
-              case Return(var _, var value) -> cCode.stmt("return %s;", emitArgument(value));
-              case Goto(var _, var target) -> emitJumpTo(1, target);
-              case Unreachable(var _) -> {
+              case Return(_, var value) -> cCode.stmt("return %s;", emitArgument(value));
+              case Goto(_, var target) -> emitJumpTo(1, target);
+              case Unreachable(_) -> {
                 cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
                 cCode.stmt("return R_NilValue;");
               }
-              case If(var _, var condition, var ifTrue, var ifFalse) -> {
+              case If(_, var condition, var ifTrue, var ifFalse) -> {
                 cCode.stmt("if (Fir_is_true(%s)) {", emitArgument(condition));
                 emitJumpTo(2, ifTrue);
                 cCode.stmt("} else {");
                 emitJumpTo(2, ifFalse);
                 cCode.stmt("}");
               }
-              case Checkpoint(var _, var success, var deopt) -> {
+              case Checkpoint(_, var success, var deopt) -> {
                 for (var assume : assumptionsFor(success)) {
                   var condition = emitAssumptionCondition(assume);
                   cCode.stmt("if (!(%s)) {", condition);
@@ -1148,7 +1168,7 @@ public final class Fir2CCompiler {
                 }
                 emitJumpTo(1, success);
               }
-              case Deopt(var _, var pc, var stack) -> {
+              case Deopt(_, var pc, var stack) -> {
                 var stackArgs = emitArgumentArray("deopt_stack", stack);
                 cCode.stmt(
                     "Fir_deopt(%d, %d, %s, %s);",
@@ -1158,22 +1178,22 @@ public final class Fir2CCompiler {
             }
           }
 
-          private List<Assume> assumptionsFor(Target target) {
-            var assumptions = new ArrayList<Assume>();
+          private List<Assumption> assumptionsFor(Target target) {
+            var assumptions = new ArrayList<Assumption>();
             for (var statement : target.bb().statements()) {
-              if (!(statement.expression() instanceof Assume assume)) {
+              if (!(statement.expression() instanceof Assume(var assumption))) {
                 break;
               }
-              assumptions.add(assume);
+              assumptions.add(assumption);
             }
             return assumptions;
           }
 
-          private String emitAssumptionCondition(Assume assume) {
-            debugComment(cCode, "? %s", assume);
-            debugArgs(cCode, assume.arguments());
+          private String emitAssumptionCondition(Assumption assumption) {
+            debugComment(cCode, "? %s", assumption);
+            debugArgs(cCode, assumption.arguments());
 
-            return switch (assume) {
+            return switch (assumption) {
               case AssumeConstant(var target, var constant) ->
                   "Fir_assume_constant(%s, %s)"
                       .formatted(emitArgument(target), constantRef(pool, constant));
@@ -1351,6 +1371,7 @@ public final class Fir2CCompiler {
           private String emitArgument(Argument argument) {
             return switch (argument) {
               case Constant(var constant) -> constantRef(pool, constant);
+              case Noop() -> throw new IllegalArgumentException("No-op in non-no-op statement");
               case Read(var variable) -> registerPlace(variable);
               case Consume(var variable) -> registerPlace(variable);
             };

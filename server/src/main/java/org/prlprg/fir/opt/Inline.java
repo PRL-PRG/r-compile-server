@@ -6,6 +6,7 @@ import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
@@ -87,12 +88,13 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       switch (expr) {
         case Force(_, var value) -> tryInlineForce(bb, statementIndex, assignee, value);
         case Call call
-            when call.callee()
-                    instanceof StaticFnCallee(var isDispatch, var functionRef, var version)
-                && !isDispatch -> {
-          // TODO: Get version (and abort if it does't exist)
-          tryInlineCall(bb, statementIndex, assignee, version, call.callArguments());
-        }
+            when call.callee() instanceof StaticFnCallee callee && callee.exactVersion() != null ->
+            tryInlineCall(
+                bb,
+                statementIndex,
+                assignee,
+                Objects.requireNonNull(callee.exactVersion()),
+                call.callArguments());
         // Inline within the promise
         case Promise(_, _, var code) -> run(code);
         default -> {}
@@ -220,8 +222,8 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               .anyMatch(
                   s ->
                       s.expression() instanceof Call call
-                          && call.callee() instanceof StaticCallee(_, var target)
-                          && target == callee);
+                          && call.callee() instanceof StaticFnCallee callee1
+                          && callee1.exactVersion() == callee);
       var variablesClash =
           !Sets.intersection(
                   namedVariablesOf(callee), analyses.get(NamedVariablesOf.class).namedVariables())

@@ -8,21 +8,24 @@ import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Closure;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Merge a [LoadFun] with [Env#LOCAL] and an [AssumeFunction] into an [AssumeLoadFun].
+/// Merge a [Load] with [LoadType#LOCAL_FUN] and an [AssumeFunction] into an [AssumeLoadFun].
 ///
-/// Looks for: checkpoint1 → success BB with (assumptions*, `LoadFun(LOCAL)`, ..., checkpoint2)
+/// Looks for: checkpoint1 → success BB with (assumptions*, `Load(LOCAL_FUN, ...)`, ...,
+// checkpoint2)
 /// → success BB with (assumptions*, `AssumeFunction` targeting `LoadFun`'s register).
 ///
-/// Then inserts an `AssumeLoadFun` after checkpoint1, replaces the `LoadFun` with [Closure],
+/// Then inserts an `AssumeLoadFun` after checkpoint1, replaces the `Load` with [Closure],
 /// and deletes the `AssumeFunction`.
 ///
-/// It also does cleanup (removes the `LoadFun` instead of replacing if the only use was the
+/// It also does cleanup (removes the `Load` instead of replacing if the only use was the
 /// `AssumeFunction`, and actually deletes the `AssumeFunction` instead of replacing with a
 /// no-op), because this is typically the last optimization in a sequence; otherwise, either the
 /// sequence would often run an extra iteration because the cleanup would trigger, or (if the
@@ -53,8 +56,8 @@ public record MergeAssumeLoadFun() implements AbstractionOptimization {
                 var stmt = bb1.statements().get(i);
                 if (stmt.expression() instanceof Assume) {
                   continue;
-                } else if (stmt.expression() instanceof LoadFun(var variable, var env)
-                    && env == Env.LOCAL) {
+                } else if (stmt.expression() instanceof Load(var loadType, var variable)
+                    && loadType == LoadType.LOCAL_FUN) {
                   loadFunIndex = i;
                   loadFunAssignee = stmt.assignee();
                   loadFunVariable = variable;
@@ -78,11 +81,12 @@ public record MergeAssumeLoadFun() implements AbstractionOptimization {
               Function assumedFunction = null;
               for (int i = 0; i < bb2.statements().size(); i++) {
                 var stmt = bb2.statements().get(i);
-                if (stmt.expression() instanceof AssumeFunction af
-                    && af.target() instanceof Read(var assumeFunctionTarget)
+                if (stmt.expression() instanceof Assume(var assumption)
+                    && assumption instanceof AssumeFunction(var target, var functionRef)
+                    && target instanceof Read(var assumeFunctionTarget)
                     && assumeFunctionTarget.equals(loadFunAssignee)) {
                   assumeFunctionIndex = i;
-                  assumedFunction = af.function();
+                  assumedFunction = functionRef.get();
                   break;
                 }
               }
@@ -90,17 +94,18 @@ public record MergeAssumeLoadFun() implements AbstractionOptimization {
                 return;
               }
 
-              var mergedAssume = new AssumeLoadFun(loadFunVariable, assumedFunction);
+              var mergedAssume =
+                  new Statement(new Assume(new AssumeLoadFun(loadFunVariable, assumedFunction)));
               if (defUses.uses(loadFunAssignee).size() == 1) {
                 // Effectively insert `AssumeLoadFun` after `checkpoint1` and delete `LoadFun`,
                 // by replacing `LoadFun` (first non-assume) with `AssumeLoadFun` (last assume)
-                bb1.replaceStatementAt(loadFunIndex, new Statement(mergedAssume));
+                bb1.replaceStatementAt(loadFunIndex, mergedAssume);
 
                 // Remove now unused register from scope
                 scope.removeLocal(loadFunAssignee);
               } else {
                 // Insert `AssumeLoadFun` after `checkpoint1`
-                bb1.insertStatement(loadFunIndex, new Statement(mergedAssume));
+                bb1.insertStatement(loadFunIndex, mergedAssume);
 
                 // Replace `LoadFun` with `Closure`
                 bb1.replaceStatementAt(

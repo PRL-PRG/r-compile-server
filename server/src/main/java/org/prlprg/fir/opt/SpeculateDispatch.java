@@ -81,9 +81,9 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
                         .flatMap(bb -> bb.statements().stream())
                         .noneMatch(
                             stmt -> {
-                              if (!(stmt.expression() instanceof Assume assume)
-                                  || assume.target() == null
-                                  || assume.target().variable() == null) {
+                              if (!(stmt.expression() instanceof Assume(var assumption))
+                                  || assumption.target() == null
+                                  || assumption.target().variable() == null) {
                                 return false;
                               }
 
@@ -93,7 +93,7 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
                                     .parameters()
                                     .get(i)
                                     .variable()
-                                    .equals(assume.target().variable())) {
+                                    .equals(assumption.target().variable())) {
                                   argType = parameterTypes.get(i);
                                   break;
                                 }
@@ -102,7 +102,7 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
                                 return false;
                               }
 
-                              return !assumeCanSucceed(assume, argType);
+                              return !assumeCanSucceed(assumption, argType);
                             }))
             .limit(newVersionLimit);
 

@@ -8,7 +8,7 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Noop;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
@@ -34,25 +34,22 @@ public record ElideCheckMissing() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Call call)) {
+    if (!(expression instanceof Call(var callee, var callArguments)
+        && callee instanceof StaticFnCallee(var isDispatch, var functionRef, var signature)
+        && !isDispatch
+        && functionRef.get().owner() == INTRINSICS
+        && functionRef.get().name().name().equals("checkMissing")
+        && callArguments.size() == 1)) {
       return expression;
     }
 
-    var function = call.callee().function();
-    if (function == null
-        || function.owner() != INTRINSICS
-        || !function.name().name().equals("checkMissing")
-        || call.callArguments().size() != 1) {
-      return expression;
-    }
-
-    var arg = call.callArguments().getFirst();
+    var arg = callArguments.getFirst();
     var argType = analyses.get(InferType.class).of(arg);
     if (argType == null || Type.MISSING.isSubtypeOf(argType)) {
       return expression;
     }
 
     // Elide
-    return new Noop();
+    return Expression.NOOP;
   }
 }

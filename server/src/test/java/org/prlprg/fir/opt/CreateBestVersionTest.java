@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Module;
@@ -49,7 +50,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new DispatchCallee(calleeFun, null),
+            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -79,7 +80,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new DispatchCallee(calleeFun, null),
+            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -112,7 +113,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new DispatchCallee(calleeFun, null),
+            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -143,7 +144,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new DispatchCallee(calleeFun, null),
+            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -204,7 +205,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new DispatchCallee(calleeFun, null),
+            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a")), new Read(Variable.register("b"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 

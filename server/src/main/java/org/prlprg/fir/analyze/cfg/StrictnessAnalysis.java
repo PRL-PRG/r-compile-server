@@ -126,12 +126,7 @@ public final class StrictnessAnalysis implements CfgAnalysis {
   }
 
   private static void addForcedParam(Statement stmt, Abstraction scope, Set<Register> mustForced) {
-    var arg =
-        switch (stmt.expression()) {
-          case Force(var value) -> value;
-          case MaybeForce(var value) -> value;
-          default -> null;
-        };
+    var arg = stmt.expression() instanceof Force(_, var value) ? value : null;
     if (arg instanceof Read(var reg) && scope.isParameter(reg)) {
       mustForced.add(reg);
     }
