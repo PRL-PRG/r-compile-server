@@ -1,18 +1,19 @@
-package org.prlprg.fir.ir.argument;
+package org.prlprg.fir.ir.expression;
 
-import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.ir.variable.Register;
+import java.util.Collection;
+import java.util.List;
+import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-/// An elided argument. It's an error in any statement except [`Statement#NOOP`][
-/// org.prlprg.fir.ir.instruction.Statement#NOOP], which does nothing. It's an optimization for
+/// An elided expression. It does nothing and assigning it is an error. It's an optimization for
 /// the optimizer that preserves statement indices for active optimizations and analyses, and is
 /// removed in the final [`CFG`][org.prlprg.fir.ir.cfg.CFG].
-public record Noop() implements Argument {
+public record Noop() implements Expression {
   @Override
-  public @Nullable Register variable() {
-    return null;
+  public @UnmodifiableView Collection<Argument> arguments() {
+    return List.of();
   }
 
   @Override

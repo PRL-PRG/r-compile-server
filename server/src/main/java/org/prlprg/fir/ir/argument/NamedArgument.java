@@ -74,11 +74,6 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
           throw s.fail("Constant '" + nameOrArgumentPart + "' not implemented");
       }
 
-      // `noop`
-      if (nameOrArgumentPart.equals("noop")) {
-        return new NamedArgument(new Noop());
-      }
-
       // `consume`
       if (nameOrArgumentPart.equals("consume")) {
         var register = p.parse(Register.class);

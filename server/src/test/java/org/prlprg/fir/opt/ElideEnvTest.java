@@ -66,7 +66,7 @@ class ElideEnvTest implements OptimizationUnitTest {
               () --> I { reg r:I, var x:I? |
                 mkenv;
                 r = 0;
-                sst x = r;
+                st-super x = r;
                 popenv;
                 return r;
               }

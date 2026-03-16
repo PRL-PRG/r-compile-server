@@ -11,7 +11,7 @@ import org.prlprg.util.Characters;
 /// A statement or jump argument. Essentially a "zero cost" instruction,
 /// because we want to reuse instructions that aren't zero-cost (CSE, GVN).
 @Immutable
-public sealed interface Argument permits Constant, Consume, Noop, Read {
+public sealed interface Argument permits Constant, Consume, Read {
   @Nullable Register variable();
 
   @ParseMethod
@@ -21,9 +21,6 @@ public sealed interface Argument permits Constant, Consume, Noop, Read {
     if (Value.peek(p)) {
       var value = p.parse(Value.class);
       return new Constant(value);
-    } else if (s.nextCharsAre("noop ") || s.nextCharsAre("noop;")) {
-      s.assertAndSkip("noop");
-      return new Noop();
     } else if (s.trySkip("consume ")) {
       var register = p.parse(Register.class);
       return new Consume(register);
@@ -32,6 +29,6 @@ public sealed interface Argument permits Constant, Consume, Noop, Read {
       return new Read(register);
     }
 
-    throw s.fail("expected value, register, `consume`, or 'noop'");
+    throw s.fail("expected value, register, or `consume`");
   }
 }

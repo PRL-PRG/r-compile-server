@@ -18,7 +18,6 @@ import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.binding.Local;
@@ -270,14 +269,6 @@ public final class Abstraction implements Comparable<Abstraction> {
     return lookup(register) != null;
   }
 
-  /// Whether [#locals()] includes a binding for this named variable.
-  ///
-  /// Named variables may be loaded and stored without being declared, the purpose of declaring
-  /// is to give a specific maybe-type, or for documentation (no semantic meaning) if type ANY.
-  public boolean isDeclared(NamedVariable nv) {
-    return lookup(nv) != null;
-  }
-
   public boolean isParameter(Register register) {
     return nameToParamIndex.containsKey(register.name());
   }
@@ -317,7 +308,6 @@ public final class Abstraction implements Comparable<Abstraction> {
   public @Nullable Type typeOf(Argument argument) {
     return switch (argument) {
       case Constant(var constant) -> constant.type();
-      case Noop() -> null;
       case Read(var register) -> typeOf(register);
       case Consume(var register) -> {
         var type = typeOf(register);

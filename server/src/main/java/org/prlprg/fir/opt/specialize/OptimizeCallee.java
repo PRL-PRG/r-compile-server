@@ -9,7 +9,6 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -99,7 +98,6 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                                   switch (argument) {
                                     case Constant(var constant) ->
                                         constant.type().isSubtypeOf(parameterType);
-                                    case Noop() -> false;
                                     case Read _, Consume _ -> {
                                       var register = Objects.requireNonNull(argument.variable());
                                       yield feedback

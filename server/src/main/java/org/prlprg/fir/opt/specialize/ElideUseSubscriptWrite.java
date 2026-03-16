@@ -8,6 +8,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.variable.Register;
 
@@ -34,6 +35,6 @@ public record ElideUseSubscriptWrite() implements SpecializeOptimization {
       return expression;
     }
 
-    return Expression.NOOP;
+    return new Noop();
   }
 }

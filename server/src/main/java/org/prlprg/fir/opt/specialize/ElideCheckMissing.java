@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 
@@ -35,8 +36,7 @@ public record ElideCheckMissing() implements SpecializeOptimization {
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof Call(var callee, var callArguments)
-        && callee instanceof StaticFnCallee(var isDispatch, var functionRef, var signature)
-        && !isDispatch
+        && callee instanceof StaticFnCallee(_, var functionRef, _)
         && functionRef.get().owner() == INTRINSICS
         && functionRef.get().name().name().equals("checkMissing")
         && callArguments.size() == 1)) {
@@ -50,6 +50,6 @@ public record ElideCheckMissing() implements SpecializeOptimization {
     }
 
     // Elide
-    return Expression.NOOP;
+    return new Noop();
   }
 }

@@ -10,6 +10,7 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that removes [AssumeLoadFun] instructions that are dominated by an identical
@@ -43,6 +44,6 @@ public record ElideRedundantAssumeLoadFun() implements SpecializeOptimization {
       return expression;
     }
 
-    return Expression.NOOP;
+    return new Noop();
   }
 }

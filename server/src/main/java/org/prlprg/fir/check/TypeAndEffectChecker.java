@@ -8,7 +8,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
@@ -31,6 +30,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -59,8 +59,7 @@ import org.prlprg.util.Strings;
 
 /// Checks type and effect soundness.
 ///
-/// Also checks that untyped expressions (e.g. stores) aren't assigned, and no-ops aren't in
-/// non-no-op statements.
+/// Also checks that untyped expressions (e.g. no-ops and stores) aren't assigned
 public final class TypeAndEffectChecker extends Checker {
   @Override
   public String name() {
@@ -365,7 +364,7 @@ public final class TypeAndEffectChecker extends Checker {
               default -> report("Can't create a vector of kind " + kind);
             }
           }
-          case MkEnv(), PopEnv _ -> {}
+          case MkEnv _, Noop _, PopEnv _ -> {}
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
             if (expectedInnerType.ownership() != Ownership.SHARED) {
@@ -492,7 +491,6 @@ public final class TypeAndEffectChecker extends Checker {
       void run(Argument argument) {
         switch (argument) {
           case Constant _, Read _ -> {}
-          case Noop() -> report("No-op in non-no-op statement");
           case Consume(var register) -> {
             var type = scope.typeOf(register);
             if (type == null) {
