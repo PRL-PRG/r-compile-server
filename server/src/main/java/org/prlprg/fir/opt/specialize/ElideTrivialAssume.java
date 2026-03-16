@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that removes [Assume](org.prlprg.fir.ir.expression.Assume)s that statically
@@ -58,7 +59,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield Expression.NOOP;
+        yield new Noop();
       }
       case AssumeConstant(var value, var constant) -> {
         var origin = analyses.get(OriginAnalysis.class).resolve(value);
@@ -66,7 +67,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield Expression.NOOP;
+        yield new Noop();
       }
       case AssumeLoadFun a -> {
         var originAnalysis = analyses.get(OriginAnalysis.class);
@@ -79,7 +80,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
 
-        yield Expression.NOOP;
+        yield new Noop();
       }
     };
   }

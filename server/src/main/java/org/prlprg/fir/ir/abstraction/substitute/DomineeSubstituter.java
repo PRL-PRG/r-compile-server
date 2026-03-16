@@ -11,7 +11,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.variable.Register;
@@ -100,7 +99,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
     }
 
     return switch (argument) {
-      case Constant _, Noop _ -> throw new UnreachableError();
+      case Constant _ -> throw new UnreachableError();
       case Read _ -> subst;
       case Consume _ -> convertIntoConsume(subst);
     };

@@ -11,7 +11,6 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.NamedArgument;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
@@ -33,6 +32,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -187,6 +187,7 @@ abstract class AbstractSubstituter {
               elements.stream()
                   .map(ne -> new NamedArgument(ne.name(), substitute(bb, ne.argument())))
                   .collect(ImmutableList.toImmutableList()));
+      case Noop() -> new Noop();
       case PopEnv() -> new PopEnv();
       case Promise(var valueType, var effects, var code) -> new Promise(valueType, effects, code);
       case ReflectiveLoad(var promise, var variable) ->
@@ -248,10 +249,10 @@ abstract class AbstractSubstituter {
   protected final Argument convertIntoConsume(Argument argument) {
     return switch (argument) {
       case Read(var r) -> new Consume(r);
-      case Consume(_) -> argument;
-      case Constant(_), Noop() ->
+      case Consume _ -> argument;
+      case Constant _ ->
           throw new IllegalStateException(
-              "can't substitute use with constant or noop:\n" + this + "\n" + scope);
+              "can't substitute use with constant:\n" + this + "\n" + scope);
     };
   }
 

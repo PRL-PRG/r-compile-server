@@ -14,7 +14,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.BB;
@@ -105,7 +104,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
     void run(Argument argument) {
       switch (argument) {
-        case Constant(_), Noop() -> {}
+        case Constant _ -> {}
         // Ensure register is written before read
         case Read(var variable) -> {
           if (!state().write.contains(variable)) {

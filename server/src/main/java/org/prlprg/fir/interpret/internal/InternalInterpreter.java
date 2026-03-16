@@ -18,7 +18,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
@@ -41,6 +40,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -195,20 +195,6 @@ public final class InternalInterpreter implements Interpreter {
   private void addFunctionToEnv(Function function, EnvSXP env) {
     var stub = closureStub(function, env);
     env.set(function.name().name(), stub);
-  }
-
-  /// "Hijack" the function version, so when it's called, the Java closure runs. Every version
-  /// must be a [stub](Abstraction#isStub).
-  ///
-  /// [#registerExternal(String, int, ExternalVersion)] for every function version.
-  public void registerExternal(String functionName, ExternalVersion javaClosure) {
-    var function = module.lookupFunction(Variable.named(functionName));
-    if (function == null) {
-      throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
-    }
-    for (var version : function.versions()) {
-      registerExternal(functionName, function.indexOf(version), version, javaClosure);
-    }
   }
 
   /// "Hijack" the function version, so when it's called, the Java closure runs. The version
@@ -431,6 +417,10 @@ public final class InternalInterpreter implements Interpreter {
 
     var assignee = statement.assignee();
     if (assignee != null) {
+      if (value == null) {
+        throw fail("Expression produces nothing but is assigned:\n" + statement);
+      }
+
       topFrame().put(assignee, value);
       recordTypeFeedback(topFrame().scopeFeedback(), assignee, value);
     }
@@ -499,7 +489,7 @@ public final class InternalInterpreter implements Interpreter {
   /// Evaluates an expression and returns its value.
   ///
   /// @throws IllegalStateException If called outside of evaluation.
-  public Value run(Expression expression) {
+  public @Nullable Value run(Expression expression) {
     checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
@@ -510,7 +500,7 @@ public final class InternalInterpreter implements Interpreter {
               checkType(value, type, "assume-type");
               yield value;
             }
-            case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> Value.NULL;
+            case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> null;
           };
       case Call call -> {
         var callee = call.callee();
@@ -640,8 +630,9 @@ public final class InternalInterpreter implements Interpreter {
                   Lists.mapLazy(elements, e -> run(e.argument()))));
       case MkEnv() -> {
         topFrame().mkEnv();
-        yield Value.NULL;
+        yield null;
       }
+      case Noop() -> null;
       case PopEnv() -> {
         try {
           topFrame().popEnv();
@@ -649,7 +640,7 @@ public final class InternalInterpreter implements Interpreter {
           // There was no pushed env
           throw fail(e.getMessage());
         }
-        yield Value.NULL;
+        yield null;
       }
       case Promise promise -> new Value.Sexp(promiseStub(promise));
       case ReflectiveLoad(var promArg, var variable) -> {
@@ -679,14 +670,14 @@ public final class InternalInterpreter implements Interpreter {
         var env = promise.env();
 
         env.set(variable.name(), valueSexp);
-        yield valueValue;
+        yield null;
       }
       case Store(var storeType, var variable, var arg) ->
           switch (storeType) {
             case LOCAL_VAR -> {
               var value = run(arg);
               topFrame().put(variable, value);
-              yield value;
+              yield null;
             }
             case SUPER_VAR -> {
               var parentEnv = topFrame().environment().parent();
@@ -700,7 +691,7 @@ public final class InternalInterpreter implements Interpreter {
               while (!(parentEnv instanceof EmptyEnvSXP)) {
                 if (parentEnv.getLocal(variable.name()).isPresent()) {
                   parentEnv.set(variable.name(), valueSexp);
-                  yield value;
+                  yield null;
                 }
                 parentEnv = parentEnv.parent();
               }
@@ -734,7 +725,8 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't subscript with non-integer index: " + indexValue);
         }
 
-        yield subscriptStore(vector, index, valueValue);
+        subscriptStore(vector, index, valueValue);
+        yield null;
       }
     };
   }
@@ -746,7 +738,6 @@ public final class InternalInterpreter implements Interpreter {
     checkEvaluation();
     return switch (argument) {
       case Constant(var constant) -> constant;
-      case Noop() -> Value.NULL;
       case Read(var register) -> read(register);
       // `Read` and `Use` are evaluated the same, the only difference is in the type system.
       case Consume(var register) -> read(register);
@@ -919,7 +910,7 @@ public final class InternalInterpreter implements Interpreter {
     };
   }
 
-  public Value subscriptStore(ListOrVectorSXP<?> vector, int index, Value value) {
+  public void subscriptStore(ListOrVectorSXP<?> vector, int index, Value value) {
     if (!vector.getCanonicalType().isInstance(value)) {
       throw fail("Can't store " + value.type() + " value in " + vector.type() + " vector");
     }
@@ -977,8 +968,6 @@ public final class InternalInterpreter implements Interpreter {
       }
       case ExprSXP e -> e.get(index);
     }
-
-    return value;
   }
 
   /// Evaluate a promise that was created by the interpreter.
@@ -1146,7 +1135,6 @@ public final class InternalInterpreter implements Interpreter {
                     + value);
           }
         }
-        case Noop() -> throw fail("unexpected noop in deopt branch");
         case Read(var variable) -> {
           topFrame().put(variable, value);
           recordTypeFeedback(topFrame().scopeFeedback(), variable, value);

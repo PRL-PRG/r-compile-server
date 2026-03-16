@@ -20,7 +20,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];
@@ -58,7 +58,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];
@@ -87,8 +87,8 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r4:V, reg r9:R |
-                r3 = blackBox(1);
-                r4 = blackBox(2);
+                r3 = blackBox< I --> V >(1);
+                r4 = blackBox< I --> V >(2);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];
@@ -117,7 +117,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R, reg r10:I |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];
@@ -156,13 +156,13 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R, reg r10:V, reg r11:I |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];
               L9():
                 r9 = r3 ?: R;
-                r10 = blackBox(2);
+                r10 = blackBox< I --> V >(2);
                 check L10() else D5();
               D5():
                 deopt 13 [r9];
@@ -189,7 +189,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 mkenv;
@@ -224,7 +224,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];
@@ -254,7 +254,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];
@@ -279,7 +279,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r3:V, reg r9:R, reg r10:I |
-                r3 = blackBox(1);
+                r3 = blackBox< I --> V >(1);
                 check L9() else D4();
               D4():
                 deopt 13 [r3];

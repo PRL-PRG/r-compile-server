@@ -22,7 +22,7 @@ class ElideCheckMissingTest implements OptimizationUnitTest {
             """
             fun main(x) {
               (reg x:I) --> I { |
-                checkMissing.0(x);
+                checkMissing< V --> V >(x);
                 return x;
               }
             }
@@ -43,7 +43,7 @@ class ElideCheckMissingTest implements OptimizationUnitTest {
             """
             fun main(x) {
               (reg x:V) --> V { |
-                checkMissing.0(x);
+                checkMissing< V --> V >(x);
                 return x;
               }
             }
@@ -64,7 +64,7 @@ class ElideCheckMissingTest implements OptimizationUnitTest {
             """
             fun main(x) {
               (reg x:miss) --> V { |
-                checkMissing.0(x);
+                checkMissing< V --> V >(x);
                 return x;
               }
             }

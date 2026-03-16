@@ -179,8 +179,8 @@ class StrictnessOptimizationTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun f(x) {
-              (reg x:p(I -)) --> I { reg r:I, reg c:L |
-                c = blackBox(TRUE);
+              (reg x:p(I -)) --> I { reg r:I, reg c:B |
+                c = blackBox< B --> B >(TRUE);
                 check L1() else L2();
               L1():
                 c ?= TRUE;
@@ -192,7 +192,7 @@ class StrictnessOptimizationTest implements OptimizationUnitTest {
               }
             }
             fun blackBox(x) {
-              (reg x:L) --> L { ... }
+              (reg x:B) --> B { ... }
             }
             """);
 

@@ -23,6 +23,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -101,7 +102,7 @@ public final class InferType implements Analysis {
               Promisity.VALUE,
               kind.isWellFormedWithOwnership() ? Ownership.FRESH : Ownership.SHARED,
               Concreteness.DEFINITE);
-      case MkEnv _, PopEnv _ -> null;
+      case MkEnv _, Noop _, PopEnv _ -> null;
       case Promise(var valueType, var effects, _) -> Type.promise(valueType, effects);
       case ReflectiveLoad _ -> Type.ANY;
       case ReflectiveStore _, Store _ -> null;

@@ -16,7 +16,6 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.NamedArgument;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
@@ -40,6 +39,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -1001,6 +1001,7 @@ public final class Fir2CCompiler {
                         namedArrays.values().pointer(),
                         namedArrays.names());
               }
+              case Noop() -> null;
               case PopEnv() -> {
                 cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
                 yield null;
@@ -1371,7 +1372,6 @@ public final class Fir2CCompiler {
           private String emitArgument(Argument argument) {
             return switch (argument) {
               case Constant(var constant) -> constantRef(pool, constant);
-              case Noop() -> throw new IllegalArgumentException("No-op in non-no-op statement");
               case Read(var variable) -> registerPlace(variable);
               case Consume(var variable) -> registerPlace(variable);
             };

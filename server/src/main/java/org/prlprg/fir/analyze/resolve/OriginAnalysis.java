@@ -19,7 +19,6 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
@@ -39,6 +38,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -116,7 +116,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// If the argument is a [Read] or [Consume], looks up its origin.
   public Argument resolve(Argument arg) {
     return switch (arg) {
-      case Constant _, Noop _ -> arg;
+      case Constant _ -> arg;
       case Read(var register) -> get(register);
       // Note that `a = <const>; ...; use a` and `b = use a; ...; use b` are invalid IR, since
       // they use a register multiple times, so after `:` can be anything.
@@ -272,6 +272,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             Dup _,
             MkVector _,
             MkEnv _,
+            Noop _,
             PopEnv _,
             ReflectiveLoad _,
             ReflectiveStore _,

@@ -1,10 +1,10 @@
 fun main() {
   () --> I { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
-    r1 = blackBox(1);
-    r2 = blackBox(2);
-    r3 = blackBox(3.0);
-    r4 = blackBox(4.0);
-    r5 = blackBox(5);
+    r1 = blackBox< V --> V >(1);
+    r2 = blackBox< V --> V >(2);
+    r3 = blackBox< V --> V >(3.0);
+    r4 = blackBox< V --> V >(4.0);
+    r5 = blackBox< V --> V >(5);
 
     # Optimized
     g.1(r1, 1);

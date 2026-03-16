@@ -9,7 +9,6 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.NamedArgument;
-import org.prlprg.fir.ir.argument.Noop;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
@@ -49,6 +48,7 @@ public sealed interface Expression
         Load,
         MkEnv,
         MkVector,
+        Noop,
         PopEnv,
         Promise,
         ReflectiveLoad,
@@ -56,8 +56,6 @@ public sealed interface Expression
         Store,
         SubscriptRead,
         SubscriptWrite {
-  Expression NOOP = new Aea(new Noop());
-
   @UnmodifiableView
   Collection<Argument> arguments();
 
@@ -76,7 +74,6 @@ public sealed interface Expression
     Argument headAsArg = null;
     var cfg = ctx.cfg;
     var scope = cfg.scope();
-    var module = scope.module();
     var p = p1.withContext(ctx.inner);
     var p2 = p.withContext(ctx.forFunctionRef);
 
@@ -96,8 +93,12 @@ public sealed interface Expression
 
     if (headAsName != null) {
       switch (headAsName) {
-        case "noop" -> new Noop();
-        case "clos" -> new Closure(p2.parse(FunctionRef.class));
+        case "noop" -> {
+          return new Noop();
+        }
+        case "clos" -> {
+          return new Closure(p2.parse(FunctionRef.class));
+        }
         case "dup" -> {
           var value = p.parse(Argument.class);
           return new Dup(value);
@@ -144,8 +145,12 @@ public sealed interface Expression
           var variable = p.parse(NamedVariable.class);
           return new Load(type, variable);
         }
-        case "mkenv" -> new MkEnv();
-        case "popenv" -> new PopEnv();
+        case "mkenv" -> {
+          return new MkEnv();
+        }
+        case "popenv" -> {
+          return new PopEnv();
+        }
         case "prom" -> {
           s.assertAndSkip('<');
           var valueType = p.parse(Type.class);

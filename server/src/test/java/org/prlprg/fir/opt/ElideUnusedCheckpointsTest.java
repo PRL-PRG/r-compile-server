@@ -47,8 +47,8 @@ class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg r:L |
-                r = blackBox(TRUE);
+              () --> I { reg r:B |
+                r = blackBox< B --> B >(TRUE);
                 check L1() else L2();
               L1():
                 r ?= TRUE;
@@ -59,7 +59,7 @@ class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
               }
             }
             fun blackBox(x) {
-              (reg x:L) --> L { ... }
+              (reg x:B) --> B { ... }
             }
             """);
 
