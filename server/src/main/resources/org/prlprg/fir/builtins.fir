@@ -215,14 +215,15 @@ fun `[`(x, i, `...`, drop) {
 
 fun `[[`(x, i, `...`, exact) {
   (reg x:*, reg i:*, reg ddd:dots, reg exact:*) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(S) { ... }
-  (reg x:v(L), reg i:I, reg ddd:miss, reg drop:miss) --> L { ... }
-  (reg x:v(I), reg i:I, reg ddd:miss, reg drop:miss) --> I { ... }
-  (reg x:v(R), reg i:I, reg ddd:miss, reg drop:miss) --> R { ... }
-  (reg x:v(S), reg i:I, reg ddd:miss, reg drop:miss) --> S { ... }
+  (reg x:v(L), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(L) { ... }
+  (reg x:v(I), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(I) { ... }
+  (reg x:v(R), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(R) { ... }
+  (reg x:v(S), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(S) { ... }
+  (reg x:V, reg i:I, reg ddd:miss, reg exact:B) --> V { ... }
+  (reg x:v(L), reg i:I, reg ddd:miss, reg exact:miss) --> L { ... }
+  (reg x:v(I), reg i:I, reg ddd:miss, reg exact:miss) --> I { ... }
+  (reg x:v(R), reg i:I, reg ddd:miss, reg exact:miss) --> R { ... }
+  (reg x:v(S), reg i:I, reg ddd:miss, reg exact:miss) --> S { ... }
 }
 
 fun `[<-`(x, i, value, `...`) {

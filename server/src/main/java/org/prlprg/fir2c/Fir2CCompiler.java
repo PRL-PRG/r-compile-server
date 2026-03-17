@@ -66,6 +66,7 @@ import org.prlprg.fir.ir.type.Kind.AnySexp;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Promisity;
+import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
@@ -75,7 +76,6 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
-import org.prlprg.util.Collections2;
 import org.prlprg.util.Lists;
 
 /// Compiles FIŘ modules into C translation units.
@@ -168,7 +168,8 @@ public final class Fir2CCompiler {
 
       var cName = versionCallCName(function, version);
       var cParams = versionCallCParams(version);
-      cUnit.addExternFunction(VERSION_CALL_C_RETURN, cName, cParams);
+      var cReturn = versionCallCReturn(version);
+      cUnit.addExternFunction(cReturn, cName, cParams);
     }
   }
 
@@ -251,15 +252,17 @@ public final class Fir2CCompiler {
 
       int numParams = function.parameterNames().size();
       var versions =
-          Collections2.filter(
-              function.versionsSorted(),
-              v ->
-                  v.parameters().size() == numParams
-                      && v.parameters().stream()
-                          .allMatch(p -> p.type().ownership() == Ownership.SHARED));
-      int i;
-      Iterator<Abstraction> versionIter;
-      Abstraction version;
+          function.versionsSorted().stream()
+              .filter(
+                  v ->
+                      v.parameters().size() == numParams
+                          && v.parameters().stream()
+                              .allMatch(
+                                  p ->
+                                      p.type().kind().repr() == Repr.SEXP
+                                          && p.type().ownership() == Ownership.SHARED)
+                          && v.signature().returnType().kind().repr() == Repr.SEXP)
+              .toList();
 
       CCode cCode;
 
@@ -269,8 +272,8 @@ public final class Fir2CCompiler {
 
         debugComment(cCode, "## Dispatch-from-R %s", function.name());
 
-        for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
-          version = versionIter.next();
+        for (var i = 0; i < versions.size(); i++) {
+          var version = versions.get(i);
 
           debugComment(cCode, "# %d. %s", i, version.signature());
         }
@@ -320,8 +323,8 @@ public final class Fir2CCompiler {
         for (int j = 0; j < numParams; j++) {
           var argName = "arg" + j;
 
-          for (i = 0, versionIter = versions.iterator(); i < versions.size() - 1; i++) {
-            version = versionIter.next();
+          for (var i = 0; i < versions.size(); i++) {
+            var version = versions.get(i);
 
             var typeEmit = emitType(version.parameters().get(j).type());
 
@@ -334,8 +337,8 @@ public final class Fir2CCompiler {
         cCode = cFunction.add();
         debugComment(cCode, "# Call first compatible optimized version, else baseline");
         cCode.stmt("SEXP out;");
-        for (i = 0, versionIter = versions.iterator(); i < versions.size() - 1; i++) {
-          version = versionIter.next();
+        for (var i = 0; i < versions.size(); i++) {
+          var version = versions.get(i);
 
           var ifHead = i == 0 ? "if" : "else if";
           var callCName = versionCallCName(function, version);
@@ -363,10 +366,14 @@ public final class Fir2CCompiler {
       var cName = functionDispatchCName(function);
       var cFunction = cUnit.addFunction(DISPATCH_C_RETURN, cName, DISPATCH_C_PARAMS);
 
-      var versions = function.versionsSorted();
-      int i;
-      Iterator<Abstraction> versionIter;
-      Abstraction version;
+      var versions =
+          function.versionsSorted().stream()
+              .filter(
+                  v ->
+                      v.signature().parameterTypes().stream()
+                              .allMatch(t -> t.kind().repr() == Repr.SEXP)
+                          && v.signature().returnType().kind().repr() == Repr.SEXP)
+              .toList();
 
       CCode cCode;
 
@@ -376,8 +383,8 @@ public final class Fir2CCompiler {
 
         debugComment(cCode, "## Dispatch %s", function.name());
 
-        for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
-          version = versionIter.next();
+        for (var i = 0; i < versions.size(); i++) {
+          var version = versions.get(i);
 
           debugComment(cCode, "# %d. %s", i, version.signature());
         }
@@ -394,8 +401,8 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by argument count");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
-        version = versionIter.next();
+      for (var i = 0; i < versions.size(); i++) {
+        var version = versions.get(i);
 
         cCode.stmt(
             "incompatible[%d] = %s.param_count != %d;",
@@ -404,8 +411,8 @@ public final class Fir2CCompiler {
 
       cCode = cFunction.add();
       debugComment(cCode, "# Filter by static effects and return type");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
-        version = versionIter.next();
+      for (var i = 0; i < versions.size(); i++) {
+        var version = versions.get(i);
 
         var typeEmit = emitType(version.returnType());
         var effectsEmit = emitEffects(version.effects());
@@ -418,8 +425,8 @@ public final class Fir2CCompiler {
       debugComment(cCode, "# Filter by arguments' un-improvable type info:");
       debugComment(
           cCode, "# parameter length, static ownership, and C type (but currently all are SEXP)");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
-        version = versionIter.next();
+      for (var i = 0; i < versions.size(); i++) {
+        var version = versions.get(i);
 
         for (var j = 0; j < version.parameters().size(); j++) {
           var ownershipEmit = emitOwnership(version.parameters().get(j).type().ownership());
@@ -430,8 +437,8 @@ public final class Fir2CCompiler {
       }
 
       var cases = new ArrayList<ArrayList<String>>();
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
-        version = versionIter.next();
+      for (var i = 0; i < versions.size(); i++) {
+        var version = versions.get(i);
 
         for (var j = 0; j < version.parameters().size(); j++) {
           var typeEmit = emitType(version.parameters().get(j).type());
@@ -468,8 +475,8 @@ public final class Fir2CCompiler {
       cCode = cFunction.add();
       debugComment(cCode, "# Call first compatible version");
       cCode.stmt("SEXP out;");
-      for (i = 0, versionIter = versions.iterator(); i < versions.size(); i++) {
-        version = versionIter.next();
+      for (var i = 0; i < versions.size(); i++) {
+        var version = versions.get(i);
 
         var ifHead = i == 0 ? "if" : "} else if";
         var callCName = versionCallCName(function, version);
@@ -526,6 +533,7 @@ public final class Fir2CCompiler {
       // State
       private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
       private final Map<CFG, Set<Register>> captures = new LinkedHashMap<>();
+      private final Map<Register, Type> registerTypes = new LinkedHashMap<>();
 
       static void forwardDeclareStub(CUnit cUnit, Function function, Abstraction version) {
         if (!version.isStub()) {
@@ -535,7 +543,8 @@ public final class Fir2CCompiler {
 
         var cName = versionCallCName(function, version);
         var cParams = versionCallCParams(version);
-        cUnit.addExternFunction(VERSION_CALL_C_RETURN, cName, cParams);
+        var cReturn = versionCallCReturn(version);
+        cUnit.addExternFunction(cReturn, cName, cParams);
       }
 
       VersionEmitter(Abstraction version) {
@@ -559,6 +568,7 @@ public final class Fir2CCompiler {
             .forEach(
                 binding -> {
                   var register = (Register) binding.variable();
+                  registerTypes.put(register, binding.type());
 
                   CFG defCfg;
                   if (binding instanceof Parameter) {
@@ -595,29 +605,28 @@ public final class Fir2CCompiler {
 
         var cName = versionCallCName(function, version);
         var cParams = versionCallCParams(version);
-        var cFunction = cUnit.addFunction(VERSION_CALL_C_RETURN, cName, cParams);
+        var cReturn = versionCallCReturn(version);
+        var cFunction = cUnit.addFunction(cReturn, cName, cParams);
 
         if (options.contains(Option.EMIT_DEBUG_COMMENTS)
             || options.contains(Option.EMIT_DEBUG_PRINTS)) {
           debugComment(
               initCFunction.add(),
-              "## Init %s version %d (%s)",
+              "## Init %s version %s",
               function.name().name(),
-              function.indexOf(version),
               version.signature());
 
           var cCode = cFunction.add();
-          debugComment(
-              cCode,
-              "## Call %s version %d (%s)",
-              function.name().name(),
-              function.indexOf(version),
-              version.signature());
+          debugComment(cCode, "## Call %s version %s", function.name().name(), version.signature());
 
           // Debug-print SEXP parameters
           if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
             for (var param : version.parameters()) {
-              debugValue(cCode, param.variable().name(), registerCName(param.variable()));
+              debugValue(
+                  cCode,
+                  param.variable().name(),
+                  registerCName(param.variable()),
+                  param.type().kind().repr());
             }
           }
         }
@@ -707,7 +716,7 @@ public final class Fir2CCompiler {
           for (var i = 0; i < captureSet.size(); i++) {
             var captureName = registerCName(iter.next());
             cCode.stmt("SEXP *%s = %s[%d];", captureName, VAR_CAPTURES, i);
-            debugValue(cCode, captureName, "*%s".formatted(captureName));
+            debugValue(cCode, captureName, "*%s".formatted(captureName), Repr.SEXP);
           }
         }
       }
@@ -793,7 +802,7 @@ public final class Fir2CCompiler {
 
           for (var register : locals) {
             var cName = registerCName(register);
-            sec.stmt("SEXP %s;", cName);
+            sec.stmt("%s %s;", reprCType(registerRepr(register)), cName);
           }
         }
 
@@ -844,8 +853,16 @@ public final class Fir2CCompiler {
             if (statement.assignee() == null) {
               cCode.stmt("(void)(%s);", expr);
             } else {
-              cCode.stmt("%s = PROTECT(%s);", registerPlace(statement.assignee()), expr);
-              debugValue(cCode, statement.assignee().name(), registerPlace(statement.assignee()));
+              if (registerRepr(statement.assignee()) != Repr.SEXP) {
+                cCode.stmt("%s = %s;", registerPlace(statement.assignee()), expr);
+              } else {
+                cCode.stmt("%s = PROTECT(%s);", registerPlace(statement.assignee()), expr);
+              }
+              debugValue(
+                  cCode,
+                  statement.assignee().name(),
+                  registerPlace(statement.assignee()),
+                  registerRepr(statement.assignee()));
             }
           }
 
@@ -912,19 +929,19 @@ public final class Fir2CCompiler {
                       promiseInitCFunction.add(),
                       "## Init %s version %s promise in BB %s",
                       function.name(),
-                      function.indexOf(version),
+                      version.signature(),
                       bb.label());
                   debugComment(
                       promiseFromRCFunction.add(),
                       "## Eval-from-R %s version %s promise in BB %s",
                       function.name(),
-                      function.indexOf(version),
+                      version.signature(),
                       bb.label());
                   debugComment(
                       promiseEvalCFunction.add(),
                       "## Eval %s version %s promise in BB %s",
                       function.name(),
-                      function.indexOf(version),
+                      version.signature(),
                       bb.label());
                 }
 
@@ -942,7 +959,7 @@ public final class Fir2CCompiler {
                     initCCode,
                     "# Init %s version %s promise in BB %s",
                     function.name(),
-                    function.indexOf(version),
+                    version.signature(),
                     bb.label());
                 initCCode.stmt("%s(%s);", initCName, cp);
 
@@ -1151,10 +1168,10 @@ public final class Fir2CCompiler {
               case Goto(_, var target) -> emitJumpTo(1, target);
               case Unreachable(_) -> {
                 cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
-                cCode.stmt("return R_NilValue;");
+                cCode.stmt("return %s;", reprDefaultValue(version.returnType().kind().repr()));
               }
               case If(_, var condition, var ifTrue, var ifFalse) -> {
-                cCode.stmt("if (Fir_is_true(%s)) {", emitArgument(condition));
+                cCode.stmt("if (%s) {", emitArgument(condition));
                 emitJumpTo(2, ifTrue);
                 cCode.stmt("} else {");
                 emitJumpTo(2, ifFalse);
@@ -1174,7 +1191,7 @@ public final class Fir2CCompiler {
                 cCode.stmt(
                     "Fir_deopt(%d, %d, %s, %s);",
                     pc, stackArgs.size(), stackArgs.pointer(), VAR_ENV);
-                cCode.stmt("return R_NilValue;");
+                cCode.stmt("return %s;", reprDefaultValue(version.returnType().kind().repr()));
               }
             }
           }
@@ -1271,12 +1288,19 @@ public final class Fir2CCompiler {
               if (version.isParameter(register) || !locals.contains(register)) {
                 continue;
               }
+              if (registerRepr(register) != Repr.SEXP) {
+                continue;
+              }
 
               cCode.stmt("PROTECT(%s);", registerPlace(register));
               numLiveIn++;
             }
 
             for (var phi : bb.phiParameters()) {
+              if (registerRepr(phi) != Repr.SEXP) {
+                continue;
+              }
+
               cCode.stmt("PROTECT(%s);", registerPlace(phi));
             }
 
@@ -1284,11 +1308,13 @@ public final class Fir2CCompiler {
           }
 
           private void emitUnprotect(int numLiveIn) {
-            cCode.stmt(
-                "UNPROTECT(%s);",
-                numLiveIn
-                    + bb.phiParameters().size()
-                    + bb.statements().stream().filter(s -> s.assignee() != null).count());
+            long phiProtected =
+                bb.phiParameters().stream().filter(phi -> registerRepr(phi) == Repr.SEXP).count();
+            long stmtProtected =
+                bb.statements().stream()
+                    .filter(s -> s.assignee() != null && registerRepr(s.assignee()) == Repr.SEXP)
+                    .count();
+            cCode.stmt("UNPROTECT(%s);", numLiveIn + phiProtected + stmtProtected);
           }
 
           private String emitSignature(Signature signature) {
@@ -1389,7 +1415,7 @@ public final class Fir2CCompiler {
             if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
               for (var arg : arguments) {
                 var argEmit = emitArgument(arg);
-                debugValue(cCode, arg.toString(), argEmit);
+                debugValue(cCode, arg.toString(), argEmit, argumentRepr(arg));
               }
             }
           }
@@ -1406,6 +1432,24 @@ public final class Fir2CCompiler {
         }
         // endregion misc
       }
+
+      // region misc
+      private Repr argumentRepr(Argument argument) {
+        return switch (argument) {
+          case Constant(var value) -> value.repr();
+          case Read(var reg) -> registerRepr(reg);
+          case Consume(var reg) -> registerRepr(reg);
+        };
+      }
+
+      private Repr registerRepr(Register register) {
+        var type = registerTypes.get(register);
+        if (type == null) {
+          throw new IllegalStateException("Undeclared register: " + register);
+        }
+        return type.kind().repr();
+      }
+      // endregion misc
     }
   }
 
@@ -1498,19 +1542,112 @@ public final class Fir2CCompiler {
         : "builtins and intrinsics have no constants";
     return "Fir_ver_constants_"
         + escapeForC(function.name().name())
-        + "_v"
-        + function.indexOf(version);
+        + "_"
+        + signatureCName(version.signature());
   }
 
   private static String versionInitCName(Function function, Abstraction version) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no initializer";
 
-    return "Fir_ver_init_" + escapeForC(function.name().name()) + "_v" + function.indexOf(version);
+    return "Fir_ver_init_"
+        + escapeForC(function.name().name())
+        + "_"
+        + signatureCName(version.signature());
   }
 
   private static String versionCallCName(Function function, Abstraction version) {
-    return "Fir_ver_call_" + escapeForC(function.name().name()) + "_v" + function.indexOf(version);
+    return "Fir_ver_call_"
+        + escapeForC(function.name().name())
+        + "_"
+        + signatureCName(version.signature());
+  }
+
+  private static String signatureCName(Signature signature) {
+    var sb = new StringBuilder();
+    for (var paramType : signature.parameterTypes()) {
+      // Ignore strictness, because otherwise identical signatures don't exist
+      emitTypeCName(sb, paramType);
+      sb.append('_');
+    }
+    sb.append("fx_");
+    emitEffectsCName(sb, signature.effects());
+    sb.append("_ret_");
+    emitTypeCName(sb, signature.returnType());
+    return sb.toString();
+  }
+
+  private static void emitTypeCName(StringBuilder sb, Type type) {
+    if (type.equals(Type.ANY)) {
+      sb.append("any");
+      return;
+    }
+
+    emitConcretenessCName(sb, type.concreteness());
+    emitPromisityCName(sb, type.promisity());
+    emitKindCName(sb, type.kind());
+    emitOwnershipCName(sb, type.ownership());
+  }
+
+  private static void emitPromisityCName(StringBuilder sb, Promisity promisity) {
+    if (promisity.isPromise()) {
+      sb.append("prom_");
+      emitEffectsCName(sb, promisity.effects());
+    } else if (promisity.isMaybe()) {
+      sb.append("mayprom_");
+      emitEffectsCName(sb, promisity.effects());
+    }
+  }
+
+  private static void emitKindCName(StringBuilder sb, Kind kind) {
+    switch (kind) {
+      case AnySexp() -> sb.append("value");
+      case Kind.PrimitiveVector(var primitiveKind) -> {
+        sb.append("vec_");
+        emitPrimitiveKindCName(sb, primitiveKind);
+      }
+      case Kind.Closure() -> sb.append("closure");
+      case Kind.Dots() -> sb.append("dots");
+      case Kind.Missing() -> sb.append("missing");
+      case Kind.PrimitiveScalar(var primitiveKind) -> {
+        sb.append("scalar_");
+        emitPrimitiveKindCName(sb, primitiveKind);
+      }
+      case Kind.Boolean() -> sb.append("bool");
+    }
+  }
+
+  private static void emitPrimitiveKindCName(StringBuilder sb, PrimitiveKind primitiveKind) {
+    switch (primitiveKind) {
+      case LOGICAL -> sb.append("logical");
+      case INTEGER -> sb.append("int");
+      case REAL -> sb.append("real");
+      case STRING -> sb.append("string");
+    }
+  }
+
+  private static void emitOwnershipCName(StringBuilder sb, Ownership ownership) {
+    switch (ownership) {
+      case FRESH -> sb.append("fresh");
+      case OWNED -> sb.append("owned");
+      case BORROWED -> sb.append("borrowed");
+      case SHARED -> {}
+    }
+  }
+
+  private static void emitConcretenessCName(StringBuilder sb, Concreteness concreteness) {
+    switch (concreteness) {
+      case DEFINITE -> {}
+      case MAYBE -> sb.append("maybe");
+    }
+  }
+
+  private static void emitEffectsCName(StringBuilder sb, Effects fx) {
+    switch (fx) {
+      case NONE -> sb.append("none");
+      case IMPURE -> sb.append("impure");
+      case REFLECT -> sb.append("reflect");
+    }
   }
 
   private static String promiseConstantsCName(Promise promise) {
@@ -1549,11 +1686,39 @@ public final class Fir2CCompiler {
     return Stream.concat(
             Stream.of("SEXP %s".formatted(VAR_ENV)),
             version.parameters().stream()
-                .map(p -> "SEXP %s".formatted(registerCName(p.variable()))))
+                .map(
+                    p ->
+                        "%s %s"
+                            .formatted(
+                                reprCType(p.type().kind().repr()), registerCName(p.variable()))))
         .toList();
   }
 
-  private static final String VERSION_CALL_C_RETURN = "SEXP";
+  private static String reprCType(Repr repr) {
+    return switch (repr) {
+      case SEXP -> "SEXP";
+      case INT -> "int";
+      case FLOAT -> "double";
+      case STRING -> "char*";
+      case LOGICAL -> "Rboolean";
+      case BOOLEAN -> "bool";
+    };
+  }
+
+  private static String reprDefaultValue(Repr repr) {
+    return switch (repr) {
+      case SEXP -> "R_NilValue";
+      case INT -> "0";
+      case FLOAT -> "0.0";
+      case STRING -> "NULL";
+      case LOGICAL -> "FALSE";
+      case BOOLEAN -> "false";
+    };
+  }
+
+  private static String versionCallCReturn(Abstraction version) {
+    return reprCType(version.returnType().kind().repr());
+  }
 
   private static final List<String> PROMISE_EVAL_C_PARAMS =
       List.of("SEXP %s".formatted(VAR_ENV), "SEXP **%s".formatted(VAR_CAPTURES));
@@ -1604,9 +1769,9 @@ public final class Fir2CCompiler {
     }
   }
 
-  private void debugValue(CCode cCode, String name, String var) {
+  private void debugValue(CCode cCode, String name, String var, Repr repr) {
     if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
-      cCode.stmt("Fir_dbg_sexp(\"%s\", %s);", sanitizeString(name), var);
+      cCode.stmt("Fir_dbg_%s(\"%s\", %s);", repr.name().toLowerCase(), sanitizeString(name), var);
     }
   }
 

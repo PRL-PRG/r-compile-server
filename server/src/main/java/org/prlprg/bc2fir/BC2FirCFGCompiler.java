@@ -565,10 +565,14 @@ public class BC2FirCFGCompiler {
                 getStr(elemName),
                 builtin(
                     "[[",
+                    new Signature(
+                        ImmutableList.of(Type.ANY_VALUE, Type.INTEGER, Type.MISSING, Type.BOOLEAN),
+                        Type.ANY_VALUE,
+                        Effects.NONE),
                     seq,
                     index1,
-                    new Constant(SEXPs.dots()),
-                    new Constant(SEXPs.logical(true))));
+                    new Constant(SEXPs.MISSING_ARG),
+                    new Constant(new Value.Bool(true))));
         // Store in the element variable
         insert(new Store(StoreType.LOCAL_VAR, getVar(elemName), elem));
         // Now we compile the rest of the body...
@@ -628,7 +632,12 @@ public class BC2FirCFGCompiler {
         // and we don't want to compile anything else in `stepBb`.
         moveTo(endBb);
       }
-      case EndFor() -> compileEndLoop(LoopType.FOR);
+      case EndFor() -> {
+        compileEndLoop(LoopType.FOR);
+        // Pop index and replace with `NULL` (a SEXP, in case we use it)
+        pop();
+        push(new Constant(SEXPs.NULL));
+      }
       case Invisible() -> insert(intrinsic("setInvisible"));
       case LdConst(var constant) -> push(new Constant(get(constant)));
       case LdNull() -> push(new Constant(SEXPs.NULL));
