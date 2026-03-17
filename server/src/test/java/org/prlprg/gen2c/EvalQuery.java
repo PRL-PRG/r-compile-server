@@ -68,8 +68,8 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
       assertEquals(
-          expected.outputLogWithoutAddresses(),
-          actual.outputLogWithoutAddresses(),
+          expected.behaviorOutputLog(),
+          actual.behaviorOutputLog(),
           "Output changed");
     }
   }
