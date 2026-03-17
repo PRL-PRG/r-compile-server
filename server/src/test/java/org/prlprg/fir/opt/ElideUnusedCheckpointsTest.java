@@ -80,15 +80,12 @@ class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
                 r = 0;
                 check L1() else L2();
               L1():
-                s = `+`.0(r, r);
+                s = `+`< I,I --> I >(r, r);
                 return s;
               L2():
                 mkenv;
                 deopt 5 [];
               }
-            }
-            fun `+`(a, b) {
-              (reg a:I, reg b:I) --> I { ... }
             }
             """);
 
@@ -96,7 +93,7 @@ class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
 
     var printed = Printer.toString(module);
     assertFalse(printed.contains("check"), "checkpoint should be removed");
-    assertTrue(printed.contains("`+`.0(r, r)"), "inlined statement should be preserved");
+    assertTrue(printed.contains("`+`< I,I --> I >(r, r)"), "inlined statement should be preserved");
     assertTrue(printed.contains("return s"), "return should be preserved");
   }
 }

@@ -3,11 +3,11 @@ fun main() {
     x = prom<I ->{
       return 42;
     };
-    f = f(x);
-    g = g(x, FALSE);
-    g2 = g(x, TRUE);
-    gSum = `+`.1(g, g2);
-    res = `+`.1(f, gSum);
+    f = f< p(I -)@! --> I >(x);
+    g = g< p(I -)@!,B --> I >(x, FALSE);
+    g2 = g< p(I -)@!,B --> I >(x, TRUE);
+    gSum = `+`< I,I --> I >(g, g2);
+    res = `+`< I,I --> I >(f, gSum);
     return res;
   }
 }
@@ -20,7 +20,7 @@ fun f(x) {
 }
 
 fun g(x, cond) {
-  (reg x:p(I -)@!, reg cond:L) --> I { reg r:I, reg r2:I |
+  (reg x:p(I -)@!, reg cond:B) --> I { reg r:I, reg r2:I |
     if cond then L1() else L2();
   L1():
     r = force x;

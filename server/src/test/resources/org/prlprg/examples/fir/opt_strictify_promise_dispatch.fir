@@ -3,14 +3,14 @@ fun main() {
     ra = 1;
     rb = 2;
     rx = prom<I ->{
-      rc = `+`.1(ra, rb);
+      rc = `+`< I,I --> I >(ra, rb);
       return rc;
     };
     ry = prom<I +>{
       return 5;
     };
-    # after: rz = f< I,p(I +) --> I >(rc, ry);
-    rz = f< p(I -),p(I +) --> I >(rx, ry);
+    # after: rz = f?< I,p(I +) --> I >(rc, ry);
+    rz = f?< p(I -),p(I +) --> I >(rx, ry);
     return rz;
   }
 }

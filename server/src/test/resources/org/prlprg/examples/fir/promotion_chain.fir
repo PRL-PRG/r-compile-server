@@ -13,7 +13,7 @@ fun main() {
       ry1 = ld y;
       r5 = ry1 as I;
       r = v(I)[r4, r5];
-      return use r;
+      return consume r;
     };
     r1 = force r0;
     popenv;

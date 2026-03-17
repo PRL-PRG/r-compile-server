@@ -7,26 +7,26 @@ fun main() {
     r5 = blackBox< V --> V >(5);
 
     # Optimized
-    g.1(r1, 1);
+    g< V,I --> I >(r1, 1);
     # Baseline
-    g.0(r2, 2.0);
+    g< V,V --> I >(r2, 2.0);
     # Optimized -> baseline
-    g.1(r3, 3);
+    g< V,I --> I >(r3, 3);
     # Baseline
-    g.0(r4, 4.0);
+    g< V,V --> I >(r4, 4.0);
     # Optimized
-    g.1(r5, 5);
+    g< V,I --> I >(r5, 5);
 
-    require(1);
-    require("bar");
-    require(2);
-    require("foo");
-    require(3.0);
-    require("foo");
-    require(4.0);
-    require("foo");
-    require(5);
-    require("bar");
+    require< V --> V >(1);
+    require< V --> V >("bar");
+    require< V --> V >(2);
+    require< V --> V >("foo");
+    require< V --> V >(3.0);
+    require< V --> V >("foo");
+    require< V --> V >(4.0);
+    require< V --> V >("foo");
+    require< V --> V >(5);
+    require< V --> V >("bar");
 
     return 49;
   }
@@ -35,12 +35,12 @@ fun main() {
 fun g(n, a) {
   (reg n:V, reg a:V) --> I { reg r:V, var x:* |
     mkenv;
-    provide(n);
+    provide< V --> V >(n);
     r = 14;
     check BB1() else BB2();
   BB1():
     r ?= 14;
-    provide("foo");
+    provide< V --> V >("foo");
     popenv;
     return 42;
   BB2():
@@ -48,12 +48,12 @@ fun g(n, a) {
     deopt 5 [r, n];
   }
   (reg n:V, reg a:I) --> I { reg r:I, reg r1:V, var x:* |
-    provide(n);
+    provide< V --> V >(n);
     r1 = n;
     check BB1() else BB2();
   BB1():
     r = n ?: I;
-    provide("bar");
+    provide< V --> V >("bar");
     return 24;
   BB2():
     mkenv;
@@ -63,11 +63,11 @@ fun g(n, a) {
 
 # Asserts the last argument given to `provide`
 fun require(x) {
-  (reg x:*) --> V { ... }
+  (reg x:V) --> V { ... }
 }
 
 fun provide(x) {
-  (reg x:*) --> V { ... }
+  (reg x:V) --> V { ... }
 }
 
 # Returns the argument as is, but marks the call as an optimization barrier

@@ -6,10 +6,10 @@ fun main() {
     r1_owned = v(I)[6, 7];
     r1 = contextual<*,* --> I>(r_shared, r_shared);
     r2 = contextual<*,* --> I>(r_shared, r1_shared);
-    r3 = contextual<v(I)o,* --> I>(use r_owned, r_shared);
-    r4 = contextual<v(I)o,* --> I>(use r1_owned, r1_shared);
+    r3 = contextual<v(I)o,* --> I>(consume r_owned, r_shared);
+    r4 = contextual<v(I)o,* --> I>(consume r1_owned, r1_shared);
     r5 = v(I)[r1, r2, r3, r4];
-    return use r5;
+    return consume r5;
   }
 }
 

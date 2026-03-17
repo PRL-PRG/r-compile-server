@@ -164,7 +164,7 @@ public final class Module {
     for (var entry : deferredFunctions.entrySet()) {
       var name = entry.getKey();
       var deferred = entry.getValue();
-      var function = module.functions.get(name);
+      var function = module.lookupFunction(name);
       if (function == null) {
         throw s.fail("Function not found: " + name);
       }

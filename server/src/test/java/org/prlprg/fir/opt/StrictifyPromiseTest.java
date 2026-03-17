@@ -23,7 +23,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
                   ry = v(I)[1];
                   return ry;
                 };
-                rz = f.1(rx);
+                rz = f< p(v(I) -)@! --> v(I) >(rx);
                 return rz;
               }
             }
@@ -42,10 +42,11 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
     // The promise assignment is gone and its body is inlined before the call
     assertFalse(printed.contains("prom<"), "promise should be inlined");
     // The call argument is now the inlined result, not the promise register
-    assertFalse(printed.contains("f.1(rx)"), "old promise-taking call should be gone");
+    assertFalse(
+        printed.contains("< p(v(I) -)@! --> v(I) >(rx)"), "old promise-taking call should be gone");
     // A suitable non-promise version is used
     assertTrue(
-        printed.contains("f< v(I) --> v(I) >(rx)"), "call should use the integer-taking version");
+        printed.contains("< v(I) --> v(I) >(rx)"), "call should use the integer-taking version");
     assertTrue(printed.contains("ry = v(I)[1]"), "promise body should appear in outer scope");
   }
 
@@ -60,7 +61,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
                   ry = v(I)[42];
                   return ry;
                 };
-                rz = f.1(rx);
+                rz = f< p(v(I) +)@! --> v(I) >(rx);
                 return rz;
               }
             }
@@ -86,7 +87,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
                 ra = v(I)[1];
                 rb = v(I)[2];
                 rx = prom<v(I) ->{
-                  rc = `+`.0(ra, rb);
+                  rc = `+`< v(I),v(I) --> v(I) >(ra, rb);
                   return rc;
                 };
                 ry = prom<v(I) +>{
@@ -102,9 +103,6 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
               (reg r1:p(v(I) -)@!, reg r2:p(v(I) +)@!) --> v(I) { ... }
               (reg r1:v(I), reg r2:p(v(I) +)@!) --> v(I) { ... }
             }
-            fun `+`(a, b) {
-              (reg a:v(I), reg b:v(I)) --> v(I) { ... }
-            }
             """);
 
     assertTrue(run(module), "optimization should report a change");
@@ -115,9 +113,11 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
     assertTrue(printed.contains("prom<v(I) +>"), "effectful promise should remain");
     // Dispatch signature updated for the inlined argument
     assertTrue(
-        printed.contains("f< v(I),p(v(I) +)@! --> v(I) >"),
+        printed.contains("< v(I),p(v(I) +)@! --> v(I) >"),
         "dispatch signature should reflect inlined param type");
-    assertTrue(printed.contains("rc = `+`.0(ra, rb)"), "promise body should be inlined");
+    assertTrue(
+        printed.contains("rc = `+`< v(I),v(I) --> v(I) >(ra, rb)"),
+        "promise body should be inlined");
   }
 
   @Test
@@ -133,7 +133,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
                   ry = v(I)[1];
                   return ry;
                 };
-                rz = f.1(rx);
+                rz = f< p(v(I) -)@! --> v(I) >(rx);
                 rw = force rx;
                 return rz;
               }

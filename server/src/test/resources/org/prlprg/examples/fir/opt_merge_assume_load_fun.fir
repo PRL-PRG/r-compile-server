@@ -1,6 +1,6 @@
 fun main() {
   () -+> I { reg out:I |
-    out = call_f();
+    out = call_f< -+> I >();
     return out;
   }
 }

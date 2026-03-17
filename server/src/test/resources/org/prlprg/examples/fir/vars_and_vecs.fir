@@ -2,8 +2,8 @@ fun main() {
   () --> v(I)f { reg ry:p(I -), reg rz:v(I), reg r:v(I)o |
     ry = prom<I ->{ return 42; };
     rz = v(I)[1, 2, 3];
-    r = f.0(24, ry, rz);
-    return use r;
+    r = f< I,p(I -),v(I) --> v(I)f >(24, ry, rz);
+    return consume r;
   }
 }
 
@@ -25,6 +25,6 @@ fun f(rx, ry, rz) {
     r4 = rz[1];
     ret[r4] = 4;
     popenv;
-    return use ret;
+    return consume ret;
   }
 }

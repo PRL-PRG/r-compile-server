@@ -1,10 +1,10 @@
 fun main() {
   () -+> V { reg p:p(V +), reg r:V, reg res:V |
     p = prom<V +>{
-      r = fx.0();
+      r = fx< -+> V >();
       return r;
     };
-    res = f< p(V +) -+> V >(p);
+    res = f?< p(V +) -+> V >(p);
     return res;
   }
 }

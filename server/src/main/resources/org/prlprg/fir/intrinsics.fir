@@ -14,5 +14,9 @@ fun setVisible() {
   () --> V { ... }
 }
 fun naToFalse(r) {
+  (reg r:v(L)) --> B { ... }
   (reg r:L) --> B { ... }
+}
+fun unbox(r) {
+  (reg r:v(S)) --> S { ... }
 }

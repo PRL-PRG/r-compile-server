@@ -8,7 +8,7 @@ fun main() {
       rx2 = rx1 as V;
       return rx2;
     };
-    r1 = f< p(V -) -+> v(I) >(r0);
+    r1 = f?< p(V -) -+> v(I) >(r0);
     popenv;
     return r1;
   }
@@ -17,7 +17,7 @@ fun main() {
 fun f(r) {
   (reg r:p(V -)) -+> v(I) { reg r1:v(I) |
     mkenv;
-    r1 = g< p(V -) -+> v(I) >(r);
+    r1 = g?< p(V -) -+> v(I) >(r);
     popenv;
     return r1;
   }
@@ -25,11 +25,11 @@ fun f(r) {
 
 fun g(r) {
   # type-error: Function effects mismatch: + don't subset -
-  (reg r:p(V -)) --> v(I) { reg r0:v(I)o, reg r1:v(I) |
+  (reg r:p(V -)) --> v(I) { reg r0:v(I) |
     mkenv;
     r0 = v(I)[3, 4, 5];
-    r1 = r$x = r0;
+    r$x = r0;
     popenv;
-    return r1;
+    return r0;
   }
 }

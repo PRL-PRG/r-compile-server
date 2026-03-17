@@ -156,7 +156,9 @@ import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -278,7 +280,12 @@ public class BC2FirCFGCompiler {
       var afterBb = cfg.addBB();
 
       insert(
-          new Statement(parameterIsMissing, builtin("missing", 0, new Read(parameter.variable()))));
+          new Statement(
+              parameterIsMissing,
+              builtin(
+                  "missing",
+                  new Signature(ImmutableList.of(Type.ANY), Type.BOOLEAN, Effects.NONE),
+                  new Read(parameter.variable()))));
       cursor.advance();
       if (defaultIsConstant) {
         cursor.replace(
@@ -429,7 +436,13 @@ public class BC2FirCFGCompiler {
       case BrIfNot(var _, var label) -> {
         var bb = bbAt(label);
         var cond = pop();
-        var condCasted = insertAndReturn("_cond", builtin("as.logical", 1, cond));
+        var condCasted =
+            insertAndReturn(
+                "_cond",
+                builtin(
+                    "as.logical",
+                    new Signature(ImmutableList.of(Type.ANY_VALUE), Type.BOOLEAN, Effects.NONE),
+                    cond));
         insert(next -> branch(condCasted, next, bb));
       }
       case Pop() -> pop();
@@ -506,8 +519,14 @@ public class BC2FirCFGCompiler {
 
         // For loop init
         var seq = insertAndReturn("_seq", intrinsic("toForSeq", pop()));
-        var length = insertAndReturn("_len", builtin("length", seq));
-        var init = new Constant(SEXPs.integer(0));
+        var length =
+            insertAndReturn(
+                "_len",
+                builtin(
+                    "length",
+                    new Signature(ImmutableList.of(Type.ANY_VALUE), Type.INTEGER, Effects.NONE),
+                    seq));
+        var init = new Constant(new Value.Int(0));
         var index = insertAndReturn("_idx", new Aea(init));
         push(index);
         setJump(goto_(stepBb));
@@ -516,10 +535,25 @@ public class BC2FirCFGCompiler {
         moveTo(stepBb);
         // Increment the index
         var index1 =
-            insertAndReturn("_idx", builtin("+", 1, pop(), new Constant(SEXPs.integer(1))));
+            insertAndReturn(
+                "_idx",
+                builtin(
+                    "+",
+                    new Signature(
+                        ImmutableList.of(Type.INTEGER, Type.INTEGER), Type.INTEGER, Effects.NONE),
+                    pop(),
+                    new Constant(new Value.Int(1))));
         push(index1);
         // Compare the index to the length
-        var cond = insertAndReturn("_cond", builtin("<", 1, length, index1));
+        var cond =
+            insertAndReturn(
+                "_cond",
+                builtin(
+                    "<",
+                    new Signature(
+                        ImmutableList.of(Type.INTEGER, Type.INTEGER), Type.BOOLEAN, Effects.NONE),
+                    length,
+                    index1));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         setJump(branch(cond, endBb, forBodyBb));
 
@@ -763,23 +797,57 @@ public class BC2FirCFGCompiler {
       case IsNumeric() -> pushInsertCond(builtin("is.numeric", pop()));
       case And1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsertCond(builtin("as.logical", 1, pop()));
-        var cond = insertAndReturn("_cond", intrinsic("naToFalse", top()));
+        pushInsertCond(
+            builtin(
+                "as.logical",
+                new Signature(
+                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR, Effects.NONE),
+                pop()));
+        var cond =
+            insertAndReturn(
+                "_cond",
+                intrinsic(
+                    "naToFalse",
+                    new Signature(
+                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR), Type.BOOLEAN, Effects.NONE),
+                    top()));
         insert(next -> branch(cond, next, shortCircuitBb));
       }
       case And2nd(var _) -> {
-        pushInsertCond(builtin("as.logical", 1, pop()));
+        pushInsertCond(
+            builtin(
+                "as.logical",
+                new Signature(
+                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR, Effects.NONE),
+                pop()));
         pushInsertCond(mkBinop("&&"));
         insert(this::goto_);
       }
       case Or1st(var _, var shortCircuit) -> {
         var shortCircuitBb = bbAt(shortCircuit);
-        pushInsertCond(builtin("as.logical", 1, pop()));
-        var cond = insertAndReturn("_cond", intrinsic("naToFalse", top()));
+        pushInsertCond(
+            builtin(
+                "as.logical",
+                new Signature(
+                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR, Effects.NONE),
+                pop()));
+        var cond =
+            insertAndReturn(
+                "_cond",
+                intrinsic(
+                    "naToFalse",
+                    new Signature(
+                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR), Type.BOOLEAN, Effects.NONE),
+                    top()));
         insert(next -> branch(cond, shortCircuitBb, next));
       }
       case Or2nd(var _) -> {
-        pushInsertCond(builtin("as.logical", 1, pop()));
+        pushInsertCond(
+            builtin(
+                "as.logical",
+                new Signature(
+                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR, Effects.NONE),
+                pop()));
         pushInsertCond(mkBinop("||"));
         insert(this::goto_);
       }
@@ -847,9 +915,17 @@ public class BC2FirCFGCompiler {
         var isVector =
             insertAndReturn(
                 "_cond", builtin("is.vector", value, new Constant(SEXPs.string("any"))));
+        var isVector1 =
+            insertAndReturn(
+                "_cond1",
+                intrinsic(
+                    "naToFalse",
+                    new Signature(
+                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR), Type.BOOLEAN, Effects.NONE),
+                    isVector));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB();
-        setJump(branch(isVector, isVectorBb, isNotVectorBb));
+        setJump(branch(isVector1, isVectorBb, isNotVectorBb));
 
         moveTo(isNotVectorBb);
         insert(stop("EXPR must be a length 1 vector"));
@@ -861,9 +937,13 @@ public class BC2FirCFGCompiler {
                 "_cond",
                 builtin(
                     "inherits",
+                    new Signature(
+                        ImmutableList.of(Type.ANY_VALUE, Type.STRING, Type.BOOLEAN),
+                        Type.BOOLEAN,
+                        Effects.NONE),
                     value,
-                    new Constant(SEXPs.string("factor")),
-                    new Constant(SEXPs.logical(false))));
+                    new Constant(new Value.Str("factor")),
+                    new Constant(new Value.Bool(false))));
         var isFactorBb = cfg.addBB();
         var isNotFactorBb = cfg.addBB();
         setJump(branch(isFactor, isFactorBb, isNotFactorBb));
@@ -875,7 +955,13 @@ public class BC2FirCFGCompiler {
         setJump(goto_(isFactorBb));
 
         moveTo(isFactorBb);
-        var isString = insertAndReturn("_cond", builtin("is.character", value));
+        var isString =
+            insertAndReturn(
+                "_cond",
+                builtin(
+                    "is.character",
+                    new Signature(ImmutableList.of(Type.ANY_VALUE), Type.BOOLEAN, Effects.NONE),
+                    value));
         var stringBb = cfg.addBB();
         var asIntegerBb = cfg.addBB();
         setJump(branch(isString, stringBb, asIntegerBb));
@@ -903,11 +989,29 @@ public class BC2FirCFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              // TODO: use unboxed string (need to create constant and equals)
               var asString = insertAndReturn("_idx", new Cast(value, Type.SHARED_STRING_VECTOR));
+              var asString1 =
+                  insertAndReturn(
+                      "_idx1",
+                      intrinsic(
+                          "unbox",
+                          new Signature(
+                              ImmutableList.of(Type.SHARED_STRING_VECTOR),
+                              Type.STRING,
+                              Effects.NONE),
+                          asString));
               var cond =
                   insertAndReturn(
-                      "_cond", builtin("==", 3, asString, new Constant(SEXPs.string(name))));
+                      "_cond",
+                      builtin(
+                          "==",
+                          new Signature(
+                              ImmutableList.of(
+                                  Type.SHARED_STRING_VECTOR, Type.SHARED_STRING_VECTOR),
+                              Type.BOOLEAN,
+                              Effects.NONE),
+                          asString1,
+                          new Constant(new Value.Str(name))));
               insert(next -> branch(cond, ifMatch, next));
             }
             // `switch` just goes to the last label regardless of whether it matches.
@@ -924,12 +1028,26 @@ public class BC2FirCFGCompiler {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
         } else {
-          var asInteger = insertAndReturn("_idx", builtin("as.integer", 1, value));
+          var asInteger =
+              insertAndReturn(
+                  "_idx",
+                  builtin(
+                      "as.integer",
+                      new Signature(ImmutableList.of(Type.ANY_VALUE), Type.INTEGER, Effects.NONE),
+                      value));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
                 insertAndReturn(
-                    "_cond", builtin("==", 1, asInteger, new Constant(SEXPs.integer(i + 1))));
+                    "_cond",
+                    builtin(
+                        "==",
+                        new Signature(
+                            ImmutableList.of(Type.INTEGER, Type.INTEGER),
+                            Type.BOOLEAN,
+                            Effects.NONE),
+                        asInteger,
+                        new Constant(new Value.Int(i + 1))));
             insert(next -> branch(cond, ifMatch, next));
           }
           // `switch` just goes to the last label regardless of whether it matches.
@@ -970,7 +1088,15 @@ public class BC2FirCFGCompiler {
         var fun = Variable.named(((RegSymSXP) expr.fun()).name());
         var sym = insertAndReturn("_sym", new Load(LoadType.LOCAL_FUN, fun));
         var base = insertAndReturn("_base", new Load(LoadType.BASE_FUN, fun));
-        var guard = insertAndReturn("_guard", builtin("==", 4, sym, base));
+        var guard =
+            insertAndReturn(
+                "_guard",
+                builtin(
+                    "==",
+                    new Signature(
+                        ImmutableList.of(Type.CLOSURE, Type.CLOSURE), Type.BOOLEAN, Effects.NONE),
+                    sym,
+                    base));
 
         var safeBb = cfg.addBB();
         var fallbackBb = cfg.addBB();
@@ -1544,25 +1670,33 @@ public class BC2FirCFGCompiler {
 
   // region expression constructors
   private Expression builtin(String name, Argument... args) {
-    return builtin(name, -1, args);
+    return builtin(name, null, args);
   }
 
-  private Expression builtin(String name, int versionIndex, Argument... args) {
+  private Expression builtin(String name, @Nullable Signature staticSignature, Argument... args) {
     var function =
         Objects.requireNonNull(
             BUILTINS.localFunction(Variable.named(name)), "missing builtin " + name);
     var callee =
-        versionIndex == -1
+        staticSignature == null
             ? new StaticFnCallee(true, function, function.baseline().signature())
-            : new StaticFnCallee(false, function, function.version(versionIndex).signature());
+            : new StaticFnCallee(false, function, staticSignature);
     return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 
   private Expression intrinsic(String name, Argument... args) {
+    return intrinsic(name, null, args);
+  }
+
+  private Expression intrinsic(String name, @Nullable Signature staticSignature, Argument... args) {
     var function =
         Objects.requireNonNull(
             INTRINSICS.localFunction(Variable.named(name)), "missing intrinsic " + name);
-    var callee = new StaticFnCallee(false, function, function.baseline().signature());
+    var callee =
+        new StaticFnCallee(
+            false,
+            function,
+            staticSignature == null ? function.baseline().signature() : staticSignature);
     return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 

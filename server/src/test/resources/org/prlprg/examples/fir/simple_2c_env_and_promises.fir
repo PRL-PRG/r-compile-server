@@ -7,7 +7,7 @@ fun main() {
     stored = ld x;
     stored0 = stored as I;
     popenv;
-    ret = `+`.1(stored0, 5);
+    ret = `+`< I,I --> I >(stored0, 5);
     return ret;
   }
 }

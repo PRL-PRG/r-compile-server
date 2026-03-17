@@ -1,6 +1,6 @@
 fun main() {
   () --> I { reg r:I |
-    r = f.0(<missing>);
+    r = f< dots --> I >(<missing>);
     return r;
   }
 }

@@ -1,8 +1,8 @@
 fun main() {
-  () -+> I { reg clos:cls, reg result:I, reg ret:I |
-    clos = build_closure();
-    result = apply_closure(clos);
-    ret = `+`.1(result, 3);
+  () -+> I { reg closure:cls, reg result:I, reg ret:I |
+    closure = build_closure< --> cls >();
+    result = apply_closure< cls -+> I >(closure);
+    ret = `+`< I,I --> I >(result, 3);
     return ret;
   }
 }
@@ -18,7 +18,7 @@ fun apply_closure(closure) {
   (reg closure:cls) -+> I { reg base:V, reg base0:I, reg sum:I |
     base = dyn closure();
     base0 = base as I;
-    sum = `+`.1(base0, 2);
+    sum = `+`< I,I --> I >(base0, 2);
     return sum;
   }
 }
