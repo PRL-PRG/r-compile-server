@@ -1,11 +1,12 @@
 package org.prlprg.fir.check;
 
+import static org.prlprg.fir.ir.cfg.iterator.BbDfs.bbDfs;
+
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.resolve.EnvironmentLiveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
@@ -36,26 +37,35 @@ public class EnvironmentChecker extends Checker {
   private class OnAbstraction {
     final Abstraction scope;
     final EnvironmentLiveness environmentLiveness;
+    final Set<BB> reachableBbs;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
       environmentLiveness = new EnvironmentLiveness(scope);
+      reachableBbs =
+          scope
+              .streamCfgs()
+              .<BB>mapMulti(
+                  (cfg, acc) -> {
+                    for (var bb : bbDfs(cfg)) {
+                      acc.accept(bb);
+                    }
+                  })
+              .collect(Collectors.toSet());
     }
 
     void run() {
-      scope.streamCfgs().forEach(this::run);
-    }
-
-    private void run(CFG cfg) {
-      // Order doesn't matter, but we must only iterate reachable BBs
-      for (var bb : BbDfs.bbDfs(cfg)) {
-        run(bb);
-      }
+      scope
+          .streamCfgs()
+          .flatMap(cfg -> cfg.bbs().stream())
+          .filter(reachableBbs::contains)
+          .forEach(this::run);
     }
 
     private void run(BB bb) {
       var predEnvs =
           bb.predecessors().stream()
+              .filter(reachableBbs::contains)
               .collect(
                   Streams.toImmutableMap(
                       BB::label,

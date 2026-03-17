@@ -13,7 +13,7 @@ import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 public sealed interface Value {
-  public static Value NULL = new Sexp(SEXPs.NULL);
+  Value NULL = new Sexp(SEXPs.NULL);
 
   record Sexp(SEXP value) implements Value {
     public Sexp {
@@ -85,7 +85,18 @@ public sealed interface Value {
     };
   }
 
-  public static boolean peek(Parser p) {
+  default SEXP box() {
+    return switch (this) {
+      case Sexp(var sexp) -> sexp;
+      case Int(var v) -> SEXPs.integer(v);
+      case Real(var v) -> SEXPs.real(v);
+      case Lgl(var v) -> SEXPs.logical(v);
+      case Str(var v) -> SEXPs.string(v);
+      case Bool(var v) -> SEXPs.logical(v ? Logical.TRUE : Logical.FALSE);
+    };
+  }
+
+  static boolean peek(Parser p) {
     var s = p.scanner();
     return s.nextCharIs('<')
         || s.nextCharsAre("TRUE")

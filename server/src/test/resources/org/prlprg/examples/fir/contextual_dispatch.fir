@@ -27,7 +27,3 @@ fun contextual(r, r1) {
     return 4;
   }
 }
-
-fun print(r) {
-  (reg r:*) --> V { ... }
-}
