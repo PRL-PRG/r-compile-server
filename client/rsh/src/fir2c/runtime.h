@@ -152,7 +152,6 @@ SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names);
-bool Fir_is_true(SEXP value);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
 bool Fir_assume_constant(SEXP value, SEXP constant);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
@@ -163,108 +162,133 @@ bool Fir_assume_type(SEXP value, Fir_Type type);
 
 void Fir_dbg_comment(const char* comment);
 void Fir_dbg_sexp(const char* name, SEXP value);
+void Fir_dbg_logical(const char* name, Rboolean value);
+void Fir_dbg_int(const char* name, int value);
+void Fir_dbg_float(const char* name, double value);
+void Fir_dbg_string(const char* name, char* value);
+void Fir_dbg_boolean(const char* name, bool value);
 void Fir_dbg_signature(Fir_Signature signature);
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
-#define DEFINE_INTRINSIC(X, n, ...)\
-  SEXP Fir_ver_call_ ## X ## _v ## n(SEXP env, ##__VA_ARGS__)
+#define DEFINE_INTRINSIC(X, sig, ...)\
+  SEXP Fir_ver_call_ ## X ## _ ## sig(SEXP env, ##__VA_ARGS__)
 
-#define DEFINE_OVERRIDDEN_BUILTIN(X, n, ...)\
-  SEXP Fir_ver_call_ ## X ## _v ## n(SEXP env, ##__VA_ARGS__)
+#define DEFINE_OVERRIDDEN_BUILTIN(X, sig, ...)\
+  SEXP Fir_ver_call_ ## X ## _ ## sig(SEXP env, ##__VA_ARGS__)
 
 #pragma clang diagnostic pop
 
-DEFINE_INTRINSIC(checkFun, 0, SEXP value);
-DEFINE_INTRINSIC(checkMissing, 0, SEXP value);
-DEFINE_INTRINSIC(toForSeq, 0, SEXP value);
-DEFINE_INTRINSIC(setInvisible, 0);
-DEFINE_INTRINSIC(setVisible, 0);
-DEFINE_INTRINSIC(naToFalse, 0, SEXP value);
+DEFINE_INTRINSIC(checkFun, value_fx_none_ret_value, SEXP value);
+DEFINE_INTRINSIC(checkMissing, value_fx_none_ret_value, SEXP value);
+DEFINE_INTRINSIC(toForSeq, value_fx_impure_ret_value, SEXP value);
+DEFINE_INTRINSIC(setInvisible, fx_none_ret_value);
+DEFINE_INTRINSIC(setVisible, fx_none_ret_value);
+DEFINE_INTRINSIC(naToFalse, vec_logical_fx_none_ret_bool, SEXP value);
 
-// +: v1=I+I→I, v2=R+R→R, v3=I+R→R, v4=R+I→R, v5=vI+vI→vI, v6=vR+vR→vR, v7=vI+vR→vR, v8=vR+vI→vR
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 6, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 7, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2b, 8, SEXP a, SEXP b);
+// +: I+I→I, R+R→R, I+R→R, R+I→R, vI+vI→vI, vR+vR→vR, vI+vR→vR, vR+vI→vR
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, scalar_int_scalar_int_fx_none_ret_scalar_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, scalar_real_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, scalar_int_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, scalar_real_scalar_int_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, vec_int_vec_int_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, vec_real_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, vec_int_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, vec_real_vec_int_fx_none_ret_vec_real, SEXP a, SEXP b);
+// +: unary versions
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, vec_int_missing_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, vec_real_missing_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, scalar_int_missing_fx_none_ret_scalar_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2b, scalar_real_missing_fx_none_ret_scalar_real, SEXP a, SEXP b);
 // -: same layout as +
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 6, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 7, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2d, 8, SEXP a, SEXP b);
-// *: same layout as +
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 6, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 7, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2a, 8, SEXP a, SEXP b);
-// /: v1=I/I→R, v2=R/R→R, v3=I/R→R, v4=R/I→R, v5..v8=vector versions
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 6, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 7, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u2f, 8, SEXP a, SEXP b);
-// :: v1=I:I→vI, v2=I:R→vI, v3=R:R→V, v4=vI:vI→vI, v5=vI:vR→vI, v6=vR:vR→V
-DEFINE_OVERRIDDEN_BUILTIN(_u3a, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3a, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3a, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3a, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3a, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3a, 6, SEXP a, SEXP b);
-// <: v1=I<I→L, v2=R<R→L, v3=I<R→L, v4=R<I→L, v5..v8=vector versions
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 6, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 7, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c, 8, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, scalar_int_scalar_int_fx_none_ret_scalar_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, scalar_real_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, scalar_int_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, scalar_real_scalar_int_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, vec_int_vec_int_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, vec_real_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, vec_int_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, vec_real_vec_int_fx_none_ret_vec_real, SEXP a, SEXP b);
+// -: unary versions
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, vec_int_missing_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, vec_real_missing_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, scalar_int_missing_fx_none_ret_scalar_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2d, scalar_real_missing_fx_none_ret_scalar_real, SEXP a, SEXP b);
+// *: same layout as + (no unary)
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, scalar_int_scalar_int_fx_none_ret_scalar_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, scalar_real_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, scalar_int_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, scalar_real_scalar_int_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, vec_int_vec_int_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, vec_real_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, vec_int_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2a, vec_real_vec_int_fx_none_ret_vec_real, SEXP a, SEXP b);
+// /: I/I→R, R/R→R, I/R→R, R/I→R, vI/vI→vR, vR/vR→vR, vI/vR→vR, vR/vI→vR
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, scalar_int_scalar_int_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, scalar_real_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, scalar_int_scalar_real_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, scalar_real_scalar_int_fx_none_ret_scalar_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, vec_int_vec_int_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, vec_real_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, vec_int_vec_real_fx_none_ret_vec_real, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u2f, vec_real_vec_int_fx_none_ret_vec_real, SEXP a, SEXP b);
+// :: I:I→vI, I:R→vI, R:R→V, vI:vI→vI, vI:vR→vI, vR:vR→V
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, scalar_int_scalar_int_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, scalar_int_scalar_real_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, scalar_real_scalar_real_fx_none_ret_value, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, vec_int_vec_int_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, vec_int_vec_real_fx_none_ret_vec_int, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3a, vec_real_vec_real_fx_none_ret_value, SEXP a, SEXP b);
+// <: vI<vI→vL, vR<vR→vL, vI<vR→vL, vR<vI→vL,
+//    I<I→L, R<R→L, I<R→L, R<I→L,
+//    I<I→B, R<R→B, I<R→B, R<I→B
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, vec_int_vec_int_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, vec_real_vec_real_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, vec_int_vec_real_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, vec_real_vec_int_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_int_scalar_int_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_real_scalar_real_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_int_scalar_real_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_real_scalar_int_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_int_scalar_int_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_real_scalar_real_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_int_scalar_real_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c, scalar_real_scalar_int_fx_none_ret_bool, SEXP a, SEXP b);
 // <=: same layout as <
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 6, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 7, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, 8, SEXP a, SEXP b);
-// ==: v1=L==L, v2=I==I, v3=R==R, v4=S==S, v5..v8=vector, v9=cls==cls
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 1, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 2, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 3, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 4, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 5, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 6, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 7, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 8, SEXP a, SEXP b);
-DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, 9, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, vec_int_vec_int_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, vec_real_vec_real_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, vec_int_vec_real_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, vec_real_vec_int_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_int_scalar_real_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_real_scalar_int_fx_none_ret_scalar_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_int_scalar_int_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_real_scalar_real_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_int_scalar_real_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3c_u3d, scalar_real_scalar_int_fx_none_ret_bool, SEXP a, SEXP b);
+// ==: L==L→B, I==I→B, R==R→B, S==S→B, vL==vL→vL, vI==vI→vL, vR==vR→vL, vS==vS→vL, cls==cls→B
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, scalar_logical_scalar_logical_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, scalar_int_scalar_int_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, scalar_real_scalar_real_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, scalar_string_scalar_string_fx_none_ret_bool, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, vec_logical_vec_logical_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, vec_int_vec_int_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, vec_real_vec_real_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, vec_string_vec_string_fx_none_ret_vec_logical, SEXP a, SEXP b);
+DEFINE_OVERRIDDEN_BUILTIN(_u3d_u3d, closure_closure_fx_none_ret_bool, SEXP a, SEXP b);
 
-// log: v1=I,R→R, v2=R,R→R, v3=vI,vR→vR, v4=vR,vR→vR
-DEFINE_OVERRIDDEN_BUILTIN(log, 1, SEXP value, SEXP base);
-DEFINE_OVERRIDDEN_BUILTIN(log, 2, SEXP value, SEXP base);
-DEFINE_OVERRIDDEN_BUILTIN(log, 3, SEXP value, SEXP base);
-DEFINE_OVERRIDDEN_BUILTIN(log, 4, SEXP value, SEXP base);
-// abs: v1=I→I, v2=R→R, v3=vI→vI, v4=vR→vR
-DEFINE_OVERRIDDEN_BUILTIN(abs, 1, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(abs, 2, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(abs, 3, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(abs, 4, SEXP value);
+// log: I,R→R, R,R→R, vI,vR→vR, vR,vR→vR
+DEFINE_OVERRIDDEN_BUILTIN(log, scalar_int_scalar_real_fx_none_ret_scalar_real, SEXP value, SEXP base);
+DEFINE_OVERRIDDEN_BUILTIN(log, scalar_real_scalar_real_fx_none_ret_scalar_real, SEXP value, SEXP base);
+DEFINE_OVERRIDDEN_BUILTIN(log, vec_int_vec_real_fx_none_ret_vec_real, SEXP value, SEXP base);
+DEFINE_OVERRIDDEN_BUILTIN(log, vec_real_vec_real_fx_none_ret_vec_real, SEXP value, SEXP base);
+// abs: I→I, R→R, vI→vI, vR→vR
+DEFINE_OVERRIDDEN_BUILTIN(abs, scalar_int_fx_none_ret_scalar_int, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(abs, scalar_real_fx_none_ret_scalar_real, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(abs, vec_int_fx_none_ret_vec_int, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(abs, vec_real_fx_none_ret_vec_real, SEXP value);
 
 #define DEFINE_MATH1_BUILTINS(V)\
   V(sqrt, sqrt)\
@@ -295,19 +319,21 @@ DEFINE_OVERRIDDEN_BUILTIN(abs, 4, SEXP value);
 //  V(sinpi, sinpi)\
 //  V(tanpi, tanpi)
 
-// math1: v1=I→R, v2=R→R, v3=vI→vR, v4=vR→vR
+// math1: I→R, R→R, vI→vR, vR→vR
 #define V(name, func)\
-  DEFINE_OVERRIDDEN_BUILTIN(name, 1, SEXP value);\
-  DEFINE_OVERRIDDEN_BUILTIN(name, 2, SEXP value);\
-  DEFINE_OVERRIDDEN_BUILTIN(name, 3, SEXP value);\
-  DEFINE_OVERRIDDEN_BUILTIN(name, 4, SEXP value);
+  DEFINE_OVERRIDDEN_BUILTIN(name, scalar_int_fx_none_ret_scalar_real, SEXP value);\
+  DEFINE_OVERRIDDEN_BUILTIN(name, scalar_real_fx_none_ret_scalar_real, SEXP value);\
+  DEFINE_OVERRIDDEN_BUILTIN(name, vec_int_fx_none_ret_vec_real, SEXP value);\
+  DEFINE_OVERRIDDEN_BUILTIN(name, vec_real_fx_none_ret_vec_real, SEXP value);
 DEFINE_MATH1_BUILTINS(V)
 #undef V
 
-DEFINE_OVERRIDDEN_BUILTIN(length, 1, SEXP value);
-DEFINE_OVERRIDDEN_BUILTIN(as_u2einteger, 1, SEXP value);  // as.integer
-DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, 1, SEXP value);  // as.logical
-DEFINE_OVERRIDDEN_BUILTIN(as_u2echaracter, 1, SEXP value);  // as.character
+DEFINE_OVERRIDDEN_BUILTIN(length, value_fx_none_ret_scalar_int, SEXP value);
+DEFINE_OVERRIDDEN_BUILTIN(as_u2einteger, value_fx_none_ret_scalar_int, SEXP value);  // as.integer
+DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, value_fx_none_ret_vec_logical, SEXP value);  // as.logical: V→v(L)
+DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, value_fx_none_ret_scalar_logical, SEXP value);  // as.logical: V→L
+DEFINE_OVERRIDDEN_BUILTIN(as_u2elogical, value_fx_none_ret_bool, SEXP value);  // as.logical: V→B
+DEFINE_OVERRIDDEN_BUILTIN(as_u2echaracter, value_fx_none_ret_scalar_string, SEXP value);  // as.character
 
 #ifdef __cplusplus
 }

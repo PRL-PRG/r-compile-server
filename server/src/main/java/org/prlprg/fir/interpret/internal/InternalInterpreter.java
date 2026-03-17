@@ -197,30 +197,50 @@ public final class InternalInterpreter implements Interpreter {
     env.set(function.name().name(), stub);
   }
 
-  /// "Hijack" the function version, so when it's called, the Java closure runs. The version
-  /// must be a [stub](Abstraction#isStub).
-  public void registerExternal(String functionName, int versionIndex, ExternalVersion javaClosure) {
+  /// "Hijack" all versions that are not more generic or incompatible with the given signature
+  /// (i.e. the signature's parameters, effects, and return are all supertypes/effects). The
+  /// versions must be [stubs](Abstraction#isStub) and "hijack" means, when the version is
+  /// called, the Java closure runs instead
+  ///
+  /// @throws IllegalArgumentException If no versions match the signature.
+  /// @throws IllegalArgumentException If any version that matches the signature is not a stub.
+  public void registerExternal(
+      String functionName, Signature versionSignature, ExternalVersion javaClosure) {
     var function = module.lookupFunction(Variable.named(functionName));
     if (function == null) {
       throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
     }
-    if (!function.containsIndex(versionIndex)) {
-      throw new IllegalArgumentException(
-          "Function " + functionName + " has no version at " + versionIndex + ":\n" + function);
+    var registeredAny = false;
+    for (var version : function.versions()) {
+      if (!version.signature().hasNarrowerParameters(versionSignature)
+          || !version.signature().hasNarrowerPostconditions(versionSignature)) {
+        continue;
+      }
+
+      registerExternal(functionName, version, javaClosure);
+      registeredAny = true;
     }
-    var version = function.version(versionIndex);
-    registerExternal(functionName, versionIndex, version, javaClosure);
+    if (!registeredAny) {
+      throw new IllegalArgumentException(
+          "Function "
+              + functionName
+              + " has no version with signature "
+              + versionSignature
+              + ":\n"
+              + function);
+    }
   }
 
   private void registerExternal(
-      String functionName, int versionIndex, Abstraction version, ExternalVersion javaClosure) {
+      String functionName, Abstraction version, ExternalVersion javaClosure) {
     if (!version.isStub()) {
       throw new IllegalArgumentException(
-          "Function " + functionName + " version " + versionIndex + " isn't a stub:\n" + version);
-    }
-    if (externalVersions.containsKey(version)) {
-      throw new IllegalArgumentException(
-          "Function " + functionName + " version " + versionIndex + " is already hijacked");
+          "Function "
+              + functionName
+              + " version with signature "
+              + version.signature()
+              + " isn't a stub:\n"
+              + version);
     }
     externalVersions.put(version, javaClosure);
   }

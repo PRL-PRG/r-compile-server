@@ -1,5 +1,6 @@
 package org.prlprg.fir.interpret.internal;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.DoubleBinaryOperator;
@@ -8,6 +9,9 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Signature;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
@@ -48,68 +52,75 @@ public final class Builtins {
 
   // endregion
 
+  // region common signatures
+  private static Signature sig(Type returnType, Effects effects, Type... paramTypes) {
+    return new Signature(ImmutableList.copyOf(paramTypes), returnType, effects);
+  }
+
+  private static final Signature SIG_GENERIC_2 =
+      sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY);
+  private static final Signature SIG_GENERIC_1 = sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY);
+
+  // endregion
+
   /// Register all builtins and intrinsics that are implemented.
   public static void registerBuiltins(InternalInterpreter interpreter) {
-    // Binary math operators, preserving int (versions 0-8)
-    registerBinaryMathBuiltin(interpreter, "+", Double::sum);
-    registerBinaryMathBuiltin(interpreter, "-", (a, b) -> a - b);
-    registerBinaryMathBuiltin(interpreter, "*", (a, b) -> a * b);
+    // Binary math operators, preserving int
+    registerBinaryMathBuiltin(interpreter, "+", Double::sum, x -> x);
+    registerBinaryMathBuiltin(interpreter, "-", (a, b) -> a - b, x -> -x);
+    registerBinaryMathBuiltin(interpreter, "*", (a, b) -> a * b, null);
 
-    // Binary math operators, to real (versions 0-8)
+    // Binary math operators, to real
     registerBinaryMathToRealBuiltin(interpreter, "/", (a, b) -> a / b);
     registerBinaryMathToRealBuiltin(interpreter, "^", Math::pow);
 
-    // Unary +/- (versions 9-13)
-    registerUnaryPlusMinusBuiltin(interpreter, "+", x -> x);
-    registerUnaryPlusMinusBuiltin(interpreter, "-", x -> -x);
+    // Comparison operators
+    registerBinaryComparisonBuiltin(interpreter, "<", (a, b) -> a < b, true);
+    registerBinaryComparisonBuiltin(interpreter, "<=", (a, b) -> a <= b, true);
+    registerBinaryComparisonBuiltin(interpreter, ">", (a, b) -> a > b, false);
+    registerBinaryComparisonBuiltin(interpreter, ">=", (a, b) -> a >= b, false);
 
-    // Comparison operators (versions 0-8)
-    registerBinaryComparisonBuiltin(interpreter, "<", (a, b) -> a < b);
-    registerBinaryComparisonBuiltin(interpreter, "<=", (a, b) -> a <= b);
-    registerBinaryComparisonBuiltin(interpreter, ">", (a, b) -> a > b);
-    registerBinaryComparisonBuiltin(interpreter, ">=", (a, b) -> a >= b);
-
-    // Equality operators (versions 0-9)
+    // Equality operators
     registerEqualityBuiltin(interpreter, "==", true);
     registerEqualityBuiltin(interpreter, "!=", false);
 
-    // Logical operators (versions 0-2)
+    // Logical operators
     registerBinaryLogicalBuiltin(interpreter, "&", Builtins::logicalAnd);
     registerBinaryLogicalBuiltin(interpreter, "|", Builtins::logicalOr);
     registerBinaryLogicalBuiltin(interpreter, "xor", Builtins::logicalXor);
 
-    // Logical scalar operators (versions 0-2)
+    // Logical scalar operators
     registerBinaryScalarLogicalBuiltin(interpreter, "&&", Builtins::logicalAnd);
     registerBinaryScalarLogicalBuiltin(interpreter, "||", Builtins::logicalOr);
 
-    // Logical not (versions 0-6)
+    // Logical not
     registerLogicalNot(interpreter);
 
-    // Colon operator (versions 0-6)
+    // Colon operator
     registerColon(interpreter);
 
-    // Index operators (versions 0-8)
+    // Index operators
     registerIndex(interpreter, "[");
     registerIndex(interpreter, "[[");
 
-    // Sub-assignment operators (versions 0-8)
+    // Sub-assignment operators
     registerSubAssign(interpreter, "[<-", 4);
     registerSubAssign(interpreter, "[[<-", 3);
 
-    // Dollar access (versions 0-1)
+    // Dollar access
     registerDollar(interpreter);
     registerDollarAssign(interpreter);
 
-    // rep (versions 0-8)
+    // rep
     registerRep(interpreter);
 
-    // sum (versions 0-3)
+    // sum
     registerSum(interpreter);
 
-    // Unary math1, preserving int (versions 0-4)
+    // Unary math1, preserving int
     registerAbsBuiltin(interpreter);
 
-    // Unary math1, to real (versions 0-4)
+    // Unary math1, to real
     registerUnaryMath1ToRealBuiltin(interpreter, "sqrt", Math::sqrt);
     registerUnaryMath1ToRealBuiltin(interpreter, "exp", Math::exp);
     registerUnaryMath1ToRealBuiltin(interpreter, "floor", Math::floor);
@@ -137,36 +148,36 @@ public final class Builtins {
     registerUnaryMath1ToRealBuiltin(interpreter, "sinpi", x -> Math.sin(x * Math.PI));
     registerUnaryMath1ToRealBuiltin(interpreter, "tanpi", x -> Math.tan(x * Math.PI));
 
-    // log (versions 0-4)
+    // log
     registerLog(interpreter);
 
-    // length (versions 0-1)
+    // length
     registerLength(interpreter);
 
-    // seq_along (versions 0-1), seq_len (versions 0-2)
+    // seq_along, seq_len
     registerSeqAlong(interpreter);
     registerSeqLen(interpreter);
 
-    // Type conversion (versions 0-1)
+    // Type conversion
     registerAsInteger(interpreter);
     registerAsLogical(interpreter);
     registerAsCharacter(interpreter);
 
-    // missing (versions 0-1)
+    // missing
     registerMissing(interpreter);
 
-    // Error handling (version 0 only)
+    // Error handling
     registerStop(interpreter);
     registerWarning(interpreter);
     registerStopifnot(interpreter);
 
-    // print (versions 0-4)
+    // print
     registerPrint(interpreter);
 
-    // unclass (versions 0-1)
+    // unclass
     registerUnclass(interpreter);
 
-    // Type checking (versions 0-1)
+    // Type checking
     registerIsTypeBuiltin(
         interpreter,
         "is.vector",
@@ -198,498 +209,375 @@ public final class Builtins {
     registerIsTypeBuiltin(interpreter, "is.object", _ -> false, false);
     registerIsTypeBuiltin(interpreter, "is.symbol", sexp -> sexp instanceof SymSXP, false);
 
-    // inherits (versions 0-1)
+    // inherits
     registerInherits(interpreter);
 
-    // attr (versions 0-1)
+    // attr
     registerAttr(interpreter);
 
-    // c (version 0)
+    // c
     registerC(interpreter);
 
     // Intrinsics
-    interpreter.registerExternal("setInvisible", 0, Builtins::setInvisible);
-    interpreter.registerExternal("setVisible", 0, Builtins::setVisible);
-    interpreter.registerExternal("checkMissing", 0, Builtins::checkMissing);
-    interpreter.registerExternal("toForSeq", 0, Builtins::toForSeq);
+    interpreter.registerExternal(
+        "setInvisible", sig(Type.ANY_VALUE, Effects.NONE), Builtins::setInvisible);
+    interpreter.registerExternal(
+        "setVisible", sig(Type.ANY_VALUE, Effects.NONE), Builtins::setVisible);
+    interpreter.registerExternal(
+        "checkMissing", sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE), Builtins::checkMissing);
+    interpreter.registerExternal(
+        "toForSeq", sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY_VALUE), Builtins::toForSeq);
   }
 
-  // region binary math builtins (versions 0-8)
+  // region binary math builtins
 
   private static void registerBinaryMathBuiltin(
-      InternalInterpreter interpreter, String name, DoubleBinaryOperator fn) {
-    // v0: (*, *) -+> V  (generic SEXP)
+      InternalInterpreter interpreter,
+      String name,
+      DoubleBinaryOperator fn,
+      @Nullable DoubleUnaryOperator unaryFn) {
+    // Generic: (*, *) -+> V — covers v0, vector binary (v1-v4), and unary boxed (v9-v11 for +/-)
     interpreter.registerExternal(
         name,
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              if (args.size() != 2
-                  || !(args.getFirst() instanceof Value.Sexp(var s1)
-                      && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`" + name + "`.0 takes 2 sexp-scalar numbers");
+              if (args.size() != 2) {
+                throw interpreter.fail("`" + name + "` generic takes 2 args");
               }
-              if (s1.asScalarInteger().isPresent() && s2.asScalarInteger().isPresent()) {
-                return new Value.Sexp(
-                    SEXPs.integer(
-                        (int)
-                            fn.applyAsDouble(
-                                s1.asScalarInteger().get(), s2.asScalarInteger().get())));
-              } else if (s1.asScalarReal().isPresent() && s2.asScalarReal().isPresent()) {
-                return new Value.Sexp(
-                    SEXPs.real(fn.applyAsDouble(s1.asScalarReal().get(), s2.asScalarReal().get())));
-              } else if (s1.asScalarInteger().isPresent() && s2.asScalarReal().isPresent()) {
-                return new Value.Sexp(
-                    SEXPs.real(
-                        fn.applyAsDouble(s1.asScalarInteger().get(), s2.asScalarReal().get())));
-              } else if (s1.asScalarReal().isPresent() && s2.asScalarInteger().isPresent()) {
-                return new Value.Sexp(
-                    SEXPs.real(
-                        fn.applyAsDouble(s1.asScalarReal().get(), s2.asScalarInteger().get())));
+              if (!(args.getFirst() instanceof Value.Sexp(var s1))) {
+                throw interpreter.fail("`" + name + "` generic takes sexp args");
               }
-              throw interpreter.fail("`" + name + "`.0 takes 2 scalar integers or reals");
+              // Handle unary case: second arg is MISSING_ARG
+              if (args.get(1) instanceof Value.Sexp(var s2m) && s2m.equals(SEXPs.MISSING_ARG)) {
+                if (unaryFn == null) {
+                  throw interpreter.fail("`" + name + "` has no unary version");
+                }
+                return new Value.Sexp(applyUnaryPreservingInt(s1, unaryFn, interpreter, name));
+              }
+              // Binary case
+              if (!(args.get(1) instanceof Value.Sexp(var s2))) {
+                throw interpreter.fail("`" + name + "` generic takes 2 sexp args");
+              }
+              return new Value.Sexp(applyBinaryPreservingInt(s1, s2, fn, interpreter, name));
             }));
-    // v1: (I, I) --> I
+
+    // Scalar binary: (I, I) --> I
     interpreter.registerExternal(
         name,
-        1,
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
               return new Value.Int((int) fn.applyAsDouble(a, b));
             }));
-    // v2: (R, R) --> R
+    // Scalar binary: (R, R) --> R
     interpreter.registerExternal(
         name,
-        2,
+        sig(Type.REAL, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
-    // v3: (I, R) --> R
+    // Scalar binary: (I, R) --> R
     interpreter.registerExternal(
         name,
-        3,
+        sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
-    // v4: (R, I) --> R
+    // Scalar binary: (R, I) --> R
     interpreter.registerExternal(
         name,
-        4,
+        sig(Type.REAL, Effects.NONE, Type.REAL, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
-    // v5: (v(I), v(I)) --> v(I)
-    interpreter.registerExternal(
-        name,
-        5,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var i1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var i2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.integer(
-                      IntStream.range(0, Math.max(i1.size(), i2.size()))
-                          .map(
-                              i ->
-                                  (int)
-                                      fn.applyAsDouble(
-                                          i1.get(i % i1.size()), i2.get(i % i2.size())))
-                          .toArray()));
-            }));
-    // v6: (v(R), v(R)) --> v(R)
-    interpreter.registerExternal(
-        name,
-        6,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var r1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var r2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, Math.max(r1.size(), r2.size()))
-                          .mapToDouble(
-                              i -> fn.applyAsDouble(r1.get(i % r1.size()), r2.get(i % r2.size())))
-                          .toArray()));
-            }));
-    // v7: (v(I), v(R)) --> v(R)
-    interpreter.registerExternal(
-        name,
-        7,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var i1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var r2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, Math.max(i1.size(), r2.size()))
-                          .mapToDouble(
-                              i -> fn.applyAsDouble(i1.get(i % i1.size()), r2.get(i % r2.size())))
-                          .toArray()));
-            }));
-    // v8: (v(R), v(I)) --> v(R)
-    interpreter.registerExternal(
-        name,
-        8,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var r1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var i2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, Math.max(r1.size(), i2.size()))
-                          .mapToDouble(
-                              i -> fn.applyAsDouble(r1.get(i % r1.size()), i2.get(i % i2.size())))
-                          .toArray()));
-            }));
+
+    // Scalar unary (only for +/-): (I, miss) --> I, (R, miss) --> R
+    if (unaryFn != null) {
+      interpreter.registerExternal(
+          name,
+          sig(Type.INTEGER, Effects.NONE, Type.INTEGER, Type.MISSING),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var a = ((Value.Int) args.getFirst()).value();
+                return new Value.Int((int) unaryFn.applyAsDouble(a));
+              }));
+      interpreter.registerExternal(
+          name,
+          sig(Type.REAL, Effects.NONE, Type.REAL, Type.MISSING),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var a = ((Value.Real) args.getFirst()).value();
+                return new Value.Real(unaryFn.applyAsDouble(a));
+              }));
+    }
+  }
+
+  /// Apply binary math op on SEXPs, preserving int type (for +, -, *)
+  private static SEXP applyBinaryPreservingInt(
+      SEXP s1, SEXP s2, DoubleBinaryOperator fn, InternalInterpreter interpreter, String ctx) {
+    // Try scalar first
+    if (s1.asScalarInteger().isPresent() && s2.asScalarInteger().isPresent()) {
+      return SEXPs.integer(
+          (int) fn.applyAsDouble(s1.asScalarInteger().get(), s2.asScalarInteger().get()));
+    } else if (s1.asScalarReal().isPresent() && s2.asScalarReal().isPresent()) {
+      return SEXPs.real(fn.applyAsDouble(s1.asScalarReal().get(), s2.asScalarReal().get()));
+    } else if (s1.asScalarInteger().isPresent() && s2.asScalarReal().isPresent()) {
+      return SEXPs.real(fn.applyAsDouble(s1.asScalarInteger().get(), s2.asScalarReal().get()));
+    } else if (s1.asScalarReal().isPresent() && s2.asScalarInteger().isPresent()) {
+      return SEXPs.real(fn.applyAsDouble(s1.asScalarReal().get(), s2.asScalarInteger().get()));
+    }
+    // Vector operations
+    switch (s1) {
+      case IntSXP i1 when s2 instanceof IntSXP i2 -> {
+        int len = Math.max(i1.size(), i2.size());
+        return SEXPs.integer(
+            IntStream.range(0, len)
+                .map(i -> (int) fn.applyAsDouble(i1.get(i % i1.size()), i2.get(i % i2.size())))
+                .toArray());
+      }
+      case RealSXP r1 when s2 instanceof RealSXP r2 -> {
+        int len = Math.max(r1.size(), r2.size());
+        return SEXPs.real(
+            IntStream.range(0, len)
+                .mapToDouble(i -> fn.applyAsDouble(r1.get(i % r1.size()), r2.get(i % r2.size())))
+                .toArray());
+      }
+      case IntSXP i1 when s2 instanceof RealSXP r2 -> {
+        int len = Math.max(i1.size(), r2.size());
+        return SEXPs.real(
+            IntStream.range(0, len)
+                .mapToDouble(i -> fn.applyAsDouble(i1.get(i % i1.size()), r2.get(i % r2.size())))
+                .toArray());
+      }
+      case RealSXP r1 when s2 instanceof IntSXP i2 -> {
+        int len = Math.max(r1.size(), i2.size());
+        return SEXPs.real(
+            IntStream.range(0, len)
+                .mapToDouble(i -> fn.applyAsDouble(r1.get(i % r1.size()), i2.get(i % i2.size())))
+                .toArray());
+      }
+      default -> {}
+    }
+    throw interpreter.fail("`" + ctx + "` generic requires numeric args");
+  }
+
+  /// Apply unary math op on SEXP, preserving int type (for +, -)
+  private static SEXP applyUnaryPreservingInt(
+      SEXP s, DoubleUnaryOperator fn, InternalInterpreter interpreter, String ctx) {
+    // Try scalar first
+    if (s.asScalarInteger().isPresent()) {
+      return SEXPs.integer((int) fn.applyAsDouble(s.asScalarInteger().get()));
+    } else if (s.asScalarReal().isPresent()) {
+      return SEXPs.real(fn.applyAsDouble(s.asScalarReal().get()));
+    }
+    // Vector operations
+    if (s instanceof IntSXP iv) {
+      return SEXPs.integer(
+          IntStream.range(0, iv.size()).map(i -> (int) fn.applyAsDouble(iv.get(i))).toArray());
+    } else if (s instanceof RealSXP rv) {
+      return SEXPs.real(
+          IntStream.range(0, rv.size()).mapToDouble(i -> fn.applyAsDouble(rv.get(i))).toArray());
+    }
+    throw interpreter.fail("`" + ctx + "` unary requires a numeric arg");
   }
 
   private static void registerBinaryMathToRealBuiltin(
       InternalInterpreter interpreter, String name, DoubleBinaryOperator fn) {
-    // v0: (*, *) -+> V  (generic SEXP, always returns real)
+    // Generic: (*, *) -+> V
     interpreter.registerExternal(
         name,
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
                   || !(args.getFirst() instanceof Value.Sexp(var s1)
                       && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`" + name + "`.0 takes 2 sexp-scalar numbers");
+                throw interpreter.fail("`" + name + "` generic takes 2 sexp-scalar numbers");
               }
-              double a = sexpToDouble(s1, interpreter, name + ".0");
-              double b = sexpToDouble(s2, interpreter, name + ".0");
+              double a = sexpToDouble(s1, interpreter, name);
+              double b = sexpToDouble(s2, interpreter, name);
               return new Value.Sexp(SEXPs.real(fn.applyAsDouble(a, b)));
             }));
-    // v1: (I, I) --> R
+    // Scalar: (I, I) --> R
     interpreter.registerExternal(
         name,
-        1,
+        sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
-    // v2: (R, R) --> R
+    // Scalar: (R, R) --> R
     interpreter.registerExternal(
         name,
-        2,
+        sig(Type.REAL, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
-    // v3: (I, R) --> R
+    // Scalar: (I, R) --> R
     interpreter.registerExternal(
         name,
-        3,
+        sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
-    // v4: (R, I) --> R
+    // Scalar: (R, I) --> R
     interpreter.registerExternal(
         name,
-        4,
+        sig(Type.REAL, Effects.NONE, Type.REAL, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
               return new Value.Real(fn.applyAsDouble(a, b));
             }));
-    // v5-v8: vector versions, all return v(R)
-    interpreter.registerExternal(
-        name,
-        5,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var i1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var i2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, Math.max(i1.size(), i2.size()))
-                          .mapToDouble(
-                              i -> fn.applyAsDouble(i1.get(i % i1.size()), i2.get(i % i2.size())))
-                          .toArray()));
-            }));
-    interpreter.registerExternal(
-        name,
-        6,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var r1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var r2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, Math.max(r1.size(), r2.size()))
-                          .mapToDouble(
-                              i -> fn.applyAsDouble(r1.get(i % r1.size()), r2.get(i % r2.size())))
-                          .toArray()));
-            }));
-    interpreter.registerExternal(
-        name,
-        7,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var i1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var r2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, Math.max(i1.size(), r2.size()))
-                          .mapToDouble(
-                              i -> fn.applyAsDouble(i1.get(i % i1.size()), r2.get(i % r2.size())))
-                          .toArray()));
-            }));
-    interpreter.registerExternal(
-        name,
-        8,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var r1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var i2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, Math.max(r1.size(), i2.size()))
-                          .mapToDouble(
-                              i -> fn.applyAsDouble(r1.get(i % r1.size()), i2.get(i % i2.size())))
-                          .toArray()));
-            }));
   }
 
   // endregion
 
-  // region unary +/- (versions 9-13)
-
-  private static void registerUnaryPlusMinusBuiltin(
-      InternalInterpreter interpreter, String name, DoubleUnaryOperator fn) {
-    // v9: (*, miss) -+> V
-    interpreter.registerExternal(
-        name,
-        9,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`" + name + "`.9 takes 1 sexp-scalar number + miss");
-              }
-              if (sexp.asScalarInteger().isPresent()) {
-                return new Value.Sexp(
-                    SEXPs.integer((int) fn.applyAsDouble(sexp.asScalarInteger().get())));
-              } else if (sexp.asScalarReal().isPresent()) {
-                return new Value.Sexp(SEXPs.real(fn.applyAsDouble(sexp.asScalarReal().get())));
-              }
-              throw interpreter.fail("`" + name + "`.9 takes a scalar integer or real");
-            }));
-    // v10: (I, miss) --> I
-    interpreter.registerExternal(
-        name,
-        10,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var a = ((Value.Int) args.getFirst()).value();
-              return new Value.Int((int) fn.applyAsDouble(a));
-            }));
-    // v11: (R, miss) --> R
-    interpreter.registerExternal(
-        name,
-        11,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var a = ((Value.Real) args.getFirst()).value();
-              return new Value.Real(fn.applyAsDouble(a));
-            }));
-    // v12: (v(I), miss) --> v(I)
-    interpreter.registerExternal(
-        name,
-        12,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var vec = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              return new Value.Sexp(
-                  SEXPs.integer(
-                      IntStream.range(0, vec.size())
-                          .map(i -> (int) fn.applyAsDouble(vec.get(i)))
-                          .toArray()));
-            }));
-    // v13: (v(R), miss) --> v(R)
-    interpreter.registerExternal(
-        name,
-        13,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var vec = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              return new Value.Sexp(
-                  SEXPs.real(
-                      IntStream.range(0, vec.size())
-                          .mapToDouble(i -> fn.applyAsDouble(vec.get(i)))
-                          .toArray()));
-            }));
-  }
-
-  // endregion
-
-  // region comparison builtins (versions 0-8)
+  // region comparison builtins
 
   private static void registerBinaryComparisonBuiltin(
-      InternalInterpreter interpreter, String name, DoubleBinaryPredicate pred) {
-    // v0: (*, *) -+> V
+      InternalInterpreter interpreter,
+      String name,
+      DoubleBinaryPredicate pred,
+      boolean hasBoolean) {
+    // Generic: (*, *) -+> V
     interpreter.registerExternal(
         name,
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
                   || !(args.getFirst() instanceof Value.Sexp(var s1)
                       && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`" + name + "`.0 takes 2 sexp-scalar numbers");
+                throw interpreter.fail("`" + name + "` generic takes 2 sexp-scalar numbers");
               }
-              double a = sexpToDouble(s1, interpreter, name + ".0");
-              double b = sexpToDouble(s2, interpreter, name + ".0");
+              double a = sexpToDouble(s1, interpreter, name);
+              double b = sexpToDouble(s2, interpreter, name);
               return new Value.Sexp(SEXPs.logical(pred.test(a, b)));
             }));
-    // v1: (I, I) --> L
+    // Scalar --> L: (I, I) --> L
     interpreter.registerExternal(
         name,
-        1,
+        sig(Type.LOGICAL, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
               return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
             }));
-    // v2: (R, R) --> L
+    // Scalar --> L: (R, R) --> L
     interpreter.registerExternal(
         name,
-        2,
+        sig(Type.LOGICAL, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
             }));
-    // v3: (I, R) --> L
+    // Scalar --> L: (I, R) --> L
     interpreter.registerExternal(
         name,
-        3,
+        sig(Type.LOGICAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
               return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
             }));
-    // v4: (R, I) --> L
+    // Scalar --> L: (R, I) --> L
     interpreter.registerExternal(
         name,
-        4,
+        sig(Type.LOGICAL, Effects.NONE, Type.REAL, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
               return new Value.Lgl(pred.test(a, b) ? Logical.TRUE : Logical.FALSE);
             }));
-    // v5: (v(I), v(I)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        5,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var i1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var i2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(i1.size(), i2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                res[i] =
-                    pred.test(i1.get(i % i1.size()), i2.get(i % i2.size()))
-                        ? Logical.TRUE
-                        : Logical.FALSE;
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v6: (v(R), v(R)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        6,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var r1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var r2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(r1.size(), r2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                res[i] =
-                    pred.test(r1.get(i % r1.size()), r2.get(i % r2.size()))
-                        ? Logical.TRUE
-                        : Logical.FALSE;
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v7: (v(I), v(R)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        7,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var i1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var r2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(i1.size(), r2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                res[i] =
-                    pred.test(i1.get(i % i1.size()), r2.get(i % r2.size()))
-                        ? Logical.TRUE
-                        : Logical.FALSE;
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v8: (v(R), v(I)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        8,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var r1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var i2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(r1.size(), i2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                res[i] =
-                    pred.test(r1.get(i % r1.size()), i2.get(i % i2.size()))
-                        ? Logical.TRUE
-                        : Logical.FALSE;
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
+
+    // For < and <=: also scalar --> B
+    if (hasBoolean) {
+      // (I, I) --> B
+      interpreter.registerExternal(
+          name,
+          sig(Type.BOOLEAN, Effects.NONE, Type.INTEGER, Type.INTEGER),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var a = ((Value.Int) args.getFirst()).value();
+                var b = ((Value.Int) args.get(1)).value();
+                return new Value.Bool(pred.test(a, b));
+              }));
+      // (R, R) --> B
+      interpreter.registerExternal(
+          name,
+          sig(Type.BOOLEAN, Effects.NONE, Type.REAL, Type.REAL),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var a = ((Value.Real) args.getFirst()).value();
+                var b = ((Value.Real) args.get(1)).value();
+                return new Value.Bool(pred.test(a, b));
+              }));
+      // (I, R) --> B
+      interpreter.registerExternal(
+          name,
+          sig(Type.BOOLEAN, Effects.NONE, Type.INTEGER, Type.REAL),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var a = ((Value.Int) args.getFirst()).value();
+                var b = ((Value.Real) args.get(1)).value();
+                return new Value.Bool(pred.test(a, b));
+              }));
+      // (R, I) --> B
+      interpreter.registerExternal(
+          name,
+          sig(Type.BOOLEAN, Effects.NONE, Type.REAL, Type.INTEGER),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var a = ((Value.Real) args.getFirst()).value();
+                var b = ((Value.Int) args.get(1)).value();
+                return new Value.Bool(pred.test(a, b));
+              }));
+    }
   }
 
   // endregion
 
-  // region equality builtins (versions 0-9)
+  // region equality builtins
 
   private static void registerEqualityBuiltin(
       InternalInterpreter interpreter, String name, boolean isEqual) {
-    // v0: (*, *) -+> V
+    // Generic: (*, *) -+> V
     interpreter.registerExternal(
         name,
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
                   || !(args.getFirst() instanceof Value.Sexp(var s1)
                       && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`" + name + "`.0 takes 2 sexp args");
+                throw interpreter.fail("`" + name + "` generic takes 2 sexp args");
               }
               // Try closure identity comparison first
               if (s1 instanceof CloSXP && s2 instanceof CloSXP) {
@@ -711,150 +599,98 @@ public final class Builtins {
               throw interpreter.failUnsupported(
                   "Mock `" + name + "` not implemented for these argument types");
             }));
-    // v1: (L, L) --> L
+    // Scalar --> B: (L, L) --> B
     interpreter.registerExternal(
         name,
-        1,
+        sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL, Type.LOGICAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Lgl) args.getFirst()).value();
               var b = ((Value.Lgl) args.get(1)).value();
-              if (a == Logical.NA || b == Logical.NA) return new Value.Lgl(Logical.NA);
+              if (a == Logical.NA || b == Logical.NA) {
+                // NA comparison: return Bool(false) for ==, Bool(true) for !=?
+                // Actually NA comparisons should yield NA, but B type has no NA.
+                // Keep same logic as before but return Bool.
+                return new Value.Bool(false);
+              }
               boolean eq = a == b;
-              return new Value.Lgl(isEqual == eq ? Logical.TRUE : Logical.FALSE);
+              return new Value.Bool(isEqual == eq);
             }));
-    // v2: (I, I) --> L
+    // Scalar --> B: (I, I) --> B
     interpreter.registerExternal(
         name,
-        2,
+        sig(Type.BOOLEAN, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               var b = ((Value.Int) args.get(1)).value();
               boolean eq = a == b;
-              return new Value.Lgl(isEqual == eq ? Logical.TRUE : Logical.FALSE);
+              return new Value.Bool(isEqual == eq);
             }));
-    // v3: (R, R) --> L
+    // Scalar --> B: (R, R) --> B
     interpreter.registerExternal(
         name,
-        3,
+        sig(Type.BOOLEAN, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               var b = ((Value.Real) args.get(1)).value();
               boolean eq = a == b;
-              return new Value.Lgl(isEqual == eq ? Logical.TRUE : Logical.FALSE);
+              return new Value.Bool(isEqual == eq);
             }));
-    // v4: (S, S) --> L
+    // Scalar --> B: (S, S) --> B
     interpreter.registerExternal(
         name,
-        4,
+        sig(Type.BOOLEAN, Effects.NONE, Type.STRING, Type.STRING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Str) args.getFirst()).value();
               var b = ((Value.Str) args.get(1)).value();
               boolean eq = a.equals(b);
-              return new Value.Lgl(isEqual == eq ? Logical.TRUE : Logical.FALSE);
+              return new Value.Bool(isEqual == eq);
             }));
-    // v5: (v(L), v(L)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        5,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var l1 = (LglSXP) ((Value.Sexp) args.getFirst()).value();
-              var l2 = (LglSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(l1.size(), l2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                var a = l1.get(i % l1.size());
-                var b = l2.get(i % l2.size());
-                if (a == Logical.NA || b == Logical.NA) {
-                  res[i] = Logical.NA;
-                } else {
-                  boolean eq = a == b;
-                  res[i] = isEqual == eq ? Logical.TRUE : Logical.FALSE;
-                }
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v6: (v(I), v(I)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        6,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var i1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var i2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(i1.size(), i2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                boolean eq = i1.get(i % i1.size()).equals(i2.get(i % i2.size()));
-                res[i] = isEqual == eq ? Logical.TRUE : Logical.FALSE;
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v7: (v(R), v(R)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        7,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var r1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var r2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(r1.size(), r2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                boolean eq = r1.get(i % r1.size()).equals(r2.get(i % r2.size()));
-                res[i] = isEqual == eq ? Logical.TRUE : Logical.FALSE;
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v8: (v(S), v(S)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        8,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var s1 = (StrSXP) ((Value.Sexp) args.getFirst()).value();
-              var s2 = (StrSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(s1.size(), s2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                boolean eq = s1.get(i % s1.size()).equals(s2.get(i % s2.size()));
-                res[i] = isEqual == eq ? Logical.TRUE : Logical.FALSE;
-              }
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v9: (cls, cls) --> L  (closure identity comparison)
-    interpreter.registerExternal(
-        name,
-        9,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var c1 = (CloSXP) ((Value.Sexp) args.getFirst()).value();
-              var c2 = (CloSXP) ((Value.Sexp) args.get(1)).value();
-              boolean eq = c1 == c2;
-              return new Value.Lgl(isEqual == eq ? Logical.TRUE : Logical.FALSE);
-            }));
+    // (cls, cls) --> B for ==, (cls, cls) --> L for !=
+    if (isEqual) {
+      interpreter.registerExternal(
+          name,
+          sig(Type.BOOLEAN, Effects.NONE, Type.CLOSURE, Type.CLOSURE),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var c1 = (CloSXP) args.getFirst().box();
+                var c2 = (CloSXP) args.get(1).box();
+                boolean eq = c1 == c2;
+                return new Value.Bool(eq);
+              }));
+    } else {
+      interpreter.registerExternal(
+          name,
+          sig(Type.LOGICAL, Effects.NONE, Type.CLOSURE, Type.CLOSURE),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var c1 = (CloSXP) args.getFirst().box();
+                var c2 = (CloSXP) args.get(1).box();
+                boolean eq = c1 == c2;
+                return new Value.Lgl(isEqual == eq ? Logical.TRUE : Logical.FALSE);
+              }));
+    }
   }
 
   // endregion
 
-  // region logical builtins (versions 0-2)
+  // region logical builtins
 
   private static void registerBinaryLogicalBuiltin(
       InternalInterpreter interpreter, String name, LogicalBinaryOp op) {
-    // v0: (*, *) -+> V
+    // Generic: (*, *) -+> V
     interpreter.registerExternal(
         name,
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
                   || !(args.getFirst() instanceof Value.Sexp(var s1)
                       && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`" + name + "`.0 takes 2 sexps");
+                throw interpreter.fail("`" + name + "` generic takes 2 sexps");
               }
               if ((s1 instanceof ListOrVectorSXP<?> l1 && l1.size() != 1)
                   || (s2 instanceof ListOrVectorSXP<?> l2 && l2.size() != 1)) {
@@ -865,45 +701,31 @@ public final class Builtins {
               var b = sexpToLogical(s2, interpreter, name);
               return new Value.Sexp(SEXPs.logical(op.apply(a, b)));
             }));
-    // v1: (L, L) --> L
+    // (B, B) --> B
     interpreter.registerExternal(
         name,
-        1,
+        sig(Type.BOOLEAN, Effects.NONE, Type.BOOLEAN, Type.BOOLEAN),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Lgl) args.getFirst()).value();
-              var b = ((Value.Lgl) args.get(1)).value();
-              return new Value.Lgl(op.apply(a, b));
-            }));
-    // v2: (v(L), v(L)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        2,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var l1 = (LglSXP) ((Value.Sexp) args.getFirst()).value();
-              var l2 = (LglSXP) ((Value.Sexp) args.get(1)).value();
-              int len = Math.max(l1.size(), l2.size());
-              var res = new Logical[len];
-              for (int i = 0; i < len; i++) {
-                res[i] = op.apply(l1.get(i % l1.size()), l2.get(i % l2.size()));
-              }
-              return new Value.Sexp(SEXPs.logical(res));
+              var a = ((Value.Bool) args.getFirst()).value() ? Logical.TRUE : Logical.FALSE;
+              var b = ((Value.Bool) args.get(1)).value() ? Logical.TRUE : Logical.FALSE;
+              var result = op.apply(a, b);
+              return new Value.Bool(result == Logical.TRUE);
             }));
   }
 
   private static void registerBinaryScalarLogicalBuiltin(
       InternalInterpreter interpreter, String name, LogicalBinaryOp op) {
-    // v0: (*, *) -+> V
+    // Generic: (*, *) -+> V
     interpreter.registerExternal(
         name,
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
                   || !(args.getFirst() instanceof Value.Sexp(var s1)
                       && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`" + name + "`.0 takes 2 sexps");
+                throw interpreter.fail("`" + name + "` generic takes 2 sexps");
               }
               if ((s1 instanceof ListOrVectorSXP<?> l1 && l1.size() != 1)
                   || (s2 instanceof ListOrVectorSXP<?> l2 && l2.size() != 1)) {
@@ -914,185 +736,139 @@ public final class Builtins {
               var b = sexpToLogical(s2, interpreter, name);
               return new Value.Sexp(SEXPs.logical(op.apply(a, b)));
             }));
-    // v1: (L, L) --> L
+    // (B, B) --> B
     interpreter.registerExternal(
         name,
-        1,
+        sig(Type.BOOLEAN, Effects.NONE, Type.BOOLEAN, Type.BOOLEAN),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Lgl) args.getFirst()).value();
-              var b = ((Value.Lgl) args.get(1)).value();
-              return new Value.Lgl(op.apply(a, b));
-            }));
-    // v2: (v(L), v(L)) --> v(L)
-    interpreter.registerExternal(
-        name,
-        2,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var l1 = (LglSXP) ((Value.Sexp) args.getFirst()).value();
-              var l2 = (LglSXP) ((Value.Sexp) args.get(1)).value();
-              if (l1.size() != 1 || l2.size() != 1) {
-                throw interpreter.failUnsupported(
-                    "Mock `" + name + "` not implemented for non-sexp-scalars");
-              }
-              return new Value.Lgl(op.apply(l1.get(0), l2.get(0)));
+              var a = ((Value.Bool) args.getFirst()).value() ? Logical.TRUE : Logical.FALSE;
+              var b = ((Value.Bool) args.get(1)).value() ? Logical.TRUE : Logical.FALSE;
+              var result = op.apply(a, b);
+              return new Value.Bool(result == Logical.TRUE);
             }));
   }
 
   private static void registerLogicalNot(InternalInterpreter interpreter) {
-    // v0: (*) -+> V
+    // Generic: (*) -+> V
     interpreter.registerExternal(
         "!",
-        0,
+        SIG_GENERIC_1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`!`.0 takes 1 sexp-scalar");
+                throw interpreter.fail("`!` generic takes 1 sexp-scalar");
               }
               var l = sexpToLogical(sexp, interpreter, "!");
               return new Value.Sexp(SEXPs.logical(logicalNot(l)));
             }));
-    // v1: (L) --> L
+    // (B) --> B
     interpreter.registerExternal(
         "!",
-        1,
+        sig(Type.BOOLEAN, Effects.NONE, Type.BOOLEAN),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var a = ((Value.Lgl) args.getFirst()).value();
-              return new Value.Lgl(logicalNot(a));
+              var a = ((Value.Bool) args.getFirst()).value();
+              return new Value.Bool(!a);
             }));
-    // v2: (I) --> L
+    // (I) --> L
     interpreter.registerExternal(
         "!",
-        2,
+        sig(Type.LOGICAL, Effects.NONE, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Int) args.getFirst()).value();
               return new Value.Lgl(intToLogicalNot(a));
             }));
-    // v3: (R) --> L
+    // (R) --> L
     interpreter.registerExternal(
         "!",
-        3,
+        sig(Type.LOGICAL, Effects.NONE, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var a = ((Value.Real) args.getFirst()).value();
               return new Value.Lgl(realToLogicalNot(a));
             }));
-    // v4: (v(L)) --> v(L)
-    interpreter.registerExternal(
-        "!",
-        4,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var vec = (LglSXP) ((Value.Sexp) args.getFirst()).value();
-              var res = new Logical[vec.size()];
-              for (int i = 0; i < vec.size(); i++) res[i] = logicalNot(vec.get(i));
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v5: (v(I)) --> v(L)
-    interpreter.registerExternal(
-        "!",
-        5,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var vec = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var res = new Logical[vec.size()];
-              for (int i = 0; i < vec.size(); i++) res[i] = intToLogicalNot(vec.get(i));
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
-    // v6: (v(R)) --> v(L)
-    interpreter.registerExternal(
-        "!",
-        6,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var vec = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var res = new Logical[vec.size()];
-              for (int i = 0; i < vec.size(); i++) res[i] = realToLogicalNot(vec.get(i));
-              return new Value.Sexp(SEXPs.logical(res));
-            }));
   }
 
   // endregion
 
-  // region colon operator (versions 0-6)
+  // region colon operator
 
   private static void registerColon(InternalInterpreter interpreter) {
     // v0: (*, *) -+> V
     interpreter.registerExternal(
         ":",
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
                   || !(args.getFirst() instanceof Value.Sexp(var s1)
                       && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`:`.0 takes 2 sexp-scalar numbers");
+                throw interpreter.fail("`:` generic takes 2 sexp-scalar numbers");
               }
               double start = sexpToDouble(s1, interpreter, ":");
               double end = sexpToDouble(s2, interpreter, ":");
               return new Value.Sexp(colonSeq(start, end));
             }));
-    // v1: (I, I) --> v(I)
+    // (I, I) --> v(I)
     interpreter.registerExternal(
         ":",
-        1,
+        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               int start = ((Value.Int) args.getFirst()).value();
               int end = ((Value.Int) args.get(1)).value();
               return new Value.Sexp(colonSeq(start, end));
             }));
-    // v2: (I, R) --> v(I)
+    // (I, R) --> v(I)
     interpreter.registerExternal(
         ":",
-        2,
+        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               int start = ((Value.Int) args.getFirst()).value();
               double end = ((Value.Real) args.get(1)).value();
               return new Value.Sexp(colonSeq(start, end));
             }));
-    // v3: (R, R) --> V
+    // (R, R) --> V
     interpreter.registerExternal(
         ":",
-        3,
+        sig(Type.ANY_VALUE, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               double start = ((Value.Real) args.getFirst()).value();
               double end = ((Value.Real) args.get(1)).value();
               return new Value.Sexp(colonSeq(start, end));
             }));
-    // v4: (v(I), v(I)) --> v(I)  (use first elements)
+    // (v(I), v(I)) --> v(I)  (use first elements)
     interpreter.registerExternal(
         ":",
-        4,
+        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR, Type.SHARED_INT_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var v1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var v2 = (IntSXP) ((Value.Sexp) args.get(1)).value();
+              var v1 = (IntSXP) args.getFirst().box();
+              var v2 = (IntSXP) args.get(1).box();
               return new Value.Sexp(colonSeq(v1.get(0), v2.get(0)));
             }));
-    // v5: (v(I), v(R)) --> v(I)
+    // (v(I), v(R)) --> v(I)
     interpreter.registerExternal(
         ":",
-        5,
+        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR, Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var v1 = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var v2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
+              var v1 = (IntSXP) args.getFirst().box();
+              var v2 = (RealSXP) args.get(1).box();
               return new Value.Sexp(colonSeq(v1.get(0), v2.get(0)));
             }));
-    // v6: (v(R), v(R)) --> V
+    // (v(R), v(R)) --> V
     interpreter.registerExternal(
         ":",
-        6,
+        sig(Type.ANY_VALUE, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var v1 = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var v2 = (RealSXP) ((Value.Sexp) args.get(1)).value();
+              var v1 = (RealSXP) args.getFirst().box();
+              var v2 = (RealSXP) args.get(1).box();
               return new Value.Sexp(colonSeq(v1.get(0), v2.get(0)));
             }));
   }
@@ -1114,49 +890,89 @@ public final class Builtins {
 
   // endregion
 
-  // region index operators (versions 0-8)
+  // region index operators
 
   private static void registerIndex(InternalInterpreter interpreter, String name) {
-    // v0: generic
+    // Generic: (*, *, *, *) -+> V for [, (*, *, dots, *) -+> V for [[
+    // Both have 4 params in generic form with all being ANY
     interpreter.registerExternal(
         name,
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 4) {
-                throw interpreter.fail("`" + name + "`.0 takes 4 arguments");
+                throw interpreter.fail("`" + name + "` generic takes 4 arguments");
               }
               if (!(args.getFirst() instanceof Value.Sexp(var sexp)
                   && sexp instanceof ListOrVectorSXP<?> vector)) {
                 throw interpreter.failUnsupported(
                     "Mock `" + name + "` not implemented for non-vector objects");
               }
-              int idx = sexpToInt(((Value.Sexp) args.get(1)).value(), interpreter, name);
-              return interpreter.subscriptLoad(vector, idx - 1);
+              int idx = sexpToInt(args.get(1).box(), interpreter, name);
+              return new Value.Sexp(interpreter.subscriptLoad(vector, idx - 1).box());
             }));
-    // v1-v4: scalar index (v(T), I, miss...) --> T
-    for (int v = 1; v <= 4; v++) {
+    // (V, I, miss, B) --> V
+    if (name.equals("[[")) {
+      for (int t = 0; t < 4; t++) {
+        interpreter.registerExternal(
+            name,
+            sig(
+                Type.ANY_VALUE,
+                Effects.NONE,
+                Type.ANY_VALUE,
+                Type.INTEGER,
+                Type.MISSING,
+                Type.BOOLEAN),
+            ExternalVersion.strict(
+                (_, _, args, _) -> {
+                  if (args.size() != 4) {
+                    throw interpreter.fail("`" + name + "` generic takes 4 arguments");
+                  }
+                  if (!(args.getFirst() instanceof Value.Sexp(var sexp)
+                      && sexp instanceof ListOrVectorSXP<?> vector)) {
+                    throw interpreter.failUnsupported(
+                        "Mock `" + name + "` not implemented for non-vector objects");
+                  }
+                  int idx = ((Value.Int) args.get(1)).value();
+                  return new Value.Sexp(interpreter.subscriptLoad(vector, idx - 1).box());
+                }));
+      }
+    }
+    // (v(T), I, miss, miss) --> T for T = L, I, R, S
+    Type[] vecTypes = {
+      Type.SHARED_LOGICAL_VECTOR,
+      Type.SHARED_INT_VECTOR,
+      Type.SHARED_REAL_VECTOR,
+      Type.SHARED_STRING_VECTOR
+    };
+    Type[] scalarTypes = {Type.LOGICAL, Type.INTEGER, Type.REAL, Type.STRING};
+    for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           name,
-          v,
+          sig(scalarTypes[t], Effects.NONE, vecTypes[t], Type.INTEGER, Type.MISSING, Type.MISSING),
           ExternalVersion.strict(
               (_, _, args, _) -> {
-                var vector = (ListOrVectorSXP<?>) ((Value.Sexp) args.getFirst()).value();
+                var vector = (ListOrVectorSXP<?>) args.getFirst().box();
                 int idx = ((Value.Int) args.get(1)).value();
                 return interpreter.subscriptLoad(vector, idx - 1);
               }));
     }
-    // v5-v8: vector index (v(T), v(I), miss...) --> v(T)
-    for (int v = 5; v <= 8; v++) {
+    // (v(T), v(I), miss, miss) --> v(T) for T = L, I, R, S
+    for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           name,
-          v,
+          sig(
+              vecTypes[t],
+              Effects.NONE,
+              vecTypes[t],
+              Type.SHARED_INT_VECTOR,
+              Type.MISSING,
+              Type.MISSING),
           ExternalVersion.strict(
               (_, _, args, _) -> {
-                var vector = (ListOrVectorSXP<?>) ((Value.Sexp) args.getFirst()).value();
-                var indices = (IntSXP) ((Value.Sexp) args.get(1)).value();
+                var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                var indices = (IntSXP) args.get(1).box();
                 // For vector indexing, build result by loading each index
-                // For now, use subscriptLoad for each element
                 if (indices.size() == 1) {
                   return interpreter.subscriptLoad(vector, indices.get(0) - 1);
                 }
@@ -1173,81 +989,163 @@ public final class Builtins {
 
   // endregion
 
-  // region sub-assignment operators (versions 0-8)
+  // region sub-assignment operators
 
   private static void registerSubAssign(InternalInterpreter interpreter, String name, int numArgs) {
-    // v0: generic
-    interpreter.registerExternal(
-        name,
-        0,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              if (args.size() != numArgs) {
-                throw interpreter.fail("`" + name + "`.0 takes " + numArgs + " arguments");
-              }
-              if (!(args.getFirst() instanceof Value.Sexp(var sexp)
-                  && sexp instanceof ListOrVectorSXP<?> vector)) {
-                throw interpreter.failUnsupported(
-                    "Mock `" + name + "` not implemented for non-vector objects");
-              }
-              int idx = sexpToInt(((Value.Sexp) args.get(1)).value(), interpreter, name);
-              var value = args.get(2);
-              var result = vector.copy();
-              interpreter.subscriptStore(result, idx - 1, value);
-              return new Value.Sexp(result);
-            }));
-    // v1-v4: scalar sub-assign (v(T), I, T, miss?) --> v(T)
-    for (int v = 1; v <= 4; v++) {
+    // Generic
+    if (numArgs == 4) {
+      // [<-: (*, *, *, *) -+> V
       interpreter.registerExternal(
           name,
-          v,
+          sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
           ExternalVersion.strict(
               (_, _, args, _) -> {
-                var vector = (ListOrVectorSXP<?>) ((Value.Sexp) args.getFirst()).value();
-                int idx = ((Value.Int) args.get(1)).value();
+                if (args.size() != 4) {
+                  throw interpreter.fail("`" + name + "` generic takes 4 arguments");
+                }
+                if (!(args.getFirst() instanceof Value.Sexp(var sexp)
+                    && sexp instanceof ListOrVectorSXP<?> vector)) {
+                  throw interpreter.failUnsupported(
+                      "Mock `" + name + "` not implemented for non-vector objects");
+                }
+                int idx = sexpToInt(args.get(1).box(), interpreter, name);
+                var value = args.get(2);
+                var result = vector.copy();
+                interpreter.subscriptStore(result, idx - 1, value);
+                return new Value.Sexp(result);
+              }));
+    } else {
+      // [[<-: (*, *, *) -+> V
+      interpreter.registerExternal(
+          name,
+          sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                if (args.size() != 3) {
+                  throw interpreter.fail("`" + name + "` generic takes 3 arguments");
+                }
+                if (!(args.getFirst() instanceof Value.Sexp(var sexp)
+                    && sexp instanceof ListOrVectorSXP<?> vector)) {
+                  throw interpreter.failUnsupported(
+                      "Mock `" + name + "` not implemented for non-vector objects");
+                }
+                int idx = sexpToInt(args.get(1).box(), interpreter, name);
                 var value = args.get(2);
                 var result = vector.copy();
                 interpreter.subscriptStore(result, idx - 1, value);
                 return new Value.Sexp(result);
               }));
     }
-    // v5-v8: vector sub-assign (v(T), v(I), v(T), miss?) --> v(T)
-    for (int v = 5; v <= 8; v++) {
-      interpreter.registerExternal(
-          name,
-          v,
-          ExternalVersion.strict(
-              (_, _, args, _) -> {
-                var vector = (ListOrVectorSXP<?>) ((Value.Sexp) args.getFirst()).value();
-                var indices = (IntSXP) ((Value.Sexp) args.get(1)).value();
-                var values = args.get(2);
-                var result = vector.copy();
-                if (values instanceof Value.Sexp(var valuesSexp)
-                    && valuesSexp instanceof ListOrVectorSXP<?> valuesVec) {
-                  for (int i = 0; i < indices.size(); i++) {
-                    interpreter.subscriptStore(
-                        result, indices.get(i) - 1, interpreter.subscriptLoad(valuesVec, i));
+
+    Type[] vecTypes = {
+      Type.SHARED_LOGICAL_VECTOR,
+      Type.SHARED_INT_VECTOR,
+      Type.SHARED_REAL_VECTOR,
+      Type.SHARED_STRING_VECTOR
+    };
+    Type[] scalarTypes = {Type.LOGICAL, Type.INTEGER, Type.REAL, Type.STRING};
+
+    if (numArgs == 4) {
+      // [<-: v5-v8: (v(T), I, T, miss) --> v(T)
+      for (int t = 0; t < 4; t++) {
+        interpreter.registerExternal(
+            name,
+            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.INTEGER, scalarTypes[t], Type.MISSING),
+            ExternalVersion.strict(
+                (_, _, args, _) -> {
+                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                  int idx = ((Value.Int) args.get(1)).value();
+                  var value = args.get(2);
+                  var result = vector.copy();
+                  interpreter.subscriptStore(result, idx - 1, value);
+                  return new Value.Sexp(result);
+                }));
+      }
+      // [<-: v1-v4: (v(T), v(I), v(T), miss) --> v(T)
+      for (int t = 0; t < 4; t++) {
+        interpreter.registerExternal(
+            name,
+            sig(
+                vecTypes[t],
+                Effects.NONE,
+                vecTypes[t],
+                Type.SHARED_INT_VECTOR,
+                vecTypes[t],
+                Type.MISSING),
+            ExternalVersion.strict(
+                (_, _, args, _) -> {
+                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                  var indices = (IntSXP) args.get(1).box();
+                  var values = args.get(2);
+                  var result = vector.copy();
+                  if (values instanceof Value.Sexp(var valuesSexp)
+                      && valuesSexp instanceof ListOrVectorSXP<?> valuesVec) {
+                    for (int i = 0; i < indices.size(); i++) {
+                      interpreter.subscriptStore(
+                          result, indices.get(i) - 1, interpreter.subscriptLoad(valuesVec, i));
+                    }
+                  } else {
+                    // Single value assigned to multiple indices
+                    for (int i = 0; i < indices.size(); i++) {
+                      interpreter.subscriptStore(result, indices.get(i) - 1, values);
+                    }
                   }
-                } else {
-                  // Single value assigned to multiple indices
-                  for (int i = 0; i < indices.size(); i++) {
-                    interpreter.subscriptStore(result, indices.get(i) - 1, values);
+                  return new Value.Sexp(result);
+                }));
+      }
+    } else {
+      // [[<-: v5-v8: (v(T), I, T) --> v(T)
+      for (int t = 0; t < 4; t++) {
+        interpreter.registerExternal(
+            name,
+            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.INTEGER, scalarTypes[t]),
+            ExternalVersion.strict(
+                (_, _, args, _) -> {
+                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                  int idx = ((Value.Int) args.get(1)).value();
+                  var value = args.get(2);
+                  var result = vector.copy();
+                  interpreter.subscriptStore(result, idx - 1, value);
+                  return new Value.Sexp(result);
+                }));
+      }
+      // [[<-: v1-v4: (v(T), v(I), v(T)) --> v(T)
+      for (int t = 0; t < 4; t++) {
+        interpreter.registerExternal(
+            name,
+            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.SHARED_INT_VECTOR, vecTypes[t]),
+            ExternalVersion.strict(
+                (_, _, args, _) -> {
+                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                  var indices = (IntSXP) args.get(1).box();
+                  var values = args.get(2);
+                  var result = vector.copy();
+                  if (values instanceof Value.Sexp(var valuesSexp)
+                      && valuesSexp instanceof ListOrVectorSXP<?> valuesVec) {
+                    for (int i = 0; i < indices.size(); i++) {
+                      interpreter.subscriptStore(
+                          result, indices.get(i) - 1, interpreter.subscriptLoad(valuesVec, i));
+                    }
+                  } else {
+                    for (int i = 0; i < indices.size(); i++) {
+                      interpreter.subscriptStore(result, indices.get(i) - 1, values);
+                    }
                   }
-                }
-                return new Value.Sexp(result);
-              }));
+                  return new Value.Sexp(result);
+                }));
+      }
     }
   }
 
   // endregion
 
-  // region dollar access (versions 0-1)
+  // region dollar access
 
   private static void registerDollar(InternalInterpreter interpreter) {
     // v0: (*, *) -+> V
     interpreter.registerExternal(
         "$",
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `$` not yet fully implemented");
@@ -1255,7 +1153,7 @@ public final class Builtins {
     // v1: (V, V) --> V
     interpreter.registerExternal(
         "$",
-        1,
+        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE, Type.ANY_VALUE),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `$` not yet fully implemented");
@@ -1266,7 +1164,7 @@ public final class Builtins {
     // v0: (*, *, *) -+> V
     interpreter.registerExternal(
         "$<-",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `$<-` not yet fully implemented");
@@ -1274,7 +1172,7 @@ public final class Builtins {
     // v1: (V, V, V) --> V
     interpreter.registerExternal(
         "$<-",
-        1,
+        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE, Type.ANY_VALUE, Type.ANY_VALUE),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `$<-` not yet fully implemented");
@@ -1283,17 +1181,17 @@ public final class Builtins {
 
   // endregion
 
-  // region rep (versions 0-8)
+  // region rep
 
   private static void registerRep(InternalInterpreter interpreter) {
-    // v0: (*, dots) -+> V
+    // Generic: (*, dots) -+> V
     interpreter.registerExternal(
         "rep",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2) {
-                throw interpreter.fail("`rep`.0 takes 2 arguments");
+                throw interpreter.fail("`rep` generic takes 2 arguments");
               }
               var value = args.getFirst();
               int times;
@@ -1303,17 +1201,26 @@ public final class Builtins {
                 }
                 times = sexpToInt(dots.get(0).value(), interpreter, "rep");
               } else {
-                throw interpreter.fail("`rep`.0 second argument must be dots");
+                throw interpreter.fail("`rep` generic second argument must be dots");
               }
               if (!(value instanceof Value.Sexp(var valueSexp))) {
-                throw interpreter.fail("`rep`.0 first argument must be an SEXP");
+                throw interpreter.fail("`rep` generic first argument must be an SEXP");
               }
               return new Value.Sexp(repScalarSexp(valueSexp, times, interpreter));
             }));
-    // v1: (L, I) --> v(L)
+
+    Type[] vecTypes = {
+      Type.SHARED_LOGICAL_VECTOR,
+      Type.SHARED_INT_VECTOR,
+      Type.SHARED_REAL_VECTOR,
+      Type.SHARED_STRING_VECTOR
+    };
+
+    // Scalar: (T, I) --> v(T) for T = L, I, R, S
+    // (L, I) --> v(L)
     interpreter.registerExternal(
         "rep",
-        1,
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.LOGICAL, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var val = ((Value.Lgl) args.getFirst()).value();
@@ -1322,10 +1229,10 @@ public final class Builtins {
               Arrays.fill(res, val);
               return new Value.Sexp(SEXPs.logical(res));
             }));
-    // v2: (I, I) --> v(I)
+    // (I, I) --> v(I)
     interpreter.registerExternal(
         "rep",
-        2,
+        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               int val = ((Value.Int) args.getFirst()).value();
@@ -1334,10 +1241,10 @@ public final class Builtins {
               Arrays.fill(res, val);
               return new Value.Sexp(SEXPs.integer(res));
             }));
-    // v3: (R, I) --> v(R)
+    // (R, I) --> v(R)
     interpreter.registerExternal(
         "rep",
-        3,
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.REAL, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               double val = ((Value.Real) args.getFirst()).value();
@@ -1346,10 +1253,10 @@ public final class Builtins {
               Arrays.fill(res, val);
               return new Value.Sexp(SEXPs.real(res));
             }));
-    // v4: (S, I) --> v(S)
+    // (S, I) --> v(S)
     interpreter.registerExternal(
         "rep",
-        4,
+        sig(Type.SHARED_STRING_VECTOR, Effects.NONE, Type.STRING, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var val = ((Value.Str) args.getFirst()).value();
@@ -1358,29 +1265,25 @@ public final class Builtins {
               Arrays.fill(res, val);
               return new Value.Sexp(SEXPs.string(res));
             }));
-    // v5-v8: (v(T), v(I)) --> v(T) - each element repeated by corresponding times value
-    registerRepVector(interpreter, 5);
-    registerRepVector(interpreter, 6);
-    registerRepVector(interpreter, 7);
-    registerRepVector(interpreter, 8);
-  }
 
-  private static void registerRepVector(InternalInterpreter interpreter, int version) {
-    interpreter.registerExternal(
-        "rep",
-        version,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var vector = (ListOrVectorSXP<?>) ((Value.Sexp) args.getFirst()).value();
-              var timesVec = (IntSXP) ((Value.Sexp) args.get(1)).value();
-              // If timesVec is scalar, repeat whole vector that many times
-              if (timesVec.size() == 1) {
-                int times = timesVec.get(0);
-                return new Value.Sexp(repVector(vector, times));
-              }
-              // Otherwise, repeat each element by corresponding times
-              return new Value.Sexp(repVectorEach(vector, timesVec, interpreter));
-            }));
+    // Vector: (v(T), v(I)) --> v(T) for T = L, I, R, S
+    for (int t = 0; t < 4; t++) {
+      interpreter.registerExternal(
+          "rep",
+          sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.SHARED_INT_VECTOR),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                var timesVec = (IntSXP) args.get(1).box();
+                // If timesVec is scalar, repeat whole vector that many times
+                if (timesVec.size() == 1) {
+                  int times = timesVec.get(0);
+                  return new Value.Sexp(repVector(vector, times));
+                }
+                // Otherwise, repeat each element by corresponding times
+                return new Value.Sexp(repVectorEach(vector, timesVec, interpreter));
+              }));
+    }
   }
 
   private static SEXP repScalarSexp(SEXP value, int times, InternalInterpreter interpreter) {
@@ -1475,21 +1378,21 @@ public final class Builtins {
 
   // endregion
 
-  // region sum (versions 0-3)
+  // region sum
 
   private static void registerSum(InternalInterpreter interpreter) {
     // v0: (dots, *) -+> V
     interpreter.registerExternal(
         "sum",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2) {
-                throw interpreter.fail("`sum`.0 takes 2 arguments");
+                throw interpreter.fail("`sum` generic takes 2 arguments");
               }
               if (!(args.getFirst() instanceof Value.Sexp(var sexp)
                   && sexp instanceof DotsListSXP dots)) {
-                throw interpreter.fail("`sum`.0 first argument must be dots");
+                throw interpreter.fail("`sum` first argument must be dots");
               }
               if (dots.size() != 1) {
                 throw interpreter.fail("Mock `sum` dots must have exactly 1 value");
@@ -1500,10 +1403,10 @@ public final class Builtins {
     // v1: (v(L), miss) --> I
     interpreter.registerExternal(
         "sum",
-        1,
+        sig(Type.INTEGER, Effects.NONE, Type.SHARED_LOGICAL_VECTOR, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (LglSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (LglSXP) args.getFirst().box();
               int sum = 0;
               for (var v : vec) {
                 if (v == Logical.NA) return new Value.Int(Constants.NA_INT);
@@ -1514,10 +1417,10 @@ public final class Builtins {
     // v2: (v(I), miss) --> I
     interpreter.registerExternal(
         "sum",
-        2,
+        sig(Type.INTEGER, Effects.NONE, Type.SHARED_INT_VECTOR, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (IntSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (IntSXP) args.getFirst().box();
               int sum = 0;
               for (var v : vec) {
                 if (v == Constants.NA_INT) return new Value.Int(Constants.NA_INT);
@@ -1528,10 +1431,10 @@ public final class Builtins {
     // v3: (v(R), miss) --> R
     interpreter.registerExternal(
         "sum",
-        3,
+        sig(Type.REAL, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (RealSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (RealSXP) args.getFirst().box();
               double sum = 0.0;
               for (var v : vec) sum += v;
               return new Value.Real(sum);
@@ -1568,55 +1471,55 @@ public final class Builtins {
 
   // endregion
 
-  // region unary math builtins (versions 0-4)
+  // region unary math builtins
 
   private static void registerAbsBuiltin(InternalInterpreter interpreter) {
-    // v0: (*) -+> V
+    // Generic: (*) -+> V
     interpreter.registerExternal(
         "abs",
-        0,
+        SIG_GENERIC_1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`" + "abs" + "`.0 takes 1 sexp-scalar number");
+                throw interpreter.fail("`abs` generic takes 1 sexp-scalar number");
               }
               if (sexp.asScalarInteger().isPresent()) {
                 return new Value.Sexp(SEXPs.integer(Math.abs(sexp.asScalarInteger().get())));
               } else if (sexp.asScalarReal().isPresent()) {
                 return new Value.Sexp(SEXPs.real(Math.abs(sexp.asScalarReal().get())));
               }
-              throw interpreter.fail("`" + "abs" + "`.0 takes 1 scalar integer or real");
+              throw interpreter.fail("`abs` generic takes 1 scalar integer or real");
             }));
-    // v1: (I) --> I
+    // (I) --> I
     interpreter.registerExternal(
         "abs",
-        1,
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> new Value.Int(Math.abs(((Value.Int) args.getFirst()).value()))));
-    // v2: (R) --> R
+    // (R) --> R
     interpreter.registerExternal(
         "abs",
-        2,
+        sig(Type.REAL, Effects.NONE, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> new Value.Real(Math.abs(((Value.Real) args.getFirst()).value()))));
-    // v3: (v(I)) --> v(I)
+    // (v(I)) --> v(I)
     interpreter.registerExternal(
         "abs",
-        3,
+        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (IntSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (IntSXP) args.getFirst().box();
               return new Value.Sexp(
                   SEXPs.integer(
                       IntStream.range(0, vec.size()).map(i -> Math.abs(vec.get(i))).toArray()));
             }));
-    // v4: (v(R)) --> v(R)
+    // (v(R)) --> v(R)
     interpreter.registerExternal(
         "abs",
-        4,
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (RealSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (RealSXP) args.getFirst().box();
               return new Value.Sexp(
                   SEXPs.real(
                       IntStream.range(0, vec.size())
@@ -1627,52 +1530,52 @@ public final class Builtins {
 
   private static void registerUnaryMath1ToRealBuiltin(
       InternalInterpreter interpreter, String name, DoubleUnaryOperator fn) {
-    // v0: (*) -+> V
+    // Generic: (*) -+> V
     interpreter.registerExternal(
         name,
-        0,
+        SIG_GENERIC_1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`" + name + "`.0 takes 1 sexp-scalar number");
+                throw interpreter.fail("`" + name + "` generic takes 1 sexp-scalar number");
               }
-              double d = sexpToDouble(sexp, interpreter, name + ".0");
+              double d = sexpToDouble(sexp, interpreter, name);
               return new Value.Sexp(SEXPs.real(fn.applyAsDouble(d)));
             }));
-    // v1: (I) --> R
+    // (I) --> R
     interpreter.registerExternal(
         name,
-        1,
+        sig(Type.REAL, Effects.NONE, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) ->
                 new Value.Real(fn.applyAsDouble(((Value.Int) args.getFirst()).value()))));
-    // v2: (R) --> R
+    // (R) --> R
     interpreter.registerExternal(
         name,
-        2,
+        sig(Type.REAL, Effects.NONE, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) ->
                 new Value.Real(fn.applyAsDouble(((Value.Real) args.getFirst()).value()))));
-    // v3: (v(I)) --> v(R)
+    // (v(I)) --> v(R)
     interpreter.registerExternal(
         name,
-        3,
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (IntSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (IntSXP) args.getFirst().box();
               return new Value.Sexp(
                   SEXPs.real(
                       IntStream.range(0, vec.size())
                           .mapToDouble(i -> fn.applyAsDouble(vec.get(i)))
                           .toArray()));
             }));
-    // v4: (v(R)) --> v(R)
+    // (v(R)) --> v(R)
     interpreter.registerExternal(
         name,
-        4,
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (RealSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (RealSXP) args.getFirst().box();
               return new Value.Sexp(
                   SEXPs.real(
                       IntStream.range(0, vec.size())
@@ -1683,52 +1586,52 @@ public final class Builtins {
 
   // endregion
 
-  // region log (versions 0-4)
+  // region log
 
   private static void registerLog(InternalInterpreter interpreter) {
-    // v0: (*, *) -+> V
+    // Generic: (*, *) -+> V
     interpreter.registerExternal(
         "log",
-        0,
+        SIG_GENERIC_2,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2
                   || !(args.getFirst() instanceof Value.Sexp(var s1)
                       && args.get(1) instanceof Value.Sexp(var s2))) {
-                throw interpreter.fail("`log`.0 takes 2 sexp-scalar numbers");
+                throw interpreter.fail("`log` generic takes 2 sexp-scalar numbers");
               }
-              double x = sexpToDouble(s1, interpreter, "log.0");
-              double base = sexpToDouble(s2, interpreter, "log.0");
+              double x = sexpToDouble(s1, interpreter, "log");
+              double base = sexpToDouble(s2, interpreter, "log");
               return new Value.Sexp(SEXPs.real(Math.log(x) / Math.log(base)));
             }));
-    // v1: (I, R) --> R
+    // (I, R) --> R
     interpreter.registerExternal(
         "log",
-        1,
+        sig(Type.REAL, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               double x = ((Value.Int) args.getFirst()).value();
               double base = ((Value.Real) args.get(1)).value();
               return new Value.Real(Math.log(x) / Math.log(base));
             }));
-    // v2: (R, R) --> R
+    // (R, R) --> R
     interpreter.registerExternal(
         "log",
-        2,
+        sig(Type.REAL, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               double x = ((Value.Real) args.getFirst()).value();
               double base = ((Value.Real) args.get(1)).value();
               return new Value.Real(Math.log(x) / Math.log(base));
             }));
-    // v3: (v(I), v(R)) --> v(R)
+    // (v(I), v(R)) --> v(R)
     interpreter.registerExternal(
         "log",
-        3,
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR, Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var xv = (IntSXP) ((Value.Sexp) args.getFirst()).value();
-              var bv = (RealSXP) ((Value.Sexp) args.get(1)).value();
+              var xv = (IntSXP) args.getFirst().box();
+              var bv = (RealSXP) args.get(1).box();
               int len = Math.max(xv.size(), bv.size());
               return new Value.Sexp(
                   SEXPs.real(
@@ -1738,14 +1641,18 @@ public final class Builtins {
                                   Math.log(xv.get(i % xv.size())) / Math.log(bv.get(i % bv.size())))
                           .toArray()));
             }));
-    // v4: (v(R), v(R)) --> v(R)
+    // (v(R), v(R)) --> v(R)
     interpreter.registerExternal(
         "log",
-        4,
+        sig(
+            Type.SHARED_REAL_VECTOR,
+            Effects.NONE,
+            Type.SHARED_REAL_VECTOR,
+            Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var xv = (RealSXP) ((Value.Sexp) args.getFirst()).value();
-              var bv = (RealSXP) ((Value.Sexp) args.get(1)).value();
+              var xv = (RealSXP) args.getFirst().box();
+              var bv = (RealSXP) args.get(1).box();
               int len = Math.max(xv.size(), bv.size());
               return new Value.Sexp(
                   SEXPs.real(
@@ -1765,11 +1672,11 @@ public final class Builtins {
     // v0: (*) -+> V
     interpreter.registerExternal(
         "length",
-        0,
+        SIG_GENERIC_1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`length`.0 takes 1 sexp argument");
+                throw interpreter.fail("`length` generic takes 1 sexp argument");
               }
               if (sexp instanceof ListOrVectorSXP<?> vector) {
                 return new Value.Sexp(SEXPs.integer(vector.size()));
@@ -1779,10 +1686,10 @@ public final class Builtins {
     // v1: (V) --> I
     interpreter.registerExternal(
         "length",
-        1,
+        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var sexp = ((Value.Sexp) args.getFirst()).value();
+              var sexp = args.getFirst().box();
               if (sexp instanceof ListOrVectorSXP<?> vector) {
                 return new Value.Int(vector.size());
               }
@@ -1794,11 +1701,11 @@ public final class Builtins {
     // v0: (*) -+> v(I)
     interpreter.registerExternal(
         "seq_along",
-        0,
+        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`seq_along`.0 takes 1 sexp argument");
+                throw interpreter.fail("`seq_along` generic takes 1 sexp argument");
               }
               int len = sexp instanceof ListOrVectorSXP<?> v ? v.size() : 1;
               return new Value.Sexp(SEXPs.integer(IntStream.rangeClosed(1, len).toArray()));
@@ -1806,10 +1713,10 @@ public final class Builtins {
     // v1: (V) --> I  (returns length, used as loop bound)
     interpreter.registerExternal(
         "seq_along",
-        1,
+        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var sexp = ((Value.Sexp) args.getFirst()).value();
+              var sexp = args.getFirst().box();
               int len = sexp instanceof ListOrVectorSXP<?> v ? v.size() : 1;
               return new Value.Int(len);
             }));
@@ -1819,25 +1726,27 @@ public final class Builtins {
     // v0: (*) -+> v(I)
     interpreter.registerExternal(
         "seq_len",
-        0,
+        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`seq_len`.0 takes 1 sexp argument");
+                throw interpreter.fail("`seq_len` generic takes 1 sexp argument");
               }
-              int n = sexpToInt(sexp, interpreter, "seq_len.0");
+              int n = sexpToInt(sexp, interpreter, "seq_len");
               return new Value.Sexp(SEXPs.integer(IntStream.rangeClosed(1, n).toArray()));
             }));
-    // v1: (I) --> I  (returns n, used as loop bound)
+    // v1: (I) --> I
     interpreter.registerExternal(
-        "seq_len", 1, ExternalVersion.strict((_, _, args, _) -> args.getFirst()));
+        "seq_len",
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER),
+        ExternalVersion.strict((_, _, args, _) -> args.getFirst()));
     // v2: (v(I)) --> v(I)
     interpreter.registerExternal(
         "seq_len",
-        2,
+        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var vec = (IntSXP) ((Value.Sexp) args.getFirst()).value();
+              var vec = (IntSXP) args.getFirst().box();
               int n = vec.get(0);
               return new Value.Sexp(SEXPs.integer(IntStream.rangeClosed(1, n).toArray()));
             }));
@@ -1845,51 +1754,70 @@ public final class Builtins {
 
   // endregion
 
-  // region type conversion (versions 0-1)
+  // region type conversion
 
   private static void registerAsInteger(InternalInterpreter interpreter) {
     // v0: (*, dots) -+> v(I)
     interpreter.registerExternal(
         "as.integer",
-        0,
+        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`as.integer`.0 takes (sexp, dots)");
+                throw interpreter.fail("`as.integer` generic takes (sexp, dots)");
               }
               return new Value.Sexp(SEXPs.integer(sexpToInt(sexp, interpreter, "as.integer")));
             }));
     // v1: (V) --> I
     interpreter.registerExternal(
         "as.integer",
-        1,
+        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var sexp = ((Value.Sexp) args.getFirst()).value();
+              var sexp = args.getFirst().box();
               return new Value.Int(sexpToInt(sexp, interpreter, "as.integer"));
             }));
   }
 
   private static void registerAsLogical(InternalInterpreter interpreter) {
-    // v0: (*, dots) -+> L
+    // v0: (*, dots) -+> v(L)
     interpreter.registerExternal(
         "as.logical",
-        0,
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`as.logical`.0 takes (sexp, dots)");
+                throw interpreter.fail("`as.logical` generic takes (sexp, dots)");
               }
               return new Value.Sexp(SEXPs.logical(sexpToLogical(sexp, interpreter, "as.logical")));
             }));
-    // v1: (V) --> L
+    // v1: (V) --> v(L)
     interpreter.registerExternal(
         "as.logical",
-        1,
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_VALUE),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var sexp = ((Value.Sexp) args.getFirst()).value();
+              var sexp = args.getFirst().box();
+              return new Value.Sexp(SEXPs.logical(sexpToLogical(sexp, interpreter, "as.logical")));
+            }));
+    // v2: (V) --> L
+    interpreter.registerExternal(
+        "as.logical",
+        sig(Type.LOGICAL, Effects.NONE, Type.ANY_VALUE),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var sexp = args.getFirst().box();
               return new Value.Lgl(sexpToLogical(sexp, interpreter, "as.logical"));
+            }));
+    // v3: (V) --> B
+    interpreter.registerExternal(
+        "as.logical",
+        sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var sexp = args.getFirst().box();
+              var l = sexpToLogical(sexp, interpreter, "as.logical");
+              return new Value.Bool(l == Logical.TRUE);
             }));
   }
 
@@ -1897,35 +1825,35 @@ public final class Builtins {
     // v0: (*, dots) -+> S
     interpreter.registerExternal(
         "as.character",
-        0,
+        sig(Type.SHARED_STRING_VECTOR, Effects.REFLECT, Type.ANY, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
-                throw interpreter.fail("`as.character`.0 takes (sexp, dots)");
+                throw interpreter.fail("`as.character` generic takes (sexp, dots)");
               }
               return new Value.Sexp(SEXPs.string(sexpToString(sexp)));
             }));
     // v1: (V) --> S
     interpreter.registerExternal(
         "as.character",
-        1,
+        sig(Type.STRING, Effects.NONE, Type.ANY_VALUE),
         ExternalVersion.strict(
             (_, _, args, _) -> {
-              var sexp = ((Value.Sexp) args.getFirst()).value();
+              var sexp = args.getFirst().box();
               return new Value.Str(sexpToString(sexp));
             }));
   }
 
   // endregion
 
-  // region missing (versions 0-1)
+  // region missing
 
   private static void registerMissing(InternalInterpreter interpreter) {
     var missingVal = new Value.Sexp(SEXPs.MISSING_ARG);
     // v0: (*) --> v(L)
     interpreter.registerExternal(
         "missing",
-        0,
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               boolean isMissing = args.getFirst().equals(missingVal);
@@ -1934,7 +1862,7 @@ public final class Builtins {
     // v1: (*) --> B
     interpreter.registerExternal(
         "missing",
-        1,
+        sig(Type.BOOLEAN, Effects.NONE, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               boolean isMissing = args.getFirst().equals(missingVal);
@@ -1944,12 +1872,12 @@ public final class Builtins {
 
   // endregion
 
-  // region error handling (version 0 only)
+  // region error handling
 
   private static void registerStop(InternalInterpreter interpreter) {
     interpreter.registerExternal(
         "stop",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 3) throw interpreter.fail("`stop` takes 3 arguments");
@@ -1967,7 +1895,7 @@ public final class Builtins {
   private static void registerWarning(InternalInterpreter interpreter) {
     interpreter.registerExternal(
         "warning",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 5) throw interpreter.fail("`warning` takes 5 arguments");
@@ -1984,7 +1912,7 @@ public final class Builtins {
   private static void registerStopifnot(InternalInterpreter interpreter) {
     interpreter.registerExternal(
         "stopifnot",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY, Type.ANY, Type.ANY),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 4) throw interpreter.fail("`stopifnot` takes 4 arguments");
@@ -2009,13 +1937,13 @@ public final class Builtins {
 
   // endregion
 
-  // region print (versions 0-4)
+  // region print
 
   private static void registerPrint(InternalInterpreter interpreter) {
     // v0: (*, dots) -+> V
     interpreter.registerExternal(
         "print",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2) throw interpreter.fail("`print` takes 2 arguments");
@@ -2026,14 +1954,20 @@ public final class Builtins {
               }
               return args.getFirst();
             }));
-    // v1-v4: (v(T), miss) --> v(T)
-    for (int v = 1; v <= 4; v++) {
+    // v1-v4: (v(T), miss) --> v(T) for T = L, I, R, S
+    Type[] vecTypes = {
+      Type.SHARED_LOGICAL_VECTOR,
+      Type.SHARED_INT_VECTOR,
+      Type.SHARED_REAL_VECTOR,
+      Type.SHARED_STRING_VECTOR
+    };
+    for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           "print",
-          v,
+          sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.MISSING),
           ExternalVersion.strict(
               (_, _, args, _) -> {
-                var sexp = ((Value.Sexp) args.getFirst()).value();
+                var sexp = args.getFirst().box();
                 System.out.println(sexp);
                 return args.getFirst();
               }));
@@ -2042,13 +1976,13 @@ public final class Builtins {
 
   // endregion
 
-  // region unclass (versions 0-1)
+  // region unclass
 
   private static void registerUnclass(InternalInterpreter interpreter) {
     // v0: (*) -+> V
     interpreter.registerExternal(
         "unclass",
-        0,
+        SIG_GENERIC_1,
         ExternalVersion.strict(
             (_, _, args, _) -> {
               // Strip class attribute - for now just return as-is
@@ -2056,82 +1990,110 @@ public final class Builtins {
             }));
     // v1: (V) --> V
     interpreter.registerExternal(
-        "unclass", 1, ExternalVersion.strict((_, _, args, _) -> args.getFirst()));
+        "unclass",
+        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE),
+        ExternalVersion.strict((_, _, args, _) -> args.getFirst()));
   }
 
   // endregion
 
-  // region is.* type checking (versions 0-1)
+  // region is.* type checking
 
   private static void registerIsTypeBuiltin(
       InternalInterpreter interpreter, String name, Predicate<SEXP> check, boolean hasModeArg) {
-    // v0: (*) or (*, *) -+> L
-    interpreter.registerExternal(
-        name,
-        0,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              if (args.size() != (hasModeArg ? 2 : 1)) {
-                throw interpreter.fail(
-                    "`" + name + "` takes " + (hasModeArg ? 2 : 1) + " arguments");
-              }
+    // v0: generic --> v(L)
+    if (hasModeArg) {
+      // is.vector: (*, miss) -+> v(L)
+      interpreter.registerExternal(
+          name,
+          sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY, Type.ANY),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                if (args.size() != 2) {
+                  throw interpreter.fail("`" + name + "` takes 2 arguments");
+                }
+                SEXP sexp;
+                if (args.getFirst() instanceof Value.Sexp(var s)) {
+                  sexp = s;
+                } else {
+                  sexp = valueToSexp(args.getFirst());
+                }
+                return new Value.Sexp(SEXPs.logical(check.test(sexp)));
+              }));
+    } else {
+      // Other is.*: (*) -+> v(L)
+      interpreter.registerExternal(
+          name,
+          sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                if (args.size() != 1) {
+                  throw interpreter.fail("`" + name + "` takes 1 argument");
+                }
+                SEXP sexp;
+                if (args.getFirst() instanceof Value.Sexp(var s)) {
+                  sexp = s;
+                } else {
+                  sexp = valueToSexp(args.getFirst());
+                }
+                return new Value.Sexp(SEXPs.logical(check.test(sexp)));
+              }));
+    }
 
-              SEXP sexp;
-              if (args.getFirst() instanceof Value.Sexp(var s)) {
-                sexp = s;
-              } else {
-                // Unboxed values: wrap to check
-                sexp = valueToSexp(args.getFirst());
-              }
-              return new Value.Sexp(SEXPs.logical(check.test(sexp)));
-            }));
-    // v1: (V) --> L  or  (V, miss) --> L
-    interpreter.registerExternal(
-        name,
-        1,
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              if (args.size() != (hasModeArg ? 2 : 1)) {
-                throw interpreter.fail(
-                    "`" + name + "` takes " + (hasModeArg ? 2 : 1) + " arguments");
-              }
-              if (hasModeArg && !args.get(1).equals(new Value.Sexp(SEXPs.MISSING_ARG))) {
-                throw interpreter.fail("`" + name + "` does not support a mode argument");
-              }
-
-              var sexp = ((Value.Sexp) args.getFirst()).value();
-              return new Value.Lgl(check.test(sexp) ? Logical.TRUE : Logical.FALSE);
-            }));
+    // v1: for is.vector: (V, miss) --> v(L); for others: (V) --> B
+    if (hasModeArg) {
+      // is.vector v1: (V, miss) --> v(L)
+      interpreter.registerExternal(
+          name,
+          sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_VALUE, Type.MISSING),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var sexp = args.getFirst().box();
+                return new Value.Sexp(SEXPs.logical(check.test(sexp)));
+              }));
+    } else {
+      // Other is.* v1: (V) --> B
+      interpreter.registerExternal(
+          name,
+          sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE),
+          ExternalVersion.strict(
+              (_, _, args, _) -> {
+                var sexp = args.getFirst().box();
+                return new Value.Bool(check.test(sexp));
+              }));
+    }
   }
 
   // endregion
 
-  // region inherits (versions 0-1)
+  // region inherits
 
   private static void registerInherits(InternalInterpreter interpreter) {
-    // v0: (*, *, *) -+> L
+    // v0: (*, *, *) -+> v(L)
     interpreter.registerExternal(
         "inherits",
-        0,
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               // Simplified: no class support, always FALSE
               return new Value.Sexp(SEXPs.logical(false));
             }));
-    // v1: (V, V, miss) --> L
+    // v1: (V, S, B) --> B
     interpreter.registerExternal(
-        "inherits", 1, ExternalVersion.strict((_, _, _, _) -> new Value.Lgl(Logical.FALSE)));
+        "inherits",
+        sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE, Type.STRING, Type.BOOLEAN),
+        ExternalVersion.strict((_, _, _, _) -> new Value.Bool(false)));
   }
 
   // endregion
 
-  // region attr (versions 0-1)
+  // region attr
 
   private static void registerAttr(InternalInterpreter interpreter) {
     // v0: (*, *, *, *) -+> V
     interpreter.registerExternal(
         "attr",
-        0,
+        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `attr` not yet fully implemented");
@@ -2139,7 +2101,7 @@ public final class Builtins {
     // v1: (V, S, miss, miss) --> V
     interpreter.registerExternal(
         "attr",
-        1,
+        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE, Type.STRING, Type.MISSING, Type.MISSING),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `attr` not yet fully implemented");
@@ -2148,13 +2110,13 @@ public final class Builtins {
 
   // endregion
 
-  // region c (version 0)
+  // region c
 
   private static void registerC(InternalInterpreter interpreter) {
     // v0: (dots) --> V
     interpreter.registerExternal(
         "c",
-        0,
+        sig(Type.ANY_VALUE, Effects.NONE, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1) throw interpreter.fail("`c` takes 1 argument (dots)");

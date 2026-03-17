@@ -67,10 +67,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       EvalOutput expected, EvalOutput actual, Example example, SnapshotStore store) {
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
-      assertEquals(
-          expected.behaviorOutputLog(),
-          actual.behaviorOutputLog(),
-          "Output changed");
+      assertEquals(expected.behaviorOutputLog(), actual.behaviorOutputLog(), "Output changed");
     }
   }
 
