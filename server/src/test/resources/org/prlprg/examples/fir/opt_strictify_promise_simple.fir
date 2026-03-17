@@ -4,8 +4,8 @@ fun main() {
       ry = 1;
       return ry;
     };
-    # after: rz = force_.2(ry);
-    rz = force_.1(rx);
+    # after: rz = force_< I --> I >(ry);
+    rz = force_< p(I -) --> I >(rx);
     return rz;
   }
 }

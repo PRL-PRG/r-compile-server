@@ -2,7 +2,7 @@ fun main() {
   () -+> I { reg c0:cls |
     mkenv;
     c0 = clos f;
-    f(42, c0);
+    f< I,cls -+> I >(42, c0);
     popenv;
     return 100;
   }

@@ -2,22 +2,22 @@ fun main() {
   () -+> V { reg r0:p(I -), reg r1:p(V +), reg r2:V, reg r3:v(I)o |
     r0 = prom<I ->{ return 42; };
     r1 = prom<V +>{
-      r3 = read< p(I -) -+> v(I)f >(r0);
-      return use r3;
+      r3 = read?< p(I -) -+> v(I)f >(r0);
+      return consume r3;
     };
-    r2 = modify< p(V +) -+> V >(r1);
+    r2 = modify?< p(V +) -+> V >(r1);
     return r2;
   }
 }
 
 fun modify(r) {
-  (reg r:p(V +)) -+> V { reg r0:v(I)o, reg r1:V, reg r2:V |
+  (reg r:p(V +)) -+> V { reg r0:v(I)o, reg r1:V |
     r$y = 1;
     r0 = v(I)[10, 20, 30];
     r$x = r0;
     r1 = force r;
-    r2 = r$y = r1;
-    return r2;
+    r$y = r1;
+    return r1;
   }
 }
 
@@ -29,6 +29,6 @@ fun read(r) {
     ry1 = ry0 as I;
     r2 = rx1[0];
     r1 = v(I)[r2, ry1];
-    return use r1;
+    return consume r1;
   }
 }

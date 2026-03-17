@@ -70,7 +70,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     protected void runEntry(BB bb) {
       for (var phi : bb.phiParameters()) {
         if (state().consume.contains(phi)) {
-          report("Write after use: ", phi);
+          report("Write after consume: ", phi);
         }
       }
       state().write.addAll(bb.phiParameters());
@@ -86,7 +86,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       if (assignee != null) {
         // Check and update flow state
         if (state().consume.contains(assignee)) {
-          report("Write after use: ", assignee);
+          report("Write after consume: ", assignee);
         }
         state().write.add(assignee);
       }

@@ -1,9 +1,9 @@
 fun main() {
   () -+> I { reg r1:I, reg r2:I, reg r3:I, reg r4:I |
-    r1 = f(TRUE, TRUE);
-    r2 = f(TRUE, FALSE);
-    r3 = f(FALSE, TRUE);
-    r4 = f(FALSE, FALSE);
+    r1 = f< B,B -+> I >(TRUE, TRUE);
+    r2 = f< B,B -+> I >(TRUE, FALSE);
+    r3 = f< B,B -+> I >(FALSE, TRUE);
+    r4 = f< B,B -+> I >(FALSE, FALSE);
     return r1;
   }
 }

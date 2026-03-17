@@ -1,7 +1,7 @@
 fun main() {
   # after: () --> I { reg out:I |
   () --> V { reg out:V |
-    out = body();
+    out = body< --> V >();
     return out;
   }
 }

@@ -2,8 +2,8 @@ fun main() {
   # after: () -+> V { reg r:I |
   () -+> V { reg r:V |
     mkenv;
-    # after: r = f.1(42);
-    r = f(42);
+    # after: r = f< I --> I >(42);
+    r = f?< * --> I >(42);
     popenv;
     return r;
   }

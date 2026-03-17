@@ -1,8 +1,8 @@
 fun main() {
   () --> V { reg r:V |
     r = 42 as V;
-    # after: f< V --> V >(r);
-    f.0(r);
+    # after: f?< V --> V >(r);
+    f< V --> V >(r);
     return r;
   }
 }

@@ -4,7 +4,7 @@ fun main() {
     right = prom<I ->{ return 22; };
     left0 = force? left;
     right0 = force? right;
-    sum = `+`.1(left0, right0);
+    sum = `+`< I,I --> I >(left0, right0);
     return sum;
   }
 }

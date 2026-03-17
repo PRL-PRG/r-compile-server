@@ -8,13 +8,13 @@ fun main() {
     outer1 = outer0 as I;
     inner0 = ld inner;
     inner1 = inner0 as I;
-    combined = `+`.1(outer1, inner1);
+    combined = `+`< I,I --> I >(outer1, inner1);
     st outer = combined;
     popenv;
     final = ld outer;
     final1 = final as I;
     popenv;
-    ret = `+`.1(final1, 10);
+    ret = `+`< I,I --> I >(final1, 10);
     return ret;
   }
 }

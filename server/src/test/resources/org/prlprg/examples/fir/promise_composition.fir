@@ -7,7 +7,7 @@ fun main() {
       r5 = force r1;
       r6 = force r2;
       r = v(I)[r5, r6, 300];
-      return use r;
+      return consume r;
     };
     r4 = force r3;
     return r4;

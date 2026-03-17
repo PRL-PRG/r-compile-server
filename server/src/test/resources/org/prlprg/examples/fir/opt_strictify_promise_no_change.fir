@@ -4,8 +4,8 @@ fun main() {
       ry = 1;
       return ry;
     };
-    # no change: f.1 has effects, so the promise is not inlined
-    rz = f.1(rx);
+    # no change: f< p(I -) -+> I > has effects, so the promise is not inlined
+    rz = f< p(I -) -+> I >(rx);
     return rz;
   }
 }

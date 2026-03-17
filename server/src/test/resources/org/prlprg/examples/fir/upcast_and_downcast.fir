@@ -1,12 +1,12 @@
 fun main() {
   () --> V { reg r0:I, reg r1:I, reg r2:I, reg r3:V, reg r4:V, reg r5:p(I -), reg r6:p(I -) |
-    r0 = upcast.0(1);  # nil
+    r0 = upcast< * --> I >(1);  # nil
     r5 = prom<I ->{ return 1; };
-    r1 = upcast.0(r5);  # nil
+    r1 = upcast< * --> I >(r5);  # nil
     r6 = prom<I ->{ return 1; };
-    r2 = upcast.0(r6);  # not nil
-    r3 = downcast.0(r2);
-    r4 = downcast.0(r0);
+    r2 = upcast< * --> I >(r6);  # not nil
+    r3 = downcast< I --> V >(r2);
+    r4 = downcast< I --> V >(r0);
     return r4;
   }
 }

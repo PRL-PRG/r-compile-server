@@ -1,6 +1,6 @@
 fun main() {
   () -+> V { reg out:V |
-    out = call_closure();
+    out = call_closure< -+> V >();
     return out;
   }
 }

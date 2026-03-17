@@ -6,14 +6,14 @@ fun main() {
     r = prom<I ->{
       rx0 = ld x;
       r1 = rx0 as I;
-      rx1 = `+`.1(1, r1);
+      rx1 = `+`< I,I --> I >(1, r1);
       st x = rx1;
       rx2 = ld x;
       r2 = rx2 as I;
       return r2;
     };
 
-    r0 = force_twice< p(I -) --> I >(r);
+    r0 = force_twice?< p(I -) --> I >(r);
     popenv;
     return r0;
   }

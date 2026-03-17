@@ -211,23 +211,7 @@ public sealed interface Expression
       // `headAsArg != null` iff it starts with an argument, which may be a constant or
       // identifier which happens to be a register.
 
-      if (s.nextCharIs('?') || s.nextCharIs('<')) {
-        if (headAsName == null) {
-          throw s.fail("in 'f...(...)', 'f' must be a valid variable name");
-        }
-
-        // Static function call
-        var functionRef = ctx.forFunctionRef.deferredLookup(Variable.named(headAsName));
-        var isDispatch = s.trySkip('?');
-        s.assertAndSkip('<');
-        var signature = p.parse(Signature.class);
-        s.assertAndSkip('>');
-        var callee = new StaticFnCallee(isDispatch, functionRef, signature);
-
-        var arguments = p.parseList("(", ")", Argument.class);
-
-        return new Call(callee, arguments);
-      } else if (s.trySkip('$')) {
+      if (s.trySkip('$')) {
         if (headAsArg == null) {
           throw s.fail("In 'a$...', 'a' must be a register (or constant)");
         }
@@ -279,7 +263,27 @@ public sealed interface Expression
 
         var constant = p.parse(Value.class);
         return new Assume(new AssumeConstant(headAsArg, constant));
-      } else if (headAsArg != null) {
+      } else if (s.nextCharIs('?') || s.nextCharIs('<') || s.nextCharIs('(')) {
+        if (headAsName == null) {
+          throw s.fail("in 'f< ... >(...)', 'f' must be a valid variable name");
+        }
+
+        // Static function call
+        var functionRef = ctx.forFunctionRef.deferredLookup(Variable.named(headAsName));
+        var isDispatch = s.trySkip('?');
+        if (s.nextCharIs('(')) {
+          throw s.fail("Can't call function without signature");
+        }
+        s.assertAndSkip('<');
+        var signature = p.parse(Signature.class);
+        s.assertAndSkip('>');
+        var callee = new StaticFnCallee(isDispatch, functionRef, signature);
+
+        var arguments = p.parseList("(", ")", Argument.class);
+
+        return new Call(callee, arguments);
+      }
+      if (headAsArg != null) {
         return new Aea(headAsArg);
       } else {
         throw s.fail("Not a keyword or in-scope register: '" + headAsName + "'");

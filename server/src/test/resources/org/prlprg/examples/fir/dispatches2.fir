@@ -9,7 +9,7 @@ fun main() {
     };
     st y = ry;
     r0 = prom<I ->{ return 2; };
-    r1 = f(r0);
+    r1 = f< p(I -) -+> V >(r0);
     popenv;
     return r1;
   }
@@ -19,9 +19,9 @@ fun f(r) {
   (reg r:p(I -)) -+> V { reg r1:V, reg r2:*, reg r3:* |
     mkenv;
     r2 = r$x;
-    g(r2);
+    g?< * -+> V >(r2);
     r3 = r$y;
-    r1 = g(r3);
+    r1 = g?< * -+> V >(r3);
     popenv;
     return r1;
   }

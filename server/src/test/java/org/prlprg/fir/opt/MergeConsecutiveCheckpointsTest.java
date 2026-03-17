@@ -123,7 +123,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
                 deopt 13 [r3];
               L9():
                 r9 = r3 ?: R;
-                r10 = `+`.0(0, 0);
+                r10 = `+`< I,I --> I >(0, 0);
                 check L10() else D5();
               D5():
                 deopt 13 [r9];
@@ -134,9 +134,6 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
             fun blackBox(x) {
               (reg x:I) --> V { ... }
             }
-            fun `+`(a, b) {
-              (reg a:I, reg b:I) --> I { ... }
-            }
             """);
 
     assertTrue(run(module), "non-assume statements with no conflict: should merge");
@@ -145,7 +142,8 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
     var checkCount = countOccurrences(printed, "check ");
     assertEquals(1, checkCount, "should have exactly one checkpoint, got:\n" + printed);
     assertTrue(printed.contains("r9 = r3 ?: R"), "assumption should be preserved");
-    assertTrue(printed.contains("`+`.0(0, 0)"), "non-assume statement should be preserved");
+    assertTrue(
+        printed.contains("`+`< I,I --> I >(0, 0)"), "non-assume statement should be preserved");
   }
 
   @Test

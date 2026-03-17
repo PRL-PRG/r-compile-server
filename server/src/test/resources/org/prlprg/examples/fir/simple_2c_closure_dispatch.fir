@@ -1,7 +1,7 @@
 fun main() {
-  () -+> I { reg clos:cls, reg result:V, reg ret:I |
-    clos = make_closure();
-    result = dyn clos();
+  () -+> I { reg closure:cls, reg result:V, reg ret:I |
+    closure = make_closure< --> cls >();
+    result = dyn closure();
     ret = result as I;
     return ret;
   }

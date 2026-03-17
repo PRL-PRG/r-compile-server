@@ -1,6 +1,6 @@
 fun main() {
-  () --> I { reg r:L |
-    r = blackBox(TRUE);
+  () --> I { reg r:B |
+    r = blackBox< B --> B >(TRUE);
     if r then L0() else L1();
   L0():
     mkenv;
@@ -13,5 +13,5 @@ fun main() {
 
 # Returns the argument as is, but marks the call as an optimization barrier
 fun blackBox(x) {
-  (reg x:L) --> L { ... }
+  (reg x:B) --> B { ... }
 }

@@ -1,6 +1,6 @@
 fun main() {
   () --> I { reg r:I |
-    r = f.0(42);
+    r = f< I --> I >(42);
     return r;
   }
 }
