@@ -911,10 +911,6 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   public void subscriptStore(ListOrVectorSXP<?> vector, int index, Value value) {
-    if (!vector.getCanonicalType().isInstance(value)) {
-      throw fail("Can't store " + value.type() + " value in " + vector.type() + " vector");
-    }
-
     if (index < 0 || index >= vector.size()) {
       throw fail(
           "Subscript index out of bounds: " + index + " for vector of size " + vector.size());
@@ -966,7 +962,12 @@ public final class InternalInterpreter implements Interpreter {
         }
         d.set(index, valueSexp);
       }
-      case ExprSXP e -> e.get(index);
+      case ExprSXP e -> {
+        if (!(value instanceof Value.Sexp(var valueSexp))) {
+          throw fail("Not an SEXP (for expression vector): " + value);
+        }
+        e.set(index, valueSexp);
+      }
     }
   }
 

@@ -35,10 +35,7 @@ final class TestInterpreter {
                     var argValues =
                         Arrays.stream(arguments).map(Value.Sexp::new).toArray(Value[]::new);
                     var resultValue = interpreter.call(functionName, argValues);
-                    if (!(resultValue instanceof Value.Sexp(var resultSexp))) {
-                      throw new AssertionError("Interpreter returned non-SEXP: " + resultValue);
-                    }
-                    result[0] = new Ok(resultSexp);
+                    result[0] = new Ok(resultValue.box());
                   } catch (InterpretException e) {
                     result[0] = new Error(e, e instanceof InternalInterpretUnsupportedException);
                   }

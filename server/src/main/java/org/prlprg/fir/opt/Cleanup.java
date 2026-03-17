@@ -30,6 +30,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -96,9 +97,9 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
     void run() {
       // Basic blocks
-      scope.streamCfgs().forEach(this::removeUnreachableBlocks);
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::simplifyBranches));
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeSinglePredecessorPhis));
+      scope.streamCfgs().forEach(this::removeUnreachableBlocks);
       scope.streamCfgs().forEach(this::mergeBlocks);
       substituter.commit();
 
@@ -382,7 +383,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         // May force iff `env == Env.LOCAL`
         case Load(var loadType, _) -> loadType != LoadType.BASE_FUN;
         case MkVector _ -> true;
-        case MkEnv _, PopEnv _ -> false;
+        case MkEnv _, Noop _, PopEnv _ -> false;
         case Promise _ -> true;
         case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
         // May error

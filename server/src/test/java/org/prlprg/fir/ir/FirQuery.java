@@ -8,7 +8,6 @@ import static org.prlprg.fir.ir.ParseUtil.parseModule;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import junit.framework.AssertionFailedError;
@@ -18,7 +17,6 @@ import org.prlprg.bc2fir.BC2FirClosureCompilerUnsupportedException;
 import org.prlprg.examples.Example;
 import org.prlprg.fir.check.Checker;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.session.gnur.GNUR;
@@ -71,8 +69,8 @@ public class FirQuery implements GenFirQuery {
         data.localFunctions().stream()
             .flatMap(f -> f.versions().stream())
             .flatMap(Abstraction::streamCfgs)
-            .mapMulti(
-                (CFG cfg, Consumer<ExpectedError> add) -> {
+            .<ExpectedError>mapMulti(
+                (cfg, add) -> {
                   if (!cfg.isPromise()) {
                     var entryPos = new CfgPosition(cfg.entry(), -1, null);
                     for (var expectedError : expectedErrors(entryPos, cfg.scope().comments())) {

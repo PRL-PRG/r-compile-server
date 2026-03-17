@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
@@ -71,7 +72,8 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
       return null;
     }
     @SuppressWarnings("RedundantCast")
-    var bestSignature = bestSignature(callee, (ImmutableList<Type>) argumentTypes);
+    var argumentTypes1 = (ImmutableList<Type>) argumentTypes;
+    var bestSignature = bestSignature(callee, argumentTypes1);
     var bestVersion = calleeFun.guess(bestSignature);
     if (bestVersion == null) {
       // Invalid, there should always be a possible version
@@ -82,7 +84,15 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     // but add the postcondition from `bestVersion`
     var newBestSignature =
         new Signature(
-            argumentTypes, bestVersion.signature().returnType(), bestVersion.signature().effects());
+            argumentTypes1.stream()
+                .map(
+                    type ->
+                        type.ownership() == Ownership.OWNED
+                            ? type.withOwnership(Ownership.BORROWED)
+                            : type)
+                .collect(ImmutableList.toImmutableList()),
+            bestVersion.signature().returnType(),
+            bestVersion.signature().effects());
 
     // Check if there are better versions that can be called with recorded runtime types...
     var isBestAtRuntime =
