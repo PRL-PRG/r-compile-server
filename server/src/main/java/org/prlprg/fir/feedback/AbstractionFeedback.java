@@ -135,7 +135,7 @@ public class AbstractionFeedback {
         callees.put(register, Optional.empty());
       } else {
         var calleeName = p2.parse(NamedVariable.class);
-        var callee = module.localFunction(calleeName);
+        var callee = module.lookupFunction(calleeName);
         if (callee == null) {
           throw s.fail("No such function: " + calleeName);
         }
