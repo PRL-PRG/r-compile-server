@@ -219,7 +219,6 @@ fun `[[`(x, i, `...`, exact) {
   (reg x:v(I), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(I) { ... }
   (reg x:v(R), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(R) { ... }
   (reg x:v(S), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(S) { ... }
-  (reg x:V, reg i:I, reg ddd:miss, reg exact:B) --> V { ... }
   (reg x:v(L), reg i:I, reg ddd:miss, reg exact:miss) --> L { ... }
   (reg x:v(I), reg i:I, reg ddd:miss, reg exact:miss) --> I { ... }
   (reg x:v(R), reg i:I, reg ddd:miss, reg exact:miss) --> R { ... }
@@ -533,6 +532,7 @@ fun tanpi(x) {
 
 fun length(x) {
   (reg x:*) -+> V { ... }
+  (reg x:V) --> v(I) { ... }
   (reg x:V) --> I { ... }
 }
 
