@@ -227,6 +227,12 @@ public final class Builtins {
         "checkMissing", sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE), Builtins::checkMissing);
     interpreter.registerExternal(
         "toForSeq", sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY_VALUE), Builtins::toForSeq);
+    interpreter.registerExternal(
+        "naToFalse",
+        sig(Type.BOOLEAN, Effects.NONE, Type.SHARED_LOGICAL_VECTOR),
+        Builtins::naToFalse0);
+    interpreter.registerExternal(
+        "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToFalse1);
   }
 
   // region binary math builtins
@@ -911,34 +917,7 @@ public final class Builtins {
               int idx = sexpToInt(args.get(1).box(), interpreter, name);
               return new Value.Sexp(interpreter.subscriptLoad(vector, idx - 1).box());
             }));
-    // (V, I, miss, B) --> V
-    if (name.equals("[[")) {
-      for (int t = 0; t < 4; t++) {
-        interpreter.registerExternal(
-            name,
-            sig(
-                Type.ANY_VALUE,
-                Effects.NONE,
-                Type.ANY_VALUE,
-                Type.INTEGER,
-                Type.MISSING,
-                Type.BOOLEAN),
-            ExternalVersion.strict(
-                (_, _, args, _) -> {
-                  if (args.size() != 4) {
-                    throw interpreter.fail("`" + name + "` generic takes 4 arguments");
-                  }
-                  if (!(args.getFirst() instanceof Value.Sexp(var sexp)
-                      && sexp instanceof ListOrVectorSXP<?> vector)) {
-                    throw interpreter.failUnsupported(
-                        "Mock `" + name + "` not implemented for non-vector objects");
-                  }
-                  int idx = ((Value.Int) args.get(1)).value();
-                  return new Value.Sexp(interpreter.subscriptLoad(vector, idx - 1).box());
-                }));
-      }
-    }
-    // (v(T), I, miss, miss) --> T for T = L, I, R, S
+    // v5-9: (v(T), I, miss, miss) --> T for T = L, I, R, S
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
       Type.SHARED_INT_VECTOR,
@@ -957,7 +936,7 @@ public final class Builtins {
                 return interpreter.subscriptLoad(vector, idx - 1);
               }));
     }
-    // (v(T), v(I), miss, miss) --> v(T) for T = L, I, R, S
+    // v1-4: (v(T), v(I), miss, miss) --> v(T) for T = L, I, R, S
     for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           name,
@@ -1669,7 +1648,7 @@ public final class Builtins {
   // region length, seq_along, seq_len
 
   private static void registerLength(InternalInterpreter interpreter) {
-    // v0: (*) -+> V
+    // v0-1: (*) -+> V
     interpreter.registerExternal(
         "length",
         SIG_GENERIC_1,
@@ -1683,7 +1662,7 @@ public final class Builtins {
               }
               return new Value.Sexp(SEXPs.integer(1));
             }));
-    // v1: (V) --> I
+    // v2: (V) --> I
     interpreter.registerExternal(
         "length",
         sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE),
@@ -2270,6 +2249,28 @@ public final class Builtins {
       throw interpreter.fail("`toForSeq` requires a vector argument");
     }
     return new Value.Sexp(vector);
+  }
+
+  private static Value naToFalse0(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`naToFalse` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarLogical().isPresent())) {
+      throw interpreter.fail("`naToFalse< v(L) --> B >` requires a scalar logical SEXP");
+    }
+    return new Value.Bool(sexp.asScalarLogical().get() != Logical.NA);
+  }
+
+  private static Value naToFalse1(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`naToFalse` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Lgl(var sexp))) {
+      throw interpreter.fail("`naToFalse< L --> B >` requires a logical argument");
+    }
+    return new Value.Bool(sexp != Logical.NA);
   }
 
   // endregion

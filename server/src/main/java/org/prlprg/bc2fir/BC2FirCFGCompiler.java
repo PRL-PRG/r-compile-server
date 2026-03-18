@@ -524,9 +524,10 @@ public class BC2FirCFGCompiler {
                 "_len",
                 builtin(
                     "length",
-                    new Signature(ImmutableList.of(Type.ANY_VALUE), Type.INTEGER, Effects.NONE),
+                    new Signature(
+                        ImmutableList.of(Type.ANY_VALUE), Type.SHARED_INT_VECTOR, Effects.NONE),
                     seq));
-        var init = new Constant(new Value.Int(0));
+        var init = new Constant(SEXPs.integer(0));
         var index = insertAndReturn("_idx", new Aea(init));
         push(index);
         setJump(goto_(stepBb));
@@ -540,9 +541,11 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "+",
                     new Signature(
-                        ImmutableList.of(Type.INTEGER, Type.INTEGER), Type.INTEGER, Effects.NONE),
+                        ImmutableList.of(Type.SHARED_INT_VECTOR, Type.SHARED_INT_VECTOR),
+                        Type.SHARED_INT_VECTOR,
+                        Effects.NONE),
                     pop(),
-                    new Constant(new Value.Int(1))));
+                    new Constant(SEXPs.integer(1))));
         push(index1);
         // Compare the index to the length
         var cond =
@@ -551,11 +554,21 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "<",
                     new Signature(
-                        ImmutableList.of(Type.INTEGER, Type.INTEGER), Type.BOOLEAN, Effects.NONE),
+                        ImmutableList.of(Type.SHARED_INT_VECTOR, Type.SHARED_INT_VECTOR),
+                        Type.SHARED_LOGICAL_VECTOR,
+                        Effects.NONE),
                     length,
                     index1));
+        var cond1 =
+            insertAndReturn(
+                "_cond1",
+                intrinsic(
+                    "naToFalse",
+                    new Signature(
+                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR), Type.BOOLEAN, Effects.NONE),
+                    cond));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
-        setJump(branch(cond, endBb, forBodyBb));
+        setJump(branch(cond1, endBb, forBodyBb));
 
         // For loop body
         moveTo(forBodyBb);
@@ -566,13 +579,17 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "[[",
                     new Signature(
-                        ImmutableList.of(Type.ANY_VALUE, Type.INTEGER, Type.MISSING, Type.BOOLEAN),
+                        ImmutableList.of(
+                            Type.ANY_VALUE,
+                            Type.SHARED_INT_VECTOR,
+                            Type.MISSING,
+                            Type.SHARED_LOGICAL_VECTOR),
                         Type.ANY_VALUE,
-                        Effects.NONE),
+                        Effects.REFLECT),
                     seq,
                     index1,
                     new Constant(SEXPs.MISSING_ARG),
-                    new Constant(new Value.Bool(true))));
+                    new Constant(SEXPs.TRUE)));
         // Store in the element variable
         insert(new Store(StoreType.LOCAL_VAR, getVar(elemName), elem));
         // Now we compile the rest of the body...

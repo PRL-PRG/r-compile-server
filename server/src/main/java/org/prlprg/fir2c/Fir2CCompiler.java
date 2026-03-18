@@ -1338,6 +1338,15 @@ public final class Fir2CCompiler {
           }
 
           private Array emitArgumentArray(String baseName, List<Argument> arguments) {
+            for (var argument : arguments) {
+              if (argumentRepr(argument) != Repr.SEXP) {
+                throw new IllegalStateException(
+                    "Argument array must only contain SEXP arguments, found non-SEXP: "
+                        + argument
+                        + "\n"
+                        + cfg);
+              }
+            }
             return emitArray(baseName, "SEXP", Lists.mapLazy(arguments, this::emitArgument));
           }
 
