@@ -224,12 +224,15 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
       onMismatch.accept("ownership");
     }
 
-    return new Type(
-        kind.union(other.kind, onMismatch),
-        promisity.union(other.promisity),
-        // Technically ownerships must be equal, but for graceful recovery and easier type feedback.
-        other.ownership == Ownership.SHARED ? Ownership.SHARED : ownership,
-        concreteness.union(other.concreteness));
+    var result =
+        new Type(
+            kind.union(other.kind, onMismatch),
+            promisity.union(other.promisity),
+            // Technically ownerships must be equal, but for graceful recovery and easier type
+            // feedback.
+            other.ownership == Ownership.SHARED ? Ownership.SHARED : ownership,
+            concreteness.union(other.concreteness));
+    return result.equals(ANY.withConcreteness(Concreteness.DEFINITE)) ? ANY : result;
   }
 
   @Override

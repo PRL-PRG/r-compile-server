@@ -3,6 +3,7 @@ package org.prlprg.fir.opt.specialize;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.StrictnessAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -13,11 +14,12 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Optimization that infers the explicit return type and effects of [Promise]s and [Abstraction]s.
-public record ReturnTypeAndEffects() implements SpecializeOptimization {
+/// Optimization that infers and improves the explicit return type and effects of [Promise]s,
+/// then improves the explicit return type, effects, and strictness of the target [Abstraction].
+public record ImproveSignatures() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes(InferType.class, InferEffects.class);
+    return new AnalysisTypes(InferType.class, InferEffects.class, StrictnessAnalysis.class);
   }
 
   @Override
@@ -43,17 +45,33 @@ public record ReturnTypeAndEffects() implements SpecializeOptimization {
   }
 
   @Override
-  public void finish(Abstraction scope, Analyses analyses) {
+  public boolean finish(Abstraction scope, Analyses analyses) {
     if (scope.cfg() == null) {
-      return;
+      return false;
     }
 
+    var changed = false;
     var newReturnType = analyses.get(InferType.class).of(scope.cfg());
     var newEffects = analyses.get(InferEffects.class).ofNonRecursive(scope.cfg());
+    var strictParams = analyses.get(scope.cfg(), StrictnessAnalysis.class).strictParameters();
 
-    if (newReturnType != null) {
+    if (newReturnType != null && !newReturnType.equals(scope.returnType())) {
       scope.setReturnType(newReturnType);
+      changed = true;
     }
-    scope.setEffects(newEffects);
+
+    if (!newEffects.equals(scope.effects())) {
+      scope.setEffects(newEffects);
+      changed = true;
+    }
+
+    for (var param : scope.parameters()) {
+      if (!param.strict() && strictParams.contains(param.variable())) {
+        scope.setParameterStrict(param.variable());
+        changed = true;
+      }
+    }
+
+    return changed;
   }
 }

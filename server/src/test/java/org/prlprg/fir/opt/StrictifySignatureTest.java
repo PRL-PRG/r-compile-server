@@ -4,12 +4,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.parseprint.Printer;
 
-class StrictnessOptimizationTest implements OptimizationUnitTest {
+class StrictifySignatureTest implements OptimizationUnitTest {
   @Override
   public Optimization optimization() {
-    return new StrictnessOptimization();
+    return new Specialize(new ImproveSignatures());
   }
 
   @Test

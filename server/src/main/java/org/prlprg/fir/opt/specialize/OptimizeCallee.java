@@ -63,12 +63,14 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
 
   @Nullable Callee run(Abstraction scope, AbstractionFeedback feedback, Call call) {
     if (!(call.callee() instanceof StaticFnCallee callee)) {
+      // We can't optimize dynamic calls
       return null;
     }
     var calleeFun = callee.function();
     var argumentTypes =
         call.callArguments().stream().map(scope::typeOf).collect(ImmutableList.toImmutableList());
     if (argumentTypes.contains(null)) {
+      // Invalid, null type
       return null;
     }
     @SuppressWarnings("RedundantCast")
@@ -91,6 +93,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                             ? type.withOwnership(Ownership.BORROWED)
                             : type)
                 .collect(ImmutableList.toImmutableList()),
+            bestVersion.signature().parameterStrictnesses(),
             bestVersion.signature().returnType(),
             bestVersion.signature().effects());
 

@@ -42,10 +42,12 @@ public record CreateBestVersion(int versionLimit) implements Optimization {
 
   private boolean run(ModuleFeedback feedback, Abstraction scope, Call call) {
     if (!(call.callee() instanceof StaticFnCallee callee)) {
+      // We can't optimize dynamic calls
       return false;
     }
     var calleeFun = callee.function();
     if (calleeFun.versions().size() >= versionLimit) {
+      // To many versions, don't create a new one
       return false;
     }
 
@@ -53,6 +55,7 @@ public record CreateBestVersion(int versionLimit) implements Optimization {
     var argumentTypes =
         callArguments.stream().map(scope::typeOf).collect(ImmutableList.toImmutableList());
     if (argumentTypes.contains(null)) {
+      // Invalid, null type
       return false;
     }
     @SuppressWarnings("RedundantCast")
@@ -65,6 +68,7 @@ public record CreateBestVersion(int versionLimit) implements Optimization {
       return false;
     }
     if (bestVersion.isStub() || bestVersion.signature().parameterTypes().equals(argumentTypes)) {
+      // Stub or already best parameter types = we can't further optimize the version
       return false;
     }
 

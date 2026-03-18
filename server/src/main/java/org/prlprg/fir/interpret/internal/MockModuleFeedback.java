@@ -6,6 +6,7 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -13,10 +14,21 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.util.Pair;
 
 /// [ModuleFeedback] implemented by a simple hash-map.
 public class MockModuleFeedback implements ModuleFeedback {
   private final Map<Abstraction, AbstractionFeedback> feedbacks = new HashMap<>();
+
+  /// Deep copy the module and its feedback together
+  public static Pair<Module, MockModuleFeedback> deepCopy(
+      Module module, MockModuleFeedback feedback) {
+    var moduleCopy = module.deepCopy();
+    var feedbackCopy =
+        Parser.fromString(
+            feedback.toString(), MockModuleFeedback.class, new ParseContext(moduleCopy));
+    return Pair.of(moduleCopy, feedbackCopy);
+  }
 
   public MockModuleFeedback() {}
 
@@ -47,13 +59,15 @@ public class MockModuleFeedback implements ModuleFeedback {
       if (fn == null) {
         throw s.fail("No such function: " + name);
       }
-      s.assertAndSkip('#');
+      s.assertAndSkip('<');
 
-      var index = s.readUInt();
-      if (!fn.versionIndices().contains(index)) {
-        throw s.fail("No such version: " + name + "#" + index);
+      var signature = p.parse(Signature.class);
+      var version = fn.guess(signature);
+      if (version == null || !version.signature().equals(signature)) {
+        throw s.fail("No such version: " + name + "/" + signature);
       }
-      var version = fn.version(index);
+      s.assertAndSkip('>');
+
       s.assertAndSkip('=');
 
       var feedback = p2.parse(AbstractionFeedback.class);
@@ -86,8 +100,9 @@ public class MockModuleFeedback implements ModuleFeedback {
 
               w.write('\n');
               p.print(fn.name());
-              w.write('#');
-              p.print(fn.indexOf(version));
+              w.write("< ");
+              p.print(version.signature());
+              w.write(" >");
               w.runIndented(
                   () -> {
                     w.write(" =\n");
