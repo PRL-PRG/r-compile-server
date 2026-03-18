@@ -6,7 +6,6 @@ import static org.prlprg.fir.check.Checker.checkAll;
 import java.util.Objects;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
-import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.interpret.InterpretQuery;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.FirQuery;
@@ -43,7 +42,7 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
     var original = store.load(example, FirQuery.INSTANCE);
 
-    ModuleFeedback feedback;
+    MockModuleFeedback feedback;
     try {
       var interpreterOutput = store.load(example, InterpretQuery.MAIN);
       if (interpreterOutput.result() instanceof Error(var message, _)) {
@@ -61,9 +60,11 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     }
 
     // Optimize a copy, otherwise we'll mutate the original and corrupt other tests
-    var copy = original.deepCopy();
-    optimization.run(feedback, copy);
-    return copy;
+    var copy = MockModuleFeedback.deepCopy(original, feedback);
+    var copyModule = copy.first();
+    var copyFeedback = copy.second();
+    optimization.run(copyFeedback, copyModule);
+    return copyModule;
   }
 
   @Override

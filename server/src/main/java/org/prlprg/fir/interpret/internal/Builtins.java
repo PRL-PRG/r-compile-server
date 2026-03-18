@@ -2259,7 +2259,7 @@ public final class Builtins {
     if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarLogical().isPresent())) {
       throw interpreter.fail("`naToFalse< v(L) --> B >` requires a scalar logical SEXP");
     }
-    return new Value.Bool(sexp.asScalarLogical().get() != Logical.NA);
+    return new Value.Bool(sexp.asScalarLogical().get() == Logical.TRUE);
   }
 
   private static Value naToFalse1(
@@ -2270,7 +2270,7 @@ public final class Builtins {
     if (!(args.getFirst() instanceof Value.Lgl(var sexp))) {
       throw interpreter.fail("`naToFalse< L --> B >` requires a logical argument");
     }
-    return new Value.Bool(sexp != Logical.NA);
+    return new Value.Bool(sexp == Logical.TRUE);
   }
 
   // endregion

@@ -27,7 +27,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// can't be promises, so strictness is meaningless).
 ///
 /// Used by both {@link org.prlprg.fir.check.StrictnessChecker} and
-/// {@link org.prlprg.fir.opt.StrictnessOptimization}.
+/// {@link StrictifySignature}.
 public final class StrictnessAnalysis implements CfgAnalysis {
   private final Set<Register> strictParameters;
 

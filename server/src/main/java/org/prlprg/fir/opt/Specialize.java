@@ -119,7 +119,7 @@ public class Specialize implements AbstractionOptimization {
       }
 
       for (var subOptimization : subOptimizations) {
-        subOptimization.finish(scope, analyses);
+        changed |= subOptimization.finish(scope, analyses);
       }
 
       // Commit deferred insertions.

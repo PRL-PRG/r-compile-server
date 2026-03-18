@@ -43,7 +43,9 @@ public interface SpecializeOptimization {
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer);
 
-  default void finish(Abstraction scope, Analyses analyses) {}
+  default boolean finish(Abstraction scope, Analyses analyses) {
+    return false;
+  }
 
   interface NonLocalSpecializations {
     /// Replace the expression at `pos`.

@@ -15,10 +15,10 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.support.ParameterDeclarations;
 import org.prlprg.fir.opt.sequence.Sequence;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
+import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
-import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 /// Record or class that takes one parameter, an [Optimization], and is instantiated with
 /// various optimizations.
@@ -42,7 +42,7 @@ final class OptimizationProvider implements ArgumentsProvider {
         new Cleanup(false),
         new Specialize(new DefiniteForce()),
         new Specialize(new OptimizeCallee(1)),
-        new Specialize(new ReturnTypeAndEffects()),
+        new Specialize(new ImproveSignatures()),
         new Sequence(
             "optimizeOrigins",
             new Specialize("resolve", new ResolveLoad(), new ResolveDynamicCallee()),

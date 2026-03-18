@@ -10,10 +10,10 @@ import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoadFun;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
+import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
-import org.prlprg.fir.opt.specialize.ReturnTypeAndEffects;
 
 public class Optimizations {
   public static Optimization defaultOptimizations() {
@@ -42,12 +42,11 @@ public class Optimizations {
                     new OptimizeCallee(threshold),
                     new ResolveDynamicCallee(),
                     new ResolveLoad(),
-                    new ReturnTypeAndEffects()),
+                    new ImproveSignatures()),
                 new ElideEnv(),
                 new Inline(1000),
                 new StrictifyPromise(),
                 new Cleanup()),
-            new StrictnessOptimization(),
             new CreateBestVersion(9)),
         new MergeConsecutiveCheckpoints(),
         new ElideUnusedCheckpoints());

@@ -383,7 +383,9 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         // May force iff `env == Env.LOCAL`
         case Load(var loadType, _) -> loadType != LoadType.BASE_FUN;
         case MkVector _ -> true;
-        case MkEnv _, Noop _, PopEnv _ -> false;
+        case MkEnv _ -> false;
+        case Noop _ -> true;
+        case PopEnv _ -> false;
         case Promise _ -> true;
         case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
         // May error

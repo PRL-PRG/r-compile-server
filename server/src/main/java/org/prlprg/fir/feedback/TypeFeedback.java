@@ -59,7 +59,7 @@ public class TypeFeedback {
     // Parse the union type
     union = p.parse(Type.class);
 
-    if (s.trySkip('(')) {
+    if (s.trySkip('[')) {
       // Parse individual type hits
       do {
         var type = p.parse(Type.class);
@@ -70,7 +70,7 @@ public class TypeFeedback {
         // Update union to include this type
         union = union.union(type, _ -> {});
       } while (s.trySkip(", "));
-      s.assertAndSkip(')');
+      s.assertAndSkip(']');
     } else {
       hits.put(union, 1);
     }
@@ -99,7 +99,7 @@ public class TypeFeedback {
 
       if (!wroteAny) {
         wroteAny = true;
-        w.write('(');
+        w.write('[');
       } else {
         w.write(", ");
       }
@@ -111,7 +111,7 @@ public class TypeFeedback {
     }
 
     if (wroteAny) {
-      w.write(')');
+      w.write(']');
     }
   }
 }
