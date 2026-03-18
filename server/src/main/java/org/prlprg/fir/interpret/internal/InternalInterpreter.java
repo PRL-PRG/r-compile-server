@@ -336,6 +336,7 @@ public final class InternalInterpreter implements Interpreter {
 
     var frame = mkFrame(environment);
     var feedback = feedback().get(abstraction);
+    feedback.recordCall();
 
     // Check number of parameters
     var params = abstraction.parameters();
@@ -558,10 +559,6 @@ public final class InternalInterpreter implements Interpreter {
               throw fail("Can't call function not in this interpreter: " + cloSXP);
             }
 
-            if (actualCallee instanceof Read(var calleeReg)) {
-              topFrame().scopeFeedback().recordCallee(calleeReg, function);
-            }
-
             var argumentSexps =
                 arguments.stream()
                     .map(
@@ -588,7 +585,14 @@ public final class InternalInterpreter implements Interpreter {
             }
             List<Value> matchedArguments = Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new);
 
-            yield call(function, null, matchedArguments, environment);
+            var result = call(function, null, matchedArguments, environment);
+
+            // Only record after the call, in case the function is an unregistered stub
+            if (actualCallee instanceof Read(var calleeReg)) {
+              topFrame().scopeFeedback().recordCallee(calleeReg, function);
+            }
+
+            yield result;
           }
         };
       }
