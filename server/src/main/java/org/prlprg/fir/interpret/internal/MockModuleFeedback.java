@@ -42,6 +42,13 @@ public class MockModuleFeedback implements ModuleFeedback {
     feedbacks.put(dst, feedbacks.get(src));
   }
 
+  @Override
+  public void resetCalls() {
+    for (var feedback : feedbacks.values()) {
+      feedback.resetCalls();
+    }
+  }
+
   public record ParseContext(Module module) {}
 
   @ParseMethod
@@ -102,12 +109,8 @@ public class MockModuleFeedback implements ModuleFeedback {
               p.print(fn.name());
               w.write("< ");
               p.print(version.signature());
-              w.write(" >");
-              w.runIndented(
-                  () -> {
-                    w.write(" =\n");
-                    p2.print(feedbacks.get(version));
-                  });
+              w.write(" > = ");
+              w.runIndented(() -> p2.print(feedbacks.get(version)));
             }
           }
         });

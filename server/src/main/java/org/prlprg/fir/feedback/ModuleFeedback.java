@@ -11,4 +11,7 @@ public interface ModuleFeedback {
 
   /// Copy feedback from `src` to `dst`.
   void copyTo(Abstraction dst, Abstraction src);
+
+  /// Reset the call counters for every abstraction's feedback.
+  void resetCalls();
 }

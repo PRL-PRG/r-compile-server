@@ -23,6 +23,7 @@ public class Optimizations {
   public static Optimization defaultOptimizations(int threshold) {
     return new Sequence(
         "default",
+        new ElideUnusedVersions(threshold),
         new SpeculateDispatch(threshold, 3, 9),
         new SpeculateAssume(threshold),
         new MergeAssumeLoadFun(),

@@ -20,6 +20,8 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
 public class AbstractionFeedback {
+  /// How many times this abstraction was called.
+  private int numCalls = 0;
   /// Inferred types.
   ///
   /// `null` = nothing recorded, [Type#ANY] = different types recorded. Both are equivalent to
@@ -46,6 +48,11 @@ public class AbstractionFeedback {
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
 
   public AbstractionFeedback() {}
+
+  /// Increment the call counter.
+  public void recordCall() {
+    numCalls++;
+  }
 
   public void recordType(Register register, Type type) {
     types.computeIfAbsent(register, _ -> new TypeFeedback()).record(type);
@@ -83,6 +90,11 @@ public class AbstractionFeedback {
     allRecorded.put(register, allRecorded.get(register) + 1);
   }
 
+  /// How many times this abstraction was called.
+  public int numCalls() {
+    return numCalls;
+  }
+
   public TypeFeedback type(Register register) {
     return types.getOrDefault(register, TypeFeedback.EMPTY);
   }
@@ -100,6 +112,11 @@ public class AbstractionFeedback {
     return allRecorded.getOrDefault(register, 0);
   }
 
+  /// Reset the call counter to 0.
+  public void resetCalls() {
+    numCalls = 0;
+  }
+
   @Override
   public String toString() {
     return Printer.toString(this);
@@ -113,14 +130,15 @@ public class AbstractionFeedback {
   private AbstractionFeedback(Parser p, ParseContext ctx) {
     var s = p.scanner();
 
+    numCalls = s.readUInt();
+    s.assertAndSkip("x");
+
     s.assertAndSkip('[');
-    s.skipWhitespace(true);
 
     while (!s.trySkip(']')) {
       s.assertAndSkip("reg ");
       var register = p.parse(Register.class);
       parse(register, p, ctx);
-      s.skipWhitespace(true);
     }
   }
 
@@ -171,6 +189,9 @@ public class AbstractionFeedback {
   @PrintMethod
   private void print(Printer p, PrintContext ctx) {
     var w = p.writer();
+
+    p.print(numCalls);
+    w.write("x\n");
 
     if (allRecorded.isEmpty()) {
       w.write("[]");
