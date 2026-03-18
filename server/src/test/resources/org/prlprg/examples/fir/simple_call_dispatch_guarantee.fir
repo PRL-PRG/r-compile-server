@@ -1,6 +1,6 @@
 fun main() {
   () --> v(I)f { reg r1:v(I)o |
-    r1 = g?< --> v(I)f >();
+    r1 = g%< --> v(I)f >();
     return consume r1;
   }
 }

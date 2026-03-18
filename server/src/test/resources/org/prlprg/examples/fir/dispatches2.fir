@@ -19,9 +19,9 @@ fun f(r) {
   (reg r:p(I -)) -+> V { reg r1:V, reg r2:*, reg r3:* |
     mkenv;
     r2 = r$x;
-    g?< * -+> V >(r2);
+    g%< * -+> V >(r2);
     r3 = r$y;
-    r1 = g?< * -+> V >(r3);
+    r1 = g%< * -+> V >(r3);
     popenv;
     return r1;
   }

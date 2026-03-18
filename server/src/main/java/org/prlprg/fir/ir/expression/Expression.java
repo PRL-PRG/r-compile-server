@@ -263,14 +263,14 @@ public sealed interface Expression
 
         var constant = p.parse(Value.class);
         return new Assume(new AssumeConstant(headAsArg, constant));
-      } else if (s.nextCharIs('?') || s.nextCharIs('<') || s.nextCharIs('(')) {
+      } else if (s.nextCharIs('%') || s.nextCharIs('<') || s.nextCharIs('(')) {
         if (headAsName == null) {
-          throw s.fail("in 'f< ... >(...)', 'f' must be a valid variable name");
+          throw s.fail("in 'f...(...)', 'f' must be a valid variable name");
         }
 
         // Static function call
         var functionRef = ctx.forFunctionRef.deferredLookup(Variable.named(headAsName));
-        var isDispatch = s.trySkip('?');
+        var isDispatch = s.trySkip('%');
         if (s.nextCharIs('(')) {
           throw s.fail("Can't call function without signature");
         }

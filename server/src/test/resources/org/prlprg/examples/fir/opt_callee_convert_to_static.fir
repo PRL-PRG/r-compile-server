@@ -3,7 +3,7 @@ fun main() {
   () -+> V { reg r:V |
     mkenv;
     # after: r = f< I --> I >(42);
-    r = f?< * --> I >(42);
+    r = f%< * --> I >(42);
     popenv;
     return r;
   }

@@ -39,7 +39,7 @@ public record StaticFnCallee(boolean isDispatch, FunctionRef functionRef, Signat
 
     p.print(function().name());
     if (isDispatch) {
-      w.write('?');
+      w.write('%');
     }
     w.write("< ");
     p.print(signature);

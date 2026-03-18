@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -95,7 +96,7 @@ public final class InferEffects implements Analysis {
       }
       // Local function lookup can force
       case Load(var loadType, _) -> loadType == LoadType.LOCAL_FUN ? Effects.REFLECT : Effects.NONE;
-      case MkVector(_, _), MkEnv(), PopEnv(), Promise(_, _, _) -> Effects.NONE;
+      case MkVector(_, _), MkEnv(), Noop(), PopEnv(), Promise(_, _, _) -> Effects.NONE;
       case ReflectiveLoad(_, _), ReflectiveStore(_, _, _) -> Effects.REFLECT;
       case Store(_, _, _), SubscriptRead(_, _), SubscriptWrite(_, _, _) -> Effects.NONE;
     };

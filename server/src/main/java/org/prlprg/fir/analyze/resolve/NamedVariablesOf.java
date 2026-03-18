@@ -17,6 +17,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -53,6 +54,7 @@ public class NamedVariablesOf implements Analysis {
                       Force _,
                       MkVector _,
                       MkEnv _,
+                      Noop _,
                       PopEnv _,
                       Promise _,
                       ReflectiveLoad _,
