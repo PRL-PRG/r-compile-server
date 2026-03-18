@@ -3,9 +3,9 @@ fun main() {
   () -+> V { reg r:V |
     mkenv;
     # after: f< I,R --> I >(1, 2.0);
-    f?< *,* --> V >(1, 2.0);
+    f%< *,* --> V >(1, 2.0);
     # after: r = f< I,I --> I >(3, 4);
-    r = f?< *,* --> V >(3, 4);
+    r = f%< *,* --> V >(3, 4);
     popenv;
     return r;
   }

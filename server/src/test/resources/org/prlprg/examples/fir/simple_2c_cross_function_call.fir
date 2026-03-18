@@ -2,8 +2,8 @@ fun main() {
   () --> I { reg lhs:I, reg rhs:I, reg sum:I, reg doubled:I |
     lhs = 7;
     rhs = 14;
-    sum = add_pair?< I,I --> I >(lhs, rhs);
-    doubled = double_value?< I --> I >(sum);
+    sum = add_pair%< I,I --> I >(lhs, rhs);
+    doubled = double_value%< I --> I >(sum);
     return doubled;
   }
 }

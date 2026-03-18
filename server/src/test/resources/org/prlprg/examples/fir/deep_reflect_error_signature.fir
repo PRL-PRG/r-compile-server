@@ -9,7 +9,7 @@ fun main() {
       return rx2;
     };
     # type-error: Type mismatch in argument 0 (for signature): p(V +) doesn't match p(V -)
-    r1 = f?< p(V -) -+> v(I) >(r0);
+    r1 = f%< p(V -) -+> v(I) >(r0);
     popenv;
     return r1;
   }
@@ -18,7 +18,7 @@ fun main() {
 fun f(r) {
   (reg r:p(V -)) -+> v(I) { reg r1:v(I) |
     mkenv;
-    r1 = g?< p(V -) -+> v(I) >(r);
+    r1 = g%< p(V -) -+> v(I) >(r);
     popenv;
     return r1;
   }

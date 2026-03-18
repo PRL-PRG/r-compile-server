@@ -4,7 +4,7 @@ fun main() {
       r = fx< -+> V >();
       return r;
     };
-    res = f?< p(V +) -+> V >(p);
+    res = f%< p(V +) -+> V >(p);
     return res;
   }
 }

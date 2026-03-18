@@ -2,7 +2,7 @@ fun main() {
   # type-error: Function effects mismatch: + don't subset -
   () --> v(I)f { reg r1:v(I)o |
     # type-error: Can't assign it to r1: can't assign v(I) to v(I)o
-    r1 = g?< * -+> v(I) >(4);
+    r1 = g%< * -+> v(I) >(4);
     return consume r1;
   }
 }
