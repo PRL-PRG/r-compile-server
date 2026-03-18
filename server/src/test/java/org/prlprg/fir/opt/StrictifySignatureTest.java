@@ -121,7 +121,7 @@ class StrictifySignatureTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun f(x) {
-              (reg x:p(I -)) -+> I { reg r:I, reg g:V |
+              (reg x:p(I -)) -+> I { reg r:I, reg g:cls |
                 g = ldf g;
                 r = force x;
                 return r;
