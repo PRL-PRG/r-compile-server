@@ -22,6 +22,13 @@ public sealed interface Kind extends Comparable<Kind> {
     }
   }
 
+  record PrimitiveVector1(PrimitiveKind primitive) implements Kind {
+    @Override
+    public String toString() {
+      return Printer.toString(this);
+    }
+  }
+
   record Closure() implements Kind {
     @Override
     public String toString() {
@@ -59,7 +66,8 @@ public sealed interface Kind extends Comparable<Kind> {
 
   default Repr repr() {
     return switch (this) {
-      case AnySexp(), PrimitiveVector(_), Closure(), Dots(), Missing() -> Repr.SEXP;
+      case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure(), Dots(), Missing() ->
+          Repr.SEXP;
       case PrimitiveScalar(var primitiveKind) -> primitiveKind.repr();
       case Boolean() -> Repr.BOOLEAN;
     };
@@ -73,7 +81,7 @@ public sealed interface Kind extends Comparable<Kind> {
   default boolean isWellFormedWithOwnership() {
     return switch (this) {
       case AnySexp(), Closure(), Dots(), Missing(), PrimitiveScalar(_), Boolean() -> false;
-      case PrimitiveVector(_) -> true;
+      case PrimitiveVector(_), PrimitiveVector1(_) -> true;
     };
   }
 
@@ -81,7 +89,10 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (other) {
       case AnySexp() -> true;
       case Dots() -> this instanceof Dots || this instanceof Missing;
-      case PrimitiveVector(_), Closure(), Missing(), PrimitiveScalar(_), Boolean() ->
+      case PrimitiveVector(var otherPrimitive) ->
+          this.equals(other)
+              || (this instanceof PrimitiveVector1(var primitive) && primitive == otherPrimitive);
+      case PrimitiveVector1(_), Closure(), Missing(), PrimitiveScalar(_), Boolean() ->
           this.equals(other);
     };
   }
@@ -93,7 +104,19 @@ public sealed interface Kind extends Comparable<Kind> {
 
     return switch (other) {
       case AnySexp() -> other;
-      case PrimitiveVector(_), Closure() -> equals(other) ? this : union(new AnySexp(), _ -> {});
+      case PrimitiveVector(var otherPrimitive) ->
+          equals(other)
+              ? this
+              : (this instanceof PrimitiveVector1(var primitive) && primitive == otherPrimitive)
+                  ? other
+                  : union(new AnySexp(), _ -> {});
+      case PrimitiveVector1(var otherPrimitive) ->
+          equals(other)
+              ? this
+              : (this instanceof PrimitiveVector(var primitive) && primitive == otherPrimitive)
+                  ? this
+                  : union(new AnySexp(), _ -> {});
+      case Closure() -> equals(other) ? this : union(new AnySexp(), _ -> {});
       case Dots() ->
           (this instanceof Dots || this instanceof Missing) ? other : union(new AnySexp(), _ -> {});
       case Missing() ->
@@ -113,33 +136,46 @@ public sealed interface Kind extends Comparable<Kind> {
             case PrimitiveVector(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
-      case Closure() ->
+      case PrimitiveVector1(var otherPrimitive) ->
           switch (this) {
             case AnySexp(), PrimitiveVector(_) -> 1;
+            case PrimitiveVector1(var primitive) -> primitive.compareTo(otherPrimitive);
+            default -> -1;
+          };
+      case Closure() ->
+          switch (this) {
+            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_) -> 1;
             case Closure() -> 0;
             default -> -1;
           };
       case Dots() ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), Closure() -> 1;
+            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure() -> 1;
             case Dots() -> 0;
             default -> -1;
           };
       case Missing() ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), Closure(), Dots() -> 1;
+            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure(), Dots() -> 1;
             case Missing() -> 0;
             default -> -1;
           };
       case PrimitiveScalar(var otherPrimitive) ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), Closure(), Dots(), Missing() -> 1;
+            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure(), Dots(), Missing() ->
+                1;
             case PrimitiveScalar(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case Boolean() ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), Closure(), Dots(), Missing(), PrimitiveScalar(_) ->
+            case AnySexp(),
+                PrimitiveVector(_),
+                PrimitiveVector1(_),
+                Closure(),
+                Dots(),
+                Missing(),
+                PrimitiveScalar(_) ->
                 1;
             case Boolean() -> 0;
           };
@@ -157,6 +193,11 @@ public sealed interface Kind extends Comparable<Kind> {
         p.print(primitive);
         w.write(')');
       }
+      case PrimitiveVector1(var primitive) -> {
+        w.write("v1(");
+        p.print(primitive);
+        w.write(')');
+      }
       case Closure() -> w.write("cls");
       case Dots() -> w.write("dots");
       case Missing() -> w.write("miss");
@@ -171,6 +212,11 @@ public sealed interface Kind extends Comparable<Kind> {
 
     if (s.trySkip('V')) {
       return new AnySexp();
+    } else if (s.trySkip("v1")) {
+      s.assertAndSkip('(');
+      var primitive = p.parse(PrimitiveKind.class);
+      s.assertAndSkip(')');
+      return new PrimitiveVector1(primitive);
     } else if (s.trySkip('v')) {
       s.assertAndSkip('(');
       var primitive = p.parse(PrimitiveKind.class);
@@ -191,7 +237,7 @@ public sealed interface Kind extends Comparable<Kind> {
       // Also has the starting characters for parsing a promise,
       // because in practice it's parsed that way.
       throw s.fail(
-          "expected '*', 'p('..., 'p?('..., 'V', 'v('..., 'cls', 'dots', 'miss', primitive kind ('L', 'I', 'R', or 'S'), or 'B'");
+          "expected '*', 'p('..., 'p?('..., 'V', 'v('..., 'v1('..., 'cls', 'dots', 'miss', primitive kind ('L', 'I', 'R', or 'S'), or 'B'");
     }
   }
 }

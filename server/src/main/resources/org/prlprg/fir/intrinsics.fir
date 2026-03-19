@@ -18,14 +18,14 @@ fun naToFalse(r) {
   (reg r:L) --> B { ... }
 }
 fun box(r) {
-  (reg r:L) --> v(L) { ... }
-  (reg r:I) --> v(I) { ... }
-  (reg r:R) --> v(R) { ... }
-  (reg r:S) --> v(S) { ... }
+  (reg r:L) --> v1(L) { ... }
+  (reg r:I) --> v1(I) { ... }
+  (reg r:R) --> v1(R) { ... }
+  (reg r:S) --> v1(S) { ... }
 }
 fun unbox(r) {
-  (reg r:v(L)) --> L { ... }
-  (reg r:v(I)) --> I { ... }
-  (reg r:v(R)) --> R { ... }
-  (reg r:v(S)) --> S { ... }
+  (reg r:v1(L)) --> L { ... }
+  (reg r:v1(I)) --> I { ... }
+  (reg r:v1(R)) --> R { ... }
+  (reg r:v1(S)) --> S { ... }
 }

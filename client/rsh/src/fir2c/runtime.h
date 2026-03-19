@@ -25,6 +25,7 @@ typedef enum {
   FIR_KIND_DOTS = 4,
   FIR_KIND_MISSING = 5,
   FIR_KIND_BOOLEAN = 6,
+  FIR_KIND_PRIMITIVE_VECTOR1 = 7,
 } Fir_KindTag;
 
 typedef enum {
@@ -119,6 +120,7 @@ bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fi
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
 Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
+Fir_Kind Fir_kind_primitive_vector1(Fir_PrimitiveKind primitive_kind);
 
 extern Fir_Promisity Fir_promisity_value;
 Fir_Promisity Fir_promisity_maybe(Fir_Effects effects);
