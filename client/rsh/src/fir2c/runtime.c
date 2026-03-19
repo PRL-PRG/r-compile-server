@@ -26,12 +26,23 @@ static Fir_Kind const PRIMITIVE_VECTOR_KINDS[4] = {
   {.tag = FIR_KIND_PRIMITIVE_VECTOR, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
 
+static Fir_Kind const PRIMITIVE_VECTOR1_KINDS[4] = {
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_LOGICAL}},
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_INTEGER}},
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
+  {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
+};
+
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_SCALAR_KINDS[primitive_kind];
 }
 
 Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_VECTOR_KINDS[primitive_kind];
+}
+
+Fir_Kind Fir_kind_primitive_vector1(Fir_PrimitiveKind primitive_kind) {
+  return PRIMITIVE_VECTOR1_KINDS[primitive_kind];
 }
 
 Fir_Promisity Fir_promisity_value = {.tag = FIR_PROMISITY_VALUE, .effects = FIR_EFFECTS_NONE};
@@ -97,10 +108,13 @@ static bool Fir_kind_is_subtype(Fir_Kind this_kind, Fir_Kind other_kind) {
     return this_kind.tag != FIR_KIND_PRIMITIVE_SCALAR && this_kind.tag != FIR_KIND_BOOLEAN;
   case FIR_KIND_PRIMITIVE_VECTOR: {
     int other_primitive = other_kind.as.primitive.primitive;
-    // PrimitiveScalar is NOT a subtype of PrimitiveVector (different repr)
-    return this_kind.tag == FIR_KIND_PRIMITIVE_VECTOR
+    // PrimitiveVector1 is a subtype of PrimitiveVector (same primitive)
+    return (this_kind.tag == FIR_KIND_PRIMITIVE_VECTOR || this_kind.tag == FIR_KIND_PRIMITIVE_VECTOR1)
         && this_kind.as.primitive.primitive == other_primitive;
   }
+  case FIR_KIND_PRIMITIVE_VECTOR1:
+    return this_kind.tag == FIR_KIND_PRIMITIVE_VECTOR1
+        && this_kind.as.primitive.primitive == other_kind.as.primitive.primitive;
   case FIR_KIND_PRIMITIVE_SCALAR:
     return this_kind.tag == FIR_KIND_PRIMITIVE_SCALAR
         && this_kind.as.primitive.primitive == other_kind.as.primitive.primitive;
@@ -158,6 +172,14 @@ static bool Fir_value_kind_matches(SEXP value, Fir_Kind kind) {
           : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
           : STRSXP;
       return TYPEOF(value) == expected;
+  }
+  case FIR_KIND_PRIMITIVE_VECTOR1: {
+      SEXPTYPE expected
+          = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
+          : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
+          : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
+          : STRSXP;
+      return TYPEOF(value) == expected && Rf_length(value) == 1;
   }
   case FIR_KIND_BOOLEAN:
     // A boolean is a logical scalar that is not NA
@@ -328,7 +350,8 @@ static SEXP Fir_make_names(int count, SEXP const *names) {
 
 SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names) {
   switch (kind.tag) {
-  case FIR_KIND_PRIMITIVE_VECTOR: {
+  case FIR_KIND_PRIMITIVE_VECTOR:
+  case FIR_KIND_PRIMITIVE_VECTOR1: {
     SEXPTYPE type
         = kind.as.primitive.primitive == FIR_PRIMITIVE_LOGICAL ? LGLSXP
         : kind.as.primitive.primitive == FIR_PRIMITIVE_INTEGER ? INTSXP
@@ -929,6 +952,11 @@ void Fir_print_kind(Fir_Kind kind) {
     break;
   case FIR_KIND_PRIMITIVE_VECTOR:
     fprintf(stderr, "v(");
+    Fir_print_primitive_kind(kind.as.primitive.primitive);
+    fprintf(stderr, ")");
+    break;
+  case FIR_KIND_PRIMITIVE_VECTOR1:
+    fprintf(stderr, "v1(");
     Fir_print_primitive_kind(kind.as.primitive.primitive);
     fprintf(stderr, ")");
     break;

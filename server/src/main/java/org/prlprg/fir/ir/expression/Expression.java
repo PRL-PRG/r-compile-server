@@ -187,6 +187,13 @@ public sealed interface Expression
           var elements = p.parseList("[", "]", NamedArgument.class);
           return new MkVector(new Kind.PrimitiveVector(primitiveKind), elements);
         }
+        case "v1" -> {
+          s.assertAndSkip('(');
+          var primitiveKind = p.parse(PrimitiveKind.class);
+          s.assertAndSkip(')');
+          var elements = p.parseList("[", "]", NamedArgument.class);
+          return new MkVector(new Kind.PrimitiveVector1(primitiveKind), elements);
+        }
         case "dots" -> {
           var elements = p.parseList("[", "]", NamedArgument.class);
           return new MkVector(new Kind.Dots(), elements);

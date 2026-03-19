@@ -2295,98 +2295,98 @@ public final class Builtins {
     return new Value.Bool(sexp == Logical.TRUE);
   }
 
-  // box: L → v(L)
+  // box: L → v1(L)
   private static Value boxLogical(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`box` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Lgl(var lgl))) {
-      throw interpreter.fail("`box< L --> v(L) >` requires a logical scalar argument");
+      throw interpreter.fail("`box< L --> v1(L) >` requires a logical scalar argument");
     }
     return new Value.Sexp(SEXPs.logical(lgl));
   }
 
-  // box: I → v(I)
+  // box: I → v1(I)
   private static Value boxInteger(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`box` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Int(var i))) {
-      throw interpreter.fail("`box< I --> v(I) >` requires an integer scalar argument");
+      throw interpreter.fail("`box< I --> v1(I) >` requires an integer scalar argument");
     }
     return new Value.Sexp(SEXPs.integer(i));
   }
 
-  // box: R → v(R)
+  // box: R → v1(R)
   private static Value boxReal(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`box` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Real(var r))) {
-      throw interpreter.fail("`box< R --> v(R) >` requires a real scalar argument");
+      throw interpreter.fail("`box< R --> v1(R) >` requires a real scalar argument");
     }
     return new Value.Sexp(SEXPs.real(r));
   }
 
-  // box: S → v(S)
+  // box: S → v1(S)
   private static Value boxString(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`box` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Str(var s))) {
-      throw interpreter.fail("`box< S --> v(S) >` requires a string scalar argument");
+      throw interpreter.fail("`box< S --> v1(S) >` requires a string scalar argument");
     }
     return new Value.Sexp(SEXPs.string(s));
   }
 
-  // unbox: v(L) → L
+  // unbox: v1(L) → L
   private static Value unboxLogical(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`unbox` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarLogical().isPresent())) {
-      throw interpreter.fail("`unbox< v(L) --> L >` requires a scalar logical SEXP");
+      throw interpreter.fail("`unbox< v1(L) --> L >` requires a scalar logical SEXP");
     }
     return new Value.Lgl(sexp.asScalarLogical().get());
   }
 
-  // unbox: v(I) → I
+  // unbox: v1(I) → I
   private static Value unboxInteger(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`unbox` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarInteger().isPresent())) {
-      throw interpreter.fail("`unbox< v(I) --> I >` requires a scalar integer SEXP");
+      throw interpreter.fail("`unbox< v1(I) --> I >` requires a scalar integer SEXP");
     }
     return new Value.Int(sexp.asScalarInteger().get());
   }
 
-  // unbox: v(R) → R
+  // unbox: v1(R) → R
   private static Value unboxReal(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`unbox` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarReal().isPresent())) {
-      throw interpreter.fail("`unbox< v(R) --> R >` requires a scalar real SEXP");
+      throw interpreter.fail("`unbox< v1(R) --> R >` requires a scalar real SEXP");
     }
     return new Value.Real(sexp.asScalarReal().get());
   }
 
-  // unbox: v(S) → S
+  // unbox: v1(S) → S
   private static Value unboxString(
       InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
     if (args.size() != 1) {
       throw interpreter.fail("`unbox` takes 1 argument");
     }
     if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarString().isPresent())) {
-      throw interpreter.fail("`unbox< v(S) --> S >` requires a scalar string SEXP");
+      throw interpreter.fail("`unbox< v1(S) --> S >` requires a scalar string SEXP");
     }
     return new Value.Str(sexp.asScalarString().get());
   }

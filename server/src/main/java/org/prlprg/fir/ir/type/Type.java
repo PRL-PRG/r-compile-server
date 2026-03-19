@@ -61,6 +61,11 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
         new Kind.PrimitiveVector(kind), Promisity.VALUE, ownership, Concreteness.DEFINITE);
   }
 
+  public static Type primitiveVector1(PrimitiveKind kind, Ownership ownership) {
+    return new Type(
+        new Kind.PrimitiveVector1(kind), Promisity.VALUE, ownership, Concreteness.DEFINITE);
+  }
+
   public static Type promise(Type valueType, Effects effects) {
     return new Type(
         valueType.kind, Promisity.promise(effects), valueType.ownership, valueType.concreteness);

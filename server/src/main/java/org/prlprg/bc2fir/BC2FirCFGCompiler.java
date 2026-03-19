@@ -665,6 +665,7 @@ public class BC2FirCFGCompiler {
         tryAddCheckpoint(false);
         pushInsert(getStr(name), new Force(true, pop()));
         insert(intrinsic("checkMissing", top()));
+        tryAddCheckpoint(true);
       }
       case DdVal(var name) -> {
         var ddIndex = NamedVariable.ddNum(get(name).ddNum());
@@ -672,6 +673,7 @@ public class BC2FirCFGCompiler {
         tryAddCheckpoint(false);
         pushInsert(getStr(name), new Force(true, pop()));
         insert(intrinsic("checkMissing", top()));
+        tryAddCheckpoint(true);
       }
       case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name), top()));
       case GetFun(var name) -> {

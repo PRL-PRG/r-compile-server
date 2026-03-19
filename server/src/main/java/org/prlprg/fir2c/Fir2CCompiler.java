@@ -1479,6 +1479,8 @@ public final class Fir2CCompiler {
       case AnySexp() -> "Fir_kind_any_value";
       case Kind.PrimitiveVector(var primitiveKind) ->
           "Fir_kind_primitive_vector(%s)".formatted(emitPrimitiveKind(primitiveKind));
+      case Kind.PrimitiveVector1(var primitiveKind) ->
+          "Fir_kind_primitive_vector1(%s)".formatted(emitPrimitiveKind(primitiveKind));
       case Kind.Closure() -> "Fir_kind_closure";
       case Kind.Dots() -> "Fir_kind_dots";
       case Kind.Missing() -> "Fir_kind_missing";
@@ -1613,6 +1615,10 @@ public final class Fir2CCompiler {
       case AnySexp() -> sb.append("value");
       case Kind.PrimitiveVector(var primitiveKind) -> {
         sb.append("vec_");
+        emitPrimitiveKindCName(sb, primitiveKind);
+      }
+      case Kind.PrimitiveVector1(var primitiveKind) -> {
+        sb.append("vec1_");
         emitPrimitiveKindCName(sb, primitiveKind);
       }
       case Kind.Closure() -> sb.append("closure");
