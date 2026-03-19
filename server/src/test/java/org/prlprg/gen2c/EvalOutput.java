@@ -31,7 +31,9 @@ public record EvalOutput(SexpResult result, String outputLog, PerformanceCounter
   }
 
   public String behaviorOutputLog() {
-    return Pattern.compile("(\\n|^)[>*+#].*$", Pattern.MULTILINE).matcher(outputLog).replaceAll("");
+    return Pattern.compile("(\\n|^)[>*+#?].*$", Pattern.MULTILINE)
+        .matcher(outputLog)
+        .replaceAll("");
   }
 
   @Override
