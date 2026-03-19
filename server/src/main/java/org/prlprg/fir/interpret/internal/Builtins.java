@@ -233,6 +233,28 @@ public final class Builtins {
         Builtins::naToFalse0);
     interpreter.registerExternal(
         "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToFalse1);
+
+    // box: scalar → vector
+    interpreter.registerExternal(
+        "box", sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.LOGICAL), Builtins::boxLogical);
+    interpreter.registerExternal(
+        "box", sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER), Builtins::boxInteger);
+    interpreter.registerExternal(
+        "box", sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.REAL), Builtins::boxReal);
+    interpreter.registerExternal(
+        "box", sig(Type.SHARED_STRING_VECTOR, Effects.NONE, Type.STRING), Builtins::boxString);
+
+    // unbox: vector → scalar
+    interpreter.registerExternal(
+        "unbox",
+        sig(Type.LOGICAL, Effects.NONE, Type.SHARED_LOGICAL_VECTOR),
+        Builtins::unboxLogical);
+    interpreter.registerExternal(
+        "unbox", sig(Type.INTEGER, Effects.NONE, Type.SHARED_INT_VECTOR), Builtins::unboxInteger);
+    interpreter.registerExternal(
+        "unbox", sig(Type.REAL, Effects.NONE, Type.SHARED_REAL_VECTOR), Builtins::unboxReal);
+    interpreter.registerExternal(
+        "unbox", sig(Type.STRING, Effects.NONE, Type.SHARED_STRING_VECTOR), Builtins::unboxString);
   }
 
   // region binary math builtins
@@ -2271,6 +2293,102 @@ public final class Builtins {
       throw interpreter.fail("`naToFalse< L --> B >` requires a logical argument");
     }
     return new Value.Bool(sexp == Logical.TRUE);
+  }
+
+  // box: L → v(L)
+  private static Value boxLogical(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`box` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Lgl(var lgl))) {
+      throw interpreter.fail("`box< L --> v(L) >` requires a logical scalar argument");
+    }
+    return new Value.Sexp(SEXPs.logical(lgl));
+  }
+
+  // box: I → v(I)
+  private static Value boxInteger(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`box` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Int(var i))) {
+      throw interpreter.fail("`box< I --> v(I) >` requires an integer scalar argument");
+    }
+    return new Value.Sexp(SEXPs.integer(i));
+  }
+
+  // box: R → v(R)
+  private static Value boxReal(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`box` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Real(var r))) {
+      throw interpreter.fail("`box< R --> v(R) >` requires a real scalar argument");
+    }
+    return new Value.Sexp(SEXPs.real(r));
+  }
+
+  // box: S → v(S)
+  private static Value boxString(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`box` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Str(var s))) {
+      throw interpreter.fail("`box< S --> v(S) >` requires a string scalar argument");
+    }
+    return new Value.Sexp(SEXPs.string(s));
+  }
+
+  // unbox: v(L) → L
+  private static Value unboxLogical(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`unbox` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarLogical().isPresent())) {
+      throw interpreter.fail("`unbox< v(L) --> L >` requires a scalar logical SEXP");
+    }
+    return new Value.Lgl(sexp.asScalarLogical().get());
+  }
+
+  // unbox: v(I) → I
+  private static Value unboxInteger(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`unbox` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarInteger().isPresent())) {
+      throw interpreter.fail("`unbox< v(I) --> I >` requires a scalar integer SEXP");
+    }
+    return new Value.Int(sexp.asScalarInteger().get());
+  }
+
+  // unbox: v(R) → R
+  private static Value unboxReal(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`unbox` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarReal().isPresent())) {
+      throw interpreter.fail("`unbox< v(R) --> R >` requires a scalar real SEXP");
+    }
+    return new Value.Real(sexp.asScalarReal().get());
+  }
+
+  // unbox: v(S) → S
+  private static Value unboxString(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`unbox` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarString().isPresent())) {
+      throw interpreter.fail("`unbox< v(S) --> S >` requires a scalar string SEXP");
+    }
+    return new Value.Str(sexp.asScalarString().get());
   }
 
   // endregion
