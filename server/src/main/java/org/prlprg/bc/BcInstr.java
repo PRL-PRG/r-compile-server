@@ -42,16 +42,16 @@ public sealed interface BcInstr {
     return stackEffect == null ? 0 : stackEffect.push();
   }
 
+  @SuppressWarnings("unchecked")
   default Optional<ConstPool.Idx<RegSymSXP>> bindingCell() {
     var cls = getClass();
 
     if (cls.isRecord()) {
       for (RecordComponent rc : cls.getRecordComponents()) {
         if (rc.isAnnotationPresent(BindingCell.class)) {
-          Method accessor = null;
+          Method accessor;
           try {
-            accessor = this.getClass().getDeclaredMethod(rc.getName());
-            accessor.setAccessible(true);
+            accessor = cls.getDeclaredMethod(rc.getName());
             return Optional.ofNullable((ConstPool.Idx<RegSymSXP>) accessor.invoke(this));
           } catch (Exception e) {
             throw new RuntimeException("Unable to access @BindingCell field", e);
@@ -342,9 +342,9 @@ public sealed interface BcInstr {
     }
   }
 
+  /// `code` is usually but not always bytecode (see eval.c).
   @NeedsRho
   @StackEffect(pop = 3, push = 3)
-  /** {@code code} is usually but not always bytecode (see eval.c). */
   record MakeProm(ConstPool.Idx<SEXP> code) implements BcInstr {
     @Override
     public BcOp op() {

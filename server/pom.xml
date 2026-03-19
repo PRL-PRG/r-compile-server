@@ -12,7 +12,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>24</maven.compiler.source>
+    <maven.compiler.source>26</maven.compiler.source>
     <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
     <protobuf.version>4.27.2</protobuf.version>
     <grpc.version>1.64.0</grpc.version>
@@ -79,7 +79,7 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>33.1.0-jre</version>
+      <version>33.5.0-jre</version>
     </dependency>
     <!-- JSpecify, annotations for IDEs and static analyses -->
     <dependency>
@@ -91,7 +91,7 @@
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
-      <version>24.1.0</version>
+      <version>26.1.0</version>
     </dependency>
     <!-- JUnit, unit tests -->
     <dependency>
@@ -156,7 +156,7 @@
       <plugin>
         <groupId>com.rudikershaw.gitbuildhook</groupId>
         <artifactId>git-build-hook-maven-plugin</artifactId>
-        <version>3.4.1</version>
+        <version>3.6.0</version>
         <configuration>
           <installHooks>
             <pre-commit>.githooks/pre-commit.sh</pre-commit>
@@ -175,7 +175,7 @@
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
-        <version>2.46.1</version>
+        <version>3.3.0</version>
         <configuration>
           <formats>
             <!-- Generally handle trailing whitespace and newline -->
@@ -213,7 +213,7 @@
               <exclude>target/**/*</exclude>
             </excludes>
             <googleJavaFormat>
-              <version>1.33.0</version>
+              <version>1.35.0</version>
               <style>GOOGLE</style>
               <formatJavadoc>true</formatJavadoc>
             </googleJavaFormat>
@@ -283,18 +283,16 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.13.0</version>
+        <version>4.0.0-beta-4</version>
         <configuration>
-          <!-- enable the compiler’s incremental mode -->
-          <useIncrementalCompilation>false</useIncrementalCompilation>
-          <source>24</source>
-          <target>24</target>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
         </configuration>
       </plugin>
       <!-- JUnit, unit test runner -->
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.2.2</version>
+        <version>3.5.5</version>
         <!-- Run tests in parallel. You can annotate tests with @NotThreadSafe if necessary -->
         <configuration>
           <parallel>all</parallel>
@@ -306,7 +304,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>3.5.5</version>
         <executions>
           <execution>
             <goals>
@@ -320,7 +318,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
-        <version>3.7.0</version>
+        <version>3.12.0</version>
         <!-- `executions` is required to run this on verify -->
         <!-- disabled for now
                 <executions>
@@ -336,7 +334,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>3.7.1</version>
+        <version>3.8.0</version>
         <configuration>
           <archive>
             <manifest>
@@ -360,7 +358,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>3.6.3</version>
         <configuration>
           <mainClass>org.prlprg.server.CompileServer</mainClass>
         </configuration>
@@ -377,9 +375,9 @@
     <extensions>
       <!-- For gRPC/protobuf-->
       <extension>
-        <groupId>kr.motd.maven</groupId>
-        <artifactId>os-maven-plugin</artifactId>
-        <version>1.7.1</version>
+        <groupId>com.tisonkun.os</groupId>
+        <artifactId>os-detector-maven-plugin</artifactId>
+        <version>0.6.0</version>
       </extension>
     </extensions>
   </build>

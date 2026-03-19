@@ -28,7 +28,7 @@ See `./client/rsh/README.md`.
 
 At `./server`.
 
-Written in Java 24. Uses Maven.
+Written in Java 26. Uses Maven.
 
 ### Conventions
 

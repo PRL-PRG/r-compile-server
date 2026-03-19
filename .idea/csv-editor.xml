@@ -24,14 +24,35 @@
             </Attribute>
           </value>
         </entry>
-        <entry key="/fir-intellij-plugin/build/idea-sandbox/IU-2025.3/log/open-telemetry-metrics.2026-02-25-12-11-16.csv">
+        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_fibonacci.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />
             </Attribute>
           </value>
         </entry>
-        <entry key="/fir-intellij-plugin/build/idea-sandbox/IU-2025.3/log/open-telemetry-metrics.2026-03-03-15-03-17.csv">
+        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_permute.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_queens.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_sieve.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_towers.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />
