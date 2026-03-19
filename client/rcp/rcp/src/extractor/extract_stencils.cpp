@@ -870,6 +870,8 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#include \"runtime_internals.h\"\n";
 	c_file << "#define RSH_EXTERN_HELPERS\n";
 	c_file << "#include <runtime.h>\n";
+	c_file << "#undef NDEBUG\n"; // Ensure assert() is available if used in generated code
+	c_file << "#include <assert.h>\n";
 	c_file << "#undef RSH_EXTERN_HELPERS\n";
 	// runtime.h redefines R_NaInt etc. as macros; undo so &R_NaInt remains an lvalue
 	c_file << "#undef R_NaInt\n";
