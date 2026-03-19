@@ -845,7 +845,7 @@ void Fir_dbg_float(const char* name, double value) {
 }
 
 void Fir_dbg_string(const char* name, char* value) {
-  if (value == NA_STRING) {
+  if (value == NULL) {
     fprintf(stderr, "* - %s = NA_STRING\n", name);
   } else {
     fprintf(stderr, "* - %s = \"%s\"\n", name, value);
@@ -1100,6 +1100,40 @@ DEFINE_INTRINSIC(SEXP, setVisible, fx_none_ret_value) {
 
 DEFINE_INTRINSIC(bool, naToFalse, vec_logical_fx_none_ret_bool, SEXP value) {
   return value == R_TrueValue;
+}
+
+// === box ===
+DEFINE_INTRINSIC(SEXP, box, scalar_logical_fx_none_ret_vec_logical, Rboolean value) {
+  return Rf_ScalarLogical(value);
+}
+
+DEFINE_INTRINSIC(SEXP, box, scalar_int_fx_none_ret_vec_int, int value) {
+  return Rf_ScalarInteger(value);
+}
+
+DEFINE_INTRINSIC(SEXP, box, scalar_real_fx_none_ret_vec_real, double value) {
+  return Rf_ScalarReal(value);
+}
+
+DEFINE_INTRINSIC(SEXP, box, scalar_string_fx_none_ret_vec_string, char* value) {
+  return value == NULL ? NA_STRING : Rf_ScalarString(Rf_mkChar(value));
+}
+
+// === unbox ===
+DEFINE_INTRINSIC(Rboolean, unbox, vec_logical_fx_none_ret_scalar_logical, SEXP value) {
+  return LOGICAL(value)[0];
+}
+
+DEFINE_INTRINSIC(int, unbox, vec_int_fx_none_ret_scalar_int, SEXP value) {
+  return INTEGER(value)[0];
+}
+
+DEFINE_INTRINSIC(double, unbox, vec_real_fx_none_ret_scalar_real, SEXP value) {
+  return REAL(value)[0];
+}
+
+DEFINE_INTRINSIC(char*, unbox, vec_string_fx_none_ret_scalar_string, SEXP value) {
+  return value == NA_STRING ? NULL : (char*)CHAR(STRING_ELT(value, 0));
 }
 
 // === Vector operation helpers ===

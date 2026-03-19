@@ -189,6 +189,18 @@ DEFINE_INTRINSIC(SEXP, setInvisible, fx_none_ret_value);
 DEFINE_INTRINSIC(SEXP, setVisible, fx_none_ret_value);
 DEFINE_INTRINSIC(bool, naToFalse, vec_logical_fx_none_ret_bool, SEXP value);
 
+// box: scalar → vector (length-1 SEXP)
+DEFINE_INTRINSIC(SEXP, box, scalar_logical_fx_none_ret_vec_logical, Rboolean value);
+DEFINE_INTRINSIC(SEXP, box, scalar_int_fx_none_ret_vec_int, int value);
+DEFINE_INTRINSIC(SEXP, box, scalar_real_fx_none_ret_vec_real, double value);
+DEFINE_INTRINSIC(SEXP, box, scalar_string_fx_none_ret_vec_string, char* value);
+
+// unbox: vector (length-1 SEXP) → scalar
+DEFINE_INTRINSIC(Rboolean, unbox, vec_logical_fx_none_ret_scalar_logical, SEXP value);
+DEFINE_INTRINSIC(int, unbox, vec_int_fx_none_ret_scalar_int, SEXP value);
+DEFINE_INTRINSIC(double, unbox, vec_real_fx_none_ret_scalar_real, SEXP value);
+DEFINE_INTRINSIC(char*, unbox, vec_string_fx_none_ret_scalar_string, SEXP value);
+
 // +: I+I→I, R+R→R, I+R→R, R+I→R, vI+vI→vI, vR+vR→vR, vI+vR→vR, vR+vI→vR
 DEFINE_OVERRIDDEN_BUILTIN(int, _u2b, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b);
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b);
