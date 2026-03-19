@@ -1,5 +1,5 @@
 fun `+`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(I) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
@@ -10,13 +10,13 @@ fun `+`(lhs, rhs) {
   (reg lhs:R, reg rhs:I) --> R { ... }
   (reg unary:v(I), reg rhs:miss) --> v(I) { ... }
   (reg unary:v(R), reg rhs:miss) --> v(R) { ... }
-  (reg unary:*, reg rhs:miss) -+> V { ... }
+  (reg unary:*@!, reg rhs:miss) -+> V { ... }
   (reg unary:I, reg rhs:miss) --> I { ... }
   (reg unary:R, reg rhs:miss) --> R { ... }
 }
 
 fun `-`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(I) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
@@ -27,13 +27,13 @@ fun `-`(lhs, rhs) {
   (reg lhs:R, reg rhs:R) --> R { ... }
   (reg lhs:I, reg rhs:R) --> R { ... }
   (reg lhs:R, reg rhs:I) --> R { ... }
-  (reg unary:*, reg rhs:miss) -+> V { ... }
+  (reg unary:*@!, reg rhs:miss) -+> V { ... }
   (reg unary:I, reg rhs:miss) --> I { ... }
   (reg unary:R, reg rhs:miss) --> R { ... }
 }
 
 fun `*`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(I) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
@@ -45,7 +45,7 @@ fun `*`(lhs, rhs) {
 }
 
 fun `/`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(R) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
@@ -57,7 +57,7 @@ fun `/`(lhs, rhs) {
 }
 
 fun `^`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(R) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(R) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(R) { ... }
@@ -69,7 +69,7 @@ fun `^`(lhs, rhs) {
 }
 
 fun `<`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
@@ -85,7 +85,7 @@ fun `<`(lhs, rhs) {
 }
 
 fun `<=`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
@@ -101,7 +101,7 @@ fun `<=`(lhs, rhs) {
 }
 
 fun `>`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
@@ -113,7 +113,7 @@ fun `>`(lhs, rhs) {
 }
 
 fun `>=`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(L) { ... }
@@ -125,7 +125,7 @@ fun `>=`(lhs, rhs) {
 }
 
 fun `==`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
@@ -138,7 +138,7 @@ fun `==`(lhs, rhs) {
 }
 
 fun `!=`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(L) { ... }
   (reg lhs:v(R), reg rhs:v(R)) --> v(L) { ... }
@@ -151,37 +151,37 @@ fun `!=`(lhs, rhs) {
 }
 
 fun `&`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
   (reg lhs:B, reg rhs:B) --> B { ... }
 }
 
 fun `&&`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*) -+> V { ... }
   (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
   (reg lhs:B, reg rhs:B) --> B { ... }
 }
 
 fun `|`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
   (reg lhs:B, reg rhs:B) --> B { ... }
 }
 
 fun `||`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*) -+> V { ... }
   (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
   (reg lhs:B, reg rhs:B) --> B { ... }
 }
 
 fun xor(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(L), reg rhs:v(L)) --> v(L) { ... }
   (reg lhs:B, reg rhs:B) --> B { ... }
 }
 
 fun `!`(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(L)) --> v(L) { ... }
   (reg x:v(I)) --> v(L) { ... }
   (reg x:v(R)) --> v(L) { ... }
@@ -191,7 +191,7 @@ fun `!`(x) {
 }
 
 fun `:`(lhs, rhs) {
-  (reg lhs:*, reg rhs:*) -+> V { ... }
+  (reg lhs:*@!, reg rhs:*@!) -+> V { ... }
   (reg lhs:v(I), reg rhs:v(I)) --> v(I) { ... }
   (reg lhs:v(I), reg rhs:v(R)) --> v(I) { ... }
   (reg lhs:I, reg rhs:I) --> v(I) { ... }
@@ -202,7 +202,7 @@ fun `:`(lhs, rhs) {
 }
 
 fun `[`(x, i, `...`, drop) {
-  (reg x:*, reg i:*, reg ddd:dots, reg drop:*) -+> V { ... }
+  (reg x:*@!, reg i:*, reg ddd:dots, reg drop:*@!) -+> V { ... }
   (reg x:v(L), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(L) { ... }
   (reg x:v(I), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(I) { ... }
   (reg x:v(R), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(R) { ... }
@@ -214,7 +214,7 @@ fun `[`(x, i, `...`, drop) {
 }
 
 fun `[[`(x, i, `...`, exact) {
-  (reg x:*, reg i:*, reg ddd:dots, reg exact:*) -+> V { ... }
+  (reg x:*@!, reg i:*, reg ddd:dots, reg exact:*@!) -+> V { ... }
   (reg x:v(L), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(L) { ... }
   (reg x:v(I), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(I) { ... }
   (reg x:v(R), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(R) { ... }
@@ -226,7 +226,7 @@ fun `[[`(x, i, `...`, exact) {
 }
 
 fun `[<-`(x, i, value, `...`) {
-  (reg x:*, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
+  (reg x:*@!, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
   (reg x:v(L), reg i:v(I), reg value:v(L), reg ddd:miss) --> v(L) { ... }
   (reg x:v(I), reg i:v(I), reg value:v(I), reg ddd:miss) --> v(I) { ... }
   (reg x:v(R), reg i:v(I), reg value:v(R), reg ddd:miss) --> v(R) { ... }
@@ -238,7 +238,7 @@ fun `[<-`(x, i, value, `...`) {
 }
 
 fun `[[<-`(x, i, value) {
-  (reg x:*, reg i:*, reg value:*) -+> V { ... }
+  (reg x:*@!, reg i:*, reg value:*) -+> V { ... }
   (reg x:v(L), reg i:v(I), reg value:v(L)) --> v(L) { ... }
   (reg x:v(I), reg i:v(I), reg value:v(I)) --> v(I) { ... }
   (reg x:v(R), reg i:v(I), reg value:v(R)) --> v(R) { ... }
@@ -250,17 +250,17 @@ fun `[[<-`(x, i, value) {
 }
 
 fun `$`(x, name) {
-  (reg x:*, reg name:*) -+> V { ... }
+  (reg x:*@!, reg name:*) -+> V { ... }
   (reg x:V, reg name:V) --> V { ... }
 }
 
 fun `$<-`(x, name, value) {
-  (reg x:*, reg name:*, reg value:*) -+> V { ... }
+  (reg x:*@!, reg name:*, reg value:*) -+> V { ... }
   (reg x:V, reg name:V, reg value:V) --> V { ... }
 }
 
 fun rep(x, `...`) {
-  (reg x:*, reg ddd:dots) -+> V { ... }
+  (reg x:*@!, reg ddd:dots) -+> V { ... }
   (reg x:v(L), reg times:v(I)) --> v(L) { ... }
   (reg x:v(I), reg times:v(I)) --> v(I) { ... }
   (reg x:v(R), reg times:v(I)) --> v(R) { ... }
@@ -272,38 +272,38 @@ fun rep(x, `...`) {
 }
 
 fun sum(`...`, `na.rm`) {
-  (reg ddd:dots, reg naRm:*) -+> V { ... }
+  (reg ddd:dots, reg naRm:*@!) -+> V { ... }
   (reg x:v(L), reg naRm:miss) --> I { ... }
   (reg x:v(I), reg naRm:miss) --> I { ... }
   (reg x:v(R), reg naRm:miss) --> R { ... }
 }
 
 fun `.Call`(`.NAME`, `...`, PACKAGE) {
-  (reg name:*, reg ddd:dots, reg package:*) -+> V { ... }
+  (reg name:*@!, reg ddd:dots, reg package:*@!) -+> V { ... }
 }
 
 fun `.External`(`.NAME`, `...`, PACKAGE) {
-  (reg name:*, reg ddd:dots, reg package:*) -+> V { ... }
+  (reg name:*@!, reg ddd:dots, reg package:*@!) -+> V { ... }
 }
 
 fun missing(x) {
-  (reg x:*) --> v(L) { ... }
-  (reg x:*) --> B { ... }
+  (reg x:*@!) --> v(L) { ... }
+  (reg x:*@!) --> B { ... }
 }
 
 fun seq_along(`along.with`) {
-  (reg alongWith:*) -+> v(I) { ... }
+  (reg alongWith:*@!) -+> v(I) { ... }
   (reg alongWith:V) --> I { ... }
 }
 
 fun seq_len(`length.out`) {
-  (reg lengthOut:*) -+> v(I) { ... }
+  (reg lengthOut:*@!) -+> v(I) { ... }
   (reg lengthOut:v(I)) --> v(I) { ... }
   (reg lengthOut:I) --> I { ... }
 }
 
 fun abs(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(I) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> I { ... }
@@ -311,7 +311,7 @@ fun abs(x) {
 }
 
 fun sqrt(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -319,7 +319,7 @@ fun sqrt(x) {
 }
 
 fun exp(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -327,7 +327,7 @@ fun exp(x) {
 }
 
 fun log(x, base) {
-  (reg x:*, reg base:*) -+> V { ... }
+  (reg x:*@!, reg base:*@!) -+> V { ... }
   (reg x:v(I), reg base:v(R)) --> v(R) { ... }
   (reg x:v(R), reg base:v(R)) --> v(R) { ... }
   (reg x:I, reg base:R) --> R { ... }
@@ -336,7 +336,7 @@ fun log(x, base) {
 
 # === MATH1_FUNS ===
 fun floor(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   # Below is correct although unintuitive
@@ -345,7 +345,7 @@ fun floor(x) {
 }
 
 fun ceiling(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   # Below is correct although unintuitive
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
@@ -354,7 +354,7 @@ fun ceiling(x) {
 }
 
 fun sign(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -362,7 +362,7 @@ fun sign(x) {
 }
 
 fun expm1(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -370,7 +370,7 @@ fun expm1(x) {
 }
 
 fun log1p(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -378,7 +378,7 @@ fun log1p(x) {
 }
 
 fun cos(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -386,7 +386,7 @@ fun cos(x) {
 }
 
 fun sin(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -394,7 +394,7 @@ fun sin(x) {
 }
 
 fun tan(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -402,7 +402,7 @@ fun tan(x) {
 }
 
 fun acos(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -410,7 +410,7 @@ fun acos(x) {
 }
 
 fun asin(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -418,7 +418,7 @@ fun asin(x) {
 }
 
 fun atan(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -426,7 +426,7 @@ fun atan(x) {
 }
 
 fun cosh(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -434,7 +434,7 @@ fun cosh(x) {
 }
 
 fun sinh(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -442,7 +442,7 @@ fun sinh(x) {
 }
 
 fun tanh(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -450,7 +450,7 @@ fun tanh(x) {
 }
 
 fun acosh(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -458,7 +458,7 @@ fun acosh(x) {
 }
 
 fun asinh(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -466,7 +466,7 @@ fun asinh(x) {
 }
 
 fun atanh(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -474,7 +474,7 @@ fun atanh(x) {
 }
 
 fun lgamma(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -482,7 +482,7 @@ fun lgamma(x) {
 }
 
 fun gamma(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -490,7 +490,7 @@ fun gamma(x) {
 }
 
 fun digamma(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -498,7 +498,7 @@ fun digamma(x) {
 }
 
 fun trigamma(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -506,7 +506,7 @@ fun trigamma(x) {
 }
 
 fun cospi(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -514,7 +514,7 @@ fun cospi(x) {
 }
 
 fun sinpi(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -522,7 +522,7 @@ fun sinpi(x) {
 }
 
 fun tanpi(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:v(I)) --> v(R) { ... }
   (reg x:v(R)) --> v(R) { ... }
   (reg x:I) --> R { ... }
@@ -531,42 +531,42 @@ fun tanpi(x) {
 # ---
 
 fun length(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:V) --> v(I) { ... }
   (reg x:V) --> I { ... }
 }
 
 fun `as.integer`(x, `...`) {
-  (reg x:*, reg ddd:dots) -+> v(I) { ... }
+  (reg x:*@!, reg ddd:dots) -+> v(I) { ... }
   (reg x:V) --> I { ... }
 }
 
 fun `as.logical`(x, `...`) {
-  (reg x:*, reg ddd:dots) -+> v(L) { ... }
+  (reg x:*@!, reg ddd:dots) -+> v(L) { ... }
   (reg x:V) --> v(L) { ... }
   (reg x:V) --> L { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `as.character`(x, `...`) {
-  (reg x:*, reg ddd:dots) -+> v(S) { ... }
+  (reg x:*@!, reg ddd:dots) -+> v(S) { ... }
   (reg x:V) --> S { ... }
 }
 
 fun stop(`...`, `call.`, domain) {
-  (reg ddd:dots, reg call:*, reg domain:*) -+> V { ... }
+  (reg ddd:dots, reg call:*@!, reg domain:*@!) -+> V { ... }
 }
 
 fun warning(`...`, `call.`, `immediate.`, `noBreaks.`, domain) {
-  (reg ddd:dots, reg call:*, reg immediate:*, reg noBreaks:*, reg domain:*) -+> V { ... }
+  (reg ddd:dots, reg call:*@!, reg immediate:*@!, reg noBreaks:*@!, reg domain:*@!) -+> V { ... }
 }
 
 fun stopifnot(`...`, exprs, exprObject, local) {
-  (reg ddd:dots, reg exprs:*, reg exprObject:*, reg local:*) -+> V { ... }
+  (reg ddd:dots, reg exprs:*@!, reg exprObject:*@!, reg local:*@!) -+> V { ... }
 }
 
 fun print(x, `...`) {
-  (reg x:*, reg ddd:dots) -+> V { ... }
+  (reg x:*@!, reg ddd:dots) -+> V { ... }
   (reg x:v(L), reg ddd:miss) --> v(L) { ... }
   (reg x:v(I), reg ddd:miss) --> v(I) { ... }
   (reg x:v(R), reg ddd:miss) --> v(R) { ... }
@@ -574,82 +574,82 @@ fun print(x, `...`) {
 }
 
 fun unclass(x) {
-  (reg x:*) -+> V { ... }
+  (reg x:*@!) -+> V { ... }
   (reg x:V) --> V { ... }
 }
 
 fun `is.vector`(x, mode) {
-  (reg x:*, reg mode:*) -+> v(L) { ... }
+  (reg x:*@!, reg mode:*@!) -+> v(L) { ... }
   (reg x:V, reg mode:miss) --> v(L) { ... }
 }
 
 fun `is.numeric`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.integer`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.double`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.logical`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.complex`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.raw`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.function`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.environment`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.list`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun inherits(x, what, which) {
-  (reg x:*, reg what:*, reg which:*) -+> v(L) { ... }
+  (reg x:*@!, reg what:*@!, reg which:*@!) -+> v(L) { ... }
   (reg x:V, reg what:S, reg which:B) --> B { ... }
 }
 
 fun attr(x, which, exact, value) {
-  (reg x:*, reg which:*, reg exact:*, reg value:*) -+> V { ... }
+  (reg x:*@!, reg which:*@!, reg exact:*@!, reg value:*@!) -+> V { ... }
   (reg x:V, reg which:S, reg exact:miss, reg value:miss) --> V { ... }
 }
 
 fun `is.character`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.object`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 
 fun `is.symbol`(x) {
-  (reg x:*) -+> v(L) { ... }
+  (reg x:*@!) -+> v(L) { ... }
   (reg x:V) --> B { ... }
 }
 

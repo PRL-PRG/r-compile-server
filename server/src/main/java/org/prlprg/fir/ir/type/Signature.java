@@ -32,7 +32,10 @@ public record Signature(
     for (var i = 0; i < parameterTypes.size(); i++) {
       if (parameterTypes.get(i).isValue() && parameterStrictnesses.get(i)) {
         throw new IllegalArgumentException(
-            "Value parameter can't be strict: at index " + i + " in:\n" + this);
+            "Value parameter can't be strict: at index "
+                + i
+                + " in:\n"
+                + Strings.join(",", parameterTypes));
       }
     }
   }

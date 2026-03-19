@@ -93,7 +93,11 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                             ? type.withOwnership(Ownership.BORROWED)
                             : type)
                 .collect(ImmutableList.toImmutableList()),
-            bestVersion.signature().parameterStrictnesses(),
+            Streams.zip(
+                    argumentTypes1.stream(),
+                    bestVersion.signature().parameterStrictnesses().stream(),
+                    (type, strict) -> strict && !type.isValue())
+                .collect(ImmutableList.toImmutableList()),
             bestVersion.signature().returnType(),
             bestVersion.signature().effects());
 
