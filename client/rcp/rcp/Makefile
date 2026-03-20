@@ -21,12 +21,20 @@ check-toolchain:
 all: install
 
 STAMP := .install-stamp
+STAMP_CFG := .install-stamp.cfg
+
+# Config variables that should trigger a reinstall when changed
+CUR_CFG := RCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES) RELOC_MODEL=$(RELOC_MODEL) DEBUG=$(DEBUG) OPENMP=$(OPENMP) SPECIALIZE_STEPFOR=$(SPECIALIZE_STEPFOR) SPECIALIZE_SWITCH=$(SPECIALIZE_SWITCH) SPECIALIZE_MAKEPROM=$(SPECIALIZE_MAKEPROM) ALIGN_INSTRUCTIONS=$(ALIGN_INSTRUCTIONS)
 
 .PHONY: install
 install: check-toolchain
-	@if [ ! -f $(STAMP) ] || \
-	    [ -n "$$(find src R DESCRIPTION NAMESPACE common.mk -newer $(STAMP) 2>/dev/null | head -1)" ]; then \
-		MAKEFLAGS="$(MAKEFLAGS) CC=$(CC) CXX=$(CXX)" $(R) CMD INSTALL . && touch $(STAMP); \
+	@config_changed=0; \
+	if [ ! -f $(STAMP_CFG) ] || [ "$$(cat $(STAMP_CFG))" != "$(CUR_CFG)" ]; then \
+		config_changed=1; \
+	fi; \
+	if [ ! -f $(STAMP) ] || [ "$$config_changed" = "1" ] || \
+	    [ -n "$$(find src R DESCRIPTION NAMESPACE common.mk $(RSH_HOME)/src/bc2c/runtime.h -newer $(STAMP) 2>/dev/null | head -1)" ]; then \
+		MAKEFLAGS="$(MAKEFLAGS) CC=$(CC) CXX=$(CXX)" $(R) CMD INSTALL . && touch $(STAMP) && echo "$(CUR_CFG)" > $(STAMP_CFG); \
 	else \
 		echo "Nothing changed, skipping install."; \
 	fi
@@ -34,7 +42,7 @@ install: check-toolchain
 .PHONY: clean
 clean:
 	$(MAKE) -C src -f Makevars clean
-	rm -f $(STAMP)
+	rm -f $(STAMP) $(STAMP_CFG)
 
 .PHONY: test
 test: check-toolchain install
