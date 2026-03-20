@@ -767,6 +767,7 @@ static int can_fallthrough_from_opcode(RCP_BC_OPCODES opcode)
 	switch (opcode)
 	{
 		case (RETURN_BCOP):
+		case (RETURNJMP_BCOP):
 		case (GOTO_BCOP):
 		case (STARTFOR_BCOP):
 		case (SWITCH_BCOP):
