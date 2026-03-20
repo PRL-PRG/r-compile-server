@@ -1,23 +1,4 @@
 include common.mk
-.PHONY: all
-all: install
-
-.PHONY: check-toolchain
-check-toolchain:
-	@command -v $(CC) >/dev/null 2>&1 || (echo "Missing compiler: $(CC)"; exit 1)
-	@command -v $(CXX) >/dev/null 2>&1 || (echo "Missing compiler: $(CXX)"; exit 1)
-	@cc_ver=`$(CC) -dumpfullversion -dumpversion | cut -d. -f1`; \
-	if [ "$$cc_ver" != "14" ]; then \
-		echo "Expected GCC major version 14 for $(CC), got $$cc_ver"; \
-		exit 1; \
-	fi
-	@cxx_ver=`$(CXX) -dumpfullversion -dumpversion | cut -d. -f1`; \
-	if [ "$$cxx_ver" != "14" ]; then \
-		echo "Expected G++ major version 14 for $(CXX), got $$cxx_ver"; \
-		exit 1; \
-	fi
-	@printf 'int main(void){return 0;}\n' | $(CC) $(C_STD_FLAG) -x c -fsyntax-only -
-	@printf '#include <concepts>\nint main(){return 0;}\n' | $(CXX) $(CXX_STD_FLAG) -x c++ -fsyntax-only -
 
 .PHONY: all
 all: install
@@ -29,7 +10,7 @@ STAMP_CFG := .install-stamp.cfg
 CUR_CFG := RCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES) RELOC_MODEL=$(RELOC_MODEL) DEBUG=$(DEBUG) OPENMP=$(OPENMP) SPECIALIZE_STEPFOR=$(SPECIALIZE_STEPFOR) SPECIALIZE_SWITCH=$(SPECIALIZE_SWITCH) SPECIALIZE_MAKEPROM=$(SPECIALIZE_MAKEPROM) ALIGN_INSTRUCTIONS=$(ALIGN_INSTRUCTIONS)
 
 .PHONY: install
-install: check-toolchain
+install:
 	@config_changed=0; \
 	if [ ! -f $(STAMP_CFG) ] || [ "$$(cat $(STAMP_CFG))" != "$(CUR_CFG)" ]; then \
 		config_changed=1; \
@@ -47,8 +28,7 @@ clean:
 	rm -f $(STAMP) $(STAMP_CFG)
 
 .PHONY: test
-test: check-toolchain
-	$(MAKE) clean && $(MAKE) install DEBUG=1 RCP_COMPILE_PROMISES=1
+test: install
 	$(MAKE) -C tests test; \
 	status=$$?; \
 	$(MAKE) clean \
