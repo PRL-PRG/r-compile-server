@@ -1,4 +1,6 @@
 include common.mk
+.PHONY: all
+all: install
 
 .PHONY: check-toolchain
 check-toolchain:
@@ -16,9 +18,6 @@ check-toolchain:
 	fi
 	@printf 'int main(void){return 0;}\n' | $(CC) $(C_STD_FLAG) -x c -fsyntax-only -
 	@printf '#include <concepts>\nint main(){return 0;}\n' | $(CXX) $(CXX_STD_FLAG) -x c++ -fsyntax-only -
-
-.PHONY: all
-all: install
 
 .PHONY: install
 install: check-toolchain
