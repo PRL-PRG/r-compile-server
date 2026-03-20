@@ -109,7 +109,6 @@ It returns a list with the number of `compiled` and `failed` functions.
 The project builds three layered images that mirror the three system
 components and their change frequency.
 
-<<<<<<< entry-exit-hooks
 | Image      | Description                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rcp-base` | Ubuntu 24.04, toolchain, vanilla R 4.3.2, `microbenchmark` for `/R-vanilla`                                                                 |
@@ -118,13 +117,6 @@ components and their change frequency.
 
 This split keeps rebuilds short: frequent `rcp` edits only rebuild the top
 image, while expensive R builds stay cached in lower layers.
-=======
-| Image      | Contents                                                                                 |
-| ---------- | ---------------------------------------------------------------------------------------- |
-| `rcp-base` | Ubuntu 24.04, system dependencies, vanilla R 4.3.2                                       |
-| `rcp-rsh`  | + [R compile server](https://github.com/PRL-PRG/r-compile-server) and its custom R build |
-| `rcp`      | + this repository, compiled and ready to use                                             |
->>>>>>> main
 
 ### Building locally
 

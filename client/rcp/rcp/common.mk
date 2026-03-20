@@ -46,8 +46,8 @@ RCP_COMPILE_PROMISES ?= 0
 
 ifeq ($(DEBUG), 1)
     # Debug flags
-    CFLAGS += -g
-    CXXFLAGS += -g
+    CFLAGS += -g -DASSERTS
+    CXXFLAGS += -g -DASSERTS
 else
     # Release flags
     CFLAGS += -g -DNDEBUG

@@ -96,6 +96,16 @@ rcp_get_profiling <- function() {
   stop("Expected a function name as a string or symbol", call. = FALSE)
 }
 
+#' Reset accumulated type trace data
+#'
+#' Clears all recorded type observations without deallocating the
+#' underlying storage, so subsequent calls reuse the existing capacity.
+#'
+#' @export
+rcp_reset_types <- function() {
+  invisible(.Call(C_rcp_reset_types))
+}
+
 #' Get recorded type information from entry/exit hooks
 #'
 #' Returns an environment where each key is a function name and each value

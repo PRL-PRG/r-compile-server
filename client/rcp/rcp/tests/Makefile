@@ -1,4 +1,4 @@
-SUBDIRS = smoketest benchmarks types gdb-jit exceptions
+SUBDIRS := $(wildcard */)
 
 .PHONY: all test clean $(SUBDIRS)
 

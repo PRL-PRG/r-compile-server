@@ -1,4 +1,6 @@
 include common.mk
+.PHONY: all
+all: install
 
 .PHONY: check-toolchain
 check-toolchain:
@@ -45,8 +47,12 @@ clean:
 	rm -f $(STAMP) $(STAMP_CFG)
 
 .PHONY: test
-test: check-toolchain install
-	$(MAKE) -C tests test
+test: check-toolchain
+	$(MAKE) clean && $(MAKE) install DEBUG=1 RCP_COMPILE_PROMISES=1
+	$(MAKE) -C tests test; \
+	status=$$?; \
+	$(MAKE) clean \
+	exit $$status
 
 .PHONY: test-functional
 test-functional: install

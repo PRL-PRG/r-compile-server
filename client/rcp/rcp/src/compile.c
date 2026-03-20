@@ -1720,21 +1720,37 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 	}
 }
 
+static void reset_type_trace(TypeTrace *trace)
+{
+	if (!trace)
+		return;
+
+	for (size_t i = 0; i < trace->count; i++)
+	{
+		free(trace->types[i].dots_names);
+		free(trace->types[i].dots_types);
+		free(trace->types[i].arguments);
+		trace->types[i].dots_names = NULL;
+		trace->types[i].dots_types = NULL;
+		trace->types[i].arguments = NULL;
+		trace->types[i].dots_count = 0;
+		trace->types[i].count = 0;
+		trace->types[i].ret = NILSXP;
+	}
+
+	trace->count = 0;
+}
+
 // Finalizer for our growable type trace
 static void type_trace_finalizer(SEXP ext)
 {
 	TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
 	if (trace)
 	{
+		reset_type_trace(trace);
 		if (trace->argument_names)
 		{
 			free(trace->argument_names);
-		}
-		for (size_t i = 0; i < trace->count; i++)
-		{
-			free(trace->types[i].dots_names);
-			free(trace->types[i].dots_types);
-			free(trace->types[i].arguments);
 		}
 		free(trace->types);
 		free(trace);
@@ -2282,7 +2298,17 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	}
 
 	DEBUG_PRINT("Compiling %s to bytecode...\n", name);
-	SEXP compiled = compile_to_bc(f, options);
+
+	SEXP compiled;
+	if (TYPEOF(BODY(f)) == BCODESXP)
+	{
+		DEBUG_PRINT("Function is already bytecode, skipping compilation.\n");
+		compiled = f;
+	}
+	else
+	{
+		compiled = compile_to_bc(f, options);
+	}
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
 	UNPROTECT(1); // options
 #endif
@@ -2834,6 +2860,35 @@ SEXP C_rcp_get_types(void)
 
 	UNPROTECT(3); // result_env, ls_call, keys
 	return result_env;
+}
+
+SEXP C_rcp_reset_types(void)
+{
+	SEXP hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
+	if (hooks == R_UnboundValue || hooks == R_NilValue)
+		return R_NilValue;
+
+	SEXP types_env = Rf_findVarInFrame(hooks, Rf_install("types"));
+	if (types_env == R_UnboundValue || types_env == R_NilValue)
+		return R_NilValue;
+
+	SEXP ls_call = PROTECT(Rf_lang2(Rf_install("ls"), types_env));
+	SEXP keys = PROTECT(Rf_eval(ls_call, R_BaseEnv));
+	int n = LENGTH(keys);
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *func_name = CHAR(STRING_ELT(keys, i));
+		SEXP ext = Rf_findVarInFrame(types_env, Rf_install(func_name));
+		if (ext == R_UnboundValue || TYPEOF(ext) != EXTPTRSXP)
+			continue;
+
+		TypeTrace *trace = (TypeTrace *)R_ExternalPtrAddr(ext);
+		reset_type_trace(trace);
+	}
+
+	UNPROTECT(2); // ls_call, keys
+	return R_NilValue;
 }
 
 SEXP C_rcp_get_types_df(SEXP func_name_sexp)

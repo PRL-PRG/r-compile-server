@@ -205,4 +205,45 @@ stopifnot(identical(fib_by_string, fib_only))
 
 cat("Test 6 (rcp_get_types): OK\n")
 
+# ---------------------------------------------------------------------------
+# Test 7: rcp_reset_types clears accumulated traces
+# ---------------------------------------------------------------------------
+
+# Verify there are traces before reset
+all_before <- rcp::rcp_get_types()
+stopifnot(is.environment(all_before))
+stopifnot(length(ls(all_before)) > 0)
+stopifnot(!is.null(rcp::rcp_get_types_df("fib")))
+stopifnot(nrow(rcp::rcp_get_types_df("fib")) == 5L)
+
+# Reset
+reset_result <- rcp::rcp_reset_types()
+stopifnot(is.null(reset_result))
+
+# After reset: TypeTrace structs still exist (baked into stencils) but each
+# has count == 0.  get_types / get_types_df skip zero-count entries, so they
+# return an empty environment / NULL respectively.
+all_after <- rcp::rcp_get_types()
+stopifnot(is.environment(all_after))
+assert_eq(length(ls(all_after)), 0L, "reset: get_types env should be empty")
+
+df_fib_after <- rcp::rcp_get_types_df("fib")
+stopifnot(is.null(df_fib_after))
+stopifnot(is.null(rcp::rcp_get_types("fib")))
+
+# New calls after reset accumulate fresh traces
+fib(2)
+df_fib_fresh <- rcp::rcp_get_types_df("fib")
+stopifnot(!is.null(df_fib_fresh))
+stopifnot(is.data.frame(df_fib_fresh))
+assert_eq(nrow(df_fib_fresh), 3L, "post-reset: fib should have 3 new rows")
+stopifnot(all(df_fib_fresh$x == "double"))
+stopifnot(all(df_fib_fresh$dots_count == 0L))
+stopifnot(all(df_fib_fresh$ret == "double"))
+
+# Other functions still show 0 (they weren't called again)
+stopifnot(is.null(rcp::rcp_get_types_df("g")))
+
+cat("Test 7 (rcp_reset_types): OK\n")
+
 cat("All type-tracing tests passed.\n")
