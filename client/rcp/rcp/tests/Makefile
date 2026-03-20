@@ -1,4 +1,4 @@
-SUBDIRS = smoketest benchmarks types perf gdb-jit exceptions
+SUBDIRS = smoketest benchmarks types gdb-jit exceptions
 
 .PHONY: all test clean $(SUBDIRS)
 

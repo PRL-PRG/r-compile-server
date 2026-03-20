@@ -16,7 +16,7 @@ Compiling minimal function...
 Breakpoint 1, __jit_debug_register_code () at gdb_jit.c:XXX
 53	{
 gdb_jit_register (func_name=func_name@entry=0xADDR "f_jit", code_addr=code_addr@entry=0xADDR <f_jit>, code_size=code_size@entry=1848, inst_addrs=inst_addrs@entry=0xADDR, instruction_count=instruction_count@entry=4, stencils=stencils@entry=0xADDR) at gdb_jit.c:XXX
-871		__jit_debug_descriptor.action_flag = JIT_NOACTION;
+898		__jit_debug_descriptor.action_flag = JIT_NOACTION;
 Breakpoint 2 at 0xADDR: file /tmp/rcp_jit_XXXXXX/f_jit.S, line 1.
 >
 > cat("Executing function...\n")
@@ -47,3 +47,4 @@ Stack Top after LDCONST (should be 1):dbl: 1.000000
 4	RETURN_OP_
 Stack Top after ADD (should be 11):dbl: 11.000000
 Function "__jit_debug_register_code" not defined.
+rcp 1.0.0.0 (9b10bf4) [gdb]

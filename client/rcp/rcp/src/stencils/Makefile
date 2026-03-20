@@ -49,7 +49,9 @@ OBJ = $(notdir $(STENCILS_OBJ))
 .PHONY: all
 all: $(OBJ)
 
-$(OBJ): $(OBJ:.o=.c)
+RUNTIME_H := $(RSH_HOME)/src/bc2c/runtime.h
+
+$(OBJ): $(OBJ:.o=.c) $(RUNTIME_H)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY: clean
