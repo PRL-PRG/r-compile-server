@@ -14,18 +14,21 @@ break fac
 continue
 
 # Hit fac(3)
-echo [GDB] Hit fac (1st call). Backtrace:
+echo ===BT1_START===\n
 bt
+echo ===BT1_END===\n
 continue
 
 # Hit fac(2)
-echo [GDB] Hit fac (2nd call - recursive). Backtrace:
+echo ===BT2_START===\n
 bt
+echo ===BT2_END===\n
 continue
 
 # Hit fac(1)
-echo [GDB] Hit fac (3rd call - recursive). Backtrace:
+echo ===BT3_START===\n
 bt
+echo ===BT3_END===\n
 continue
 
 quit
