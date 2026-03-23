@@ -5,8 +5,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 
 class AbstractionFixpointSequenceTest {
@@ -21,25 +24,25 @@ class AbstractionFixpointSequenceTest {
     }
 
     @Override
-    public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
+    public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
       // Cycle through `changedReturns`.
       return changedReturns[callCount++ % changedReturns.length];
     }
   }
 
-  /// Create a simple abstraction for testing
-  private static Abstraction testAbstraction() {
-    var module = new Module();
-    return new Abstraction(module, List.of());
+  /// Create a simple function for testing
+  private static Function testFunction() {
+    return new Module().addFunction(Variable.named("test"), List.of(), false);
   }
 
   @Test
   void testSingleOptimizationNoChanges() {
     var optimization = new TestOptimization(false);
-    var abstraction = testAbstraction();
+    var function = testFunction();
+    var abstraction = function.baseline();
 
     var fixpoint = new AbstractionFixpointSequence("testSequence", optimization);
-    var changed = runOpt(fixpoint, abstraction);
+    var changed = runOpt(function, fixpoint, abstraction);
 
     assertFalse(changed);
     assertEquals(1, optimization.callCount);
@@ -48,10 +51,11 @@ class AbstractionFixpointSequenceTest {
   @Test
   void testSingleOptimizationWithChanges() {
     var optimization = new TestOptimization(true, false);
-    var abstraction = testAbstraction();
+    var function = testFunction();
+    var abstraction = function.baseline();
 
     var fixpoint = new AbstractionFixpointSequence("testSequence", optimization);
-    var changed = runOpt(fixpoint, abstraction);
+    var changed = runOpt(function, fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(2, optimization.callCount);
@@ -60,10 +64,11 @@ class AbstractionFixpointSequenceTest {
   @Test
   void testSingleOptimizationWithChangesTwice() {
     var optimization = new TestOptimization(true, true, false);
-    var abstraction = testAbstraction();
+    var function = testFunction();
+    var abstraction = function.baseline();
 
     var fixpoint = new AbstractionFixpointSequence("testSequence", optimization);
-    var changed = runOpt(fixpoint, abstraction);
+    var changed = runOpt(function, fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(3, optimization.callCount);
@@ -73,10 +78,11 @@ class AbstractionFixpointSequenceTest {
   void testMultipleOptimizations() {
     var opt1 = new TestOptimization(true, false);
     var opt2 = new TestOptimization(false, false);
-    var abstraction = testAbstraction();
+    var function = testFunction();
+    var abstraction = function.baseline();
 
     var fixpoint = new AbstractionFixpointSequence("testSequence", opt1, opt2);
-    var changed = runOpt(fixpoint, abstraction);
+    var changed = runOpt(function, fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(2, opt1.callCount);
@@ -86,10 +92,11 @@ class AbstractionFixpointSequenceTest {
   @Test
   void testMaxIterationsLimit() {
     var optimization = new TestOptimization(true); // Always returns true
-    var abstraction = testAbstraction();
+    var function = testFunction();
+    var abstraction = function.baseline();
 
     var fixpoint = new AbstractionFixpointSequence("testSequence", 3, optimization);
-    var changed = runOpt(fixpoint, abstraction);
+    var changed = runOpt(function, fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(3, optimization.callCount);
@@ -98,11 +105,13 @@ class AbstractionFixpointSequenceTest {
   @Test
   void testHardLimit() {
     var optimization = new TestOptimization(true); // Always returns true
-    var abstraction = testAbstraction();
+    var function = testFunction();
+    var abstraction = function.baseline();
 
     var fixpoint = new AbstractionFixpointSequence("testSequence", optimization);
 
-    var exception = assertThrows(IllegalStateException.class, () -> runOpt(fixpoint, abstraction));
+    var exception =
+        assertThrows(IllegalStateException.class, () -> runOpt(function, fixpoint, abstraction));
 
     assertTrue(exception.getMessage().contains("Didn't reach a fixpoint after"));
   }
@@ -112,17 +121,19 @@ class AbstractionFixpointSequenceTest {
     // Test a more realistic scenario where optimizations interact
     var opt1 = new TestOptimization(true, false, false); // Changes first iteration only
     var opt2 = new TestOptimization(false, true, false); // Changes second iteration only
-    var abstraction = testAbstraction();
+    var function = testFunction();
+    var abstraction = function.baseline();
 
     var fixpoint = new AbstractionFixpointSequence("testSequence", opt1, opt2);
-    var changed = runOpt(fixpoint, abstraction);
+    var changed = runOpt(function, fixpoint, abstraction);
 
     assertTrue(changed);
     assertEquals(3, opt1.callCount);
     assertEquals(3, opt2.callCount);
   }
 
-  boolean runOpt(AbstractionOptimization optimization, Abstraction abstraction) {
-    return optimization.run(new AbstractionFeedback(), abstraction);
+  boolean runOpt(Function function, AbstractionOptimization optimization, Abstraction abstraction) {
+    return optimization.run(
+        function, new AbstractionFeedback(new MockModuleFeedback()), abstraction);
   }
 }

@@ -19,8 +19,8 @@ import org.prlprg.fir.ir.variable.Register;
 /// Merge a [Load] with [LoadType#LOCAL_FUN] and an [AssumeFunction] into an [AssumeLoadFun].
 ///
 /// Looks for: checkpoint1 → success BB with (assumptions*, `Load(LOCAL_FUN, ...)`, ...,
-// checkpoint2)
-/// → success BB with (assumptions*, `AssumeFunction` targeting `LoadFun`'s register).
+/// checkpoint2) → success BB with (assumptions*, `AssumeFunction` targeting `LoadFun`'s
+/// register).
 ///
 /// Then inserts an `AssumeLoadFun` after checkpoint1, replaces the `Load` with [Closure],
 /// and deletes the `AssumeFunction`.
@@ -33,7 +33,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// code.
 public record MergeAssumeLoadFun() implements AbstractionOptimization {
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction scope) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
     var defUses = new DefUses(scope);
 

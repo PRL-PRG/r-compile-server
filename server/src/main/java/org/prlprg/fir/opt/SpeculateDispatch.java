@@ -1,13 +1,9 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
-import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
+import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
 
-import com.google.common.collect.ImmutableList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import org.prlprg.fir.feedback.ModuleFeedback;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.expression.Assume;
@@ -25,18 +21,9 @@ import org.prlprg.util.Streams;
 /// other verisons, and try to merge ones that are equal by compiling with the intersected
 /// assumptions. In both cases, we need to keep track of those removed so they aren't recompiled.
 public record SpeculateDispatch(int threshold, int parameterLimit, int versionLimit)
-    implements Optimization {
+    implements AbstractionOptimization {
   @Override
-  public boolean run(ModuleFeedback feedback, Function function) {
-    var changed = false;
-    // Copy `version` because we may modify it.
-    for (var version : List.copyOf(function.versions())) {
-      changed |= run(feedback, function, version);
-    }
-    return changed;
-  }
-
-  private boolean run(ModuleFeedback moduleFeedback, Function function, Abstraction version) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction version) {
     // Don't specialize stubs
     if (version.cfg() == null) {
       return false;
@@ -49,12 +36,11 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
     }
 
     // See if parameter feedback suggests more specific types
-    var versionFeedback = moduleFeedback.get(version);
     var candidates =
         version.parameters().stream()
             .map(
                 param ->
-                    versionFeedback
+                    feedback
                         .type(param.variable())
                         .streamHits(threshold, param.type())
                         .limit(parameterLimit))
@@ -109,35 +95,10 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
     // Create each candidate
     boolean[] changed = {false};
     candidates.forEach(
-        parameterTypes -> {
+        newParameterTypes -> {
           changed[0] = true;
-          copyVersionWithNewParameterTypes(moduleFeedback, function, version, parameterTypes);
+          copy(feedback.module(), function, version, newParameterTypes);
         });
     return changed[0];
-  }
-
-  public static void copyVersionWithNewParameterTypes(
-      ModuleFeedback feedback,
-      Function function,
-      Abstraction version,
-      Collection<Type> newParameterTypes) {
-    var copyParameters =
-        Streams.zip(
-                version.parameters().stream(),
-                newParameterTypes.stream(),
-                (parameter, type) ->
-                    new Parameter(
-                        parameter.variable(), type, parameter.strict() && !type.isValue()))
-            .collect(ImmutableList.toImmutableList());
-
-    // Copy `version` except change the parameters.
-    var copy = function.addVersion(copyParameters, version.isStub());
-    copy.setReturnType(version.returnType());
-    copy.setEffects(version.effects());
-    copy.addLocals(version.locals());
-    if (version.cfg() != null) {
-      copyTo(Objects.requireNonNull(copy.cfg()), version.cfg());
-    }
-    feedback.copyTo(copy, version);
   }
 }

@@ -6,6 +6,7 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.module.Function;
 
 /// Removes checkpoint jumps whose success BB has no [Assume] statements.
 ///
@@ -16,7 +17,7 @@ import org.prlprg.fir.ir.instruction.Checkpoint;
 /// (besides the checkpoint block itself).
 public record ElideUnusedCheckpoints() implements CheckpointAbstractionOptimization {
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction scope) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
 
     scope

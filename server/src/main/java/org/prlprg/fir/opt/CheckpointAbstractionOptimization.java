@@ -12,7 +12,7 @@ interface CheckpointAbstractionOptimization extends AbstractionOptimization {
       if (version == function.baseline()) {
         continue;
       }
-      changed |= run(feedback.get(version), version);
+      changed |= run(function, feedback.get(version), version);
     }
     return changed;
   }

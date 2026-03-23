@@ -21,7 +21,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.util.Lists;
 
-public class CFGCopier {
+public final class CFGCopier {
   /// Assuming `dst` is empty, makes it a copy of `inner` (except [CFG#scope()]).
   public static void copyTo(CFG dst, CFG inner) {
     copyTo(dst.entry(), inner, Return::new);

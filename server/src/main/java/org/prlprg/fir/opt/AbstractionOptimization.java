@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt;
 
+import java.util.List;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -10,12 +11,13 @@ public interface AbstractionOptimization extends Optimization {
   @Override
   default boolean run(ModuleFeedback feedback, Function function) {
     var changed = false;
-    for (var version : function.versions()) {
-      changed |= run(feedback.get(version), version);
+    // Copy `version` because we may modify it.
+    for (var version : List.copyOf(function.versions())) {
+      changed |= run(function, feedback.get(version), version);
     }
     return changed;
   }
 
   /// Returns `true` if it made progress.
-  boolean run(AbstractionFeedback feedback, Abstraction abstraction);
+  boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction);
 }

@@ -1,9 +1,10 @@
 package org.prlprg.fir.opt;
 
+import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
+
 import com.google.common.collect.ImmutableList;
-import java.util.List;
 import org.jspecify.annotations.NonNull;
-import org.prlprg.fir.feedback.ModuleFeedback;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.expression.Call;
@@ -15,18 +16,8 @@ import org.prlprg.fir.opt.specialize.OptimizeCallee;
 /// If there's a call whose best guaranteed version
 /// ([Function#guess(org.prlprg.fir.ir.type.Signature)]) does not exactly match its arguments'
 /// static types, copy that version into a new one and narrow the parameter types to match
-public record CreateBestVersion(int versionLimit) implements Optimization {
-  @Override
-  public boolean run(ModuleFeedback feedback, Function function) {
-    // Copy `version` because we may modify it.
-    var changed = false;
-    for (var version : List.copyOf(function.versions())) {
-      changed |= run(feedback, version);
-    }
-    return changed;
-  }
-
-  private boolean run(ModuleFeedback feedback, Abstraction version) {
+public record CreateBestVersion(int versionLimit) implements AbstractionOptimization {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction version) {
     var calls =
         version
             .streamCfgs()
@@ -40,7 +31,7 @@ public record CreateBestVersion(int versionLimit) implements Optimization {
     return changed[0];
   }
 
-  private boolean run(ModuleFeedback feedback, Abstraction scope, Call call) {
+  private boolean run(AbstractionFeedback feedback, Abstraction scope, Call call) {
     if (!(call.callee() instanceof StaticFnCallee callee)) {
       // We can't optimize dynamic calls
       return false;
@@ -73,8 +64,7 @@ public record CreateBestVersion(int versionLimit) implements Optimization {
     }
 
     // Create a new version with the exact parameter types
-    SpeculateDispatch.copyVersionWithNewParameterTypes(
-        feedback, calleeFun, bestVersion, argumentTypes1);
+    copy(feedback.module(), calleeFun, bestVersion, argumentTypes1);
     return true;
   }
 }

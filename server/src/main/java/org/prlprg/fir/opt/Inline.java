@@ -32,6 +32,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -39,7 +40,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// Inline forces, maybe-forces, and static calls when possible.
 public record Inline(int maxInlineeSize) implements AbstractionOptimization {
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;

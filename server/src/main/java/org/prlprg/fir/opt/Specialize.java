@@ -21,6 +21,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
@@ -58,7 +59,7 @@ public class Specialize implements AbstractionOptimization {
   }
 
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =
         this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();
