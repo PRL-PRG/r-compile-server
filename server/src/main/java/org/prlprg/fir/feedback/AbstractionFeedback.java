@@ -21,6 +21,7 @@ import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 /// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
 public class AbstractionFeedback {
+  private final ModuleFeedback module;
   /// How many times this abstraction was called.
   private int numCalls = 0;
   /// Inferred types.
@@ -48,7 +49,13 @@ public class AbstractionFeedback {
   /// Registers are ordered by when feedback was first recorded for them.
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
 
-  public AbstractionFeedback() {}
+  public AbstractionFeedback(ModuleFeedback module) {
+    this.module = module;
+  }
+
+  public ModuleFeedback module() {
+    return module;
+  }
 
   /// Increment the call counter.
   public void recordCall() {
@@ -123,13 +130,15 @@ public class AbstractionFeedback {
     return Printer.toString(this);
   }
 
-  public record ParseContext(Module module, SEXPParseContext forSexps) {}
+  public record ParseContext(
+      ModuleFeedback moduleFeedback, Module module, SEXPParseContext forSexps) {}
 
   public record PrintContext(SEXPPrintContext forSexps) {}
 
   @ParseMethod
   private AbstractionFeedback(Parser p, ParseContext ctx) {
     var s = p.scanner();
+    module = ctx.moduleFeedback;
 
     numCalls = s.readUInt();
     s.assertAndSkip("x");
@@ -146,7 +155,7 @@ public class AbstractionFeedback {
   /// Parse feedback and assign it to the register. Parses nothing if it has none.
   private void parse(Register register, Parser p, ParseContext ctx) {
     var s = p.scanner();
-    var module = ctx.module();
+    var module = ctx.module;
     var p2 = p.withContext(ctx.forSexps());
 
     if (s.trySkip('-')) {

@@ -14,13 +14,14 @@ import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.iterator.InstructionDfs;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
 
 /// Removes unnecessary environments: those whose range contains no [Store] (nor super-store)
 /// nor reflective instructions (ignoring deopt branches).
 public record ElideEnv() implements AbstractionOptimization {
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction scope) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
     var cfg = scope.cfg();
     if (cfg == null) {
       return false;

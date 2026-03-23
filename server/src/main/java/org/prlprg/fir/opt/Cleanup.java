@@ -46,6 +46,7 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.value.Value;
@@ -79,7 +80,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
   }
 
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;

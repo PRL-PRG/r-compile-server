@@ -14,6 +14,7 @@ import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
+import org.prlprg.fir.opt.specialize.UnboxV1;
 
 public class Optimizations {
   public static Optimization defaultOptimizations() {
@@ -40,6 +41,7 @@ public class Optimizations {
                     new ElideRedundantAssumeLoadFun(),
                     new ElideTrivialCast(),
                     new ElideUseSubscriptWrite(),
+                    new UnboxV1(),
                     new OptimizeCallee(threshold),
                     new ResolveDynamicCallee(),
                     new ResolveLoad(),

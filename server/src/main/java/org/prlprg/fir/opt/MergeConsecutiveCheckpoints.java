@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Merge consecutive checkpoints whose deopt branches are effectively the same.
@@ -31,7 +32,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// a second-checkpoint assumption, the merge is not performed.
 public record MergeConsecutiveCheckpoints() implements CheckpointAbstractionOptimization {
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction scope) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
 
     scope

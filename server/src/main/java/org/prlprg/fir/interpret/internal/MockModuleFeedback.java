@@ -35,7 +35,7 @@ public class MockModuleFeedback implements ModuleFeedback {
 
   @Override
   public AbstractionFeedback get(Abstraction scope) {
-    return feedbacks.computeIfAbsent(scope, _ -> new AbstractionFeedback());
+    return feedbacks.computeIfAbsent(scope, _ -> new AbstractionFeedback(this));
   }
 
   @Override
@@ -57,7 +57,7 @@ public class MockModuleFeedback implements ModuleFeedback {
     var s = p.scanner();
     var module = ctx.module();
     var forSexps = new SEXPParseContext();
-    var p2 = p.withContext(new AbstractionFeedback.ParseContext(module, forSexps));
+    var p2 = p.withContext(new AbstractionFeedback.ParseContext(this, module, forSexps));
 
     s.assertAndSkip("feedback");
     s.assertAndSkip('{');

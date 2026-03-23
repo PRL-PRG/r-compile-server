@@ -14,7 +14,7 @@ fun setVisible() {
   () --> V { ... }
 }
 fun naToFalse(r) {
-  (reg r:v(L)) --> B { ... }
+  (reg r:v1(L)) --> B { ... }
   (reg r:L) --> B { ... }
 }
 fun box(r) {

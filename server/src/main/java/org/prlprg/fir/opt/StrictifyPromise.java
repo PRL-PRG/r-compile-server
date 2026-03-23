@@ -19,6 +19,7 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
@@ -38,7 +39,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
 
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction scope) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
     if (scope.cfg() == null) {
       return false;
     }

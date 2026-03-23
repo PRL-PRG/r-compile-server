@@ -66,13 +66,13 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
         continue;
       }
 
-      changed |= run(feedback.get(version), version);
+      changed |= run(function, feedback.get(version), version);
     }
     return changed;
   }
 
   @Override
-  public boolean run(AbstractionFeedback feedback, Abstraction scope) {
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
     // Compute checkpoint BBs and analyses we'll need
     var checkpointBbs =
         scope

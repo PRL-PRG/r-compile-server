@@ -229,32 +229,32 @@ public final class Builtins {
         "toForSeq", sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY_VALUE), Builtins::toForSeq);
     interpreter.registerExternal(
         "naToFalse",
-        sig(Type.BOOLEAN, Effects.NONE, Type.SHARED_LOGICAL_VECTOR),
+        sig(Type.BOOLEAN, Effects.NONE, Type.SHARED_LOGICAL_VECTOR1),
         Builtins::naToFalse0);
     interpreter.registerExternal(
         "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToFalse1);
 
     // box: scalar → vector
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.LOGICAL), Builtins::boxLogical);
+        "box", sig(Type.SHARED_LOGICAL_VECTOR1, Effects.NONE, Type.LOGICAL), Builtins::boxLogical);
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER), Builtins::boxInteger);
+        "box", sig(Type.SHARED_INT_VECTOR1, Effects.NONE, Type.INTEGER), Builtins::boxInteger);
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.REAL), Builtins::boxReal);
+        "box", sig(Type.SHARED_REAL_VECTOR1, Effects.NONE, Type.REAL), Builtins::boxReal);
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_STRING_VECTOR, Effects.NONE, Type.STRING), Builtins::boxString);
+        "box", sig(Type.SHARED_STRING_VECTOR1, Effects.NONE, Type.STRING), Builtins::boxString);
 
     // unbox: vector → scalar
     interpreter.registerExternal(
         "unbox",
-        sig(Type.LOGICAL, Effects.NONE, Type.SHARED_LOGICAL_VECTOR),
+        sig(Type.LOGICAL, Effects.NONE, Type.SHARED_LOGICAL_VECTOR1),
         Builtins::unboxLogical);
     interpreter.registerExternal(
-        "unbox", sig(Type.INTEGER, Effects.NONE, Type.SHARED_INT_VECTOR), Builtins::unboxInteger);
+        "unbox", sig(Type.INTEGER, Effects.NONE, Type.SHARED_INT_VECTOR1), Builtins::unboxInteger);
     interpreter.registerExternal(
-        "unbox", sig(Type.REAL, Effects.NONE, Type.SHARED_REAL_VECTOR), Builtins::unboxReal);
+        "unbox", sig(Type.REAL, Effects.NONE, Type.SHARED_REAL_VECTOR1), Builtins::unboxReal);
     interpreter.registerExternal(
-        "unbox", sig(Type.STRING, Effects.NONE, Type.SHARED_STRING_VECTOR), Builtins::unboxString);
+        "unbox", sig(Type.STRING, Effects.NONE, Type.SHARED_STRING_VECTOR1), Builtins::unboxString);
   }
 
   // region binary math builtins
