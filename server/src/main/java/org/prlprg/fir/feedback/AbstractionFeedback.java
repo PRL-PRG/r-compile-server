@@ -26,8 +26,8 @@ public class AbstractionFeedback {
   private int numCalls = 0;
   /// Inferred types.
   ///
-  /// `null` = nothing recorded, [Type#ANY] = different types recorded. Both are equivalent to
-  /// [Type#ANY] when checked.
+  /// `null` = nothing recorded, [Type#ANY_SEXP] = different types recorded. Both are equivalent to
+  /// [Type#ANY_SEXP] when checked.
   public final Map<Register, TypeFeedback> types = new HashMap<>();
   /// Inferred calls.
   ///

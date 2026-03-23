@@ -118,8 +118,8 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       if (typeFeedback.isPromise()) {
         typeFeedback =
             typeFeedback.withPromisity(Promisity.maybe(typeFeedback.promisity().effects()));
-        if (typeFeedback.equals(Type.ANY.withConcreteness(Concreteness.DEFINITE))) {
-          typeFeedback = Type.ANY;
+        if (typeFeedback.equals(Type.ANY_SEXP.withConcreteness(Concreteness.DEFINITE))) {
+          typeFeedback = Type.ANY_SEXP;
         }
       }
 

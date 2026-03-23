@@ -274,7 +274,7 @@ public class BC2FirCFGCompiler {
           parameterDefault instanceof NilSXP || parameterDefault instanceof PrimVectorSXP<?>;
 
       var parameterIsMissing = scope().addLocal(parameterName.name() + "_isMissing", Type.LOGICAL);
-      var parameterPhi = scope().addLocal(parameterName.name() + "_orDefault", Type.ANY);
+      var parameterPhi = scope().addLocal(parameterName.name() + "_orDefault", Type.ANY_SEXP);
 
       var computeDefaultBb = defaultIsConstant ? null : cfg.addBB();
       var afterBb = cfg.addBB();
@@ -284,7 +284,7 @@ public class BC2FirCFGCompiler {
               parameterIsMissing,
               builtin(
                   "missing",
-                  new Signature(ImmutableList.of(Type.ANY), Type.BOOLEAN, Effects.NONE),
+                  new Signature(ImmutableList.of(Type.ANY_SEXP), Type.BOOLEAN, Effects.NONE),
                   new Read(parameter.variable()))));
       cursor.advance();
       if (defaultIsConstant) {
@@ -441,8 +441,12 @@ public class BC2FirCFGCompiler {
                 "_cond",
                 builtin(
                     "as.logical",
-                    new Signature(ImmutableList.of(Type.ANY_VALUE), Type.BOOLEAN, Effects.NONE),
-                    cond));
+                    new Signature(
+                        ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
+                        Type.BOOLEAN,
+                        Effects.NONE),
+                    cond,
+                    new Constant(SEXPs.MISSING_ARG)));
         insert(next -> branch(condCasted, next, bb));
       }
       case Pop() -> pop();
@@ -525,7 +529,9 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "length",
                     new Signature(
-                        ImmutableList.of(Type.ANY_VALUE), Type.SHARED_INT_VECTOR1, Effects.NONE),
+                        ImmutableList.of(Type.ANY_VALUE_SEXP),
+                        Type.SHARED_INT_VECTOR1,
+                        Effects.NONE),
                     seq));
         var init = new Constant(SEXPs.integer(0));
         var index = insertAndReturn("_idx", new Aea(init));
@@ -580,8 +586,11 @@ public class BC2FirCFGCompiler {
                     "[[",
                     new Signature(
                         ImmutableList.of(
-                            Type.ANY_VALUE, Type.SHARED_INT_VECTOR1, Type.MISSING, Type.MISSING),
-                        Type.ANY_VALUE,
+                            Type.ANY_VALUE_SEXP,
+                            Type.SHARED_INT_VECTOR1,
+                            Type.MISSING,
+                            Type.MISSING),
+                        Type.ANY_VALUE_SEXP,
                         Effects.REFLECT),
                     seq,
                     index1,
@@ -826,8 +835,11 @@ public class BC2FirCFGCompiler {
             builtin(
                 "as.logical",
                 new Signature(
-                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR1, Effects.NONE),
-                pop()));
+                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
+                    Type.SHARED_LOGICAL_VECTOR1,
+                    Effects.NONE),
+                pop(),
+                new Constant(SEXPs.MISSING_ARG)));
         var cond =
             insertAndReturn(
                 "_cond",
@@ -843,8 +855,11 @@ public class BC2FirCFGCompiler {
             builtin(
                 "as.logical",
                 new Signature(
-                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR1, Effects.NONE),
-                pop()));
+                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
+                    Type.SHARED_LOGICAL_VECTOR1,
+                    Effects.NONE),
+                pop(),
+                new Constant(SEXPs.MISSING_ARG)));
         pushInsertCond(mkBinop("&&"));
         insert(this::goto_);
       }
@@ -854,8 +869,11 @@ public class BC2FirCFGCompiler {
             builtin(
                 "as.logical",
                 new Signature(
-                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR1, Effects.NONE),
-                pop()));
+                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
+                    Type.SHARED_LOGICAL_VECTOR1,
+                    Effects.NONE),
+                pop(),
+                new Constant(SEXPs.MISSING_ARG)));
         var cond =
             insertAndReturn(
                 "_cond",
@@ -871,8 +889,11 @@ public class BC2FirCFGCompiler {
             builtin(
                 "as.logical",
                 new Signature(
-                    ImmutableList.of(Type.ANY_VALUE), Type.SHARED_LOGICAL_VECTOR1, Effects.NONE),
-                pop()));
+                    ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
+                    Type.SHARED_LOGICAL_VECTOR1,
+                    Effects.NONE),
+                pop(),
+                new Constant(SEXPs.MISSING_ARG)));
         pushInsertCond(mkBinop("||"));
         insert(this::goto_);
       }
@@ -963,7 +984,7 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "inherits",
                     new Signature(
-                        ImmutableList.of(Type.ANY_VALUE, Type.STRING, Type.BOOLEAN),
+                        ImmutableList.of(Type.ANY_VALUE_SEXP, Type.STRING, Type.BOOLEAN),
                         Type.BOOLEAN,
                         Effects.NONE),
                     value,
@@ -985,7 +1006,8 @@ public class BC2FirCFGCompiler {
                 "_cond",
                 builtin(
                     "is.character",
-                    new Signature(ImmutableList.of(Type.ANY_VALUE), Type.BOOLEAN, Effects.NONE),
+                    new Signature(
+                        ImmutableList.of(Type.ANY_VALUE_SEXP), Type.BOOLEAN, Effects.NONE),
                     value));
         var stringBb = cfg.addBB();
         var asIntegerBb = cfg.addBB();
@@ -1058,8 +1080,12 @@ public class BC2FirCFGCompiler {
                   "_idx",
                   builtin(
                       "as.integer",
-                      new Signature(ImmutableList.of(Type.ANY_VALUE), Type.INTEGER, Effects.NONE),
-                      value));
+                      new Signature(
+                          ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
+                          Type.INTEGER,
+                          Effects.NONE),
+                      value,
+                      new Constant(SEXPs.MISSING_ARG)));
           for (var i = 0; i < numLabels.size() - 1; i++) {
             var ifMatch = bbAt(new BcLabel(numLabels.get(i)));
             var cond =
@@ -1179,7 +1205,7 @@ public class BC2FirCFGCompiler {
     var cfg = new CFG(scope());
     compile(r, cfg, bc);
 
-    return insertAndReturn("_p", new Promise(Type.ANY_VALUE, Effects.REFLECT, cfg));
+    return insertAndReturn("_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg));
   }
 
   /// End the previously-compiled for loop instruction (the latest [#pushWhileOrRepeatLoop(BB,
@@ -1402,7 +1428,7 @@ public class BC2FirCFGCompiler {
   /// register, and return that register.
   private Argument insertAndReturn(String name, Expression expression) {
     var exprType = inferType.of(expression);
-    var tempVar = cfg.scope().addLocal(name, exprType == null ? Type.ANY : exprType);
+    var tempVar = cfg.scope().addLocal(name, exprType == null ? Type.ANY_SEXP : exprType);
     insert(new Statement(tempVar, expression));
     return new Read(tempVar);
   }

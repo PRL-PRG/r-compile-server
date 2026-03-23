@@ -68,7 +68,7 @@ public final class Function {
         .map(
             paramName -> {
               var baselineParamName = resemblance(paramName, baselineParamNames);
-              var paramType = paramName.equals(NamedVariable.DOTS) ? Type.DOTS : Type.ANY;
+              var paramType = paramName.equals(NamedVariable.DOTS) ? Type.DOTS : Type.ANY_SEXP;
               baselineParamNames.add(baselineParamName);
               return new Parameter(baselineParamName, paramType);
             })
@@ -149,6 +149,19 @@ public final class Function {
       throw new IllegalArgumentException("Version not found: " + version);
     }
     return index;
+  }
+
+  /// Gets the *worst* version whose parameters are more permissive than `signature`, and whose
+  /// return value is *not disjoint*
+  public @Nullable Abstraction guessWorst(Signature signature) {
+    for (var version : versionsSorted.reversed()) {
+      if (signature.hasNarrowerParameters(version.signature())
+          && (version.signature().returnType().isSubtypeOf(signature.returnType())
+              || signature.returnType().isSubtypeOf(version.signature().returnType()))) {
+        return version;
+      }
+    }
+    return null;
   }
 
   /// Gets the best version whose signature can be substituted with `signature` in a call, i.e.

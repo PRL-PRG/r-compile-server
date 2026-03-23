@@ -178,7 +178,7 @@ fun `==`(lhs, rhs) {
   (reg lhs:I, reg rhs:I) --> B { ... }
   (reg lhs:R, reg rhs:R) --> B { ... }
   (reg lhs:S, reg rhs:S) --> B { ... }
-  (reg lhs:cls, reg rhs:cls) --> B { ... }
+  (reg lhs:*@!, reg rhs:*@!) --> B { ... }
 }
 
 fun `!=`(lhs, rhs) {
@@ -654,20 +654,20 @@ fun length(x) {
 
 fun `as.integer`(x, `...`) {
   (reg x:*@!, reg ddd:dots) -+> v(I) { ... }
-  (reg x:V) --> I { ... }
+  (reg x:V, reg ddd:miss) --> I { ... }
 }
 
 fun `as.logical`(x, `...`) {
   (reg x:*@!, reg ddd:dots) -+> v(L) { ... }
-  (reg x:V) --> v(L) { ... }
-  (reg x:V) --> v1(L) { ... }
-  (reg x:V) --> L { ... }
-  (reg x:V) --> B { ... }
+  (reg x:V, reg ddd:miss) --> v(L) { ... }
+  (reg x:V, reg ddd:miss) --> v1(L) { ... }
+  (reg x:V, reg ddd:miss) --> L { ... }
+  (reg x:V, reg ddd:miss) --> B { ... }
 }
 
 fun `as.character`(x, `...`) {
   (reg x:*@!, reg ddd:dots) -+> v(S) { ... }
-  (reg x:V) --> S { ... }
+  (reg x:V, reg ddd:miss) --> S { ... }
 }
 
 fun stop(`...`, `call.`, domain) {

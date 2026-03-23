@@ -181,7 +181,7 @@ public final class TypeAndEffectChecker extends Checker {
 
       // Check return type well-formedness
       onCfg.checkWellFormed(scope.returnType());
-      if (!scope.returnType().canBeAssignedTo(Type.ANY_VALUE)) {
+      if (!scope.returnType().canBeAssignedTo(Type.ANY_VALUE_SEXP)) {
         onCfg.report(
             "Return type's kind must subtype `V` and it must be definite: " + scope.returnType());
       }
@@ -367,9 +367,7 @@ public final class TypeAndEffectChecker extends Checker {
                 var type = scope.typeOf(element.argument());
                 checkSubtype(type, elementType, "Type mismatch in element " + i);
               }
-            } else if (kind instanceof Dots) {
-              // ok
-            } else {
+            } else if (!(kind instanceof Dots)) {
               report("Can't create a vector of kind " + kind);
             }
           }

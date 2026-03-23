@@ -58,8 +58,9 @@ public final class Builtins {
   }
 
   private static final Signature SIG_GENERIC_2 =
-      sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY);
-  private static final Signature SIG_GENERIC_1 = sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY);
+      sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP);
+  private static final Signature SIG_GENERIC_1 =
+      sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP);
 
   // endregion
 
@@ -220,13 +221,17 @@ public final class Builtins {
 
     // Intrinsics
     interpreter.registerExternal(
-        "setInvisible", sig(Type.ANY_VALUE, Effects.NONE), Builtins::setInvisible);
+        "setInvisible", sig(Type.ANY_VALUE_SEXP, Effects.NONE), Builtins::setInvisible);
     interpreter.registerExternal(
-        "setVisible", sig(Type.ANY_VALUE, Effects.NONE), Builtins::setVisible);
+        "setVisible", sig(Type.ANY_VALUE_SEXP, Effects.NONE), Builtins::setVisible);
     interpreter.registerExternal(
-        "checkMissing", sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE), Builtins::checkMissing);
+        "checkMissing",
+        sig(Type.ANY_VALUE_SEXP, Effects.NONE, Type.ANY_VALUE_SEXP),
+        Builtins::checkMissing);
     interpreter.registerExternal(
-        "toForSeq", sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY_VALUE), Builtins::toForSeq);
+        "toForSeq",
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_VALUE_SEXP),
+        Builtins::toForSeq);
     interpreter.registerExternal(
         "naToFalse",
         sig(Type.BOOLEAN, Effects.NONE, Type.SHARED_LOGICAL_VECTOR1),
@@ -681,7 +686,7 @@ public final class Builtins {
     if (isEqual) {
       interpreter.registerExternal(
           name,
-          sig(Type.BOOLEAN, Effects.NONE, Type.CLOSURE, Type.CLOSURE),
+          sig(Type.BOOLEAN, Effects.NONE, Type.ANY_SEXP, Type.ANY_SEXP),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 var c1 = (CloSXP) args.getFirst().box();
@@ -862,7 +867,7 @@ public final class Builtins {
     // (R, R) --> V
     interpreter.registerExternal(
         ":",
-        sig(Type.ANY_VALUE, Effects.NONE, Type.REAL, Type.REAL),
+        sig(Type.ANY_VALUE_SEXP, Effects.NONE, Type.REAL, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               double start = ((Value.Real) args.getFirst()).value();
@@ -892,7 +897,7 @@ public final class Builtins {
     // (v(R), v(R)) --> V
     interpreter.registerExternal(
         ":",
-        sig(Type.ANY_VALUE, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.SHARED_REAL_VECTOR),
+        sig(Type.ANY_VALUE_SEXP, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var v1 = (RealSXP) args.getFirst().box();
@@ -925,7 +930,13 @@ public final class Builtins {
     // Both have 4 params in generic form with all being ANY
     interpreter.registerExternal(
         name,
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.REFLECT,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 4) {
@@ -998,7 +1009,13 @@ public final class Builtins {
       // [<-: (*, *, *, *) -+> V
       interpreter.registerExternal(
           name,
-          sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
+          sig(
+              Type.ANY_VALUE_SEXP,
+              Effects.REFLECT,
+              Type.ANY_SEXP,
+              Type.ANY_SEXP,
+              Type.ANY_SEXP,
+              Type.ANY_SEXP),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 if (args.size() != 4) {
@@ -1019,7 +1036,7 @@ public final class Builtins {
       // [[<-: (*, *, *) -+> V
       interpreter.registerExternal(
           name,
-          sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY),
+          sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP, Type.ANY_SEXP),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 if (args.size() != 3) {
@@ -1154,7 +1171,7 @@ public final class Builtins {
     // v1: (V, V) --> V
     interpreter.registerExternal(
         "$",
-        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE, Type.ANY_VALUE),
+        sig(Type.ANY_VALUE_SEXP, Effects.NONE, Type.ANY_VALUE_SEXP, Type.ANY_VALUE_SEXP),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `$` not yet fully implemented");
@@ -1165,7 +1182,7 @@ public final class Builtins {
     // v0: (*, *, *) -+> V
     interpreter.registerExternal(
         "$<-",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `$<-` not yet fully implemented");
@@ -1173,7 +1190,12 @@ public final class Builtins {
     // v1: (V, V, V) --> V
     interpreter.registerExternal(
         "$<-",
-        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE, Type.ANY_VALUE, Type.ANY_VALUE),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.NONE,
+            Type.ANY_VALUE_SEXP,
+            Type.ANY_VALUE_SEXP,
+            Type.ANY_VALUE_SEXP),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `$<-` not yet fully implemented");
@@ -1188,7 +1210,7 @@ public final class Builtins {
     // Generic: (*, dots) -+> V
     interpreter.registerExternal(
         "rep",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.DOTS),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2) {
@@ -1385,7 +1407,7 @@ public final class Builtins {
     // v0: (dots, *) -+> V
     interpreter.registerExternal(
         "sum",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.DOTS, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2) {
@@ -1687,7 +1709,7 @@ public final class Builtins {
     // v2: (V) --> I
     interpreter.registerExternal(
         "length",
-        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
@@ -1702,7 +1724,7 @@ public final class Builtins {
     // v0: (*) -+> v(I)
     interpreter.registerExternal(
         "seq_along",
-        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY),
+        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1714,7 +1736,7 @@ public final class Builtins {
     // v1: (V) --> I  (returns length, used as loop bound)
     interpreter.registerExternal(
         "seq_along",
-        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
@@ -1727,7 +1749,7 @@ public final class Builtins {
     // v0: (*) -+> v(I)
     interpreter.registerExternal(
         "seq_len",
-        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY),
+        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1761,7 +1783,7 @@ public final class Builtins {
     // v0: (*, dots) -+> v(I)
     interpreter.registerExternal(
         "as.integer",
-        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY, Type.DOTS),
+        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1769,10 +1791,10 @@ public final class Builtins {
               }
               return new Value.Sexp(SEXPs.integer(sexpToInt(sexp, interpreter, "as.integer")));
             }));
-    // v1: (V) --> I
+    // v1: (V, miss) --> I
     interpreter.registerExternal(
         "as.integer",
-        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.INTEGER, Effects.NONE, Type.ANY_VALUE_SEXP, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
@@ -1784,7 +1806,7 @@ public final class Builtins {
     // v0: (*, dots) -+> v(L)
     interpreter.registerExternal(
         "as.logical",
-        sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY, Type.DOTS),
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1792,28 +1814,28 @@ public final class Builtins {
               }
               return new Value.Sexp(SEXPs.logical(sexpToLogical(sexp, interpreter, "as.logical")));
             }));
-    // v1: (V) --> v(L)
+    // v1: (V, miss) --> v(L)
     interpreter.registerExternal(
         "as.logical",
-        sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_VALUE_SEXP, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
               return new Value.Sexp(SEXPs.logical(sexpToLogical(sexp, interpreter, "as.logical")));
             }));
-    // v2: (V) --> L
+    // v2: (V, miss) --> L
     interpreter.registerExternal(
         "as.logical",
-        sig(Type.LOGICAL, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.LOGICAL, Effects.NONE, Type.ANY_VALUE_SEXP, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
               return new Value.Lgl(sexpToLogical(sexp, interpreter, "as.logical"));
             }));
-    // v3: (V) --> B
+    // v3: (V, miss) --> B
     interpreter.registerExternal(
         "as.logical",
-        sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE_SEXP, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
@@ -1826,7 +1848,7 @@ public final class Builtins {
     // v0: (*, dots) -+> S
     interpreter.registerExternal(
         "as.character",
-        sig(Type.SHARED_STRING_VECTOR, Effects.REFLECT, Type.ANY, Type.DOTS),
+        sig(Type.SHARED_STRING_VECTOR, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1834,10 +1856,10 @@ public final class Builtins {
               }
               return new Value.Sexp(SEXPs.string(sexpToString(sexp)));
             }));
-    // v1: (V) --> S
+    // v1: (V, miss) --> S
     interpreter.registerExternal(
         "as.character",
-        sig(Type.STRING, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.STRING, Effects.NONE, Type.ANY_VALUE_SEXP, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var sexp = args.getFirst().box();
@@ -1854,7 +1876,7 @@ public final class Builtins {
     // v0: (*) --> v(L)
     interpreter.registerExternal(
         "missing",
-        sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY),
+        sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               boolean isMissing = args.getFirst().equals(missingVal);
@@ -1863,7 +1885,7 @@ public final class Builtins {
     // v1: (*) --> B
     interpreter.registerExternal(
         "missing",
-        sig(Type.BOOLEAN, Effects.NONE, Type.ANY),
+        sig(Type.BOOLEAN, Effects.NONE, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               boolean isMissing = args.getFirst().equals(missingVal);
@@ -1878,7 +1900,7 @@ public final class Builtins {
   private static void registerStop(InternalInterpreter interpreter) {
     interpreter.registerExternal(
         "stop",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY, Type.ANY),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.DOTS, Type.ANY_SEXP, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 3) throw interpreter.fail("`stop` takes 3 arguments");
@@ -1896,7 +1918,14 @@ public final class Builtins {
   private static void registerWarning(InternalInterpreter interpreter) {
     interpreter.registerExternal(
         "warning",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.REFLECT,
+            Type.DOTS,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 5) throw interpreter.fail("`warning` takes 5 arguments");
@@ -1913,7 +1942,13 @@ public final class Builtins {
   private static void registerStopifnot(InternalInterpreter interpreter) {
     interpreter.registerExternal(
         "stopifnot",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.DOTS, Type.ANY, Type.ANY, Type.ANY),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.REFLECT,
+            Type.DOTS,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 4) throw interpreter.fail("`stopifnot` takes 4 arguments");
@@ -1944,7 +1979,7 @@ public final class Builtins {
     // v0: (*, dots) -+> V
     interpreter.registerExternal(
         "print",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.DOTS),
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2) throw interpreter.fail("`print` takes 2 arguments");
@@ -1992,7 +2027,7 @@ public final class Builtins {
     // v1: (V) --> V
     interpreter.registerExternal(
         "unclass",
-        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE),
+        sig(Type.ANY_VALUE_SEXP, Effects.NONE, Type.ANY_VALUE_SEXP),
         ExternalVersion.strict((_, _, args, _) -> args.getFirst()));
   }
 
@@ -2007,7 +2042,7 @@ public final class Builtins {
       // is.vector: (*, miss) -+> v(L)
       interpreter.registerExternal(
           name,
-          sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY, Type.ANY),
+          sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 if (args.size() != 2) {
@@ -2025,7 +2060,7 @@ public final class Builtins {
       // Other is.*: (*) -+> v(L)
       interpreter.registerExternal(
           name,
-          sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY),
+          sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY_SEXP),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 if (args.size() != 1) {
@@ -2046,7 +2081,7 @@ public final class Builtins {
       // is.vector v1: (V, miss) --> v(L)
       interpreter.registerExternal(
           name,
-          sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_VALUE, Type.MISSING),
+          sig(Type.SHARED_LOGICAL_VECTOR, Effects.NONE, Type.ANY_VALUE_SEXP, Type.MISSING),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 var sexp = args.getFirst().box();
@@ -2056,7 +2091,7 @@ public final class Builtins {
       // Other is.* v1: (V) --> B
       interpreter.registerExternal(
           name,
-          sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE),
+          sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE_SEXP),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 var sexp = args.getFirst().box();
@@ -2073,7 +2108,12 @@ public final class Builtins {
     // v0: (*, *, *) -+> v(L)
     interpreter.registerExternal(
         "inherits",
-        sig(Type.SHARED_LOGICAL_VECTOR, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY),
+        sig(
+            Type.SHARED_LOGICAL_VECTOR,
+            Effects.REFLECT,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               // Simplified: no class support, always FALSE
@@ -2082,7 +2122,7 @@ public final class Builtins {
     // v1: (V, S, B) --> B
     interpreter.registerExternal(
         "inherits",
-        sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE, Type.STRING, Type.BOOLEAN),
+        sig(Type.BOOLEAN, Effects.NONE, Type.ANY_VALUE_SEXP, Type.STRING, Type.BOOLEAN),
         ExternalVersion.strict((_, _, _, _) -> new Value.Bool(false)));
   }
 
@@ -2094,7 +2134,13 @@ public final class Builtins {
     // v0: (*, *, *, *) -+> V
     interpreter.registerExternal(
         "attr",
-        sig(Type.ANY_VALUE, Effects.REFLECT, Type.ANY, Type.ANY, Type.ANY, Type.ANY),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.REFLECT,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP,
+            Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `attr` not yet fully implemented");
@@ -2102,7 +2148,13 @@ public final class Builtins {
     // v1: (V, S, miss, miss) --> V
     interpreter.registerExternal(
         "attr",
-        sig(Type.ANY_VALUE, Effects.NONE, Type.ANY_VALUE, Type.STRING, Type.MISSING, Type.MISSING),
+        sig(
+            Type.ANY_VALUE_SEXP,
+            Effects.NONE,
+            Type.ANY_VALUE_SEXP,
+            Type.STRING,
+            Type.MISSING,
+            Type.MISSING),
         ExternalVersion.strict(
             (_, _, _, _) -> {
               throw interpreter.failUnsupported("Mock `attr` not yet fully implemented");
@@ -2117,7 +2169,7 @@ public final class Builtins {
     // v0: (dots) --> V
     interpreter.registerExternal(
         "c",
-        sig(Type.ANY_VALUE, Effects.NONE, Type.DOTS),
+        sig(Type.ANY_VALUE_SEXP, Effects.NONE, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1) throw interpreter.fail("`c` takes 1 argument (dots)");

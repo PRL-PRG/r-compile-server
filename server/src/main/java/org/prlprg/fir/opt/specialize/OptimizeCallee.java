@@ -141,7 +141,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
         };
     return new Signature(
         argumentTypes,
-        oldSignature == null ? Type.ANY_VALUE : oldSignature.returnType(),
+        oldSignature == null ? Type.ANY_VALUE_SEXP : oldSignature.returnType(),
         oldSignature == null ? Effects.REFLECT : oldSignature.effects());
   }
 }

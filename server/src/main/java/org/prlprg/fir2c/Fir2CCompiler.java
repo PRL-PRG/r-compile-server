@@ -1065,11 +1065,17 @@ public final class Fir2CCompiler {
                   throw new IllegalArgumentException(
                       "Intrinsic should never be dispatched: " + call);
                 } else if (calleeModule == BUILTINS
-                    && (isDispatch || calleeFun.guess(signature) == calleeFun.baseline())) {
+                    && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
                   yield emitBuiltinCall(call, calleeFun);
                 }
 
                 if (isDispatch) {
+                  if (calleeModule == BUILTINS) {
+                    throw new IllegalArgumentException(
+                        "Currently, builtin dispatch calls can only be compiled if the signature is compatible with the baseline (so we can, and do, call the GNU-R builtin): "
+                            + call);
+                  }
+
                   // Protect constants
                   pool.internPatched(
                       calleeFun,
@@ -1090,7 +1096,10 @@ public final class Fir2CCompiler {
                   var arguments = emitArgumentSplice(call.callArguments());
                   yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments);
                 } else {
-                  var calleeVersion = calleeFun.guess(signature);
+                  var calleeVersion =
+                      calleeModule == BUILTINS
+                          ? calleeFun.guessWorst(signature)
+                          : calleeFun.guess(signature);
                   if (calleeVersion == null) {
                     throw new IllegalArgumentException(
                         "In " + call + ", no version matches signature:\n" + calleeFun);
@@ -1589,7 +1598,7 @@ public final class Fir2CCompiler {
   }
 
   private static void emitTypeCName(StringBuilder sb, Type type) {
-    if (type.equals(Type.ANY)) {
+    if (type.equals(Type.ANY_SEXP)) {
       sb.append("any");
       return;
     }

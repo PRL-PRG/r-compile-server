@@ -67,7 +67,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     this.parameters = parameters.toArray(Parameter[]::new);
 
     nameToParamIndex = computeNameToParamIndex(this.parameters);
-    returnType = Type.ANY_VALUE;
+    returnType = Type.ANY_VALUE_SEXP;
     effects = Effects.REFLECT;
     cfg = isStub ? null : new CFG(this);
 
@@ -236,7 +236,7 @@ public final class Abstraction implements Comparable<Abstraction> {
         "Abstraction#setLocalType",
         List.of(this, variable, type),
         () -> {
-          if (type.equals(Type.ANY)) {
+          if (type.equals(Type.ANY_SEXP)) {
             locals.remove(variable);
           } else {
             locals.put(variable, new Local(variable, type));
@@ -302,7 +302,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   public Type typeOf(NamedVariable named) {
     var lookup = lookup(named);
     // `lookup == null` means it's an unknown named variable, i.e. has type ANY.
-    return lookup != null ? lookup.type() : Type.ANY;
+    return lookup != null ? lookup.type() : Type.ANY_SEXP;
   }
 
   public @Nullable Type typeOf(Argument argument) {
