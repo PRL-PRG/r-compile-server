@@ -50,6 +50,46 @@ typedef R_bcstack_t Value;
 #define NODISCARD
 #endif
 
+/* ------------------------------------------------------------------ *
+ * Targets: GCC 13+, x86-64 Linux. Compatible with Clang.             *
+ *                                                                    *
+ * UNREACHABLE()   – marks a point that is never reached.             *
+ * ASSUME(cond)    – asserts cond is always true at this point.       *
+ *                                                                    *
+ * Debug   (NDEBUG not defined): aborts with a diagnostic message.    *
+ * Release (NDEBUG defined):     optimizer hint, zero runtime cost.   *
+ *                                                                    *
+ * Note: cond in ASSUME must be side-effect free — in release builds  *
+ * it may not be evaluated at all.                                    *
+ * ------------------------------------------------------------------ */
+
+#ifndef NDEBUG
+#define UNREACHABLE()                                                          \
+  do {                                                                         \
+    fprintf(stderr, "UNREACHABLE reached at %s:%d (function: %s)\n", __FILE__, \
+            __LINE__, __func__);                                               \
+    abort();                                                                   \
+  } while (0)
+
+#define ASSUME(cond)                                                           \
+  do {                                                                         \
+    if (!(cond)) {                                                             \
+      fprintf(stderr, "ASSUME(%s) failed at %s:%d (function: %s)\n", #cond,    \
+              __FILE__, __LINE__, __func__);                                   \
+      abort();                                                                 \
+    }                                                                          \
+  } while (0)
+#else
+#define UNREACHABLE() __builtin_unreachable()
+
+#if defined(__clang__)
+#define ASSUME(cond) __builtin_assume(cond)
+#else
+/* GCC 13+: __attribute__((assume(expr))) */
+#define ASSUME(cond) __attribute__((assume(cond)))
+#endif
+#endif
+
 // LINKING MODEL
 // -------------
 
@@ -630,13 +670,13 @@ static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
 
   return cell == NULL ? R_NilValue : cell;
 }
-
+static INLINE SEXP bcell_value(SEXP cell);
 // Ensures that the symbol from rho is bound in the given cell as long
 // as the symbol in rho is bindable. If not, it sets the cell to R_NilValue
-static ALWAYS_INLINE void bcell_ensure_cached(SEXP symbol, SEXP rho,
+static SEXP ALWAYS_INLINE bcell_ensure_cached(SEXP symbol, SEXP rho,
                                               BCell *const cell) {
   if (TAG(*cell) == symbol && !BCELL_IS_UNBOUND(*cell)) {
-    return;
+    return *cell;
   }
 
   SEXP ncell = bcell_get(symbol, rho);
@@ -645,6 +685,7 @@ static ALWAYS_INLINE void bcell_ensure_cached(SEXP symbol, SEXP rho,
   } else if (*cell != R_NilValue && BCELL_IS_UNBOUND(*cell)) {
     *cell = R_NilValue;
   }
+  return ncell;
 }
 
 // Returns the bound value in the case it is bound or Rsh_UnboundValue
@@ -812,9 +853,30 @@ static INLINE SEXP Rsh_append_values_to_args(Value *stack, Value const *vals,
 
 #define Rsh_Pop(x)
 
+static INLINE void Rsh_evaluated_promise_to_value(Value *res, SEXP value) {
+  assert(PROMISE_IS_EVALUATED(value));
+
+  switch (PROMISE_TAG(value)) {
+  case REALSXP:
+  case INTSXP:
+  case LGLSXP:
+  case 0:
+    break;
+  default:
+    UNREACHABLE(); // Sanity check
+  }
+
+  res->tag = PROMISE_TAG(value);
+  if (PROMISE_TAG(value) != 0) {
+    memcpy(&res->u, &CAR0(value), sizeof(res->u));
+  } else {
+    res->u.sxpval = PRVALUE0(value);
+  }
+}
+
 // cell could be null
-static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
-                                  SEXP value, Rboolean keepmiss, SEXP rho) {
+static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
+                                  Rboolean keepmiss, SEXP rho) {
   RSH_PC_INC(slow_getvar);
 
   if (value == R_UnboundValue) {
@@ -822,30 +884,22 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, BCell *cell,
   } else if (value == R_MissingArg) {
     MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho);
   } else if (TYPEOF(value) == PROMSXP) {
-    if (PROMISE_IS_EVALUATED(value)) {
-      value = PRVALUE(value);
-    } else {
+    if (!PROMISE_IS_EVALUATED(value)) {
       /**** R_isMissing is inefficient */
       if (keepmiss && R_isMissing(symbol, rho)) {
         value = R_MissingArg;
+        SET_SXP_VAL(res, value);
+        return;
       } else {
         forcePromise(value);
-        // FIXME: this is pretty inefficient
-        // the PRVALUE will likely call the R_expand_promise_value
-        // which will expand a tagged SEXP only to later optimized into a Value
-        // again
-        value = PRVALUE(value);
       }
     }
+    Rsh_evaluated_promise_to_value(res, value);
+    return;
   } else {
     ENSURE_NAMEDMAX(value);
   }
-
-  if (cell != NULL && *cell != R_NilValue) {
-    BCELL_INLINE(*cell, value);
-  }
-
-  SET_VAL(res, value);
+  SET_SXP_VAL(res, value);
 }
 
 #define Rsh_GetVar(stack, symbol, cell, rho)                                   \
@@ -865,91 +919,87 @@ static ALWAYS_INLINE void Rsh_get_ddval(Value *res, SEXP symbol, BCell *cell,
 
   assert(cell != NULL);
 
-  switch (BCELL_TAG(*cell)) {
-  case REALSXP:
-    SET_DBL_VAL(res, BCELL_DVAL(*cell));
-    return;
-  case INTSXP:
-    SET_INT_VAL(res, BCELL_IVAL(*cell));
-    return;
-  case LGLSXP:
-    SET_LGL_VAL(res, BCELL_IVAL(*cell));
+  if (BCELL_TAG(*cell) != 0) {
+    res->tag = BCELL_TAG(*cell);
+    memcpy(&res->u, &CAR0(*cell), sizeof(res->u));
     return;
   }
 
   SEXP value = ddfindVar(symbol, rho);
-  Rsh_do_get_var(res, symbol, cell, value, keepmiss, rho);
+  Rsh_do_get_var(res, symbol, value, keepmiss, rho);
 }
 
-static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
-                                      Rboolean keepmiss, SEXP rho) {
+static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol,
+                                      BCell *cell_cache, Rboolean keepmiss,
+                                      SEXP rho) {
   RSH_PC_INC(getvar);
+  assert(cell_cache != NULL);
 
   R_Visible = TRUE;
 
   SEXP value;
+  SEXP cell = *cell_cache;
 
-  assert(cell != NULL);
-  switch (BCELL_TAG(*cell)) {
-  case REALSXP:
-    SET_DBL_VAL(res, BCELL_DVAL(*cell));
+  if (cell == R_NilValue) {
+    cell = bcell_ensure_cached(symbol, rho, cell_cache);
+  }
+
+  // Since the format of BCells and boxed stack is the same,
+  // we can directly assign the value no matter its type
+  if (BCELL_TAG(cell) != 0) {
+    res->tag = BCELL_TAG(cell);
+    //*((BCellVal *)&(res->u)) = *((BCellVal *)&CAR0(cell));
+    // memcpy does not throw warning and compiles in the same code
+    static_assert(sizeof(res->u) == sizeof(CAR0(cell)),
+                  "BCellVal and Value union should be the same size");
+    memcpy(&res->u, &CAR0(cell), sizeof(res->u));
     return;
-  case INTSXP:
-    SET_INT_VAL(res, BCELL_IVAL(*cell));
-    return;
-  case LGLSXP:
-    SET_LGL_VAL(res, BCELL_IVAL(*cell));
+  }
+  value = CAR0(cell);
+
+  if (TYPEOF(value) == PROMSXP && PROMISE_IS_EVALUATED(value)) {
+    Rsh_evaluated_promise_to_value(res, value);
     return;
   }
 
-  value = BCELL_VAL(*cell);
-  if (value != R_UnboundValue) {
-    int type = TYPEOF(value);
-
-    if (type == PROMSXP) {
-      if (PROMISE_IS_EVALUATED(value)) {
-        switch (PROMISE_TAG(value)) {
-        case REALSXP:
-          SET_DBL_VAL(res, PROMISE_DVAL(value));
-          return;
-        case INTSXP:
-          SET_INT_VAL(res, PROMISE_IVAL(value));
-          return;
-        case LGLSXP:
-          SET_LGL_VAL(res, PROMISE_LVAL(value));
-          return;
-        default:
-          value = PRVALUE(value);
-          type = TYPEOF(value);
-        }
-      }
-    }
-
-    /* try fast handling of some types; for these the */
-    /* cell won't be R_NilValue or an active binding */
-    switch (type) {
-    case REALSXP:
-    case INTSXP:
-    case LGLSXP:
-    case CPLXSXP:
-    case STRSXP:
-    case VECSXP:
-    case RAWSXP:
-      SET_SXP_VAL(res, value);
-      return;
-    case SYMSXP:
-    case PROMSXP:
+  /* try fast handling of some types; for these the */
+  /* cell won't be R_NilValue or an active binding */
+  switch (TYPEOF(value)) {
+  default:
+    if (cell == R_NilValue || IS_ACTIVE_BINDING(cell)) {
       break;
-    default:
-      if (*cell != R_NilValue && !IS_ACTIVE_BINDING(*cell)) {
-        SET_SXP_VAL(res, value);
-        return;
-      }
     }
+  case REALSXP:
+  case INTSXP:
+  case LGLSXP:
+  case CPLXSXP:
+  case STRSXP:
+  case VECSXP:
+  case RAWSXP:
+    SET_SXP_VAL(res, value);
+    return;
+  case PROMSXP:
+  case SYMSXP:
+    // Cell cannot be NULL here because the 'type' variable
+    // is retrieved from the actual cell. The only case where cell
+    // can be null at this point is if 'type' is 0, so not for this case.
+    // Assumption here simplifies the branching below.
+    ASSUME(cell != R_NilValue);
+    break;
   }
 
-  value = R_findVar(symbol, rho);
-  Rsh_do_get_var(res, symbol, cell, value, keepmiss, rho);
+  // This is what remains of BINDING_VALUE/bcell_value that matters here.
+  // 'value' would be set to R_UnboundValue and overwritten right after.
+  // Compiler should be smart enough to jump inside of the branch directly
+  // from the breaks in the switch.
+  if ((cell == R_NilValue || IS_ACTIVE_BINDING(cell))) {
+    // value = R_GetVarLocValue(R_findVarLoc(symbol, rho));
+    // TODO thorough check whether this is an equivalent to the version
+    // commented above
+    value = R_findVar(symbol, rho);
+  }
+
+  Rsh_do_get_var(res, symbol, value, keepmiss, rho);
 }
 
 static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
@@ -1928,7 +1978,7 @@ static INLINE void Rsh_StartAssign2(Value *stack, SEXP symbol, SEXP rho) {
   SET_SXP_VAL(lhs_cell, loc.cell);
 
   SEXP value = R_findVar(symbol, rho);
-  Rsh_do_get_var(lhs_val, symbol, NULL, value, FALSE, ENCLOS(rho));
+  Rsh_do_get_var(lhs_val, symbol, value, FALSE, ENCLOS(rho));
   SEXP value_sxp = val_as_sexp(*lhs_val);
   if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
     value_sxp = Rf_shallow_duplicate(value_sxp);
