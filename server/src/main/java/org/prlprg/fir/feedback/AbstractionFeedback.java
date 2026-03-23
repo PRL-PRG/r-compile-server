@@ -17,6 +17,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 /// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
 public class AbstractionFeedback {
@@ -183,7 +184,7 @@ public class AbstractionFeedback {
 
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new PrintContext(new SEXPPrintContext())).print(this);
+    p.withContext(new PrintContext(new SEXPPrintContext(SEXPPrintOptions.FULL))).print(this);
   }
 
   @PrintMethod
@@ -221,8 +222,7 @@ public class AbstractionFeedback {
   /// Print the register's feedback. Prints nothing if it has none.
   public void print(Register register, Printer p, PrintContext ctx) {
     var w = p.writer();
-    var forSexps = ctx.forSexps();
-    var p2 = p.withContext(forSexps);
+    var p2 = p.withContext(ctx.forSexps());
 
     var type = types.get(register);
     var callee = callees.get(register);

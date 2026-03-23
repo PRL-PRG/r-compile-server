@@ -159,7 +159,7 @@
         <version>3.6.0</version>
         <configuration>
           <installHooks>
-            <pre-commit>.githooks/pre-commit.sh</pre-commit>
+            <pre-commit>../.githooks/pre-commit.sh</pre-commit>
           </installHooks>
         </configuration>
         <executions>

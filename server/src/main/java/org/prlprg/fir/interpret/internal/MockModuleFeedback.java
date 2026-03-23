@@ -14,6 +14,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
+import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.util.Pair;
 
 /// [ModuleFeedback] implemented by a simple hash-map.
@@ -86,7 +87,7 @@ public class MockModuleFeedback implements ModuleFeedback {
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
-    var forSexps = new SEXPPrintContext();
+    var forSexps = new SEXPPrintContext(SEXPPrintOptions.FULL);
     var p2 = p.withContext(new AbstractionFeedback.PrintContext(forSexps));
 
     if (feedbacks.isEmpty()) {

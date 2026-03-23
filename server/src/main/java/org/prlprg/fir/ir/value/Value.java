@@ -10,6 +10,7 @@ import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
+import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 public sealed interface Value {
@@ -149,7 +150,13 @@ public sealed interface Value {
     var w = p.writer();
 
     switch (value) {
-      case Sexp(var v) -> p.withContext(SEXPPrintOptions.FULL_DELIMITED).print(v);
+      case Sexp(var v) -> {
+        if (p.context() instanceof SEXPPrintContext c) {
+          c.runDelimited(() -> p.print(v));
+        } else {
+          p.withContext(SEXPPrintOptions.FULL_DELIMITED).print(v);
+        }
+      }
       case Int(var v) -> p.print(SEXPs.integer(v));
       case Real(var v) -> p.print(SEXPs.real(v));
       case Lgl(var v) -> {

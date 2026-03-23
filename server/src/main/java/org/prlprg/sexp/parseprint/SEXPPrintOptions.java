@@ -1,5 +1,10 @@
 package org.prlprg.sexp.parseprint;
 
+import java.util.function.BiPredicate;
+import org.jspecify.annotations.Nullable;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.EnvSXP;
+
 /// Pass this as a context to [org.prlprg.parseprint.Printer#print], [#toString], and other
 /// functions that print an [`SEXP`][org.prlprg.sexp.SEXP] to customize how it's printed.
 ///
@@ -14,6 +19,11 @@ package org.prlprg.sexp.parseprint;
 /// @param printEnvironmentDetails Which environments to print the parent and bindings of.
 ///
 /// Default: [PrintEnvironmentDetails#BELOW_GLOBAL].
+///
+/// @param environmentDetailPrinter Custom printer for environment details. Return `false` to
+/// (or pass `null`) to invoke the default printer
+///
+/// Default: `null`.
 ///
 /// @param printBcDetails Print the contents of bytecode objects.
 ///
@@ -51,6 +61,7 @@ package org.prlprg.sexp.parseprint;
 public record SEXPPrintOptions(
     boolean printDelimited,
     PrintEnvironmentDetails printEnvironmentDetails,
+    @Nullable BiPredicate<EnvSXP, Printer> environmentDetailPrinter,
     boolean printBcDetails,
     boolean printPromiseLazyDetails,
     boolean printMapsSorted,
@@ -62,7 +73,7 @@ public record SEXPPrintOptions(
   /// [org.prlprg.parseprint.Printer#print(Object)] and [#toString()].
   public static final SEXPPrintOptions DEFAULT =
       new SEXPPrintOptions(
-          false, PrintEnvironmentDetails.BELOW_GLOBAL, false, true, false, 10, 3, 100, 5);
+          false, PrintEnvironmentDetails.BELOW_GLOBAL, null, false, true, false, 10, 3, 100, 5);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP].
   ///
@@ -71,6 +82,7 @@ public record SEXPPrintOptions(
       new SEXPPrintOptions(
           false,
           PrintEnvironmentDetails.ALL,
+          null,
           true,
           true,
           false,
@@ -102,6 +114,7 @@ public record SEXPPrintOptions(
         : new SEXPPrintOptions(
             printDelimited,
             printEnvironmentDetails,
+            environmentDetailPrinter,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -117,6 +130,24 @@ public record SEXPPrintOptions(
         : new SEXPPrintOptions(
             printDelimited,
             printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withEnvironmentDetailPrinter(
+      BiPredicate<EnvSXP, Printer> environmentDetailPrinter) {
+    return environmentDetailPrinter == this.environmentDetailPrinter
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -132,6 +163,7 @@ public record SEXPPrintOptions(
         : new SEXPPrintOptions(
             printDelimited,
             printEnvironmentDetails,
+            environmentDetailPrinter,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -147,6 +179,7 @@ public record SEXPPrintOptions(
         : new SEXPPrintOptions(
             printDelimited,
             printEnvironmentDetails,
+            environmentDetailPrinter,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -162,6 +195,7 @@ public record SEXPPrintOptions(
         : new SEXPPrintOptions(
             printDelimited,
             printEnvironmentDetails,
+            environmentDetailPrinter,
             printBcDetails,
             printPromiseLazyDetails,
             printMapsSorted,
@@ -189,7 +223,6 @@ public record SEXPPrintOptions(
   public enum PrintEnvironmentDetails {
     NONE,
     BELOW_GLOBAL,
-    BELOW_BASE,
     ALL,
   }
 }
