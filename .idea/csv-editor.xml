@@ -17,48 +17,6 @@
             </Attribute>
           </value>
         </entry>
-        <entry key="/external/R/doc/CRAN_mirrors.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_fibonacci.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_permute.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_queens.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_sieve.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/server/src/test/snapshots/org/prlprg/snapshots/R/bench/are_we_fast_towers.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
       </map>
     </option>
   </component>

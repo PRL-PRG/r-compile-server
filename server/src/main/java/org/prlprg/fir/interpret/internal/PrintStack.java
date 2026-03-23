@@ -4,13 +4,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.parseprint.PrettyPrintWriter;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
-import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions.PrintEnvironmentDetails;
@@ -21,10 +22,17 @@ final class PrintStack {
     var f = w.formatter();
 
     // Create "global" context that is used to print "local" stack frames
-    // Print with max detail, except base-env because it's always the same
+    // Print with max detail, except environments,
+    // because they're either printed separately (global and below) or redundant (above global)
+    @Nullable FrameContext[] currentCtx = {null};
     var forSexp =
         new SEXPPrintContext(
-            SEXPPrintOptions.FULL.withEnvironmentDetails(PrintEnvironmentDetails.BELOW_BASE));
+            SEXPPrintOptions.FULL
+                .withEnvironmentDetails(PrintEnvironmentDetails.BELOW_GLOBAL)
+                .withEnvironmentDetailPrinter(
+                    (env, p3) ->
+                        printStackEnvDetails(Objects.requireNonNull(currentCtx[0]), env, p3)));
+    var p2 = p.withContext(forSexp);
 
     var frameAppearances = new HashMap<StackFrame, ArrayList<Integer>>(stack.size());
     for (var i = 0; i < stack.size(); i++) {
@@ -46,6 +54,7 @@ final class PrintStack {
     for (var i = stack.size() - 1; i >= 0; i--) {
       var frame = stack.get(i);
       var ctx = new FrameContext(-1, frameAppearances, envToStackIndex, globalEnv, forSexp);
+      currentCtx[0] = ctx;
 
       f.format("%" + maxDigits + "d. ", i);
       w.runIndented(padding, () -> printFrame(ctx, frame, p));
@@ -53,8 +62,28 @@ final class PrintStack {
     }
 
     // Print global environment
-    w.write("Global environment:\n");
-    p.withContext(forSexp).print(globalEnv);
+    w.write("Global environment:\n  [ ");
+    w.runIndented(
+        PrettyPrintWriter.DEFAULT_INDENT * 2,
+        () -> {
+          var first = true;
+          for (var entry : globalEnv.bindings()) {
+            if (first) {
+              first = false;
+            } else {
+              w.write('\n');
+            }
+
+            var variable = entry.getKey();
+            var value = entry.getValue();
+
+            w.write("var ");
+            Names.write(w, variable);
+            w.write(" = ");
+            p2.print(value);
+          }
+        });
+    w.write("\n]");
   }
 
   private record FrameContext(
@@ -65,7 +94,13 @@ final class PrintStack {
       SEXPPrintContext forSexp) {
     private static final FrameContext EMPTY =
         new FrameContext(
-            -1, new HashMap<>(), Map.of(), null, new SEXPPrintContext(SEXPPrintOptions.FULL));
+            -1,
+            new HashMap<>(),
+            Map.of(),
+            null,
+            new SEXPPrintContext(
+                SEXPPrintOptions.FULL.withEnvironmentDetails(
+                    PrintEnvironmentDetails.BELOW_GLOBAL)));
   }
 
   static void printFrame(StackFrame frame, Printer p) {
@@ -74,6 +109,7 @@ final class PrintStack {
 
   private static void printFrame(FrameContext ctx, StackFrame frame, Printer p) {
     var w = p.writer();
+    var p2 = p.withContext(ctx.forSexp);
 
     var appearances = ctx.frameAppearances.get(frame);
     var appearanceIndex =
@@ -114,8 +150,8 @@ final class PrintStack {
               w.write("reg ");
               p.print(register);
               w.write(" = ");
-              p.print(value);
-              feedback.print(register, p, new AbstractionFeedback.PrintContext(ctx.forSexp()));
+              p2.print(value);
+              feedback.print(register, p, new AbstractionFeedback.PrintContext(ctx.forSexp));
               w.write('\n');
             }
 
@@ -126,34 +162,26 @@ final class PrintStack {
               w.write("var ");
               Names.write(w, variable);
               w.write(" = ");
-              p.print(value);
+              p2.print(value);
               w.write('\n');
             }
 
             w.write("parent = ");
-            printStackEnv(ctx, frame.environment().parent(), p);
+            p2.print(frame.environment().parent());
           });
       w.write("\n]");
     }
   }
 
-  private static void printStackEnv(FrameContext ctx, SEXP sexp, Printer p) {
-    var w = p.writer();
-
-    if (sexp instanceof EnvSXP env) {
-      var stackIndex = ctx.envToStackIndex.get(env);
-      if (stackIndex != null) {
-        w.write("<frame ");
-        p.print(stackIndex);
-        w.write('>');
-        return;
-      } else if (env == ctx.globalEnv) {
-        w.write("<global>");
-        return;
-      }
+  private static boolean printStackEnvDetails(FrameContext ctx, EnvSXP env, Printer p) {
+    var stackIndex = ctx.envToStackIndex.get(env);
+    if (stackIndex != null) {
+      p.writer().write(" frame ");
+      p.print(stackIndex);
+      return true;
     }
 
-    p.withContext(ctx.forSexp).print(sexp);
+    return false;
   }
   // endregion printing
 }

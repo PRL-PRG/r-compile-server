@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Logger;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
@@ -20,7 +21,6 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.ExtptrSxp;
-import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
@@ -263,12 +263,12 @@ public class SEXPPrintContext {
                   if (!(sexp instanceof EmptyEnvSXP)) {
                     var print =
                         switch (options.printEnvironmentDetails()) {
-                          case ALL -> true;
-                          case BELOW_GLOBAL -> sexp instanceof UserEnvSXP;
-                          case BELOW_BASE ->
-                              sexp instanceof UserEnvSXP || sexp instanceof GlobalEnvSXP;
-                          case NONE -> false;
-                        };
+                              case ALL -> true;
+                              case BELOW_GLOBAL -> sexp instanceof UserEnvSXP;
+                              case NONE -> false;
+                            }
+                            && (options.environmentDetailPrinter() == null
+                                || !options.environmentDetailPrinter().test(sexp, p));
                     if (print) {
                       if (!(sexp instanceof BaseEnvSXP)) {
                         w.write(" parent=");
@@ -390,6 +390,7 @@ public class SEXPPrintContext {
         w.write("\n...");
         break;
       }
+      warnLarge(i, ATTR_WARN_LEN, "many attributes");
 
       if (i != 0) {
         w.write("\n, ");
@@ -644,6 +645,7 @@ public class SEXPPrintContext {
               w.write(" ...");
               break;
             }
+            warnLarge(i, ELEMENT_WARN_LEN, "many elements");
 
             if (i != 0) {
               w.write(", ");
@@ -666,6 +668,7 @@ public class SEXPPrintContext {
               w.write(" ...");
               break;
             }
+            warnLarge(i, ELEMENT_WARN_LEN, "many elements");
 
             if (i != 0) {
               w.write(", ");
@@ -681,6 +684,7 @@ public class SEXPPrintContext {
     var w = p.writer();
 
     if (elem.length() < allowedLength) {
+      warnLarge(elem.length(), STRING_WARN_LEN, "long string");
       p.print(elem);
     } else {
       p.print(elem.substring(0, (int) allowedLength));
@@ -693,6 +697,8 @@ public class SEXPPrintContext {
   /// Otherwise, write `<...>`.
   private void handleDepth(Printer p, Runnable doPrint) {
     if (currentDepth < options.maxDepth()) {
+      warnLarge(currentDepth, WARN_DEPTH, "deeply-nested SEXP");
+
       currentDepth++;
       try {
         doPrint.run();
@@ -704,10 +710,34 @@ public class SEXPPrintContext {
     }
   }
 
+  private static final int ELEMENT_WARN_LEN = 1000;
+  private static final int ATTR_WARN_LEN = 100;
+  private static final int WARN_DEPTH = 100;
+  private static final int STRING_WARN_LEN = 1000;
+
+  private void warnLarge(int len, int warn, String msg) {
+    if (len == warn) {
+      Logger.getLogger(SEXPPrintContext.class.getName()).warning(msg);
+    }
+  }
+
   /// Call `doPrint` with `options.withDelimited(false)`.
   ///
   /// @see SEXPPrintOptions#printDelimited()
-  private void runNotDelimited(Runnable doPrint) {
+  public void runDelimited(Runnable doPrint) {
+    var oldOptions = options;
+    try {
+      options = options.withDelimited(true);
+      doPrint.run();
+    } finally {
+      options = oldOptions;
+    }
+  }
+
+  /// Call `doPrint` with `options.withDelimited(false)`.
+  ///
+  /// @see SEXPPrintOptions#printDelimited()
+  public void runNotDelimited(Runnable doPrint) {
     var oldOptions = options;
     try {
       options = options.withDelimited(false);
