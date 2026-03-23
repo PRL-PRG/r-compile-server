@@ -120,7 +120,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
                 .map(
                     arg -> {
                       var t = scope.typeOf(arg);
-                      return t != null ? t : Type.ANY_VALUE;
+                      return t != null ? t : Type.ANY_VALUE_SEXP;
                     })
                 .collect(ImmutableList.toImmutableList());
         var newStrictnesses =
@@ -134,7 +134,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
             new Signature(
                 newArgTypes,
                 newStrictnesses,
-                callType == null ? Type.ANY_VALUE : callType,
+                callType == null ? Type.ANY_VALUE_SEXP : callType,
                 callEffects);
         var newCallee = new StaticFnCallee(true, fn, newSig);
 

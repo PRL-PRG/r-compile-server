@@ -87,7 +87,7 @@ public sealed interface Kind extends Comparable<Kind> {
 
   default boolean isSubtypeOf(Kind other) {
     return switch (other) {
-      case AnySexp() -> true;
+      case AnySexp() -> !(this instanceof PrimitiveScalar || this instanceof Boolean);
       case Dots() -> this instanceof Dots || this instanceof Missing;
       case PrimitiveVector(var otherPrimitive) ->
           this.equals(other)

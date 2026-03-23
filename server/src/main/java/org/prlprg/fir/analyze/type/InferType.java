@@ -75,7 +75,7 @@ public final class InferType implements Analysis {
       case Call call ->
           switch (call.callee()) {
             case StaticFnCallee(_, _, var signature) -> signature.returnType();
-            case DynamicCallee _ -> Type.ANY_VALUE;
+            case DynamicCallee _ -> Type.ANY_VALUE_SEXP;
           };
       case Cast(_, var castType) -> castType;
       case Closure _ -> Type.CLOSURE;
@@ -88,13 +88,13 @@ public final class InferType implements Analysis {
         yield type == null || (!isMaybe && !type.isPromise())
             ? null
             : type.concreteness() == Concreteness.MAYBE
-                ? Type.ANY_VALUE
+                ? Type.ANY_VALUE_SEXP
                 : type.withPromisity(Promisity.VALUE);
       }
       case Load(var loadType, var variable) ->
           switch (loadType) {
             case LOCAL_VAR -> of(variable);
-            case SUPER_VAR -> Type.ANY;
+            case SUPER_VAR -> Type.ANY_SEXP;
             case LOCAL_FUN, GLOBAL_FUN, BASE_FUN -> Type.CLOSURE;
           };
       case MkVector(var kind, _) ->
@@ -105,7 +105,7 @@ public final class InferType implements Analysis {
               Concreteness.DEFINITE);
       case MkEnv _, Noop _, PopEnv _ -> null;
       case Promise(var valueType, var effects, _) -> Type.promise(valueType, effects);
-      case ReflectiveLoad _ -> Type.ANY;
+      case ReflectiveLoad _ -> Type.ANY_SEXP;
       case ReflectiveStore _, Store _ -> null;
       case SubscriptRead(var target, _) -> {
         var targetType = of(target);

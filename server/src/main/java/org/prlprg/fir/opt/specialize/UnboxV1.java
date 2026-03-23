@@ -84,6 +84,7 @@ public class UnboxV1 implements SpecializeOptimization {
 
       var argType = scope.typeOf(arg.variable());
       if (argType == null) continue;
+      if (!argType.isValue()) continue;
       if (!(argType.kind() instanceof Kind.PrimitiveVector1(var primitiveKind))) continue;
 
       var unboxedScalarType = Type.primitiveScalar(primitiveKind);

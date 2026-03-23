@@ -25,9 +25,10 @@ public class TypeFeedback {
     return hits.isEmpty();
   }
 
-  /// Returns [Type#ANY] if no types were recorded (or if it's the union of all recorded types).
+  /// Returns [Type#ANY_SEXP] if no types were recorded (or if it's the union of all recorded
+  // types).
   public Type union() {
-    return union == null ? Type.ANY : union;
+    return union == null ? Type.ANY_SEXP : union;
   }
 
   /// Types that were hit more than `threshold` times and are more specific than `existing`.

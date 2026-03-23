@@ -22,11 +22,11 @@ import org.prlprg.sexp.StrSXP;
 
 public record Type(Kind kind, Promisity promisity, Ownership ownership, Concreteness concreteness)
     implements Comparable<Type> {
-  public static final Type ANY =
+  public static final Type ANY_SEXP =
       new Type(new Kind.AnySexp(), Promisity.ANY, Ownership.SHARED, Concreteness.MAYBE);
-  public static final Type ANY_VALUE =
+  public static final Type ANY_VALUE_SEXP =
       new Type(new Kind.AnySexp(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
-  public static final Type ANY_PROMISE = promise(ANY_VALUE, Effects.REFLECT);
+  public static final Type ANY_PROMISE = promise(ANY_VALUE_SEXP, Effects.REFLECT);
   public static final Type INTEGER = primitiveScalar(PrimitiveKind.INTEGER);
   public static final Type LOGICAL = primitiveScalar(PrimitiveKind.LOGICAL);
   public static final Type REAL = primitiveScalar(PrimitiveKind.REAL);
@@ -98,9 +98,9 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
       case CloSXP _, BuiltinOrSpecialSXP _ -> CLOSURE;
       case PromSXP p ->
           promise(
-              p.isLazy() ? ANY_VALUE : of(Objects.requireNonNull(p.boundVal())),
+              p.isLazy() ? ANY_VALUE_SEXP : of(Objects.requireNonNull(p.boundVal())),
               p.isLazy() ? Effects.REFLECT : Effects.NONE);
-      default -> sexp.equals(SEXPs.MISSING_ARG) ? MISSING : ANY_VALUE;
+      default -> sexp.equals(SEXPs.MISSING_ARG) ? MISSING : ANY_VALUE_SEXP;
     };
   }
 
@@ -249,7 +249,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
             // feedback.
             other.ownership == Ownership.SHARED ? Ownership.SHARED : ownership,
             concreteness.union(other.concreteness));
-    return result.equals(ANY.withConcreteness(Concreteness.DEFINITE)) ? ANY : result;
+    return result.equals(ANY_SEXP.withConcreteness(Concreteness.DEFINITE)) ? ANY_SEXP : result;
   }
 
   @Override
@@ -259,7 +259,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
 
   @PrintMethod
   private void print(Printer p) {
-    if (equals(ANY)) {
+    if (equals(ANY_SEXP)) {
       p.writer().write('*');
       return;
     }
@@ -290,7 +290,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
     s.skipWhitespace(true);
 
     if (s.trySkip('*')) {
-      return ANY;
+      return ANY_SEXP;
     }
 
     var kind = new Kind[1];

@@ -1320,7 +1320,7 @@ public final class InternalInterpreter implements Interpreter {
         arguments.stream()
             .map(a -> inferType(a, Ownership.SHARED))
             .collect(ImmutableList.toImmutableList()),
-        Type.ANY_VALUE,
+        Type.ANY_VALUE_SEXP,
         Effects.REFLECT);
   }
 
