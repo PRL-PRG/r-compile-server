@@ -102,7 +102,7 @@ jobs:
         id: set-matrix
         shell: bash
         run: |
-          json=$(bash rcp/tests/list-tests.sh | tr ' ' '\n' | jq -R . | jq -sc '{"test": .}')
+          json=$(find rcp/tests -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | jq -R . | jq -sc '{"test": .}')
           echo "Discovered tests: $json"
           echo "matrix=$json" >> "$GITHUB_OUTPUT"
 
@@ -112,7 +112,6 @@ jobs:
     needs: build-images
     strategy:
       fail-fast: false
-      max-parallel: 1
       matrix: ${{ fromJson(needs.build-images.outputs.test-matrix) }}
     permissions:
       contents: read

@@ -1,5 +1,8 @@
 include ../common.mk
 
+RCP_GIT_COMMIT := $(shell git -C $(ROOT_DIR) rev-parse --short HEAD 2>/dev/null || echo NA)
+PKG_CFLAGS += -DRCP_GIT_COMMIT=\"$(RCP_GIT_COMMIT)\"
+
 OPENMP ?= 0
 
 ifneq ($(OPENMP),0)

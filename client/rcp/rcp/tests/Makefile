@@ -1,4 +1,4 @@
-SUBDIRS = $(shell bash list-tests.sh)
+SUBDIRS := $(wildcard */)
 
 .PHONY: all test clean $(SUBDIRS)
 

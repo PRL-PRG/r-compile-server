@@ -1,5 +1,22 @@
+.rcp_banner <- function() {
+  info <- .Call("C_rcp_build_info")
+  ver <- utils::packageVersion("rcp")
+  flags <- c(
+    if (info$compile_promises) "promises",
+    if (nzchar(Sys.getenv("RCP_DUMP_DIR"))) paste0("dump:", Sys.getenv("RCP_DUMP_DIR")),
+    if (nzchar(Sys.getenv("RCP_GDB_JIT"))) "gdb",
+    if (nzchar(Sys.getenv("RCP_PERF_JIT"))) "perf"
+  )
+  flag_str <- if (length(flags)) paste0(" [", paste(flags, collapse = ", "), "]") else ""
+  packageStartupMessage(sprintf("rcp %s (%s)%s", ver, info$git_commit, flag_str))
+}
+
 .onLoad <- function(libname, pkgname) {
   .Call("rcp_init");
+}
+
+.onAttach <- function(libname, pkgname) {
+  .rcp_banner()
 }
 
 #' Compile a function
@@ -46,7 +63,7 @@ rcp_jit_disable <- function() {
 #' @return A list with counts of successfully compiled and failed functions
 #' @export
 rcp_cmppkg <- function(package) {
-  .Call(C_rcp_cmppkg, package)
+  invisible(.Call(C_rcp_cmppkg, package))
 }
 
 #' Get profiling data from RCP
