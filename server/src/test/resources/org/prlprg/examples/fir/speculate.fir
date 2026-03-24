@@ -1,32 +1,32 @@
 fun main() {
   () --> I { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
-    r1 = blackBox< V --> V >(1);
-    r2 = blackBox< V --> V >(2);
-    r3 = blackBox< V --> V >(3.0);
-    r4 = blackBox< V --> V >(4.0);
-    r5 = blackBox< V --> V >(5);
+    r1 = blackBox< V --> V >(<int 1>);
+    r2 = blackBox< V --> V >(<int 2>);
+    r3 = blackBox< V --> V >(<real 3.0>);
+    r4 = blackBox< V --> V >(<real 4.0>);
+    r5 = blackBox< V --> V >(<int 5>);
 
     # Optimized
     g< V,I --> I >(r1, 1);
     # Baseline
-    g< V,V --> I >(r2, 2.0);
+    g< V,V --> I >(r2, <real 2.0>);
     # Optimized -> baseline
     g< V,I --> I >(r3, 3);
     # Baseline
-    g< V,V --> I >(r4, 4.0);
+    g< V,V --> I >(r4, <real 4.0>);
     # Optimized
     g< V,I --> I >(r5, 5);
 
-    require< V --> V >(1);
-    require< V --> V >("bar");
-    require< V --> V >(2);
-    require< V --> V >("foo");
-    require< V --> V >(3.0);
-    require< V --> V >("foo");
-    require< V --> V >(4.0);
-    require< V --> V >("foo");
-    require< V --> V >(5);
-    require< V --> V >("bar");
+    require< V --> V >(<int 1>);
+    require< V --> V >(<str "bar">);
+    require< V --> V >(<int 2>);
+    require< V --> V >(<str "foo">);
+    require< V --> V >(<real 3.0>);
+    require< V --> V >(<str "foo">);
+    require< V --> V >(<real 4.0>);
+    require< V --> V >(<str "foo">);
+    require< V --> V >(<int 5>);
+    require< V --> V >(<str "bar">);
 
     return 49;
   }
@@ -36,28 +36,28 @@ fun g(n, a) {
   (reg n:V, reg a:V) --> I { reg r:V, var x:* |
     mkenv;
     provide< V --> V >(n);
-    r = 14;
+    r = <int 14>;
     check BB1() else BB2();
   BB1():
-    r ?= 14;
-    provide< V --> V >("foo");
+    r ?= <int 14>;
+    provide< V --> V >(<str "foo">);
     popenv;
     return 42;
   BB2():
     st x = r;
     deopt 5 [r, n];
   }
-  (reg n:V, reg a:I) --> I { reg r:I, reg r1:V, var x:* |
+  (reg n:V, reg a:I) --> I { reg r:v1(I), reg r1:V, var x:* |
     provide< V --> V >(n);
     r1 = n;
     check BB1() else BB2();
   BB1():
-    r = n ?: I;
-    provide< V --> V >("bar");
+    r = n ?: v1(I);
+    provide< V --> V >(<str "bar">);
     return 24;
   BB2():
     mkenv;
-    deopt 5 [14, r1];
+    deopt 5 [<int 14>, r1];
   }
 }
 

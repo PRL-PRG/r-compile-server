@@ -2,8 +2,8 @@ fun main() {
   # after: () --> I { |
   () --> V { reg r:V |
     # after:
-    r = 42;
-    # after: return 42;
+    r = <int 42>;
+    # after: return <int 42>;
     return r;
   }
 }

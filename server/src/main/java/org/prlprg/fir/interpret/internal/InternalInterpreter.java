@@ -60,7 +60,6 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -291,7 +290,7 @@ public final class InternalInterpreter implements Interpreter {
       @Nullable Signature explicitSignature,
       List<Value> arguments,
       EnvSXP environment) {
-    var signature = computeSignature(explicitSignature, arguments);
+    var signature = computeSignature(function.baseline(), explicitSignature, arguments);
 
     var best = function.guess(signature);
     if (best == null) {
@@ -1260,9 +1259,10 @@ public final class InternalInterpreter implements Interpreter {
   ///
   /// In the process, checks that `arguments` are instances of `explicit`'s parameter types, and
   /// throws [InternalInterpretException] if they don't.
-  private Signature computeSignature(@Nullable Signature explicit, List<Value> arguments) {
+  private Signature computeSignature(
+      Abstraction baseline, @Nullable Signature explicit, List<Value> arguments) {
     if (explicit == null) {
-      return inferSignature(arguments);
+      return inferSignature(baseline, arguments);
     }
 
     if (explicit.parameterTypes().size() != arguments.size()) {
@@ -1315,13 +1315,13 @@ public final class InternalInterpreter implements Interpreter {
     return actual;
   }
 
-  private Signature inferSignature(List<Value> arguments) {
+  private Signature inferSignature(Abstraction baseline, List<Value> arguments) {
     return new Signature(
         arguments.stream()
             .map(a -> inferType(a, Ownership.SHARED))
             .collect(ImmutableList.toImmutableList()),
-        Type.ANY_VALUE_SEXP,
-        Effects.REFLECT);
+        baseline.returnType(),
+        baseline.effects());
   }
 
   /// Infer the type of the value, giving it the ownership iff permissible.

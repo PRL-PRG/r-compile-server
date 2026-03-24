@@ -25,7 +25,7 @@ fun call_closure() {
 }
 
 fun target() {
-  () --> I { |
-    return 7;
+  () --> v1(I) { |
+    return <int 7>;
   }
 }

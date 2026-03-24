@@ -9,7 +9,7 @@ fun main() {
 fun body() {
   # after: () --> I { reg val:V, reg val1:I |
   () --> V { reg val:V |
-    val = 1;
+    val = <int 1>;
     check BBopt() else BBdeopt();
   BBopt():
     # after: val1 = val ?: I;

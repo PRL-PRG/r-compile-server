@@ -1,20 +1,24 @@
 fun main() {
-  () --> I { var outer:I?, var inner:I?, reg outer0:I?, reg outer1:I, reg inner0:I?, reg inner1:I, reg combined:I, reg final:I?, reg final1:I, reg ret:I |
+  () --> I { var outer:v1(I)?, var inner:v1(I)?, reg outer0:v1(I)?, reg outer1:v1(I), reg outer1u:I, reg inner0:v1(I)?, reg inner1:v1(I), reg inner1u:I, reg combined:I, reg combinedb:v1(I), reg final:v1(I)?, reg final1:v1(I), reg final1u:I, reg ret:I |
     mkenv;
-    st outer = 11;
+    st outer = <int 11>;
     mkenv;
-    st inner = 9;
+    st inner = <int 9>;
     outer0 = ld outer;
-    outer1 = outer0 as I;
+    outer1 = outer0 as v1(I);
+    outer1u = unbox<v1(I) --> I>(outer1);
     inner0 = ld inner;
-    inner1 = inner0 as I;
-    combined = `+`< I,I --> I >(outer1, inner1);
-    st outer = combined;
+    inner1 = inner0 as v1(I);
+    inner1u = unbox<v1(I) --> I>(inner1);
+    combined = `+`< I,I --> I >(outer1u, inner1u);
+    combinedb = box<I --> v1(I)>(combined);
+    st outer = combinedb;
     popenv;
     final = ld outer;
-    final1 = final as I;
+    final1 = final as v1(I);
+    final1u = unbox<v1(I) --> I>(final1);
     popenv;
-    ret = `+`< I,I --> I >(final1, 10);
+    ret = `+`< I,I --> I >(final1u, 10);
     return ret;
   }
 }

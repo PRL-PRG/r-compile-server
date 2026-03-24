@@ -6,7 +6,7 @@ fun main() {
 }
 
 fun g() {
-  () --> I { |
-    return 1;
+  () --> v1(I) { |
+    return <int 1>;
   }
 }

@@ -1,6 +1,6 @@
 fun main() {
-  () --> I { reg r:I, reg p:p(I -) |
-    p = prom<I ->{ return 42; };
+  () --> v1(I) { reg r:v1(I), reg p:p(v1(I) -) |
+    p = prom<v1(I) ->{ return <int 42>; };
     # after: r = force p;
     r = force? p;
     return r;

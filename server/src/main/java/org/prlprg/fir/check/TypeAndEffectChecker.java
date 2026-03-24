@@ -54,6 +54,7 @@ import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector1;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.util.Strings;
@@ -71,9 +72,8 @@ public final class TypeAndEffectChecker extends Checker {
   protected void doRun(Abstraction version) {
     var function = function();
     if (function != null) {
-      // Check guaranteed effects and return type
+      // Check guaranteed effects
       var baselineEffects = function.baseline().effects();
-      var baselineReturnType = function.baseline().returnType();
       if (!version.effects().isSubsetOf(baselineEffects)) {
         report(
             version,
@@ -81,19 +81,6 @@ public final class TypeAndEffectChecker extends Checker {
                 + version.effects()
                 + " doesn't subtype "
                 + baselineEffects
-                + "\nIn fun "
-                + function.name()
-                + "("
-                + Strings.join(", ", function.parameterNames())
-                + ") { ... }");
-      }
-      if (!version.returnType().canBeAssignedTo(baselineReturnType)) {
-        report(
-            version,
-            "Version's return type must be assignable to its function's baseline's return type: "
-                + version.returnType()
-                + " isn't assignable to "
-                + baselineReturnType
                 + "\nIn fun "
                 + function.name()
                 + "("
@@ -116,15 +103,15 @@ public final class TypeAndEffectChecker extends Checker {
                 + ") { ... }");
       }
 
-      // Check that versions with strictly worse parameters have strictly worse effects/return.
+      // Check that versions with strictly worse parameters have strictly worse effects.
       var signature = version.signature();
       for (var worse : function.versionsSorted().tailSet(version)) {
         var worseSignature = worse.signature();
         if (signature.hasNarrowerParameters(worseSignature)
-            && !signature.hasNarrowerPostconditions(worseSignature)) {
+            && !signature.effects().isSubsetOf(worseSignature.effects())) {
           report(
               version,
-              "Version has strictly narrower parameters than another, but not strictly narrower effects and return type:"
+              "Version has strictly narrower parameters than another, but not strictly narrower effects:"
                   + "\nThis version's signature: "
                   + signature
                   + "\nOther version's signature: "
@@ -181,9 +168,8 @@ public final class TypeAndEffectChecker extends Checker {
 
       // Check return type well-formedness
       onCfg.checkWellFormed(scope.returnType());
-      if (!scope.returnType().canBeAssignedTo(Type.ANY_VALUE_SEXP)) {
-        onCfg.report(
-            "Return type's kind must subtype `V` and it must be definite: " + scope.returnType());
+      if (!scope.returnType().isValue()) {
+        onCfg.report("Return type must be a value: " + scope.returnType());
       }
 
       // Check return type and effects are expected
@@ -374,6 +360,22 @@ public final class TypeAndEffectChecker extends Checker {
           case MkEnv _, Noop _, PopEnv _ -> {}
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
+            if (!expectedInnerType.isValue()) {
+              report(
+                  "Promise inner type must be a value (in <"
+                      + expectedInnerType
+                      + " "
+                      + expectedEffects
+                      + ">)");
+            }
+            if (expectedInnerType.kind().repr() != Repr.SEXP) {
+              report(
+                  "Promise inner type must be a SEXP (in <"
+                      + expectedInnerType
+                      + " "
+                      + expectedEffects
+                      + ">)");
+            }
             if (expectedInnerType.ownership() != Ownership.SHARED) {
               report(
                   "Promise inner type must be shared (in <"

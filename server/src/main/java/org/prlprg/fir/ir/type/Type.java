@@ -31,7 +31,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
   public static final Type LOGICAL = primitiveScalar(PrimitiveKind.LOGICAL);
   public static final Type REAL = primitiveScalar(PrimitiveKind.REAL);
   public static final Type STRING = primitiveScalar(PrimitiveKind.STRING);
-  public static final Type SHARED_INT_VECTOR =
+  public static final Type SHARED_INTEGER_VECTOR =
       primitiveVector(PrimitiveKind.INTEGER, Ownership.SHARED);
   public static final Type SHARED_LOGICAL_VECTOR =
       primitiveVector(PrimitiveKind.LOGICAL, Ownership.SHARED);
@@ -39,14 +39,12 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
       primitiveVector(PrimitiveKind.REAL, Ownership.SHARED);
   public static final Type SHARED_STRING_VECTOR =
       primitiveVector(PrimitiveKind.STRING, Ownership.SHARED);
-  public static final Type SHARED_INT_VECTOR1 =
+  public static final Type BOXED_INTEGER =
       primitiveVector1(PrimitiveKind.INTEGER, Ownership.SHARED);
-  public static final Type SHARED_LOGICAL_VECTOR1 =
+  public static final Type BOXED_LOGICAL =
       primitiveVector1(PrimitiveKind.LOGICAL, Ownership.SHARED);
-  public static final Type SHARED_REAL_VECTOR1 =
-      primitiveVector1(PrimitiveKind.REAL, Ownership.SHARED);
-  public static final Type SHARED_STRING_VECTOR1 =
-      primitiveVector1(PrimitiveKind.STRING, Ownership.SHARED);
+  public static final Type BOXED_REAL = primitiveVector1(PrimitiveKind.REAL, Ownership.SHARED);
+  public static final Type BOXED_STRING = primitiveVector1(PrimitiveKind.STRING, Ownership.SHARED);
   public static final Type CLOSURE =
       new Type(new Kind.Closure(), Promisity.VALUE, Ownership.SHARED, Concreteness.DEFINITE);
   public static final Type BOOLEAN =
@@ -86,11 +84,11 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
 
   public static Type of(SEXP sexp) {
     return switch (sexp) {
-      case IntSXP s when s.isSimpleScalar() -> SHARED_INT_VECTOR1;
-      case LglSXP s when s.isSimpleScalar() -> SHARED_LOGICAL_VECTOR1;
-      case RealSXP s when s.isSimpleScalar() -> SHARED_REAL_VECTOR1;
-      case StrSXP s when s.isSimpleScalar() -> SHARED_STRING_VECTOR1;
-      case IntSXP _ when !sexp.hasAttributes() -> SHARED_INT_VECTOR;
+      case IntSXP s when s.isSimpleScalar() -> BOXED_INTEGER;
+      case LglSXP s when s.isSimpleScalar() -> BOXED_LOGICAL;
+      case RealSXP s when s.isSimpleScalar() -> BOXED_REAL;
+      case StrSXP s when s.isSimpleScalar() -> BOXED_STRING;
+      case IntSXP _ when !sexp.hasAttributes() -> SHARED_INTEGER_VECTOR;
       case LglSXP _ when !sexp.hasAttributes() -> SHARED_LOGICAL_VECTOR;
       case RealSXP _ when !sexp.hasAttributes() -> SHARED_REAL_VECTOR;
       case StrSXP _ when !sexp.hasAttributes() -> SHARED_STRING_VECTOR;

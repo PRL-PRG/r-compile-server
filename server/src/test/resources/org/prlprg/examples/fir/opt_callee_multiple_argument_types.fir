@@ -1,24 +1,26 @@
 fun main() {
-  # after: () -+> V { reg r:I |
-  () -+> V { reg r:V |
+  # after: () -+> I { reg r:I |
+  () -+> I { reg r:I |
     mkenv;
-    # after: f< I,R --> I >(1, 2.0);
-    f%< *,* --> V >(1, 2.0);
-    # after: r = f< I,I --> I >(3, 4);
-    r = f%< *,* --> V >(3, 4);
+    # after: f< v1(I),v1(R) --> I >(1, 2.0);
+    f%< *,* --> I >(<int 1>, <real 2.0>);
+    # after: r = f< v1(I),v1(I) --> I >(3, 4);
+    r = f%< *,* --> I >(<int 3>, <int 4>);
     popenv;
     return r;
   }
 }
 
 fun f(a, b) {
-  (reg a:*, reg b:*) --> V { |
-    return 42;
+  (reg a:*, reg b:*) --> I { |
+    return 24;
   }
-  (reg a:I, reg b:I) --> I { |
-    return a;
+  (reg a:v1(I), reg b:v1(I)) --> I { reg r:I |
+    r = unbox<v1(I) --> I>(b);
+    return r;
   }
-  (reg a:I, reg b:R) --> I { |
-    return a;
+  (reg a:v1(I), reg b:v1(R)) --> I { reg r:I |
+    r = unbox<v1(I) --> I>(a);
+    return r;
   }
 }
