@@ -244,12 +244,136 @@ class UnboxV1Test implements OptimizationUnitTest {
         "second run should not insert another unbox; got:\n" + printedAfterSecond);
   }
 
+  @Test
+  void userDefinedCall_v1Return_boxedAndVersionCreated() {
+    // f takes scalar I and returns v1(I). The optimization should:
+    // - Create a new version of f that returns I (with unbox before returns)
+    // - At the call site, change the return type to I and insert box after
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (reg x:I) --> V { reg r:V |
+                r = f< I --> v1(I) >(x);
+                return r;
+              }
+            }
+            fun f(a) {
+              (reg a:I) --> v1(I) { reg b:v1(I) |
+                b = box< I --> v1(I) >(a);
+                return b;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    // Callee new version should have unbox before return
+    assertTrue(
+        printed.contains("unbox<"),
+        "should create version with unbox before return; got:\n" + printed);
+    // Call site should have box after call (boxing scalar return back to v1)
+    // Note: original callee already has 1 box; copied version has 1 box; call site adds 1 box
+    var boxCount = countOccurrences(printed, "box<");
+    assertTrue(
+        boxCount >= 3,
+        "should have box at call site and in callee versions; got "
+            + boxCount
+            + " in:\n"
+            + printed);
+  }
+
+  @Test
+  void userDefinedCall_v1ParamAndReturn_bothUnboxed() {
+    // f takes v1(I) and returns v1(I). Both param and return should be unboxed.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (reg x:v1(I)) --> V { reg r:V |
+                r = f< v1(I) --> v1(I) >(x);
+                return r;
+              }
+            }
+            fun f(a) {
+              (reg a:v1(I)) --> v1(I) { |
+                return a;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    // Should have both unbox (for param at call site + callee return version)
+    // and box (for return at call site + callee param version entry)
+    assertTrue(printed.contains("unbox<"), "should insert unbox; got:\n" + printed);
+    assertTrue(printed.contains("box<"), "should insert box; got:\n" + printed);
+  }
+
+  @Test
+  void v1Return_noAssignee_returnTypeStillChanged() {
+    // Call returns v1(I) but the result is not assigned. The return type in the signature
+    // should still change to I (no box needed since no one uses the result).
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (reg x:I) --> V { |
+                f< I --> v1(I) >(x);
+                return x;
+              }
+            }
+            fun f(a) {
+              (reg a:I) --> v1(I) { reg b:v1(I) |
+                b = box< I --> v1(I) >(a);
+                return b;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    // Should create callee version with unbox before return
+    assertTrue(
+        printed.contains("unbox<"),
+        "should create version with unbox before return; got:\n" + printed);
+  }
+
+  @Test
+  void nonV1Return_notBoxed() {
+    // f returns V (not v1(X)), so no return type unboxing should happen.
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(x) {
+              (reg x:V) --> V { reg r:V |
+                r = f< V --> V >(x);
+                return r;
+              }
+            }
+            fun f(a) {
+              (reg a:V) --> V { |
+                return a;
+              }
+            }
+            """);
+
+    assertFalse(run(module), "optimization should report no change for non-v1 return");
+  }
+
   private static int countUnboxOccurrences(String text) {
+    return countOccurrences(text, "unbox<");
+  }
+
+  private static int countOccurrences(String text, String needle) {
     int count = 0;
     int idx = 0;
-    while ((idx = text.indexOf("unbox<", idx)) != -1) {
+    while ((idx = text.indexOf(needle, idx)) != -1) {
       count++;
-      idx += "unbox<".length();
+      idx += needle.length();
     }
     return count;
   }
