@@ -63,7 +63,6 @@ import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
-import org.prlprg.fir.ir.type.Kind.PrimitiveVector1;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
@@ -832,14 +831,12 @@ public final class InternalInterpreter implements Interpreter {
               + " values");
     }
 
-    var primitiveKind =
-        switch (kind) {
-          case PrimitiveVector(var pk) -> pk;
-          case PrimitiveVector1(var pk) -> pk;
-          default -> null;
-        };
     return switch (kind) {
-      case PrimitiveVector _, PrimitiveVector1 _ -> {
+      case PrimitiveVector(var isScalar, var primitiveKind) -> {
+        if (isScalar) {
+          throw fail("`box` is required to create typed size-1 vectors (boxed scalars)");
+        }
+
         var attrs = Attributes.NONE;
         if (elementNames.stream().anyMatch(OptionalNamedVariable::isPresent)) {
           attrs =

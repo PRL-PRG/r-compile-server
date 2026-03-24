@@ -52,7 +52,6 @@ import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
-import org.prlprg.fir.ir.type.Kind.PrimitiveVector1;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Type;
@@ -312,9 +311,7 @@ public final class TypeAndEffectChecker extends Checker {
               break;
             }
 
-            if (!type.isValue()
-                || !(type.kind() instanceof PrimitiveVector
-                    || type.kind() instanceof PrimitiveVector1)) {
+            if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
             }
           }
@@ -334,27 +331,27 @@ public final class TypeAndEffectChecker extends Checker {
           }
           case Load _ -> {}
           case MkVector(var kind, var elements) -> {
-            var primitiveKind =
-                switch (kind) {
-                  case PrimitiveVector(var pk) -> pk;
-                  case PrimitiveVector1(var pk) -> pk;
-                  default -> null;
-                };
-            if (primitiveKind != null) {
-              var elementType = Type.primitiveScalar(primitiveKind);
-
-              for (var i = 0; i < elements.size(); i++) {
-                var element = elements.get(i);
-
-                if (element.name() != null) {
-                  report("Element of primitive vector can't be named: at " + i);
+            switch (kind) {
+              case PrimitiveVector(var isScalar, var primitiveKind) -> {
+                if (isScalar) {
+                  report("`box` is required to create typed size-1 vectors (i.e. boxed scalars)");
                 }
 
-                var type = scope.typeOf(element.argument());
-                checkSubtype(type, elementType, "Type mismatch in element " + i);
+                var elementType = Type.primitiveScalar(primitiveKind);
+
+                for (var i = 0; i < elements.size(); i++) {
+                  var element = elements.get(i);
+
+                  if (element.name() != null) {
+                    report("Element of primitive vector can't be named: at " + i);
+                  }
+
+                  var type = scope.typeOf(element.argument());
+                  checkSubtype(type, elementType, "Type mismatch in element " + i);
+                }
               }
-            } else if (!(kind instanceof Dots)) {
-              report("Can't create a vector of kind " + kind);
+              case Dots _ -> {}
+              default -> report("Can't create a vector of kind " + kind);
             }
           }
           case MkEnv _, Noop _, PopEnv _ -> {}
@@ -435,9 +432,7 @@ public final class TypeAndEffectChecker extends Checker {
             var indexType = scope.typeOf(index);
 
             if (targetType != null
-                && (!targetType.isValue()
-                    || !(targetType.kind() instanceof PrimitiveVector
-                        || targetType.kind() instanceof PrimitiveVector1))) {
+                && (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector))) {
               report(
                   "Subscript read target must be a vector, got "
                       + target
@@ -457,9 +452,7 @@ public final class TypeAndEffectChecker extends Checker {
             var valueType = scope.typeOf(value);
 
             if (targetType != null) {
-              if (!targetType.isValue()
-                  || !(targetType.kind() instanceof PrimitiveVector
-                      || targetType.kind() instanceof PrimitiveVector1)) {
+              if (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector)) {
                 report(
                     "Subscript write target must be a vector, got "
                         + target
@@ -491,17 +484,11 @@ public final class TypeAndEffectChecker extends Checker {
             }
             if (targetType != null
                 && valueType != null
-                && valueType.kind() instanceof PrimitiveScalar(var valueKind)) {
-              var targetKind =
-                  switch (targetType.kind()) {
-                    case PrimitiveVector(var tk) -> tk;
-                    case PrimitiveVector1(var tk) -> tk;
-                    default -> null;
-                  };
-              if (targetKind != null && valueKind != targetKind) {
-                report(
-                    "Subscript write kind mismatch: expected " + targetKind + ", got " + valueKind);
-              }
+                && targetType.kind() instanceof PrimitiveVector(_, var targetKind)
+                && valueType.kind() instanceof PrimitiveScalar(var valueKind)
+                && targetKind != valueKind) {
+              report(
+                  "Subscript write kind mismatch: expected " + targetKind + ", got " + valueKind);
             }
           }
         }
@@ -516,9 +503,7 @@ public final class TypeAndEffectChecker extends Checker {
               break;
             }
 
-            if (!type.isValue()
-                || !(type.kind() instanceof PrimitiveVector
-                    || type.kind() instanceof PrimitiveVector1)) {
+            if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
               report("Can't consume non-(definite-)vector, got " + type);
             } else if (type.ownership() != Ownership.OWNED) {
               report("Can't consume non-owned vector, got " + type);
