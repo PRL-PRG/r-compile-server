@@ -7,6 +7,7 @@ import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideCheckMissing;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoadFun;
+import org.prlprg.fir.opt.specialize.ElideRedundantBoxUnbox;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
@@ -42,6 +43,7 @@ public class Optimizations {
                     new ElideTrivialCast(),
                     new ElideUseSubscriptWrite(),
                     new UnboxV1(),
+                    new ElideRedundantBoxUnbox(),
                     new OptimizeCallee(threshold),
                     new ResolveDynamicCallee(),
                     new ResolveLoad(),
