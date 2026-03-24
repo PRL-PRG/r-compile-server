@@ -1486,10 +1486,9 @@ public final class Fir2CCompiler {
   private String emitKind(Kind kind) {
     return switch (kind) {
       case AnySexp() -> "Fir_kind_any_value";
-      case Kind.PrimitiveVector(var primitiveKind) ->
-          "Fir_kind_primitive_vector(%s)".formatted(emitPrimitiveKind(primitiveKind));
-      case Kind.PrimitiveVector1(var primitiveKind) ->
-          "Fir_kind_primitive_vector1(%s)".formatted(emitPrimitiveKind(primitiveKind));
+      case Kind.PrimitiveVector(var isScalar, var primitiveKind) ->
+          (isScalar ? "Fir_kind_primitive_vector1(%s)" : "Fir_kind_primitive_vector(%s)")
+              .formatted(emitPrimitiveKind(primitiveKind));
       case Kind.Closure() -> "Fir_kind_closure";
       case Kind.Dots() -> "Fir_kind_dots";
       case Kind.Missing() -> "Fir_kind_missing";
@@ -1622,12 +1621,8 @@ public final class Fir2CCompiler {
   private static void emitKindCName(StringBuilder sb, Kind kind) {
     switch (kind) {
       case AnySexp() -> sb.append("value");
-      case Kind.PrimitiveVector(var primitiveKind) -> {
-        sb.append("vec_");
-        emitPrimitiveKindCName(sb, primitiveKind);
-      }
-      case Kind.PrimitiveVector1(var primitiveKind) -> {
-        sb.append("vec1_");
+      case Kind.PrimitiveVector(var isScalar, var primitiveKind) -> {
+        sb.append(isScalar ? "vec1_" : "vec_");
         emitPrimitiveKindCName(sb, primitiveKind);
       }
       case Kind.Closure() -> sb.append("closure");

@@ -6,8 +6,6 @@ import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
@@ -15,6 +13,7 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
@@ -51,18 +50,9 @@ import org.prlprg.fir.ir.variable.Variable;
 /// - For user-defined calls without a compatible version, creates one by copying the existing
 ///   version and unboxing the returned value before every return.
 public class UnboxV1 implements SpecializeOptimization {
-  /// Per-abstraction: maps (original v1-typed register, BB) to its unboxed register in that BB.
-  private final Map<Register, Map<BB, Register>> unboxedRegisters = new HashMap<>();
-
   @Override
   public AnalysisTypes analyses() {
     return new AnalysisTypes(InferType.class);
-  }
-
-  @Override
-  public boolean shouldRun(Abstraction scope, Analyses analyses) {
-    unboxedRegisters.clear();
-    return true;
   }
 
   @Override
@@ -80,143 +70,70 @@ public class UnboxV1 implements SpecializeOptimization {
     if (!(expression instanceof Call(StaticFnCallee callee, var callArguments))) return expression;
 
     var function = callee.function();
-    var isBuiltinOrIntrinsic = function.owner() == BUILTINS || function.owner() == INTRINSICS;
+    var plan =
+        planSpecialization(
+            scope,
+            feedback,
+            callee,
+            callArguments,
+            function.owner() == BUILTINS || function.owner() == INTRINSICS,
+            assignee != null);
+    if (plan == null) return expression;
 
     var newArgs = new ArrayList<>(callArguments);
-    var newParamTypes = new ArrayList<>(callee.signature().parameterTypes());
-    var newStrictnesses = new ArrayList<>(callee.signature().parameterStrictnesses());
-    var changed = false;
     int deferredUnboxCount = 0;
 
-    // Unbox v1(X) parameters to scalar X
-    for (int i = 0; i < newArgs.size() && i < newParamTypes.size(); i++) {
-      var arg = newArgs.get(i);
-      if (arg.variable() == null) continue;
+    for (var unboxing : plan.parameterUnboxings()) {
+      var unboxedReg =
+          addUnbox(unboxing.argument(), unboxing.primitiveKind(), scope, bb, index, defer);
+      deferredUnboxCount++;
 
-      var argType = scope.typeOf(arg.variable());
-      if (argType == null) continue;
-      if (!argType.isValue()) continue;
-      if (!(argType.kind() instanceof Kind.PrimitiveVector1(var primitiveKind))) continue;
-
-      var unboxedScalarType = Type.primitiveScalar(primitiveKind);
-
-      // Build a test signature with the unboxed type at position i
-      var testParamTypes = new ArrayList<>(callee.signature().parameterTypes());
-      testParamTypes.set(i, unboxedScalarType);
-      var testSig =
-          new Signature(
-              ImmutableList.copyOf(testParamTypes),
-              callee.signature().returnType(),
-              callee.signature().effects());
-
-      if (isBuiltinOrIntrinsic) {
-        // Only replace if there's an existing compatible version
-        if (function.guess(testSig) == null) continue;
-      } else {
-        // User-defined: create a version if none exists
-        if (function.guess(testSig) == null) {
-          tryToCreateUnboxedParamVersion(feedback, function, callee, i, primitiveKind);
-          // Verify it was created
-          if (function.guess(testSig) == null) continue;
-        }
-      }
-
-      // Get or create unboxed register for this (register, BB) pair
-      boolean cached =
-          unboxedRegisters.containsKey(arg.variable())
-              && unboxedRegisters.get(arg.variable()).containsKey(bb);
-      var unboxedReg = ensureUnbox(arg.variable(), primitiveKind, scope, bb, index, defer);
-      if (!cached) deferredUnboxCount++;
-
-      newArgs.set(i, new Read(unboxedReg));
-      newParamTypes.set(i, unboxedScalarType);
-      // Scalar types are values, so they can't be strict
-      if (newStrictnesses.get(i)) {
-        newStrictnesses.set(i, false);
-      }
-      changed = true;
+      newArgs.set(unboxing.index(), new Read(unboxedReg));
     }
 
-    // Unbox v1(X) return type to scalar X
-    var newReturnType = callee.signature().returnType();
-    if (newReturnType.isValue()
-        && newReturnType.kind() instanceof Kind.PrimitiveVector1(var returnPrimKind)) {
-      var unboxedRetType = Type.primitiveScalar(returnPrimKind);
-
-      // Build a test signature with original param types and unboxed return
-      var testSig =
-          new Signature(
-              callee.signature().parameterTypes(), unboxedRetType, callee.signature().effects());
-
-      boolean canUnboxReturn;
-      if (isBuiltinOrIntrinsic) {
-        canUnboxReturn = function.guess(testSig) != null;
-      } else {
-        if (function.guess(testSig) == null) {
-          tryToCreateUnboxedReturnVersion(feedback, function, callee, returnPrimKind);
-        }
-        canUnboxReturn = function.guess(testSig) != null;
-      }
-
-      if (canUnboxReturn) {
-        changed = true;
-
-        if (assignee != null) {
-          // Create new register for scalar result; box back to v1 after call
-          ensureBox(
-              assignee, returnPrimKind, newReturnType, scope, bb, index, deferredUnboxCount, defer);
-        } else {
-          // No assignee: safe to change return type directly in the returned expression
-          newReturnType = unboxedRetType;
-        }
-      }
+    if (assignee != null && plan.returnUnboxing() != null) {
+      addBox(
+          assignee,
+          plan.specializedSignature(),
+          plan.returnUnboxing().boxedType(),
+          scope,
+          bb,
+          index,
+          deferredUnboxCount,
+          defer);
     }
 
-    if (!changed) return expression;
-
-    var newSig =
-        new Signature(
-            ImmutableList.copyOf(newParamTypes),
-            ImmutableList.copyOf(newStrictnesses),
-            newReturnType,
-            callee.signature().effects());
     return new Call(
-        new StaticFnCallee(callee.isDispatch(), function, newSig), ImmutableList.copyOf(newArgs));
+        new StaticFnCallee(callee.isDispatch(), function, plan.rewrittenCallSignature()),
+        ImmutableList.copyOf(newArgs));
   }
 
-  /// Insert `box<X --> v1(X)>(r1)` after the call, changing the call's assignee to `r1`.
-  /// This is done in a deferred insertion because it must change the assignee (which `run()`
-  /// cannot do) and must account for preceding unbox insertions shifting the call position.
-  private void ensureBox(
+  /// Insert `box<X --> v1(X)>(r1)` after the call, changing the call's assignee to `r1`
+  ///
+  /// This requires `deferredUnboxCount` because the call (and thus box insertion) may be
+  /// shifted by preceding unbox insertions
+  private void addBox(
       Register origAssignee,
-      PrimitiveKind kind,
-      Type v1Type,
+      Signature specializedSignature,
+      Type boxedReturnType,
       Abstraction scope,
       BB bb,
       int index,
       int deferredUnboxCount,
       DeferredInsertions defer) {
-    var unboxedRetType = Type.primitiveScalar(kind);
-    var scalarResultReg = scope.addLocal(origAssignee.name(), unboxedRetType);
+    var scalarResultReg = scope.addLocal(origAssignee.name(), specializedSignature.returnType());
 
-    final int numPreInsertions = deferredUnboxCount;
     defer.stage(
         () -> {
-          int callPos = index + numPreInsertions;
+          int callPos = index + deferredUnboxCount;
           var oldStmt = bb.statements().get(callPos);
           var oldCall = (Call) oldStmt.expression();
           var oldCallee = (StaticFnCallee) oldCall.callee();
 
-          // Rebuild call expression with scalar return type
-          var newCallSig =
-              new Signature(
-                  oldCallee.signature().parameterTypes(),
-                  oldCallee.signature().parameterStrictnesses(),
-                  unboxedRetType,
-                  oldCallee.signature().effects());
           var newCallExpr =
               new Call(
-                  new StaticFnCallee(oldCallee.isDispatch(), oldCallee.function(), newCallSig),
+                  new StaticFnCallee(
+                      oldCallee.isDispatch(), oldCallee.function(), specializedSignature),
                   oldCall.callArguments());
 
           // Replace: assignee becomes the scalar register, expression gets scalar return type
@@ -225,7 +142,11 @@ public class UnboxV1 implements SpecializeOptimization {
           // Insert box after: origAssignee = box<X --> v1(X)>(scalarResultReg)
           var boxFun = INTRINSICS.localFunction(Variable.named("box"));
           assert boxFun != null : "intrinsic 'box' not found";
-          var boxSig = new Signature(ImmutableList.of(unboxedRetType), v1Type, Effects.NONE);
+          var boxSig =
+              new Signature(
+                  ImmutableList.of(specializedSignature.returnType()),
+                  boxedReturnType,
+                  Effects.NONE);
           var boxCall =
               new Call(
                   new StaticFnCallee(false, boxFun, boxSig),
@@ -234,22 +155,16 @@ public class UnboxV1 implements SpecializeOptimization {
         });
   }
 
-  /// Insert `unbox<v1(X) --> X>(original)` before the call (at `index`), caching per (register,
-  /// BB) to avoid duplicates.
-  private Register ensureUnbox(
+  /// Insert `unbox<v1(X) --> X>(original)` before the call (at `index`)
+  private Register addUnbox(
       Register original,
       PrimitiveKind kind,
       Abstraction scope,
       BB bb,
       int index,
       DeferredInsertions defer) {
-    var perBb = unboxedRegisters.computeIfAbsent(original, _ -> new HashMap<>());
-    var existing = perBb.get(bb);
-    if (existing != null) return existing;
-
     var unboxedType = Type.primitiveScalar(kind);
     var unboxedReg = scope.addLocal(original.name(), unboxedType);
-    perBb.put(bb, unboxedReg);
 
     var unboxFun = INTRINSICS.localFunction(Variable.named("unbox"));
     assert unboxFun != null : "intrinsic 'unbox' not found";
@@ -264,96 +179,277 @@ public class UnboxV1 implements SpecializeOptimization {
     return unboxedReg;
   }
 
-  private void tryToCreateUnboxedParamVersion(
+  private @Nullable SpecializationPlan planSpecialization(
+      Abstraction scope,
       AbstractionFeedback feedback,
-      Function function,
       StaticFnCallee callee,
-      int argIndex,
-      PrimitiveKind primitiveKind) {
+      ImmutableList<Argument> callArguments,
+      boolean isBuiltinOrIntrinsic,
+      boolean hasAssignee) {
     var existingVersion = callee.minVersion();
-    if (existingVersion == null || existingVersion.cfg() == null) return;
+    var signaturePlan = new SignaturePlan(callee.signature());
+    var parameterUnboxings = new ArrayList<ParameterUnboxing>();
 
-    var unboxedScalarType = Type.primitiveScalar(primitiveKind);
-    var origParam = existingVersion.parameters().get(argIndex);
-    var origReg = origParam.variable();
-    var boxedType = origParam.type();
-    assert boxedType.equals(Type.primitiveVector1(primitiveKind, Ownership.SHARED));
+    for (int i = 0;
+        i < callArguments.size() && i < callee.signature().parameterTypes().size();
+        i++) {
+      var unboxing = computeParameterUnboxing(i, callArguments.get(i), scope);
+      if (unboxing == null) continue;
 
-    // Find a unique name for the scalar parameter (different from origReg)
-    var scalarReg = existingVersion.resemblance(origReg.name());
+      var candidateSignature = signaturePlan.candidateAfter(unboxing);
+      if (!canUseSignature(
+          callee.function(),
+          candidateSignature,
+          isBuiltinOrIntrinsic,
+          canCreateParameter(existingVersion, unboxing))) {
+        continue;
+      }
 
-    // Create new parameters: same as existing but with scalar type at argIndex
-    var newParams = new ArrayList<>(existingVersion.parameters());
-    newParams.set(argIndex, new Parameter(scalarReg, unboxedScalarType, origParam.strict()));
-
-    // Create new version
-    var newVersion = copy2(feedback.module(), function, existingVersion, newParams);
-
-    // Add local for the original register with v1 type.
-    // The copied body references origReg expecting v1(X).
-    // origReg is no longer a parameter (it was renamed to scalarReg),
-    // so we add it as a local defined by the box instruction below.
-    newVersion.addLocal(new Local(origReg, boxedType));
-
-    // Insert box instruction at top of entry block:
-    // origReg = box<X --> v1(X)>(scalarReg)
-    var boxFun = INTRINSICS.localFunction(Variable.named("box"));
-    assert boxFun != null : "intrinsic 'box' not found";
-    var boxSig = new Signature(ImmutableList.of(unboxedScalarType), boxedType, Effects.NONE);
-    var boxCall =
-        new Call(new StaticFnCallee(false, boxFun, boxSig), ImmutableList.of(new Read(scalarReg)));
-    Objects.requireNonNull(newVersion.cfg())
-        .entry()
-        .insertStatement(0, new Statement(origReg, boxCall));
-  }
-
-  /// Create a new version of the callee that returns scalar `X` instead of `v1(X)`, by copying
-  /// the existing version and unboxing the returned value before every return.
-  /// (Dual of [#tryToCreateUnboxedParamVersion]: that boxes at entry, this unboxes at returns.)
-  private void tryToCreateUnboxedReturnVersion(
-      AbstractionFeedback feedback,
-      Function function,
-      StaticFnCallee callee,
-      PrimitiveKind primitiveKind) {
-    var existingVersion = callee.minVersion();
-    if (existingVersion == null || existingVersion.cfg() == null) return;
-
-    var unboxedRetType = Type.primitiveScalar(primitiveKind);
-    var v1RetType = Type.primitiveVector1(primitiveKind, Ownership.SHARED);
-
-    // Pre-check: all returns must have a v1(X)-typed register value.
-    // If any return has an incompatible value, abort.
-    for (var checkBb : Objects.requireNonNull(existingVersion.cfg()).bbs()) {
-      if (!(checkBb.jump() instanceof Return(_, var value))) continue;
-      if (value.variable() == null) return; // can't unbox a constant return
-      var retType = existingVersion.typeOf(value.variable());
-      if (retType == null) return;
-      if (!retType.isValue()) return;
-      if (!(retType.kind() instanceof Kind.PrimitiveVector1(var pk) && pk == primitiveKind)) return;
+      signaturePlan.apply(unboxing);
+      parameterUnboxings.add(unboxing);
     }
 
-    // Create new version with same params but scalar return type
-    var newVersion =
-        copy2(feedback.module(), function, existingVersion, existingVersion.parameters());
-    newVersion.setReturnType(unboxedRetType);
+    ReturnUnboxing returnUnboxing = computeReturnUnboxing(callee.signature().returnType());
+    if (returnUnboxing != null) {
+      var candidateSignature = signaturePlan.candidateAfter(returnUnboxing);
+      if (canUseSignature(
+          callee.function(),
+          candidateSignature,
+          isBuiltinOrIntrinsic,
+          canCreateReturn(existingVersion, returnUnboxing))) {
+        signaturePlan.apply(returnUnboxing);
+      } else {
+        returnUnboxing = null;
+      }
+    }
 
-    // Unbox the returned value before every return:
-    // origReg --> unboxedReg = unbox<v1(X) --> X>(origReg); return unboxedReg
-    var unboxFun = INTRINSICS.localFunction(Variable.named("unbox"));
-    assert unboxFun != null : "intrinsic 'unbox' not found";
-    var unboxSig = new Signature(ImmutableList.of(v1RetType), unboxedRetType, Effects.NONE);
+    var specializedSignature = signaturePlan.signature();
+    if (specializedSignature.equals(callee.signature())) return null;
 
-    for (var retBb : Objects.requireNonNull(newVersion.cfg()).bbs()) {
+    if (!isBuiltinOrIntrinsic && callee.function().guess(specializedSignature) == null) {
+      tryToCreateUnboxedVersion(
+          feedback,
+          callee.function(),
+          callee,
+          ImmutableList.copyOf(parameterUnboxings),
+          returnUnboxing);
+      if (callee.function().guess(specializedSignature) == null) return null;
+    }
+
+    var rewrittenCallSignature =
+        returnUnboxing != null && hasAssignee
+            ? buildSignature(
+                specializedSignature.parameterTypes(),
+                specializedSignature.parameterStrictnesses(),
+                callee.signature().returnType(),
+                specializedSignature.effects())
+            : specializedSignature;
+    return new SpecializationPlan(
+        specializedSignature,
+        rewrittenCallSignature,
+        ImmutableList.copyOf(parameterUnboxings),
+        returnUnboxing);
+  }
+
+  private static boolean canUseSignature(
+      Function function,
+      Signature candidateSignature,
+      boolean isBuiltinOrIntrinsic,
+      boolean canCreateVersion) {
+    return function.guess(candidateSignature) != null
+        || (!isBuiltinOrIntrinsic && canCreateVersion);
+  }
+
+  private static @Nullable ParameterUnboxing computeParameterUnboxing(
+      int index, Argument argument, Abstraction scope) {
+    var register = argument.variable();
+    if (register == null) return null;
+
+    var argumentType = scope.typeOf(register);
+    if (argumentType == null || !argumentType.isValue()) return null;
+    if (!(argumentType.kind() instanceof Kind.PrimitiveVector(var isScalar, var primitiveKind)
+        && isScalar)) return null;
+    return new ParameterUnboxing(index, register, primitiveKind);
+  }
+
+  private static @Nullable ReturnUnboxing computeReturnUnboxing(Type returnType) {
+    if (!returnType.isValue()) return null;
+    if (!(returnType.kind() instanceof Kind.PrimitiveVector(var isScalar, var primitiveKind)
+        && isScalar)) return null;
+    return new ReturnUnboxing(returnType, primitiveKind);
+  }
+
+  private static boolean canCreateParameter(
+      @Nullable Abstraction existingVersion, ParameterUnboxing unboxing) {
+    if (existingVersion == null || existingVersion.cfg() == null) return false;
+    if (unboxing.index() >= existingVersion.parameters().size()) return false;
+    return existingVersion.parameters().get(unboxing.index()).type().equals(unboxing.boxedType());
+  }
+
+  private static boolean canCreateReturn(
+      @Nullable Abstraction existingVersion, ReturnUnboxing unboxing) {
+    if (existingVersion == null || existingVersion.cfg() == null) return false;
+    for (var bb : Objects.requireNonNull(existingVersion.cfg()).bbs()) {
+      if (!(bb.jump() instanceof Return(_, var value))) continue;
+      var variable = value.variable();
+      if (variable == null) return false;
+      var returnType = existingVersion.typeOf(variable);
+      if (returnType == null || !returnType.isValue()) return false;
+      if (!(returnType.kind() instanceof Kind.PrimitiveVector(var isScalar, var primitiveKind)
+          && isScalar
+          && primitiveKind == unboxing.primitiveKind())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private void tryToCreateUnboxedVersion(
+      AbstractionFeedback feedback,
+      Function function,
+      StaticFnCallee callee,
+      ImmutableList<ParameterUnboxing> parameterUnboxings,
+      @Nullable ReturnUnboxing returnUnboxing) {
+    var existingVersion = callee.minVersion();
+    if (existingVersion == null || existingVersion.cfg() == null) return;
+
+    var newParams = new ArrayList<>(existingVersion.parameters());
+    var entryBoxes = new ArrayList<Statement>();
+    for (var unboxing : parameterUnboxings) {
+      if (unboxing.index() >= existingVersion.parameters().size()) return;
+
+      var originalParameter = existingVersion.parameters().get(unboxing.index());
+      if (!originalParameter.type().equals(unboxing.boxedType())) return;
+
+      var scalarParameter = existingVersion.resemblance(originalParameter.variable().name());
+      newParams.set(
+          unboxing.index(), new Parameter(scalarParameter, unboxing.unboxedType(), false));
+      entryBoxes.add(
+          boxStatement(
+              originalParameter.variable(),
+              scalarParameter,
+              unboxing.unboxedType(),
+              unboxing.boxedType()));
+    }
+
+    var newVersion = copy2(feedback.module(), function, existingVersion, newParams);
+    var newCfg = Objects.requireNonNull(newVersion.cfg());
+
+    for (var unboxing : parameterUnboxings) {
+      var originalParameter = existingVersion.parameters().get(unboxing.index());
+      newVersion.addLocal(new Local(originalParameter.variable(), originalParameter.type()));
+    }
+
+    for (int i = 0; i < entryBoxes.size(); i++) {
+      newCfg.entry().insertStatement(i, entryBoxes.get(i));
+    }
+
+    if (returnUnboxing == null) return;
+
+    newVersion.setReturnType(returnUnboxing.unboxedType());
+    for (var retBb : newCfg.bbs()) {
       if (!(retBb.jump() instanceof Return(var comments, var value))) continue;
-      assert value.variable() != null;
+      var variable = value.variable();
+      assert variable != null;
 
-      var unboxedReg = newVersion.addLocal(value.variable().name(), unboxedRetType);
-      var unboxCall =
-          new Call(
-              new StaticFnCallee(false, unboxFun, unboxSig),
-              ImmutableList.of(new Read(value.variable())));
+      var unboxedReg = newVersion.addLocal(variable.name(), returnUnboxing.unboxedType());
+      var unboxCall = unboxCall(variable, returnUnboxing.boxedType(), returnUnboxing.unboxedType());
       retBb.appendStatement(new Statement(unboxedReg, unboxCall));
       retBb.setJump(new Return(comments, new Read(unboxedReg)));
+    }
+  }
+
+  private static Statement boxStatement(
+      Register boxedResult, Register scalarArgument, Type scalarType, Type boxedType) {
+    return new Statement(boxedResult, boxCall(scalarArgument, scalarType, boxedType));
+  }
+
+  private static Call boxCall(Register scalarArgument, Type scalarType, Type boxedType) {
+    var boxFun = INTRINSICS.localFunction(Variable.named("box"));
+    assert boxFun != null : "intrinsic 'box' not found";
+    var boxSig = new Signature(ImmutableList.of(scalarType), boxedType, Effects.NONE);
+    return new Call(
+        new StaticFnCallee(false, boxFun, boxSig), ImmutableList.of(new Read(scalarArgument)));
+  }
+
+  private static Call unboxCall(Register boxedArgument, Type boxedType, Type scalarType) {
+    var unboxFun = INTRINSICS.localFunction(Variable.named("unbox"));
+    assert unboxFun != null : "intrinsic 'unbox' not found";
+    var unboxSig = new Signature(ImmutableList.of(boxedType), scalarType, Effects.NONE);
+    return new Call(
+        new StaticFnCallee(false, unboxFun, unboxSig), ImmutableList.of(new Read(boxedArgument)));
+  }
+
+  private static Signature buildSignature(
+      java.util.List<Type> parameterTypes,
+      java.util.List<Boolean> parameterStrictnesses,
+      Type returnType,
+      Effects effects) {
+    return new Signature(
+        ImmutableList.copyOf(parameterTypes),
+        ImmutableList.copyOf(parameterStrictnesses),
+        returnType,
+        effects);
+  }
+
+  private static final class SignaturePlan {
+    private final ArrayList<Type> parameterTypes;
+    private final ArrayList<Boolean> parameterStrictnesses;
+    private final Effects effects;
+    private Type returnType;
+
+    private SignaturePlan(Signature signature) {
+      parameterTypes = new ArrayList<>(signature.parameterTypes());
+      parameterStrictnesses = new ArrayList<>(signature.parameterStrictnesses());
+      returnType = signature.returnType();
+      effects = signature.effects();
+    }
+
+    private Signature candidateAfter(ParameterUnboxing unboxing) {
+      var newParameterTypes = new ArrayList<>(parameterTypes);
+      var newParameterStrictnesses = new ArrayList<>(parameterStrictnesses);
+      newParameterTypes.set(unboxing.index(), unboxing.unboxedType());
+      newParameterStrictnesses.set(unboxing.index(), false);
+      return buildSignature(newParameterTypes, newParameterStrictnesses, returnType, effects);
+    }
+
+    private Signature candidateAfter(ReturnUnboxing unboxing) {
+      return buildSignature(parameterTypes, parameterStrictnesses, unboxing.unboxedType(), effects);
+    }
+
+    private void apply(ParameterUnboxing unboxing) {
+      parameterTypes.set(unboxing.index(), unboxing.unboxedType());
+      parameterStrictnesses.set(unboxing.index(), false);
+    }
+
+    private void apply(ReturnUnboxing unboxing) {
+      returnType = unboxing.unboxedType();
+    }
+
+    private Signature signature() {
+      return buildSignature(parameterTypes, parameterStrictnesses, returnType, effects);
+    }
+  }
+
+  private record SpecializationPlan(
+      Signature specializedSignature,
+      Signature rewrittenCallSignature,
+      ImmutableList<ParameterUnboxing> parameterUnboxings,
+      @Nullable ReturnUnboxing returnUnboxing) {}
+
+  private record ParameterUnboxing(int index, Register argument, PrimitiveKind primitiveKind) {
+    private Type boxedType() {
+      return Type.primitiveVector1(primitiveKind, Ownership.SHARED);
+    }
+
+    private Type unboxedType() {
+      return Type.primitiveScalar(primitiveKind);
+    }
+  }
+
+  private record ReturnUnboxing(Type boxedType, PrimitiveKind primitiveKind) {
+    private Type unboxedType() {
+      return Type.primitiveScalar(primitiveKind);
     }
   }
 }

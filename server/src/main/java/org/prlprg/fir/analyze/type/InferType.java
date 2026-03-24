@@ -34,7 +34,6 @@ import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
-import org.prlprg.fir.ir.type.Kind.PrimitiveVector1;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
@@ -109,14 +108,10 @@ public final class InferType implements Analysis {
       case ReflectiveStore _, Store _ -> null;
       case SubscriptRead(var target, _) -> {
         var targetType = of(target);
-        if (targetType == null) {
+        if (targetType == null || !(targetType.kind() instanceof PrimitiveVector(_, var kind))) {
           yield null;
         }
-        yield switch (targetType.kind()) {
-          case PrimitiveVector(var kind) -> Type.primitiveScalar(kind);
-          case PrimitiveVector1(var kind) -> Type.primitiveScalar(kind);
-          default -> null;
-        };
+        yield Type.primitiveScalar(kind);
       }
       case SubscriptWrite _ -> null;
     };

@@ -176,40 +176,6 @@ class UnboxV1Test implements OptimizationUnitTest {
   }
 
   @Test
-  void sameRegisterUsedTwice_onlyOneUnbox() {
-    // Two calls in the same BB both use the same v1(I) register.
-    // Only one unbox instruction should be inserted, not two.
-    var module =
-        ParseUtil.parseModule(
-            """
-            fun main(x) {
-              (reg x:v1(I)) --> V { reg r1:V, reg r2:V |
-                r1 = f< v1(I) --> V >(x);
-                r2 = f< v1(I) --> V >(x);
-                return r2;
-              }
-            }
-            fun f(a) {
-              (reg a:v1(I)) --> V { |
-                return a;
-              }
-            }
-            """);
-
-    assertTrue(run(module), "optimization should report a change");
-
-    var printed = Printer.toString(module);
-    var unboxCount = countUnboxOccurrences(printed);
-    assertEquals(
-        1,
-        unboxCount,
-        "should insert exactly 1 unbox instruction for the same register; got "
-            + unboxCount
-            + " in:\n"
-            + printed);
-  }
-
-  @Test
   void alreadyUnboxed_noSecondUnbox() {
     // If the optimization already ran and inserted an unbox, running it again
     // should not insert a duplicate unbox for the same register.

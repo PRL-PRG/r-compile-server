@@ -15,14 +15,7 @@ public sealed interface Kind extends Comparable<Kind> {
     }
   }
 
-  record PrimitiveVector(PrimitiveKind primitive) implements Kind {
-    @Override
-    public String toString() {
-      return Printer.toString(this);
-    }
-  }
-
-  record PrimitiveVector1(PrimitiveKind primitive) implements Kind {
+  record PrimitiveVector(boolean isScalar, PrimitiveKind primitive) implements Kind {
     @Override
     public String toString() {
       return Printer.toString(this);
@@ -66,8 +59,7 @@ public sealed interface Kind extends Comparable<Kind> {
 
   default Repr repr() {
     return switch (this) {
-      case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure(), Dots(), Missing() ->
-          Repr.SEXP;
+      case AnySexp(), PrimitiveVector(_, _), Closure(), Dots(), Missing() -> Repr.SEXP;
       case PrimitiveScalar(var primitiveKind) -> primitiveKind.repr();
       case Boolean() -> Repr.BOOLEAN;
     };
@@ -81,7 +73,7 @@ public sealed interface Kind extends Comparable<Kind> {
   default boolean isWellFormedWithOwnership() {
     return switch (this) {
       case AnySexp(), Closure(), Dots(), Missing(), PrimitiveScalar(_), Boolean() -> false;
-      case PrimitiveVector(_), PrimitiveVector1(_) -> true;
+      case PrimitiveVector(_, _) -> true;
     };
   }
 
@@ -89,11 +81,11 @@ public sealed interface Kind extends Comparable<Kind> {
     return switch (other) {
       case AnySexp() -> !(this instanceof PrimitiveScalar || this instanceof Boolean);
       case Dots() -> this instanceof Dots || this instanceof Missing;
-      case PrimitiveVector(var otherPrimitive) ->
-          this.equals(other)
-              || (this instanceof PrimitiveVector1(var primitive) && primitive == otherPrimitive);
-      case PrimitiveVector1(_), Closure(), Missing(), PrimitiveScalar(_), Boolean() ->
-          this.equals(other);
+      case PrimitiveVector(var otherIsScalar, var otherPrimitive) ->
+          this instanceof PrimitiveVector(var isScalar, var primitive)
+              && primitive == otherPrimitive
+              && (!otherIsScalar || isScalar);
+      case Closure(), Missing(), PrimitiveScalar(_), Boolean() -> this.equals(other);
     };
   }
 
@@ -104,18 +96,11 @@ public sealed interface Kind extends Comparable<Kind> {
 
     return switch (other) {
       case AnySexp() -> other;
-      case PrimitiveVector(var otherPrimitive) ->
-          equals(other)
-              ? this
-              : (this instanceof PrimitiveVector1(var primitive) && primitive == otherPrimitive)
-                  ? other
-                  : union(new AnySexp(), _ -> {});
-      case PrimitiveVector1(var otherPrimitive) ->
-          equals(other)
-              ? this
-              : (this instanceof PrimitiveVector(var primitive) && primitive == otherPrimitive)
-                  ? this
-                  : union(new AnySexp(), _ -> {});
+      case PrimitiveVector(var otherIsScalar, var otherPrimitive) ->
+          this instanceof PrimitiveVector(var isScalar, var primitive)
+                  && primitive == otherPrimitive
+              ? new PrimitiveVector(isScalar && otherIsScalar, primitive)
+              : union(new AnySexp(), _ -> {});
       case Closure() -> equals(other) ? this : union(new AnySexp(), _ -> {});
       case Dots() ->
           (this instanceof Dots || this instanceof Missing) ? other : union(new AnySexp(), _ -> {});
@@ -130,48 +115,43 @@ public sealed interface Kind extends Comparable<Kind> {
   default int compareTo(Kind o) {
     return switch (o) {
       case AnySexp() -> this instanceof AnySexp ? 0 : -1;
-      case PrimitiveVector(var otherPrimitive) ->
+      case PrimitiveVector(var otherIsScalar, var otherPrimitive) ->
           switch (this) {
             case AnySexp() -> 1;
-            case PrimitiveVector(var primitive) -> primitive.compareTo(otherPrimitive);
-            default -> -1;
-          };
-      case PrimitiveVector1(var otherPrimitive) ->
-          switch (this) {
-            case AnySexp(), PrimitiveVector(_) -> 1;
-            case PrimitiveVector1(var primitive) -> primitive.compareTo(otherPrimitive);
+            case PrimitiveVector(var isScalar, var primitive) ->
+                otherIsScalar
+                    ? isScalar ? primitive.compareTo(otherPrimitive) : 1
+                    : isScalar ? -1 : primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case Closure() ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_) -> 1;
+            case AnySexp(), PrimitiveVector(_, _) -> 1;
             case Closure() -> 0;
             default -> -1;
           };
       case Dots() ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure() -> 1;
+            case AnySexp(), PrimitiveVector(_, _), Closure() -> 1;
             case Dots() -> 0;
             default -> -1;
           };
       case Missing() ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure(), Dots() -> 1;
+            case AnySexp(), PrimitiveVector(_, _), Closure(), Dots() -> 1;
             case Missing() -> 0;
             default -> -1;
           };
       case PrimitiveScalar(var otherPrimitive) ->
           switch (this) {
-            case AnySexp(), PrimitiveVector(_), PrimitiveVector1(_), Closure(), Dots(), Missing() ->
-                1;
+            case AnySexp(), PrimitiveVector(_, _), Closure(), Dots(), Missing() -> 1;
             case PrimitiveScalar(var primitive) -> primitive.compareTo(otherPrimitive);
             default -> -1;
           };
       case Boolean() ->
           switch (this) {
             case AnySexp(),
-                PrimitiveVector(_),
-                PrimitiveVector1(_),
+                PrimitiveVector(_, _),
                 Closure(),
                 Dots(),
                 Missing(),
@@ -188,13 +168,8 @@ public sealed interface Kind extends Comparable<Kind> {
 
     switch (self) {
       case AnySexp() -> w.write("V");
-      case PrimitiveVector(var primitive) -> {
-        w.write("v(");
-        p.print(primitive);
-        w.write(')');
-      }
-      case PrimitiveVector1(var primitive) -> {
-        w.write("v1(");
+      case PrimitiveVector(var isScalar, var primitive) -> {
+        w.write(isScalar ? "v1(" : "v(");
         p.print(primitive);
         w.write(')');
       }
@@ -216,12 +191,12 @@ public sealed interface Kind extends Comparable<Kind> {
       s.assertAndSkip('(');
       var primitive = p.parse(PrimitiveKind.class);
       s.assertAndSkip(')');
-      return new PrimitiveVector1(primitive);
+      return new PrimitiveVector(true, primitive);
     } else if (s.trySkip('v')) {
       s.assertAndSkip('(');
       var primitive = p.parse(PrimitiveKind.class);
       s.assertAndSkip(')');
-      return new PrimitiveVector(primitive);
+      return new PrimitiveVector(false, primitive);
     } else if (s.trySkip("cls")) {
       return new Closure();
     } else if (s.trySkip("dots")) {
