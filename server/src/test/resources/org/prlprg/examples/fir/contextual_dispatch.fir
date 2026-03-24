@@ -1,6 +1,6 @@
 fun main() {
   () --> v(I)f { reg r_shared:*, reg r1_shared:*, reg r_owned:v(I)o, reg r1_owned:v(I)o, reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r5:v(I)o |
-    r_shared = 42;
+    r_shared = <int 42>;
     r1_shared = v(I)[1, 2, 3];
     r_owned = v(I)[4, 5];
     r1_owned = v(I)[6, 7];

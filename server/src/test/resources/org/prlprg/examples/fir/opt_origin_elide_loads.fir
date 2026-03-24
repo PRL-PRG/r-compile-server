@@ -9,12 +9,13 @@ fun main() {
 }
 
 fun f(r0, c0) {
-  # after: (reg r0:I, reg c0:cls) -+> I { var x:I? |
-  (reg r0:I, reg c0:cls) -+> I { var x:I?, reg r1:I?, reg r2:cls, reg r3:cls, reg r4:I |
+  # after: (reg r0:I, reg c0:cls) -+> I { var x:v1(I)? |
+  (reg r0:I, reg c0:cls) -+> I { var x:v1(I)?, reg r0b:v1(I), reg r1:v1(I)?, reg r2:cls, reg r3:cls, reg r4:v1(I), reg r4u:I |
     mkenv;
-    st x = r0;
+    r0b = box<I --> v1(I)>(r0);
+    st x = r0b;
     st y = c0;
-    st z = r0;
+    st z = r0b;
     # after:
     r1 = ld x;
     # after:
@@ -23,11 +24,12 @@ fun f(r0, c0) {
     # we can remove `r3`, but we can't remove the instruction, because it may force
     # after: ldf z;
     r3 = ldf z;
-    # after: r0 as I;
-    r4 = r1 as I;
+    # after: r0b as v1(I);
+    r4 = r1 as v1(I);
+    r4u = unbox<v1(I) --> I>(r4);
     popenv;
     # after: return r0;
-    return r4;
+    return r4u;
   }
 }
 

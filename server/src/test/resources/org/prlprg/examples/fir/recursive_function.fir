@@ -1,27 +1,31 @@
 fun main() {
-  () --> V { reg r1:I |
+  () --> V { reg r1:I, reg r1b:v1(I) |
     r1 = recursive< I,I --> I >(123, 0);
-    return r1;
+    r1b = box<I --> v1(I)>(r1);
+    return r1b;
   }
 }
 
 fun recursive(rm, rn) {
-  (reg rm:I, reg rn:I) --> I { reg result:I, reg r1:p(I -), reg r2:p(I -), reg r3:I, reg r4:I, reg r5:I |
-    r1 = prom<I ->{ return rn; };
-    r2 = prom<I ->{
+  (reg rm:I, reg rn:I) --> I { reg result:I, reg rnb:v1(I), reg r1:p(v1(I) -), reg r2:p(v1(I) -), reg r3:I, reg r4:I, reg r5:I, reg r5b:v1(I), reg rmb:v1(I) |
+    rnb = box<I --> v1(I)>(rn);
+    r1 = prom<v1(I) ->{ return rnb; };
+    r2 = prom<v1(I) ->{
       r3 = dec< I --> I >(rm);
       r4 = add< I,I --> I >(rm, rn);
       r5 = recursive< I,I --> I >(r3, r4);
-      return r5;
+      r5b = box<I --> v1(I)>(r5);
+      return r5b;
     };
-    result = if0< V,p(I -),p(I -) --> I >(rm, r1, r2);
+    rmb = box<I --> v1(I)>(rm);
+    result = if0< V,p(v1(I) -),p(v1(I) -) --> I >(rmb, r1, r2);
     return result;
   }
 }
 
 fun if0(rcond, rtrue, rfalse) {
   (reg rcond:*, reg rtrue:*, reg rfalse:*) --> I { ... }
-  (reg rcond:V, reg rtrue:p(I -), reg rfalse:p(I -)) --> I { ... }
+  (reg rcond:V, reg rtrue:p(v1(I) -), reg rfalse:p(v1(I) -)) --> I { ... }
 }
 
 fun dec(r) {

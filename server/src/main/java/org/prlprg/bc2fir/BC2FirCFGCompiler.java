@@ -529,9 +529,7 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "length",
                     new Signature(
-                        ImmutableList.of(Type.ANY_VALUE_SEXP),
-                        Type.SHARED_INT_VECTOR1,
-                        Effects.NONE),
+                        ImmutableList.of(Type.ANY_VALUE_SEXP), Type.BOXED_INTEGER, Effects.NONE),
                     seq));
         var init = new Constant(SEXPs.integer(0));
         var index = insertAndReturn("_idx", new Aea(init));
@@ -547,8 +545,8 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "+",
                     new Signature(
-                        ImmutableList.of(Type.SHARED_INT_VECTOR1, Type.SHARED_INT_VECTOR1),
-                        Type.SHARED_INT_VECTOR1,
+                        ImmutableList.of(Type.BOXED_INTEGER, Type.BOXED_INTEGER),
+                        Type.BOXED_INTEGER,
                         Effects.NONE),
                     pop(),
                     new Constant(SEXPs.integer(1))));
@@ -560,8 +558,8 @@ public class BC2FirCFGCompiler {
                 builtin(
                     "<",
                     new Signature(
-                        ImmutableList.of(Type.SHARED_INT_VECTOR1, Type.SHARED_INT_VECTOR1),
-                        Type.SHARED_LOGICAL_VECTOR1,
+                        ImmutableList.of(Type.BOXED_INTEGER, Type.BOXED_INTEGER),
+                        Type.BOXED_LOGICAL,
                         Effects.NONE),
                     length,
                     index1));
@@ -570,8 +568,7 @@ public class BC2FirCFGCompiler {
                 "_cond1",
                 intrinsic(
                     "naToFalse",
-                    new Signature(
-                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR1), Type.BOOLEAN, Effects.NONE),
+                    new Signature(ImmutableList.of(Type.BOXED_LOGICAL), Type.BOOLEAN, Effects.NONE),
                     cond));
         // Jump to `end` if it's greater (remember, GNU-R indexing is one-based)
         setJump(branch(cond1, endBb, forBodyBb));
@@ -586,10 +583,7 @@ public class BC2FirCFGCompiler {
                     "[[",
                     new Signature(
                         ImmutableList.of(
-                            Type.ANY_VALUE_SEXP,
-                            Type.SHARED_INT_VECTOR1,
-                            Type.MISSING,
-                            Type.MISSING),
+                            Type.ANY_VALUE_SEXP, Type.BOXED_INTEGER, Type.MISSING, Type.MISSING),
                         Type.ANY_VALUE_SEXP,
                         Effects.REFLECT),
                     seq,
@@ -836,7 +830,7 @@ public class BC2FirCFGCompiler {
                 "as.logical",
                 new Signature(
                     ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.SHARED_LOGICAL_VECTOR1,
+                    Type.BOXED_LOGICAL,
                     Effects.NONE),
                 pop(),
                 new Constant(SEXPs.MISSING_ARG)));
@@ -845,8 +839,7 @@ public class BC2FirCFGCompiler {
                 "_cond",
                 intrinsic(
                     "naToFalse",
-                    new Signature(
-                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR1), Type.BOOLEAN, Effects.NONE),
+                    new Signature(ImmutableList.of(Type.BOXED_LOGICAL), Type.BOOLEAN, Effects.NONE),
                     top()));
         insert(next -> branch(cond, next, shortCircuitBb));
       }
@@ -856,7 +849,7 @@ public class BC2FirCFGCompiler {
                 "as.logical",
                 new Signature(
                     ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.SHARED_LOGICAL_VECTOR1,
+                    Type.BOXED_LOGICAL,
                     Effects.NONE),
                 pop(),
                 new Constant(SEXPs.MISSING_ARG)));
@@ -870,7 +863,7 @@ public class BC2FirCFGCompiler {
                 "as.logical",
                 new Signature(
                     ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.SHARED_LOGICAL_VECTOR1,
+                    Type.BOXED_LOGICAL,
                     Effects.NONE),
                 pop(),
                 new Constant(SEXPs.MISSING_ARG)));
@@ -879,8 +872,7 @@ public class BC2FirCFGCompiler {
                 "_cond",
                 intrinsic(
                     "naToFalse",
-                    new Signature(
-                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR1), Type.BOOLEAN, Effects.NONE),
+                    new Signature(ImmutableList.of(Type.BOXED_LOGICAL), Type.BOOLEAN, Effects.NONE),
                     top()));
         insert(next -> branch(cond, shortCircuitBb, next));
       }
@@ -890,7 +882,7 @@ public class BC2FirCFGCompiler {
                 "as.logical",
                 new Signature(
                     ImmutableList.of(Type.ANY_VALUE_SEXP, Type.MISSING),
-                    Type.SHARED_LOGICAL_VECTOR1,
+                    Type.BOXED_LOGICAL,
                     Effects.NONE),
                 pop(),
                 new Constant(SEXPs.MISSING_ARG)));
@@ -966,8 +958,7 @@ public class BC2FirCFGCompiler {
                 "_cond1",
                 intrinsic(
                     "naToFalse",
-                    new Signature(
-                        ImmutableList.of(Type.SHARED_LOGICAL_VECTOR1), Type.BOOLEAN, Effects.NONE),
+                    new Signature(ImmutableList.of(Type.BOXED_LOGICAL), Type.BOOLEAN, Effects.NONE),
                     isVector));
         var isVectorBb = cfg.addBB();
         var isNotVectorBb = cfg.addBB();
@@ -1036,16 +1027,14 @@ public class BC2FirCFGCompiler {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var asString = insertAndReturn("_idx", new Cast(value, Type.SHARED_STRING_VECTOR1));
+              var asString = insertAndReturn("_idx", new Cast(value, Type.BOXED_STRING));
               var asString1 =
                   insertAndReturn(
                       "_idx1",
                       intrinsic(
                           "unbox",
                           new Signature(
-                              ImmutableList.of(Type.SHARED_STRING_VECTOR1),
-                              Type.STRING,
-                              Effects.NONE),
+                              ImmutableList.of(Type.BOXED_STRING), Type.STRING, Effects.NONE),
                           asString));
               var cond =
                   insertAndReturn(
@@ -1053,8 +1042,7 @@ public class BC2FirCFGCompiler {
                       builtin(
                           "==",
                           new Signature(
-                              ImmutableList.of(
-                                  Type.SHARED_STRING_VECTOR1, Type.SHARED_STRING_VECTOR1),
+                              ImmutableList.of(Type.BOXED_STRING, Type.BOXED_STRING),
                               Type.BOOLEAN,
                               Effects.NONE),
                           asString1,

@@ -233,33 +233,29 @@ public final class Builtins {
         sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_VALUE_SEXP),
         Builtins::toForSeq);
     interpreter.registerExternal(
-        "naToFalse",
-        sig(Type.BOOLEAN, Effects.NONE, Type.SHARED_LOGICAL_VECTOR1),
-        Builtins::naToFalse0);
+        "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.BOXED_LOGICAL), Builtins::naToFalse0);
     interpreter.registerExternal(
         "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToFalse1);
 
     // box: scalar → vector
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_LOGICAL_VECTOR1, Effects.NONE, Type.LOGICAL), Builtins::boxLogical);
+        "box", sig(Type.BOXED_LOGICAL, Effects.NONE, Type.LOGICAL), Builtins::boxLogical);
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_INT_VECTOR1, Effects.NONE, Type.INTEGER), Builtins::boxInteger);
+        "box", sig(Type.BOXED_INTEGER, Effects.NONE, Type.INTEGER), Builtins::boxInteger);
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_REAL_VECTOR1, Effects.NONE, Type.REAL), Builtins::boxReal);
+        "box", sig(Type.BOXED_REAL, Effects.NONE, Type.REAL), Builtins::boxReal);
     interpreter.registerExternal(
-        "box", sig(Type.SHARED_STRING_VECTOR1, Effects.NONE, Type.STRING), Builtins::boxString);
+        "box", sig(Type.BOXED_STRING, Effects.NONE, Type.STRING), Builtins::boxString);
 
     // unbox: vector → scalar
     interpreter.registerExternal(
-        "unbox",
-        sig(Type.LOGICAL, Effects.NONE, Type.SHARED_LOGICAL_VECTOR1),
-        Builtins::unboxLogical);
+        "unbox", sig(Type.LOGICAL, Effects.NONE, Type.BOXED_LOGICAL), Builtins::unboxLogical);
     interpreter.registerExternal(
-        "unbox", sig(Type.INTEGER, Effects.NONE, Type.SHARED_INT_VECTOR1), Builtins::unboxInteger);
+        "unbox", sig(Type.INTEGER, Effects.NONE, Type.BOXED_INTEGER), Builtins::unboxInteger);
     interpreter.registerExternal(
-        "unbox", sig(Type.REAL, Effects.NONE, Type.SHARED_REAL_VECTOR1), Builtins::unboxReal);
+        "unbox", sig(Type.REAL, Effects.NONE, Type.BOXED_REAL), Builtins::unboxReal);
     interpreter.registerExternal(
-        "unbox", sig(Type.STRING, Effects.NONE, Type.SHARED_STRING_VECTOR1), Builtins::unboxString);
+        "unbox", sig(Type.STRING, Effects.NONE, Type.BOXED_STRING), Builtins::unboxString);
   }
 
   // region binary math builtins
@@ -847,7 +843,7 @@ public final class Builtins {
     // (I, I) --> v(I)
     interpreter.registerExternal(
         ":",
-        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER, Type.INTEGER),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               int start = ((Value.Int) args.getFirst()).value();
@@ -857,7 +853,7 @@ public final class Builtins {
     // (I, R) --> v(I)
     interpreter.registerExternal(
         ":",
-        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER, Type.REAL),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.INTEGER, Type.REAL),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               int start = ((Value.Int) args.getFirst()).value();
@@ -877,7 +873,11 @@ public final class Builtins {
     // (v(I), v(I)) --> v(I)  (use first elements)
     interpreter.registerExternal(
         ":",
-        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR, Type.SHARED_INT_VECTOR),
+        sig(
+            Type.SHARED_INTEGER_VECTOR,
+            Effects.NONE,
+            Type.SHARED_INTEGER_VECTOR,
+            Type.SHARED_INTEGER_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var v1 = (IntSXP) args.getFirst().box();
@@ -887,7 +887,11 @@ public final class Builtins {
     // (v(I), v(R)) --> v(I)
     interpreter.registerExternal(
         ":",
-        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR, Type.SHARED_REAL_VECTOR),
+        sig(
+            Type.SHARED_INTEGER_VECTOR,
+            Effects.NONE,
+            Type.SHARED_INTEGER_VECTOR,
+            Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var v1 = (IntSXP) args.getFirst().box();
@@ -953,7 +957,7 @@ public final class Builtins {
     // v5-9: (v(T), I, miss, miss) --> T for T = L, I, R, S
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
-      Type.SHARED_INT_VECTOR,
+      Type.SHARED_INTEGER_VECTOR,
       Type.SHARED_REAL_VECTOR,
       Type.SHARED_STRING_VECTOR
     };
@@ -977,7 +981,7 @@ public final class Builtins {
               vecTypes[t],
               Effects.NONE,
               vecTypes[t],
-              Type.SHARED_INT_VECTOR,
+              Type.SHARED_INTEGER_VECTOR,
               Type.MISSING,
               Type.MISSING),
           ExternalVersion.strict(
@@ -1057,7 +1061,7 @@ public final class Builtins {
 
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
-      Type.SHARED_INT_VECTOR,
+      Type.SHARED_INTEGER_VECTOR,
       Type.SHARED_REAL_VECTOR,
       Type.SHARED_STRING_VECTOR
     };
@@ -1087,7 +1091,7 @@ public final class Builtins {
                 vecTypes[t],
                 Effects.NONE,
                 vecTypes[t],
-                Type.SHARED_INT_VECTOR,
+                Type.SHARED_INTEGER_VECTOR,
                 vecTypes[t],
                 Type.MISSING),
             ExternalVersion.strict(
@@ -1131,7 +1135,7 @@ public final class Builtins {
       for (int t = 0; t < 4; t++) {
         interpreter.registerExternal(
             name,
-            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.SHARED_INT_VECTOR, vecTypes[t]),
+            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.SHARED_INTEGER_VECTOR, vecTypes[t]),
             ExternalVersion.strict(
                 (_, _, args, _) -> {
                   var vector = (ListOrVectorSXP<?>) args.getFirst().box();
@@ -1234,7 +1238,7 @@ public final class Builtins {
 
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
-      Type.SHARED_INT_VECTOR,
+      Type.SHARED_INTEGER_VECTOR,
       Type.SHARED_REAL_VECTOR,
       Type.SHARED_STRING_VECTOR
     };
@@ -1255,7 +1259,7 @@ public final class Builtins {
     // (I, I) --> v(I)
     interpreter.registerExternal(
         "rep",
-        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.INTEGER, Type.INTEGER),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.INTEGER, Type.INTEGER),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               int val = ((Value.Int) args.getFirst()).value();
@@ -1293,7 +1297,7 @@ public final class Builtins {
     for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           "rep",
-          sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.SHARED_INT_VECTOR),
+          sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.SHARED_INTEGER_VECTOR),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 var vector = (ListOrVectorSXP<?>) args.getFirst().box();
@@ -1440,7 +1444,7 @@ public final class Builtins {
     // v2: (v(I), miss) --> I
     interpreter.registerExternal(
         "sum",
-        sig(Type.INTEGER, Effects.NONE, Type.SHARED_INT_VECTOR, Type.MISSING),
+        sig(Type.INTEGER, Effects.NONE, Type.SHARED_INTEGER_VECTOR, Type.MISSING),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var vec = (IntSXP) args.getFirst().box();
@@ -1528,7 +1532,7 @@ public final class Builtins {
     // (v(I)) --> v(I)
     interpreter.registerExternal(
         "abs",
-        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_INTEGER_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var vec = (IntSXP) args.getFirst().box();
@@ -1582,7 +1586,7 @@ public final class Builtins {
     // (v(I)) --> v(R)
     interpreter.registerExternal(
         name,
-        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR),
+        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_INTEGER_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var vec = (IntSXP) args.getFirst().box();
@@ -1650,7 +1654,11 @@ public final class Builtins {
     // (v(I), v(R)) --> v(R)
     interpreter.registerExternal(
         "log",
-        sig(Type.SHARED_REAL_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR, Type.SHARED_REAL_VECTOR),
+        sig(
+            Type.SHARED_REAL_VECTOR,
+            Effects.NONE,
+            Type.SHARED_INTEGER_VECTOR,
+            Type.SHARED_REAL_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var xv = (IntSXP) args.getFirst().box();
@@ -1724,7 +1732,7 @@ public final class Builtins {
     // v0: (*) -+> v(I)
     interpreter.registerExternal(
         "seq_along",
-        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY_SEXP),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.REFLECT, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1749,7 +1757,7 @@ public final class Builtins {
     // v0: (*) -+> v(I)
     interpreter.registerExternal(
         "seq_len",
-        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY_SEXP),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.REFLECT, Type.ANY_SEXP),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1766,7 +1774,7 @@ public final class Builtins {
     // v2: (v(I)) --> v(I)
     interpreter.registerExternal(
         "seq_len",
-        sig(Type.SHARED_INT_VECTOR, Effects.NONE, Type.SHARED_INT_VECTOR),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_INTEGER_VECTOR),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               var vec = (IntSXP) args.getFirst().box();
@@ -1783,7 +1791,7 @@ public final class Builtins {
     // v0: (*, dots) -+> v(I)
     interpreter.registerExternal(
         "as.integer",
-        sig(Type.SHARED_INT_VECTOR, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.REFLECT, Type.ANY_SEXP, Type.DOTS),
         ExternalVersion.strict(
             (_, _, args, _) -> {
               if (args.size() != 2 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
@@ -1993,7 +2001,7 @@ public final class Builtins {
     // v1-v4: (v(T), miss) --> v(T) for T = L, I, R, S
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
-      Type.SHARED_INT_VECTOR,
+      Type.SHARED_INTEGER_VECTOR,
       Type.SHARED_REAL_VECTOR,
       Type.SHARED_STRING_VECTOR
     };

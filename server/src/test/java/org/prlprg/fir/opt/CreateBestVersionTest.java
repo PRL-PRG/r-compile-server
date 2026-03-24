@@ -34,18 +34,19 @@ class CreateBestVersionTest {
     // A call whose argument types already exactly match the best version's parameters
     var module = new Module();
 
-    // Create callee with a version that has INTEGER parameters
+    // Create callee with a version that has BOXED_INTEGER parameters
     var calleeFun =
         module.addFunction(Variable.named("callee"), List.of(Variable.named("x")), true);
-    var intParams = List.of(new Parameter(Variable.register("x"), Type.INTEGER));
+    var intParams = List.of(new Parameter(Variable.register("x"), Type.BOXED_INTEGER));
     calleeFun.addVersion(intParams, false);
 
-    // Create caller that calls callee with an INTEGER argument
+    // Create caller that calls callee with an BOXED_INTEGER argument
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), false);
-    // Override baseline to have INTEGER parameter type so typeOf(a) returns INTEGER
+    // Override baseline to have BOXED_INTEGER parameter type so typeOf(a) returns BOXED_INTEGER
     var callerVersion =
-        callerFun.addVersion(List.of(new Parameter(Variable.register("a"), Type.INTEGER)), false);
+        callerFun.addVersion(
+            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
     assert callerVersion.cfg() != null;
 
     var call =
@@ -58,7 +59,7 @@ class CreateBestVersionTest {
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
 
-    // Callee should still have 2 versions (baseline stub + INTEGER version), no new one added
+    // Callee should still have 2 versions (baseline stub + BOXED_INTEGER version), no new one added
     assertEquals(2, calleeFun.versions().size());
   }
 
@@ -71,11 +72,12 @@ class CreateBestVersionTest {
     var calleeFun =
         module.addFunction(Variable.named("callee"), List.of(Variable.named("x")), false);
 
-    // Create caller with an INTEGER parameter calling the callee
+    // Create caller with a BOXED_INTEGER parameter calling the callee
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var callerVersion =
-        callerFun.addVersion(List.of(new Parameter(Variable.register("a"), Type.INTEGER)), false);
+        callerFun.addVersion(
+            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
     assert callerVersion.cfg() != null;
 
     var call =
@@ -88,11 +90,11 @@ class CreateBestVersionTest {
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
 
-    // Callee should now have a new version with INTEGER parameter
+    // Callee should now have a new version with BOXED_INTEGER parameter
     assertEquals(2, calleeFun.versions().size());
     var versions = List.copyOf(calleeFun.versions());
     var newVersion = versions.get(1);
-    assertEquals(Type.INTEGER, newVersion.parameters().getFirst().type());
+    assertEquals(Type.BOXED_INTEGER, newVersion.parameters().getFirst().type());
   }
 
   @Test
@@ -104,11 +106,12 @@ class CreateBestVersionTest {
     var calleeFun =
         module.addFunction(Variable.named("callee"), List.of(Variable.named("x")), false);
 
-    // Create caller with INTEGER parameter
+    // Create caller with BOXED_INTEGER parameter
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var callerVersion =
-        callerFun.addVersion(List.of(new Parameter(Variable.register("a"), Type.INTEGER)), false);
+        callerFun.addVersion(
+            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
     assert callerVersion.cfg() != null;
 
     var call =
@@ -135,11 +138,12 @@ class CreateBestVersionTest {
     var calleeFun =
         module.addFunction(Variable.named("callee"), List.of(Variable.named("x")), true);
 
-    // Create caller with INTEGER parameter
+    // Create caller with BOXED_INTEGER parameter
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var callerVersion =
-        callerFun.addVersion(List.of(new Parameter(Variable.register("a"), Type.INTEGER)), false);
+        callerFun.addVersion(
+            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
     assert callerVersion.cfg() != null;
 
     var call =
@@ -164,7 +168,8 @@ class CreateBestVersionTest {
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
     var callerVersion =
-        callerFun.addVersion(List.of(new Parameter(Variable.register("a"), Type.INTEGER)), false);
+        callerFun.addVersion(
+            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
     assert callerVersion.cfg() != null;
 
     // Use a DynamicCallee which returns null for function()
@@ -191,15 +196,15 @@ class CreateBestVersionTest {
         module.addFunction(
             Variable.named("callee"), List.of(Variable.named("x"), Variable.named("y")), false);
 
-    // Create caller with INTEGER and REAL parameters
+    // Create caller with BOXED_INTEGER and BOXED_REAL parameters
     var callerFun =
         module.addFunction(
             Variable.named("caller"), List.of(Variable.named("a"), Variable.named("b")), true);
     var callerVersion =
         callerFun.addVersion(
             List.of(
-                new Parameter(Variable.register("a"), Type.INTEGER),
-                new Parameter(Variable.register("b"), Type.REAL)),
+                new Parameter(Variable.register("a"), Type.BOXED_INTEGER),
+                new Parameter(Variable.register("b"), Type.BOXED_REAL)),
             false);
     assert callerVersion.cfg() != null;
 
@@ -213,11 +218,11 @@ class CreateBestVersionTest {
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
 
-    // Callee should now have a new version with INTEGER, REAL parameters
+    // Callee should now have a new version with BOXED_INTEGER, BOXED_REAL parameters
     assertEquals(2, calleeFun.versions().size());
     var versions = List.copyOf(calleeFun.versions());
     var newVersion = versions.get(1);
-    assertEquals(Type.INTEGER, newVersion.parameters().get(0).type());
-    assertEquals(Type.REAL, newVersion.parameters().get(1).type());
+    assertEquals(Type.BOXED_INTEGER, newVersion.parameters().get(0).type());
+    assertEquals(Type.BOXED_REAL, newVersion.parameters().get(1).type());
   }
 }

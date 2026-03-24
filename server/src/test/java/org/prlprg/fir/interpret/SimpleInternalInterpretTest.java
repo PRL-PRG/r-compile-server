@@ -37,6 +37,7 @@ class SimpleInternalInterpretTest {
     // fun test() { () --> I { | return 42; } }
     var function = module.addFunction(Variable.named("test"), List.of(), false);
     var version = function.baseline();
+    version.setReturnType(Type.INTEGER);
 
     var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();
@@ -61,6 +62,7 @@ class SimpleInternalInterpretTest {
         module.addFunction(
             Variable.named("test"), List.of(Variable.named("r")), List.of(param), false);
     var version = function.baseline();
+    version.setReturnType(Type.INTEGER);
 
     var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();

@@ -1,10 +1,12 @@
 fun main() {
-  () --> I { reg left:p(I -), reg right:p(I -), reg left0:I, reg right0:I, reg sum:I |
-    left = prom<I ->{ return 20; };
-    right = prom<I ->{ return 22; };
+  () --> I { reg left:p(v1(I) -), reg right:p(v1(I) -), reg left0:v1(I), reg right0:v1(I), reg left0u:I, reg right0u:I, reg sum:I |
+    left = prom<v1(I) ->{ return <int 20>; };
+    right = prom<v1(I) ->{ return <int 22>; };
     left0 = force? left;
     right0 = force? right;
-    sum = `+`< I,I --> I >(left0, right0);
+    left0u = unbox<v1(I) --> I>(left0);
+    right0u = unbox<v1(I) --> I>(right0);
+    sum = `+`< I,I --> I >(left0u, right0u);
     return sum;
   }
 }

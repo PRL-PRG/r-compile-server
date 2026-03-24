@@ -1,6 +1,6 @@
 fun main() {
   # after: () --> I { |
   () --> V { |
-    return 42;
+    return <int 42>;
   }
 }

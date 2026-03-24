@@ -1,27 +1,27 @@
 fun main() {
-  () --> V { reg r0:I, reg r1:I, reg r2:I, reg r3:V, reg r4:V, reg r5:p(I -), reg r6:p(I -) |
-    r0 = upcast< * --> I >(1);  # nil
-    r5 = prom<I ->{ return 1; };
-    r1 = upcast< * --> I >(r5);  # nil
-    r6 = prom<I ->{ return 1; };
-    r2 = upcast< * --> I >(r6);  # not nil
-    r3 = downcast< I --> V >(r2);
-    r4 = downcast< I --> V >(r0);
+  () --> V { reg r0:v1(I), reg r1:v1(I), reg r2:v1(I), reg r3:V, reg r4:V, reg r5:p(v1(I) -), reg r6:p(v1(I) -) |
+    r0 = upcast< * --> v1(I) >(<int 1>);  # nil
+    r5 = prom<v1(I) ->{ return <int 1>; };
+    r1 = upcast< * --> v1(I) >(r5);  # nil
+    r6 = prom<v1(I) ->{ return <int 1>; };
+    r2 = upcast< * --> v1(I) >(r6);  # not nil
+    r3 = downcast< v1(I) --> V >(r2);
+    r4 = downcast< v1(I) --> V >(r0);
     return r4;
   }
 }
 
 fun upcast(`...`) {
-  (reg r:*) --> I { reg r0:p(I -), reg r1:I |
-    # crash: Type mismatch in cast: 1 {:I} isn't a(n) p(I -)
-    r0 = r as p(I -);
+  (reg r:*) --> v1(I) { reg r0:p(v1(I) -), reg r1:v1(I) |
+    # crash: Type mismatch in cast: <int 1> {:v1(I)} isn't a(n) p(v1(I) -)
+    r0 = r as p(v1(I) -);
     r1 = force r0;
     return r1;
   }
 }
 
 fun downcast(`...`) {
-  (reg r:I) --> V { reg r0:V |
+  (reg r:v1(I)) --> V { reg r0:V |
     r0 = r as V;
     return r0;
   }

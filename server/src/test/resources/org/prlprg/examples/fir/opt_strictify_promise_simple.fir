@@ -1,11 +1,10 @@
 fun main() {
-  () --> I { reg rx:p(I -), reg ry:I, reg rz:I |
-    rx = prom<I ->{
-      ry = 1;
-      return ry;
+  () --> v1(I) { reg rx:p(v1(I) -), reg rz:v1(I) |
+    rx = prom<v1(I) ->{
+      return <int 1>;
     };
-    # after: rz = force_< I --> I >(ry);
-    rz = force_< p(I -) --> I >(rx);
+    # after: rz = force_< v1(I) --> v1(I) >(<int 1>);
+    rz = force_< p(v1(I) -) --> v1(I) >(rx);
     return rz;
   }
 }
@@ -15,11 +14,11 @@ fun force_(r) {
     r1 = force? r;
     return r1;
   }
-  (reg r:p(I -)) --> I { reg r1:I |
+  (reg r:p(v1(I) -)) --> v1(I) { reg r1:v1(I) |
     r1 = force r;
     return r1;
   }
-  (reg r:I) --> I { |
+  (reg r:v1(I)) --> v1(I) { |
     return r;
   }
 }

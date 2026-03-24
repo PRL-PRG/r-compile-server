@@ -1,22 +1,22 @@
 fun main() {
-  () -+> V { var x:I?, reg rx0:I?, reg rx1:I, reg ry:p(I +), var y:p(I +)?, reg r0:p(I -), reg r1:V |
+  () -+> V { var x:v1(I)?, reg rx0:v1(I)?, reg rx1:v1(I), reg ry:p(v1(I) +), var y:p(v1(I) +)?, reg r0:p(v1(I) -), reg r1:V |
     mkenv;
-    st x = 4;
-    ry = prom<I ->{
+    st x = <int 4>;
+    ry = prom<v1(I) ->{
       rx0 = ld x;
-      rx1 = rx0 as I;
+      rx1 = rx0 as v1(I);
       return rx1;
     };
     st y = ry;
-    r0 = prom<I ->{ return 2; };
-    r1 = f< p(I -) -+> V >(r0);
+    r0 = prom<v1(I) ->{ return <int 2>; };
+    r1 = f< p(v1(I) -) -+> V >(r0);
     popenv;
     return r1;
   }
 }
 
 fun f(r) {
-  (reg r:p(I -)) -+> V { reg r1:V, reg r2:*, reg r3:* |
+  (reg r:p(v1(I) -)) -+> V { reg r1:V, reg r2:*, reg r3:* |
     mkenv;
     r2 = r$x;
     g%< * -+> V >(r2);
@@ -34,10 +34,10 @@ fun g(r) {
     40;
     41;
     popenv;
-    return 42;
+    return <int 42>;
   }
   # Fast case with registers, optimizations
-  (reg r:I) --> I { |
-    return 42;
+  (reg r:v1(I)) --> v1(I) { |
+    return <int 42>;
   }
 }
