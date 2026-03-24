@@ -1,5 +1,7 @@
 package org.prlprg.fir.opt;
 
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
@@ -375,7 +378,11 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       // so it doesn't affect strictness and other guarantees that rely on normal control-flow
       return switch (expression) {
         case Aea _ -> true;
-        case Assume _, Call _ -> false;
+        case Assume _ -> false;
+        case Call(var callee, _) ->
+            callee instanceof StaticFnCallee c
+                && c.exactVersion() != null
+                && isTriviallyPure(c.function());
         // Other instructions may implicitly depend on it succeeding
         case Cast _ -> false;
         case Closure _, Dup _ -> true;
@@ -393,6 +400,13 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         case SubscriptRead _ -> false;
         case SubscriptWrite _ -> false;
       };
+    }
+
+    static ImmutableList<String> TRIVIALLY_PURE_INTRINSICS = ImmutableList.of("box", "unbox");
+
+    boolean isTriviallyPure(Function function) {
+      return function.owner() == INTRINSICS
+          && TRIVIALLY_PURE_INTRINSICS.contains(function.name().name());
     }
   }
 
