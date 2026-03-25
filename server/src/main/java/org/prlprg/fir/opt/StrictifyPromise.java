@@ -23,6 +23,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 
 /// Inlines every promise before each non-dynamic call that can.
@@ -83,7 +84,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
           }
 
           // The callee's corresponding parameter must be strict
-          if (j >= calleeSig.parameterStrictnesses().size()
+          if (j >= calleeSig.parameterStrictnesses().length()
               || !calleeSig.parameterStrictnesses().get(j)) {
             continue;
           }
@@ -128,7 +129,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
                     newArgTypes.stream(),
                     calleeSig.parameterStrictnesses().stream(),
                     (type, strict) -> strict && !type.isValue())
-                .collect(ImmutableList.toImmutableList());
+                .collect(ImmutableBoolArray.toImmutableBoolArray());
         var fn = callee.function();
         var newSig =
             new Signature(

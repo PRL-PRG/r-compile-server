@@ -38,6 +38,7 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DisambiguatorMap;
+import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 
 public final class Abstraction implements Comparable<Abstraction> {
@@ -331,7 +332,9 @@ public final class Abstraction implements Comparable<Abstraction> {
   public Signature signature() {
     return new Signature(
         Arrays.stream(parameters).map(Parameter::type).collect(ImmutableList.toImmutableList()),
-        Arrays.stream(parameters).map(Parameter::strict).collect(ImmutableList.toImmutableList()),
+        Arrays.stream(parameters)
+            .map(Parameter::strict)
+            .collect(ImmutableBoolArray.toImmutableBoolArray()),
         returnType,
         effects);
   }

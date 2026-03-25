@@ -5,24 +5,25 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 import org.prlprg.util.Strings;
 
 public record Signature(
     ImmutableList<Type> parameterTypes,
-    ImmutableList<Boolean> parameterStrictnesses,
+    ImmutableBoolArray parameterStrictnesses,
     Type returnType,
     Effects effects) {
   public Signature(ImmutableList<Type> parameterTypes, Type returnType, Effects effects) {
     this(
         parameterTypes,
-        parameterTypes.stream().map(_ -> false).collect(ImmutableList.toImmutableList()),
+        parameterTypes.stream().map(_ -> false).collect(ImmutableBoolArray.toImmutableBoolArray()),
         returnType,
         effects);
   }
 
   public Signature {
-    if (parameterTypes.size() != parameterStrictnesses.size()) {
+    if (parameterTypes.size() != parameterStrictnesses.length()) {
       throw new IllegalArgumentException(
           "Parameter types and strictnesses must have the same size:\ntypes = "
               + Strings.join(", ", parameterTypes)
@@ -95,7 +96,7 @@ public record Signature(
     var s = p.scanner();
 
     var parameterTypes = ImmutableList.<Type>builder();
-    var parameterStrictnesses = ImmutableList.<Boolean>builder();
+    var parameterStrictnesses = ImmutableBoolArray.builder();
     if (!s.nextCharIs('-')) {
       do {
         parameterTypes.add(p.parse(Type.class));
