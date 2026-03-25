@@ -6,13 +6,12 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.OptimizationUnitTest;
-import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
 class UnboxV1Test implements OptimizationUnitTest {
   @Override
   public Optimization optimization() {
-    return new Specialize("unboxV1", new UnboxV1());
+    return new UnboxV1();
   }
 
   @Test

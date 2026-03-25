@@ -11,6 +11,7 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
@@ -105,12 +106,12 @@ public class Substituter extends AbstractSubstituter {
   }
 
   @Override
-  protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
+  protected @Nullable Register substituteAssignee(CfgPosition pos, @Nullable Register assignee) {
     return assignee != null && locals.containsKey(assignee) ? null : assignee;
   }
 
   @Override
-  protected Argument substitute(BB bb, Argument argument) {
+  protected Argument substitute(CfgPosition pos, Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
       // Preserve `consume`-ness of substituted

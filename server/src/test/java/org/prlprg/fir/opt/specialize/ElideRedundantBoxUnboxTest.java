@@ -8,14 +8,13 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.OptimizationUnitTest;
-import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Paths;
 
 class ElideRedundantBoxUnboxTest implements OptimizationUnitTest {
   @Override
   public Optimization optimization() {
-    return new Specialize(new ElideRedundantBoxUnbox());
+    return new ElideRedundantBoxUnbox();
   }
 
   @Test
