@@ -122,6 +122,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // If it has definitely not been forced, also store the location of all other forces.
       Register dominator = null;
       var hasMaybeBeenForced = false;
+      var isUsedByNonForce = false;
       var otherForcePositions = new ArrayList<CfgPosition>();
       for (var use : analyses.get(DefUses.class).uses(forcedReg)) {
         var use1 = use.inCfg(cfg);
@@ -132,6 +133,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
 
         if (!(use2.instruction() instanceof Statement(_, var useAssignee, var useExpr))
             || !(useExpr instanceof Force)) {
+          isUsedByNonForce = true;
           continue;
         }
 
@@ -164,11 +166,10 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         var comments = bb.statements().get(statementIndex).comments();
         bb.replaceStatementAt(
             statementIndex, new Statement(comments, assignee, new Aea(new Read(dominator))));
-      } else if (!hasMaybeBeenForced) {
-        // This will always evaluate, so:
-        // - Remove promise (it has duplicate register definitions if we keep it)
-        // - Convert all other forces into reads
+      } else if (!hasMaybeBeenForced && !isUsedByNonForce) {
+        // This will always evaluate, and one force dominates all other possible forces, so:
         // - Replace statement with inline
+        // - Convert all other possible forces (i.e. all other forces) into reads
 
         // If there are other forces,
         // we need to ensure this force's result is assigned to a register,
@@ -179,10 +180,6 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
 
         // Remove promise and convert forces into reads before we inline,
         // because the CFG positions are non-local, so they'll be corrupted after insertions.
-
-        // Technically instead of removing the promise, we must replace it, because non-force
-        // instructions may use it. We replace with a promise stub so types are correct.
-        forceDef.inInnermostCfg().replaceWith(new Promise(valueType, effects, new CFG(scope)));
 
         // Now convert forces into reads.
         for (var forcePos : otherForcePositions) {

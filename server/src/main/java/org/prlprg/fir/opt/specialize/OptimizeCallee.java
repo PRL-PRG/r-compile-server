@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
@@ -102,33 +103,36 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
             bestVersion.signature().returnType(),
             bestVersion.signature().effects());
 
-    // Check if there are better versions that can be called with recorded runtime types...
+    // Check if we can dispatch (i.e. returns SEXP),
+    // and there are better versions that can be called with recorded runtime types...
     var isBestAtRuntime =
-        calleeFun.versionsSorted().headSet(bestVersion).stream()
-            .noneMatch(
-                better -> {
-                  var betterSignature = better.signature();
-                  return betterSignature.hasNarrowerParameters(bestSignature)
-                      && Streams.zip(
-                              betterSignature.parameterTypes().stream(),
-                              call.callArguments().stream(),
-                              (parameterType, argument) ->
-                                  switch (argument) {
-                                    case Constant(var constant) ->
-                                        constant.type().isSubtypeOf(parameterType);
-                                    case Read _, Consume _ -> {
-                                      var register = Objects.requireNonNull(argument.variable());
-                                      yield feedback
-                                          .type(register)
-                                          .streamHits(threshold, parameterType)
-                                          .findAny()
-                                          .isPresent();
-                                    }
-                                  })
-                          .allMatch(b -> b);
-                });
+        newBestSignature.returnType().kind().repr() != Repr.SEXP
+            || calleeFun.versionsSorted().headSet(bestVersion).stream()
+                .noneMatch(
+                    better -> {
+                      var betterSignature = better.signature();
+                      return betterSignature.hasNarrowerParameters(bestSignature)
+                          && Streams.zip(
+                                  betterSignature.parameterTypes().stream(),
+                                  call.callArguments().stream(),
+                                  (parameterType, argument) ->
+                                      switch (argument) {
+                                        case Constant(var constant) ->
+                                            constant.type().isSubtypeOf(parameterType);
+                                        case Read _, Consume _ -> {
+                                          var register =
+                                              Objects.requireNonNull(argument.variable());
+                                          yield feedback
+                                              .type(register)
+                                              .streamHits(threshold, parameterType)
+                                              .findAny()
+                                              .isPresent();
+                                        }
+                                      })
+                              .allMatch(b -> b);
+                    });
 
-    // ...if so (`!isBestAtRuntime`), use dynamic dispatch
+    // ...if so (`!isBestAtRuntime`), dispatch
     return new StaticFnCallee(!isBestAtRuntime, calleeFun, newBestSignature);
   }
 

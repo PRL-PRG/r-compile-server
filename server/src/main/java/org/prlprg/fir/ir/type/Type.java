@@ -163,7 +163,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
   }
 
   /// `true` iff every type that matches `this` matches `other`.
-  boolean allMatchesMatch(Type other) {
+  public boolean allMatchesMatch(Type other) {
     if (ownership == Ownership.FRESH) {
       warn("Parameters can't be fresh: " + this);
     }
@@ -198,7 +198,7 @@ public record Type(Kind kind, Promisity promisity, Ownership ownership, Concrete
   }
 
   /// `true` iff every type that `this` can be assigned to, `other` can be assigned to.
-  boolean canBeAssignedToAll(Type other) {
+  public boolean canBeAssignedToAll(Type other) {
     if (ownership == Ownership.OWNED || ownership == Ownership.BORROWED) {
       warn("Owned and borrowed can't be assigned to anything: " + this);
     }
