@@ -24,8 +24,8 @@ fun box(r) {
   (reg r:S) --> v1(S) { ... }
 }
 fun unbox(r) {
-  (reg r:v1(L)) --> L { ... }
-  (reg r:v1(I)) --> I { ... }
-  (reg r:v1(R)) --> R { ... }
-  (reg r:v1(S)) --> S { ... }
+  (reg r:v1(L)b) --> L { ... }
+  (reg r:v1(I)b) --> I { ... }
+  (reg r:v1(R)b) --> R { ... }
+  (reg r:v1(S)b) --> S { ... }
 }

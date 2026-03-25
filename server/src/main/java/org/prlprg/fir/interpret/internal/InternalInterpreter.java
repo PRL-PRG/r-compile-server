@@ -100,6 +100,7 @@ import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.VecSXP;
+import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 import org.prlprg.util.Strings;
@@ -1272,7 +1273,7 @@ public final class InternalInterpreter implements Interpreter {
     var numParameters = arguments.size();
 
     var argumentTypes = ImmutableList.<Type>builderWithExpectedSize(numParameters);
-    var parameterStrictnesses = ImmutableList.<Boolean>builderWithExpectedSize(numParameters);
+    var parameterStrictnesses = ImmutableBoolArray.builder(numParameters);
     for (var i = 0; i < numParameters; i++) {
       var parameterType = explicit.parameterTypes().get(i);
       var parameterStrictness = explicit.parameterStrictnesses().get(i);

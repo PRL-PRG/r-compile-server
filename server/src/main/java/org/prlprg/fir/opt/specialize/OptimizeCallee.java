@@ -21,6 +21,7 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 
 /// Optimization pass that replaces every dispatch and static callee with a better one.
@@ -97,7 +98,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                     argumentTypes1.stream(),
                     bestVersion.signature().parameterStrictnesses().stream(),
                     (type, strict) -> strict && !type.isValue())
-                .collect(ImmutableList.toImmutableList()),
+                .collect(ImmutableBoolArray.toImmutableBoolArray()),
             bestVersion.signature().returnType(),
             bestVersion.signature().effects());
 
