@@ -419,29 +419,29 @@ static INLINE SEXP VAL_SXP(Value v) {
 #define SET_INT_VAL(target, value)                                             \
   do {                                                                         \
     Value *__node__ = (target);                                                \
-    __node__->tag = INTSXP;                                                    \
     __node__->u.ival = (value);                                                \
+    __node__->tag = INTSXP;                                                    \
   } while (0);
 
 #define SET_DBL_VAL(target, value)                                             \
   do {                                                                         \
     Value *__node__ = (target);                                                \
-    __node__->tag = REALSXP;                                                   \
     __node__->u.dval = (value);                                                \
+    __node__->tag = REALSXP;                                                   \
   } while (0);
 
 #define SET_LGL_VAL(target, value)                                             \
   do {                                                                         \
     Value *__node__ = (target);                                                \
-    __node__->tag = LGLSXP;                                                    \
     __node__->u.ival = (value);                                                \
+    __node__->tag = LGLSXP;                                                    \
   } while (0);
 
 #define SET_SXP_VAL(target, value)                                             \
   do {                                                                         \
     Value *__node__ = (target);                                                \
-    __node__->tag = 0;                                                         \
     __node__->u.sxpval = (value);                                              \
+    __node__->tag = 0;                                                         \
   } while (0);
 
 #define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
@@ -456,16 +456,20 @@ static INLINE SEXP VAL_SXP(Value v) {
       assert(XLENGTH(__v__) == 1);                                             \
       switch (TYPEOF(__v__)) {                                                 \
       case REALSXP:                                                            \
-        SET_DBL_VAL(__n__, REAL(__v__)[0]);                                    \
+        __n__->u.dval = REAL(__v__)[0];                                        \
+        __n__->tag = TYPEOF(__v__);                                            \
         break;                                                                 \
       case INTSXP:                                                             \
-        SET_INT_VAL(__n__, INTEGER(__v__)[0]);                                 \
+        __n__->u.ival = INTEGER(__v__)[0];                                     \
+        __n__->tag = TYPEOF(__v__);                                            \
         break;                                                                 \
       case LGLSXP:                                                             \
-        SET_LGL_VAL(__n__, INTEGER(__v__)[0]);                                 \
+        __n__->u.ival = LOGICAL(__v__)[0];                                     \
+        __n__->tag = TYPEOF(__v__);                                            \
         break;                                                                 \
       default:                                                                 \
         SET_SXP_VAL(__n__, __v__);                                             \
+        break;                                                                 \
       }                                                                        \
     } else {                                                                   \
       SET_SXP_VAL(__n__, __v__);                                               \
