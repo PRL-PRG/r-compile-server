@@ -80,7 +80,8 @@ public class UnboxV1 implements AbstractionOptimization {
           var newCallExpr =
               new Call(
                   new StaticFnCallee(
-                      callee.isDispatch(),
+                      // Can't dispatch if the return isn't `SEXP`
+                      callee.isDispatch() && !specialization.returnUnboxing(),
                       callee.function(),
                       specialization.rewriteSignature(callee.signature())),
                   ImmutableList.copyOf(newArgs));
@@ -130,28 +131,28 @@ public class UnboxV1 implements AbstractionOptimization {
       specializationFinder.markUnboxableReturn();
     }
 
-    // Get the best signature i.e. the one with the most unboxings
-    var bestSignature = specializationFinder.bestSignature();
-
-    // If we already have this, we can't specialize further
-    if (specializationFinder.bestSignature().equals(callee.signature())) return null;
+    // Abort if we can't specialize further
+    var bestSpecialization = specializationFinder.bestSpecialization();
+    if (bestSpecialization == null) return null;
 
     // First, see if we have an existing specialized version
     var exactVersion =
         function.versionsSorted().stream()
-            .filter(v -> v.signature().equals(bestSignature))
+            .filter(
+                v ->
+                    bestSpecialization.equals(
+                        specializationFinder.specializationFor(v.signature())))
             .findFirst();
     if (exactVersion.isPresent()) {
-      return specializationFinder.bestSpecialization();
+      return bestSpecialization;
     }
 
     // Otherwise, see if we can specialize the current version
     // (If so, we can always fully specialize)
     var currentVersion = callee.minVersion();
     if (currentVersion != null && !currentVersion.isStub()) {
-      var specialization = specializationFinder.bestSpecialization();
-      createUnboxedVersion(feedback, function, currentVersion, specialization);
-      return specialization;
+      createUnboxedVersion(feedback, function, currentVersion, bestSpecialization);
+      return bestSpecialization;
     }
 
     // Lastly, see if we can use an existing version that is not maximally specialized
@@ -196,38 +197,47 @@ public class UnboxV1 implements AbstractionOptimization {
       unboxableReturn = true;
     }
 
-    Signature bestSignature() {
-      return bestSpecialization().rewriteSignature(original);
-    }
+    @Nullable Specialization bestSpecialization() {
+      // Empty specialization = no specialization
+      var hasParameterUnboxing = false;
+      for (var unboxableParameter : unboxableParameters) {
+        hasParameterUnboxing |= unboxableParameter;
+      }
+      if (!hasParameterUnboxing && !unboxableReturn) return null;
 
-    Specialization bestSpecialization() {
       return new Specialization(ImmutableBoolArray.copyOf(unboxableParameters), unboxableReturn);
     }
 
     /// The parameter and return unboxings that convert the original signature into `other`
     @Nullable Specialization specializationFor(Signature other) {
       if (original.parameterTypes().size() != other.parameterTypes().size()) return null;
-      if (!original.parameterStrictnesses().equals(other.parameterStrictnesses())) return null;
-      if (!original.effects().equals(other.effects())) return null;
+      if (!other.hasNarrowerStrictnesses(original)) return null;
+      if (!other.effects().isSubsetOf(original.effects())) return null;
 
+      var hasParameterUnboxing = false;
       var parameterUnboxings = new boolean[original.parameterTypes().size()];
       var returnUnboxing = false;
 
       for (int i = 0; i < original.parameterTypes().size(); i++) {
         var originalParameter = original.parameterTypes().get(i);
         var otherParameter = other.parameterTypes().get(i);
-        if (unboxableParameters[i] && unboxed(originalParameter).equals(otherParameter)) {
+        if (unboxableParameters[i] && unboxed(originalParameter).allMatchesMatch(otherParameter)) {
+          hasParameterUnboxing = true;
           parameterUnboxings[i] = true;
-        } else if (!originalParameter.equals(otherParameter)) {
+        } else if (!originalParameter.allMatchesMatch(otherParameter)) {
           return null;
         }
       }
 
-      if (unboxableReturn && unboxed(original.returnType()).equals(other.returnType())) {
+      if (unboxableReturn
+          && other.returnType().canBeAssignedToAll(unboxed(original.returnType()))) {
         returnUnboxing = true;
-      } else if (!original.returnType().equals(other.returnType())) {
+      } else if (!other.returnType().canBeAssignedToAll(original.returnType())) {
         return null;
       }
+
+      // Empty specialization = no specialization
+      if (!hasParameterUnboxing && !returnUnboxing) return null;
 
       return new Specialization(ImmutableBoolArray.copyOf(parameterUnboxings), returnUnboxing);
     }

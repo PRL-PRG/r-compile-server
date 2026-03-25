@@ -633,6 +633,7 @@ public final class Fir2CCompiler {
 
         return new CfgEmitter(
                 Objects.requireNonNull(version.cfg()),
+                version.returnType(),
                 constantsCName,
                 initCFunction,
                 cFunction,
@@ -676,7 +677,13 @@ public final class Fir2CCompiler {
 
           beginEmitEval();
 
-          return new CfgEmitter(promise.code(), constantsCName, initCFunction, evalCFunction, pool)
+          return new CfgEmitter(
+                  promise.code(),
+                  promise.valueType(),
+                  constantsCName,
+                  initCFunction,
+                  evalCFunction,
+                  pool)
               .run();
         }
 
@@ -724,6 +731,7 @@ public final class Fir2CCompiler {
       private final class CfgEmitter {
         // Input
         private final CFG cfg;
+        private final Type returnType;
 
         // Output
         private final String constantsCName;
@@ -738,11 +746,13 @@ public final class Fir2CCompiler {
 
         CfgEmitter(
             CFG cfg,
+            Type returnType,
             String constantsCName,
             CFunction initCFunction,
             CFunction cFunction,
             ConstantPool pool) {
           this.cfg = cfg;
+          this.returnType = returnType;
           this.constantsCName = constantsCName;
           this.initCFunction = initCFunction;
           this.cFunction = cFunction;
@@ -1072,7 +1082,12 @@ public final class Fir2CCompiler {
                 if (isDispatch) {
                   if (calleeModule == BUILTINS) {
                     throw new IllegalArgumentException(
-                        "Currently, builtin dispatch calls can only be compiled if the signature is compatible with the baseline (so we can, and do, call the GNU-R builtin): "
+                        "Builtin dispatch calls can only be compiled if the signature is compatible with the baseline (so we can, and do, call the GNU-R builtin): "
+                            + call);
+                  }
+                  if (signature.returnType().kind().repr() != Repr.SEXP) {
+                    throw new IllegalArgumentException(
+                        "Dispatch calls must always return `SEXP`, because the C definition does.\nEncountered: "
                             + call);
                   }
 
@@ -1177,7 +1192,7 @@ public final class Fir2CCompiler {
               case Goto(_, var target) -> emitJumpTo(1, target);
               case Unreachable(_) -> {
                 cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
-                cCode.stmt("return %s;", reprDefaultValue(version.returnType().kind().repr()));
+                cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
               }
               case If(_, var condition, var ifTrue, var ifFalse) -> {
                 cCode.stmt("if (%s) {", emitArgument(condition));
@@ -1200,7 +1215,7 @@ public final class Fir2CCompiler {
                 cCode.stmt(
                     "Fir_deopt(%d, %d, %s, %s);",
                     pc, stackArgs.size(), stackArgs.pointer(), VAR_ENV);
-                cCode.stmt("return %s;", reprDefaultValue(version.returnType().kind().repr()));
+                cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
               }
             }
           }
@@ -1612,9 +1627,11 @@ public final class Fir2CCompiler {
     if (promisity.isPromise()) {
       sb.append("prom_");
       emitEffectsCName(sb, promisity.effects());
+      sb.append('_');
     } else if (promisity.isMaybe()) {
       sb.append("mayprom_");
       emitEffectsCName(sb, promisity.effects());
+      sb.append('_');
     }
   }
 
@@ -1647,9 +1664,9 @@ public final class Fir2CCompiler {
 
   private static void emitOwnershipCName(StringBuilder sb, Ownership ownership) {
     switch (ownership) {
-      case FRESH -> sb.append("fresh");
-      case OWNED -> sb.append("owned");
-      case BORROWED -> sb.append("borrowed");
+      case FRESH -> sb.append("_fresh");
+      case OWNED -> sb.append("_owned");
+      case BORROWED -> sb.append("_borrowed");
       case SHARED -> {}
     }
   }
@@ -1657,7 +1674,7 @@ public final class Fir2CCompiler {
   private static void emitConcretenessCName(StringBuilder sb, Concreteness concreteness) {
     switch (concreteness) {
       case DEFINITE -> {}
-      case MAYBE -> sb.append("maybe");
+      case MAYBE -> sb.append("_maybe");
     }
   }
 

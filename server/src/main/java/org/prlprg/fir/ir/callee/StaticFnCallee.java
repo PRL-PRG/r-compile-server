@@ -25,7 +25,7 @@ public record StaticFnCallee(boolean isDispatch, FunctionRef functionRef, Signat
 
   /// The exact version that will be dispatched. `null` if dynamic or none exist
   public @Nullable Abstraction exactVersion() {
-    return isDispatch ? null : function().guess(signature);
+    return isDispatch ? null : minVersion();
   }
 
   @Override

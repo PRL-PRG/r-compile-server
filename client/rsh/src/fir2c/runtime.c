@@ -1152,19 +1152,19 @@ DEFINE_INTRINSIC(SEXP, box, scalar_string_fx_none_ret_vec1_string, char* value) 
 }
 
 // === unbox ===
-DEFINE_INTRINSIC(Rboolean, unbox, vec1_logical_fx_none_ret_scalar_logical, SEXP value) {
+DEFINE_INTRINSIC(Rboolean, unbox, vec1_logical_borrowed_fx_none_ret_scalar_logical, SEXP value) {
   return LOGICAL(value)[0];
 }
 
-DEFINE_INTRINSIC(int, unbox, vec1_int_fx_none_ret_scalar_int, SEXP value) {
+DEFINE_INTRINSIC(int, unbox, vec1_int_borrowed_fx_none_ret_scalar_int, SEXP value) {
   return INTEGER(value)[0];
 }
 
-DEFINE_INTRINSIC(double, unbox, vec1_real_fx_none_ret_scalar_real, SEXP value) {
+DEFINE_INTRINSIC(double, unbox, vec1_real_borrowed_fx_none_ret_scalar_real, SEXP value) {
   return REAL(value)[0];
 }
 
-DEFINE_INTRINSIC(char*, unbox, vec1_string_fx_none_ret_scalar_string, SEXP value) {
+DEFINE_INTRINSIC(char*, unbox, vec1_string_borrowed_fx_none_ret_scalar_string, SEXP value) {
   return value == NA_STRING ? NULL : (char*)CHAR(STRING_ELT(value, 0));
 }
 
@@ -1418,7 +1418,13 @@ DEFINE_OVERRIDDEN_BUILTIN(Rboolean, as_u2elogical, value_missing_fx_none_ret_sca
 }
 // V,miss→B
 DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, value_missing_fx_none_ret_bool, SEXP value, SEXP missing) {
+  // TODO: error on NA
   return Rf_asLogical(value);
+}
+// L,miss→B
+DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, scalar_logical_missing_fx_none_ret_bool, Rboolean value, SEXP missing) {
+  // TODO: error on NA
+  return (bool) value;
 }
 
 // as.character

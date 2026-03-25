@@ -663,6 +663,7 @@ fun `as.logical`(x, `...`) {
   (reg x:V, reg ddd:miss) --> v1(L) { ... }
   (reg x:V, reg ddd:miss) --> L { ... }
   (reg x:V, reg ddd:miss) --> B { ... }
+  (reg x:L, reg ddd:miss) --> B { ... }
 }
 
 fun `as.character`(x, `...`) {

@@ -1,25 +1,29 @@
 package org.prlprg.fir.opt;
 
+import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
 import static org.prlprg.fir.ir.cfg.cursor.CFGInliner.inline;
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.DefUses;
-import org.prlprg.fir.analyze.type.InferEffects;
-import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.binding.Local;
+import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
@@ -33,8 +37,8 @@ import org.prlprg.util.Streams;
 /// - Singly-used
 /// - Passed to a strict parameter
 ///
-/// Affected calls are replaced with dispatch calls, since the argument types (and therefore
-/// signature) changes.
+/// Furthermore, only inlines if there's a compatible version with the new signature, or one can
+/// be created from the old version (in which case creates it)
 public record StrictifyPromise() implements AbstractionOptimization {
   private record Inlineable(
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
@@ -46,30 +50,26 @@ public record StrictifyPromise() implements AbstractionOptimization {
     }
 
     var changed = false;
-    var inferType = new InferType(scope);
-    var inferEffects = new InferEffects(scope);
     var defUses = new DefUses(scope);
 
     // Iterate in reverse so inlines don't affect iteration.
     for (var bb : bbReverseDfsNoDeopts(scope.cfg())) {
       for (int callIdx = bb.statements().size() - 1; callIdx >= 0; callIdx--) {
         var stmt = bb.statements().get(callIdx);
-        if (!(stmt.expression() instanceof Call call
-            && call.callee() instanceof StaticFnCallee callee)) {
+        if (!(stmt.expression() instanceof Call(StaticFnCallee callee, var callArguments))) {
           continue;
         }
 
-        // Only apply to non-reflectful callees
+        var calleeFun = callee.function();
+        var calleeIsDispatch = callee.isDispatch();
         var calleeSig = callee.signature();
-        var callType = inferType.of(call);
-        var callEffects = inferEffects.of(call);
+        var parameterStrictnesses = calleeSig.parameterStrictnesses();
 
         // Find inlinable promise arguments
-        var args = call.callArguments();
         var inlineables = new ArrayList<Inlineable>();
 
-        for (int j = 0; j < args.size(); j++) {
-          if (!(args.get(j) instanceof Read(var reg))) {
+        for (int j = 0; j < callArguments.size(); j++) {
+          if (!(callArguments.get(j) instanceof Read(var reg))) {
             continue;
           }
 
@@ -84,8 +84,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
           }
 
           // The callee's corresponding parameter must be strict
-          if (j >= calleeSig.parameterStrictnesses().length()
-              || !calleeSig.parameterStrictnesses().get(j)) {
+          if (j >= parameterStrictnesses.length() || !parameterStrictnesses.get(j)) {
             continue;
           }
 
@@ -117,7 +116,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
 
         // Compute new callee
         var newArgTypes =
-            args.stream()
+            callArguments.stream()
                 .map(
                     arg -> {
                       var t = scope.typeOf(arg);
@@ -127,22 +126,57 @@ public record StrictifyPromise() implements AbstractionOptimization {
         var newStrictnesses =
             Streams.zip(
                     newArgTypes.stream(),
-                    calleeSig.parameterStrictnesses().stream(),
+                    parameterStrictnesses.stream(),
                     (type, strict) -> strict && !type.isValue())
                 .collect(ImmutableBoolArray.toImmutableBoolArray());
-        var fn = callee.function();
         var newSig =
             new Signature(
-                newArgTypes,
-                newStrictnesses,
-                callType == null ? Type.ANY_VALUE_SEXP : callType,
-                callEffects);
-        var newCallee = new StaticFnCallee(true, fn, newSig);
+                newArgTypes, newStrictnesses, calleeSig.returnType(), calleeSig.effects());
+
+        // Check if there's a compatible version
+        if (!calleeIsDispatch && calleeFun.guess(newSig) == null) {
+          // Check if we can create one
+          var oldVersion = callee.exactVersion();
+          if (oldVersion == null || oldVersion.isStub()) {
+            // Nope, so we can't inline
+            continue;
+          }
+
+          // Create a compatible version:
+          // takes value parameters, rewraps them in promises, then runs the old version
+
+          var oldParams = oldVersion.parameters();
+          var newParams = new ArrayList<>(oldParams);
+          for (var inlineable : inlineables) {
+            var oldParamReg = oldParams.get(inlineable.argIndex).variable();
+            var newParamReg = oldVersion.resemblance(oldParamReg.name());
+
+            newParams.set(
+                inlineable.argIndex, new Parameter(newParamReg, inlineable.valueType, false));
+          }
+
+          var newVersion = copy2(feedback.module(), calleeFun, oldVersion, newParams);
+
+          var newEntry = Objects.requireNonNull(newVersion.cfg()).entry();
+          for (var i = 0; i < inlineables.size(); i++) {
+            var inlineable = inlineables.get(i);
+            var oldParamReg = oldParams.get(inlineable.argIndex).variable();
+            var newParamReg = newParams.get(inlineable.argIndex).variable();
+
+            var promWrapper = new Promise(inlineable.valueType, Effects.NONE, new CFG(newVersion));
+            promWrapper.code().entry().setJump(new Return(new Read(newParamReg)));
+
+            newVersion.addLocal(
+                new Local(oldParamReg, Type.promise(inlineable.valueType, Effects.NONE)));
+            newEntry.insertStatement(i, new Statement(oldParamReg, promWrapper));
+          }
+        }
 
         // Replace statement with new call.
         // The promise registers themselves are replaced with the inlined return values,
         // so call arguments remain unchanged
-        var newCall = new Call(newCallee, args);
+        var newCallee = new StaticFnCallee(calleeIsDispatch, calleeFun, newSig);
+        var newCall = new Call(newCallee, callArguments);
         var newStmt = stmt.withExpression(newCall);
         bb.replaceStatementAt(callIdx, newStmt);
 

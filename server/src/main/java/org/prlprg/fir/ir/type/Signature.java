@@ -51,6 +51,13 @@ public record Signature(
 
   /// Whether `this`'s strictnesses, effects and return are a subset/subtype of `other`'s.
   public boolean hasNarrowerPostconditions(Signature other) {
+    return hasNarrowerStrictnesses(other)
+        && effects.isSubsetOf(other.effects)
+        && returnType.canBeAssignedToAll(other.returnType);
+  }
+
+  /// Whether `this`'s strictnesses are a subset/subtype of `other`'s.
+  public boolean hasNarrowerStrictnesses(Signature other) {
     var numParams = Math.min(parameterTypes.size(), other.parameterTypes.size());
     for (var i = 0; i < numParams; i++) {
       if (!parameterStrictnesses.get(i)
@@ -60,7 +67,7 @@ public record Signature(
       }
     }
 
-    return effects.isSubsetOf(other.effects) && returnType.canBeAssignedToAll(other.returnType);
+    return true;
   }
 
   @Override
