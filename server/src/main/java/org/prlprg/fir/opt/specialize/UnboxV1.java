@@ -7,6 +7,7 @@ import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Streams;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
@@ -290,7 +291,7 @@ public class UnboxV1 implements AbstractionOptimization {
     var oldReturnType = newVersion.returnType();
     var newReturnType = unboxed(oldReturnType);
     newVersion.setReturnType(newReturnType);
-    for (var newExit : newCfg.exits()) {
+    for (var newExit : List.copyOf(newCfg.exits())) {
       if (!(newExit.jump() instanceof Return(var comments, var value))) continue;
 
       var unboxedReg =
