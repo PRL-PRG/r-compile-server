@@ -1,6 +1,7 @@
 package org.prlprg.fir.opt.specialize;
 
-import static org.prlprg.fir.GlobalModules.INTRINSICS;
+import static org.prlprg.fir.GlobalModules.BOX_FUN;
+import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
 
 import com.google.common.collect.ImmutableList;
@@ -9,9 +10,6 @@ import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.analyze.Analyses;
-import org.prlprg.fir.analyze.AnalysisTypes;
-import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -21,7 +19,6 @@ import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -32,7 +29,7 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.fir.opt.AbstractionOptimization;
 import org.prlprg.util.ImmutableBoolArray;
 
 /// Optimization that unboxes `v1(X)` arguments and return values in calls where a scalar `X`
@@ -51,49 +48,59 @@ import org.prlprg.util.ImmutableBoolArray;
 ///   `r = box<X --> v1(X)>(r1)` after the call.
 /// - Compatible scalar-return versions can be created from non-stub versions, by copying,
 ///   changing the return type to unboxed, and unboxing the returned value before every return.
-public class UnboxV1 implements SpecializeOptimization {
+public class UnboxV1 implements AbstractionOptimization {
   @Override
-  public AnalysisTypes analyses() {
-    return new AnalysisTypes(InferType.class);
-  }
+  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+    var changed = false;
 
-  @Override
-  public Expression run(
-      BB bb,
-      int index,
-      @Nullable Register assignee,
-      Expression expression,
-      Abstraction scope,
-      AbstractionFeedback feedback,
-      Analyses analyses,
-      NonLocalSpecializations nonLocal,
-      DeferredInsertions defer) {
-    if (!(expression instanceof Call(StaticFnCallee callee, var callArguments))) {
-      return expression;
+    var cfgs = abstraction.streamCfgs().toList();
+    for (var cfg : cfgs) {
+      for (var bb : cfg.bbs()) {
+        for (var i = 0; i < bb.statements().size(); i++) {
+          var stmt = bb.statements().get(i);
+          var assignee = stmt.assignee();
+
+          if (!(stmt.expression() instanceof Call(StaticFnCallee callee, var callArguments))) {
+            continue;
+          }
+
+          var specialization = planSpecialization(abstraction, feedback, callee, callArguments);
+          if (specialization == null) continue;
+
+          // Insert unbox instructions before the call
+          var newArgs = new ArrayList<>(callArguments);
+          for (var j = 0; j < callArguments.size(); j++) {
+            if (!specialization.parameterUnboxings().get(j)) continue;
+            var unboxedReg = insertUnbox(callArguments.get(j), abstraction, bb, i++);
+            newArgs.set(j, new Read(unboxedReg));
+          }
+
+          // Replace the call (at shifted position)
+          var newCallExpr =
+              new Call(
+                  new StaticFnCallee(
+                      callee.isDispatch(),
+                      callee.function(),
+                      specialization.rewriteSignature(callee.signature())),
+                  ImmutableList.copyOf(newArgs));
+
+          if (assignee != null && specialization.returnUnboxing()) {
+            // Change assignee to a new scalar register, insert box after
+            var calleeReturnType = callee.signature().returnType();
+            var scalar = abstraction.addLocal(assignee.name(), unboxed(calleeReturnType));
+            bb.replaceStatementAt(i++, new Statement(scalar, newCallExpr));
+            bb.insertStatement(
+                i, new Statement(assignee, boxCall(new Read(scalar), calleeReturnType)));
+          } else {
+            bb.replaceStatementAt(i, new Statement(stmt.comments(), assignee, newCallExpr));
+          }
+
+          changed = true;
+        }
+      }
     }
 
-    var function = callee.function();
-    var calleeSignature = callee.signature();
-    var specialization = planSpecialization(scope, feedback, callee, callArguments);
-    if (specialization == null) return expression;
-
-    var newArgs = new ArrayList<>(callArguments);
-    int deferredUnboxCount = 0;
-    for (var i = 0; i < callArguments.size(); i++) {
-      if (!specialization.parameterUnboxings().get(i)) continue;
-      var unboxedReg = addUnbox(callArguments.get(i), scope, bb, index, deferredUnboxCount, defer);
-      deferredUnboxCount++;
-      newArgs.set(i, new Read(unboxedReg));
-    }
-
-    if (assignee != null && specialization.returnUnboxing()) {
-      addBox(assignee, scope, bb, index, deferredUnboxCount, defer);
-    }
-
-    return new Call(
-        new StaticFnCallee(
-            callee.isDispatch(), function, specialization.rewriteSignature(calleeSignature)),
-        ImmutableList.copyOf(newArgs));
+    return changed;
   }
 
   private @Nullable Specialization planSpecialization(
@@ -115,7 +122,7 @@ public class UnboxV1 implements SpecializeOptimization {
         specializationFinder.markUnboxableParameter(i);
       }
     }
-    if (canUnbox(scope.returnType())) {
+    if (canUnbox(callee.signature().returnType())) {
       specializationFinder.markUnboxableReturn();
     }
 
@@ -263,7 +270,6 @@ public class UnboxV1 implements SpecializeOptimization {
     var j = 0;
     for (var i = 0; i < numParams; i++) {
       if (!specialization.parameterUnboxings().get(i)) continue;
-      j++;
 
       var oldParam = oldParams.get(i);
       newVersion.addLocal(new Local(oldParam.variable(), oldParam.type()));
@@ -271,6 +277,7 @@ public class UnboxV1 implements SpecializeOptimization {
           j,
           new Statement(
               oldParam.variable(), boxCall(new Read(oldParam.variable()), oldParam.type())));
+      j++;
     }
 
     // Add return unbox
@@ -291,77 +298,27 @@ public class UnboxV1 implements SpecializeOptimization {
     }
   }
 
-  /// Insert `unbox<v1(X) --> X>(original)` before the call (at `index`)
-  private Register addUnbox(
-      Argument original,
-      Abstraction scope,
-      BB bb,
-      int index,
-      int deferredUnboxCount,
-      DeferredInsertions defer) {
+  /// Insert `unbox<v1(X) --> X>(original)` at `insertIndex` in `bb`.
+  private Register insertUnbox(Argument original, Abstraction scope, BB bb, int insertIndex) {
     var argumentType = scope.typeOf(original);
     assert argumentType != null && canUnbox(argumentType);
-    var unboxedType = unboxed(argumentType);
     var unboxedReg =
         scope.addLocal(
             original.variable() == null ? Register.DEFAULT_NAME : original.variable().name(),
-            unboxedType);
+            unboxed(argumentType));
 
-    var unboxFun = INTRINSICS.localFunction(Variable.named("unbox"));
-    assert unboxFun != null : "intrinsic 'unbox' not found";
-    var unboxSig = new Signature(ImmutableList.of(argumentType), unboxedType, Effects.NONE);
-    var unboxCall =
-        new Call(new StaticFnCallee(false, unboxFun, unboxSig), ImmutableList.of(original));
-
-    defer.stage(
-        () -> bb.insertStatement(index + deferredUnboxCount, new Statement(unboxedReg, unboxCall)));
-
+    bb.insertStatement(insertIndex, new Statement(unboxedReg, unboxCall(original, argumentType)));
     return unboxedReg;
   }
 
-  /// Insert `original = box<X --> v1(X)>(r1)` after the call, changing the call's assignee to
-  /// `r1`
-  ///
-  /// This requires `deferredUnboxCount` because the call (and thus box insertion) may be
-  /// shifted by preceding unbox insertions
-  private void addBox(
-      Register original,
-      Abstraction scope,
-      BB bb,
-      int index,
-      int deferredUnboxCount,
-      DeferredInsertions defer) {
-    var originalType = scope.typeOf(original);
-    assert originalType != null && canUnbox(originalType);
-
-    var scalar = scope.addLocal(original.name(), unboxed(originalType));
-
-    defer.stage(
-        () -> {
-          // Replace: assignee becomes the scalar register
-          // TODO: Combine this replacing the call, when converting into an
-          // `AbstractionOptimization`
-          int callPos = index + deferredUnboxCount;
-          var oldStmt = bb.statements().get(callPos);
-          bb.replaceStatementAt(callPos, new Statement(scalar, oldStmt.expression()));
-
-          // Insert box after: original = box<X --> v1(X)>(scalar)
-          bb.insertStatement(
-              callPos + 1, new Statement(original, boxCall(new Read(scalar), originalType)));
-        });
-  }
-
   private static Call boxCall(Argument scalarArgument, Type boxedType) {
-    var boxFun = INTRINSICS.localFunction(Variable.named("box"));
-    assert boxFun != null : "intrinsic 'box' not found";
     var boxSig = new Signature(ImmutableList.of(unboxed(boxedType)), boxedType, Effects.NONE);
-    return new Call(new StaticFnCallee(false, boxFun, boxSig), ImmutableList.of(scalarArgument));
+    return new Call(new StaticFnCallee(false, BOX_FUN, boxSig), ImmutableList.of(scalarArgument));
   }
 
   private static Call unboxCall(Argument boxedArgument, Type boxedType) {
-    var unboxFun = INTRINSICS.localFunction(Variable.named("unbox"));
-    assert unboxFun != null : "intrinsic 'unbox' not found";
     var unboxSig = new Signature(ImmutableList.of(boxedType), unboxed(boxedType), Effects.NONE);
-    return new Call(new StaticFnCallee(false, unboxFun, unboxSig), ImmutableList.of(boxedArgument));
+    return new Call(
+        new StaticFnCallee(false, UNBOX_FUN, unboxSig), ImmutableList.of(boxedArgument));
   }
 }

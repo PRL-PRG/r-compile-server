@@ -13,6 +13,7 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -36,10 +37,14 @@ public class DomineeSubstituter extends AbstractSubstituter {
     this.domTree = domTree;
   }
 
-  public void stage(Register local, Argument substitution, BB dominator) {
-    if (!domSubsts.put(local, new DomSubst(dominator, substitution))) {
+  public void stage(Register local, Argument substitution, BB bb) {
+    stage(local, substitution, new CfgPosition(bb, -1));
+  }
+
+  public void stage(Register local, Argument substitution, CfgPosition pos) {
+    if (!domSubsts.put(local, new DomSubst(pos, substitution))) {
       throw new IllegalArgumentException(
-          "Local " + local + " has already been marked for substitution in dominator " + dominator);
+          "Local " + local + " has already been marked for substitution at " + pos);
     }
     super.stage(local, substitution);
   }
@@ -70,7 +75,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
 
   @Override
   protected Register substitutePhi(BB bb, Register phi) {
-    var subst = domSubst(bb, phi);
+    var subst = domSubst(new CfgPosition(bb, -1), phi);
     if (subst == null) {
       return phi;
     }
@@ -82,8 +87,8 @@ public class DomineeSubstituter extends AbstractSubstituter {
   }
 
   @Override
-  protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
-    var subst = domSubst(bb, assignee);
+  protected @Nullable Register substituteAssignee(CfgPosition pos, @Nullable Register assignee) {
+    var subst = domSubst(pos, assignee);
     if (subst == null) {
       return assignee;
     }
@@ -92,8 +97,8 @@ public class DomineeSubstituter extends AbstractSubstituter {
   }
 
   @Override
-  protected Argument substitute(BB bb, Argument argument) {
-    var subst = domSubst(bb, argument.variable());
+  protected Argument substitute(CfgPosition pos, Argument argument) {
+    var subst = domSubst(pos, argument.variable());
     if (subst == null) {
       return argument;
     }
@@ -105,11 +110,11 @@ public class DomineeSubstituter extends AbstractSubstituter {
     };
   }
 
-  private @Nullable Argument domSubst(BB bb, @Nullable Register local) {
+  private @Nullable Argument domSubst(CfgPosition pos, @Nullable Register local) {
     return local == null
         ? null
         : domSubsts.get(local).stream()
-            .filter(ds -> domTree.dominates(ds.dominator, bb))
+            .filter(ds -> domTree.dominates(ds.dominator, pos))
             .findAny()
             .map(DomSubst::substitution)
             .orElse(null);
@@ -120,7 +125,7 @@ public class DomineeSubstituter extends AbstractSubstituter {
     return domSubsts.entries();
   }
 
-  private record DomSubst(BB dominator, Argument substitution) {
+  private record DomSubst(CfgPosition dominator, Argument substitution) {
     @Override
     public String toString() {
       return Printer.toString(this);

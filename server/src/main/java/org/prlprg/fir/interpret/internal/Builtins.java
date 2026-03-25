@@ -10,6 +10,7 @@ import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
@@ -249,13 +250,21 @@ public final class Builtins {
 
     // unbox: vector → scalar
     interpreter.registerExternal(
-        "unbox", sig(Type.LOGICAL, Effects.NONE, Type.BOXED_LOGICAL), Builtins::unboxLogical);
+        "unbox",
+        sig(Type.LOGICAL, Effects.NONE, Type.BOXED_LOGICAL.withOwnership(Ownership.BORROWED)),
+        Builtins::unboxLogical);
     interpreter.registerExternal(
-        "unbox", sig(Type.INTEGER, Effects.NONE, Type.BOXED_INTEGER), Builtins::unboxInteger);
+        "unbox",
+        sig(Type.INTEGER, Effects.NONE, Type.BOXED_INTEGER.withOwnership(Ownership.BORROWED)),
+        Builtins::unboxInteger);
     interpreter.registerExternal(
-        "unbox", sig(Type.REAL, Effects.NONE, Type.BOXED_REAL), Builtins::unboxReal);
+        "unbox",
+        sig(Type.REAL, Effects.NONE, Type.BOXED_REAL.withOwnership(Ownership.BORROWED)),
+        Builtins::unboxReal);
     interpreter.registerExternal(
-        "unbox", sig(Type.STRING, Effects.NONE, Type.BOXED_STRING), Builtins::unboxString);
+        "unbox",
+        sig(Type.STRING, Effects.NONE, Type.BOXED_STRING.withOwnership(Ownership.BORROWED)),
+        Builtins::unboxString);
   }
 
   // region binary math builtins

@@ -3,8 +3,10 @@ package org.prlprg.fir;
 import com.google.common.collect.ImmutableList;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.IntStream;
 import org.jetbrains.annotations.Unmodifiable;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
@@ -80,6 +82,11 @@ public final class GlobalModules {
           : "intrinsic function is also a builtin, it must be renamed: " + function.name();
     }
   }
+
+  public static final Function BOX_FUN =
+      Objects.requireNonNull(INTRINSICS.localFunction(Variable.named("box")));
+  public static final Function UNBOX_FUN =
+      Objects.requireNonNull(INTRINSICS.localFunction(Variable.named("unbox")));
 
   private static @Unmodifiable List<NamedVariable> funTabEntryParamNames(FunTabEntry entry) {
     // The formal names aren't always specified,
