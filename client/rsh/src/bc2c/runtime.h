@@ -444,12 +444,16 @@ static INLINE SEXP VAL_SXP(Value v) {
     __node__->u.sxpval = (value);                                              \
   } while (0);
 
+#define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
+  (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue)
+
 // FIXME: is this enough or so we need to check of the obj flag?
 #define SET_VAL(target, value)                                                 \
   do {                                                                         \
     SEXP __v__ = (value);                                                      \
     Value *__n__ = (target);                                                   \
-    if (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue) {                \
+    if (IS_ANY_SIMPLE_SCALAR(__v__)) {                                         \
+      assert(XLENGTH(__v__) == 1);                                             \
       switch (TYPEOF(__v__)) {                                                 \
       case REALSXP:                                                            \
         SET_DBL_VAL(__n__, REAL(__v__)[0]);                                    \
@@ -853,6 +857,28 @@ static INLINE SEXP Rsh_append_values_to_args(Value *stack, Value const *vals,
 
 #define Rsh_Pop(x)
 
+static INLINE void Rsh_box_evaluated_promise(SEXP value) {
+  assert(PROMISE_IS_EVALUATED(value));
+
+  if (PROMISE_TAG(value) == 0 && IS_ANY_SIMPLE_SCALAR(PRVALUE0(value))) {
+    int type = TYPEOF(PRVALUE0(value));
+    switch (type) {
+    case REALSXP:
+      memcpy(&CAR0(value), &REAL(PRVALUE0(value))[0], sizeof(double));
+      break;
+    case INTSXP:
+      memcpy(&CAR0(value), &INTEGER(PRVALUE0(value))[0], sizeof(int));
+      break;
+    case LGLSXP:
+      memcpy(&CAR0(value), &LOGICAL(PRVALUE0(value))[0], sizeof(int));
+      break;
+    default:
+      return;
+    }
+    SET_PROMISE_TAG(value, type);
+  }
+}
+
 static INLINE void Rsh_evaluated_promise_to_value(Value *res, SEXP value) {
   assert(PROMISE_IS_EVALUATED(value));
 
@@ -894,6 +920,7 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
         forcePromise(value);
       }
     }
+    Rsh_box_evaluated_promise(value);
     Rsh_evaluated_promise_to_value(res, value);
     return;
   } else {
