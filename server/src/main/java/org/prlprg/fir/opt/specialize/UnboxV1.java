@@ -109,6 +109,9 @@ public class UnboxV1 implements AbstractionOptimization {
       StaticFnCallee callee,
       ImmutableList<Argument> callArguments) {
     var function = callee.function();
+    if (function == BOX_FUN || function == UNBOX_FUN) {
+      return null;
+    }
 
     // Generate a "specialization finder" that represents all possible signatures with
     // unboxings, and the specializations necessary to get those signatures
@@ -212,7 +215,7 @@ public class UnboxV1 implements AbstractionOptimization {
       for (int i = 0; i < original.parameterTypes().size(); i++) {
         var originalParameter = original.parameterTypes().get(i);
         var otherParameter = other.parameterTypes().get(i);
-        if (unboxableParameters[i] && originalParameter.equals(unboxed(otherParameter))) {
+        if (unboxableParameters[i] && unboxed(originalParameter).equals(otherParameter)) {
           parameterUnboxings[i] = true;
         } else if (!originalParameter.equals(otherParameter)) {
           return null;
@@ -276,7 +279,8 @@ public class UnboxV1 implements AbstractionOptimization {
       newEntry.insertStatement(
           j,
           new Statement(
-              oldParam.variable(), boxCall(new Read(oldParam.variable()), oldParam.type())));
+              oldParam.variable(),
+              boxCall(new Read(newParams.get(i).variable()), oldParam.type())));
       j++;
     }
 

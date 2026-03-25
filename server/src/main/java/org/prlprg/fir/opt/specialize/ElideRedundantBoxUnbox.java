@@ -9,10 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
+import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
@@ -39,11 +40,15 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
 
   private static final class OnAbstraction {
     private final Abstraction scope;
-    private final DomineeSubstituter substs;
+    private final DominatorTree domTree;
+    private final DefUses defUses;
+    private final Substituter substs;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
-      substs = new DomineeSubstituter(new DominatorTree(scope), scope);
+      domTree = new DominatorTree(scope);
+      defUses = new DefUses(scope);
+      substs = new Substituter(scope);
     }
 
     boolean run() {
@@ -59,11 +64,9 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
 
       var seenByKey = new LinkedHashMap<ConversionKey, List<Conversion>>();
       for (var conversion : conversions) {
-        replaceBoxUnboxChain(conversion, byAssignee);
-
-        var earlierDuplicates = seenByKey.getOrDefault(conversion.key(), List.of());
-        if (!earlierDuplicates.isEmpty()) {
-          replaceDominatedDuplicateUses(conversion, earlierDuplicates);
+        var replacement = replacementFor(conversion, byAssignee, seenByKey);
+        if (replacement != null) {
+          substs.stage(conversion.assignee(), new Read(replacement));
         }
 
         seenByKey.computeIfAbsent(conversion.key(), _ -> new ArrayList<>()).add(conversion);
@@ -114,25 +117,37 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
           new CfgPosition(bb, index, statement));
     }
 
-    private void replaceBoxUnboxChain(
-        Conversion conversion, LinkedHashMap<Register, Conversion> byAssignee) {
+    private @Nullable Register replacementFor(
+        Conversion conversion,
+        LinkedHashMap<Register, Conversion> byAssignee,
+        LinkedHashMap<ConversionKey, List<Conversion>> seenByKey) {
       var previous = byAssignee.get(conversion.source());
-      if (previous == null || previous.kind().inverse() != conversion.kind()) {
-        return;
+      if (previous != null
+          && previous.kind().inverse() == conversion.kind()
+          && canSubstitute(conversion.assignee(), previous.source())) {
+        return previous.source();
       }
 
-      subst(conversion, previous);
-    }
-
-    private void replaceDominatedDuplicateUses(
-        Conversion conversion, List<Conversion> earlierDuplicates) {
+      var earlierDuplicates = seenByKey.getOrDefault(conversion.key(), List.of());
       for (var earlier : earlierDuplicates) {
-        subst(conversion, earlier);
+        if (canSubstitute(conversion.assignee(), earlier.assignee())) {
+          return earlier.assignee();
+        }
       }
+
+      return null;
     }
 
-    private void subst(Conversion original, Conversion replacement) {
-      substs.stage(original.assignee(), new Read(replacement.assignee()), replacement.definition());
+    private boolean canSubstitute(Register original, Register replacement) {
+      var replacementDefinition = defUses.definition(replacement);
+      if (replacementDefinition == null) {
+        return false;
+      }
+
+      return defUses.uses(original).stream()
+          .allMatch(
+              use ->
+                  domTree.dominates(replacementDefinition.inInnermostCfg(), use.inInnermostCfg()));
     }
   }
 
