@@ -31,11 +31,14 @@ import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.util.Pair;
 
 /// Inline forces, maybe-forces, and static calls when possible.
 public record Inline(int maxInlineeSize) implements AbstractionOptimization {
@@ -107,38 +110,31 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       var cfg = bb.owner();
 
       // Check if the origin is a non-reflective `Promise`
-      if (!(analyses.get(OriginAnalysis.class).resolve(forced) instanceof Read(var forcedReg))) {
+      if (!(analyses.get(OriginAnalysis.class).resolve(forced) instanceof Read(var promiseReg))) {
         return;
       }
-      var forceDef = analyses.get(DefUses.class).definition(forcedReg);
-      if (forceDef == null
-          || !(forceDef.inInnermostCfg().instruction() instanceof Statement forceStmt)
-          || !(forceStmt.expression() instanceof Promise(var valueType, var effects, var code))
+      var promiseDef = analyses.get(DefUses.class).definition(promiseReg);
+      if (promiseDef == null
+          || !(promiseDef.inInnermostCfg().instruction() instanceof Statement promiseStmt)
+          || !(promiseStmt.expression() instanceof Promise(var valueType, var effects, var code))
           || effects.reflect()) {
         return;
       }
 
       // Check whether the promise has definitely, maybe, or definitely not been forced.
       // If it has definitely not been forced, also store the location of all other forces.
-      Register dominator = null;
+      Register dominatingForceAssignee = null;
       var hasMaybeBeenForced = false;
-      var isUsedByNonForce = false;
-      var otherForcePositions = new ArrayList<CfgPosition>();
-      for (var use : analyses.get(DefUses.class).uses(forcedReg)) {
+      var otherUsePositions = new ArrayList<CfgPosition>();
+      for (var use : analyses.get(DefUses.class).uses(promiseReg)) {
         var use1 = use.inCfg(cfg);
         var use2 = use.inInnermostCfg();
         if (use1 == null || (use1.bb() == bb && use1.instructionIndex() == statementIndex)) {
           continue;
         }
 
-        if (!(use2.instruction() instanceof Statement(_, var useAssignee, var useExpr))
-            || !(useExpr instanceof Force)) {
-          isUsedByNonForce = true;
-          continue;
-        }
-
-        // `use` is a force, and not this force.
-        otherForcePositions.add(use2);
+        // `use` is not this force.
+        otherUsePositions.add(use2);
 
         if (cfg == use2.cfg()
             && analyses
@@ -146,7 +142,10 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
                 .dominates(use1.bb(), use1.instructionIndex(), bb, statementIndex)) {
           // `use` will definitely occur before this force.
           hasMaybeBeenForced = true;
-          dominator = useAssignee;
+          if (use2.instruction() instanceof Statement(_, var useAssignee, var useExpr)
+              && useExpr instanceof Force) {
+            dominatingForceAssignee = useAssignee;
+          }
         } else if (analyses
                 .get(cfg, CfgReachability.class)
                 .isReachable(use1.bb(), use1.instructionIndex(), bb, statementIndex)
@@ -161,29 +160,58 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         }
       }
 
-      if (dominator != null) {
+      if (dominatingForceAssignee != null) {
         // This will never evaluate, so replace with the dominator.
         var comments = bb.statements().get(statementIndex).comments();
         bb.replaceStatementAt(
-            statementIndex, new Statement(comments, assignee, new Aea(new Read(dominator))));
-      } else if (!hasMaybeBeenForced && !isUsedByNonForce) {
+            statementIndex,
+            new Statement(comments, assignee, new Aea(new Read(dominatingForceAssignee))));
+      } else if (!hasMaybeBeenForced) {
         // This will always evaluate, and one force dominates all other possible forces, so:
         // - Replace statement with inline
         // - Convert all other possible forces (i.e. all other forces) into reads
 
-        // If there are other forces,
+        // If there are other uses,
         // we need to ensure this force's result is assigned to a register,
-        // so they can read it.
-        if (!otherForcePositions.isEmpty() && assignee == null) {
+        // which replaces them.
+        if (!otherUsePositions.isEmpty() && assignee == null) {
           assignee = scope.addLocal(valueType);
         }
 
         // Remove promise and convert forces into reads before we inline,
         // because the CFG positions are non-local, so they'll be corrupted after insertions.
 
-        // Now convert forces into reads.
-        for (var forcePos : otherForcePositions) {
-          forcePos.replaceWith(new Aea(new Read(assignee)));
+        // Remove promise
+        bb.replaceStatementAt(statementIndex, Statement.NOOP);
+
+        // Now convert forces into reads, and create trivial promises right before other uses
+        var deferredInsertions = new ArrayList<Pair<CfgPosition, Statement>>();
+        for (var usePos : otherUsePositions) {
+          if (usePos.instruction() instanceof Statement(_, _, var useExpr)
+              && useExpr instanceof Force) {
+            usePos.replaceWith(new Aea(new Read(assignee)));
+          } else {
+            var newPromise = new Promise(valueType, effects, new CFG(scope));
+            newPromise.code().entry().setJump(new Return(new Read(assignee)));
+            var newPromiseAssignee = scope.addLocal(Type.promise(valueType, effects));
+            var newStatement = new Statement(newPromiseAssignee, newPromise);
+
+            deferredInsertions.add(new Pair<>(usePos, newStatement));
+            usePos.replaceWith(
+                usePos
+                    .instruction()
+                    .mapArguments(
+                        a -> a.equals(new Read(promiseReg)) ? new Read(newPromiseAssignee) : a));
+          }
+        }
+        for (var deferred : deferredInsertions) {
+          var pos = deferred.first();
+          var statement = deferred.second();
+
+          pos.bb().insertStatement(pos.instructionIndex(), statement);
+          if (pos.bb() == bb && pos.instructionIndex() < statementIndex) {
+            statementIndex++;
+          }
         }
 
         // Finally, replace the statement with inline.

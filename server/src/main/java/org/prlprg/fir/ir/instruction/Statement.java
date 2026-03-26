@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
@@ -36,6 +37,11 @@ public record Statement(
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return expression.arguments();
+  }
+
+  @Override
+  public Statement mapArguments(Function<Argument, Argument> transformer) {
+    return new Statement(comments, assignee, expression.mapArguments(transformer));
   }
 
   public Statement withExpression(Expression expression) {

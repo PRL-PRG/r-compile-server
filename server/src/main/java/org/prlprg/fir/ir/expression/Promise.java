@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.expression;
 
 import java.util.Collection;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -33,6 +34,12 @@ public record Promise(Type valueType, Effects effects, CFG code) implements Expr
   public @UnmodifiableView Collection<Argument> arguments() {
     throw new UnsupportedOperationException(
         "Promise must be special-cased.\nTo get arguments of instructions in the promise's body, use `argumentsInCode()`");
+  }
+
+  @Override
+  public Expression mapArguments(Function<Argument, Argument> transformer) {
+    throw new UnsupportedOperationException(
+        "Promise must be special-cased.\nTo transform arguments of instructions in the promise's body, iterate over the CFG.");
   }
 
   public Collection<Argument> argumentsInCode() {

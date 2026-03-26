@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.callee;
 
 import com.google.common.collect.ImmutableList;
+import java.util.function.Function;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.parseprint.PrintMethod;
@@ -11,6 +12,11 @@ public record DynamicCallee(
     implements Callee {
   public DynamicCallee(Argument actualCallee) {
     this(actualCallee, ImmutableList.of());
+  }
+
+  @Override
+  public Callee mapArguments(Function<Argument, Argument> transformer) {
+    return new DynamicCallee(transformer.apply(actualCallee), callArgumentNames);
   }
 
   @Override

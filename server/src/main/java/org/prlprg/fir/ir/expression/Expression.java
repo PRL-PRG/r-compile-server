@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.expression;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
+import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -58,6 +59,8 @@ public sealed interface Expression
         SubscriptWrite {
   @UnmodifiableView
   Collection<Argument> arguments();
+
+  Expression mapArguments(Function<Argument, Argument> transformer);
 
   /// @param headAsName An ugly workaround because the parser has no dynamic lookahead and we
   ///   must parse `r = e`: if you scan a valid variable name, you can set this to non-null and

@@ -1,5 +1,6 @@
 package org.prlprg.fir.ir.argument;
 
+import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -17,6 +18,10 @@ import org.prlprg.util.Characters;
 public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
   public NamedArgument(Argument argument) {
     this(null, argument);
+  }
+
+  public NamedArgument transformArgument(Function<Argument, Argument> transformer) {
+    return new NamedArgument(name, transformer.apply(argument));
   }
 
   @Override

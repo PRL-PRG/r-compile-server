@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.phi;
 
 import com.google.common.collect.ImmutableList;
+import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
@@ -25,6 +26,11 @@ public record Target(BBRef bbRef, ImmutableList<Argument> phiArgs) {
 
   public ImmutableList<Argument> phiArgs() {
     return phiArgs;
+  }
+
+  public Target mapArguments(Function<Argument, Argument> transformer) {
+    return new Target(
+        bbRef, phiArgs.stream().map(transformer).collect(ImmutableList.toImmutableList()));
   }
 
   @Override

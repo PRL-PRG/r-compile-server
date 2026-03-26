@@ -5,14 +5,14 @@ fun main() {
     st x = r0;
 
     r1 = prom<v1(I) ->{ return <int 42>; };
-    f%< p(v1(I) +) -+> I >(r1);
+    f< p(v1(I) +) -+> I >(r1);
 
     r2 = prom<v1(I) +>{
       r3 = v(I)[3, 4, 5];
       r1$x = r3;
       return <int 42>;
     };
-    f%< p(v1(I) +) -+> I >(r2);
+    f< p(v1(I) +) -+> I >(r2);
 
     rx0 = ld x;
     rx1 = rx0 as v(I);

@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.expression;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -20,6 +21,11 @@ public record Store(StoreType type, NamedVariable variable, Argument value) impl
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(value);
+  }
+
+  @Override
+  public Expression mapArguments(Function<Argument, Argument> transformer) {
+    return new Store(type, variable, transformer.apply(value));
   }
 
   @Override

@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.expression;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.parseprint.PrintMethod;
@@ -28,5 +29,11 @@ public record SubscriptWrite(Argument target, Argument index, Argument value)
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(target, index, value);
+  }
+
+  @Override
+  public Expression mapArguments(Function<Argument, Argument> transformer) {
+    return new SubscriptWrite(
+        transformer.apply(target), transformer.apply(index), transformer.apply(value));
   }
 }

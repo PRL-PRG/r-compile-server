@@ -15,7 +15,7 @@ fun main() {
       return r2;
     };
 
-    r0 = force_twice%< p(v1(I) -) --> I >(r);
+    r0 = force_twice< p(v1(I) -) --> I >(r);
     popenv;
     return r0;
   }

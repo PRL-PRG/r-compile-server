@@ -273,7 +273,7 @@ public class BC2FirCFGCompiler {
       var defaultIsConstant =
           parameterDefault instanceof NilSXP || parameterDefault instanceof PrimVectorSXP<?>;
 
-      var parameterIsMissing = scope().addLocal(parameterName.name() + "_isMissing", Type.LOGICAL);
+      var parameterIsMissing = scope().addLocal(parameterName.name() + "_isMissing", Type.BOOLEAN);
       var parameterPhi = scope().addLocal(parameterName.name() + "_orDefault", Type.ANY_SEXP);
 
       var computeDefaultBb = defaultIsConstant ? null : cfg.addBB();
@@ -1042,7 +1042,7 @@ public class BC2FirCFGCompiler {
                       builtin(
                           "==",
                           new Signature(
-                              ImmutableList.of(Type.BOXED_STRING, Type.BOXED_STRING),
+                              ImmutableList.of(Type.STRING, Type.STRING),
                               Type.BOOLEAN,
                               Effects.NONE),
                           asString1,

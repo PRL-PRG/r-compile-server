@@ -3,6 +3,7 @@ package org.prlprg.fir.ir.instruction;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
@@ -32,6 +33,12 @@ public record Deopt(Comments comments, int pc, ImmutableList<Argument> stack) im
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return stack;
+  }
+
+  @Override
+  public Jump mapArguments(Function<Argument, Argument> transformer) {
+    return new Deopt(
+        comments, pc, stack.stream().map(transformer).collect(ImmutableList.toImmutableList()));
   }
 
   @Override
