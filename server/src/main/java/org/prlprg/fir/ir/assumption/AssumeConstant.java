@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.assumption;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.value.Value;
@@ -14,6 +15,11 @@ public record AssumeConstant(@Override Argument target, Value constant) implemen
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return List.of(target);
+  }
+
+  @Override
+  public Assumption mapArguments(Function<Argument, Argument> transformer) {
+    return new AssumeConstant(transformer.apply(target), constant);
   }
 
   @Override

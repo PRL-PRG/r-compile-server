@@ -24,6 +24,11 @@ public record Closure(FunctionRef codeRef) implements Expression {
   }
 
   @Override
+  public Expression mapArguments(java.util.function.Function<Argument, Argument> transformer) {
+    return this;
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

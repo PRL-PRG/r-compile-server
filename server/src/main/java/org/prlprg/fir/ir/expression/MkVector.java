@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.expression;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.NamedArgument;
@@ -14,6 +15,15 @@ public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) impleme
   @Override
   public @UnmodifiableView Collection<Argument> arguments() {
     return Lists.mapLazy(elements, NamedArgument::argument);
+  }
+
+  @Override
+  public Expression mapArguments(Function<Argument, Argument> transformer) {
+    return new MkVector(
+        kind,
+        elements.stream()
+            .map(ne -> ne.transformArgument(transformer))
+            .collect(ImmutableList.toImmutableList()));
   }
 
   @Override

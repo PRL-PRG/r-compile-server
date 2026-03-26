@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
+import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -18,6 +19,9 @@ public sealed interface Instruction permits Statement, Jump {
 
   @UnmodifiableView
   Collection<Argument> arguments();
+
+  /// Apply the function to each argument.
+  Instruction mapArguments(Function<Argument, Argument> transformer);
 
   record ParseContext(
       CFG cfg,

@@ -25,6 +25,11 @@ public record AssumeFunction(Argument target, FunctionRef functionRef) implement
   }
 
   @Override
+  public Assumption mapArguments(java.util.function.Function<Argument, Argument> transformer) {
+    return new AssumeFunction(transformer.apply(target), functionRef);
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

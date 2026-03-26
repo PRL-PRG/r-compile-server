@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.callee;
 
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.type.Signature;
@@ -26,6 +27,11 @@ public record StaticFnCallee(boolean isDispatch, FunctionRef functionRef, Signat
   /// The exact version that will be dispatched. `null` if dynamic or none exist
   public @Nullable Abstraction exactVersion() {
     return isDispatch ? null : minVersion();
+  }
+
+  @Override
+  public Callee mapArguments(java.util.function.Function<Argument, Argument> transformer) {
+    return this;
   }
 
   @Override

@@ -1,6 +1,6 @@
 fun main() {
   () --> I { reg vec:v(I)o, reg first:I, reg third:I, reg sum:I |
-    vec = build_vector();
+    vec = build_vector< --> v(I)f >();
     first = vec[0];
     third = vec[2];
     sum = `+`< I,I --> I >(first, third);

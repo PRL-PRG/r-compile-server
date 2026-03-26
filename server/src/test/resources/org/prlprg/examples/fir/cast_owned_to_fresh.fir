@@ -1,7 +1,7 @@
 fun main() {
   () --> v(I)f { reg rv:v(I)o |
     rv = v(I)[1, 2, 3];
-    cast%< v(I)b --> I >(rv);
+    cast< v(I)b --> I >(rv);
     return consume rv;
   }
 }

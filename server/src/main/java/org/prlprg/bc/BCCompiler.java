@@ -1707,7 +1707,7 @@ public class BCCompiler {
 
     // 6. compile the cases
 
-    // > emit code to signal an error if a numeric switch hist an
+    // > emit code to signal an error if a numeric switch hits an
     // > empty alternative (fall through, as for character, might
     // > make more sense but that isn't the way switch() works)
     if (miss.contains(true)) {
@@ -1718,7 +1718,7 @@ public class BCCompiler {
               SEXPs.list(SEXPs.string("empty alternative in numeric switch"))));
       // Ensure the stack is consistent for FIR
       // It doesn't matter in GNU-R because control-flow exits after the `stop` call
-      if (optimizationLevel == BcOptLevel.FIR) {
+      if (!ctx.isTailCall() && optimizationLevel == BcOptLevel.FIR) {
         cb.addInstr(new Pop());
       }
     }

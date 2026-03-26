@@ -39,6 +39,11 @@ public record AssumeLoadFun(NamedVariable variable, FunctionRef functionRef) imp
   }
 
   @Override
+  public Assumption mapArguments(java.util.function.Function<Argument, Argument> transformer) {
+    return this;
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

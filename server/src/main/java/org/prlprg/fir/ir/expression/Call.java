@@ -3,6 +3,7 @@ package org.prlprg.fir.ir.expression;
 import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.callee.Callee;
@@ -27,6 +28,13 @@ public record Call(Callee callee, ImmutableList<Argument> callArguments) impleme
           case StaticFnCallee _ -> List.<Argument>of();
         };
     return Lists.concatLazy(calleeArguments, callArguments);
+  }
+
+  @Override
+  public Expression mapArguments(Function<Argument, Argument> transformer) {
+    return new Call(
+        callee.mapArguments(transformer),
+        callArguments.stream().map(transformer).collect(ImmutableList.toImmutableList()));
   }
 
   @Override

@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.instruction;
 
 import java.util.Collection;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
@@ -16,6 +17,9 @@ public sealed interface Jump extends Instruction
 
   @UnmodifiableView
   Collection<BB> targetBBs();
+
+  @Override
+  Jump mapArguments(Function<Argument, Argument> transformer);
 
   @ParseMethod
   private static Jump parse(Parser p1, Instruction.ParseContext ctx) {

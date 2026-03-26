@@ -5,7 +5,7 @@ fun main() {
     st x = r0;
 
     r1 = prom<v1(I) ->{ return <int 42>; };
-    f(r1);
+    f< p(v1(I) -) --> v1(I) >(r1);
 
     # type-error: Can't assign it to r2: can't assign p(v1(I) +) to p(v1(I) -)
     r2 = prom<v1(I) +>{
@@ -13,7 +13,7 @@ fun main() {
       r1$x = r3;
       return <int 42>;
     };
-    f(r2);
+    f< p(v1(I) -) --> v1(I) >(r2);
 
     rx0 = ld x;
     rx1 = rx0 as v(I);

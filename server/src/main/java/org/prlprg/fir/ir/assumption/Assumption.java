@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.assumption;
 
 import java.util.Collection;
+import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -21,6 +22,8 @@ public sealed interface Assumption
 
   @UnmodifiableView
   Collection<Argument> arguments();
+
+  Assumption mapArguments(Function<Argument, Argument> transformer);
 
   @ParseMethod
   private static Assumption parse(Parser p) {
