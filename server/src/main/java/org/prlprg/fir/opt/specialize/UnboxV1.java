@@ -65,7 +65,7 @@ public class UnboxV1 implements AbstractionOptimization {
             continue;
           }
 
-          var specialization = planSpecialization(abstraction, feedback, callee, callArguments);
+          var specialization = planSpecialization(feedback, callee);
           if (specialization == null) continue;
 
           // Insert unbox instructions before the call
@@ -106,10 +106,7 @@ public class UnboxV1 implements AbstractionOptimization {
   }
 
   private @Nullable Specialization planSpecialization(
-      Abstraction scope,
-      AbstractionFeedback feedback,
-      StaticFnCallee callee,
-      ImmutableList<Argument> callArguments) {
+      AbstractionFeedback feedback, StaticFnCallee callee) {
     var function = callee.function();
     if (function == BOX_FUN || function == UNBOX_FUN) {
       return null;
@@ -118,18 +115,6 @@ public class UnboxV1 implements AbstractionOptimization {
     // Generate a "specialization finder" that represents all possible signatures with
     // unboxings, and the specializations necessary to get those signatures
     var specializationFinder = new SpecializationFinder(callee.signature());
-    for (int i = 0;
-        i < callArguments.size() && i < callee.signature().parameterTypes().size();
-        i++) {
-      var argument = callArguments.get(i);
-      var argumentType = scope.typeOf(argument);
-      if (argumentType != null && canUnbox(argumentType)) {
-        specializationFinder.markUnboxableParameter(i);
-      }
-    }
-    if (canUnbox(callee.signature().returnType())) {
-      specializationFinder.markUnboxableReturn();
-    }
 
     // Abort if we can't specialize further
     var bestSpecialization = specializationFinder.bestSpecialization();
@@ -180,32 +165,24 @@ public class UnboxV1 implements AbstractionOptimization {
 
   private static final class SpecializationFinder {
     private final Signature original;
-    private final boolean[] unboxableParameters;
-    private boolean unboxableReturn;
+    private final ImmutableBoolArray unboxableParameters;
+    private final boolean unboxableReturn;
 
     SpecializationFinder(Signature original) {
       this.original = original;
-      unboxableParameters = new boolean[original.parameterTypes().size()];
-      unboxableReturn = false;
-    }
-
-    void markUnboxableParameter(int index) {
-      unboxableParameters[index] = true;
-    }
-
-    void markUnboxableReturn() {
-      unboxableReturn = true;
+      unboxableParameters =
+          original.parameterTypes().stream()
+              .map(UnboxV1::canUnbox)
+              .collect(ImmutableBoolArray.toImmutableBoolArray());
+      unboxableReturn = canUnbox(original.returnType());
     }
 
     @Nullable Specialization bestSpecialization() {
       // Empty specialization = no specialization
-      var hasParameterUnboxing = false;
-      for (var unboxableParameter : unboxableParameters) {
-        hasParameterUnboxing |= unboxableParameter;
-      }
+      var hasParameterUnboxing = unboxableParameters.stream().anyMatch(Boolean::booleanValue);
       if (!hasParameterUnboxing && !unboxableReturn) return null;
 
-      return new Specialization(ImmutableBoolArray.copyOf(unboxableParameters), unboxableReturn);
+      return new Specialization(unboxableParameters, unboxableReturn);
     }
 
     /// The parameter and return unboxings that convert the original signature into `other`
@@ -221,7 +198,8 @@ public class UnboxV1 implements AbstractionOptimization {
       for (int i = 0; i < original.parameterTypes().size(); i++) {
         var originalParameter = original.parameterTypes().get(i);
         var otherParameter = other.parameterTypes().get(i);
-        if (unboxableParameters[i] && unboxed(originalParameter).allMatchesMatch(otherParameter)) {
+        if (unboxableParameters.get(i)
+            && unboxed(originalParameter).allMatchesMatch(otherParameter)) {
           hasParameterUnboxing = true;
           parameterUnboxings[i] = true;
         } else if (!originalParameter.allMatchesMatch(otherParameter)) {

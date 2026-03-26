@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import static org.prlprg.fir.GlobalModules.INTRINSICS;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -402,7 +403,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       };
     }
 
-    static ImmutableList<String> TRIVIALLY_PURE_INTRINSICS = ImmutableList.of("box", "unbox");
+    static ImmutableSet<String> TRIVIALLY_PURE_INTRINSICS = ImmutableSet.of("box", "unbox");
 
     boolean isTriviallyPure(Function function) {
       return function.owner() == INTRINSICS
