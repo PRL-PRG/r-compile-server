@@ -15,7 +15,7 @@ import org.jetbrains.annotations.Nullable;
 public final class FirAnnotator implements Annotator {
   private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^\\s*fun\\b");
   private static final Pattern DECLARATION =
-      Pattern.compile("\\b(reg|var)\\s+(`(?:\\\\.|[^`])*`|[^\\s:,|)]+)\\s*:\\s*((?:p\\((?:v\\([^,|)\\n]+\\))?[^,|)\\n]+\\))?(?:v\\([^,|)\\n]+\\))?[^,|)\\n]+)");
+      Pattern.compile("\\b(reg|var)\\s+(`(?:\\\\.|[^`])*`|[^\\s:,|)]+)\\s*:\\s*((?:p\\((?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+\\))?(?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+)");
   private static final Pattern DECLARATION_KIND_PREFIX = Pattern.compile("^(reg|var)\\b");
   private static final Pattern TYPED_DECLARATION_WITHOUT_KIND =
       Pattern.compile("^(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:");
