@@ -44,7 +44,8 @@ public record StrictifyPromise() implements AbstractionOptimization {
       int argIndex, Register argReg, BB defBb, int defStmtIndex, CFG promiseCode, Type valueType) {}
 
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction scope) {
     if (scope.cfg() == null) {
       return false;
     }

@@ -51,7 +51,8 @@ import org.prlprg.util.ImmutableBoolArray;
 ///   changing the return type to unboxed, and unboxing the returned value before every return.
 public class UnboxV1 implements AbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var changed = false;
 
     var cfgs = abstraction.streamCfgs().toList();

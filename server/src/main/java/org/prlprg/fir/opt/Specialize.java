@@ -59,7 +59,8 @@ public class Specialize implements AbstractionOptimization {
   }
 
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =
         this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();

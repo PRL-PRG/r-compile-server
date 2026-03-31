@@ -2,7 +2,6 @@ package org.prlprg.fir.opt.sequence;
 
 import static org.prlprg.fir.check.Checker.checkAll;
 
-import java.util.List;
 import org.prlprg.fir.check.Checker.Exclude;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
@@ -26,15 +25,12 @@ public class ModuleFixpointSequence
   }
 
   @Override
-  public boolean run(ModuleFeedback feedback, Module module) {
-    return module.record(
-        "ModuleFixpointSequence#run",
-        List.of(this, feedback, module),
-        () -> runImpl(feedback, module));
+  public boolean runWithoutRecording(ModuleFeedback feedback, Module module) {
+    return runImpl(feedback, module);
   }
 
   @Override
-  public boolean run(ModuleFeedback feedback, Function function) {
+  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
     throw new UnsupportedOperationException(
         "ModuleFixpointSequence can't run on individual functions, only entire modules");
   }

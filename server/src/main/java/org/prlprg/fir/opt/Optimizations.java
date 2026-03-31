@@ -52,9 +52,9 @@ public class Optimizations {
                 new Inline(1000),
                 new StrictifyPromise(),
                 new Cleanup()),
-            new CreateBestVersion(9)),
-        new MergeConsecutiveCheckpoints(),
-        new ElideUnusedCheckpoints());
+            new CreateBestVersion(9),
+            new MergeConsecutiveCheckpoints(),
+            new ElideUnusedCheckpoints()));
   }
 
   private Optimizations() {}

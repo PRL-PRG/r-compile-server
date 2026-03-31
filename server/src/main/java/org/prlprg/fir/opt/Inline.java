@@ -43,7 +43,8 @@ import org.prlprg.util.Pair;
 /// Inline forces, maybe-forces, and static calls when possible.
 public record Inline(int maxInlineeSize) implements AbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;

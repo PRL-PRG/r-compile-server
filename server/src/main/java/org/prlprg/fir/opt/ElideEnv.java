@@ -21,7 +21,8 @@ import org.prlprg.fir.ir.position.CfgPosition;
 /// nor reflective instructions (ignoring deopt branches).
 public record ElideEnv() implements AbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction scope) {
     var cfg = scope.cfg();
     if (cfg == null) {
       return false;

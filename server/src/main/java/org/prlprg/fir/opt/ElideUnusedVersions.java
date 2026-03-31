@@ -9,7 +9,7 @@ import org.prlprg.fir.ir.module.Function;
 /// TODO: Prevent [CreateBestVersion] from re-creating the removed version.
 public record ElideUnusedVersions(int threshold) implements Optimization {
   @Override
-  public boolean run(ModuleFeedback feedback, Function function) {
+  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
     // Sum call counts across all versions
     var totalCalls =
         function.versions().stream().mapToInt(version -> feedback.get(version).numCalls()).sum();

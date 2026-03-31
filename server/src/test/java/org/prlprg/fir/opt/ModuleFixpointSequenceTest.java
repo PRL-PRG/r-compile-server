@@ -23,7 +23,7 @@ class ModuleFixpointSequenceTest {
     }
 
     @Override
-    public boolean run(ModuleFeedback feedback, Function function) {
+    public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
       return changedReturns[callCount++ % changedReturns.length];
     }
   }
