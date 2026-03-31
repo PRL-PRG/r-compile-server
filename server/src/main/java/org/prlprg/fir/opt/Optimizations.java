@@ -50,6 +50,7 @@ public class Optimizations {
                 new ElideRedundantBoxUnbox(),
                 new ElideEnv(),
                 new Inline(1000),
+                new DeferIntoPromise(),
                 new StrictifyPromise(),
                 new Cleanup()),
             new CreateBestVersion(9),
