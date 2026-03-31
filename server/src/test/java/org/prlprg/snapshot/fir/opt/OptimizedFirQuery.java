@@ -3,6 +3,8 @@ package org.prlprg.snapshot.fir.opt;
 import static org.junit.Assert.fail;
 import static org.prlprg.fir.check.Checker.checkAll;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Objects;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
@@ -14,6 +16,7 @@ import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.interpret.InterpretQuery;
 import org.prlprg.snapshot.fir.ir.FirQuery;
 import org.prlprg.snapshot.fir.ir.GenFirQuery;
+import org.prlprg.util.Paths;
 
 public record OptimizedFirQuery(Optimization optimization) implements GenFirQuery {
   @Override
@@ -64,7 +67,10 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     var copy = MockModuleFeedback.deepCopy(original, feedback);
     var copyModule = copy.first();
     var copyFeedback = copy.second();
+
+    OptimizationLog.attach(copyModule);
     optimization.run(copyFeedback, copyModule);
+
     return copyModule;
   }
 
@@ -73,5 +79,16 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     if (!checkAll(data)) {
       fail("Optimized FIR is invalid");
     }
+  }
+
+  @Override
+  public void serialize(Module data, Path path, Example example, SnapshotStore store)
+      throws IOException {
+    GenFirQuery.super.serialize(data, path, example, store);
+
+    // Save optimization log
+    var optLog =
+        Objects.requireNonNull(OptimizationLog.get(data), "computed module has optimization log");
+    optLog.writeHtml(Paths.addingExtension(path, "optlog.html"));
   }
 }
