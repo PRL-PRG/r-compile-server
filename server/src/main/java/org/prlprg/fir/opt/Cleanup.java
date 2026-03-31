@@ -296,17 +296,18 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         // But if it did, technically we're allowed to substitute and the code is "valid" in
         // that it won't cause UB (assuming no other bugs), it just isn't "valid" according to
         // our underapproximate but simpler criteria (promises can never be guaranteed forced).
-        var originDef =
-            origin.variable() == null ? null : defUseAnalysis.definition(origin.variable());
-        if (originDef == null
-            || defUseAnalysis.uses(register).stream()
-                .anyMatch(
-                    registerUse ->
-                        !CfgDominatorTree.dominates(
-                            cfg -> analyses.get(cfg, CfgDominatorTree.class),
-                            originDef,
-                            registerUse))) {
-          continue;
+        if (origin.variable() != null) {
+          var originDef = defUseAnalysis.definition(origin.variable());
+          if (originDef == null
+              || defUseAnalysis.uses(register).stream()
+                  .anyMatch(
+                      registerUse ->
+                          !CfgDominatorTree.dominates(
+                              cfg -> analyses.get(cfg, CfgDominatorTree.class),
+                              originDef,
+                              registerUse))) {
+            continue;
+          }
         }
 
         substituter.stage(register, origin);

@@ -1,9 +1,13 @@
 package org.prlprg.fir.analyze.resolve;
 
+import static org.prlprg.fir.GlobalModules.BUILTINS;
+import static org.prlprg.fir.GlobalModules.INTRINSICS;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -24,6 +28,8 @@ import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.callee.Callee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -51,8 +57,11 @@ import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.primitive.Logical;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Streams;
 
 /// Computes each variable's **origin**: the earliest known register or constant that it was
@@ -266,9 +275,18 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           runSubAnalysis(code, state()::merge);
           yield null;
         }
-        // TODO: Constant-fold some calls.
-        case Call _,
-            Closure _,
+        case Call(var callee, var arguments) -> {
+          var constantFolded = tryConstantFold(callee, arguments);
+          if (constantFolded != null) {
+            yield constantFolded;
+          }
+
+          if (inferEffects.of(expr).reflect()) {
+            clearNamedVariables();
+          }
+          yield null;
+        }
+        case Closure _,
             Dup _,
             MkVector _,
             MkEnv _,
@@ -283,6 +301,87 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           }
           yield null;
         }
+      };
+    }
+
+    private @Nullable Argument tryConstantFold(Callee callee, List<Argument> arguments) {
+      if (!(callee instanceof StaticFnCallee(var isDispatch, var functionRef, var _))
+          || isDispatch) {
+        return null;
+      }
+      var function = functionRef.get();
+      if (function.owner() != BUILTINS && function.owner() != INTRINSICS) {
+        return null;
+      }
+
+      return switch (function.name().name()) {
+        case "checkFun" -> {
+          if (arguments.size() != 1) {
+            yield null;
+          }
+          var arg = resolve(arguments.getFirst());
+          var argType = inferType.of(arg);
+          yield argType == null || !argType.isSubtypeOf(Type.CLOSURE) ? null : arg;
+        }
+        case "checkMissing" -> {
+          if (arguments.size() != 1) {
+            yield null;
+          }
+          var arg = resolve(arguments.getFirst());
+          var argType = inferType.of(arg);
+          yield argType == null || Type.MISSING.isSubtypeOf(argType) ? null : arg;
+        }
+        case "naToFalse" -> {
+          if (arguments.size() != 1) {
+            yield null;
+          }
+          var arg = resolve(arguments.getFirst());
+          if (!(arg instanceof Constant(var value))) {
+            yield null;
+          }
+          yield (value instanceof Value.Sexp(var sexp) && sexp.asScalarLogical().isPresent())
+              ? new Constant(new Value.Bool(sexp.asScalarLogical().get() == Logical.TRUE))
+              : (value instanceof Value.Lgl(var lgl))
+                  ? new Constant(new Value.Bool(lgl == Logical.TRUE))
+                  : null;
+        }
+        case "box" -> {
+          if (arguments.size() != 1) {
+            yield null;
+          }
+          var arg = resolve(arguments.getFirst());
+          if (!(arg instanceof Constant(var value))) {
+            yield null;
+          }
+          yield switch (value) {
+            case Value.Lgl(var l) -> new Constant(SEXPs.logical(l));
+            case Value.Int(var i) -> new Constant(SEXPs.integer(i));
+            case Value.Real(var r) -> new Constant(SEXPs.real(r));
+            case Value.Str(var s) -> new Constant(SEXPs.string(s));
+            default -> null;
+          };
+        }
+        case "unbox" -> {
+          if (arguments.size() != 1) {
+            yield null;
+          }
+          var arg = resolve(arguments.getFirst());
+          if (!(arg instanceof Constant(var value) && value instanceof Value.Sexp(var sexp))) {
+            yield null;
+          }
+          if (sexp.asScalarLogical().isPresent()) {
+            yield new Constant(new Value.Lgl(sexp.asScalarLogical().get()));
+          } else if (sexp.asScalarInteger().isPresent()) {
+            yield new Constant(new Value.Int(sexp.asScalarInteger().get()));
+          } else if (sexp.asScalarReal().isPresent()) {
+            yield new Constant(new Value.Real(sexp.asScalarReal().get()));
+          } else if (sexp.asScalarString().isPresent()) {
+            yield new Constant(new Value.Str(sexp.asScalarString().get()));
+          } else {
+            yield null;
+          }
+        }
+        default -> null;
       };
     }
 
@@ -383,7 +482,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
+      if (getClass() != o.getClass()) return false;
       State that = (State) o;
       return Objects.equals(registerOrigins, that.registerOrigins)
           && Objects.equals(variableOrigins, that.variableOrigins);
