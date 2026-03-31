@@ -24,7 +24,8 @@ class AbstractionFixpointSequenceTest {
     }
 
     @Override
-    public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+    public boolean runWithoutRecording(
+        Function function, AbstractionFeedback feedback, Abstraction abstraction) {
       // Cycle through `changedReturns`.
       return changedReturns[callCount++ % changedReturns.length];
     }

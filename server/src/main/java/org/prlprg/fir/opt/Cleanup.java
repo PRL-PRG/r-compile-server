@@ -84,7 +84,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
   }
 
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;

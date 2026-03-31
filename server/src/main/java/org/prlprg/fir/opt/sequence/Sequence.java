@@ -32,29 +32,25 @@ public class Sequence implements Optimization {
   }
 
   @Override
-  public boolean run(ModuleFeedback feedback, Module module) {
-    return module.record(
-        "Sequence#run",
-        List.of(this, feedback, module),
-        () ->
-            runImpl(
-                feedback,
-                module,
-                new TargetImpl<>() {
-                  @Override
-                  public boolean run(Optimization opt, ModuleFeedback feedback, Module module) {
-                    return opt.run(feedback, module);
-                  }
+  public boolean runWithoutRecording(ModuleFeedback feedback, Module module) {
+    return runImpl(
+        feedback,
+        module,
+        new TargetImpl<>() {
+          @Override
+          public boolean run(Optimization opt, ModuleFeedback feedback, Module module) {
+            return opt.run(feedback, module);
+          }
 
-                  @Override
-                  public boolean check(Module module) {
-                    return checkAll(module, Exclude.STRICT_CFG);
-                  }
-                }));
+          @Override
+          public boolean check(Module module) {
+            return checkAll(module, Exclude.STRICT_CFG);
+          }
+        });
   }
 
   @Override
-  public boolean run(ModuleFeedback feedback, Function function) {
+  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
     return runImpl(
         feedback,
         function,

@@ -58,7 +58,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
   }
 
   @Override
-  public boolean run(ModuleFeedback feedback, Function function) {
+  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
     var changed = false;
     for (var version : function.versions()) {
       // Don't run on baseline unless overridden via field
@@ -72,7 +72,8 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
   }
 
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction scope) {
     // Compute checkpoint BBs and analyses we'll need
     var checkpointBbs =
         scope

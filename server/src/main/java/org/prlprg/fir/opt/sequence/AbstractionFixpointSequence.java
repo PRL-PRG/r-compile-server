@@ -24,7 +24,8 @@ public class AbstractionFixpointSequence
   }
 
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     return runImpl(feedback, Pair.of(function, abstraction));
   }
 

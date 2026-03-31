@@ -17,7 +17,8 @@ import org.prlprg.fir.ir.module.Function;
 /// (besides the checkpoint block itself).
 public record ElideUnusedCheckpoints() implements CheckpointAbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
 
     scope

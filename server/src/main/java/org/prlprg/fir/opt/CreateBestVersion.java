@@ -17,7 +17,8 @@ import org.prlprg.fir.opt.specialize.OptimizeCallee;
 /// ([Function#guess(org.prlprg.fir.ir.type.Signature)]) does not exactly match its arguments'
 /// static types, copy that version into a new one and narrow the parameter types to match
 public record CreateBestVersion(int versionLimit) implements AbstractionOptimization {
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction version) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction version) {
     var calls =
         version
             .streamCfgs()

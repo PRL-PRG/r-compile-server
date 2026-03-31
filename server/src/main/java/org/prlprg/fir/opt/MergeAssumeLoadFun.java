@@ -33,7 +33,8 @@ import org.prlprg.fir.ir.variable.Register;
 /// code.
 public record MergeAssumeLoadFun() implements AbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
     var defUses = new DefUses(scope);
 

@@ -34,7 +34,8 @@ import org.prlprg.fir.opt.AbstractionOptimization;
 ///   of the later result with the earlier result.
 public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction scope) {
     return new OnAbstraction(scope).run();
   }
 

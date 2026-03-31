@@ -32,7 +32,8 @@ import org.prlprg.fir.ir.variable.Register;
 /// a second-checkpoint assumption, the merge is not performed.
 public record MergeConsecutiveCheckpoints() implements CheckpointAbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction scope) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
 
     scope

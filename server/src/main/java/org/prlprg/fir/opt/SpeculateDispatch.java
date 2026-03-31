@@ -23,7 +23,8 @@ import org.prlprg.util.Streams;
 public record SpeculateDispatch(int threshold, int parameterLimit, int versionLimit)
     implements AbstractionOptimization {
   @Override
-  public boolean run(Function function, AbstractionFeedback feedback, Abstraction version) {
+  public boolean runWithoutRecording(
+      Function function, AbstractionFeedback feedback, Abstraction version) {
     // Don't specialize stubs
     if (version.cfg() == null) {
       return false;
