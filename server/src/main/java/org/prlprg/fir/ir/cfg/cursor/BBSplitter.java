@@ -13,7 +13,7 @@ public final class BBSplitter {
   public static BB splitNewSuccessor(BB self, int index, String successorLabel) {
     return self.module()
         .record(
-            "BBSplitMerge.splitNewSuccessor",
+            "BBSplitter.splitNewSuccessor",
             List.of(self, index, successorLabel),
             () -> {
               if (index < 0 || index > self.statements().size()) {

@@ -2,6 +2,7 @@ package org.prlprg.fir.opt.sequence;
 
 import static org.prlprg.fir.check.Checker.checkAll;
 
+import java.util.List;
 import org.prlprg.fir.check.Checker.Exclude;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
@@ -26,7 +27,10 @@ public class ModuleFixpointSequence
 
   @Override
   public boolean run(ModuleFeedback feedback, Module module) {
-    return runImpl(feedback, module);
+    return module.record(
+        "ModuleFixpointSequence#run",
+        List.of(this, feedback, module),
+        () -> runImpl(feedback, module));
   }
 
   @Override

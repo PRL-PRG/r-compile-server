@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt;
 
+import java.util.List;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
@@ -12,12 +13,17 @@ public interface Optimization {
   }
 
   default boolean run(ModuleFeedback feedback, Module module) {
-    var changed = false;
-    for (var function : module.localFunctions()) {
-      // Check each function
-      changed |= run(feedback, function);
-    }
-    return changed;
+    return module.record(
+        "Optimization#run",
+        List.of(this, feedback, module),
+        () -> {
+          var changed = false;
+          for (var function : module.localFunctions()) {
+            // Check each function
+            changed |= run(feedback, function);
+          }
+          return changed;
+        });
   }
 
   boolean run(ModuleFeedback feedback, Function function);
