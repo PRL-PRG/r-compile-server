@@ -621,7 +621,12 @@ static INLINE void Rcp_MakeClosure(Value *stack, SEXP mkclos_arg, SEXP rho)
 
 	SEXP forms = VECTOR_ELT(mkclos_arg, 0);
 	SEXP rcp_body = VECTOR_ELT(mkclos_arg, 1);
-	SEXP closure = Rf_mkCLOSXP(forms, rcp_body, rho);
+	SEXP closure;
+#ifdef NDEBUG
+	closure = Rf_mkCLOSXP(forms, rcp_body, rho);
+#else
+	closure = R_mkClosure(forms, rcp_body, rho);
+#endif
 
 	/* The LENGTH check below allows for byte code object created
 		 by older versions of the compiler that did not record a
