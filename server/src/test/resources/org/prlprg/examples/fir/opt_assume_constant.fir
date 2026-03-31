@@ -11,9 +11,6 @@ fun constant() {
     zero = 0;
     check BBopt() else BBdeopt();
   BBopt():
-    # after: cond ?= TRUE;
-
-    # after: if TRUE then BBtrue() else BBfalse();
     if cond then BBtrue() else BBfalse();
   BBtrue():
     return zero;

@@ -3,7 +3,6 @@ fun main() {
     rx = prom<v1(I) ->{
       return <int 1>;
     };
-    # after: rz = force_< v1(I) --> v1(I) >(<int 1>);
     rz = force_< p(v1(I) -) --> v1(I) >(rx);
     return rz;
   }

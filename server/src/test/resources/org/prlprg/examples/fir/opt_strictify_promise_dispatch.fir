@@ -9,7 +9,6 @@ fun main() {
     ry = prom<v1(I) +>{
       return <int 5>;
     };
-    # after: rz = f%< v1(I),p(v1(I) +) --> v1(I) >(rc, ry);
     rz = f%< p(v1(I) -),p(v1(I) +) --> v1(I) >(rx, ry);
     return rz;
   }

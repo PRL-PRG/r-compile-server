@@ -1,7 +1,6 @@
 fun main() {
   () --> V { reg r:V |
     r = <int 42> as V;
-    # after: f%< V --> I >(r);
     f< V --> I >(r);
     return r;
   }
