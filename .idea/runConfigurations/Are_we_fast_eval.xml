@@ -3,12 +3,12 @@
     <module name="r-compile-server" />
     <extension name="coverage">
       <pattern>
-        <option name="PATTERN" value="org.prlprg.fir2c.*" />
+        <option name="PATTERN" value="org.prlprg.snapshot.fir2c.*" />
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>
-    <option name="PACKAGE_NAME" value="org.prlprg.fir2c" />
-    <option name="MAIN_CLASS_NAME" value="org.prlprg.fir2c.FirAfterDefaultOpt2CCompileTest" />
+    <option name="PACKAGE_NAME" value="org.prlprg.snapshot.fir2c" />
+    <option name="MAIN_CLASS_NAME" value="org.prlprg.snapshot.fir2c.FirAfterDefaultOpt2CTest" />
     <option name="METHOD_NAME" value="testEval" />
     <option name="TEST_OBJECT" value="method" />
     <envs>

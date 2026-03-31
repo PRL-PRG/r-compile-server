@@ -1,37 +1,13 @@
 package org.prlprg.bc;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.jupiter.api.Assumptions.abort;
 
-import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import org.prlprg.examples.Example;
-import org.prlprg.examples.RExampleTest;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.LangSXP;
-import org.prlprg.snapshots.SnapshotStore;
 
 public class BCCompilerTest {
-  @RExampleTest
-  public void test(Example example, SnapshotStore store) {
-    test(example, store, BCQuery.REGULAR);
-  }
-
-  @RExampleTest
-  public void testOpt(Example example, SnapshotStore store) {
-    test(example, store, BCQuery.OPT);
-  }
-
-  private void test(Example example, SnapshotStore store, BCQuery query) {
-    if (example.rpath().equals(Path.of("stdlib", "utils", ".install.macbinary.R"))
-        && System.getProperty("os.name").contains("Mac")) {
-      abort("utils/.install.macbinary is different on macOS, so the snapshot also differs");
-    }
-
-    store.verify(example, query);
-  }
-
   @Test
   public void testMatchCall() {
     var R = GNUR.instance();
