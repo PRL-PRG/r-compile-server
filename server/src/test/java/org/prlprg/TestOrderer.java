@@ -9,9 +9,7 @@ import org.prlprg.util.Paths;
 
 public class TestOrderer implements ClassOrderer {
   private static final List<String> ORDERED_SNAPSHOT_CLASSES =
-      Files.readString(Paths.getResource(TestOrderer.class, "snapshots/order.txt"))
-          .lines()
-          .toList();
+      Files.readString(Paths.getResource(TestOrderer.class, "snapshot/order.txt")).lines().toList();
 
   @Override
   public void orderClasses(ClassOrdererContext context) {
