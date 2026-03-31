@@ -23,7 +23,7 @@ public class SnapshotStore {
   /// `query` is then checked by:
   /// - Asserting equality against [Query#oracle(Example, SnapshotStore)] (unless overridden,
   ///   this compares against itself i.e. tests non-determinism).
-  /// - [Query#verifyExtra(Example, SnapshotStore)].
+  /// - [Query#verifyExtra(Object, Example, SnapshotStore)].
   /// - If there's a snapshot from a previous run,
   ///   [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)].
   ///
@@ -31,7 +31,8 @@ public class SnapshotStore {
   /// - `example` has the option `dontSaveSnapshots`
   /// - OR [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)] fails, and
   ///   [TestConfig#IGNORE_SNAPSHOTS] is unset.
-  /// If other checks (e.g. [Query#verifyExtra(Example, SnapshotStore)]) fail, they are reported
+  /// If other checks (e.g. [Query#verifyExtra(Object, Example, SnapshotStore)]) fail, they are
+  // reported
   /// (this call raises an exception) but the snapshot is still saved for debugging.
   ///
   /// Returns the actual computed value (and only returns if it passes verification).
@@ -60,18 +61,16 @@ public class SnapshotStore {
           : "`verifyNoRegression` didn't set regression status";
 
       var shouldSaveToDisk =
-          !example.hasOption("", "dontSaveSnapshots")
-              && (regresses[0] == RegressionStatus.NO
-                  || TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches());
+          !shouldSaveToDisk(example, query) && regresses[0] == RegressionStatus.NO;
       if (shouldSaveToDisk) {
         saveToDisk(actual, example, query);
       }
     }
   }
 
-  /// Runs every check in [Query#verify(Object, Example, SnapshotStore)] on `actual`.
+  /// Runs every check in [SnapshotStore#verify(Example, Query)] on `actual`.
   ///
-  /// Effectively [Query#verify(Object, Example, SnapshotStore)], but uses `actual` in place of
+  /// Effectively [SnapshotStore#verify(Example, Query)], but uses `actual` in place of
   /// computing `query`, and never saves to disk.
   public <T> void verify(Example example, Query<T> query, T actual) {
     verify(example, query, actual, null);
@@ -108,8 +107,7 @@ public class SnapshotStore {
 
   private <T> void verifyNoRegression(
       Example example, Query<T> query, T actual, RegressionStatus[] regresses) {
-    if (!example.hasOption("", "dontSaveSnapshots")
-        && !TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches()) {
+    if (shouldSaveToDisk(example, query)) {
       T oldFromDisk;
       try {
         oldFromDisk = loadFromDisk(example, query);
@@ -197,6 +195,16 @@ public class SnapshotStore {
     return path;
   }
 
+  /// Returns the path where `query`'s data is cached on-disk, without computing
+  public Path snapshotPath(Example example, Query<?> query) {
+    var path = Path.of("src", "test", "snapshots", example.type(), query.name().replace('.', '/'));
+    path = path.resolve(Paths.removingExtension(example.rpath()));
+    if (!query.snapshotExtension().isEmpty()) {
+      path = Paths.addingExtension(path, query.snapshotExtension());
+    }
+    return path;
+  }
+
   private <T> T computeAndSave(Example example, Query<T> query) {
     T computed;
     try {
@@ -260,6 +268,11 @@ public class SnapshotStore {
     }
   }
 
+  private boolean shouldSaveToDisk(Example example, Query<?> query) {
+    return !example.hasOption("", "dontSaveSnapshots")
+        && !TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches();
+  }
+
   private <T> void saveToDisk(T snapshot, Example example, Query<T> query) {
     var path = snapshotPath(example, query);
     Files.createDirectories(path.getParent());
@@ -274,23 +287,6 @@ public class SnapshotStore {
 
       throw new RuntimeException("Failed to save " + query.name() + " snapshot for " + path, e);
     }
-  }
-
-  /// Returns the path where `query`'s data is cached on-disk.
-  private Path snapshotPath(Example example, Query<?> query) {
-    var path =
-        Path.of(
-            "src",
-            "test",
-            "snapshots",
-            getClass().getPackageName().replace(".snapshot.", ".").replace('.', '/'),
-            example.type(),
-            query.name().replace('.', '/'));
-    path = path.resolve(Paths.removingExtension(example.rpath()));
-    if (!query.snapshotExtension().isEmpty()) {
-      path = Paths.addingExtension(path, query.snapshotExtension());
-    }
-    return path;
   }
 
   private record SnapshotInMemory<T>(T snapshot, boolean isOracle) {}

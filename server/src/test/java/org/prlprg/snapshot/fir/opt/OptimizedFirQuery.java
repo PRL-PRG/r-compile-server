@@ -3,8 +3,6 @@ package org.prlprg.snapshot.fir.opt;
 import static org.junit.Assert.fail;
 import static org.prlprg.fir.check.Checker.checkAll;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Objects;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
@@ -16,12 +14,15 @@ import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.interpret.InterpretQuery;
 import org.prlprg.snapshot.fir.ir.FirQuery;
 import org.prlprg.snapshot.fir.ir.GenFirQuery;
+import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
 public record OptimizedFirQuery(Optimization optimization) implements GenFirQuery {
   @Override
   public String name() {
-    return "opt." + optimization.name() + ".fir";
+    return optimization().name().equals("default")
+        ? "opt.fir"
+        : "opt." + optimization.name() + ".fir";
   }
 
   @Override
@@ -68,8 +69,19 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     var copyModule = copy.first();
     var copyFeedback = copy.second();
 
-    OptimizationLog.attach(copyModule);
-    optimization.run(copyFeedback, copyModule);
+    // Log optimizations, and save even if we fail to compute
+    var log = new OptimizationLog(copyModule);
+    try {
+      optimization.run(copyFeedback, copyModule);
+    } finally {
+      log.close();
+
+      if (!example.hasOption("", "dontSaveSnapshots")) {
+        var path = Paths.addingExtension(store.snapshotPath(example, this), "optlog.html");
+        Files.createDirectories(path.getParent());
+        log.writeHtml(path);
+      }
+    }
 
     return copyModule;
   }
@@ -79,16 +91,5 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     if (!checkAll(data)) {
       fail("Optimized FIR is invalid");
     }
-  }
-
-  @Override
-  public void serialize(Module data, Path path, Example example, SnapshotStore store)
-      throws IOException {
-    GenFirQuery.super.serialize(data, path, example, store);
-
-    // Save optimization log
-    var optLog =
-        Objects.requireNonNull(OptimizationLog.get(data), "computed module has optimization log");
-    optLog.writeHtml(Paths.addingExtension(path, "optlog.html"));
   }
 }
