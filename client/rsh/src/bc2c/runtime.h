@@ -2136,14 +2136,17 @@ static INLINE void Rsh_vec_subassign(Value *stack, SEXP call, Rboolean sub2,
       switch (TYPEOF(vec)) {
       case REALSXP:
         REAL(vec)[idx - 1] = VAL_DBL(rhs);
+        SET_SXP_VAL(sx, vec);
         SETTER_CLEAR_NAMED(vec);
         return;
       case INTSXP:
         INTEGER(vec)[idx - 1] = VAL_INT(rhs);
+        SET_SXP_VAL(sx, vec);
         SETTER_CLEAR_NAMED(vec);
         return;
       case LGLSXP:
         LOGICAL(vec)[idx - 1] = VAL_INT(rhs);
+        SET_SXP_VAL(sx, vec);
         SETTER_CLEAR_NAMED(vec);
         return;
       }
@@ -2917,7 +2920,7 @@ static INLINE void Rsh_IsInteger(Value *stack) {
   switch (VAL_TAG(*v)) {
   case INTSXP:
   case ISQSXP: // TODO: should ISQSXP be here? Not present in eval.c
-    assert(!Rf_inherits(VAL_SXP(*v), "factor"));
+    assert(!Rf_inherits(val_as_sexp(*v), "factor"));
     SET_LGL_VAL(v, TRUE);
     break;
   case 0: // some SEXP
