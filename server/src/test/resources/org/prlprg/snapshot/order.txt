@@ -4,7 +4,5 @@ FirParseTest
 InterpretTest
 OptimizeTest
 InterpretAfterOptTest
-InterpretAfterDefaultOptTest
 Fir2CTest
-FirAfterOpt2CCompileTest
-FirAfterDefaultOpt2CTest
+FirAfterOpt2CTest
