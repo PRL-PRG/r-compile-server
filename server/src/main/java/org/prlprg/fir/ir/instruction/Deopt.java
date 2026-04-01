@@ -42,6 +42,11 @@ public record Deopt(Comments comments, int pc, ImmutableList<Argument> stack) im
   }
 
   @Override
+  public Jump mapTargets(Function<Target, Target> transformer) {
+    return this;
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

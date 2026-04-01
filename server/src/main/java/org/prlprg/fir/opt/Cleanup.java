@@ -1,9 +1,6 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.GlobalModules.INTRINSICS;
-
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,6 +8,7 @@ import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
+import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -18,41 +16,18 @@ import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Cast;
-import org.prlprg.fir.ir.expression.Closure;
-import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.expression.Force;
-import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.Load.LoadType;
-import org.prlprg.fir.ir.expression.MkEnv;
-import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Noop;
-import org.prlprg.fir.ir.expression.PopEnv;
-import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.expression.ReflectiveLoad;
-import org.prlprg.fir.ir.expression.ReflectiveStore;
-import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptRead;
-import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.instruction.Checkpoint;
-import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
-import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Register;
 
@@ -93,11 +68,13 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
   private class OnAbstraction {
     final Abstraction scope;
+    final InferEffects inferEffects;
     final Substituter substituter;
     boolean changed = false;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
+      inferEffects = new InferEffects(scope);
       substituter = new Substituter(scope);
     }
 
@@ -209,7 +186,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       }
 
       // Remove phi parameter definitions and arguments.
-      bb.clearParameters();
+      bb.clearPhiParameters();
       predecessor.setJump(removingAllJumpArguments(predecessor.jump(), bb));
 
       changed = true;
@@ -364,7 +341,9 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       for (var bb : cfg.bbs()) {
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
-          if (stmt.assignee() != null || !isTriviallyPure(stmt.expression())) {
+          if (stmt.assignee() != null
+              || stmt.expression() instanceof Assume
+              || inferEffects.of(stmt.expression()) != Effects.NONE) {
             i++;
             continue;
           }
@@ -375,86 +354,16 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         }
       }
     }
-
-    boolean isTriviallyPure(Expression expression) {
-      // ???: probably should separate the error from error instructions
-      // so it doesn't affect strictness and other guarantees that rely on normal control-flow
-      return switch (expression) {
-        case Aea _ -> true;
-        case Assume _ -> false;
-        case Call(var callee, _) ->
-            callee instanceof StaticFnCallee c
-                && c.exactVersion() != null
-                && isTriviallyPure(c.function());
-        // Other instructions may implicitly depend on it succeeding
-        case Cast _ -> false;
-        case Closure _, Dup _ -> true;
-        case Force _ -> false;
-        // May error iff base lookup
-        // May force iff `env == Env.LOCAL`
-        case Load(var loadType, _) -> loadType != LoadType.BASE_FUN;
-        case MkVector _ -> true;
-        case MkEnv _ -> false;
-        case Noop _ -> true;
-        case PopEnv _ -> false;
-        case Promise _ -> true;
-        case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
-        // May error
-        case SubscriptRead _ -> false;
-        case SubscriptWrite _ -> false;
-      };
-    }
-
-    static ImmutableSet<String> TRIVIALLY_PURE_INTRINSICS = ImmutableSet.of("box", "unbox");
-
-    boolean isTriviallyPure(Function function) {
-      return function.owner() == INTRINSICS
-          && TRIVIALLY_PURE_INTRINSICS.contains(function.name().name());
-    }
   }
 
   /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
   public static Jump removingJumpArgument(Jump jump, BB targetBb, int index) {
-    return switch (jump) {
-      case Goto(var comments, var next) ->
-          new Goto(comments, removingJumpArgument(next, targetBb, index));
-      case If(var comments, var condition, var ifTrue, var ifFalse) ->
-          new If(
-              comments,
-              condition,
-              removingJumpArgument(ifTrue, targetBb, index),
-              removingJumpArgument(ifFalse, targetBb, index));
-      case Return(var comments, var value) -> new Return(comments, value);
-      case Checkpoint(var comments, var success, var deopt) ->
-          new Checkpoint(
-              comments,
-              removingJumpArgument(success, targetBb, index),
-              removingJumpArgument(deopt, targetBb, index));
-      case Deopt(var comments, var pc, var stack) -> new Deopt(comments, pc, stack);
-      case Unreachable(var comments) -> new Unreachable(comments);
-    };
+    return jump.mapTargets(t -> removingJumpArgument(t, targetBb, index));
   }
 
   /// Returns the jump removing all phi arguments for the given target BB
   private static Jump removingAllJumpArguments(Jump jump, BB targetBb) {
-    return switch (jump) {
-      case Goto(var comments, var next) ->
-          new Goto(comments, removingAllJumpArguments(next, targetBb));
-      case If(var comments, var condition, var ifTrue, var ifFalse) ->
-          new If(
-              comments,
-              condition,
-              removingAllJumpArguments(ifTrue, targetBb),
-              removingAllJumpArguments(ifFalse, targetBb));
-      case Return(var comments, var value) -> new Return(comments, value);
-      case Checkpoint(var comments, var success, var deopt) ->
-          new Checkpoint(
-              comments,
-              removingAllJumpArguments(success, targetBb),
-              removingAllJumpArguments(deopt, targetBb));
-      case Deopt(var comments, var pc, var stack) -> new Deopt(comments, pc, stack);
-      case Unreachable(var comments) -> new Unreachable(comments);
-    };
+    return jump.mapTargets(t -> removingAllJumpArguments(t, targetBb));
   }
 
   /// If this points to `targetBb`, returns removing the phi argument at the given index.

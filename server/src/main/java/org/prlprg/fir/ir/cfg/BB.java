@@ -134,15 +134,15 @@ public final class BB implements Comparable<BB> {
         targets -> Collections2.mapLazy(targets, target -> target.phiArgs().get(parameterIndex)));
   }
 
-  public void appendParameter(Register parameter) {
+  public void appendPhiParameter(Register parameter) {
     module()
         .record(
-            "BB#appendParameter",
+            "BB#appendPhiParameter",
             List.of(this, parameter),
             () -> {
               if (parameters.contains(parameter)) {
                 throw new IllegalArgumentException(
-                    "Parameter '"
+                    "Phi parameter '"
                         + parameter
                         + "' is already present in BB '"
                         + label
@@ -153,10 +153,10 @@ public final class BB implements Comparable<BB> {
             });
   }
 
-  public void appendParameters(List<Register> parameters) {
+  public void appendPhiParameters(List<Register> parameters) {
     module()
         .record(
-            "BB#appendParameters",
+            "BB#appendPhiParameters",
             List.of(this, parameters),
             () -> {
               if (parameters.stream().anyMatch(this.parameters::contains)) {
@@ -196,7 +196,7 @@ public final class BB implements Comparable<BB> {
               }
               if (parameters.contains(parameter) && parameters.get(index) != parameter) {
                 throw new IllegalArgumentException(
-                    "Parameter '"
+                    "Phi parameter '"
                         + parameter
                         + "' is already present in BB '"
                         + label
@@ -207,8 +207,8 @@ public final class BB implements Comparable<BB> {
             });
   }
 
-  public void clearParameters() {
-    module().record("BB#clearParameters", List.of(this), parameters::clear);
+  public void clearPhiParameters() {
+    module().record("BB#clearPhiParameters", List.of(this), parameters::clear);
   }
 
   public void appendStatement(Statement statement) {
@@ -290,6 +290,18 @@ public final class BB implements Comparable<BB> {
               var subList = statements.subList(index, index + count);
               var removed = ImmutableList.copyOf(subList);
               subList.clear();
+              return removed;
+            });
+  }
+
+  public ImmutableList<Statement> clearStatements() {
+    return module()
+        .record(
+            "BB#clearStatements",
+            List.of(this),
+            () -> {
+              var removed = ImmutableList.copyOf(statements);
+              statements.clear();
               return removed;
             });
   }

@@ -37,6 +37,11 @@ public record Unreachable(Comments comments) implements Jump {
   }
 
   @Override
+  public Jump mapTargets(Function<Target, Target> transformer) {
+    return this;
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

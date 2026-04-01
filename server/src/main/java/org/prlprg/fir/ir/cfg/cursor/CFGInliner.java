@@ -34,7 +34,7 @@ public final class CFGInliner {
 
     // Add `returnDestination` as phi parameter if needed
     if (returnDestination != null) {
-      successor.appendParameter(returnDestination);
+      successor.appendPhiParameter(returnDestination);
     }
 
     // Inlining a CFG is the same as copying it into another, except the source entry block's

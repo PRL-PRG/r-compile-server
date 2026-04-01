@@ -21,6 +21,8 @@ public sealed interface Jump extends Instruction
   @Override
   Jump mapArguments(Function<Argument, Argument> transformer);
 
+  Jump mapTargets(Function<Target, Target> transformer);
+
   @ParseMethod
   private static Jump parse(Parser p1, Instruction.ParseContext ctx) {
     var p = p1.withContext(ctx.inner());

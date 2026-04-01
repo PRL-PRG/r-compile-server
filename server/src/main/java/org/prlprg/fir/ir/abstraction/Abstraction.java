@@ -54,7 +54,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   private final Map<Variable, Local> locals = new LinkedHashMap<>();
   private final @Nullable CFG cfg;
 
-  // Cached
+  // Cache
   private final ImmutableMap<String, Integer> nameToParamIndex;
   private final DisambiguatorMap nextLocalDisambiguator = new DisambiguatorMap();
 

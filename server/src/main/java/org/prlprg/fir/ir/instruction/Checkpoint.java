@@ -39,6 +39,11 @@ public record Checkpoint(Comments comments, Target success, Target deopt) implem
   }
 
   @Override
+  public Jump mapTargets(Function<Target, Target> transformer) {
+    return new Checkpoint(comments, transformer.apply(success), transformer.apply(deopt));
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

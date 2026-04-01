@@ -47,9 +47,9 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              (reg n:R) -+> R { reg nb:V, reg p:p(V +) |
+              (reg n:p(R +)) -+> R { reg nb:R, reg p:p(R +) |
                 nb = force n;
-                p = prom<V +>{
+                p = prom<R +>{
                   return nb;
                 };
                 return p;

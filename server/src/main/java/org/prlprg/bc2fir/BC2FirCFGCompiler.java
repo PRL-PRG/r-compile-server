@@ -307,7 +307,7 @@ public class BC2FirCFGCompiler {
       }
 
       cursor.moveToStart(afterBb);
-      afterBb.appendParameter(parameterPhi);
+      afterBb.appendPhiParameter(parameterPhi);
       insert(new Store(StoreType.LOCAL_VAR, parameterName, new Read(parameterPhi)));
     }
   }
@@ -1365,7 +1365,7 @@ public class BC2FirCFGCompiler {
 
         var phiName = arg.variable() == null ? Register.DEFAULT_NAME : arg.variable().name();
         var phi = scope().addLocal(phiName, type);
-        bb.appendParameter(phi);
+        bb.appendPhiParameter(phi);
       }
     } else {
       // Check number of phis equals number of arguments.
