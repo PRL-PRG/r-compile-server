@@ -44,13 +44,19 @@ import org.prlprg.fir.ir.variable.Register;
 ///   - Remove unused assignees (convert `r = e` to `e` if `r` is unused) and phis.
 /// - Instructions
 ///   - Remove trivial no-ops (pure expressions not assigned to anything).
-public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptimization {
+public record Cleanup(boolean substituteWithOrigins, boolean removeEffectiveNoOps)
+    implements AbstractionOptimization {
   public static void cleanup(Module module, boolean substituteWithOrigins) {
-    new Cleanup(substituteWithOrigins).run(new MockModuleFeedback(), module);
+    new Cleanup(substituteWithOrigins, true).run(new MockModuleFeedback(), module);
+  }
+
+  /// Runs CFG-specific parts of the cleanup: everything except origins and locals
+  public static void cleanup(CFG cfg, boolean removeEffectiveNoOps) {
+    new Cleanup(false, removeEffectiveNoOps).new OnAbstraction(cfg.scope()).runOnCfg(cfg);
   }
 
   public Cleanup() {
-    this(true);
+    this(true, true);
   }
 
   @Override
@@ -93,7 +99,18 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       removeUnusedLocals();
 
       // Instructions
-      scope.streamCfgs().forEach(this::removeTrivialNoOps);
+      scope.streamCfgs().forEach(this::removeNoOps);
+    }
+
+    /// Runs CFG-specific parts of the cleanup: everything except origins and locals
+    void runOnCfg(CFG cfg) {
+      cfg.bbs().forEach(this::simplifyBranches);
+      cfg.bbs().forEach(this::removeSinglePredecessorPhis);
+      removeUnreachableBlocks(cfg);
+      mergeBlocks(cfg);
+      substituter.commit();
+
+      removeNoOps(cfg);
     }
 
     void removeUnreachableBlocks(CFG cfg) {
@@ -337,13 +354,15 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       }
     }
 
-    void removeTrivialNoOps(CFG cfg) {
+    void removeNoOps(CFG cfg) {
       for (var bb : cfg.bbs()) {
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
-          if (stmt.assignee() != null
-              || stmt.expression() instanceof Assume
-              || inferEffects.of(stmt.expression()) != Effects.NONE) {
+          if (removeEffectiveNoOps
+              ? (stmt.assignee() != null
+                  || stmt.expression() instanceof Assume
+                  || inferEffects.of(stmt.expression()) != Effects.NONE)
+              : stmt.equals(Statement.NOOP)) {
             i++;
             continue;
           }

@@ -1,6 +1,7 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
+import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -10,8 +11,8 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.cfg.iterator.BbReverseDfs;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -60,20 +61,25 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     var defUses = new DefUses(scope);
 
     // The algorithm:
-    // 1. *Copy* the entire sub-graph post-dominated by the promise into its body
+    // 1. *Copy* the entire sub-graph reachable to the promise into its body
     // 2. Remove copied instructions that are impure, or have no assignee (effectively no-ops)
     // 3. Remove copied instructions that have uses in not-copied instructions, repeat
-    // 4. Remaining copied instructions, replace their not-copied counterparts with `NOOP`
+    // 4. Cleanup promise body (besides being cleaner, it prevents `Cleanup` from making a
+    //    change if we don't, which would prevent fixpoint)
+    // 5. Remaining copied instructions, replace their not-copied counterparts with `NOOP`
     //    (effectively removes, but doesn't mess up other runs)
 
     // Step 1
     var copied = new LinkedHashMap<CfgPosition, CfgPosition>();
     var copiedBbs = new HashMap<BB, BB>();
 
-    // a. Move instructions from the promise entry to a secondary BB,
-    //    because we can't add predecessors to the entry
+    // a. (Preparation) move instructions from the promise entry to a secondary BB,
+    //    because we can't add predecessors to the entry.
+    //    Create an unreachable BB, which will be the target of copied predecessors in place of
+    //    non-copied successors (we reached the promise, and everything is pure, so we'll reach
+    //    the same point within, which is unreachable from the non-copied BBs).
     // b. Copy instructions in the same BB before the promise, and phis
-    // c. Copy predecessor BBs that only go to copied BBs, repeat
+    // c. Copy transitive predecessor BBs
 
     // Step 1a
     var promiseEntry = promiseBody.addBB();
@@ -81,6 +87,8 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     promiseEntry.setJump(promiseBody.entry().jump());
     promiseBody.entry().setJump(new Goto(new Target(promiseEntry)));
     promiseBody.entry().clearStatements();
+
+    var unreachableBB = promiseBody.addBB();
 
     // Step 1b
     copiedBbs.put(promisePos.bb(), promiseEntry);
@@ -92,14 +100,7 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     }
 
     // Step 1c
-    var bbReverseDfs = new BbReverseDfs(promisePos.bb().predecessors());
-    while (bbReverseDfs.hasNext()) {
-      var pred = bbReverseDfs.next();
-      if (!copiedBbs.keySet().containsAll(pred.successors())) {
-        bbReverseDfs.prune();
-        continue;
-      }
-
+    for (var pred : bbReverseDfs(promisePos.bb().predecessors())) {
       var predCopy = promiseBody.addBB();
       copiedBbs.put(pred, predCopy);
       predCopy.appendPhiParameters(pred.phiParameters());
@@ -107,7 +108,53 @@ public record DeferIntoPromise() implements AbstractionOptimization {
       for (var i = 0; i <= pred.statements().size(); i++) {
         copied.put(new CfgPosition(pred, i), new CfgPosition(predCopy, i));
       }
-      predCopy.setJump(pred.jump().mapTargets(t -> new Target(copiedBbs.get(t.bb()), t.phiArgs())));
+      // Special-case when the promise is in a deopt branch,
+      // since the checkpoint should fail, but we won't copy the assumptions
+      // (because they're in the unreachable-from-here success BB)
+      predCopy.setJump(
+          pred.jump() instanceof Checkpoint(_, _, var deopt)
+              // Technically this should always be `new Goto(new Target(promisePos.bb())`
+              ? new Goto(
+                  new Target(copiedBbs.getOrDefault(deopt.bb(), unreachableBB), deopt.phiArgs()))
+              : pred.jump()
+                  .mapTargets(
+                      t -> new Target(copiedBbs.getOrDefault(t.bb(), unreachableBB), t.phiArgs())));
+
+      // Update predecessor's predecessors:
+      // if they were added before it was, they'll have the unreachable BB in its place
+      for (var predPred : pred.predecessors()) {
+        var predPredCopy = copiedBbs.get(predPred);
+        if (predPredCopy == null || !predPredCopy.successors().contains(unreachableBB)) {
+          continue;
+        }
+
+        predPredCopy.setJump(
+            predPredCopy
+                .jump()
+                .mapTargets(
+                    t -> new Target(copiedBbs.getOrDefault(t.bb(), unreachableBB), t.phiArgs())));
+      }
+    }
+
+    // Step 1d: Connect the promise body entry to the root of the copied predecessor chain.
+    // A root is a copied predecessor whose original BB has no predecessors in the copied set.
+    // TODO: Claude added this and I don't think it's correct
+    BB singleRoot = null;
+    var hasMultipleRoots = false;
+    for (var entry : copiedBbs.entrySet()) {
+      if (entry.getKey() == promisePos.bb()) continue;
+      var originalBB = entry.getKey();
+      if (originalBB.predecessors().stream().noneMatch(copiedBbs::containsKey)) {
+        if (singleRoot == null) {
+          singleRoot = entry.getValue();
+        } else {
+          hasMultipleRoots = true;
+          break;
+        }
+      }
+    }
+    if (singleRoot != null && !hasMultipleRoots) {
+      promiseBody.entry().setJump(new Goto(new Target(singleRoot)));
     }
 
     // Step 2
@@ -142,23 +189,25 @@ public record DeferIntoPromise() implements AbstractionOptimization {
             entry.getValue().replaceWith(Statement.NOOP);
             copiedIter.remove();
             removedAny = true;
+            break;
           }
         }
       }
     }
 
     // Step 4
-    if (copied.isEmpty()) {
-      return false;
-    }
+    cleanup(promiseBody, false);
 
+    // Step 5
+    var changed = false;
     for (var entry : copied.entrySet()) {
       if (!(entry.getKey().instruction() instanceof Statement)) {
         continue;
       }
 
       entry.getKey().replaceWith(Statement.NOOP);
+      changed = true;
     }
-    return true;
+    return changed;
   }
 }

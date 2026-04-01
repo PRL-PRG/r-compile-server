@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
 import org.intellij.lang.annotations.Language;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -51,7 +50,8 @@ public class OptimizationLog implements AutoCloseable {
           var function = (Function) args.get(1);
           var _ = (AbstractionFeedback) args.get(2);
           var version = (Abstraction) args.get(3);
-          var changed = (boolean) Objects.requireNonNull(returnValue);
+          // true or crash (null)
+          var changed = returnValue != Boolean.FALSE;
 
           if (!changed) {
             // Don't record unchanged optimization

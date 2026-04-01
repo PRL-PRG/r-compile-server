@@ -308,6 +308,96 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
   }
 
   @Test
+  void instructionInPredecessorBlock_deferred() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              (reg n:R) --> R { reg nb:v1(R), reg p:p(v1(R) -) |
+                nb = box< R --> v1(R) >(n);
+                goto L0();
+              L0():
+                p = prom<v1(R) ->{
+                  return nb;
+                };
+                return p;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    var promIdx = printed.indexOf("prom<");
+    var boxIdx = printed.indexOf("box<");
+    assertTrue(boxIdx > promIdx, "box should be inside the promise; printed:\n" + printed);
+  }
+
+  @Test
+  void promiseInDeoptBlock_deferred() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              (reg n:R) -~> R { var v:*, reg nb:v1(R), reg p:p(v1(R) -) |
+                nb = box< R --> v1(R) >(n);
+                check L0() else D0();
+              D0():
+                mkenv;
+                p = prom<v1(R) ->{
+                  return nb;
+                };
+                st v = p;
+                deopt 0 [];
+              L0():
+                return n;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "box should be deferred into the promise in the deopt block");
+
+    var printed = Printer.toString(module);
+    var promIdx = printed.indexOf("prom<");
+    var boxIdx = printed.indexOf("box<");
+    assertTrue(boxIdx > promIdx, "box should be inside the promise; printed:\n" + printed);
+  }
+
+  @Test
+  void complicatedCfgPartialDefer() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              (reg n:R) -~> R { var v:*, reg na:v1(R), reg nb:v1(R), reg p:p(v1(R) -), reg x:R |
+                na = box< R --> v1(R) >(n);
+                nb = dup na;
+                check L0() else D0();
+              D0():
+                mkenv;
+                p = prom<v1(R) ->{
+                  return nb;
+                };
+                st v = p;
+                deopt 0 [];
+              L0():
+                x = unbox< v1(R) --> R >(na);
+                return x;
+              }
+            }
+            """);
+
+    assertTrue(run(module), "nb should be deferred even though na can't be");
+
+    var printed = Printer.toString(module);
+    var promIdx = printed.indexOf("prom<");
+    var boxIdx = printed.indexOf("box<");
+    var dupIdx = printed.indexOf("dup ");
+    assertTrue(boxIdx < promIdx, "box should remain outside the promise; printed:\n" + printed);
+    assertTrue(dupIdx > promIdx, "dup should be inside the promise; printed:\n" + printed);
+  }
+
+  @Test
   void promiseWithNoMovablePredecessors_unchanged() {
     var module =
         ParseUtil.parseModule(
