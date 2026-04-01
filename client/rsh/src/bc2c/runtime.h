@@ -1137,9 +1137,17 @@ static INLINE void Rsh_GetBuiltin(Value *stack, SEXP symbol) {
   }
 
   SET_SXP_VAL(call, value);
+
+#ifdef RSH_RTRACE_SUPPORT
+  if (RTRACE(value)) {
+    Rprintf("trace: ");
+    PrintValue(symbol);
+  }
+#else
+  assert(!RTRACE(value) && "Tracing is not supported in this build of Rsh");
+#endif
+
   INIT_CALL_FRAME(args_head, args_tail);
-  args_head->tag = 0;
-  args_tail->tag = 0;
 }
 
 static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
@@ -1150,6 +1158,14 @@ static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
   SEXP fun_sxp = Rf_findFun(symbol, rho);
   SET_SXP_VAL(fun, fun_sxp);
   INIT_CALL_FRAME(args_head, args_tail);
+#ifdef RSH_RTRACE_SUPPORT
+  if (RTRACE(fun_sxp)) {
+    Rprintf("trace: ");
+    PrintValue(symbol);
+  }
+#else
+  assert(!RTRACE(fun_sxp) && "Tracing is not supported in this build of Rsh");
+#endif
 }
 
 #define Rsh_PushArg(stack)                                                     \
@@ -1300,20 +1316,17 @@ static INLINE void Rsh_CallBuiltin(Value *stack, SEXP call, SEXP rho) {
   //  -> top
   SEXP fun = VAL_SXP(*GET_VAL(-3));
   SEXP args = Rsh_builtin_call_args(VAL_SXP(*GET_VAL(-2)));
-  int flag;
-  // const void *vmax = vmaxget(); // Needed only for profiling
-  if (TYPEOF(fun) != BUILTINSXP)
-    error("not a BUILTIN function");
-  flag = PRIMPRINT(fun);
+  const void *vmax = vmaxget();
+  assert(TYPEOF(fun) == BUILTINSXP); //Expected a BUILTIN function
+  int flag = PRIMPRINT(fun);
   R_Visible = (Rboolean)(flag != 1);
-  SEXP value;
   // Profiling not supported in Rsh, skipping the profiling branch
   // TODO support profiling?
-  value = PRIMFUN(fun)(call, fun, args, rho);
+  SEXP value = PRIMFUN(fun)(call, fun, args, rho);
   if (flag < 2) {
     R_Visible = (Rboolean)(flag != 1);
   }
-  // vmaxset(vmax); // Needed only for profiling
+  vmaxset(vmax);
 
   SET_VAL_N(-3, value);
 }
@@ -3201,6 +3214,14 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   SEXP fun = getPrimitive(symbol, SPECIALSXP);
 
   const void *vmax = vmaxget();
+#ifdef RSH_RTRACE_SUPPORT
+  if (RTRACE(fun)) {
+    Rprintf("trace: ");
+    PrintValue(symbol);
+  }
+#else
+  assert(!RTRACE(fun) && "Tracing is not supported in this build of Rsh");
+#endif
   int flag = PRIMPRINT(fun);
   // FIXME: create a macro for the Rboolean -> bool conversion for C++
   R_Visible = (flag != 1) ? TRUE : FALSE;
