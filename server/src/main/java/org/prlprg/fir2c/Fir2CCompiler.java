@@ -708,7 +708,7 @@ public final class Fir2CCompiler {
         private void emitFromR() {
           var cCode = fromRCFunction.add();
           cCode.stmt(
-              "SEXP ** captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
+              "void **captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
               VAR_DATA);
           var evalCName = promiseEvalCName(promise);
           cCode.stmt("return %s(%s, captures);", evalCName, VAR_ENV);
@@ -721,9 +721,14 @@ public final class Fir2CCompiler {
           debugComment(cCode, "# Bind captures");
           var iter = captureSet.iterator();
           for (var i = 0; i < captureSet.size(); i++) {
-            var captureName = registerCName(iter.next());
-            cCode.stmt("SEXP *%s = %s[%d];", captureName, VAR_CAPTURES, i);
-            debugValue(cCode, captureName, "*%s".formatted(captureName), Repr.SEXP);
+            var capture = iter.next();
+            var captureRepr = registerRepr(capture);
+            var captureCType = reprCType(captureRepr);
+            var captureCName = registerCName(capture);
+            cCode.stmt(
+                "%s *%s = (%s *)%s[%d];",
+                captureCType, captureCName, captureCType, VAR_CAPTURES, i);
+            debugValue(cCode, captureCName, "*%s".formatted(captureCName), captureRepr);
           }
         }
       }
@@ -977,8 +982,8 @@ public final class Fir2CCompiler {
                 var captureArray =
                     emitArray(
                         "captures",
-                        "SEXP *",
-                        captureSet.stream().map(reg -> "&" + registerPlace(reg)).toList());
+                        "void *",
+                        captureSet.stream().map(reg -> "(void *)&" + registerPlace(reg)).toList());
                 var captures = captureArray.pointer();
 
                 yield "Fir_mk_promise(%s, %s, %s, %s)".formatted(fromRCName, cp, captures, VAR_ENV);
@@ -1757,7 +1762,7 @@ public final class Fir2CCompiler {
   }
 
   private static final List<String> PROMISE_EVAL_C_PARAMS =
-      List.of("SEXP %s".formatted(VAR_ENV), "SEXP **%s".formatted(VAR_CAPTURES));
+      List.of("SEXP %s".formatted(VAR_ENV), "void **%s".formatted(VAR_CAPTURES));
 
   private static final String PROMISE_EVAL_C_RETURN = "SEXP";
 
@@ -1788,7 +1793,7 @@ public final class Fir2CCompiler {
             case FALSE -> "(Rboolean)false";
             case NA -> "NA_LGL";
           };
-      case Value.Bool(var b) -> b ? "true" : "false";
+      case Value.Bool(var b) -> Boolean.toString(b);
     };
   }
 

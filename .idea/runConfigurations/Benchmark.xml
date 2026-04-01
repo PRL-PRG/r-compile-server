@@ -7,8 +7,8 @@
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>
-    <option name="PACKAGE_NAME" value="org.prlprg.bench" />
-    <option name="MAIN_CLASS_NAME" value="org.prlprg.bench.Benchmark" />
+    <option name="PACKAGE_NAME" value="org.prlprg.snapshot.bench" />
+    <option name="MAIN_CLASS_NAME" value="org.prlprg.snapshot.bench.Benchmark" />
     <option name="METHOD_NAME" value="" />
     <option name="TEST_OBJECT" value="class" />
     <method v="2">
