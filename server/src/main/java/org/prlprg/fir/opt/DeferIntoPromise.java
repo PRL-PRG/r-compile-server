@@ -1,43 +1,23 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.GlobalModules.INTRINSICS;
+import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
 
-import com.google.common.collect.ImmutableSet;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.LinkedHashMap;
 import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
-import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Cast;
-import org.prlprg.fir.ir.expression.Closure;
-import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.expression.Force;
-import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.Load.LoadType;
-import org.prlprg.fir.ir.expression.MkEnv;
-import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Noop;
-import org.prlprg.fir.ir.expression.PopEnv;
+import org.prlprg.fir.ir.cfg.iterator.BbReverseDfs;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.expression.ReflectiveLoad;
-import org.prlprg.fir.ir.expression.ReflectiveStore;
-import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptRead;
-import org.prlprg.fir.ir.expression.SubscriptWrite;
+import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.position.ScopePosition;
-import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.type.Effects;
 
 /// Defers pure instructions that only affect registers used inside a promise into that promise.
 ///
@@ -45,211 +25,140 @@ import org.prlprg.fir.ir.variable.Register;
 /// optimization moves the `box` into the promise body so it is only evaluated when the promise
 /// is forced.
 ///
-/// This handles:
-/// - Multiple promises in the same scope
-/// - Chains of dependent pure instructions (e.g. `a = box(n); b = f(a); p = prom{ use(b) }`)
-/// - Deeply nested promises (applied recursively via [Abstraction#streamCfgs()])
-/// - Instructions used in multiple promises or outside any promise (not moved)
-/// - Impure instructions (not moved)
+/// Also handles chains of dependent pure instructions (e.g. `a = box(n); b = f(a);
+/// p = prom{ use(b) }`), even across basic blocks (e.g. `a1 = box(n); goto BB(a1);
+/// ... a2 = box(m); goto BB(a2); ... BB(a): p = prom{ use(a) }`), and nested promises
+///
+/// Not moved:
+/// - Instructions used in multiple promises (not within a shared promise, which can still be
+///   the move target) or outside any promise
+/// - Impure instructions
 public record DeferIntoPromise() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
       Function function, AbstractionFeedback feedback, Abstraction scope) {
-    if (scope.cfg() == null) {
+    return scope.cfg() != null && run(scope, scope.cfg());
+  }
+
+  private boolean run(Abstraction scope, CFG cfg) {
+    var changed = false;
+    for (var bb : cfg.bbs()) {
+      for (int i = 0; i < bb.statements().size(); i++) {
+        var stmt = bb.statements().get(i);
+        if (!(stmt.expression() instanceof Promise(_, _, var promiseBody))) {
+          continue;
+        }
+        changed |= run(scope, new CfgPosition(bb, i), promiseBody);
+        changed |= run(scope, promiseBody);
+      }
+    }
+    return changed;
+  }
+
+  private boolean run(Abstraction scope, CfgPosition promisePos, CFG promiseBody) {
+    var inferEffects = new InferEffects(scope);
+    var defUses = new DefUses(scope);
+
+    // The algorithm:
+    // 1. *Copy* the entire sub-graph post-dominated by the promise into its body
+    // 2. Remove copied instructions that are impure, or have no assignee (effectively no-ops)
+    // 3. Remove copied instructions that have uses in not-copied instructions, repeat
+    // 4. Remaining copied instructions, replace their not-copied counterparts with `NOOP`
+    //    (effectively removes, but doesn't mess up other runs)
+
+    // Step 1
+    var copied = new LinkedHashMap<CfgPosition, CfgPosition>();
+    var copiedBbs = new HashMap<BB, BB>();
+
+    // a. Move instructions from the promise entry to a secondary BB,
+    //    because we can't add predecessors to the entry
+    // b. Copy instructions in the same BB before the promise, and phis
+    // c. Copy predecessor BBs that only go to copied BBs, repeat
+
+    // Step 1a
+    var promiseEntry = promiseBody.addBB();
+    promiseEntry.appendStatements(promiseBody.entry().statements());
+    promiseEntry.setJump(promiseBody.entry().jump());
+    promiseBody.entry().setJump(new Goto(new Target(promiseEntry)));
+    promiseBody.entry().clearStatements();
+
+    // Step 1b
+    copiedBbs.put(promisePos.bb(), promiseEntry);
+    promiseEntry.appendPhiParameters(promisePos.bb().phiParameters());
+    promiseEntry.insertStatements(
+        0, promisePos.bb().statements().subList(0, promisePos.instructionIndex()));
+    for (int i = 0; i < promisePos.instructionIndex(); i++) {
+      copied.put(new CfgPosition(promisePos.bb(), i), new CfgPosition(promiseEntry, i));
+    }
+
+    // Step 1c
+    var bbReverseDfs = new BbReverseDfs(promisePos.bb().predecessors());
+    while (bbReverseDfs.hasNext()) {
+      var pred = bbReverseDfs.next();
+      if (!copiedBbs.keySet().containsAll(pred.successors())) {
+        bbReverseDfs.prune();
+        continue;
+      }
+
+      var predCopy = promiseBody.addBB();
+      copiedBbs.put(pred, predCopy);
+      predCopy.appendPhiParameters(pred.phiParameters());
+      predCopy.appendStatements(pred.statements());
+      for (var i = 0; i <= pred.statements().size(); i++) {
+        copied.put(new CfgPosition(pred, i), new CfgPosition(predCopy, i));
+      }
+      predCopy.setJump(pred.jump().mapTargets(t -> new Target(copiedBbs.get(t.bb()), t.phiArgs())));
+    }
+
+    // Step 2
+    var copiedIter = copied.entrySet().iterator();
+    while (copiedIter.hasNext()) {
+      var entry = copiedIter.next();
+      if (!(entry.getKey().instruction() instanceof Statement(_, var assignee, var expr))) {
+        continue;
+      }
+
+      if (assignee == null || inferEffects.of(expr) != Effects.NONE) {
+        entry.getValue().replaceWith(Statement.NOOP);
+        copiedIter.remove();
+      }
+    }
+
+    // Step 3
+    var removedAny = true;
+    while (removedAny) {
+      removedAny = false;
+
+      copiedIter = copied.entrySet().iterator();
+      while (copiedIter.hasNext()) {
+        var entry = copiedIter.next();
+        if (!(entry.getKey().instruction() instanceof Statement(_, var assignee, _))) {
+          continue;
+        }
+
+        for (var use : defUses.uses(assignee)) {
+          var useInOuterCfg = use.inCfg(promisePos.cfg());
+          if (!useInOuterCfg.equals(promisePos) && !copied.containsKey(useInOuterCfg)) {
+            entry.getValue().replaceWith(Statement.NOOP);
+            copiedIter.remove();
+            removedAny = true;
+          }
+        }
+      }
+    }
+
+    // Step 4
+    if (copied.isEmpty()) {
       return false;
     }
 
-    var changed = false;
-
-    // Process each CFG (main + nested promise CFGs) so we handle deeply nested promises.
-    for (var cfg : scope.streamCfgs().toList()) {
-      changed |= processOneCfg(scope, cfg);
-    }
-
-    return changed;
-  }
-
-  private boolean processOneCfg(Abstraction scope, CFG cfg) {
-    var defUses = new DefUses(scope);
-    var changed = false;
-
-    for (var bb : List.copyOf(cfg.bbs())) {
-      for (int i = 0; i < bb.statements().size(); i++) {
-        var stmt = bb.statements().get(i);
-        if (stmt.assignee() == null || !(stmt.expression() instanceof Promise promise)) {
-          continue;
-        }
-
-        var promiseCfg = promise.code();
-        var toMove = findMovableStatements(bb, i, promiseCfg, cfg, defUses);
-
-        if (toMove.isEmpty()) {
-          continue;
-        }
-
-        // Move the statements: insert at the beginning of the promise's entry block.
-        var promiseEntry = promiseCfg.entry();
-        var statementsToInsert = new ArrayList<Statement>();
-        for (var idx : toMove) {
-          statementsToInsert.add(bb.statements().get(idx));
-        }
-        promiseEntry.insertStatements(0, statementsToInsert);
-
-        // Remove from outer BB (highest index first to avoid shifting).
-        var sortedDesc = toMove.stream().sorted((a, b) -> b - a).toList();
-        for (var idx : sortedDesc) {
-          bb.removeStatementAt(idx);
-        }
-
-        // Adjust i for removed statements (all were before the promise stmt).
-        i -= toMove.size();
-
-        // Recompute def-uses since we mutated the CFG.
-        defUses = new DefUses(scope);
-
-        changed = true;
+    for (var entry : copied.entrySet()) {
+      if (!(entry.getKey().instruction() instanceof Statement)) {
+        continue;
       }
+
+      entry.getKey().replaceWith(Statement.NOOP);
     }
-
-    return changed;
-  }
-
-  /// Find all pure statements before the promise at `promiseIndex` in `bb` that can be
-  /// deferred into `promiseCfg`.
-  ///
-  /// A statement is movable if:
-  /// 1. It is pure and has an assignee
-  /// 2. All uses of its assignee are either inside `promiseCfg` or at other movable statements
-  ///
-  /// Returns indices in ascending order.
-  private List<Integer> findMovableStatements(
-      BB bb, int promiseIndex, CFG promiseCfg, CFG outerCfg, DefUses defUses) {
-
-    // Phase 1: Collect pure candidates with assignees, before the promise in same BB.
-    // Map: statement index -> assignee register
-    var candidates = new HashMap<Integer, Register>();
-    for (int j = promiseIndex - 1; j >= 0; j--) {
-      var stmt = bb.statements().get(j);
-      if (stmt.assignee() != null && isTriviallyPure(stmt.expression())) {
-        candidates.put(j, stmt.assignee());
-      }
-    }
-
-    if (candidates.isEmpty()) {
-      return List.of();
-    }
-
-    // Reverse map: register -> candidate index
-    var regToCandidate = new HashMap<Register, Integer>();
-    for (var entry : candidates.entrySet()) {
-      regToCandidate.put(entry.getValue(), entry.getKey());
-    }
-
-    // Phase 2: For each candidate, classify its uses.
-    // A use is either: (a) inside the promise, (b) at another candidate, (c) elsewhere.
-    // A candidate is movable if it has NO "elsewhere" uses, and all its "at candidate" uses
-    // are themselves movable. This is a fixpoint computation.
-
-    // Precompute for each candidate: does it have any "elsewhere" uses?
-    // And which other candidates use it?
-    var hasElsewhereUse = new HashSet<Integer>();
-    var candidateUsers =
-        new HashMap<Integer, Set<Integer>>(); // candidate -> set of candidate indices that use it
-
-    for (var entry : candidates.entrySet()) {
-      var idx = entry.getKey();
-      var reg = entry.getValue();
-      candidateUsers.put(idx, new HashSet<>());
-
-      for (var use : defUses.uses(reg)) {
-        if (isUseInsidePromise(use, promiseCfg)) {
-          // Good: inside the promise
-          continue;
-        }
-
-        // Check if this use is at another candidate statement
-        var useInOuter = use.inCfg(outerCfg);
-        if (useInOuter != null && useInOuter.bb() == bb) {
-          var userCandidate =
-              candidates.containsKey(useInOuter.instructionIndex())
-                  ? useInOuter.instructionIndex()
-                  : -1;
-          if (userCandidate >= 0) {
-            candidateUsers.get(idx).add(userCandidate);
-            continue;
-          }
-        }
-
-        // This use is "elsewhere" (outside the promise and not at a candidate)
-        hasElsewhereUse.add(idx);
-        break;
-      }
-    }
-
-    // Phase 3: Fixpoint to determine movable set.
-    // Start with candidates that have no elsewhere uses and no candidate users
-    // (all uses are inside the promise).
-    var movable = new HashSet<Integer>();
-    var changed = true;
-    while (changed) {
-      changed = false;
-      for (var idx : candidates.keySet()) {
-        if (movable.contains(idx) || hasElsewhereUse.contains(idx)) {
-          continue;
-        }
-
-        // Check if all candidate-users of this register are already movable
-        var users = candidateUsers.get(idx);
-        if (movable.containsAll(users)) {
-          movable.add(idx);
-          changed = true;
-        }
-      }
-    }
-
-    if (movable.isEmpty()) {
-      return List.of();
-    }
-
-    var result = new ArrayList<>(movable);
-    result.sort(Integer::compareTo);
-    return result;
-  }
-
-  /// Check if a use position is inside the given promise CFG (or nested within it).
-  private boolean isUseInsidePromise(ScopePosition use, CFG promiseCfg) {
-    return use.inCfg(promiseCfg) != null;
-  }
-
-  /// Same logic as [Cleanup]'s isTriviallyPure.
-  static boolean isTriviallyPure(Expression expression) {
-    return switch (expression) {
-      case Aea _ -> true;
-      case Assume _ -> false;
-      case Call(var callee, _) ->
-          callee instanceof StaticFnCallee c
-              && c.exactVersion() != null
-              && isTriviallyPureFunction(c.function());
-      case Cast _ -> false;
-      case Closure _, Dup _ -> true;
-      case Force _ -> false;
-      case Load(var loadType, _) -> loadType != LoadType.BASE_FUN;
-      case MkVector _ -> true;
-      case MkEnv _ -> false;
-      case Noop _ -> true;
-      case PopEnv _ -> false;
-      case Promise _ -> true;
-      case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
-      case SubscriptRead _ -> false;
-      case SubscriptWrite _ -> false;
-    };
-  }
-
-  private static final ImmutableSet<String> TRIVIALLY_PURE_INTRINSICS =
-      ImmutableSet.of("box", "unbox");
-
-  private static boolean isTriviallyPureFunction(Function function) {
-    return function.owner() == INTRINSICS
-        && TRIVIALLY_PURE_INTRINSICS.contains(function.name().name());
+    return true;
   }
 }

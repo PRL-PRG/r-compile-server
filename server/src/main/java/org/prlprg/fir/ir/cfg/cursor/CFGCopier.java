@@ -10,14 +10,9 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.instruction.Checkpoint;
-import org.prlprg.fir.ir.instruction.Deopt;
-import org.prlprg.fir.ir.instruction.Goto;
-import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.util.Lists;
 
@@ -52,7 +47,7 @@ public final class CFGCopier {
 
       var bbCopy = bb.isEntry() ? dstBb : dst.bb(bbLabel);
       assert bbCopy != null;
-      bbCopy.appendParameters(bb.phiParameters());
+      bbCopy.appendPhiParameters(bb.phiParameters());
       bbCopy.appendStatements(Lists.mapLazy(bb.statements(), s -> copy(s, dst.scope())));
       bbCopy.setJump(
           bb.jump() instanceof Return(var comments, var value)
@@ -78,24 +73,7 @@ public final class CFGCopier {
   }
 
   private static Jump substLabels(CFG dst, Jump jump, Map<BB, String> substitutedBbLabels) {
-    return switch (jump) {
-      case Goto(var comments, var next) ->
-          new Goto(comments, substLabels(dst, next, substitutedBbLabels));
-      case If(var comments, var condition, var ifTrue, var ifFalse) ->
-          new If(
-              comments,
-              condition,
-              substLabels(dst, ifTrue, substitutedBbLabels),
-              substLabels(dst, ifFalse, substitutedBbLabels));
-      case Checkpoint(var comments, var success, var deopt) ->
-          new Checkpoint(
-              comments,
-              substLabels(dst, success, substitutedBbLabels),
-              substLabels(dst, deopt, substitutedBbLabels));
-      case Return(var comments, var value) -> new Return(comments, value);
-      case Deopt(var comments, var pc, var stack) -> new Deopt(comments, pc, stack);
-      case Unreachable(var comments) -> new Unreachable(comments);
-    };
+    return jump.mapTargets(t -> substLabels(dst, t, substitutedBbLabels));
   }
 
   private static Target substLabels(CFG dst, Target target, Map<BB, String> substitutedBbLabels) {

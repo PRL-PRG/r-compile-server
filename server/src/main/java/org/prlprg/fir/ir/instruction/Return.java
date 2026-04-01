@@ -37,6 +37,11 @@ public record Return(Comments comments, Argument value) implements Jump {
   }
 
   @Override
+  public Jump mapTargets(Function<Target, Target> transformer) {
+    return this;
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

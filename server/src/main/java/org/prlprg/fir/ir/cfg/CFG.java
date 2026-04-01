@@ -81,6 +81,7 @@ public final class CFG {
     return this.addBB(this.nextLabel());
   }
 
+  /// @throws IllegalArgumentException if a block with the given label already exists.
   public BB addBB(String label) {
     return module()
         .record(

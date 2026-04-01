@@ -42,6 +42,11 @@ public record If(Comments comments, Argument cond, Target ifTrue, Target ifFalse
   }
 
   @Override
+  public Jump mapTargets(Function<Target, Target> transformer) {
+    return new If(comments, cond, transformer.apply(ifTrue), transformer.apply(ifFalse));
+  }
+
+  @Override
   public String toString() {
     return Printer.toString(this);
   }

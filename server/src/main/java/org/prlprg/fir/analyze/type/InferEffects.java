@@ -79,13 +79,14 @@ public final class InferEffects implements Analysis {
 
   public Effects of(Expression expression) {
     return switch (expression) {
-      case Aea(_), Assume _ -> Effects.NONE;
+      case Aea _, Assume _ -> Effects.NONE;
       case Call call ->
           switch (call.callee()) {
             case StaticFnCallee(_, _, var signature) -> signature.effects();
-            case DynamicCallee(_, _) -> Effects.REFLECT;
+            case DynamicCallee _ -> Effects.REFLECT;
           };
-      case Cast(_, _), Closure _, Dup(_) -> Effects.NONE;
+      case Cast _ -> Effects.IMPURE;
+      case Closure _, Dup _ -> Effects.NONE;
       case Force(_, var value) -> {
         var type = inferType.of(value);
         yield type == null
@@ -96,9 +97,15 @@ public final class InferEffects implements Analysis {
       }
       // Local function lookup can force
       case Load(var loadType, _) -> loadType == LoadType.LOCAL_FUN ? Effects.REFLECT : Effects.NONE;
-      case MkVector(_, _), MkEnv(), Noop(), PopEnv(), Promise(_, _, _) -> Effects.NONE;
-      case ReflectiveLoad(_, _), ReflectiveStore(_, _, _) -> Effects.REFLECT;
-      case Store(_, _, _), SubscriptRead(_, _), SubscriptWrite(_, _, _) -> Effects.NONE;
+      case MkVector _ -> Effects.NONE;
+      case MkEnv _ -> Effects.IMPURE;
+      case Noop _ -> Effects.NONE;
+      case PopEnv _ -> Effects.IMPURE;
+      case Promise _ -> Effects.NONE;
+      case ReflectiveLoad _, ReflectiveStore _ -> Effects.REFLECT;
+      case Store _ -> Effects.IMPURE;
+      case SubscriptRead _ -> Effects.NONE;
+      case SubscriptWrite _ -> Effects.IMPURE;
     };
   }
 }
