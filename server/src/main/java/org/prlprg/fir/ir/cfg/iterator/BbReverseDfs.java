@@ -24,6 +24,11 @@ public final class BbReverseDfs extends Abstract<List<BB>> {
   }
 
   /// An [Iterable] that yields [BbReverseDfs].
+  public static Iterable<BB> bbReverseDfs(Collection<BB> bbs) {
+    return () -> new BbReverseDfs(bbs);
+  }
+
+  /// An [Iterable] that yields [BbReverseDfs].
   public static Iterable<BB> bbReverseDfs(BB bb) {
     return () -> new BbReverseDfs(bb);
   }
