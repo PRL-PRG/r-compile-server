@@ -45,56 +45,7 @@
             </Attribute>
           </value>
         </entry>
-        <entry key="/external/R/doc/BioC_mirrors.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/external/R/doc/CRAN_mirrors.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/external/R/library/utils/misc/exDIF.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/external/R/src/library/stats/tests/ppr_test.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/external/R/src/library/utils/inst/misc/exDIF.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/external/R/tests/EmbeddedNuls.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
         <entry key="/fir-intellij-plugin/build/idea-sandbox/IU-2025.3/log/open-telemetry-metrics.2026-02-25-12-11-16.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/fir-intellij-plugin/build/idea-sandbox/IU-2025.3/log/open-telemetry-metrics.2026-02-26-12-13-59.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />

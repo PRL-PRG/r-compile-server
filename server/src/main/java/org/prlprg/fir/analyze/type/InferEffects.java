@@ -26,6 +26,7 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -47,6 +48,7 @@ public final class InferEffects implements Analysis {
 
   public Effects of(CFG cfg) {
     return cfg.bbs().stream()
+        .filter(bb -> !(bb.jump() instanceof Deopt))
         .flatMap(bb -> bb.instructions().stream())
         .map(this::of)
         .reduce(Effects::union)
@@ -58,6 +60,7 @@ public final class InferEffects implements Analysis {
   /// TODO: this is hacky, solution for mutual recursion
   public Effects ofNonRecursive(CFG cfg) {
     return cfg.bbs().stream()
+        .filter(bb -> !(bb.jump() instanceof Deopt))
         .flatMap(bb -> bb.instructions().stream())
         .filter(
             i ->

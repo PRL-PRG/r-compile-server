@@ -3,8 +3,10 @@ package org.prlprg.fir.opt;
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
 import static org.prlprg.fir.opt.Cleanup.cleanup;
 
-import java.util.HashMap;
+import com.google.common.collect.Iterables;
 import java.util.LinkedHashMap;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -12,13 +14,13 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.util.UnreachableError;
 
 /// Defers pure instructions that only affect registers used inside a promise into that promise.
 ///
@@ -31,8 +33,7 @@ import org.prlprg.fir.ir.type.Effects;
 /// ... a2 = box(m); goto BB(a2); ... BB(a): p = prom{ use(a) }`), and nested promises
 ///
 /// Not moved:
-/// - Instructions used in multiple promises (not within a shared promise, which can still be
-///   the move target) or outside any promise
+/// - Instructions used outside the promise in other not-moved instructions
 /// - Impure instructions
 public record DeferIntoPromise() implements AbstractionOptimization {
   @Override
@@ -57,6 +58,12 @@ public record DeferIntoPromise() implements AbstractionOptimization {
   }
 
   private boolean run(Abstraction scope, CfgPosition promisePos, CFG promiseBody) {
+    if (Iterables.contains(bbReverseDfs(promisePos.bb().predecessors()), promisePos.bb())) {
+      // The promise is in a loop.
+      // Too complicated. If necessary, we can figure out how to optimize this later
+      return false;
+    }
+
     var inferEffects = new InferEffects(scope);
     var defUses = new DefUses(scope);
 
@@ -70,102 +77,88 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     //    (effectively removes, but doesn't mess up other runs)
 
     // Step 1
-    var copied = new LinkedHashMap<CfgPosition, CfgPosition>();
-    var copiedBbs = new HashMap<BB, BB>();
+    var copiedStmts = new LinkedHashMap<CfgPosition, CfgPosition>();
+    var copiedBbs = new LinkedHashMap<BB, BB>();
 
-    // a. (Preparation) move instructions from the promise entry to a secondary BB,
+    // a. Move instructions from the promise entry to a secondary BB,
     //    because we can't add predecessors to the entry.
-    //    Create an unreachable BB, which will be the target of copied predecessors in place of
-    //    non-copied successors (we reached the promise, and everything is pure, so we'll reach
-    //    the same point within, which is unreachable from the non-copied BBs).
-    // b. Copy instructions in the same BB before the promise, and phis
+    //    When we copy predecessors, we'll copy the outer entry into the promise's entry.
+    // b. Copy instructions in the same BB before the promise, no phi parameters nor arguments
     // c. Copy transitive predecessor BBs
 
     // Step 1a
-    var promiseEntry = promiseBody.addBB();
-    promiseEntry.appendStatements(promiseBody.entry().statements());
-    promiseEntry.setJump(promiseBody.entry().jump());
-    promiseBody.entry().setJump(new Goto(new Target(promiseEntry)));
+    var oldPromiseEntry = promiseBody.addBB();
+    oldPromiseEntry.appendStatements(promiseBody.entry().statements());
+    oldPromiseEntry.setJump(promiseBody.entry().jump());
+    promiseBody.entry().setJump(new Goto(new Target(oldPromiseEntry)));
     promiseBody.entry().clearStatements();
 
-    var unreachableBB = promiseBody.addBB();
-
     // Step 1b
-    copiedBbs.put(promisePos.bb(), promiseEntry);
-    promiseEntry.appendPhiParameters(promisePos.bb().phiParameters());
-    promiseEntry.insertStatements(
+    copiedBbs.put(promisePos.bb(), oldPromiseEntry);
+    oldPromiseEntry.insertStatements(
         0, promisePos.bb().statements().subList(0, promisePos.instructionIndex()));
     for (int i = 0; i < promisePos.instructionIndex(); i++) {
-      copied.put(new CfgPosition(promisePos.bb(), i), new CfgPosition(promiseEntry, i));
+      copiedStmts.put(new CfgPosition(promisePos.bb(), i), new CfgPosition(oldPromiseEntry, i));
     }
 
     // Step 1c
+    // First copy everything except jumps
     for (var pred : bbReverseDfs(promisePos.bb().predecessors())) {
-      var predCopy = promiseBody.addBB();
+      if (pred == promisePos.bb()) {
+        throw new UnreachableError("we checked that the promise wasn't in a loop");
+      }
+
+      var predCopy = pred.isEntry() ? promiseBody.entry() : promiseBody.addBB();
       copiedBbs.put(pred, predCopy);
-      predCopy.appendPhiParameters(pred.phiParameters());
+
       predCopy.appendStatements(pred.statements());
-      for (var i = 0; i <= pred.statements().size(); i++) {
-        copied.put(new CfgPosition(pred, i), new CfgPosition(predCopy, i));
-      }
-      // Special-case when the promise is in a deopt branch,
-      // since the checkpoint should fail, but we won't copy the assumptions
-      // (because they're in the unreachable-from-here success BB)
-      predCopy.setJump(
-          pred.jump() instanceof Checkpoint(_, _, var deopt)
-              // Technically this should always be `new Goto(new Target(promisePos.bb())`
-              ? new Goto(
-                  new Target(copiedBbs.getOrDefault(deopt.bb(), unreachableBB), deopt.phiArgs()))
-              : pred.jump()
-                  .mapTargets(
-                      t -> new Target(copiedBbs.getOrDefault(t.bb(), unreachableBB), t.phiArgs())));
-
-      // Update predecessor's predecessors:
-      // if they were added before it was, they'll have the unreachable BB in its place
-      for (var predPred : pred.predecessors()) {
-        var predPredCopy = copiedBbs.get(predPred);
-        if (predPredCopy == null || !predPredCopy.successors().contains(unreachableBB)) {
-          continue;
-        }
-
-        predPredCopy.setJump(
-            predPredCopy
-                .jump()
-                .mapTargets(
-                    t -> new Target(copiedBbs.getOrDefault(t.bb(), unreachableBB), t.phiArgs())));
+      for (var i = 0; i < pred.statements().size(); i++) {
+        copiedStmts.put(new CfgPosition(pred, i), new CfgPosition(predCopy, i));
       }
     }
-
-    // Step 1d: Connect the promise body entry to the root of the copied predecessor chain.
-    // A root is a copied predecessor whose original BB has no predecessors in the copied set.
-    // TODO: Claude added this and I don't think it's correct
-    BB singleRoot = null;
-    var hasMultipleRoots = false;
+    // Then copy jumps, because earlier-copied BBs may need to reference later-copied ones.
+    // If a BB has a jump to an uncopied BB, it's a branch, and the uncopied BB is unreachable
+    // from here, so replace it with a goto
     for (var entry : copiedBbs.entrySet()) {
-      if (entry.getKey() == promisePos.bb()) continue;
-      var originalBB = entry.getKey();
-      if (originalBB.predecessors().stream().noneMatch(copiedBbs::containsKey)) {
-        if (singleRoot == null) {
-          singleRoot = entry.getValue();
-        } else {
-          hasMultipleRoots = true;
-          break;
-        }
-      }
-    }
-    if (singleRoot != null && !hasMultipleRoots) {
-      promiseBody.entry().setJump(new Goto(new Target(singleRoot)));
-    }
-
-    // Step 2
-    var copiedIter = copied.entrySet().iterator();
-    while (copiedIter.hasNext()) {
-      var entry = copiedIter.next();
-      if (!(entry.getKey().instruction() instanceof Statement(_, var assignee, var expr))) {
+      var pred = entry.getKey();
+      var predCopy = entry.getValue();
+      if (predCopy == oldPromiseEntry) {
         continue;
       }
 
-      if (assignee == null || inferEffects.of(expr) != Effects.NONE) {
+      @Nullable Target[] reachableTarget = {null};
+      boolean[] hasUnreachableTarget = {false};
+      var jumpIfAllTargetsAreReachable =
+          pred.jump()
+              .mapTargets(
+                  t -> {
+                    var copiedBb = copiedBbs.get(t.bb());
+                    if (copiedBb == null) {
+                      hasUnreachableTarget[0] = true;
+                      // Return something to keep iterating, it won't be used
+                      return t;
+                    }
+
+                    // Remember, no phi arguments
+                    reachableTarget[0] = new Target(copiedBb);
+                    return reachableTarget[0];
+                  });
+      if (hasUnreachableTarget[0] && reachableTarget[0] == null) {
+        throw new UnreachableError(
+            "impossible, BB's transitive predecessor's only successor isn't a predecessor or the BB");
+      }
+
+      predCopy.setJump(
+          hasUnreachableTarget[0] ? new Goto(reachableTarget[0]) : jumpIfAllTargetsAreReachable);
+    }
+
+    // Step 2
+    var copiedIter = copiedStmts.entrySet().iterator();
+    while (copiedIter.hasNext()) {
+      var entry = copiedIter.next();
+      var stmt = (Statement) Objects.requireNonNull(entry.getKey().instruction());
+
+      if (stmt.assignee() == null || inferEffects.of(stmt.expression()) != Effects.NONE) {
         entry.getValue().replaceWith(Statement.NOOP);
         copiedIter.remove();
       }
@@ -176,16 +169,23 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     while (removedAny) {
       removedAny = false;
 
-      copiedIter = copied.entrySet().iterator();
+      copiedIter = copiedStmts.entrySet().iterator();
       while (copiedIter.hasNext()) {
         var entry = copiedIter.next();
-        if (!(entry.getKey().instruction() instanceof Statement(_, var assignee, _))) {
-          continue;
-        }
+        var stmt = (Statement) Objects.requireNonNull(entry.getKey().instruction());
+        assert stmt.assignee() != null : "removed assignee";
 
-        for (var use : defUses.uses(assignee)) {
+        for (var use : defUses.uses(stmt.assignee())) {
           var useInOuterCfg = use.inCfg(promisePos.cfg());
-          if (!useInOuterCfg.equals(promisePos) && !copied.containsKey(useInOuterCfg)) {
+          assert useInOuterCfg != null : "I don't think we can copy if so";
+          // Note that if the use is in a copied jump it will remain
+          // (jumps are actually copied but not in `copiedStmts`).
+          // This is intentional,
+          // because the jump may divert into a BB that is unreachable to the promise;
+          // if it cannot,
+          // it will be simplified in a cleanup phase,
+          // and the instruction will be deferred the next time this runs
+          if (!useInOuterCfg.equals(promisePos) && !copiedStmts.containsKey(useInOuterCfg)) {
             entry.getValue().replaceWith(Statement.NOOP);
             copiedIter.remove();
             removedAny = true;
@@ -196,18 +196,12 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     }
 
     // Step 4
-    cleanup(promiseBody, false);
+    cleanup(promiseBody);
 
     // Step 5
-    var changed = false;
-    for (var entry : copied.entrySet()) {
-      if (!(entry.getKey().instruction() instanceof Statement)) {
-        continue;
-      }
-
+    for (var entry : copiedStmts.entrySet()) {
       entry.getKey().replaceWith(Statement.NOOP);
-      changed = true;
     }
-    return changed;
+    return !copiedStmts.isEmpty();
   }
 }

@@ -77,7 +77,7 @@ typedef struct Fir_Signature {
 
 typedef SEXP (*Fir_DispatchFn)(SEXP env, Fir_Signature signature, ...);
 typedef SEXP (*Fir_VersionFn)(SEXP env, ...);
-typedef SEXP (*Fir_PromiseFn)(SEXP env, SEXP **captures);
+typedef SEXP (*Fir_PromiseFn)(SEXP env, void **captures);
 
 typedef struct Fir_FunctionData {
   const char* name;
@@ -92,7 +92,7 @@ typedef struct Fir_PromiseGlobalData {
 } Fir_PromiseGlobalData;
 
 typedef struct Fir_PromiseLocalData {
-  SEXP **captures;
+  void **captures;
 } Fir_PromiseLocalData;
 
 extern Fir_Kind Fir_kind_any_value;
@@ -133,7 +133,7 @@ bool Fir_value_matches(SEXP value, Fir_Type type);
 Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type const *param_types, Fir_Effects effects);
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
-SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, SEXP **captures, SEXP env);
+SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env);
 
 SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
