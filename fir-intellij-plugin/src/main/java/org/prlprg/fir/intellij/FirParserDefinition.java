@@ -1,11 +1,11 @@
 package org.prlprg.fir.intellij;
 
+import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.ParserDefinition;
 import com.intellij.lang.PsiParser;
 import com.intellij.lexer.Lexer;
 import com.intellij.openapi.project.Project;
-import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import com.intellij.psi.FileViewProvider;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -45,6 +45,10 @@ public final class FirParserDefinition implements ParserDefinition {
 
   @Override
   public @NotNull PsiElement createElement(ASTNode node) {
+    var type = node.getElementType();
+    if (type == FirElementTypes.FUN_DECLARATION) return new FirFunDeclaration(node);
+    if (type == FirElementTypes.VERSION) return new FirVersion(node);
+    if (type == FirElementTypes.PROMISE_BODY) return new FirPromiseBody(node);
     return new ASTWrapperPsiElement(node);
   }
 
@@ -54,8 +58,7 @@ public final class FirParserDefinition implements ParserDefinition {
   }
 
   @Override
-  public @NotNull SpaceRequirements spaceExistenceTypeBetweenTokens(
-      ASTNode left, ASTNode right) {
+  public @NotNull SpaceRequirements spaceExistenceTypeBetweenTokens(ASTNode left, ASTNode right) {
     return SpaceRequirements.MAY;
   }
 }
