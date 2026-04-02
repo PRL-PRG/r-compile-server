@@ -15,7 +15,8 @@ import org.jetbrains.annotations.Nullable;
 public final class FirAnnotator implements Annotator {
   private static final Pattern FUN_DECLARATION = Pattern.compile("(?m)^\\s*fun\\b");
   private static final Pattern DECLARATION =
-      Pattern.compile("\\b(reg|var)\\s+(`(?:\\\\.|[^`])*`|[^\\s:,|)]+)\\s*:\\s*((?:p\\((?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+\\))?(?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+)");
+      Pattern.compile(
+          "\\b(reg|var)\\s+(`(?:\\\\.|[^`])*`|[^\\s:,|)]+)\\s*:\\s*((?:p\\((?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+\\))?(?:v1?\\([^,|)\\n]+\\))?[^,|)\\n]+)");
   private static final Pattern DECLARATION_KIND_PREFIX = Pattern.compile("^(reg|var)\\b");
   private static final Pattern TYPED_DECLARATION_WITHOUT_KIND =
       Pattern.compile("^(`(?:\\\\.|[^`])*`|[A-Za-z_][A-Za-z0-9_]*)\\s*:");
@@ -32,12 +33,13 @@ public final class FirAnnotator implements Annotator {
       return;
     }
 
+    var stripped = FirTextScanner.stripCommentsAndStrings(text);
     var issues = new ArrayList<Issue>();
-    lintFunctionDeclarations(text, issues);
-    lintDelimiters(text, issues);
+    lintFunctionDeclarations(stripped, issues);
+    lintDelimiters(stripped, issues);
     lintSemicolons(text, issues);
-    lintMissingDeclarationKinds(text, issues);
     lintDeclarations(text, issues);
+    lintMissingDeclarationKinds(text, stripped, issues);
 
     var textLength = text.length();
     for (var issue : issues) {
@@ -49,99 +51,45 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static void lintFunctionDeclarations(String text, ArrayList<Issue> issues) {
-    if (FUN_DECLARATION.matcher(text).find()) {
+  // region Lint checks
+
+  private static void lintFunctionDeclarations(String stripped, ArrayList<Issue> issues) {
+    if (FUN_DECLARATION.matcher(stripped).find()) {
       return;
     }
-    var range = new TextRange(0, Math.min(1, text.length()));
+    var range = new TextRange(0, Math.min(1, stripped.length()));
     issues.add(new Issue(range, HighlightSeverity.WARNING, "No `fun` declaration found in file"));
   }
 
-  private static void lintDelimiters(String text, ArrayList<Issue> issues) {
+  private static void lintDelimiters(String stripped, ArrayList<Issue> issues) {
     var stack = new ArrayDeque<Delimiter>();
-    var state = DelimiterState.NORMAL;
-    var escaped = false;
-
-    for (var i = 0; i < text.length(); i++) {
-      var c = text.charAt(i);
-      switch (state) {
-        case NORMAL -> {
-          if (c == '#') {
-            state = DelimiterState.COMMENT;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.STRING;
-            escaped = false;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.BACKTICK;
-            escaped = false;
-            continue;
-          }
-
-          if (c == '(' || c == '[' || c == '{') {
-            stack.push(new Delimiter(c, i));
-            continue;
-          }
-
-          if (c == ')' || c == ']' || c == '}') {
-            if (stack.isEmpty()) {
-              issues.add(
-                  new Issue(
-                      new TextRange(i, i + 1),
-                      HighlightSeverity.ERROR,
-                      "Unmatched closing delimiter `" + c + "`"));
-              continue;
-            }
-            var open = stack.pop();
-            if (!isMatchingPair(open.value(), c)) {
-              issues.add(
-                  new Issue(
-                      new TextRange(i, i + 1),
-                      HighlightSeverity.ERROR,
-                      "Mismatched closing delimiter `"
-                          + c
-                          + "` (expected `"
-                          + matchingClose(open.value())
-                          + "`)"));
-            }
-          }
-        }
-        case COMMENT -> {
-          if (c == '\n') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case STRING -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case BACKTICK -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.NORMAL;
+    FirTextScanner.scan(stripped, 0, stripped.length(), (i, c) -> {
+      if (c == '(' || c == '[' || c == '{') {
+        stack.push(new Delimiter(c, i));
+      } else if (c == ')' || c == ']' || c == '}') {
+        if (stack.isEmpty()) {
+          issues.add(
+              new Issue(
+                  new TextRange(i, i + 1),
+                  HighlightSeverity.ERROR,
+                  "Unmatched closing delimiter `" + c + "`"));
+        } else {
+          var open = stack.pop();
+          if (!isMatchingPair(open.value(), c)) {
+            issues.add(
+                new Issue(
+                    new TextRange(i, i + 1),
+                    HighlightSeverity.ERROR,
+                    "Mismatched closing delimiter `"
+                        + c
+                        + "` (expected `"
+                        + matchingClose(open.value())
+                        + "`)"));
           }
         }
       }
-    }
+      return true;
+    });
 
     for (var open : stack) {
       issues.add(
@@ -160,11 +108,12 @@ public final class FirAnnotator implements Annotator {
         lineEnd = text.length();
       }
 
-      var line = text.substring(lineStart, lineEnd);
-      var visibleLine = stripInlineComment(line);
+      var commentStart = FirTextScanner.findCommentStart(text, lineStart, lineEnd);
+      var visibleEnd = commentStart >= 0 ? commentStart : lineEnd;
+      var visibleLine = text.substring(lineStart, visibleEnd);
       var trimmed = visibleLine.trim();
       if (shouldEndWithSemicolon(trimmed) && !trimmed.endsWith(";")) {
-        var highlightEnd = lineStart + visibleLine.length();
+        var highlightEnd = visibleEnd;
         while (highlightEnd > lineStart && Character.isWhitespace(text.charAt(highlightEnd - 1))) {
           highlightEnd--;
         }
@@ -196,50 +145,6 @@ public final class FirAnnotator implements Annotator {
         && !trimmedLine.endsWith("|")
         && !trimmedLine.endsWith(":")
         && !trimmedLine.contains("{ ... }");
-  }
-
-  private static String stripInlineComment(String line) {
-    var inString = false;
-    var inBacktick = false;
-    var escaped = false;
-    for (var i = 0; i < line.length(); i++) {
-      var c = line.charAt(i);
-
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (c == '\\' && (inString || inBacktick)) {
-        escaped = true;
-        continue;
-      }
-
-      if (inString) {
-        if (c == '"') {
-          inString = false;
-        }
-        continue;
-      }
-      if (inBacktick) {
-        if (c == '`') {
-          inBacktick = false;
-        }
-        continue;
-      }
-
-      if (c == '"') {
-        inString = true;
-        continue;
-      }
-      if (c == '`') {
-        inBacktick = true;
-        continue;
-      }
-      if (c == '#') {
-        return line.substring(0, i);
-      }
-    }
-    return line;
   }
 
   private static void lintDeclarations(String text, ArrayList<Issue> issues) {
@@ -280,156 +185,60 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static void lintMissingDeclarationKinds(String text, ArrayList<Issue> issues) {
-    lintMissingParameterKinds(text, issues);
-    lintMissingLocalVariableKinds(text, issues);
+  private static void lintMissingDeclarationKinds(
+      String text, String stripped, ArrayList<Issue> issues) {
+    lintMissingParameterKinds(text, stripped, issues);
+    lintMissingLocalVariableKinds(text, stripped, issues);
   }
 
-  private static void lintMissingParameterKinds(String text, ArrayList<Issue> issues) {
-    var state = DelimiterState.NORMAL;
-    var escaped = false;
-    for (var i = 0; i < text.length(); i++) {
-      var c = text.charAt(i);
-      switch (state) {
-        case NORMAL -> {
-          if (c == '#') {
-            state = DelimiterState.COMMENT;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.STRING;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.BACKTICK;
-            continue;
-          }
-          if (c != '(') {
-            continue;
-          }
+  private static void lintMissingParameterKinds(
+      String text, String stripped, ArrayList<Issue> issues) {
+    for (var i = 0; i < stripped.length(); i++) {
+      if (stripped.charAt(i) != '(') continue;
 
-          var close = findMatchingDelimiter(text, i, '(', ')');
-          if (close < 0 || !isVersionArrowAfterParen(text, close + 1)) {
-            continue;
-          }
+      var close = findMatchingDelimiter(stripped, i, '(', ')');
+      if (close < 0 || !isVersionArrowAfterParen(stripped, close + 1)) continue;
 
-          lintMissingDeclarationKindsInList(
-              text,
-              i + 1,
-              close,
-              issues,
-              "Potentially missing `reg` or `var` before parameter declaration");
-          i = close;
-        }
-        case COMMENT -> {
-          if (c == '\n') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case STRING -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case BACKTICK -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-      }
+      lintMissingDeclarationKindsInList(
+          text,
+          stripped,
+          i + 1,
+          close,
+          issues,
+          "Potentially missing `reg` or `var` before parameter declaration");
     }
   }
 
-  private static void lintMissingLocalVariableKinds(String text, ArrayList<Issue> issues) {
-    var state = DelimiterState.NORMAL;
-    var escaped = false;
-    for (var i = 0; i < text.length(); i++) {
-      var c = text.charAt(i);
-      switch (state) {
-        case NORMAL -> {
-          if (c == '#') {
-            state = DelimiterState.COMMENT;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.STRING;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.BACKTICK;
-            continue;
-          }
-          if (c != '{' || !isVersionArrowBeforeBrace(text, i)) {
-            continue;
-          }
+  private static void lintMissingLocalVariableKinds(
+      String text, String stripped, ArrayList<Issue> issues) {
+    for (var i = 0; i < stripped.length(); i++) {
+      if (stripped.charAt(i) != '{' || !isVersionArrowBeforeBrace(stripped, i)) continue;
 
-          var separator = findTopLevelPipeBeforeClosingBrace(text, i + 1);
-          if (separator < 0) {
-            continue;
-          }
+      var separator = findTopLevelPipeBeforeClosingBrace(stripped, i + 1);
+      if (separator < 0) continue;
 
-          lintMissingDeclarationKindsInList(
-              text,
-              i + 1,
-              separator,
-              issues,
-              "Potentially missing `reg` or `var` before local declaration");
-          i = separator;
-        }
-        case COMMENT -> {
-          if (c == '\n') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case STRING -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case BACKTICK -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-      }
+      lintMissingDeclarationKindsInList(
+          text,
+          stripped,
+          i + 1,
+          separator,
+          issues,
+          "Potentially missing `reg` or `var` before local declaration");
     }
   }
+
+  // endregion
+
+  // region Helpers
 
   private static void lintMissingDeclarationKindsInList(
-      String text, int listStart, int listEnd, ArrayList<Issue> issues, String message) {
-    for (var segment : splitTopLevelCommaSeparatedSegments(text, listStart, listEnd)) {
+      String text,
+      String stripped,
+      int listStart,
+      int listEnd,
+      ArrayList<Issue> issues,
+      String message) {
+    for (var segment : splitTopLevelCommaSegments(stripped, listStart, listEnd)) {
       var start = segment.startOffset();
       var end = segment.endOffset();
       while (start < end && Character.isWhitespace(text.charAt(start))) {
@@ -460,252 +269,77 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static int findMatchingDelimiter(String text, int openOffset, char open, char close) {
+  private static int findMatchingDelimiter(String stripped, int openOffset, char open, char close) {
     var depth = 1;
-    var state = DelimiterState.NORMAL;
-    var escaped = false;
-    for (var i = openOffset + 1; i < text.length(); i++) {
-      var c = text.charAt(i);
-      switch (state) {
-        case NORMAL -> {
-          if (c == '#') {
-            state = DelimiterState.COMMENT;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.STRING;
-            escaped = false;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.BACKTICK;
-            escaped = false;
-            continue;
-          }
-          if (c == open) {
-            depth++;
-            continue;
-          }
-          if (c == close) {
-            depth--;
-            if (depth == 0) {
-              return i;
-            }
-          }
-        }
-        case COMMENT -> {
-          if (c == '\n') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case STRING -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case BACKTICK -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.NORMAL;
-          }
-        }
+    for (var i = openOffset + 1; i < stripped.length(); i++) {
+      var c = stripped.charAt(i);
+      if (c == open) depth++;
+      else if (c == close) {
+        depth--;
+        if (depth == 0) return i;
       }
     }
     return -1;
   }
 
-  private static boolean isVersionArrowAfterParen(String text, int offset) {
+  private static boolean isVersionArrowAfterParen(String stripped, int offset) {
     var i = offset;
-    while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
+    while (i < stripped.length() && Character.isWhitespace(stripped.charAt(i))) {
       i++;
     }
-    return i + 2 < text.length()
-        && text.charAt(i) == '-'
-        && isEffect(text.charAt(i + 1))
-        && text.charAt(i + 2) == '>';
+    return i + 2 < stripped.length()
+        && stripped.charAt(i) == '-'
+        && isEffect(stripped.charAt(i + 1))
+        && stripped.charAt(i + 2) == '>';
   }
 
-  private static boolean isVersionArrowBeforeBrace(String text, int braceOffset) {
+  private static boolean isVersionArrowBeforeBrace(String stripped, int braceOffset) {
     var i = braceOffset - 1;
-    while (i >= 0 && Character.isWhitespace(text.charAt(i))) {
+    while (i >= 0 && Character.isWhitespace(stripped.charAt(i))) {
       i--;
     }
-    return i >= 2 && text.charAt(i) == '>' && isEffect(text.charAt(i - 1)) && text.charAt(i - 2) == '-';
+    return i >= 2
+        && stripped.charAt(i) == '>'
+        && isEffect(stripped.charAt(i - 1))
+        && stripped.charAt(i - 2) == '-';
   }
 
-  private static int findTopLevelPipeBeforeClosingBrace(String text, int offset) {
+  private static int findTopLevelPipeBeforeClosingBrace(String stripped, int offset) {
     var depth = 0;
-    var state = DelimiterState.NORMAL;
-    var escaped = false;
-    for (var i = offset; i < text.length(); i++) {
-      var c = text.charAt(i);
-      switch (state) {
-        case NORMAL -> {
-          if (c == '#') {
-            state = DelimiterState.COMMENT;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.STRING;
-            escaped = false;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.BACKTICK;
-            escaped = false;
-            continue;
-          }
-          if (c == '{') {
-            depth++;
-            continue;
-          }
-          if (c == '}') {
-            if (depth == 0) {
-              return -1;
-            }
-            depth--;
-            continue;
-          }
-          if (c == '|' && depth == 0) {
-            return i;
-          }
-        }
-        case COMMENT -> {
-          if (c == '\n') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case STRING -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case BACKTICK -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.NORMAL;
-          }
-        }
+    for (var i = offset; i < stripped.length(); i++) {
+      var c = stripped.charAt(i);
+      if (c == '{') {
+        depth++;
+      } else if (c == '}') {
+        if (depth == 0) return -1;
+        depth--;
+      } else if (c == '|' && depth == 0) {
+        return i;
       }
     }
     return -1;
   }
 
-  private static ArrayList<Segment> splitTopLevelCommaSeparatedSegments(
-      String text, int startOffset, int endOffset) {
+  private static ArrayList<Segment> splitTopLevelCommaSegments(
+      String stripped, int startOffset, int endOffset) {
     var segments = new ArrayList<Segment>();
     var segmentStart = startOffset;
     var parenDepth = 0;
     var bracketDepth = 0;
     var angleDepth = 0;
-    var state = DelimiterState.NORMAL;
-    var escaped = false;
     for (var i = startOffset; i < endOffset; i++) {
-      var c = text.charAt(i);
-      switch (state) {
-        case NORMAL -> {
-          if (c == '#') {
-            state = DelimiterState.COMMENT;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.STRING;
-            escaped = false;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.BACKTICK;
-            escaped = false;
-            continue;
-          }
-          if (c == '(') {
-            parenDepth++;
-            continue;
-          }
-          if (c == ')') {
-            parenDepth = Math.max(0, parenDepth - 1);
-            continue;
-          }
-          if (c == '[') {
-            bracketDepth++;
-            continue;
-          }
-          if (c == ']') {
-            bracketDepth = Math.max(0, bracketDepth - 1);
-            continue;
-          }
-          if (c == '<') {
-            angleDepth++;
-            continue;
-          }
-          if (c == '>') {
-            angleDepth = Math.max(0, angleDepth - 1);
-            continue;
-          }
-          if (c == ',' && parenDepth == 0 && bracketDepth == 0 && angleDepth == 0) {
+      var c = stripped.charAt(i);
+      switch (c) {
+        case '(' -> parenDepth++;
+        case ')' -> parenDepth = Math.max(0, parenDepth - 1);
+        case '[' -> bracketDepth++;
+        case ']' -> bracketDepth = Math.max(0, bracketDepth - 1);
+        case '<' -> angleDepth++;
+        case '>' -> angleDepth = Math.max(0, angleDepth - 1);
+        case ',' -> {
+          if (parenDepth == 0 && bracketDepth == 0 && angleDepth == 0) {
             segments.add(new Segment(segmentStart, i));
             segmentStart = i + 1;
-          }
-        }
-        case COMMENT -> {
-          if (c == '\n') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case STRING -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '"') {
-            state = DelimiterState.NORMAL;
-          }
-        }
-        case BACKTICK -> {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (c == '\\') {
-            escaped = true;
-            continue;
-          }
-          if (c == '`') {
-            state = DelimiterState.NORMAL;
           }
         }
       }
@@ -775,16 +409,11 @@ public final class FirAnnotator implements Annotator {
     return new TextRange(start, end);
   }
 
+  // endregion
+
   private record Issue(TextRange range, HighlightSeverity severity, String message) {}
 
   private record Delimiter(char value, int offset) {}
 
   private record Segment(int startOffset, int endOffset) {}
-
-  private enum DelimiterState {
-    NORMAL,
-    COMMENT,
-    STRING,
-    BACKTICK
-  }
 }
