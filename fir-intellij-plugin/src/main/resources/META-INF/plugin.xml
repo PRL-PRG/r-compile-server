@@ -4,7 +4,7 @@
   <vendor>PRLPRG</vendor>
 
   <description>
-    FIR syntax highlighting and basic linting support for .fir files.
+    FIR syntax highlighting, linting, structure view, and code folding for .fir files.
   </description>
 
   <depends>com.intellij.modules.lang</depends>
@@ -28,5 +28,16 @@
     <annotator
         language="FIR"
         implementationClass="org.prlprg.fir.intellij.FirAnnotator"/>
+
+    <lang.psiStructureViewFactory
+        language="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirStructureViewFactory"/>
+
+    <lang.foldingBuilder
+        language="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirFoldingBuilder"/>
+
+    <breadcrumbsInfoProvider
+        implementation="org.prlprg.fir.intellij.FirBreadcrumbsProvider"/>
   </extensions>
 </idea-plugin>

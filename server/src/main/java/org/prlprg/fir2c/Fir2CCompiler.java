@@ -884,6 +884,8 @@ public final class Fir2CCompiler {
           private @Nullable String emitExpression(Expression expression) {
             return switch (expression) {
               case Closure closure -> {
+                // Compile the closure or protect its constant pool
+
                 var function = closure.code();
 
                 var fromRCName = functionFromRCName(function);
@@ -925,9 +927,12 @@ public final class Fir2CCompiler {
                   initCCode.stmt("%s(%s);", functionInitCName(function), cp);
                 }
 
+                // Emit the runtime constructor
                 yield "Fir_mk_closure(%s, %s, %s, %s)".formatted(fromRCName, formals, cp, VAR_ENV);
               }
               case Promise promise -> {
+                // Compile the promise
+
                 var initCName = promiseInitCName(promise);
                 var fromRCName = promiseFromRCName(promise);
                 var evalCName = promiseEvalCName(promise);
@@ -978,7 +983,12 @@ public final class Fir2CCompiler {
                     bb.label());
                 initCCode.stmt("%s(%s);", initCName, cp);
 
+                // Emit the runtime constructor
+
                 var captureSet = Objects.requireNonNull(captures.get(promise.code()));
+                if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
+                  debugArgs(cCode, Collections2.transform(captureSet, Read::new));
+                }
                 var captureArray =
                     emitArray(
                         "captures",
@@ -1802,9 +1812,17 @@ public final class Fir2CCompiler {
   }
 
   private void debugComment(CCode cCode, @PrintFormat String fmt, Object... args) {
+    debugCommentComptimeOnly(cCode, fmt, args);
+    debugCommentRuntimeOnly(cCode, fmt, args);
+  }
+
+  private void debugCommentComptimeOnly(CCode cCode, @PrintFormat String fmt, Object... args) {
     if (options.contains(Option.EMIT_DEBUG_COMMENTS)) {
       cCode.comment(fmt, args);
     }
+  }
+
+  private void debugCommentRuntimeOnly(CCode cCode, @PrintFormat String fmt, Object... args) {
     if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
       cCode.stmt("Fir_dbg_comment(\"%s\");", sanitizeString(fmt.formatted(args)));
     }
