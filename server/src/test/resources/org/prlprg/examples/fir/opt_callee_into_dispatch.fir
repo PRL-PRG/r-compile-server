@@ -1,5 +1,5 @@
 fun main() {
-  () --> V { reg r:V |
+  () -~> V { reg r:V |
     r = <int 42> as V;
     f< V --> I >(r);
     return r;

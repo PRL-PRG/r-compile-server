@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { |
+  () -~> I { |
     mkenv;
     popenv;
     return 0;

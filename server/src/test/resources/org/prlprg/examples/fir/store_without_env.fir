@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { |
+  () -~> I { |
     # env-error: No environment to store into
     st x = <int 0>;  # Bad
     mkenv;     # (#envs = 1)

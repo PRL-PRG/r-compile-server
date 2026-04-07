@@ -1,14 +1,14 @@
 fun main() {
-  () -+> v(I) { var x:*, reg rx0:v(I)s, reg rx1:*, reg rx2:V, reg r0:p(V -), reg r1:v(I) |
+  () -+> v(I) { var x:*, reg rx0:v(I), reg rx1:*, reg rx2:V, reg r0:p(V ~), reg r1:v(I) |
     mkenv;
     rx0 = v(I)[0, 1, 2];
     st x = rx0;
-    r0 = prom<V ->{
+    r0 = prom<V ~>{
       rx1 = ld x;
       rx2 = rx1 as V;
       return rx2;
     };
-    r1 = f%< p(V -) -+> v(I) >(r0);
+    r1 = f%< p(V ~) -+> v(I) >(r0);
     popenv;
     return r1;
   }
@@ -16,14 +16,14 @@ fun main() {
 
 fun f(r) {
   # type-error: Function effects mismatch: + don't subset -
-  (reg r:p(V -)) --> v(I) { reg r1:v(I) |
-    r1 = g%< p(V -) -+> v(I) >(r);
+  (reg r:p(V ~)) --> v(I) { reg r1:v(I) |
+    r1 = g%< p(V ~) -+> v(I) >(r);
     return r1;
   }
 }
 
 fun g(r) {
-  (reg r:p(V -)) -+> v(I) { reg r0:v(I) |
+  (reg r:p(V ~)) -+> v(I) { reg r0:v(I) |
     mkenv;
     r0 = v(I)[3, 4, 5];
     r$x = r0;

@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
+  () -~> I { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
     r1 = blackBox< V --> V >(<int 1>);
     r2 = blackBox< V --> V >(<int 2>);
     r3 = blackBox< V --> V >(<real 3.0>);
@@ -9,11 +9,11 @@ fun main() {
     # Optimized
     g< V,I --> I >(r1, 1);
     # Baseline
-    g< V,V --> I >(r2, <real 2.0>);
+    g< V,V -~> I >(r2, <real 2.0>);
     # Optimized -> baseline
     g< V,I --> I >(r3, 3);
     # Baseline
-    g< V,V --> I >(r4, <real 4.0>);
+    g< V,V -~> I >(r4, <real 4.0>);
     # Optimized
     g< V,I --> I >(r5, 5);
 
@@ -33,7 +33,7 @@ fun main() {
 }
 
 fun g(n, a) {
-  (reg n:V, reg a:V) --> I { reg r:V, var x:* |
+  (reg n:V, reg a:V) -~> I { reg r:V, var x:* |
     mkenv;
     provide< V --> V >(n);
     r = <int 14>;

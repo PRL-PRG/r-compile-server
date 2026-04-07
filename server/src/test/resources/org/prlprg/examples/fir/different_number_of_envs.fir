@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { reg r:B |
+  () -~> I { reg r:B |
     r = blackBox< B --> B >(TRUE);
     if r then L0() else L1();
   L0():
