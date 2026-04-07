@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { var outer:v1(I)?, var inner:v1(I)?, reg outer0:v1(I)?, reg outer1:v1(I), reg outer1u:I, reg inner0:v1(I)?, reg inner1:v1(I), reg inner1u:I, reg combined:I, reg combinedb:v1(I), reg final:v1(I)?, reg final1:v1(I), reg final1u:I, reg ret:I |
+  () -~> I { var outer:v1(I)?, var inner:v1(I)?, reg outer0:v1(I)?, reg outer1:v1(I), reg outer1u:I, reg inner0:v1(I)?, reg inner1:v1(I), reg inner1u:I, reg combined:I, reg combinedb:v1(I), reg final:v1(I)?, reg final1:v1(I), reg final1u:I, reg ret:I |
     mkenv;
     st outer = <int 11>;
     mkenv;

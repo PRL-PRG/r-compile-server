@@ -2,7 +2,7 @@ fun main() {
   () -+> V { var x:v1(I)?, reg rx0:v1(I)?, reg rx1:v1(I), reg ry:p(v1(I) +), var y:p(v1(I) +)?, reg r0:p(v1(I) -), reg r1:V |
     mkenv;
     st x = <int 4>;
-    ry = prom<v1(I) ->{
+    ry = prom<v1(I) ~>{
       rx0 = ld x;
       rx1 = rx0 as v1(I);
       return rx1;

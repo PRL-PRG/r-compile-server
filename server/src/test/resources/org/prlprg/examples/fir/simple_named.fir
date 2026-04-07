@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { var x:v1(I)?, reg rx0:v1(I)?, reg rx1:v1(I), reg rx1u:I |
+  () -~> I { var x:v1(I)?, reg rx0:v1(I)?, reg rx1:v1(I), reg rx1u:I |
     mkenv;
     st x = <int 0>;
     rx0 = ld x;

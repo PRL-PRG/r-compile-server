@@ -1,7 +1,7 @@
 fun main() {
-  () --> v(I) { var x:v1(I)?, var y:v1(I)?, reg rx0:v1(I), reg ry0:v1(I), reg rx1:v1(I)?, reg ry1:v1(I)?, reg r:v(I)o, reg r0:p(v(I) -), reg r1:v(I), reg r2:p(v1(I) -), reg r3:p(v1(I) -), reg r4:v1(I), reg r4u:I, reg r5:v1(I), reg r5u:I |
+  () -~> v(I) { var x:v1(I)?, var y:v1(I)?, reg rx0:v1(I), reg ry0:v1(I), reg rx1:v1(I)?, reg ry1:v1(I)?, reg r:v(I)o, reg r0:p(v(I) ~), reg r1:v(I), reg r2:p(v1(I) -), reg r3:p(v1(I) -), reg r4:v1(I), reg r4u:I, reg r5:v1(I), reg r5u:I |
     mkenv;
-    r0 = prom<v(I) ->{
+    r0 = prom<v(I) ~>{
       r2 = prom<v1(I) ->{ return <int 10>; };
       rx0 = force r2;
       st x = rx0;
