@@ -4,6 +4,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
@@ -16,6 +19,7 @@ import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
@@ -34,8 +38,9 @@ import org.prlprg.fir.ir.variable.Register;
 /// Cleanup optimizations:
 /// - Basic blocks
 ///   - Remove unreachable blocks.
-///   - Convert [If]s whose condition is always true or false, or where both targets are the same,
-///     into [Goto]s.
+///   - Convert [If]s whose condition is always true or false into [Goto]s.
+///   - Convert [If]s whose branches only pass through empty [Goto] and [If] blocks before
+///     converging into [Goto]s.
 ///   - Merge single-predecessor/single-successor blocks.
 ///   - Remove phi parameters in single-predecessor blocks (substitute with the phi argument).
 /// - Registers
@@ -85,7 +90,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
     void run() {
       // Basic blocks
-      scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::simplifyBranches));
+      scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::constantFoldBranches));
+      scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeNoEffectIfJumps));
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeSinglePredecessorPhis));
       scope.streamCfgs().forEach(this::removeUnreachableBlocks);
       scope.streamCfgs().forEach(this::mergeBlocks);
@@ -103,7 +109,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
     /// Runs CFG-specific parts of the cleanup: everything except origins and locals
     void runOnCfg(CFG cfg) {
-      cfg.bbs().forEach(this::simplifyBranches);
+      cfg.bbs().forEach(this::constantFoldBranches);
+      cfg.bbs().forEach(this::removeNoEffectIfJumps);
       cfg.bbs().forEach(this::removeSinglePredecessorPhis);
       removeUnreachableBlocks(cfg);
       mergeBlocks(cfg);
@@ -138,22 +145,129 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       changed |= !unreachable.isEmpty();
     }
 
-    void simplifyBranches(BB bb) {
+    void constantFoldBranches(BB bb) {
       if (bb.jump() instanceof If(var comments, var cond, var ifTrue, var ifFalse)) {
-        // Case 1: Condition is a constant
         if (cond instanceof Constant(var c) && c instanceof Value.Bool(var b)) {
           var target = b ? ifTrue : ifFalse;
           bb.setJump(new Goto(comments, target));
           changed = true;
-          return;
-        }
-
-        // Case 2: Both targets are the same
-        if (ifTrue.bb() == ifFalse.bb() && ifTrue.phiArgs().equals(ifFalse.phiArgs())) {
-          bb.setJump(new Goto(ifTrue));
-          changed = true;
         }
       }
+    }
+
+    void removeNoEffectIfJumps(BB bb) {
+      if (!(bb.jump() instanceof If(var comments, _, var ifTrue, var ifFalse))) {
+        return;
+      }
+
+      var collapsedIfTrue = collapseTransparentTarget(ifTrue);
+      if (collapsedIfTrue == null) {
+        return;
+      }
+      var collapsedIfFalse = collapseTransparentTarget(ifFalse);
+      if (collapsedIfFalse == null) {
+        return;
+      }
+
+      if (!collapsedIfTrue.equals(collapsedIfFalse)) {
+        return;
+      }
+
+      bb.setJump(new Goto(comments, collapsedIfTrue));
+      changed = true;
+    }
+
+    @Nullable Target collapseTransparentTarget(Target start) {
+      var exits = new LinkedHashSet<Target>();
+      var visited = new LinkedHashSet<Target>();
+      var worklist = new ArrayList<Target>();
+      worklist.add(start);
+
+      while (!worklist.isEmpty()) {
+        var current = worklist.removeLast();
+        if (!visited.add(current)) {
+          continue;
+        }
+
+        var currentBb = current.bb();
+        if (!isTransparentBranchBypass(currentBb)) {
+          exits.add(current);
+          if (exits.size() > 1) {
+            return null;
+          }
+          continue;
+        }
+
+        var nextTargets = instantiatedTargets(current);
+        if (nextTargets == null) {
+          return null;
+        }
+        worklist.addAll(nextTargets);
+      }
+
+      return exits.size() == 1 ? Iterables.getOnlyElement(exits) : null;
+    }
+
+    boolean isTransparentBranchBypass(BB bb) {
+      return bb.statements().isEmpty() && (bb.jump() instanceof Goto || bb.jump() instanceof If);
+    }
+
+    @Nullable ImmutableList<Target> instantiatedTargets(Target incoming) {
+      var bb = incoming.bb();
+      var phiParameters = bb.phiParameters();
+      var phiArgs = incoming.phiArgs();
+      if (phiParameters.size() != phiArgs.size()) {
+        return null;
+      }
+
+      var targets = ImmutableList.<Target>builderWithExpectedSize(bb.jump().targets().size());
+      for (var target : bb.jump().targets()) {
+        var instantiatedTarget = instantiateTarget(target, phiParameters, phiArgs);
+        if (instantiatedTarget == null) {
+          return null;
+        }
+        targets.add(instantiatedTarget);
+      }
+      return targets.build();
+    }
+
+    @Nullable Target instantiateTarget(
+        Target target, List<Register> phiParameters, List<Argument> phiArgs) {
+      var instantiatedArgs =
+          ImmutableList.<Argument>builderWithExpectedSize(target.phiArgs().size());
+      for (var argument : target.phiArgs()) {
+        var instantiatedArgument = instantiateArgument(argument, phiParameters, phiArgs);
+        if (instantiatedArgument == null) {
+          return null;
+        }
+        instantiatedArgs.add(instantiatedArgument);
+      }
+      return new Target(target.bb(), instantiatedArgs.build());
+    }
+
+    @Nullable Argument instantiateArgument(
+        Argument argument, List<Register> phiParameters, List<Argument> phiArgs) {
+      var variable = argument.variable();
+      if (variable == null) {
+        return argument;
+      }
+
+      var phiIndex = phiParameters.indexOf(variable);
+      if (phiIndex == -1) {
+        return argument;
+      }
+
+      var phiArg = phiArgs.get(phiIndex);
+      return switch (argument) {
+        case Read _ -> phiArg;
+        case Consume _ ->
+            switch (phiArg) {
+              case Read(var register) -> new Consume(register);
+              case Consume _ -> phiArg;
+              case Constant _ -> null;
+            };
+        case Constant _ -> argument;
+      };
     }
 
     void removeSinglePredecessorPhis(BB bb) {
@@ -170,7 +284,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
       // Skip if the predecessor has multiple targets pointing to this BB.
       // For example, if the predecessor is an `If` and both branches point to this block:
-      // - if the arguments are the same, it will be handled by `simplifyBranches`.
+      // - if the arguments are the same, it will be handled by `removeNoEffectIfJumps`.
       // - if the arguments are different, we can't remove the jump or phi parameters.
       var jumpTargets =
           predecessor.jump().targets().stream().filter(target -> target.bb() == bb).toList();
