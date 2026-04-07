@@ -3149,6 +3149,19 @@ void __attribute__((used)) rcp_print_stack_val(void *p)
 	}
 }
 
+void __attribute__((used)) rcp_print_stack_val_unbox(void *p)
+{
+	if (!p)
+	{
+		Rprintf("Stack value is NULL\n");
+		return;
+	}
+	R_bcstack_t v = *(R_bcstack_t *)p;
+	val_unbox_inplace(&v, 1, 1, 1);
+
+	rcp_print_stack_val(&v);
+}
+
 SEXP rcp_init(void)
 {
 	refresh_near_memory_ptr(0);
