@@ -10,6 +10,7 @@
 #endif
 #include <Rinternals.h>
 
+#include <assert.h>
 // this file contains some internal functions that are not exported
 
 // these macros are from Defn.h
@@ -150,6 +151,62 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
 #define INTEGER_TO_REAL(x) ((x) == NA_INTEGER ? NA_REAL : (x))
 #define LOGICAL_TO_REAL(x) ((x) == NA_LOGICAL ? NA_REAL : (x))
 
+#define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
+  (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue)
+
+// Unboxes a value in-place if it is a simple scalar and is allowed by the
+// flags. This is a destructive operation as we lose the original SEXP. Use only
+// at places where the original SEXP is not observable later. Ported from
+// bcStackScalar.
+static ALWAYS_INLINE void val_unbox_inplace(R_bcstack_t *s, int allow_real,
+                                            int allow_int, int allow_lgl) {
+  switch (s->tag) {
+  case REALSXP:
+  case INTSXP:
+  case LGLSXP:
+    return; // Value is already unboxed
+  }
+
+  SEXP x = s->u.sxpval;
+  if (IS_ANY_SIMPLE_SCALAR(x)) {
+    assert(XLENGTH(x) == 1);
+    switch (TYPEOF(x)) {
+    case REALSXP: {
+      if (!allow_real) // Should constant-propagate and eliminate dead code
+        break;
+      s->u.dval = SCALAR_DVAL(x);
+      s->tag = TYPEOF(x);
+      break;
+    }
+    case INTSXP: {
+      if (!allow_int) // Should constant-propagate and eliminate dead code
+        break;
+      s->u.ival = SCALAR_IVAL(x);
+      s->tag = TYPEOF(x);
+      break;
+    }
+    case LGLSXP: {
+      if (!allow_lgl) // Should constant-propagate and eliminate dead code
+        break;
+      s->u.ival = SCALAR_LVAL(x);
+      s->tag = TYPEOF(x);
+      break;
+    }
+    }
+  }
+}
+
+// Converts an unboxed integer value to double in-place.
+// This is a destructive operation as we lose the original SEXP. Use only
+// at places where the original SEXP is not observable later.
+// Use after val_unbox_inplace to achieve bcStackScalarReal.
+static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
+  if (s->tag == INTSXP) {
+    s->tag = REALSXP;
+    s->u.dval = INTEGER_TO_REAL(s->u.ival);
+  }
+}
+
 /* This macro makes sure the RHS NAMED value is 0 or NAMEDMAX. This is
    necessary to make sure the RHS value returned by the assignment
    expression is correct when the RHS value is part of the LHS
@@ -229,6 +286,7 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   do {                                                                         \
     if (i >= 0 && XLENGTH(vec) > i) {                                          \
       if (TYPEOF(vec) == REALSXP) {                                            \
+        val_unbox_inplace(&rhs, 1, 1, 1);                                      \
         switch (VAL_TAG(rhs)) {                                                \
         case REALSXP:                                                          \
           REAL(vec)[i] = VAL_DBL(rhs);                                         \
@@ -247,6 +305,7 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
           return;                                                              \
         }                                                                      \
       } else if (VAL_TAG(rhs) == TYPEOF(vec)) {                                \
+        val_unbox_inplace(&rhs, 0, 1, 1);                                      \
         switch (VAL_TAG(rhs)) {                                                \
         case INTSXP:                                                           \
           INTEGER(vec)[i] = VAL_INT(rhs);                                      \

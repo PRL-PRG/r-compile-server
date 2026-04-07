@@ -444,11 +444,8 @@ static INLINE SEXP VAL_SXP(Value v) {
     __node__->tag = 0;                                                         \
   } while (0);
 
-#define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
-  (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue)
-
 // FIXME: is this enough or so we need to check of the obj flag?
-#define SET_VAL(target, value)                                                 \
+#define SET_UNBOXED_VAL(target, value)                                         \
   do {                                                                         \
     SEXP __v__ = (value);                                                      \
     Value *__n__ = (target);                                                   \
@@ -475,6 +472,12 @@ static INLINE SEXP VAL_SXP(Value v) {
       SET_SXP_VAL(__n__, __v__);                                               \
     }                                                                          \
   } while (0)
+
+#ifndef RSH_AGGRESSIVE_UNBOXING
+#define SET_VAL SET_SXP_VAL
+#else
+#define SET_VAL SET_UNBOXED_VAL
+#endif
 
 #define SET_VAL_N(n, value) SET_VAL(GET_VAL((n)), (value))
 #define SET_SXP_VAL_N(n, value) SET_SXP_VAL(GET_VAL((n)), (value))
@@ -861,7 +864,7 @@ static INLINE SEXP Rsh_append_values_to_args(Value *stack, Value const *vals,
 
 #define Rsh_Pop(x)
 
-static INLINE void Rsh_box_evaluated_promise(SEXP value) {
+static INLINE void Rsh_unbox_evaluated_promise(SEXP value) {
   assert(PROMISE_IS_EVALUATED(value));
 
   if (PROMISE_TAG(value) == 0 && IS_ANY_SIMPLE_SCALAR(PRVALUE0(value))) {
@@ -924,7 +927,9 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
         forcePromise(value);
       }
     }
-    Rsh_box_evaluated_promise(value);
+#ifdef RSH_AGGRESSIVE_UNBOXING
+    Rsh_unbox_evaluated_promise(value);
+#endif
     Rsh_evaluated_promise_to_value(res, value);
     return;
   } else {
@@ -975,7 +980,7 @@ static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol,
     cell = bcell_ensure_cached(symbol, rho, cell_cache);
   }
 
-  // Since the format of BCells and boxed stack is the same,
+  // Since the format of BCells and unboxed stack is the same,
   // we can directly assign the value no matter its type
   if (BCELL_TAG(cell) != 0) {
     res->tag = BCELL_TAG(cell);
@@ -1317,7 +1322,7 @@ static INLINE void Rsh_CallBuiltin(Value *stack, SEXP call, SEXP rho) {
   SEXP fun = VAL_SXP(*GET_VAL(-3));
   SEXP args = Rsh_builtin_call_args(VAL_SXP(*GET_VAL(-2)));
   const void *vmax = vmaxget();
-  assert(TYPEOF(fun) == BUILTINSXP); //Expected a BUILTIN function
+  assert(TYPEOF(fun) == BUILTINSXP); // Expected a BUILTIN function
   int flag = PRIMPRINT(fun);
   R_Visible = (Rboolean)(flag != 1);
   // Profiling not supported in Rsh, skipping the profiling branch
@@ -1415,9 +1420,14 @@ static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
 static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
                                     SEXP rho, SEXP r_op, SEXP r_op_sym) {
   Value *res = GET_VAL(-2);
-  Value lhs = *GET_VAL(-2);
-  Value rhs = *GET_VAL(-1);
-  double res_dbl = 0;
+  Value *lhs_ptr = GET_VAL(-2);
+  Value *rhs_ptr = GET_VAL(-1);
+  double res_dbl;
+
+  Value lhs = *lhs_ptr;
+  val_unbox_inplace(&lhs, 1, 1, 0);
+  Value rhs = *rhs_ptr;
+  val_unbox_inplace(&rhs, 1, 1, 0);
 
   if (VAL_IS_DBL(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
@@ -1460,7 +1470,7 @@ static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
 
   // Slow path!
   RSH_PC_INC(slow_arith);
-  DO_BINARY_BUILTIN(arith2, call, r_op, r_op_sym, lhs, rhs, rho, res);
+  DO_BINARY_BUILTIN(arith2, call, r_op, r_op_sym, *lhs_ptr, *rhs_ptr, rho, res);
   R_Visible = TRUE;
 }
 
@@ -1476,8 +1486,13 @@ X_ARITH_OPS
 static ALWAYS_INLINE void Rsh_relop(Value *stack, SEXP call, RshRelOp op,
                                     SEXP rho, SEXP r_op, SEXP r_op_sym) {
   Value *res = GET_VAL(-2);
-  Value lhs = *GET_VAL(-2);
-  Value rhs = *GET_VAL(-1);
+  Value *lhs_ptr = GET_VAL(-2);
+  Value *rhs_ptr = GET_VAL(-1);
+
+  Value lhs = *lhs_ptr;
+  val_unbox_inplace(&lhs, 1, 1, 0);
+  Value rhs = *rhs_ptr;
+  val_unbox_inplace(&rhs, 1, 1, 0);
 
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
@@ -1508,7 +1523,7 @@ static ALWAYS_INLINE void Rsh_relop(Value *stack, SEXP call, RshRelOp op,
 
   // Slow path!
   RSH_PC_INC(slow_relop);
-  DO_BINARY_BUILTIN(relop, call, r_op, r_op_sym, lhs, rhs, rho, res);
+  DO_BINARY_BUILTIN(relop, call, r_op, r_op_sym, *lhs_ptr, *rhs_ptr, rho, res);
   R_Visible = TRUE;
 }
 
@@ -1526,7 +1541,7 @@ X_REL_OPS
                     /* SEXP */ arg, /* SEXP */ rho, /* Value* */ res)          \
   do {                                                                         \
     SEXP __tmp__ = CONS_NR((arg), R_NilValue);                                 \
-    SET_VAL(res, __tmp__);                                                     \
+    SET_SXP_VAL(res, __tmp__);                                                 \
     assert(TYPEOF((op)) == BUILTINSXP);                                        \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
     SET_VAL(res, __res_sxp__);                                                 \
@@ -1539,7 +1554,7 @@ X_REL_OPS
   do {                                                                         \
     SEXP __tmp__ = CONS_NR(val_as_sexp((arg1)),                                \
                            CONS_NR(val_as_sexp((arg2)), R_NilValue));          \
-    SET_VAL(res, __tmp__);                                                     \
+    SET_SXP_VAL(res, __tmp__);                                                 \
     assert(TYPEOF((op)) == BUILTINSXP);                                        \
     SEXP __res_sxp__ = fun((call), (op), __tmp__, (rho));                      \
     SET_VAL(res, __res_sxp__);                                                 \
@@ -1548,7 +1563,9 @@ X_REL_OPS
 static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho,
                              SEXP r_op) {
   Value *res = GET_VAL(-1);
-  Value arg = *GET_VAL(-1);
+  Value *arg_ptr = GET_VAL(-1);
+  Value arg = *arg_ptr;
+  val_unbox_inplace(&arg, 1, 1, 0);
 
   if (VAL_IS_DBL(arg)) {
     double d = VAL_DBL(arg);
@@ -1575,7 +1592,7 @@ static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho,
   } else {
     // Slow path!
     RSH_PC_INC(slow_math1);
-    DO_BUILTIN1(do_math1, call, r_op, val_as_sexp(arg), rho, res);
+    DO_BUILTIN1(do_math1, call, r_op, val_as_sexp(*arg_ptr), rho, res);
   }
   R_Visible = TRUE;
 }
@@ -1591,7 +1608,9 @@ X_MATH1_OPS
 static INLINE void Rsh_unary(Value *stack, SEXP call, RshUnaryOp op, SEXP rho,
                              SEXP r_op, SEXP r_op_sym) {
   Value *res = GET_VAL(-1);
-  Value arg = *GET_VAL(-1);
+  Value *arg_ptr = GET_VAL(-1);
+  Value arg = *arg_ptr;
+  val_unbox_inplace(&arg, 1, 1, 0);
 
   if (VAL_IS_DBL(arg)) {
     if (op == UMINUS_OP) {
@@ -1608,7 +1627,7 @@ static INLINE void Rsh_unary(Value *stack, SEXP call, RshUnaryOp op, SEXP rho,
   } else {
     // Slow path!
     RSH_PC_INC(slow_unary);
-    SEXP s = arith1(call, r_op, r_op_sym, val_as_sexp(arg), rho);
+    SEXP s = arith1(call, r_op, r_op_sym, val_as_sexp(*arg_ptr), rho);
     SET_VAL(res, s);
   }
 
@@ -1625,16 +1644,18 @@ X_UNARY_OPS
 #undef X
 
 static INLINE void Rsh_Not(Value *stack, SEXP call, SEXP rho) {
-  Value arg = *GET_VAL(-1);
+  Value *arg_ptr = GET_VAL(-1);
   Value *res = GET_VAL(-1);
+  Value arg = *arg_ptr;
+  val_unbox_inplace(&arg, 0, 1, 1);
 
   R_Visible = TRUE;
 
   if (VAL_IS_LGL_NOT_NA(arg) || VAL_IS_INT_NOT_NA(arg)) {
-    SET_LGL_VAL(res, !VAL_INT(arg));
+    SET_LGL_VAL(res, VAL_INT(arg) ? FALSE : TRUE);
   } else {
     // Slow path!
-    DO_BUILTIN1(do_logic, call, NOT_OP, val_as_sexp(arg), rho, res);
+    DO_BUILTIN1(do_logic, call, NOT_OP, val_as_sexp(*arg_ptr), rho, res);
     assert(R_Visible == TRUE);
   }
 }
@@ -2805,23 +2826,33 @@ static INLINE void Rsh_EndFor(Value *stack, SEXP rho) {
 
 static INLINE void Rsh_Colon(Value *stack, SEXP call, SEXP rho) {
   Value *res = GET_VAL(-2);
-  Value from = *GET_VAL(-2);
-  Value to = *GET_VAL(-1);
+  Value *from_ptr = GET_VAL(-2);
+  Value *to_ptr = GET_VAL(-1);
 
-  if (VAL_IS_DBL(from) && VAL_IS_DBL(to)) {
-    double rn1 = VAL_DBL(from);
-    double rn2 = VAL_DBL(to);
-    if (R_FINITE(rn1) && R_FINITE(rn2) && INT_MIN <= rn1 && INT_MAX >= rn1 &&
-        INT_MIN <= rn2 && INT_MAX >= rn2 && rn1 == (int)rn1 &&
-        rn2 == (int)rn2) {
-      ISQ_NEW(rn1, rn2, res);
-      R_Visible = TRUE;
-      return;
+  Value from = *from_ptr;
+  val_unbox_inplace(&from, 1, 1, 0);
+
+  if (VAL_IS_DBL(from) || VAL_IS_INT(from)) {
+    Value to = *to_ptr;
+    val_unbox_inplace(&to, 1, 1, 0);
+
+    if (VAL_IS_DBL(to) || VAL_IS_INT(to)) {
+      unboxed_int_to_dbl(&from);
+      double rn1 = VAL_DBL(from);
+      unboxed_int_to_dbl(&to);
+      double rn2 = VAL_DBL(to);
+
+      if (R_FINITE(rn1) && R_FINITE(rn2) && INT_MIN <= rn1 && INT_MAX >= rn1 &&
+          INT_MIN <= rn2 && INT_MAX >= rn2 && rn1 == (int)rn1 &&
+          rn2 == (int)rn2) {
+        ISQ_NEW(rn1, rn2, res);
+        R_Visible = TRUE;
+        return;
+      }
     }
   }
-
   // slow path!
-  DO_BUILTIN2(do_colon, call, Rsh_ColonOp, from, to, rho, res);
+  DO_BUILTIN2(do_colon, call, Rsh_ColonOp, *from_ptr, *to_ptr, rho, res);
   R_Visible = TRUE;
 }
 
@@ -3021,9 +3052,14 @@ static INLINE void Rsh_Or2nd(Value *stack, SEXP call) {
 }
 
 static INLINE void Rsh_Log(Value *stack, SEXP call, SEXP rho) {
-  Value *val = GET_VAL(-1);
-  if (VAL_IS_DBL(*val)) {
-    double d = VAL_DBL(*val);
+  Value *res = GET_VAL(-1);
+  Value *val_ptr = GET_VAL(-1);
+  Value val = *val_ptr;
+  val_unbox_inplace(&val, 1, 1, 0);
+  unboxed_int_to_dbl(&val);
+
+  if (VAL_IS_DBL(val)) {
+    double d = VAL_DBL(val);
     double r = R_log(d);
     if (ISNAN(r)) {
       if (ISNAN(d)) {
@@ -3032,7 +3068,7 @@ static INLINE void Rsh_Log(Value *stack, SEXP call, SEXP rho) {
         Rf_warningcall(call, R_MSG_NA);
       }
     }
-    SET_DBL_VAL(val, r);
+    SET_DBL_VAL(val_ptr, r);
     R_Visible = TRUE;
     return;
   }
@@ -3040,40 +3076,50 @@ static INLINE void Rsh_Log(Value *stack, SEXP call, SEXP rho) {
   // slow path
   RSH_PC_INC(slow_math1);
 
-  SEXP args = CONS_NR(val_as_sexp(*val), R_NilValue);
-  SET_SXP_VAL(val, args); // to protect
-  SET_SXP_VAL(val, do_log_builtin(call, LOG_OP, args, rho));
+  SEXP args = CONS_NR(val_as_sexp(*val_ptr), R_NilValue);
+  SET_SXP_VAL(res, args); // to protect
+  SET_VAL(res, do_log_builtin(call, LOG_OP, args, rho));
   R_Visible = TRUE;
 }
 
 static INLINE void Rsh_LogBase(Value *stack, SEXP call, SEXP rho) {
   Value *res = GET_VAL(-2);
-  Value val = *GET_VAL(-2);
-  Value base = *GET_VAL(-1);
+  Value *val_ptr = GET_VAL(-2);
+  Value *base_ptr = GET_VAL(-1);
 
-  if (VAL_IS_DBL(val) && VAL_IS_DBL(base)) {
-    double d = VAL_DBL(val);
-    double b = VAL_DBL(base);
-    double r = R_logbase(d, b);
-    if (ISNAN(r)) {
-      if (ISNAN(d)) {
-        r = d;
-      } else if (ISNAN(b)) {
-        r = b;
-      } else {
-        Rf_warningcall(call, R_MSG_NA);
+  Value val = *val_ptr;
+  val_unbox_inplace(&val, 1, 1, 0);
+
+  if (VAL_IS_DBL(val) || VAL_IS_INT(val)) {
+    Value base = *base_ptr;
+    val_unbox_inplace(&base, 1, 1, 0);
+
+    if (VAL_IS_DBL(base) || VAL_IS_INT(base)) {
+      unboxed_int_to_dbl(&val);
+      double d = VAL_DBL(val);
+      unboxed_int_to_dbl(&base);
+      double b = VAL_DBL(base);
+      double r = R_logbase(d, b);
+      if (ISNAN(r)) {
+        if (ISNAN(d)) {
+          r = d;
+        } else if (ISNAN(b)) {
+          r = b;
+        } else {
+          Rf_warningcall(call, R_MSG_NA);
+        }
       }
+      SET_DBL_VAL(res, r);
+      R_Visible = TRUE;
+      return;
     }
-    SET_DBL_VAL(res, r);
-    R_Visible = TRUE;
-    return;
   }
 
   // slow path
   RSH_PC_INC(slow_math1);
 
-  SEXP args = CONS_NR(val_as_sexp(base), R_NilValue);
-  args = CONS_NR(val_as_sexp(val), args);
+  SEXP args = CONS_NR(val_as_sexp(*base_ptr), R_NilValue);
+  args = CONS_NR(val_as_sexp(*val_ptr), args);
   SET_SXP_VAL(res, args); // to protect
   SET_SXP_VAL(res, do_log_builtin(call, LOG_OP, args, rho));
   R_Visible = TRUE;
@@ -3089,11 +3135,15 @@ static INLINE Rsh_Math1Fun Rsh_get_math1_fun(int i, SEXP call, SEXP r_op_sym) {
 
 static INLINE void Rsh_do_math1(Value *stack, SEXP call, int op, SEXP rho,
                                 SEXP r_op, SEXP r_op_sym) {
-  Value *v = GET_VAL(-1);
+  Value *res = GET_VAL(-1);
+  Value *v_ptr = GET_VAL(-1);
+  Value v = *v_ptr;
+  val_unbox_inplace(&v, 1, 1, 0);
+  unboxed_int_to_dbl(&v);
 
-  if (VAL_IS_DBL(*v)) {
+  if (VAL_IS_DBL(v)) {
     Rsh_Math1Fun fun = Rsh_get_math1_fun(op, call, r_op_sym);
-    double d = VAL_DBL(*v);
+    double d = VAL_DBL(v);
     double r = fun(d);
     if (ISNAN(r)) {
       if (ISNAN(d)) {
@@ -3102,7 +3152,7 @@ static INLINE void Rsh_do_math1(Value *stack, SEXP call, int op, SEXP rho,
         Rf_warningcall(call, R_MSG_NA);
       }
     }
-    SET_DBL_VAL(v, r);
+    SET_DBL_VAL(res, r);
     R_Visible = TRUE;
     return;
   }
@@ -3110,9 +3160,9 @@ static INLINE void Rsh_do_math1(Value *stack, SEXP call, int op, SEXP rho,
   // slow path
   RSH_PC_INC(slow_math1);
 
-  SEXP args = CONS_NR(val_as_sexp(*v), R_NilValue);
-  SET_SXP_VAL(v, args); // to protect
-  SET_VAL(v, do_math1(call, r_op, args, rho));
+  SEXP args = CONS_NR(val_as_sexp(*v_ptr), R_NilValue);
+  SET_SXP_VAL(res, args); // to protect
+  SET_VAL(res, do_math1(call, r_op, args, rho));
   R_Visible = TRUE;
 }
 
