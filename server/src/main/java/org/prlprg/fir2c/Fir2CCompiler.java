@@ -1592,7 +1592,7 @@ public final class Fir2CCompiler {
     return "Fir_ver_constants_"
         + escapeForC(function.name().name())
         + "_"
-        + signatureCName(version.signature());
+        + versionCNamePart(function, version);
   }
 
   private static String versionInitCName(Function function, Abstraction version) {
@@ -1602,14 +1602,20 @@ public final class Fir2CCompiler {
     return "Fir_ver_init_"
         + escapeForC(function.name().name())
         + "_"
-        + signatureCName(version.signature());
+        + versionCNamePart(function, version);
   }
 
   private static String versionCallCName(Function function, Abstraction version) {
     return "Fir_ver_call_"
         + escapeForC(function.name().name())
         + "_"
-        + signatureCName(version.signature());
+        + versionCNamePart(function, version);
+  }
+
+  private static String versionCNamePart(Function function, Abstraction version) {
+    return version == function.baseline() && !version.isStub()
+        ? "baseline"
+        : signatureCName(version.signature());
   }
 
   private static String signatureCName(Signature signature) {

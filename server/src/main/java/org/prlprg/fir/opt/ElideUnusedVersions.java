@@ -3,8 +3,8 @@ package org.prlprg.fir.opt;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
 
-/// If a function's total call count (sum across all versions) is at least `threshold`, remove every
-/// non-baseline version whose call count is 0.
+/// If a function's total call count (sum across all versions) is at least `threshold`, remove
+/// every non-baseline version whose call count is 0.
 ///
 /// TODO: Prevent [CreateBestVersion] from re-creating the removed version.
 public record ElideUnusedVersions(int threshold) implements Optimization {
