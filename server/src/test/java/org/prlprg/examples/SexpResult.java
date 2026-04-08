@@ -86,6 +86,19 @@ public sealed interface SexpResult {
     }
 
     @Override
+    public boolean equals(Object o) {
+      if (!(o instanceof Ok(SEXP value1))) {
+        return false;
+      }
+      return Objects.equals(value.toString(), value1.toString());
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(value.toString());
+    }
+
+    @Override
     public String toString() {
       return Printer.toString(this);
     }

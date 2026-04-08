@@ -141,6 +141,7 @@ SEXP Fir_force(SEXP promise);
 SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_safe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
+SEXP Fir_load_dots(int index, SEXP env);
 void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 void Fir_push_env(SEXP *env);
@@ -314,6 +315,9 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, value_missing_fx_none_ret_bool, S
 DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, scalar_logical_missing_fx_none_ret_bool, Rboolean value, SEXP missing);
 // as.character
 DEFINE_OVERRIDDEN_BUILTIN(char*, as_u2echaracter, value_missing_fx_none_ret_scalar_string, SEXP value, SEXP missing);
+
+// inherits(x, what, which): V,S,B→B
+DEFINE_OVERRIDDEN_BUILTIN(bool, inherits, value_scalar_string_bool_fx_none_ret_bool, SEXP value, char* what, bool which);
 
 #ifdef __cplusplus
 }

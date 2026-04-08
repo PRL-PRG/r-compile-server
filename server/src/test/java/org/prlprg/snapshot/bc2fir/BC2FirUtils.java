@@ -42,7 +42,7 @@ public final class BC2FirUtils {
       }
 
       BC2FirClosureCompiler.compile(session, firModule, funName, funSexp);
-      cleanup(firModule, false);
+      cleanup(firModule);
 
       // Don't check flow, because it's trivial (no `consume` annotations) but expensive.
       if (!checkAll(firModule, Exclude.PROVENANCE)) {

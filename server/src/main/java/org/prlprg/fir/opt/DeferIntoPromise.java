@@ -1,7 +1,6 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
-import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import com.google.common.collect.Iterables;
 import java.util.LinkedHashMap;
@@ -71,9 +70,7 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     // 1. *Copy* the entire sub-graph reachable to the promise into its body
     // 2. Remove copied instructions that are impure, or have no assignee (effectively no-ops)
     // 3. Remove copied instructions that have uses in not-copied instructions, repeat
-    // 4. Cleanup promise body (besides being cleaner, it prevents `Cleanup` from making a
-    //    change if we don't, which would prevent fixpoint)
-    // 5. Remaining copied instructions, replace their not-copied counterparts with `NOOP`
+    // 4. Remaining copied instructions, replace their not-copied counterparts with `NOOP`
     //    (effectively removes, but doesn't mess up other runs)
 
     // Step 1
@@ -196,9 +193,6 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     }
 
     // Step 4
-    cleanup(promiseBody);
-
-    // Step 5
     for (var entry : copiedStmts.entrySet()) {
       entry.getKey().replaceWith(Statement.NOOP);
     }
