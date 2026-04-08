@@ -283,6 +283,13 @@ SEXP Fir_load(SEXP symbol, SEXP env) {
   return value;
 }
 
+SEXP Fir_load_dots(int index, SEXP env) {
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load_dots");
+  // `ddfind` handles non-positive indices, missing `...`, and out-of-range
+  // accesses by raising R errors, matching the behavior of `..N` lookups.
+  return ddfind(index, env);
+}
+
 static SEXP Fir_env_pushed_from_r = NULL;
 static bool Fir_env_push_suppressed = false;
 
@@ -1386,10 +1393,6 @@ DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, doub
   return fabs(value);
 }
 
-static double Fir_sign(double x) {
-  return x == 0 ? 0 : x > 0 ? 1 : -1;
-}
-
 // math1: v1=I→R, v2=R→R
 #define V(name, func) \
   DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_int_fx_none_ret_scalar_real, int value) {\
@@ -1430,4 +1433,12 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, as_u2elogical, scalar_logical_missing_fx_none_re
 // as.character
 DEFINE_OVERRIDDEN_BUILTIN(char*, as_u2echaracter, value_missing_fx_none_ret_scalar_string, SEXP value, SEXP missing) {
   return (char*)CHAR(Rf_asChar(value));
+}
+
+// inherits(x, what, which): V,S,B→B
+// The scalar-bool return is only used when `which` is FALSE, so the result is
+// simply whether `x` inherits from the single class named by `what`.
+DEFINE_OVERRIDDEN_BUILTIN(bool, inherits, value_scalar_string_bool_fx_none_ret_bool, SEXP value, char* what, bool which) {
+  (void)which;
+  return (bool)Rf_inherits(value, what);
 }

@@ -1,6 +1,7 @@
 package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Nested;
@@ -14,7 +15,7 @@ import org.prlprg.parseprint.Printer;
 class CleanupTest implements OptimizationUnitTest {
   @Override
   public Optimization optimization() {
-    return new Cleanup();
+    return new Cleanup(true);
   }
 
   // region Remove unreachable blocks
@@ -218,10 +219,7 @@ class CleanupTest implements OptimizationUnitTest {
               }
               """);
 
-      assertTrue(
-          new Cleanup(false)
-              .run(new org.prlprg.fir.interpret.internal.MockModuleFeedback(), module),
-          "should remove no-effect if jump");
+      assertTrue(cleanup(module), "should remove no-effect if jump");
 
       var l1 = Objects.requireNonNull(cfg(module).bb("L1"));
       var l1Jump = assertInstanceOf(Goto.class, l1.jump());
@@ -266,10 +264,7 @@ class CleanupTest implements OptimizationUnitTest {
               }
               """);
 
-      assertTrue(
-          new Cleanup(false)
-              .run(new org.prlprg.fir.interpret.internal.MockModuleFeedback(), module),
-          "should remove nested no-effect if jump");
+      assertTrue(cleanup(module), "should remove nested no-effect if jump");
 
       var l1 = Objects.requireNonNull(cfg(module).bb("L1"));
       var l1Jump = assertInstanceOf(Goto.class, l1.jump());
@@ -467,7 +462,7 @@ class CleanupTest implements OptimizationUnitTest {
               """);
 
       // Use Cleanup with substituteWithOrigins=false
-      new Cleanup(false).run(new org.prlprg.fir.interpret.internal.MockModuleFeedback(), module);
+      cleanup(module);
 
       var printed = Printer.toString(module);
       // y=x is a no-op (pure, no assignee after removing unused), but origin substitution

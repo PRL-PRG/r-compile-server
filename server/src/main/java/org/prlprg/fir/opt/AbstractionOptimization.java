@@ -1,6 +1,9 @@
 package org.prlprg.fir.opt;
 
+import static org.prlprg.fir.opt.Cleanup.cleanup;
+
 import java.util.List;
+import org.prlprg.AppConfig;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -25,7 +28,15 @@ public interface AbstractionOptimization extends Optimization {
         .record(
             "AbstractionOptimization#run",
             List.of(this, function, feedback, abstraction),
-            () -> runWithoutRecording(function, feedback, abstraction));
+            () -> {
+              var changed = runWithoutRecording(function, feedback, abstraction);
+
+              if (AppConfig.DEBUG) {
+                cleanup(abstraction);
+              }
+
+              return changed;
+            });
   }
 
   /// Returns `true` if it made progress.

@@ -13,7 +13,6 @@ import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
@@ -49,23 +48,26 @@ import org.prlprg.fir.ir.variable.Register;
 ///   - Remove unused assignees (convert `r = e` to `e` if `r` is unused) and phis.
 /// - Instructions
 ///   - Remove trivial no-ops (pure expressions not assigned to anything).
-public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptimization {
-  public static void cleanup(Module module, boolean substituteWithOrigins) {
-    new Cleanup(substituteWithOrigins).run(new MockModuleFeedback(), module);
+///
+/// This is a special optimization that's implicitly run after other optimizations, and never
+/// reports changes.
+public record Cleanup(boolean reportChanges) implements AbstractionOptimization {
+  /// Run the [Cleanup] optimization on `module`
+  public static boolean cleanup(Module module) {
+    var changed = false;
+    for (var function : module.localFunctions()) {
+      for (var abstraction : function.versions()) {
+        changed |= cleanup(abstraction);
+      }
+    }
+    return changed;
   }
 
-  /// Runs CFG-specific parts of the cleanup: everything except origins and locals
-  public static void cleanup(CFG cfg) {
-    new Cleanup(false).new OnAbstraction(cfg.scope()).runOnCfg(cfg);
-  }
-
-  public Cleanup() {
-    this(true);
-  }
-
-  @Override
-  public String name() {
-    return substituteWithOrigins ? "cleanup" : "cleanupWithoutSubstOrigins";
+  /// Run the [Cleanup] optimization on `abstraction`
+  public static boolean cleanup(Abstraction abstraction) {
+    var opt = new OnAbstraction(abstraction);
+    opt.run();
+    return opt.changed;
   }
 
   @Override
@@ -73,10 +75,10 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
-    return opt.changed;
+    return reportChanges && opt.changed;
   }
 
-  private class OnAbstraction {
+  private static class OnAbstraction {
     final Abstraction scope;
     final InferEffects inferEffects;
     final Substituter substituter;
@@ -89,7 +91,13 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     }
 
     void run() {
-      // Basic blocks
+      // Registers
+      substituteWithOrigins();
+
+      // Instructions (affected by origins)
+      scope.streamCfgs().forEach(this::removeEffectiveNoOps);
+
+      // Basic blocks (affected by instructions)
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::constantFoldBranches));
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeNoEffectIfJumps));
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeSinglePredecessorPhis));
@@ -97,26 +105,8 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       scope.streamCfgs().forEach(this::mergeBlocks);
       substituter.commit();
 
-      // Registers
-      if (substituteWithOrigins) {
-        substituteWithOrigins();
-      }
+      // Registers (affected by instructions and blocks)
       removeUnusedLocals();
-
-      // Instructions
-      scope.streamCfgs().forEach(this::removeEffectiveNoOps);
-    }
-
-    /// Runs CFG-specific parts of the cleanup: everything except origins and locals
-    void runOnCfg(CFG cfg) {
-      cfg.bbs().forEach(this::constantFoldBranches);
-      cfg.bbs().forEach(this::removeNoEffectIfJumps);
-      cfg.bbs().forEach(this::removeSinglePredecessorPhis);
-      removeUnreachableBlocks(cfg);
-      mergeBlocks(cfg);
-      substituter.commit();
-
-      removeEffectiveNoOps(cfg);
     }
 
     void removeUnreachableBlocks(CFG cfg) {

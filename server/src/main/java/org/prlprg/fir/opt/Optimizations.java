@@ -52,7 +52,7 @@ public class Optimizations {
                 new Inline(1000),
                 new DeferIntoPromise(),
                 new StrictifyPromise(),
-                new Cleanup()),
+                new Cleanup(false)),
             new CreateBestVersion(9),
             new MergeConsecutiveCheckpoints(),
             new ElideUnusedCheckpoints()));
