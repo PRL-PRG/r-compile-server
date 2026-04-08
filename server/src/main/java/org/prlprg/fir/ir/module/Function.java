@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.module;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,8 +45,11 @@ public final class Function {
   private int nextVersionIndex = 0;
 
   // Cached
-  /// See [#versionsSorted()].
-  private final SortedSet<Abstraction> versionsSorted = new TreeSet<>();
+  /// See [#versionsSorted()]
+  private final SortedSet<Abstraction> versionsSorted =
+      new TreeSet<>(
+          Comparator.<Abstraction>naturalOrder()
+              .thenComparingInt(v -> !versions.isEmpty() && v == baseline() ? 1 : 0));
 
   Function(
       Module owner,
@@ -101,22 +105,22 @@ public final class Function {
     return parameterNames;
   }
 
-  /// Use [#version(int)] to get the version at an index.
+  /// Use [#version(int)] to get the version at an index
   public @UnmodifiableView SequencedCollection<Abstraction> versions() {
     return Collections.unmodifiableSequencedCollection(versions.sequencedValues());
   }
 
   /// Versions that are sorted so that "better" ones are before "worse" ones: a version is
   /// "better" if its parameter types, effects, and return type are narrower (see
-  /// [Abstraction#compareTo(Abstraction)]).
+  /// [Abstraction#compareTo(Abstraction)]), or it's not baseline
   public @UnmodifiableView SortedSet<Abstraction> versionsSorted() {
     return Collections.unmodifiableSortedSet(versionsSorted);
   }
 
-  /// Indexes of versions that exist in the function.
+  /// Indexes of versions that exist in the function
   ///
   /// When a version removed, it's index isn't reused, because that leads to tricky bugs when
-  /// said version or later ones are referenced by index (e.g. in serialized code).
+  /// said version or later ones are referenced by index (e.g. in serialized code)
   public @UnmodifiableView SequencedCollection<Integer> versionIndices() {
     return Collections.unmodifiableSequencedCollection(versions.sequencedKeySet());
   }
@@ -125,7 +129,7 @@ public final class Function {
     return versions.firstEntry().getValue();
   }
 
-  /// @throws IllegalArgumentException If there's no version at the index.
+  /// @throws IllegalArgumentException If there's no version at the index
   public Abstraction version(int index) {
     var version = versions.get(index);
     if (version == null) {

@@ -26,6 +26,7 @@ public class Optimizations {
     return new Sequence(
         "default",
         new ElideUnusedVersions(threshold),
+        new CopyBaseline(),
         new SpeculateDispatch(threshold, 3, 9),
         new SpeculateAssume(threshold),
         new MergeAssumeLoadFun(),

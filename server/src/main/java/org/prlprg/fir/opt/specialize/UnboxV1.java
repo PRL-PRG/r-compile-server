@@ -137,7 +137,8 @@ public class UnboxV1 implements AbstractionOptimization {
     // (If so, we can always fully specialize)
     var currentVersion = callee.minVersion();
     if (currentVersion != null && !currentVersion.isStub()) {
-      createUnboxedVersion(feedback, function, currentVersion, bestSpecialization);
+      createUnboxedVersion(
+          feedback, function, currentVersion, callee.signature(), bestSpecialization);
       return bestSpecialization;
     }
 
@@ -239,6 +240,7 @@ public class UnboxV1 implements AbstractionOptimization {
       AbstractionFeedback feedback,
       Function function,
       Abstraction boxedVersion,
+      Signature signature,
       Specialization specialization) {
     var oldParams = boxedVersion.parameters();
     var numParams = oldParams.size();
@@ -249,8 +251,9 @@ public class UnboxV1 implements AbstractionOptimization {
       if (!specialization.parameterUnboxings().get(i)) continue;
 
       var oldParam = newParams.get(i);
+      var sigParamType = signature.parameterTypes().get(i);
       var newParamName = boxedVersion.resemblance(oldParam.variable().name());
-      var newParam = new Parameter(newParamName, unboxed(oldParam.type()), false);
+      var newParam = new Parameter(newParamName, unboxed(sigParamType), false);
 
       newParams.set(i, newParam);
     }
@@ -265,12 +268,12 @@ public class UnboxV1 implements AbstractionOptimization {
       if (!specialization.parameterUnboxings().get(i)) continue;
 
       var oldParam = oldParams.get(i);
-      newVersion.addLocal(new Local(oldParam.variable(), oldParam.type()));
+      var sigParamType = signature.parameterTypes().get(i);
+      newVersion.addLocal(new Local(oldParam.variable(), sigParamType));
       newEntry.insertStatement(
           j,
           new Statement(
-              oldParam.variable(),
-              boxCall(new Read(newParams.get(i).variable()), oldParam.type())));
+              oldParam.variable(), boxCall(new Read(newParams.get(i).variable()), sigParamType)));
       j++;
     }
 
