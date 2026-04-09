@@ -458,10 +458,12 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     void removeEffectiveNoOps(CFG cfg) {
+      var defUses = new DefUses(scope);
+
       for (var bb : cfg.bbs()) {
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
-          if (stmt.assignee() != null
+          if ((stmt.assignee() != null && !defUses.uses(stmt.assignee()).isEmpty())
               || stmt.expression() instanceof Assume
               || inferEffects.of(stmt.expression()) != Effects.NONE) {
             i++;
