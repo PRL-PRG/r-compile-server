@@ -11,16 +11,6 @@ import org.prlprg.fir.ir.module.Function;
 
 /// An optimization that runs on an [Abstraction].
 public interface AbstractionOptimization extends Optimization {
-  @Override
-  default boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
-    var changed = false;
-    // Copy `version` because we may modify it.
-    for (var version : List.copyOf(function.versions())) {
-      changed |= runWithoutRecording(function, feedback.get(version), version);
-    }
-    return changed;
-  }
-
   /// Returns `true` if it made progress.
   default boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     return function
@@ -37,6 +27,20 @@ public interface AbstractionOptimization extends Optimization {
 
               return changed;
             });
+  }
+
+  @Override
+  default boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
+    var changed = false;
+    // Copy `version` because we may modify it.
+    for (var version : List.copyOf(function.versions())) {
+      if (version == function.baseline()) {
+        // Don't optimize baseline
+        continue;
+      }
+      changed |= runWithoutRecording(function, feedback.get(version), version);
+    }
+    return changed;
   }
 
   /// Returns `true` if it made progress.
