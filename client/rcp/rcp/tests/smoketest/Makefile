@@ -9,7 +9,7 @@ all: test
 test:
 	@for test in $(TESTS); do \
 		echo "Running $$test..."; \
-		$(R) --vanilla --quiet < $$test || exit 1; \
+		$(RSCRIPT) --vanilla $$test || exit 1; \
 	done
 
 clean:

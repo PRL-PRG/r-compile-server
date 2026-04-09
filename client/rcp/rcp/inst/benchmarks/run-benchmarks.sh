@@ -110,6 +110,9 @@ run_one() {
       echo "  [$count/$TOTAL] $name ... OK"
     else
       echo "  [$count/$TOTAL] $name ... FAIL"
+      echo "--- $name output ---"
+      cat "$OUTPUT/$name.log"
+      echo "--- end $name output ---"
     fi
   ) 9>"$LOCKFILE"
 

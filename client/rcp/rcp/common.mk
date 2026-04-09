@@ -25,9 +25,10 @@ RSH_HOME ?= $(ROOT_DIR)/../external/rsh/client/rsh
 R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 # Which R to use
 R := $(R_HOME)/bin/R
+RSCRIPT := $(R_HOME)/bin/Rscript
 
 define ensure_microbenchmark_installed
-if ! $(R) --slave --no-restore -e 'if (!requireNamespace("microbenchmark", quietly=TRUE)) quit(status=1)' >/dev/null 2>&1; then \
+if ! $(RSCRIPT) --vanilla -e 'if (!requireNamespace("microbenchmark", quietly=TRUE)) quit(status=1)' >/dev/null 2>&1; then \
 	echo "Error: R package 'microbenchmark' is not installed. Run 'make setup' from the repository root." >&2; \
 	exit 1; \
 fi
