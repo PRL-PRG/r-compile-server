@@ -5,7 +5,11 @@ fun checkMissing(r) {
   (reg r:V) --> V { ... }
 }
 fun toForSeq(r) {
-  (reg r:V) -+> V { ... }
+  (reg r:V) --> V { ... }
+  (reg r:v(L)) --> v(L) { ... }
+  (reg r:v(I)) --> v(I) { ... }
+  (reg r:v(R)) --> v(R) { ... }
+  (reg r:v(S)) --> v(S) { ... }
 }
 fun setInvisible() {
   () --> V { ... }

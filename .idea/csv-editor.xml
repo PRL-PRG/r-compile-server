@@ -45,20 +45,6 @@
             </Attribute>
           </value>
         </entry>
-        <entry key="/fir-intellij-plugin/build/idea-sandbox/IU-2025.3/log/open-telemetry-metrics.2026-02-25-12-11-16.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/fir-intellij-plugin/build/idea-sandbox/IU-2025.3/log/open-telemetry-metrics.2026-03-03-15-03-17.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="," />
-            </Attribute>
-          </value>
-        </entry>
       </map>
     </option>
   </component>

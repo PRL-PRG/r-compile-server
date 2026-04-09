@@ -455,7 +455,7 @@ public class BC2FirCFGCompiler {
         push(value);
         push(value);
       }
-      case PrintValue() -> pushInsert(builtin("print", pop()));
+      case PrintValue() -> pushInsertThenCp(builtin("print", pop()));
       case StartLoopCntxt(var isForLoop, var end) -> {
         // REACH: Complicated loop contexts.
         // Currently, we only handle simple cases like PIR, where `next` and `break` aren't in
@@ -747,7 +747,7 @@ public class BC2FirCFGCompiler {
         // formal parameters of all specials, and some arguments may be `...`.
         var loadFun =
             insertAndReturn(builtinName, new Load(LoadType.BASE_FUN, Variable.named(builtinName)));
-        pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args));
+        pushInsertThenCp(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args));
       }
       case MakeClosure(var arg) -> {
         var fb = get(arg);
@@ -775,24 +775,24 @@ public class BC2FirCFGCompiler {
 
         pushInsert(new Closure(code));
       }
-      case UMinus(var _) -> pushInsert(builtin("-", pop(), new Constant(SEXPs.MISSING_ARG)));
-      case UPlus(var _) -> pushInsert(builtin("+", pop(), new Constant(SEXPs.MISSING_ARG)));
-      case Sqrt(var _) -> pushInsert(mkUnop("sqrt"));
-      case Add(var _) -> pushInsert(mkBinop("+"));
-      case Sub(var _) -> pushInsert(mkBinop("-"));
-      case Mul(var _) -> pushInsert(mkBinop("*"));
-      case Div(var _) -> pushInsert(mkBinop("/"));
-      case Expt(var _) -> pushInsert(mkBinop("^"));
-      case Exp(var _) -> pushInsert(mkUnop("exp"));
-      case Eq(var _) -> pushInsert(mkBinop("=="));
-      case Ne(var _) -> pushInsert(mkBinop("!="));
-      case Lt(var _) -> pushInsert(mkBinop("<"));
-      case Le(var _) -> pushInsert(mkBinop("<="));
-      case Ge(var _) -> pushInsert(mkBinop(">="));
-      case Gt(var _) -> pushInsert(mkBinop(">"));
-      case And(var _) -> pushInsert(mkBinop("&&"));
-      case Or(var _) -> pushInsert(mkBinop("||"));
-      case Not(var _) -> pushInsert(mkUnop("!"));
+      case UMinus(var _) -> pushInsertThenCp(builtin("-", pop(), new Constant(SEXPs.MISSING_ARG)));
+      case UPlus(var _) -> pushInsertThenCp(builtin("+", pop(), new Constant(SEXPs.MISSING_ARG)));
+      case Sqrt(var _) -> pushInsertThenCp(mkUnop("sqrt"));
+      case Add(var _) -> pushInsertThenCp(mkBinop("+"));
+      case Sub(var _) -> pushInsertThenCp(mkBinop("-"));
+      case Mul(var _) -> pushInsertThenCp(mkBinop("*"));
+      case Div(var _) -> pushInsertThenCp(mkBinop("/"));
+      case Expt(var _) -> pushInsertThenCp(mkBinop("^"));
+      case Exp(var _) -> pushInsertThenCp(mkUnop("exp"));
+      case Eq(var _) -> pushInsertThenCp(mkBinop("=="));
+      case Ne(var _) -> pushInsertThenCp(mkBinop("!="));
+      case Lt(var _) -> pushInsertThenCp(mkBinop("<"));
+      case Le(var _) -> pushInsertThenCp(mkBinop("<="));
+      case Ge(var _) -> pushInsertThenCp(mkBinop(">="));
+      case Gt(var _) -> pushInsertThenCp(mkBinop(">"));
+      case And(var _) -> pushInsertThenCp(mkBinop("&&"));
+      case Or(var _) -> pushInsertThenCp(mkBinop("||"));
+      case Not(var _) -> pushInsertThenCp(mkUnop("!"));
       case DotsErr() -> insert(stop("'...' used in an incorrect context"));
       case StartAssign(var name) -> {
         var lhs = insertAndReturn("_lhs", new Load(LoadType.LOCAL_VAR, getVar(name)));
@@ -806,13 +806,13 @@ public class BC2FirCFGCompiler {
       case Dollar(var _, var member) -> {
         var memberArg = new Constant(get(member));
         var target = pop();
-        pushInsert(builtin("$", target, memberArg));
+        pushInsertThenCp(builtin("$", target, memberArg));
       }
       case DollarGets(var _, var member) -> {
         var rhs = pop();
         var memberArg = new Constant(get(member));
         var target = pop();
-        pushInsert(builtin("$<-", target, memberArg, rhs));
+        pushInsertThenCp(builtin("$<-", target, memberArg, rhs));
       }
       case IsNull() -> pushInsertCond(builtin("==", pop(), new Constant(SEXPs.NULL)));
       case IsLogical() -> pushInsertCond(builtin("is.logical", pop()));
@@ -892,13 +892,13 @@ public class BC2FirCFGCompiler {
       case GetVarMissOk(var name) -> {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false);
-        pushInsert(getStr(name), new Force(true, pop()));
+        pushInsertThenCp(getStr(name), new Force(true, pop()));
       }
       case DdValMissOk(var name) -> {
         var ddIndex = get(name).ddNum();
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, NamedVariable.ddNum(ddIndex)));
         tryAddCheckpoint(false);
-        pushInsert(getStr(name), new Force(true, pop()));
+        pushInsertThenCp(getStr(name), new Force(true, pop()));
       }
       case Visible() -> insert(intrinsic("setVisible"));
       case SetVar2(var name) -> insert(new Store(StoreType.SUPER_VAR, getVar(name), top()));
@@ -1098,9 +1098,9 @@ public class BC2FirCFGCompiler {
         // In practice, there has always a label after this instruction,
         // but take note in case we get bytecode where this doesn't hold.
       }
-      case Log(var _) -> pushInsert(builtin("log", pop(), new Constant(SEXPs.real(Math.E))));
-      case LogBase(var _) -> pushInsert(mkBinop("log"));
-      case Math1(var _, var funId) -> pushInsert(mkUnop(MATH1_FUNS.get(funId)));
+      case Log(var _) -> pushInsertThenCp(builtin("log", pop(), new Constant(SEXPs.real(Math.E))));
+      case LogBase(var _) -> pushInsertThenCp(mkBinop("log"));
+      case Math1(var _, var funId) -> pushInsertThenCp(mkUnop(MATH1_FUNS.get(funId)));
       case DotCall(var _, var numArgs) -> {
         if (stack.size() < numArgs + 1) {
           throw fail("stack underflow");
@@ -1116,11 +1116,11 @@ public class BC2FirCFGCompiler {
         // Insert dots list for arguments
         var dots = insertAndReturn("_vargs", new MkVector(new Kind.Dots(), args));
 
-        pushInsert(builtin(".Call", fun, dots, new Constant(SEXPs.MISSING_ARG)));
+        pushInsertThenCp(builtin(".Call", fun, dots, new Constant(SEXPs.MISSING_ARG)));
       }
-      case Colon(var _) -> pushInsert(mkBinop(":"));
-      case SeqAlong(var _) -> pushInsert(builtin("seq_along", pop()));
-      case SeqLen(var _) -> pushInsert(builtin("seq_len", pop()));
+      case Colon(var _) -> pushInsertThenCp(mkBinop(":"));
+      case SeqAlong(var _) -> pushInsertThenCp(builtin("seq_along", pop()));
+      case SeqLen(var _) -> pushInsertThenCp(builtin("seq_len", pop()));
       case BaseGuard(var exprIdx, var after) -> {
         // PIR apparently just ignores the guards (`rir2pir.cpp:341`), but we can handle here.
         var expr = get(exprIdx);
@@ -1282,14 +1282,22 @@ public class BC2FirCFGCompiler {
             }
           }
         };
-    pushInsert(callInstr);
-
-    tryAddCheckpoint(true);
+    pushInsertThenCp(callInstr);
   }
 
   // endregion compile instructions
 
   // region checkpoints
+  void pushInsertThenCp(String name, Expression expression) {
+    pushInsert(name, expression);
+    tryAddCheckpoint(true);
+  }
+
+  void pushInsertThenCp(Expression expression) {
+    pushInsert(expression);
+    tryAddCheckpoint(true);
+  }
+
   void tryAddCheckpoint(boolean afterInstruction) {
     var deoptBcPos = afterInstruction ? bcPos + 1 : bcPos;
     var deopt = cfg.addBB("D" + numDeopts++);
