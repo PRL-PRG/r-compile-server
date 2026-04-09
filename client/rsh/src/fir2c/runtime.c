@@ -1114,12 +1114,24 @@ DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_none_ret_value, SEXP value) {
   return R_NilValue;
 }
 
-DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_impure_ret_value, SEXP value) {
+DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_none_ret_value, SEXP value) {
   // TODO: idk what this should do. If the following works, this intrinsic should be removed.
   return value;
 }
 
-DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_reflect_ret_value, SEXP value) {
+DEFINE_INTRINSIC(SEXP, toForSeq, vec_logical_fx_none_ret_vec_logical, SEXP value) {
+  return value;
+}
+
+DEFINE_INTRINSIC(SEXP, toForSeq, vec_int_fx_none_ret_vec_int, SEXP value) {
+  return value;
+}
+
+DEFINE_INTRINSIC(SEXP, toForSeq, vec_real_fx_none_ret_vec_real, SEXP value) {
+  return value;
+}
+
+DEFINE_INTRINSIC(SEXP, toForSeq, vec_string_fx_none_ret_vec_string, SEXP value) {
   return value;
 }
 
@@ -1441,4 +1453,307 @@ DEFINE_OVERRIDDEN_BUILTIN(char*, as_u2echaracter, value_missing_fx_none_ret_scal
 DEFINE_OVERRIDDEN_BUILTIN(bool, inherits, value_scalar_string_bool_fx_none_ret_bool, SEXP value, char* what, bool which) {
   (void)which;
   return (bool)Rf_inherits(value, what);
+}
+
+// === ^ ===
+// I^I→R
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_int_scalar_int_fx_none_ret_scalar_real, int a, int b) {
+  return R_pow((double)a, (double)b);
+}
+// R^R→R
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_real_scalar_real_fx_none_ret_scalar_real, double a, double b) {
+  return R_pow(a, b);
+}
+// I^R→R
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_int_scalar_real_fx_none_ret_scalar_real, int a, double b) {
+  return R_pow((double)a, b);
+}
+// R^I→R
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5e, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
+  return R_pow(a, (double)b);
+}
+
+// === > ===
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
+  return a > b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
+  return a > b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b) {
+  return (double)a > b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b) {
+  return a > (double)b;
+}
+
+// === >= ===
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_int_scalar_int_fx_none_ret_scalar_logical, int a, int b) {
+  return a >= b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_real_scalar_real_fx_none_ret_scalar_logical, double a, double b) {
+  return a >= b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_int_scalar_real_fx_none_ret_scalar_logical, int a, double b) {
+  return (double)a >= b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u3e_u3d, scalar_real_scalar_int_fx_none_ret_scalar_logical, double a, int b) {
+  return a >= (double)b;
+}
+
+// === != ===
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_logical_scalar_logical_fx_none_ret_bool, Rboolean a, Rboolean b) {
+  return a != b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_int_scalar_int_fx_none_ret_bool, int a, int b) {
+  return a != b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_real_scalar_real_fx_none_ret_bool, double a, double b) {
+  return a != b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u21_u3d, scalar_string_scalar_string_fx_none_ret_bool, char* a, char* b) {
+  return a != b;
+}
+// cls!=cls→L: compare closure identities
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21_u3d, closure_closure_fx_none_ret_scalar_logical, SEXP a, SEXP b) {
+  return a != b;
+}
+
+// === & === (bit-and on booleans)
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u26, bool_bool_fx_none_ret_bool, bool a, bool b) {
+  return a && b;
+}
+// === && ===
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u26_u26, bool_bool_fx_none_ret_bool, bool a, bool b) {
+  return a && b;
+}
+// === | ===
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u7c, bool_bool_fx_none_ret_bool, bool a, bool b) {
+  return a || b;
+}
+// === || ===
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u7c_u7c, bool_bool_fx_none_ret_bool, bool a, bool b) {
+  return a || b;
+}
+// === xor ===
+DEFINE_OVERRIDDEN_BUILTIN(bool, xor, bool_bool_fx_none_ret_bool, bool a, bool b) {
+  return a != b;
+}
+
+// === ! ===
+// B→B
+DEFINE_OVERRIDDEN_BUILTIN(bool, _u21, bool_fx_none_ret_bool, bool a) {
+  return !a;
+}
+// I→L
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21, scalar_int_fx_none_ret_scalar_logical, int a) {
+  if (a == NA_INTEGER) return NA_LOGICAL;
+  return a == 0;
+}
+// R→L
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21, scalar_real_fx_none_ret_scalar_logical, double a) {
+  if (ISNAN(a)) return NA_LOGICAL;
+  return a == 0.0;
+}
+
+// === [ (scalar index read, 1-based) ===
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP drop) {
+  (void)ddd; (void)drop;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  return LOGICAL(x)[i - 1];
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, _u5b, vec_int_scalar_int_missing_missing_fx_none_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP drop) {
+  (void)ddd; (void)drop;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  return INTEGER(x)[i - 1];
+}
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5b, vec_real_scalar_int_missing_missing_fx_none_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP drop) {
+  (void)ddd; (void)drop;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  return REAL(x)[i - 1];
+}
+DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_scalar_int_missing_missing_fx_none_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP drop) {
+  (void)ddd; (void)drop;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP elt = STRING_ELT(x, i - 1);
+  return elt == NA_STRING ? NULL : (char*)CHAR(elt);
+}
+
+// === [[ (scalar index read, 1-based) ===
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b_u5b, vec_logical_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP exact) {
+  (void)ddd; (void)exact;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  return LOGICAL(x)[i - 1];
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, _u5b_u5b, vec_int_scalar_int_missing_missing_fx_none_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP exact) {
+  (void)ddd; (void)exact;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  return INTEGER(x)[i - 1];
+}
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5b_u5b, vec_real_scalar_int_missing_missing_fx_none_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP exact) {
+  (void)ddd; (void)exact;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  return REAL(x)[i - 1];
+}
+DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_scalar_int_missing_missing_fx_none_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP exact) {
+  (void)ddd; (void)exact;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP elt = STRING_ELT(x, i - 1);
+  return elt == NA_STRING ? NULL : (char*)CHAR(elt);
+}
+
+// === [<- (scalar index write, 1-based) ===
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_scalar_int_scalar_logical_missing_fx_none_ret_vec_logical, SEXP x, int i, Rboolean value, SEXP ddd) {
+  (void)ddd;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  LOGICAL(x)[i - 1] = value;
+  return x;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_scalar_int_scalar_int_missing_fx_none_ret_vec_int, SEXP x, int i, int value, SEXP ddd) {
+  (void)ddd;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  INTEGER(x)[i - 1] = value;
+  return x;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_scalar_int_scalar_real_missing_fx_none_ret_vec_real, SEXP x, int i, double value, SEXP ddd) {
+  (void)ddd;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  REAL(x)[i - 1] = value;
+  return x;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_scalar_int_scalar_string_missing_fx_none_ret_vec_string, SEXP x, int i, char* value, SEXP ddd) {
+  (void)ddd;
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP chr = value == NULL ? NA_STRING : Rf_mkChar(value);
+  SET_STRING_ELT(x, i - 1, chr);
+  return x;
+}
+
+// === [[<- (scalar index write, 1-based) ===
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_scalar_int_scalar_logical_fx_none_ret_vec_logical, SEXP x, int i, Rboolean value) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  LOGICAL(x)[i - 1] = value;
+  return x;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_scalar_int_scalar_int_fx_none_ret_vec_int, SEXP x, int i, int value) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  INTEGER(x)[i - 1] = value;
+  return x;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_scalar_int_scalar_real_fx_none_ret_vec_real, SEXP x, int i, double value) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  REAL(x)[i - 1] = value;
+  return x;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_scalar_int_scalar_string_fx_none_ret_vec_string, SEXP x, int i, char* value) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP chr = value == NULL ? NA_STRING : Rf_mkChar(value);
+  SET_STRING_ELT(x, i - 1, chr);
+  return x;
+}
+
+// === rep(x, times) ===
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, rep, scalar_logical_scalar_int_fx_none_ret_vec_logical, Rboolean x, int times) {
+  ASSERT(times >= 0 && times != NA_INTEGER, "invalid 'times' argument");
+  SEXP res = PROTECT(Rf_allocVector(LGLSXP, times));
+  for (int k = 0; k < times; k++) LOGICAL(res)[k] = x;
+  UNPROTECT(1);
+  return res;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, rep, scalar_int_scalar_int_fx_none_ret_vec_int, int x, int times) {
+  ASSERT(times >= 0 && times != NA_INTEGER, "invalid 'times' argument");
+  SEXP res = PROTECT(Rf_allocVector(INTSXP, times));
+  for (int k = 0; k < times; k++) INTEGER(res)[k] = x;
+  UNPROTECT(1);
+  return res;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, rep, scalar_real_scalar_int_fx_none_ret_vec_real, double x, int times) {
+  ASSERT(times >= 0 && times != NA_INTEGER, "invalid 'times' argument");
+  SEXP res = PROTECT(Rf_allocVector(REALSXP, times));
+  for (int k = 0; k < times; k++) REAL(res)[k] = x;
+  UNPROTECT(1);
+  return res;
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, rep, scalar_string_scalar_int_fx_none_ret_vec_string, char* x, int times) {
+  ASSERT(times >= 0 && times != NA_INTEGER, "invalid 'times' argument");
+  SEXP res = PROTECT(Rf_allocVector(STRSXP, times));
+  SEXP chr = x == NULL ? NA_STRING : Rf_mkChar(x);
+  for (int k = 0; k < times; k++) SET_STRING_ELT(res, k, chr);
+  UNPROTECT(1);
+  return res;
+}
+
+// === sum(x, na.rm=miss) ===
+// v(L)→I: treat logicals as 0/1 (NA_LOGICAL == NA_INTEGER)
+DEFINE_OVERRIDDEN_BUILTIN(int, sum, vec_logical_missing_fx_none_ret_scalar_int, SEXP x, SEXP naRm) {
+  (void)naRm;
+  int acc = 0;
+  R_xlen_t len = XLENGTH(x);
+  for (R_xlen_t k = 0; k < len; k++) {
+    int v = LOGICAL(x)[k];
+    if (v == NA_LOGICAL) return NA_INTEGER;
+    acc += v;
+  }
+  return acc;
+}
+// v(I)→I
+DEFINE_OVERRIDDEN_BUILTIN(int, sum, vec_int_missing_fx_none_ret_scalar_int, SEXP x, SEXP naRm) {
+  (void)naRm;
+  int acc = 0;
+  R_xlen_t len = XLENGTH(x);
+  for (R_xlen_t k = 0; k < len; k++) {
+    int v = INTEGER(x)[k];
+    if (v == NA_INTEGER) return NA_INTEGER;
+    acc += v;
+  }
+  return acc;
+}
+// v(R)→R
+DEFINE_OVERRIDDEN_BUILTIN(double, sum, vec_real_missing_fx_none_ret_scalar_real, SEXP x, SEXP naRm) {
+  (void)naRm;
+  double acc = 0.0;
+  R_xlen_t len = XLENGTH(x);
+  for (R_xlen_t k = 0; k < len; k++) acc += REAL(x)[k];
+  return acc;
+}
+
+// === is.X(x): V→B ===
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2enumeric, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == REALSXP
+      || (TYPEOF(value) == INTSXP && !Rf_inherits(value, "factor"));
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2einteger, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == INTSXP && !Rf_inherits(value, "factor");
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2edouble, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == REALSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2elogical, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == LGLSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2ecomplex, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == CPLXSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eraw, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == RAWSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2efunction, value_fx_none_ret_bool, SEXP value) {
+  SEXPTYPE t = TYPEOF(value);
+  return t == CLOSXP || t == BUILTINSXP || t == SPECIALSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eenvironment, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == ENVSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2elist, value_fx_none_ret_bool, SEXP value) {
+  SEXPTYPE t = TYPEOF(value);
+  return t == VECSXP || t == LISTSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2echaracter, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == STRSXP;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eobject, value_fx_none_ret_bool, SEXP value) {
+  return OBJECT(value) != 0;
+}
+DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2esymbol, value_fx_none_ret_bool, SEXP value) {
+  return TYPEOF(value) == SYMSXP;
 }

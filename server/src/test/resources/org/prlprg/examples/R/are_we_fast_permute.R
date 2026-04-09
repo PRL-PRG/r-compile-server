@@ -11,6 +11,7 @@ permute <- function(n, list) {
   return(count)
 }
 
+# This is never evaluated!
 swap <- function(list, i, j) {
   temp <- list[i]
   list[i] <- list[j]
@@ -18,9 +19,9 @@ swap <- function(list, i, j) {
   list
 }
 
-#? benchmark: permute(8, 1:20)
+#? benchmark: permute(8, 1:1000)
 
 # warmup
 for (i in 1:12) {
-  permute(3, 1:3)
+  permute(3, 1:1000)
 }

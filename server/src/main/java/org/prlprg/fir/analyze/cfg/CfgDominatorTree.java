@@ -98,7 +98,7 @@ public final class CfgDominatorTree implements CfgAnalysis {
   /// Sorts dominators before dominees. Specifically, sorts each node by its depth in a
   /// dominator tree.
   ///
-  /// Sorts unreachable blocks or blocks outside of the tree last.
+  /// Sorts unreachable blocks or blocks outside the tree last.
   public Comparator<BB> comparator() {
     // Get the depth of each node in a dominator tree
     var depth = new HashMap<BB, Integer>();

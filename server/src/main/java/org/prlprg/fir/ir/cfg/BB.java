@@ -82,6 +82,10 @@ public final class BB implements Comparable<BB> {
     return label.equals(ENTRY_LABEL);
   }
 
+  public boolean isExit() {
+    return successors().isEmpty();
+  }
+
   public @UnmodifiableView List<Register> phiParameters() {
     return Collections.unmodifiableList(parameters);
   }

@@ -127,12 +127,14 @@ public final class CFG {
 
   @PrintMethod
   private void print(Printer p) {
-    // Sort BBs dominators before dominees, then [naturally](Strings#naturalComparator())
-    // (lexicographically with explicit support for numbers) by label.
+    // Sort non-deopts before deopts, then BB dominators before dominees, then exits before
+    // non-exits, then [naturally](Strings#naturalComparator()) (lexicographically with explicit
+    // support for numbers) by label.
     var sortedBbs = new ArrayList<>(bbs.values());
     sortedBbs.sort(
-        new CfgDominatorTree(this)
-            .comparator()
+        Comparator.<BB>comparingInt(bb -> bb.label().startsWith("D") ? 1 : 0)
+            .thenComparing(new CfgDominatorTree(this).comparator())
+            .thenComparing(BB::isExit, Comparator.reverseOrder())
             .thenComparing(BB::label, Strings.naturalComparator()));
 
     p.printSeparated("\n", sortedBbs);
