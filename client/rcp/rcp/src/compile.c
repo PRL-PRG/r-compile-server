@@ -389,7 +389,8 @@ static void prepare_shared_memory()
 		PROTECT(R_MakeExternalPtr(mem_shared, R_NilValue, R_NilValue));
 	R_PreserveObject(mem_shared_sexp);
 	UNPROTECT(1); // mem_shared_sexp
-	R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, TRUE);
+	// We do not free structures if R is shutting down, there will be memory leaks.
+	R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, FALSE);
 }
 
 #ifdef STEPFOR_SPECIALIZE
@@ -2095,7 +2096,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
 	UNPROTECT_SAFE(prot); // prot
 	PROTECT(ptr);
-	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, TRUE);
+	// We do not free structures if R is shutting down, there will be memory leaks.
+	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, FALSE);
 	UNPROTECT_SAFE(ptr); // ptr
 	return ptr;
 }
