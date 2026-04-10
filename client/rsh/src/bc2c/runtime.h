@@ -50,45 +50,6 @@ typedef R_bcstack_t Value;
 #define NODISCARD
 #endif
 
-/* ------------------------------------------------------------------ *
- * Targets: GCC 13+, x86-64 Linux. Compatible with Clang.             *
- *                                                                    *
- * UNREACHABLE()   – marks a point that is never reached.             *
- * ASSUME(cond)    – asserts cond is always true at this point.       *
- *                                                                    *
- * Debug   (NDEBUG not defined): aborts with a diagnostic message.    *
- * Release (NDEBUG defined):     optimizer hint, zero runtime cost.   *
- *                                                                    *
- * Note: cond in ASSUME must be side-effect free — in release builds  *
- * it may not be evaluated at all.                                    *
- * ------------------------------------------------------------------ */
-
-#ifndef NDEBUG
-#define UNREACHABLE()                                                          \
-  do {                                                                         \
-    fprintf(stderr, "UNREACHABLE reached at %s:%d (function: %s)\n", __FILE__, \
-            __LINE__, __func__);                                               \
-    abort();                                                                   \
-  } while (0)
-
-#define ASSUME(cond)                                                           \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      fprintf(stderr, "ASSUME(%s) failed at %s:%d (function: %s)\n", #cond,    \
-              __FILE__, __LINE__, __func__);                                   \
-      abort();                                                                 \
-    }                                                                          \
-  } while (0)
-#else
-#define UNREACHABLE() __builtin_unreachable()
-
-#if defined(__clang__)
-#define ASSUME(cond) __builtin_assume(cond)
-#else
-/* GCC 13+: __attribute__((assume(expr))) */
-#define ASSUME(cond) __attribute__((assume(cond)))
-#endif
-#endif
 
 // LINKING MODEL
 // -------------
@@ -489,6 +450,10 @@ static INLINE SEXP VAL_SXP(Value v) {
 // TODO: can we share this bcell expand?
 // TODO: rename
 static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
+  // Most linekly we will have a SEXP already, so check for that first
+  if(v.tag == 0) {
+    return v.u.sxpval;
+  }
   switch (v.tag) {
   case REALSXP:
     return Rf_ScalarReal(VAL_DBL(v));
@@ -501,7 +466,7 @@ static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
     return R_compact_intrange(seqinfo[0], seqinfo[1]);
   }
   default:
-    return VAL_SXP(v);
+    UNREACHABLE();
   }
 }
 
@@ -662,6 +627,8 @@ static INLINE void bcell_expand(BCell b) {
       INCREMENT_NAMED(val);
       UNPROTECT(1);
       break;
+    default:
+      UNREACHABLE();
     }
   }
 }
@@ -801,7 +768,7 @@ static INLINE R_xlen_t as_index(Value v) {
   }
   case LGLSXP:
     break;
-  default: {
+  case 0: {
     SEXP i = VAL_SXP(v);
     if (IS_SCALAR(i, INTSXP)) {
       int j = SCALAR_IVAL(i);
@@ -814,7 +781,12 @@ static INLINE R_xlen_t as_index(Value v) {
         return (R_xlen_t)j;
       }
     }
+    break;
   }
+  case ISQSXP:
+    break;
+  default:
+    UNREACHABLE();
   }
   return -1;
 }
@@ -880,8 +852,11 @@ static INLINE void Rsh_unbox_evaluated_promise(SEXP value) {
     case LGLSXP:
       memcpy(&CAR0(value), &LOGICAL(PRVALUE0(value))[0], sizeof(int));
       break;
-    default:
+    case 0:
+    case ISQSXP:
       return;
+    default:
+      UNREACHABLE();
     }
     SET_PROMISE_TAG(value, type);
   }
@@ -890,15 +865,8 @@ static INLINE void Rsh_unbox_evaluated_promise(SEXP value) {
 static INLINE void Rsh_evaluated_promise_to_value(Value *res, SEXP value) {
   assert(PROMISE_IS_EVALUATED(value));
 
-  switch (PROMISE_TAG(value)) {
-  case REALSXP:
-  case INTSXP:
-  case LGLSXP:
-  case 0:
-    break;
-  default:
-    UNREACHABLE(); // Sanity check
-  }
+  assert(PROMISE_TAG(value) == REALSXP || PROMISE_TAG(value) == INTSXP || PROMISE_TAG(value) == LGLSXP ||
+         PROMISE_TAG(value) == 0);
 
   res->tag = PROMISE_TAG(value);
   if (PROMISE_TAG(value) != 0) {
@@ -2175,6 +2143,8 @@ static INLINE void Rsh_vec_subassign(Value *stack, SEXP call, Rboolean sub2,
         SET_SXP_VAL(sx, vec);
         SETTER_CLEAR_NAMED(vec);
         return;
+      default:
+        UNREACHABLE();
       }
     }
   }

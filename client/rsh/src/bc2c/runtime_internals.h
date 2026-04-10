@@ -154,6 +154,47 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
 #define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
   (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue)
 
+
+/* ------------------------------------------------------------------ *
+ * Targets: GCC 13+, x86-64 Linux. Compatible with Clang.             *
+ *                                                                    *
+ * UNREACHABLE()   – marks a point that is never reached.             *
+ * ASSUME(cond)    – asserts cond is always true at this point.       *
+ *                                                                    *
+ * Debug   (NDEBUG not defined): aborts with a diagnostic message.    *
+ * Release (NDEBUG defined):     optimizer hint, zero runtime cost.   *
+ *                                                                    *
+ * Note: cond in ASSUME must be side-effect free — in release builds  *
+ * it may not be evaluated at all.                                    *
+ * ------------------------------------------------------------------ */
+
+#ifndef NDEBUG
+#define UNREACHABLE()                                                          \
+  do {                                                                         \
+    fprintf(stderr, "UNREACHABLE reached at %s:%d (function: %s)\n", __FILE__, \
+            __LINE__, __func__);                                               \
+    assert(0);                                                                 \
+  } while (0)
+
+#define ASSUME(cond)                                                           \
+  do {                                                                         \
+    if (!(cond)) {                                                             \
+      fprintf(stderr, "ASSUME(%s) failed at %s:%d (function: %s)\n", #cond,    \
+              __FILE__, __LINE__, __func__);                                   \
+      assert(0);                                                               \
+    }                                                                          \
+  } while (0)
+#else
+#define UNREACHABLE() __builtin_unreachable()
+
+#if defined(__clang__)
+#define ASSUME(cond) __builtin_assume(cond)
+#else
+/* GCC 13+: __attribute__((assume(expr))) */
+#define ASSUME(cond) __attribute__((assume(cond)))
+#endif
+#endif
+
 // Unboxes a value in-place if it is a simple scalar and is allowed by the
 // flags. This is a destructive operation as we lose the original SEXP. Use only
 // at places where the original SEXP is not observable later. Ported from
@@ -303,6 +344,10 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
+        case 0:                                                                \
+          break;                                                               \
+        default:                                                               \
+          UNREACHABLE();                                                       \
         }                                                                      \
       } else if (VAL_TAG(rhs) == TYPEOF(vec)) {                                \
         val_unbox_inplace(&rhs, 0, 1, 1);                                      \
@@ -317,6 +362,8 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
+        default:                                                               \
+          UNREACHABLE();                                                       \
         }                                                                      \
       } else if (subassign2 && TYPEOF(vec) == VECSXP) {                        \
         SEXP rhs_sxp = val_as_sexp(rhs);                                       \
