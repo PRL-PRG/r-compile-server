@@ -2,7 +2,7 @@
 
 Simple IntelliJ plugin that provides:
 
-- Syntax highlighting for `.fir` files
+- Syntax highlighting for FIŘ (`.fir`) files
 - Basic linting annotations:
   - Unbalanced delimiters
   - Likely missing semicolons on statement lines
@@ -11,7 +11,7 @@ Simple IntelliJ plugin that provides:
   - Potentially missing `reg`/`var` before parameter/local declarations
   - Missing top-level `fun` declarations
 
-See [`doc/FIR.md`](doc/FIR.md) for a FIR syntax, and `doc/examples/**/*.fir` for examples of FIR code.
+See [`doc/FIR.md`](../server/doc/FIR.md) for FIŘ syntax, and `../server/src/test/**/*.fir` for examples of FIŘ code.
 
 ## Run in development
 
