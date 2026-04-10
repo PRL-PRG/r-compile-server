@@ -718,8 +718,7 @@ static INLINE SEXP bcell_value(SEXP cell) {
   do {                                                                         \
     BCell __cell__ = (cell);                                                   \
     SEXP __v__ = (v);                                                          \
-    if (BCELL_WRITABLE(__cell__) && __v__->sxpinfo.scalar &&                   \
-        ATTRIB(__v__) == R_NilValue) {                                         \
+    if (BCELL_WRITABLE(__cell__) && IS_ANY_SIMPLE_SCALAR(__v__)) {             \
       switch (TYPEOF(__v__)) {                                                 \
       case REALSXP:                                                            \
         BCELL_DVAL_NEW(__cell__, REAL(__v__)[0]);                              \
@@ -741,13 +740,15 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
       BCELL_SET(cell, value);
       if (MISSING(cell)) {
         SET_MISSING(cell, 0);
-      } else {
+      }
+#ifdef RSH_AGGRESSIVE_UNBOXING
+      else {
         BCELL_INLINE(cell, value);
       }
+#endif
     }
     return TRUE;
   }
-
   return FALSE;
 }
 
@@ -1045,40 +1046,31 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
 
   assert(cell != NULL);
   if (tag == BCELL_TAG_WR(*cell)) {
-    switch (tag) {
-    case REALSXP:
-      BCELL_DVAL_SET(*cell, VAL_DBL(value));
-      return;
-    case INTSXP:
-      BCELL_IVAL_SET(*cell, VAL_INT(value));
-      return;
-    case LGLSXP:
-      BCELL_LVAL_SET(*cell, VAL_INT(value));
+    if (tag != 0) {
+      assert(tag == REALSXP || tag == INTSXP || tag == LGLSXP);
+      memcpy(&((*cell)->u.listsxp.carval), &value.u, sizeof(value.u));
       return;
     }
   } else if (BCELL_WRITABLE(*cell)) {
-    switch (tag) {
-    case REALSXP:
-      BCELL_DVAL_NEW(*cell, VAL_DBL(value));
-      return;
-    case INTSXP:
-      BCELL_IVAL_NEW(*cell, VAL_INT(value));
-      return;
-    case LGLSXP:
-      BCELL_LVAL_NEW(*cell, VAL_INT(value));
+    if (tag != 0 && tag != ISQSXP) {
+      assert(tag == REALSXP || tag == INTSXP || tag == LGLSXP);
+      BCELL_INIT(*cell, tag);
+      memcpy(&((*cell)->u.listsxp.carval), &value.u, sizeof(value.u));
       return;
     }
   }
 
   SEXP value_sxp = val_as_sexp(value);
-  INCREMENT_NAMED(sexp_value);
+  INCREMENT_NAMED(value_sxp);
 
   if (!bcell_set_value(*cell, value_sxp)) {
     PROTECT(value_sxp);
     Rf_defineVar(symbol, value_sxp, rho);
     UNPROTECT(1);
-    bcell_ensure_cached(symbol, rho, cell);
+    bcell_ensure_cached(symbol, rho, cell); // Not in GNU R. Is it worth it?
+#ifdef RSH_AGGRESSIVE_UNBOXING
     BCELL_INLINE(*cell, value_sxp);
+#endif
   }
 }
 
