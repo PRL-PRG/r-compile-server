@@ -239,7 +239,7 @@ public final class Fir2CCompiler {
       cCode.stmt(
           "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .formal_names = %s};",
           functionName, functionDispatchCName(function), formalNames);
-      cCode.stmt("Rsh_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
+      cCode.stmt("Fir_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
     }
 
     private void endEmitInit() {
@@ -693,7 +693,7 @@ public final class Fir2CCompiler {
           var idx = pool.internSpace();
           assert idx == 0;
           cCode.stmt("SEXP data_sexp = Rf_allocVector(RAWSXP, sizeof(Fir_PromiseGlobalData));");
-          cCode.stmt("Rsh_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
+          cCode.stmt("Fir_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
 
           cCode.stmt(
               "Fir_PromiseGlobalData *data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(data_sexp);");
@@ -910,11 +910,11 @@ public final class Fir2CCompiler {
                             debugComment(
                                 initCCode, "# Protect already-init nested %s", function.name());
                             initCCode.stmt(
-                                "Rsh_set_const(%s, %d, %s);", VAR_POOL, idx, constantsCName);
+                                "Fir_set_const(%s, %d, %s);", VAR_POOL, idx, constantsCName);
                           });
 
                   // Reference the protected constant pool
-                  cp = "Rsh_const(%s, %d)".formatted(VAR_POOL, cpIdx);
+                  cp = "Fir_const(%s, %d)".formatted(VAR_POOL, cpIdx);
                 } else {
                   // Compile function and add declarations
                   var cpSxp = new FunctionEmitter(function).run();
@@ -1115,7 +1115,7 @@ public final class Fir2CCompiler {
                         var initCCode = initCFunction.add();
                         debugComment(initCCode, "# Protect constants of %s", calleeFun.name());
                         initCCode.stmt(
-                            "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
+                            "Fir_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
                       });
 
                   // Defer declare extern for referenced (previously-compiled) function
@@ -1150,7 +1150,7 @@ public final class Fir2CCompiler {
                               calleeFun.name(),
                               calleeFun.indexOf(calleeVersion));
                           initCCode.stmt(
-                              "Rsh_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
+                              "Fir_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
                         });
 
                     // Defer declare extern for referenced (previously-compiled) version
@@ -1814,7 +1814,7 @@ public final class Fir2CCompiler {
   }
 
   private static String constantRef(ConstantPool pool, SEXP sexp) {
-    return "Rsh_const(%s, %d)".formatted(VAR_POOL, pool.intern(sexp));
+    return "Fir_const(%s, %d)".formatted(VAR_POOL, pool.intern(sexp));
   }
 
   private void debugComment(CCode cCode, @PrintFormat String fmt, Object... args) {
