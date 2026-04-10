@@ -3,12 +3,16 @@
 // THIS HEADER NEEDS TO BE A C-COMPATIBLE HEADER
 // IT IS USED BY THE SERVER COMPILER
 
-#include "../common2c/runtime.h"
+#include "../common2c/runtime_internals.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// FIXME: use the SCALAR_ macros
+#define Fir_const(env, idx) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)]
+#define Fir_set_const(env, idx, value) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)] = (value)
 
 typedef enum {
   FIR_PRIMITIVE_LOGICAL = 0,
@@ -407,6 +411,11 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2elist, value_fx_none_ret_bool, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2echaracter, value_fx_none_ret_bool, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eobject, value_fx_none_ret_bool, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2esymbol, value_fx_none_ret_bool, SEXP value);
+
+// Stubs for BC->C tests
+SEXP Rsh_initialize_runtime(void) { return R_NilValue; }
+SEXP Rsh_pc_get(void) { return R_NilValue; }
+SEXP Rsh_pc_reset(void) { return R_NilValue; }
 
 #ifdef __cplusplus
 }

@@ -4,6 +4,7 @@ import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Strings;
 
 public record PerformanceCounters(
@@ -23,6 +24,10 @@ public record PerformanceCounters(
   public static PerformanceCounters EMPTY = empty();
 
   public static PerformanceCounters from(SEXP sexp) {
+    if (sexp.equals(SEXPs.NULL)) {
+      return EMPTY;
+    }
+
     if (!(sexp instanceof IntSXP v)) {
       throw new IllegalArgumentException("Expected int vector, got: " + sexp);
     }

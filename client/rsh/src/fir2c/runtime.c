@@ -1,6 +1,7 @@
 #include "runtime.h"
 #include "print_sexp.h"
 
+#include <assert.h>
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
 
@@ -80,8 +81,8 @@ bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
     return false;
   }
   SEXP cp = R_ExternalPtrProtected(body);
-  ASSERT(Rsh_const(cp, 0) != R_NilValue, "Closure data not set");
-  *data = (Fir_FunctionData*) STDVEC_DATAPTR(Rsh_const(cp, 0));
+  ASSERT(Fir_const(cp, 0) != R_NilValue, "Closure data not set");
+  *data = (Fir_FunctionData*) STDVEC_DATAPTR(Fir_const(cp, 0));
   return true;
 }
 
@@ -95,8 +96,8 @@ bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fi
   }
   SEXP data = R_ExternalPtrProtected(body);
   SEXP cp = CAR0(data);
-  ASSERT(Rsh_const(cp, 0) != R_NilValue, "Promise data not set");
-  *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Rsh_const(cp, 0));
+  ASSERT(Fir_const(cp, 0) != R_NilValue, "Promise data not set");
+  *global_data = (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(cp, 0));
   *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(data));
   return true;
 }
