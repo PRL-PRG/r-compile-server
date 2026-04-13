@@ -462,12 +462,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     @Override
     public void merge(State other) {
-      // Merge origins = keep only those that are present in both and equal
-      mergeOrigins(registerOrigins, other.registerOrigins);
-      mergeOrigins(variableOrigins, other.variableOrigins);
+      // Merge register origins = assume they're the same except for `null`s, unify
+      // (because we may get origins of unreachable phis, for the workaround in `run(Jump)`).
+      // Without support for the workaround, it would be the same as merging variable origins
+      registerOrigins.putAll(other.registerOrigins);
+      // Merge variable origins = keep only those that are present in both and equal
+      mergeVariableOrigins(variableOrigins, other.variableOrigins);
     }
 
-    private static <T> void mergeOrigins(Map<T, Argument> origins, Map<T, Argument> otherOrigins) {
+    private static <T> void mergeVariableOrigins(
+        Map<T, Argument> origins, Map<T, Argument> otherOrigins) {
       for (var iterator = origins.entrySet().iterator(); iterator.hasNext(); ) {
         var entry = iterator.next();
         var variable = entry.getKey();

@@ -3,6 +3,8 @@ package org.prlprg.fir.opt;
 import static org.prlprg.fir.opt.Cleanup.cleanup;
 
 import java.util.List;
+import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.AppConfig;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
@@ -12,12 +14,13 @@ import org.prlprg.fir.ir.module.Function;
 /// An optimization that runs on an [Abstraction].
 public interface AbstractionOptimization extends Optimization {
   /// Returns `true` if it made progress.
-  default boolean run(Function function, AbstractionFeedback feedback, Abstraction abstraction) {
-    return function
-        .owner()
+  default boolean run(
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+    return abstraction
+        .module()
         .record(
             "AbstractionOptimization#run",
-            List.of(this, function, feedback, abstraction),
+            List.of(this, Optional.ofNullable(function), feedback, abstraction),
             () -> {
               var changed = runWithoutRecording(function, feedback, abstraction);
 
@@ -45,5 +48,5 @@ public interface AbstractionOptimization extends Optimization {
 
   /// Returns `true` if it made progress.
   boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction abstraction);
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction);
 }

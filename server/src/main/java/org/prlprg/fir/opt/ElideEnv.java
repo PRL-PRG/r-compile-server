@@ -2,6 +2,7 @@ package org.prlprg.fir.opt;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.resolve.EnvironmentLiveness;
 import org.prlprg.fir.analyze.resolve.EnvironmentLiveness.EnvRange;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -22,7 +23,7 @@ import org.prlprg.fir.ir.position.CfgPosition;
 public record ElideEnv() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction scope) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     var cfg = scope.cfg();
     if (cfg == null) {
       return false;

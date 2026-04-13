@@ -52,7 +52,7 @@ import org.prlprg.util.ImmutableBoolArray;
 public class UnboxV1 implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var changed = false;
 
     var cfgs = abstraction.streamCfgs().toList();

@@ -6,34 +6,30 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.parseprint.Printer;
 
-class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
+class ElideUnusedCheckpointsTest implements AbstractionOptimizationUnitTest {
   @Override
-  public Optimization optimization() {
+  public AbstractionOptimization optimization() {
     return new ElideUnusedCheckpoints();
   }
 
   @Test
   void noAssumptions_checkpointRemoved() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              () --> I { ... }
-              () --> I { reg r:I |
-                r = 0;
-                check L1() else L2();
-              L1():
-                return r;
-              L2():
-                mkenv;
-                deopt 5 [];
-              }
+            (reg r:I) --> I { |
+              check L1() else L2();
+            L1():
+              return r;
+            L2():
+              mkenv;
+              deopt 5 [];
             }
             """);
 
-    assertTrue(run(module), "optimization should report a change");
+    assertTrue(run(abstraction), "optimization should report a change");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertFalse(printed.contains("check"), "checkpoint should be removed");
     assertFalse(printed.contains("L1"), "success BB should be inlined");
     assertFalse(printed.contains("L2"), "deopt BB should be removed");
@@ -48,7 +44,7 @@ class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
             fun main() {
               () --> I { ... }
               () --> I { reg r:B |
-                r = blackBox< B --> B >(TRUE);
+                r = blackBox< B -~> B >(TRUE);
                 check L1() else L2();
               L1():
                 r ?= TRUE;
@@ -59,7 +55,7 @@ class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
               }
             }
             fun blackBox(x) {
-              (reg x:B) --> B { ... }
+              (reg x:B) -~> B { ... }
             }
             """);
 
@@ -71,27 +67,23 @@ class ElideUnusedCheckpointsTest implements OptimizationUnitTest {
 
   @Test
   void successBBWithStatements_noAssumptions_inlined() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              () --> I { ... }
-              () --> I { reg r:I, reg s:I |
-                r = 0;
-                check L1() else L2();
-              L1():
-                s = `+`< I,I --> I >(r, r);
-                return s;
-              L2():
-                mkenv;
-                deopt 5 [];
-              }
+            (reg r:I) --> I { reg s:I |
+              check L1() else L2();
+            L1():
+              s = `+`< I,I --> I >(r, r);
+              return s;
+            L2():
+              mkenv;
+              deopt 5 [];
             }
             """);
 
-    assertTrue(run(module), "optimization should report a change");
+    assertTrue(run(abstraction), "optimization should report a change");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertFalse(printed.contains("check"), "checkpoint should be removed");
     assertTrue(printed.contains("`+`< I,I --> I >(r, r)"), "inlined statement should be preserved");
     assertTrue(printed.contains("return s"), "return should be preserved");

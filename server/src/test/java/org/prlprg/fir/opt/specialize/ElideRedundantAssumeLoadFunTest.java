@@ -4,25 +4,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.opt.Optimization;
-import org.prlprg.fir.opt.OptimizationUnitTest;
+import org.prlprg.fir.opt.AbstractionOptimization;
+import org.prlprg.fir.opt.AbstractionOptimizationUnitTest;
 import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
-class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
+class ElideRedundantAssumeLoadFunTest implements AbstractionOptimizationUnitTest {
   @Override
-  public Optimization optimization() {
+  public AbstractionOptimization optimization() {
     return new Specialize(new ElideRedundantAssumeLoadFun());
-  }
-
-  private static int countOccurrences(String text, String substring) {
-    int count = 0;
-    int idx = 0;
-    while ((idx = text.indexOf(substring, idx)) != -1) {
-      count++;
-      idx += substring.length();
-    }
-    return count;
   }
 
   @Test
@@ -31,6 +21,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg c:*, var target:* |
                 mkenv;
                 c = clos target;
@@ -61,7 +52,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         1,
-        countOccurrences(printed, "ldf target ?- target"),
+        countLdfTargetOccurrences(printed),
         "second AssumeLoadFun should be elided; printed:\n" + printed);
   }
 
@@ -71,6 +62,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg c:*, var target:* |
                 mkenv;
                 c = clos target;
@@ -102,7 +94,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countOccurrences(printed, "ldf target ?- target"),
+        countLdfTargetOccurrences(printed),
         "store invalidates: both AssumeLoadFun should remain; printed:\n" + printed);
   }
 
@@ -112,6 +104,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () -+> I { reg c:*, reg g:V, var target:* |
                 mkenv;
                 c = clos target;
@@ -143,7 +136,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countOccurrences(printed, "ldf target ?- target"),
+        countLdfTargetOccurrences(printed),
         "reflective invalidates: both AssumeLoadFun should remain; printed:\n" + printed);
   }
 
@@ -153,6 +146,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg c:*, var target:* |
                 mkenv;
                 c = clos target;
@@ -200,6 +194,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(cond) {
+              (reg cond:L) --> I { ... }
               (reg cond:L) --> I { reg c:*, var target:* |
                 mkenv;
                 c = clos target;
@@ -236,7 +231,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         1,
-        countOccurrences(printed, "ldf target ?- target"),
+        countLdfTargetOccurrences(printed),
         "second AssumeLoadFun should be elided after branch merge; printed:\n" + printed);
   }
 
@@ -246,6 +241,7 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(cond) {
+              (reg cond:L) --> I { ... }
               (reg cond:L) --> I { reg c:*, var target:* |
                 mkenv;
                 c = clos target;
@@ -283,7 +279,17 @@ class ElideRedundantAssumeLoadFunTest implements OptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countOccurrences(printed, "ldf target ?- target"),
+        countLdfTargetOccurrences(printed),
         "one branch invalidated: both AssumeLoadFun should remain; printed:\n" + printed);
+  }
+
+  private static int countLdfTargetOccurrences(String text) {
+    int count = 0;
+    int idx = 0;
+    while ((idx = text.indexOf("ldf target ?- target", idx)) != -1) {
+      count++;
+      idx += "ldf target ?- target".length();
+    }
+    return count;
   }
 }

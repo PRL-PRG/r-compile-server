@@ -4,13 +4,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.opt.Optimization;
-import org.prlprg.fir.opt.OptimizationUnitTest;
+import org.prlprg.fir.opt.AbstractionOptimization;
+import org.prlprg.fir.opt.AbstractionOptimizationUnitTest;
 import org.prlprg.parseprint.Printer;
 
-class UnboxV1Test implements OptimizationUnitTest {
+class UnboxV1Test implements AbstractionOptimizationUnitTest {
   @Override
-  public Optimization optimization() {
+  public AbstractionOptimization optimization() {
     return new UnboxV1();
   }
 
@@ -18,20 +18,18 @@ class UnboxV1Test implements OptimizationUnitTest {
   void intrinsicWithScalarVersion_unboxed() {
     // naToFalse has versions for both v(L) and L.
     // Passing v1(L) should unbox to L and call the scalar version.
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:v1(L)) --> B { reg r:B |
-                r = naToFalse< v1(L) --> B >(x);
-                return r;
-              }
+            (reg x:v1(L)) --> B { reg r:B |
+              r = naToFalse< v1(L) --> B >(x);
+              return r;
             }
             """);
 
-    assertTrue(run(module), "optimization should report a change");
+    assertTrue(run(abstraction), "optimization should report a change");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertTrue(printed.contains("unbox<"), "should insert unbox instruction; got:\n" + printed);
     assertTrue(printed.contains("naToFalse<"), "should still call naToFalse; got:\n" + printed);
   }
@@ -40,18 +38,16 @@ class UnboxV1Test implements OptimizationUnitTest {
   void intrinsicWithoutScalarVersion_notUnboxed() {
     // unbox itself takes v1(X), there's no version taking X.
     // So we should NOT try to unbox the argument to unbox.
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:v1(I)) --> I { reg r:I |
-                r = unbox< v1(I) --> I >(x);
-                return r;
-              }
+            (reg x:v1(I)) --> I { reg r:I |
+              r = unbox< v1(I) --> I >(x);
+              return r;
             }
             """);
 
-    assertFalse(run(module), "optimization should report no change");
+    assertFalse(run(abstraction), "optimization should report no change");
   }
 
   @Test
@@ -62,6 +58,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:v1(I)) --> V { ... }
               (reg x:v1(I)) --> V { reg r:V |
                 r = f< v1(I) --> V >(x);
                 return r;
@@ -91,6 +88,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:v(I)) --> V { ... }
               (reg x:v(I)) --> V { reg r:V |
                 r = f< v(I) --> V >(x);
                 return r;
@@ -113,6 +111,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:I) --> V { ... }
               (reg x:I) --> V { reg r:V |
                 r = f< I --> V >(x);
                 return r;
@@ -131,18 +130,16 @@ class UnboxV1Test implements OptimizationUnitTest {
   @Test
   void dynamicCall_notUnboxed() {
     // Dynamic calls are not handled.
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x, callee) {
-              (reg x:v1(I), reg callee:cls) --> V { reg r:V |
-                r = dyn callee(x);
-                return r;
-              }
+            (reg x:v1(I), reg callee:cls) --> V { reg r:V |
+              r = dyn callee(x);
+              return r;
             }
             """);
 
-    assertFalse(run(module), "optimization should report no change for dynamic call");
+    assertFalse(run(abstraction), "optimization should report no change for dynamic call");
   }
 
   @Test
@@ -152,6 +149,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x, y) {
+              (reg x:v1(I), reg y:v1(I)) --> V { ... }
               (reg x:v1(I), reg y:v1(I)) --> V { reg r:V |
                 r = f< v1(I),v1(I) --> V >(x, y);
                 return r;
@@ -182,6 +180,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:v1(I)) --> V { ... }
               (reg x:v1(I)) --> V { reg r:V |
                 r = f< v1(I) --> V >(x);
                 return r;
@@ -218,6 +217,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:I) --> V { ... }
               (reg x:I) --> V { reg r:V |
                 r = f< I --> v1(I) >(x);
                 return r;
@@ -256,6 +256,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:v1(I)) --> V { ... }
               (reg x:v1(I)) --> V { reg r:V |
                 r = f< v1(I) --> v1(I) >(x);
                 return r;
@@ -285,6 +286,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:I) --> V { ... }
               (reg x:I) --> V { |
                 f< I --> v1(I) >(x);
                 return x;
@@ -314,6 +316,7 @@ class UnboxV1Test implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
+              (reg x:V) --> V { ... }
               (reg x:V) --> V { reg r:V |
                 r = f< V --> V >(x);
                 return r;

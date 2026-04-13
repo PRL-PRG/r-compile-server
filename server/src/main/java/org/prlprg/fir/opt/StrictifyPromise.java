@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -45,7 +46,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
 
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction scope) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     if (scope.cfg() == null) {
       return false;
     }

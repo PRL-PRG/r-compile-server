@@ -4,33 +4,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.opt.Optimization;
-import org.prlprg.fir.opt.OptimizationUnitTest;
+import org.prlprg.fir.opt.AbstractionOptimization;
+import org.prlprg.fir.opt.AbstractionOptimizationUnitTest;
 import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
-class ElideCheckMissingTest implements OptimizationUnitTest {
+class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
   @Override
-  public Optimization optimization() {
+  public AbstractionOptimization optimization() {
     return new Specialize(new ElideCheckMissing());
   }
 
   @Test
   void nonMissingType_elided() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:I) --> I { |
-                checkMissing< V --> V >(x);
-                return x;
-              }
+            (reg x:I) -~> I { |
+              checkMissing< V -~> V >(x);
+              return x;
             }
             """);
 
-    assertTrue(run(module), "optimization should report a change");
+    assertTrue(run(abstraction), "optimization should report a change");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertFalse(
         printed.contains("checkMissing"),
         "checkMissing should be elided for integer type; printed:\n" + printed);
@@ -38,20 +36,18 @@ class ElideCheckMissingTest implements OptimizationUnitTest {
 
   @Test
   void anyValueType_notElided() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:V) --> V { |
-                checkMissing< V --> V >(x);
-                return x;
-              }
+            (reg x:V) -~> V { |
+              checkMissing< V -~> V >(x);
+              return x;
             }
             """);
 
-    run(module);
+    run(abstraction);
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertTrue(
         printed.contains("checkMissing"),
         "checkMissing should remain for any-value type; printed:\n" + printed);
@@ -59,20 +55,18 @@ class ElideCheckMissingTest implements OptimizationUnitTest {
 
   @Test
   void missingType_notElided() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:miss) --> V { |
-                checkMissing< V --> V >(x);
-                return x;
-              }
+            (reg x:miss) -~> V { |
+              checkMissing< V -~> V >(x);
+              return x;
             }
             """);
 
-    run(module);
+    run(abstraction);
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertTrue(
         printed.contains("checkMissing"),
         "checkMissing should remain for missing type; printed:\n" + printed);

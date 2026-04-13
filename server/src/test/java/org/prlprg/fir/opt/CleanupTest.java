@@ -9,12 +9,13 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Goto;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
 
-class CleanupTest implements OptimizationUnitTest {
+class CleanupTest implements AbstractionOptimizationUnitTest {
   @Override
-  public Optimization optimization() {
+  public AbstractionOptimization optimization() {
     return new Cleanup(true);
   }
 
@@ -24,65 +25,59 @@ class CleanupTest implements OptimizationUnitTest {
   class RemoveUnreachableBlocks {
     @Test
     void unreachableBlock_removed() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { |
-                  return x;
-                Unreachable():
-                  return x;
-                }
+              (reg x:I) --> I { |
+                return x;
+              Unreachable():
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should remove unreachable block");
+      assertTrue(run(abstraction), "should remove unreachable block");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(
           printed.contains("Unreachable"), "unreachable block should be removed; got:\n" + printed);
     }
 
     @Test
     void allBlocksReachable_unchanged() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { |
-                  goto L0();
-                L0():
-                  return x;
-                }
+              (reg x:I) --> I { |
+                goto L0();
+              L0():
+                return x;
               }
               """);
 
       // Merge will fire, but let's just verify reachable blocks aren't removed
-      run(module);
+      run(abstraction);
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(printed.contains("return x"), "return should remain; got:\n" + printed);
     }
 
     @Test
     void diamondWithDeadBranch_unreachableRemoved() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { |
-                  goto Reachable();
-                Reachable():
-                  return x;
-                Dead():
-                  return x;
-                }
+              (reg x:I) --> I { |
+                goto Reachable();
+              Reachable():
+                return x;
+              Dead():
+                return x;
               }
               """);
 
-      assertTrue(run(module));
+      assertTrue(run(abstraction));
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(printed.contains("Dead"), "dead block should be removed; got:\n" + printed);
     }
   }
@@ -95,89 +90,81 @@ class CleanupTest implements OptimizationUnitTest {
   class ConstantFoldBranches {
     @Test
     void ifWithTrueCondition_becomesGoto() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { |
-                  if TRUE then L1() else L2();
-                L1():
-                  return x;
-                L2():
-                  return x;
-                }
+              (reg x:I) --> I { |
+                if TRUE then L1() else L2();
+              L1():
+                return x;
+              L2():
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should simplify constant-true if");
+      assertTrue(run(abstraction), "should simplify constant-true if");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(printed.contains("if "), "if should be replaced by goto; got:\n" + printed);
     }
 
     @Test
     void ifWithFalseCondition_becomesGoto() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { |
-                  if FALSE then L1() else L2();
-                L1():
-                  return x;
-                L2():
-                  return x;
-                }
+              (reg x:I) --> I { |
+                if FALSE then L1() else L2();
+              L1():
+                return x;
+              L2():
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should simplify constant-false if");
+      assertTrue(run(abstraction), "should simplify constant-false if");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(printed.contains("if "), "if should be replaced by goto; got:\n" + printed);
     }
 
     @Test
     void ifWithSameTargets_isHandledByConvergencePass() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I, reg c:B) --> I { |
-                  if c then L1() else L1();
-                L1():
-                  return x;
-                }
+              (reg x:I, reg c:B) --> I { |
+                if c then L1() else L1();
+              L1():
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should simplify if with same targets");
+      assertTrue(run(abstraction), "should simplify if with same targets");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(
           printed.contains("if "), "if with same targets should become goto; got:\n" + printed);
     }
 
     @Test
     void ifWithDifferentTargets_unchanged() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I, reg c:B) --> I { |
-                  if c then L1() else L2();
-                L1():
-                  return x;
-                L2():
-                  return x;
-                }
+              (reg x:I, reg c:B) --> I { |
+                if c then L1() else L2();
+              L1():
+                return x;
+              L2():
+                return x;
               }
               """);
 
       // Only merging might happen but the if should stay
-      run(module);
+      run(abstraction);
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(
           printed.contains("if "), "if with different targets should remain; got:\n" + printed);
     }
@@ -195,6 +182,7 @@ class CleanupTest implements OptimizationUnitTest {
           ParseUtil.parseModule(
               """
               fun main() {
+                () --> I { ... }
                 () --> I { reg keep:B, reg cond:B, reg side:B |
                   keep = blackBox< B --> B >(TRUE);
                   cond = blackBox< B --> B >(TRUE);
@@ -234,6 +222,7 @@ class CleanupTest implements OptimizationUnitTest {
           ParseUtil.parseModule(
               """
               fun main() {
+                () --> I { ... }
                 () --> I { reg keep:B, reg cond:B, reg cond2:B, reg cond3:B, reg side:B, reg x2:I, reg x4:I, reg x5:I, reg x6:I |
                   keep = blackBox< B --> B >(TRUE);
                   cond = blackBox< B --> B >(TRUE);
@@ -268,7 +257,7 @@ class CleanupTest implements OptimizationUnitTest {
 
       var l1 = Objects.requireNonNull(cfg(module).bb("L1"));
       var l1Jump = assertInstanceOf(Goto.class, l1.jump());
-      assertEquals("L6(24)", l1Jump.target().toString());
+      assertEquals("L6()", l1Jump.target().toString());
       assertNull(cfg(module).bb("L2"), "cycle entry should become unreachable");
       assertNull(cfg(module).bb("L3"), "alternate branch should become unreachable");
       assertNull(cfg(module).bb("L4"), "intermediate goto should become unreachable");
@@ -284,21 +273,19 @@ class CleanupTest implements OptimizationUnitTest {
   class RemoveSinglePredecessorPhis {
     @Test
     void singlePredecessorPhi_substituted() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { reg y:I |
-                  goto L0(x);
-                L0(y):
-                  return y;
-                }
+              (reg x:I) --> I { reg y:I |
+                goto L0(x);
+              L0(y):
+                return y;
               }
               """);
 
-      assertTrue(run(module), "should remove single-predecessor phi");
+      assertTrue(run(abstraction), "should remove single-predecessor phi");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       // After phi removal and merging, y should be substituted with x
       assertTrue(printed.contains("return x"), "y should be substituted with x; got:\n" + printed);
     }
@@ -312,23 +299,21 @@ class CleanupTest implements OptimizationUnitTest {
   class MergeBlocks {
     @Test
     void linearChain_merged() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { |
-                  goto L0();
-                L0():
-                  goto L1();
-                L1():
-                  return x;
-                }
+              (reg x:I) --> I { |
+                goto L0();
+              L0():
+                goto L1();
+              L1():
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should merge linear chain");
+      assertTrue(run(abstraction), "should merge linear chain");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(
           printed.contains("goto "), "gotos should be eliminated by merging; got:\n" + printed);
       assertTrue(printed.contains("return x"), "return should remain; got:\n" + printed);
@@ -336,46 +321,42 @@ class CleanupTest implements OptimizationUnitTest {
 
     @Test
     void multipleSuccessors_notMerged() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I, reg c:B) --> I { |
-                  if c then L1() else L2();
-                L1():
-                  return x;
-                L2():
-                  return x;
-                }
+              (reg x:I, reg c:B) --> I { |
+                if c then L1() else L2();
+              L1():
+                return x;
+              L2():
+                return x;
               }
               """);
 
-      run(module);
+      run(abstraction);
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       // The if should remain (multiple successors)
       assertTrue(printed.contains("if "), "if should remain; got:\n" + printed);
     }
 
     @Test
     void joinPointThatOnlyFunnelsIntoOneSuccessor_isRemoved() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I, reg c:B) --> I { |
-                  if c then L1() else L2();
-                L1():
-                  goto L2();
-                L2():
-                  return x;
-                }
+              (reg x:I, reg c:B) --> I { |
+                if c then L1() else L2();
+              L1():
+                goto L2();
+              L2():
+                return x;
               }
               """);
 
-      run(module);
+      run(abstraction);
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(
           printed.contains("if "), "if should collapse to the join point; got:\n" + printed);
     }
@@ -389,89 +370,57 @@ class CleanupTest implements OptimizationUnitTest {
   class SubstituteWithOrigins {
     @Test
     void registerAssignedToRegister_substituted() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { reg y:I |
-                  y = x;
-                  return y;
-                }
+              (reg x:I) --> I { reg y:I |
+                y = x;
+                return y;
               }
               """);
 
-      assertTrue(run(module), "should substitute y with x");
+      assertTrue(run(abstraction), "should substitute y with x");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(printed.contains("return x"), "y should be substituted with x; got:\n" + printed);
     }
 
     @Test
     void registerAssignedConstant_substituted() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main() {
-                () --> I { reg x:I |
-                  x = 42;
-                  return x;
-                }
+              () --> I { reg x:I |
+                x = 42;
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should substitute x with constant");
+      assertTrue(run(abstraction), "should substitute x with constant");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(
           printed.contains("return 42"), "x should be substituted with 42; got:\n" + printed);
     }
 
     @Test
     void transitiveOrigin_substituted() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { reg y:I, reg z:I |
-                  y = x;
-                  z = y;
-                  return z;
-                }
+              (reg x:I) --> I { reg y:I, reg z:I |
+                y = x;
+                z = y;
+                return z;
               }
               """);
 
-      assertTrue(run(module), "should substitute transitively");
+      assertTrue(run(abstraction), "should substitute transitively");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(
           printed.contains("return x"),
           "z should be transitively substituted with x; got:\n" + printed);
-    }
-
-    @Test
-    void disabledSubstituteWithOrigins_noSubstitution() {
-      var module =
-          ParseUtil.parseModule(
-              """
-              fun main(x) {
-                (reg x:I) --> I { reg y:I |
-                  y = x;
-                  return y;
-                }
-              }
-              """);
-
-      // Use Cleanup with substituteWithOrigins=false
-      cleanup(module);
-
-      var printed = Printer.toString(module);
-      // y=x is a no-op (pure, no assignee after removing unused), but origin substitution
-      // shouldn't happen. The return should still use y since we didn't substitute.
-      // Actually, removeUnusedLocals still runs, but substituteWithOrigins doesn't.
-      // Without origin substitution, y is still used (in return), so it won't be removed.
-      assertTrue(
-          printed.contains("return y"),
-          "without substituteWithOrigins, y should not be substituted; got:\n" + printed);
     }
   }
 
@@ -483,20 +432,18 @@ class CleanupTest implements OptimizationUnitTest {
   class RemoveUnusedLocals {
     @Test
     void unusedAssignee_removed() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { reg y:v1(I) |
-                  y = box< I --> v1(I) >(x);
-                  return x;
-                }
+              (reg x:I) --> I { reg y:v1(I) |
+                y = box< I --> v1(I) >(x);
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should remove unused assignee");
+      assertTrue(run(abstraction), "should remove unused assignee");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       // y is unused, so the assignment should lose its assignee (become void statement)
       // Then the void box is a pure no-op and gets removed by removeEffectiveNoOps on next pass,
       // or the local y gets removed.
@@ -505,20 +452,18 @@ class CleanupTest implements OptimizationUnitTest {
 
     @Test
     void usedAssignee_kept() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { reg y:v1(I) |
-                  y = box< I --> v1(I) >(x);
-                  return y;
-                }
+              (reg x:I) --> I { reg y:v1(I) |
+                y = box< I --> v1(I) >(x);
+                return y;
               }
               """);
 
-      run(module);
+      run(abstraction);
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(printed.contains("box<"), "used box should remain; got:\n" + printed);
     }
   }
@@ -531,82 +476,74 @@ class CleanupTest implements OptimizationUnitTest {
   class RemoveEffectiveNoOps {
     @Test
     void pureExpressionWithoutAssignee_removed() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) --> I { |
-                  noop;
-                  return x;
-                }
+              (reg x:I) --> I { |
+                noop;
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should remove noop");
+      assertTrue(run(abstraction), "should remove noop");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(printed.contains("noop"), "noop should be removed; got:\n" + printed);
     }
 
     @Test
     void pureExpressionDupWithoutAssignee_removed() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:v1(I)) --> v1(I) { |
-                  dup x;
-                  return x;
-                }
+              (reg x:v1(I)) --> v1(I) { |
+                dup x;
+                return x;
               }
               """);
 
-      assertTrue(run(module), "should remove unassigned dup");
+      assertTrue(run(abstraction), "should remove unassigned dup");
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertFalse(printed.contains("dup "), "unassigned dup should be removed; got:\n" + printed);
     }
 
     @Test
     void impureExpressionWithoutAssignee_kept() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:I) -+> I { |
-                  mkenv;
-                  popenv;
-                  return x;
-                }
+              (reg x:I) -+> I { |
+                mkenv;
+                popenv;
+                return x;
               }
               """);
 
-      run(module);
+      run(abstraction);
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(printed.contains("mkenv"), "impure mkenv should remain; got:\n" + printed);
     }
 
     @Test
     void assumeWithoutAssignee_kept() {
-      var module =
-          ParseUtil.parseModule(
+      var abstraction =
+          ParseUtil.parseAbstraction(
               """
-              fun main(x) {
-                (reg x:V) -~> V { |
-                  x ?: I;
-                  check L0() else D0();
-                D0():
-                  deopt 0 [];
-                L0():
-                  return x;
-                }
+              (reg x:V) -~> V { |
+                x ?: I;
+                check L0() else D0();
+              D0():
+                deopt 0 [];
+              L0():
+                return x;
               }
               """);
 
-      run(module);
+      run(abstraction);
 
-      var printed = Printer.toString(module);
+      var printed = Printer.toString(abstraction);
       assertTrue(
           printed.contains("?: I"),
           "assume should not be removed (used by checkpoint); got:\n" + printed);
@@ -619,22 +556,20 @@ class CleanupTest implements OptimizationUnitTest {
 
   @Test
   void secondRun_idempotent() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:I) --> I { reg y:I |
-                y = x;
-                noop;
-                goto L0();
-              L0():
-                return y;
-              }
+            (reg x:I) --> I { reg y:I |
+              y = x;
+              noop;
+              goto L0();
+            L0():
+              return y;
             }
             """);
 
-    assertTrue(run(module), "first run should make changes");
-    assertFalse(run(module), "second run should be idempotent");
+    assertTrue(run(abstraction), "first run should make changes");
+    assertFalse(run(abstraction), "second run should be idempotent");
   }
 
   @Test
@@ -644,25 +579,23 @@ class CleanupTest implements OptimizationUnitTest {
     // - y=x substituted with origin
     // - unreachable block removed
     // - goto merged
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:I) --> I { reg y:I |
-                noop;
-                y = x;
-                goto L0();
-              L0():
-                return y;
-              Dead():
-                return x;
-              }
+            (reg x:I) --> I { reg y:I |
+              noop;
+              y = x;
+              goto L0();
+            L0():
+              return y;
+            Dead():
+              return x;
             }
             """);
 
-    assertTrue(run(module), "combined cleanups should report a change");
+    assertTrue(run(abstraction), "combined cleanups should report a change");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertFalse(printed.contains("noop"), "noop should be removed; got:\n" + printed);
     assertFalse(printed.contains("Dead"), "dead block should be removed; got:\n" + printed);
     assertFalse(printed.contains("goto "), "goto should be merged away; got:\n" + printed);
@@ -672,32 +605,29 @@ class CleanupTest implements OptimizationUnitTest {
   @Test
   void constantFoldedIf_deadBranchRemoved() {
     // If with true condition -> goto -> dead else branch becomes unreachable -> removed
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main(x) {
-              (reg x:I) --> I { |
-                if TRUE then L1() else L2();
-              L1():
-                return x;
-              L2():
-                return x;
-              }
+            (reg x:I) --> I { |
+              if TRUE then L1() else L2();
+            L1():
+              return x;
+            L2():
+              return x;
             }
             """);
 
-    assertTrue(run(module));
+    assertTrue(run(abstraction));
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     assertFalse(printed.contains("if "), "if should be simplified; got:\n" + printed);
     // L2 becomes unreachable after if -> goto L1, so it should be removed
     // (unless L2 is also reachable from somewhere else, which it isn't here)
   }
 
-  private static CFG cfg(org.prlprg.fir.ir.module.Module module) {
+  private static CFG cfg(Module module) {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main")));
-    return Objects.requireNonNull(main.baseline().cfg());
+    return Objects.requireNonNull(main.version(1).cfg());
   }
-
   // endregion
 }

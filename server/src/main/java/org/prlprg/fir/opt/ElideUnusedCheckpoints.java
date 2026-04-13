@@ -2,6 +2,7 @@ package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Assume;
@@ -18,7 +19,7 @@ import org.prlprg.fir.ir.module.Function;
 public record ElideUnusedCheckpoints() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction scope) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
 
     scope

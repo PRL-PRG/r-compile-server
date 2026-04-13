@@ -1,8 +1,8 @@
 fun checkFun(r) {
-  (reg r:V) --> V { ... }
+  (reg r:V) -~> V { ... }
 }
 fun checkMissing(r) {
-  (reg r:V) --> V { ... }
+  (reg r:V) -~> V { ... }
 }
 fun toForSeq(r) {
   (reg r:V) --> V { ... }

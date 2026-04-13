@@ -3,8 +3,8 @@
 SERVER_DIR="server"
 MVN="mvn -f $SERVER_DIR"
 
-staged_files=$(git diff --staged --name-only -- $SERVER_DIR)
-everything_staged=$(git diff --name-only -- $SERVER_DIR)
+staged_files=$(git diff --staged --name-only --diff-filter=d -- $SERVER_DIR)
+everything_staged=$(git diff --name-only --diff-filter=d -- $SERVER_DIR)
 # `partially_staged` from https://github.com/evilmartians/lefthook/issues/140#issuecomment-1012967850
 partially_staged=$(comm -12 <(echo "$everything_staged" | sort) <(echo "$staged_files" | sort))
 format_only_staged=-DspotlessFiles="$(echo "$staged_files" | sed 's/^/.*/' | paste -sd ',' -)"

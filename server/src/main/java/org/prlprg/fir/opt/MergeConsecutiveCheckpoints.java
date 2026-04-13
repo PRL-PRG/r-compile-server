@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -33,7 +34,7 @@ import org.prlprg.fir.ir.variable.Register;
 public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction scope) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
 
     scope

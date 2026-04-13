@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -73,7 +74,7 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
 
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction scope) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     // Compute checkpoint BBs and analyses we'll need
     var checkpointBbs =
         scope

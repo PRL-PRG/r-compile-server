@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import static org.prlprg.fir.check.TypeAndEffectChecker.assumeCanSucceed;
 import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
 
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
@@ -24,9 +25,9 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
     implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction version) {
-    // Don't specialize stubs
-    if (version.cfg() == null) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
+    // Don't specialize stubs, can't run if there's no function
+    if (function == null || version.cfg() == null) {
       return false;
     }
 

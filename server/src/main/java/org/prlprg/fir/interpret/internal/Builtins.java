@@ -33,7 +33,7 @@ import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.VecSXP;
 
 /// Java implementations of GNU-R builtins for [InternalInterpreter] (specifically
-/// [InternalInterpreter#registerExternal(String, ExternalVersion)]).
+/// [InternalInterpreter#registerExternal(String, Signature, ExternalVersion)]).
 ///
 /// Note that these are only behaviorally equivalent to GNU-R implementations in some common
 /// scenarios. They're not a complete substitute for GNU-R, but a way to test functions which
@@ -227,7 +227,7 @@ public final class Builtins {
         "setVisible", sig(Type.ANY_VALUE_SEXP, Effects.NONE), Builtins::setVisible);
     interpreter.registerExternal(
         "checkMissing",
-        sig(Type.ANY_VALUE_SEXP, Effects.NONE, Type.ANY_VALUE_SEXP),
+        sig(Type.ANY_VALUE_SEXP, Effects.IMPURE, Type.ANY_VALUE_SEXP),
         Builtins::checkMissing);
     interpreter.registerExternal(
         "toForSeq",

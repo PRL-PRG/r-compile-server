@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.parseprint.Printer;
 
-class StrictifyPromiseTest implements OptimizationUnitTest {
+class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
   @Override
-  public Optimization optimization() {
+  public AbstractionOptimization optimization() {
     return new StrictifyPromise();
   }
 
@@ -18,6 +18,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg rx:p(v(I) -), reg ry:v(I), reg rz:v(I) |
                 rx = prom<v(I) ->{
                   ry = v(I)[1];
@@ -56,6 +57,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg rx:p(v(I) +), reg ry:v(I), reg rz:v(I) |
                 rx = prom<v(I) +>{
                   ry = v(I)[42];
@@ -83,6 +85,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg ra:v(I), reg rb:v(I), reg rc:v(I), reg rx:p(v(I) -), reg ry:p(v(I) +), reg rs:v(I), reg rz:v(I) |
                 ra = v(I)[1];
                 rb = v(I)[2];
@@ -128,6 +131,7 @@ class StrictifyPromiseTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
+              () --> I { ... }
               () --> I { reg rx:p(v(I) -), reg ry:v(I), reg rz:v(I), reg rw:v(I) |
                 rx = prom<v(I) ->{
                   ry = v(I)[1];

@@ -1098,7 +1098,7 @@ void Fir_dbg_signature(Fir_Signature signature) {
   fprintf(stderr, "\n");
 }
 
-DEFINE_INTRINSIC(SEXP, checkFun, value_fx_none_ret_value, SEXP value) {
+DEFINE_INTRINSIC(SEXP, checkFun, value_fx_impure_ret_value, SEXP value) {
   if (TYPEOF(value) != CLOSXP && TYPEOF(value) != BUILTINSXP &&
       TYPEOF(value) != SPECIALSXP) {
     Rf_error("attempt to apply non-function");
@@ -1107,7 +1107,7 @@ DEFINE_INTRINSIC(SEXP, checkFun, value_fx_none_ret_value, SEXP value) {
   return R_NilValue;
 }
 
-DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_none_ret_value, SEXP value) {
+DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_impure_ret_value, SEXP value) {
   if (value == R_MissingArg) {
     Rf_error("argument is missing, with no default");
   }
