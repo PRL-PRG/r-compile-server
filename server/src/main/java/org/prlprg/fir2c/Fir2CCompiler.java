@@ -319,7 +319,7 @@ public final class Fir2CCompiler {
       if (versions.size() > 1) {
         cCode = cFunction.add();
         debugComment(cCode, "# Filter possible optimized versions by runtime types");
-        cCode.stmt("bool incompatible[%d];", versions.size() - 1);
+        cCode.stmt("bool incompatible[%d] = {0};", versions.size());
         for (int j = 0; j < numParams; j++) {
           var argName = "arg" + j;
 
