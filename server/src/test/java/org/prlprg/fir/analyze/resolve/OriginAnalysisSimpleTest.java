@@ -2,7 +2,9 @@ package org.prlprg.fir.analyze.resolve;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.analyze.resolve.OriginAnalysis.KnownOrigins;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis.State;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.variable.Variable;
@@ -20,10 +22,10 @@ class OriginAnalysisSimpleTest {
     var nv = Variable.named("x");
     var constant = new Constant(SEXPs.integer(42));
 
-    state1.variableOrigins.put(nv, constant);
+    state1.variableOrigins.put(nv, KnownOrigins.of(constant));
     assertNotEquals(state1, state2);
 
-    state2.variableOrigins.put(nv, constant);
+    state2.variableOrigins.put(nv, KnownOrigins.of(constant));
     assertEquals(state1, state2);
   }
 
@@ -37,19 +39,21 @@ class OriginAnalysisSimpleTest {
     var constant1 = new Constant(SEXPs.integer(42));
     var constant2 = new Constant(SEXPs.integer(100));
 
-    state1.variableOrigins.put(variable1, constant1);
-    state1.variableOrigins.put(variable2, constant1);
-    state2.variableOrigins.put(variable1, constant1);
-    state2.variableOrigins.put(variable2, constant2);
+    state1.variableOrigins.put(variable1, KnownOrigins.of(constant1));
+    state1.variableOrigins.put(variable2, KnownOrigins.of(constant1));
+    state2.variableOrigins.put(variable1, KnownOrigins.of(constant1));
+    state2.variableOrigins.put(variable2, KnownOrigins.of(constant2));
 
     state1.merge(state2);
 
-    // After merging conflicting origins, should default to register itself
+    // After merging conflicting origins, the analysis should retain both known possibilities.
     var mergedOrigin1 = state1.variableOrigins.get(variable1);
     var mergedOrigin2 = state1.variableOrigins.get(variable2);
     assertNotNull(mergedOrigin1);
-    assertEquals(constant1, mergedOrigin1);
-    assertNull(mergedOrigin2);
+    assertEquals(constant1, mergedOrigin1.uniqueOrNull());
+    assertNotNull(mergedOrigin2);
+    assertNull(mergedOrigin2.uniqueOrNull());
+    assertEquals(Set.of(constant1, constant2), mergedOrigin2.asSet());
   }
 
   @Test
@@ -59,13 +63,13 @@ class OriginAnalysisSimpleTest {
     var constant1 = new Constant(SEXPs.integer(42));
     var constant2 = new Constant(SEXPs.integer(100));
 
-    original.variableOrigins.put(variable, constant1);
+    original.variableOrigins.put(variable, KnownOrigins.of(constant1));
 
     var copy = original.copy();
     assertEquals(original, copy);
 
     // Modifications to copy shouldn't affect original
-    copy.variableOrigins.put(variable, constant2);
+    copy.variableOrigins.put(variable, KnownOrigins.of(constant2));
     assertNotEquals(original, copy);
   }
 }

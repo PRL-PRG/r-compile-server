@@ -50,6 +50,7 @@ public class Optimizations {
                         new ResolveDynamicCallee(),
                         new ResolveLoad(),
                         new ImproveSignatures()),
+                    new PromoteStaticallyKnownVariables(),
                     new UnboxV1(),
                     new ElideRedundantBoxUnbox(),
                     new ElideEnv(),

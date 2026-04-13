@@ -5,11 +5,14 @@ import static org.prlprg.fir.GlobalModules.INTRINSICS;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
@@ -156,7 +159,18 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// Gets the origin of a named variable at a specific location.
   public @Nullable Argument get(BB bb, int instructionIndex, NamedVariable variable) {
     var state = at(bb, instructionIndex);
-    return state.variableOrigins.get(variable);
+    var origins = state.variableOrigins.get(variable);
+    return origins == null ? null : origins.uniqueOrNull();
+  }
+
+  /// Gets all statically-known origins of a named variable at a specific location.
+  ///
+  /// This is empty iff the variable's origin is unknown on at least one reaching path.
+  public @UnmodifiableView Set<Argument> getKnown(
+      BB bb, int instructionIndex, NamedVariable variable) {
+    var state = at(bb, instructionIndex);
+    var origins = state.variableOrigins.get(variable);
+    return origins == null ? Set.of() : origins.asSet();
   }
 
   /// Gets the origin of the return value.
@@ -419,7 +433,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     private @Nullable Argument get(NamedVariable variable) {
-      return state().variableOrigins.get(variable);
+      var origins = state().variableOrigins.get(variable);
+      return origins == null ? null : origins.uniqueOrNull();
     }
 
     private void put(Register register, @Nullable Argument argument) {
@@ -436,7 +451,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       if (argument == null) {
         state().variableOrigins.remove(variable);
       } else {
-        state().variableOrigins.put(variable, argument);
+        state().variableOrigins.put(variable, KnownOrigins.of(argument));
       }
     }
 
@@ -450,13 +465,14 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     // register origins aren't equal, so that we re-run blocks whose register origin
     // dependencies changed.
     final Map<Register, Argument> registerOrigins = new LinkedHashMap<>();
-    final Map<NamedVariable, Argument> variableOrigins = new LinkedHashMap<>();
+    final Map<NamedVariable, KnownOrigins> variableOrigins = new LinkedHashMap<>();
 
     @Override
     public State copy() {
       var copy = new State();
       copy.registerOrigins.putAll(registerOrigins);
-      copy.variableOrigins.putAll(variableOrigins);
+      variableOrigins.forEach(
+          (variable, origins) -> copy.variableOrigins.put(variable, origins.copy()));
       return copy;
     }
 
@@ -466,20 +482,22 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // (because we may get origins of unreachable phis, for the workaround in `run(Jump)`).
       // Without support for the workaround, it would be the same as merging variable origins
       registerOrigins.putAll(other.registerOrigins);
-      // Merge variable origins = keep only those that are present in both and equal
+      // Merge variable origins = keep only variables present in both states,
+      // unioning all statically-known origins across the incoming paths.
       mergeVariableOrigins(variableOrigins, other.variableOrigins);
     }
 
     private static <T> void mergeVariableOrigins(
-        Map<T, Argument> origins, Map<T, Argument> otherOrigins) {
+        Map<T, KnownOrigins> origins, Map<T, KnownOrigins> otherOrigins) {
       for (var iterator = origins.entrySet().iterator(); iterator.hasNext(); ) {
         var entry = iterator.next();
         var variable = entry.getKey();
-        var origin = entry.getValue();
         var otherOrigin = otherOrigins.get(variable);
-        if (!origin.equals(otherOrigin)) {
+        if (otherOrigin == null) {
           iterator.remove();
+          continue;
         }
+        entry.getValue().merge(otherOrigin);
       }
     }
 
@@ -495,6 +513,57 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     @Override
     public int hashCode() {
       return Objects.hash(registerOrigins, variableOrigins);
+    }
+  }
+
+  static final class KnownOrigins {
+    private static final Comparator<Argument> ORDER = Comparator.comparing(Argument::toString);
+
+    static KnownOrigins of(Argument argument) {
+      return new KnownOrigins(new LinkedHashSet<>(List.of(argument)));
+    }
+
+    private final LinkedHashSet<Argument> origins;
+
+    private KnownOrigins(LinkedHashSet<Argument> origins) {
+      this.origins = origins;
+    }
+
+    KnownOrigins copy() {
+      return new KnownOrigins(new LinkedHashSet<>(origins));
+    }
+
+    void merge(KnownOrigins other) {
+      var merged = new LinkedHashSet<Argument>();
+      origins.stream().sorted(ORDER).forEach(merged::add);
+      other.origins.stream().sorted(ORDER).forEach(merged::add);
+      origins.clear();
+      origins.addAll(merged);
+    }
+
+    @Nullable Argument uniqueOrNull() {
+      return origins.size() == 1 ? origins.getFirst() : null;
+    }
+
+    @UnmodifiableView
+    Set<Argument> asSet() {
+      return Collections.unmodifiableSet(origins);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof KnownOrigins other)) {
+        return false;
+      }
+      return origins.equals(other.origins);
+    }
+
+    @Override
+    public int hashCode() {
+      return origins.hashCode();
     }
   }
 
