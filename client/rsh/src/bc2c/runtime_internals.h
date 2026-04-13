@@ -102,6 +102,7 @@ void Rf_endcontext(RCNTXT *cptr);
 void NORET Rf_findcontext(int mask, SEXP env, SEXP val);
 Rboolean Rf_pmatch(SEXP, SEXP, Rboolean);
 
+R_bcstack_t rcpEvalUnboxed(SEXP body, SEXP rho);
 SEXP rcpEval(SEXP body, SEXP rho);
 
 // from arithmetic.h
@@ -154,6 +155,15 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
 #define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
   (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue)
 
+#define RSH_INLINE_CLOSURE_CALL_OK(fun)                                        \
+  (RSH_IS_JIT_PTR(body) && !RDEBUG(fun) && !RSTEP(fun) && !RDEBUG(rho) &&      \
+   R_GlobalContext->callflag != CTXT_GENERIC)
+
+#define UNPROTECT_SAFE(ptr)                                                    \
+  do {                                                                         \
+    assert(R_PPStack[R_PPStackTop - 1] == ptr);                                \
+    UNPROTECT(1);                                                              \
+  } while (0)
 
 /* ------------------------------------------------------------------ *
  * Targets: GCC 13+, x86-64 Linux. Compatible with Clang.             *
