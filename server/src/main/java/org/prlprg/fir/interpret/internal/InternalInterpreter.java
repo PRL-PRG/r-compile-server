@@ -356,6 +356,7 @@ public final class InternalInterpreter implements Interpreter {
 
       feedback.recordConstant(param.variable(), arg);
       recordTypeFeedback(feedback, param.variable(), arg);
+      feedback.recordAssign(param.variable());
     }
 
     // Execute CFG
@@ -434,16 +435,19 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Executes a statement instruction.
   private void run(Statement statement) {
-    var value = run(statement.expression());
-
     var assignee = statement.assignee();
+    var value = run(assignee, statement.expression());
+
     if (assignee != null) {
       if (value == null) {
         throw fail("Expression produces nothing but is assigned:\n" + statement);
       }
 
       topFrame().put(assignee, value);
-      recordTypeFeedback(topFrame().scopeFeedback(), assignee, value);
+
+      var feedback = topFrame().scopeFeedback();
+      recordTypeFeedback(feedback, assignee, value);
+      feedback.recordAssign(assignee);
     }
   }
 
@@ -502,15 +506,19 @@ public final class InternalInterpreter implements Interpreter {
     for (int i = 0; i < parameters.size(); i++) {
       var phiVar = parameters.get(i);
       var phiValue = run(arguments.get(i));
+
       topFrame().put(phiVar, phiValue);
-      recordTypeFeedback(topFrame().scopeFeedback(), phiVar, phiValue);
+
+      var feedback = topFrame().scopeFeedback();
+      recordTypeFeedback(feedback, phiVar, phiValue);
+      feedback.recordAssign(phiVar);
     }
   }
 
   /// Evaluates an expression and returns its value.
   ///
   /// @throws IllegalStateException If called outside of evaluation.
-  public @Nullable Value run(Expression expression) {
+  public @Nullable Value run(@Nullable Register assignee, Expression expression) {
     checkEvaluation();
     return switch (expression) {
       case Aea(var value) -> run(value);
@@ -666,7 +674,7 @@ public final class InternalInterpreter implements Interpreter {
         }
         yield null;
       }
-      case Promise promise -> new Value.Sexp(promiseStub(promise));
+      case Promise promise -> new Value.Sexp(promiseStub(assignee, promise));
       case ReflectiveLoad(var promArg, var variable) -> {
         var promValue = run(promArg);
 
@@ -1007,20 +1015,29 @@ public final class InternalInterpreter implements Interpreter {
       return eager;
     }
 
-    // Evaluate the promise.
+    // Extract the promise.
     var promCode = promises.remove(promSXP);
     if (promCode == null) {
       throw fail("Can't force promise code created outside the interpreter: " + promSXP);
     }
     var promExpr = promCode.expression;
 
+    // Record evaluation (before in case it crashes)
+    if (promCode.assignee != null) {
+      promCode.frame.scopeFeedback().recordForce(promCode.assignee);
+    }
+
+    // Evaluate the promise
     // No restore CFG = can't deopt in promises, at least for now.
     var value = run(promCode.frame, promExpr.code(), null);
     if (!(value instanceof Value.Sexp(var valueSexp))) {
       throw fail("Not an SEXP (for promise eval): " + value);
     }
+
+    // Store the result
     promSXP.bind(valueSexp);
 
+    // Sanity check type and return
     checkType(value, promExpr.valueType(), "promise");
     return valueSexp;
   }
@@ -1386,13 +1403,13 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   /// Returns a [PromSXP] wrapping the [Promise], which can be forced by the interpreter.
-  public PromSXP promiseStub(Promise promExpr) {
+  public PromSXP promiseStub(@Nullable Register assignee, Promise promExpr) {
     var codeStub =
         SEXPs.lang(
             SEXPs.symbol(".Interpret"),
             SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
     var sexp = SEXPs.promise(codeStub, topFrame().environment());
-    promises.put(sexp, new PromiseCode(promExpr, topFrame()));
+    promises.put(sexp, new PromiseCode(promExpr, topFrame(), assignee));
     return sexp;
   }
 
@@ -1422,5 +1439,5 @@ public final class InternalInterpreter implements Interpreter {
     record Deopt(int pc, List<SEXP> stack) implements ControlFlow {}
   }
 
-  private record PromiseCode(Promise expression, StackFrame frame) {}
+  private record PromiseCode(Promise expression, StackFrame frame, @Nullable Register assignee) {}
 }

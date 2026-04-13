@@ -35,8 +35,8 @@ cc <- function(path) {
   dyn.load(paste0(path, "/code.so"))
   constantPool <- readRDS(paste0(path, "/bindings.rds"))
 
-  # Simulate runtime init from the compile client
-  invisible(.Call("Rsh_initialize_runtime"))
+  # Simulate runtime init from the compile client (suppress if FIŘ->C)
+  invisible(try(.Call("Rsh_initialize_runtime"), silent=TRUE))
 
   # Simulate closure compile from the compile client
   invisible(.Call("Fir_fun_init_main", constantPool))

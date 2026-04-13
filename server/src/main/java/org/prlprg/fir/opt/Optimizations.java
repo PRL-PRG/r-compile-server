@@ -27,6 +27,7 @@ public class Optimizations {
         "default",
         new ElideUnusedVersions(threshold),
         new CopyBaseline(),
+        new ElideUnforcedPromise(threshold),
         new SpeculateDispatch(threshold, 3, 9),
         new SpeculateAssume(threshold),
         new MergeAssumeLoadFun(),

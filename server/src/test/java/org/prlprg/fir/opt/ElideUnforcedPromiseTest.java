@@ -169,8 +169,8 @@ class ElideUnforcedPromiseTest {
     var feedback = new MockModuleFeedback().get(abstraction);
     // p1: created many times, never forced
     for (int i = 0; i < THRESHOLD; i++) {
-      feedback.recordCreate(promiseAssignees.getFirst());
-      feedback.recordCreate(promiseAssignees.get(1));
+      feedback.recordAssign(promiseAssignees.getFirst());
+      feedback.recordAssign(promiseAssignees.get(1));
     }
     // p2: also forced
     for (int i = 0; i < 5; i++) {
@@ -194,7 +194,7 @@ class ElideUnforcedPromiseTest {
 
     var feedback = new MockModuleFeedback().get(abstraction);
     for (int i = 0; i < createCount; i++) {
-      feedback.recordCreate(promiseAssignee);
+      feedback.recordAssign(promiseAssignee);
     }
     for (int i = 0; i < forceCount; i++) {
       feedback.recordForce(promiseAssignee);

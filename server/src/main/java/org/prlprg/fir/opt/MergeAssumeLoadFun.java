@@ -72,11 +72,9 @@ public record MergeAssumeLoadFun() implements AbstractionOptimization {
               }
 
               // ...followed by a checkpoint...
-              if (loadFunIndex != bb1.statements().size() - 1
-                  || !(bb1.jump() instanceof Checkpoint checkpoint2)) {
+              if (loadFunAssignee == null || !(bb1.jump() instanceof Checkpoint checkpoint2)) {
                 return;
               }
-              assert loadFunAssignee != null;
               var bb2 = checkpoint2.success().bb();
 
               // ...followed by zero-or-more assumptions,
