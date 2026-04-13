@@ -1190,6 +1190,25 @@ static INLINE void Rsh_finish_inline_closure_call(SEXP fun, SEXP args,
                                                   SEXP call, Value *unboxed_val,
                                                   RCNTXT *pcntxt, SEXP newrho) {
   Rf_endcontext(pcntxt);
+
+  if (!VAL_IS_SXP(*unboxed_val)) {
+#ifdef ADJUST_ENVIR_REFCNTS
+    R_CleanupEnvir(newrho, R_NilValue);
+    unpromiseArgs(args);
+#endif
+  } else {
+    SEXP value = VAL_SXP(*unboxed_val);
+#ifdef ADJUST_ENVIR_REFCNTS
+    Rboolean is_getter_call =
+        (CADR(call) == Rsh_TmpvalSym && !R_isReplaceSymbol(CAR(call)));
+    R_CleanupEnvir(newrho, value);
+    if (is_getter_call && MAYBE_REFERENCED(value))
+      value = shallow_duplicate(value);
+    unpromiseArgs(args);
+#endif
+    // TODO support tailcall here?
+    SET_SXP_VAL(unboxed_val, value);
+  }
   UNPROTECT_SAFE(newrho);
 }
 
@@ -1258,8 +1277,11 @@ static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
       PROTECT(newrho);
       RCNTXT pcntxt;
       Rf_begincontext(&pcntxt, CTXT_RETURN, call, newrho, rho, args, fun);
+      int current_depth = R_EvalDepth;
+      INCREMENT_EVAL_DEPTH();
       R_Visible = TRUE;
       Rsh_inline_call(&pcntxt, res, body, newrho);
+      R_EvalDepth = current_depth;
       Rsh_finish_inline_closure_call(R_NilValue, R_NilValue, R_NilValue, res,
                                      &pcntxt, newrho);
       break;

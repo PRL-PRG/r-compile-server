@@ -159,6 +159,16 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   (RSH_IS_JIT_PTR(body) && !RDEBUG(fun) && !RSTEP(fun) && !RDEBUG(rho) &&      \
    R_GlobalContext->callflag != CTXT_GENERIC)
 
+extern int R_EvalDepth;
+extern int R_Expressions;
+
+#define INCREMENT_EVAL_DEPTH()                                                 \
+  do {                                                                         \
+    R_EvalDepth++;                                                             \
+    if (R_EvalDepth > R_Expressions)                                           \
+      handle_eval_depth_overflow();                                            \
+  } while (0)
+
 #define UNPROTECT_SAFE(ptr)                                                    \
   do {                                                                         \
     assert(R_PPStack[R_PPStackTop - 1] == ptr);                                \
@@ -513,6 +523,17 @@ static INLINE void DECLNK_stack(R_bcstack_t *base) {
   //   R_BCProtCommitted = base;
   // }
   R_BCProtTop = base;
+}
+
+static INLINE Rboolean R_isReplaceSymbol(SEXP fun) {
+  /* fun is a replacement function name if it contains '<-'
+     anywhere. For internally dispatched replacement functions this
+     may occur in the middle; in other cases it will be at the
+     end. */
+  if (TYPEOF(fun) == SYMSXP && strstr(CHAR(PRINTNAME(fun)), "<-"))
+    return TRUE;
+  else
+    return FALSE;
 }
 
 #define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
