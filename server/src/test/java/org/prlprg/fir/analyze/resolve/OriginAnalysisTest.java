@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.prlprg.fir.ir.ParseUtil.parseModule;
 
 import java.util.Objects;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
@@ -94,11 +95,43 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
 
     var analysis = new OriginAnalysis(main);
-
     // In bb3, r4 should have itself as origin due to conflicting inputs
     var r4Origin = analysis.get(Variable.register("r4"));
     var r5Origin = analysis.get(Variable.register("r5"));
     assertEquals(new Read(Variable.register("r4")), r4Origin);
     assertEquals(new Constant(new Value.Int(42)), r5Origin);
+  }
+
+  @Test
+  void testVariableMergeRetainsAllKnownOrigins() {
+    var firText =
+        """
+      fun main(cond) {
+        (reg cond:B) --> I { var x:I, reg x1:I |
+          mkenv;
+          if cond then BB1() else BB2();
+        BB1():
+          st x = 1;
+          goto BB3();
+        BB2():
+          st x = 2;
+          goto BB3();
+        BB3():
+          x1 = ld x;
+          return x1;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var bb3 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB3"));
+
+    var analysis = new OriginAnalysis(main);
+
+    assertNull(analysis.get(bb3, -1, Variable.named("x")));
+    assertEquals(
+        Set.of(new Constant(new Value.Int(1)), new Constant(new Value.Int(2))),
+        analysis.getKnown(bb3, -1, Variable.named("x")));
   }
 }
