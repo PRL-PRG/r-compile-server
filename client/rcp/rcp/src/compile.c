@@ -47,13 +47,6 @@ static struct StencilProfileInfo
 	stencil_profile_info[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
 #endif
 
-#define UNPROTECT_SAFE(ptr)                         \
-	do                                              \
-	{                                               \
-		assert(R_PPStack[R_PPStackTop - 1] == ptr); \
-		UNPROTECT(1);                               \
-	} while (0)
-
 // Used as a hint where to map address space close to R internals to allow
 // relative addressing
 #define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
