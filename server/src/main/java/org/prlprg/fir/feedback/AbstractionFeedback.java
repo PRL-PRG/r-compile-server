@@ -64,12 +64,12 @@ public class AbstractionFeedback {
     numCalls++;
   }
 
+  /// Record that the register was assigned a value of type `type`
   public void recordType(Register register, Type type) {
     types.computeIfAbsent(register, _ -> new TypeFeedback()).record(type);
-
-    recordCommon(register);
   }
 
+  /// Record that the register was assigned a closure whose function is `callee`
   public void recordCallee(Register register, Function callee) {
     var oldCallee = callees.get(register);
     var updatedCallee =
@@ -77,10 +77,9 @@ public class AbstractionFeedback {
             ? Optional.of(callee)
             : oldCallee.flatMap(o -> o == callee ? Optional.of(callee) : Optional.empty());
     callees.put(register, updatedCallee);
-
-    recordCommon(register);
   }
 
+  /// Record that the register was assigned exactly `value`
   public void recordConstant(Register register, Value value) {
     var oldConstant = constants.get(register);
     var updatedConstant =
@@ -88,23 +87,18 @@ public class AbstractionFeedback {
             ? Optional.of(value)
             : oldConstant.flatMap(o -> o.equals(value) ? Optional.of(value) : Optional.empty());
     constants.put(register, updatedConstant);
-
-    recordCommon(register);
   }
 
-  /// Record that the given promise was created.
-  public void recordCreate(Register assignee) {
-    recordCommon(assignee);
-  }
-
-  /// Record that the given promise was forced.
+  /// Record that the promise assigned to `assignee` was forced (somewhere else, the promise is
+  /// statically associated with its assignee)
   public void recordForce(Register assignee) {
     var assignedForceCount = forceCount(assignee);
     assignedForceCount++;
     forceCount.put(assignee, assignedForceCount);
   }
 
-  private void recordCommon(Register register) {
+  /// Record that `register` was assigned
+  public void recordAssign(Register register) {
     // Insert if necessary, then increment how many times we recorded `register`.
     if (!allRecorded.containsKey(register)) {
       allRecorded.put(register, 0);
