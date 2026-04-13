@@ -40,7 +40,11 @@ public class MockModuleFeedback implements ModuleFeedback {
 
   @Override
   public void copyTo(Abstraction dst, Abstraction src) {
-    feedbacks.put(dst, feedbacks.get(src));
+    var srcFeedback = feedbacks.get(src);
+    if (srcFeedback == null) {
+      return;
+    }
+    feedbacks.put(dst, srcFeedback.copy());
   }
 
   @Override

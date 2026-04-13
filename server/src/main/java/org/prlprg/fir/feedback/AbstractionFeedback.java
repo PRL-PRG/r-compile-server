@@ -41,6 +41,8 @@ public class AbstractionFeedback {
   /// equivalent to `null` when checked, but only the former lets something be recorded
   /// eventually.
   public final Map<Register, Optional<Value>> constants = new HashMap<>();
+  /// How many times the promise assigned to the register was forced.
+  public final Map<Register, Integer> forceCount = new HashMap<>();
   /// All registers we recorded any feedback for, and how much times we recorded for each.
   ///
   /// Note that some registers' returned feedback may be equivalent to if we recorded nothing,
@@ -90,6 +92,18 @@ public class AbstractionFeedback {
     recordCommon(register);
   }
 
+  /// Record that the given promise was created.
+  public void recordCreate(Register assignee) {
+    recordCommon(assignee);
+  }
+
+  /// Record that the given promise was forced.
+  public void recordForce(Register assignee) {
+    var assignedForceCount = forceCount(assignee);
+    assignedForceCount++;
+    forceCount.put(assignee, assignedForceCount);
+  }
+
   private void recordCommon(Register register) {
     // Insert if necessary, then increment how many times we recorded `register`.
     if (!allRecorded.containsKey(register)) {
@@ -115,6 +129,11 @@ public class AbstractionFeedback {
     return constants.getOrDefault(register, Optional.empty()).orElse(null);
   }
 
+  /// Get the promise feedback for the given promise (empty if none recorded).
+  public int forceCount(Register assignee) {
+    return forceCount.getOrDefault(assignee, 0);
+  }
+
   /// How many times we recorded feedback for `register`.
   public int times(Register register) {
     return allRecorded.getOrDefault(register, 0);
@@ -123,6 +142,18 @@ public class AbstractionFeedback {
   /// Reset the call counter to 0.
   public void resetCalls() {
     numCalls = 0;
+  }
+
+  /// Create a deep copy.
+  public AbstractionFeedback copy() {
+    var copy = new AbstractionFeedback(module);
+    copy.numCalls = this.numCalls;
+    copy.types.putAll(this.types);
+    copy.callees.putAll(this.callees);
+    copy.constants.putAll(this.constants);
+    copy.forceCount.putAll(this.forceCount);
+    copy.allRecorded.putAll(this.allRecorded);
+    return copy;
   }
 
   @Override
@@ -157,6 +188,11 @@ public class AbstractionFeedback {
     var s = p.scanner();
     var module = ctx.module;
     var p2 = p.withContext(ctx.forSexps());
+
+    if (s.trySkip('!')) {
+      var assignedForceCount = s.readUInt();
+      forceCount.put(register, assignedForceCount);
+    }
 
     if (s.trySkip('-')) {
       if (s.trySkip('_')) {
@@ -236,9 +272,15 @@ public class AbstractionFeedback {
     var type = types.get(register);
     var callee = callees.get(register);
     var constant = constants.get(register);
+    var assignedForceCount = forceCount.get(register);
     var times = times(register);
 
     if (times != 0) {
+      if (assignedForceCount != null) {
+        w.write(" !");
+        p.print(assignedForceCount);
+      }
+
       if (callee != null) {
         w.write(" -");
         if (callee.isPresent()) {
