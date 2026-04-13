@@ -1,11 +1,16 @@
 package org.prlprg.fir.ir;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.util.Formatter;
+import java.util.LinkedHashMap;
 import org.intellij.lang.annotations.Language;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
-import org.prlprg.sexp.SEXP;
 
 public class ParseUtil {
   public static Module parseModule(@Language("FIR") String firText) {
@@ -14,7 +19,7 @@ public class ParseUtil {
     } catch (ParseException e) {
       // Can't use `fail` because then Java expects a `return` after.
       throw new AssertionError(
-          "Failed to parse FIŘ file: "
+          "Failed to parse FIŘ module: "
               + e.getMessage()
               + "\n"
               + region(firText, e.position().line(), e.position().column()),
@@ -22,16 +27,41 @@ public class ParseUtil {
     }
   }
 
-  public static SEXP parseSexp(String sexpText) {
+  public static Abstraction parseAbstraction(
+      @Language(value = "FIR", prefix = "fun main(`...`) {\n", suffix = "\n}") String firText) {
     try {
-      return Parser.fromString(sexpText, SEXP.class);
+      var module = new Module();
+      var deferredFunctions = new LinkedHashMap<NamedVariable, FunctionRef>();
+
+      var result =
+          Parser.fromString(
+              firText,
+              Abstraction.class,
+              new Abstraction.ParseContext(
+                  module, new FunctionRef.ParseContext(deferredFunctions), null));
+
+      for (var entry : deferredFunctions.entrySet()) {
+        var name = entry.getKey();
+        var deferred = entry.getValue();
+        var function = module.lookupFunction(name);
+        if (function == null) {
+          fail(
+              "Function in parsed standalone FIŘ abstraction isn't builtin or intrinsic: "
+                  + name
+                  + "\n"
+                  + firText);
+        }
+        deferred.set(function);
+      }
+
+      return result;
     } catch (ParseException e) {
       // Can't use `fail` because then Java expects a `return` after.
       throw new AssertionError(
-          "Failed to parse SEXP in FIŘ file: "
+          "Failed to parse FIŘ abstraction: "
               + e.getMessage()
               + "\n"
-              + region(sexpText, e.position().line(), e.position().column()),
+              + region(firText, e.position().line(), e.position().column()),
           e);
     }
   }
@@ -61,11 +91,11 @@ public class ParseUtil {
         s.append("      ...\n");
       } else if (lineNum >= firstLineNum && lineNum <= lastLineNum) {
         if (lineNum == errorLineNum) {
-          s.append(" ".repeat((int) errorColNum + 5)).append("↓\n");
+          s.repeat(" ", (int) errorColNum + 5).append("↓\n");
         }
         f.format("%4d: %s\n", lineNum, line);
         if (lineNum == errorLineNum) {
-          s.append(" ".repeat((int) errorColNum + 5)).append("↑\n");
+          s.repeat(" ", (int) errorColNum + 5).append("↑\n");
         }
       }
     }

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import org.intellij.lang.annotations.Language;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -33,7 +34,7 @@ public class OptimizationLog implements AutoCloseable {
           }
 
           var _ = (Optimization) args.get(0);
-          var _ = (Function) args.get(1);
+          var _ = (Function) ((Optional<?>) args.get(1)).orElse(null);
           var _ = (AbstractionFeedback) args.get(2);
           var version = (Abstraction) args.get(3);
 
@@ -47,14 +48,15 @@ public class OptimizationLog implements AutoCloseable {
           }
 
           var opt = (Optimization) args.get(0);
-          var function = (Function) args.get(1);
+          var function = (Function) ((Optional<?>) args.get(1)).orElse(null);
           var _ = (AbstractionFeedback) args.get(2);
           var version = (Abstraction) args.get(3);
           // true or crash (null)
           var changed = returnValue != Boolean.FALSE;
 
-          if (!changed) {
-            // Don't record unchanged optimization
+          // Don't record if running outside a function (only in unit tests)
+          // Don't record unchanged optimization
+          if (function == null || !changed) {
             return;
           }
 

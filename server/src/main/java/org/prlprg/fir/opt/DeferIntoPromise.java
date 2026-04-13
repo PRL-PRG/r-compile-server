@@ -37,7 +37,7 @@ import org.prlprg.util.UnreachableError;
 public record DeferIntoPromise() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction scope) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     return scope.cfg() != null && run(scope, scope.cfg());
   }
 

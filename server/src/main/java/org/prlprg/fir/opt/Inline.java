@@ -44,7 +44,7 @@ import org.prlprg.util.Pair;
 public record Inline(int maxInlineeSize) implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;

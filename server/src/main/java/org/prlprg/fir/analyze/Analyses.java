@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -32,7 +33,7 @@ public class Analyses {
   private final AnalysisTypeMap<Analysis> abstractionAnalysisTypes;
   private final AnalysisTypeMap<CfgAnalysis> cfgAnalysisTypes;
 
-  private final Analysis[] abstractionAnalyses;
+  private final @Nullable Analysis[] abstractionAnalyses;
   private final Map<CFG, CfgAnalysis[]> cfgAnalyses = new HashMap<>();
 
   public Analyses(Abstraction target, Class<?>... analysisClasses) {
@@ -46,13 +47,6 @@ public class Analyses {
     cfgAnalysisTypes = new AnalysisTypeMap<>(CfgAnalysis.class, analysisTypes.cfg());
 
     abstractionAnalyses = new Analysis[abstractionAnalysisTypes.size()];
-  }
-
-  /// Run all abstraction analyses.
-  public void forceAbstractionAnalyses() {
-    for (var analysisClass : abstractionAnalysisTypes.inherent) {
-      get(analysisClass);
-    }
   }
 
   /// Clear all analyses so they must be recomputed.
@@ -82,7 +76,7 @@ public class Analyses {
 
     // Cast is safe because forall `T`,
     // `analysisTypes.get(T.class).analysisConstructor.newInstance(...) instanceof T`.
-    return (T) abstractionAnalyses[info.index];
+    return (T) Objects.requireNonNull(abstractionAnalyses[info.index]);
   }
 
   /// @throws NoSuchElementException If `cfg` isn't in the `Abstraction` provided to the

@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt;
 
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -34,7 +35,7 @@ import org.prlprg.fir.ir.variable.Register;
 public record MergeAssumeLoadFun() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
-      Function function, AbstractionFeedback feedback, Abstraction scope) {
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
     var defUses = new DefUses(scope);
 
@@ -57,7 +58,8 @@ public record MergeAssumeLoadFun() implements AbstractionOptimization {
                 var stmt = bb1.statements().get(i);
                 if (stmt.expression() instanceof Assume) {
                   continue;
-                } else if (stmt.expression() instanceof Load(var loadType, var variable)
+                } else if (stmt.assignee() != null
+                    && stmt.expression() instanceof Load(var loadType, var variable)
                     && loadType == LoadType.LOCAL_FUN) {
                   loadFunIndex = i;
                   loadFunAssignee = stmt.assignee();
@@ -74,6 +76,7 @@ public record MergeAssumeLoadFun() implements AbstractionOptimization {
                   || !(bb1.jump() instanceof Checkpoint checkpoint2)) {
                 return;
               }
+              assert loadFunAssignee != null;
               var bb2 = checkpoint2.success().bb();
 
               // ...followed by zero-or-more assumptions,

@@ -24,4 +24,4 @@ Rsh_Math1Fun R_MATH1_EXT_FUNS[] = {X_MATH1_EXT_OPS};
 SEXP NOT_OP;
 SEXP LOG_OP;
 
-#include "../common2c/runtime_impl.h"
+#include "runtime_impl.h"

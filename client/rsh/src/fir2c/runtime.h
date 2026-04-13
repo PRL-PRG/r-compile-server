@@ -188,8 +188,8 @@ void Fir_dbg_signature(Fir_Signature signature);
 
 #pragma clang diagnostic pop
 
-DEFINE_INTRINSIC(SEXP, checkFun, value_fx_none_ret_value, SEXP value);
-DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_none_ret_value, SEXP value);
+DEFINE_INTRINSIC(SEXP, checkFun, value_fx_impure_ret_value, SEXP value);
+DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_impure_ret_value, SEXP value);
 DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_none_ret_value, SEXP value);
 DEFINE_INTRINSIC(SEXP, toForSeq, vec_logical_fx_none_ret_vec_logical, SEXP value);
 DEFINE_INTRINSIC(SEXP, toForSeq, vec_int_fx_none_ret_vec_int, SEXP value);
@@ -411,11 +411,6 @@ DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2elist, value_fx_none_ret_bool, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2echaracter, value_fx_none_ret_bool, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2eobject, value_fx_none_ret_bool, SEXP value);
 DEFINE_OVERRIDDEN_BUILTIN(bool, is_u2esymbol, value_fx_none_ret_bool, SEXP value);
-
-// Stubs for BC->C tests
-SEXP Rsh_initialize_runtime(void) { return R_NilValue; }
-SEXP Rsh_pc_get(void) { return R_NilValue; }
-SEXP Rsh_pc_reset(void) { return R_NilValue; }
 
 #ifdef __cplusplus
 }

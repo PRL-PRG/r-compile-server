@@ -6,31 +6,30 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.parseprint.Printer;
 
-class DeferIntoPromiseTest implements OptimizationUnitTest {
+class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
   @Override
-  public Optimization optimization() {
+  public AbstractionOptimization optimization() {
     return new DeferIntoPromise();
   }
 
   @Test
   void pureInstructionUsedOnlyInPromise_deferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg p:p(v1(R) -) |
-                nb = box< R --> v1(R) >(n);
-                p = prom<v1(R) ->{
-                  return nb;
-                };
-                return p;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
+              nb = box< R --> v1(R) >(n);
+              p = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              return n;
             }
             """);
 
-    assertTrue(run(module), "optimization should report a change");
+    assertTrue(run(abstraction), "optimization should report a change");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     // nb should be inside the promise now
     assertTrue(
         printed.contains("prom<v1(R) ->{\n") || printed.indexOf("box") > printed.indexOf("prom"),
@@ -43,85 +42,82 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
 
   @Test
   void impureInstruction_notDeferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:p(R +)) -+> R { reg nb:R, reg p:p(R +) |
-                nb = force n;
-                p = prom<R +>{
-                  return nb;
-                };
-                return p;
-              }
+            (reg n:p(R +)) -+> R { reg nb:R, reg p:p(R +), var p:* |
+              nb = force n;
+              p = prom<R +>{
+                return nb;
+              };
+              st p = p;
+              return nb;
             }
             """);
 
-    assertFalse(run(module), "impure instruction should not be deferred");
+    assertFalse(run(abstraction), "impure instruction should not be deferred");
   }
 
   @Test
   void instructionUsedOutsidePromise_notDeferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg p:p(v1(R) -), reg x:v1(R) |
-                nb = box< R --> v1(R) >(n);
-                p = prom<v1(R) ->{
-                  return nb;
-                };
-                x = nb;
-                return x;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:*, reg x:R |
+              nb = box< R --> v1(R) >(n);
+              p = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              x = unbox< v1(R) --> R >(nb);
+              return x;
             }
             """);
 
-    assertFalse(run(module), "instruction used outside promise should not be deferred");
+    assertFalse(run(abstraction), "instruction used outside promise should not be deferred");
   }
 
   @Test
   void instructionUsedInTwoPromises_notDeferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg p1:p(v1(R) -), reg p2:p(v1(R) -) |
-                nb = box< R --> v1(R) >(n);
-                p1 = prom<v1(R) ->{
-                  return nb;
-                };
-                p2 = prom<v1(R) ->{
-                  return nb;
-                };
-                return p1;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg p1:p(v1(R) -), var p1:*, reg p2:p(v1(R) -), var p2:* |
+              nb = box< R --> v1(R) >(n);
+              p1 = prom<v1(R) ->{
+                return nb;
+              };
+              st p1 = p1;
+              p2 = prom<v1(R) ->{
+                return nb;
+              };
+              st p2 = p2;
+              return n;
             }
             """);
 
-    assertFalse(run(module), "instruction used in two promises should not be deferred");
+    assertFalse(run(abstraction), "instruction used in two promises should not be deferred");
   }
 
   @Test
   void chainOfPureInstructions_allDeferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg nc:v1(R), reg p:p(v1(R) -) |
-                nb = box< R --> v1(R) >(n);
-                nc = dup nb;
-                p = prom<v1(R) ->{
-                  return nc;
-                };
-                return p;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg nc:v1(R), reg p:p(v1(R) -), var p:* |
+              nb = box< R --> v1(R) >(n);
+              nc = dup nb;
+              p = prom<v1(R) ->{
+                return nc;
+              };
+              st p = p;
+              return n;
             }
             """);
 
-    assertTrue(run(module), "chain should be deferred");
+    assertTrue(run(abstraction), "chain should be deferred");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     var promIdx = printed.indexOf("prom<");
     var boxIdx = printed.indexOf("box<");
     var dupIdx = printed.indexOf("dup ");
@@ -131,28 +127,27 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
 
   @Test
   void chainBrokenByOutsideUse_partialDefer() {
-    // nb is used by both nc (movable) and outside (x = nb). nc is used only in the promise.
+    // nb is used by both nc (movable) and outside (st nb = nb). nc is used only in the promise.
     // nb can't move, but nc can still move because its dependency (nb) is in the outer scope
     // which is readable from within the promise.
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg nc:v1(R), reg p:p(v1(R) -), reg x:v1(R) |
-                nb = box< R --> v1(R) >(n);
-                nc = dup nb;
-                p = prom<v1(R) ->{
-                  return nc;
-                };
-                x = nb;
-                return x;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), var nb:*, reg nc:v1(R), reg p:p(v1(R) -), var p:* |
+              nb = box< R --> v1(R) >(n);
+              nc = dup nb;
+              p = prom<v1(R) ->{
+                return nc;
+              };
+              st nb = nb;
+              st p = p;
+              return n;
             }
             """);
 
-    assertTrue(run(module), "nc should still be deferred even if nb can't be");
+    assertTrue(run(abstraction), "nc should still be deferred even if nb can't be");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     var promIdx = printed.indexOf("prom<");
     var boxIdx = printed.indexOf("box<");
     var dupIdx = printed.indexOf("dup ");
@@ -162,47 +157,43 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
 
   @Test
   void noAssignee_notDeferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg p:p(R -) |
-                noop;
-                p = prom<R ->{
-                  return n;
-                };
-                return p;
-              }
+            (reg n:R) -~> R { reg p:p(R -) |
+              noop;
+              p = prom<R ->{
+                return n;
+              };
+              return p;
             }
             """);
 
-    assertFalse(run(module), "statement without assignee should not be deferred");
+    assertFalse(run(abstraction), "statement without assignee should not be deferred");
   }
 
   @Test
   void deeplyNestedPromise_innerPromiseAlsoOptimized() {
     // The outer promise has a box that's only used in a nested inner promise.
     // streamCfgs processes all CFGs, so the inner promise should also be optimized.
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg p:p(V -), reg q:p(v1(R) -), reg nb:v1(R) |
-                p = prom<V ->{
-                  nb = box< R --> v1(R) >(n);
-                  q = prom<v1(R) ->{
-                    return nb;
-                  };
-                  return q;
+            (reg n:R) -~> R { reg p:p(V -), reg q:p(v1(R) -), reg nb:v1(R) |
+              p = prom<V ->{
+                nb = box< R --> v1(R) >(n);
+                q = prom<v1(R) ->{
+                  return nb;
                 };
-                return p;
-              }
+                return q;
+              };
+              return p;
             }
             """);
 
-    assertTrue(run(module), "deeply nested promise should also be optimized");
+    assertTrue(run(abstraction), "deeply nested promise should also be optimized");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     // The box should be inside the inner promise
     var innerPromIdx = printed.lastIndexOf("prom<v1(R) ->");
     var boxIdx = printed.indexOf("box<");
@@ -212,27 +203,27 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
 
   @Test
   void multiplePromises_eachGetsOwnInstructions() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg nc:v1(R), reg p1:p(v1(R) -), reg p2:p(v1(R) -) |
-                nb = box< R --> v1(R) >(n);
-                p1 = prom<v1(R) ->{
-                  return nb;
-                };
-                nc = dup n;
-                p2 = prom<v1(R) ->{
-                  return nc;
-                };
-                return p1;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg nc:v1(R), reg p1:p(v1(R) -), var p1:*, reg p2:p(v1(R) -), var p2:* |
+              nb = box< R --> v1(R) >(n);
+              p1 = prom<v1(R) ->{
+                return nb;
+              };
+              st p1 = p1;
+              nc = dup n;
+              p2 = prom<v1(R) ->{
+                return nc;
+              };
+              st p2 = p2;
+              return p1;
             }
             """);
 
-    assertTrue(run(module), "multiple promises should each get their own instructions");
+    assertTrue(run(abstraction), "multiple promises should each get their own instructions");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     // Both box and dup should be inside their respective promises
     var prom1Idx = printed.indexOf("prom<");
     var prom2Idx = printed.lastIndexOf("prom<");
@@ -250,84 +241,80 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
     // the promise, don't move it (it wouldn't be before the promise).
     // This can't really happen in valid SSA (use before def), but let's verify the
     // optimization doesn't try to look at statements after the promise.
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg p:p(v1(R) -) |
-                p = prom<v1(R) ->{
-                  return n;
-                };
-                nb = box< R --> v1(R) >(n);
-                return p;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
+              p = prom<v1(R) ->{
+                return n;
+              };
+              st p = p;
+              nb = box< R --> v1(R) >(n);
+              return p;
             }
             """);
 
-    assertFalse(run(module), "instruction after promise should not be deferred");
+    assertFalse(run(abstraction), "instruction after promise should not be deferred");
   }
 
   @Test
   void mkenvBeforePromise_notDeferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) -+> R { reg p:p(R +) |
-                mkenv;
-                p = prom<R +>{
-                  return n;
-                };
-                popenv;
-                return p;
-              }
+            (reg n:R) -+> R { reg p:p(R +), var p:* |
+              mkenv;
+              p = prom<R +>{
+                return n;
+              };
+              popenv;
+              st p = p;
+              return p;
             }
             """);
 
-    assertFalse(run(module), "mkenv is impure and should not be deferred");
+    assertFalse(run(abstraction), "mkenv is impure and should not be deferred");
   }
 
   @Test
   void secondRunIdempotent() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg p:p(v1(R) -) |
-                nb = box< R --> v1(R) >(n);
-                p = prom<v1(R) ->{
-                  return nb;
-                };
-                return p;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
+              nb = box< R --> v1(R) >(n);
+              p = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              return p;
             }
             """);
 
-    assertTrue(run(module), "first run should make a change");
-    assertFalse(run(module), "second run should be idempotent");
+    assertTrue(run(abstraction), "first run should make a change");
+    assertFalse(run(abstraction), "second run should be idempotent");
   }
 
   @Test
   void instructionInPredecessorBlock_deferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg nb:v1(R), reg p:p(v1(R) -) |
-                nb = box< R --> v1(R) >(n);
-                goto L0();
-              L0():
-                p = prom<v1(R) ->{
-                  return nb;
-                };
-                return p;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
+              nb = box< R --> v1(R) >(n);
+              goto L0();
+            L0():
+              p = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              return p;
             }
             """);
 
-    assertTrue(run(module), "optimization should report a change");
+    assertTrue(run(abstraction), "optimization should report a change");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     var promIdx = printed.indexOf("prom<");
     var boxIdx = printed.indexOf("box<");
     assertTrue(boxIdx > promIdx, "box should be inside the promise; printed:\n" + printed);
@@ -335,29 +322,27 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
 
   @Test
   void promiseInDeoptBlock_deferred() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) -~> R { var v:*, reg nb:v1(R), reg p:p(v1(R) -) |
-                nb = box< R --> v1(R) >(n);
-                check L0() else D0();
-              D0():
-                mkenv;
-                p = prom<v1(R) ->{
-                  return nb;
-                };
-                st v = p;
-                deopt 0 [];
-              L0():
-                return n;
-              }
+            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
+              nb = box< R --> v1(R) >(n);
+              check L0() else D0();
+            D0():
+              mkenv;
+              p = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              deopt 0 [];
+            L0():
+              return n;
             }
             """);
 
-    assertTrue(run(module), "box should be deferred into the promise in the deopt block");
+    assertTrue(run(abstraction), "box should be deferred into the promise in the deopt block");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     var promIdx = printed.indexOf("prom<");
     var boxIdx = printed.indexOf("box<");
     assertTrue(boxIdx > promIdx, "box should be inside the promise; printed:\n" + printed);
@@ -365,31 +350,29 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
 
   @Test
   void complicatedCfgPartialDefer() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) -~> R { var v:*, reg na:v1(R), reg nb:v1(R), reg p:p(v1(R) -), reg x:R |
-                na = box< R --> v1(R) >(n);
-                nb = dup na;
-                check L0() else D0();
-              D0():
-                mkenv;
-                p = prom<v1(R) ->{
-                  return nb;
-                };
-                st v = p;
-                deopt 0 [];
-              L0():
-                x = unbox< v1(R) --> R >(na);
-                return x;
-              }
+            (reg n:R) -~> R { reg na:v1(R), reg nb:v1(R), reg p:p(v1(R) -), var p:*, reg x:R |
+              na = box< R --> v1(R) >(n);
+              nb = dup na;
+              check L0() else D0();
+            D0():
+              mkenv;
+              p = prom<v1(R) ->{
+                return nb;
+              };
+              st p = p;
+              deopt 0 [];
+            L0():
+              x = unbox< v1(R) --> R >(na);
+              return x;
             }
             """);
 
-    assertTrue(run(module), "nb should be deferred even though na can't be");
+    assertTrue(run(abstraction), "nb should be deferred even though na can't be");
 
-    var printed = Printer.toString(module);
+    var printed = Printer.toString(abstraction);
     var promIdx = printed.indexOf("prom<");
     var boxIdx = printed.indexOf("box<");
     var dupIdx = printed.indexOf("dup ");
@@ -399,19 +382,18 @@ class DeferIntoPromiseTest implements OptimizationUnitTest {
 
   @Test
   void promiseWithNoMovablePredecessors_unchanged() {
-    var module =
-        ParseUtil.parseModule(
+    var abstraction =
+        ParseUtil.parseAbstraction(
             """
-            fun main() {
-              (reg n:R) --> R { reg p:p(R -) |
-                p = prom<R ->{
-                  return n;
-                };
-                return p;
-              }
+            (reg n:R) -~> R { reg p:p(R -), var p:* |
+              p = prom<R ->{
+                return n;
+              };
+              st p = p;
+              return n;
             }
             """);
 
-    assertFalse(run(module), "nothing to defer should report no change");
+    assertFalse(run(abstraction), "nothing to defer should report no change");
   }
 }

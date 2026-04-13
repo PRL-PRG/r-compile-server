@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
@@ -25,7 +26,7 @@ class AbstractionFixpointSequenceTest {
 
     @Override
     public boolean runWithoutRecording(
-        Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+        @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
       // Cycle through `changedReturns`.
       return changedReturns[callCount++ % changedReturns.length];
     }
