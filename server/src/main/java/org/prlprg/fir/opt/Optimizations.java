@@ -3,6 +3,7 @@ package org.prlprg.fir.opt;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
+import org.prlprg.fir.opt.specialize.DefUseScheduling;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideCheckMissing;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
@@ -54,6 +55,7 @@ public class Optimizations {
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),
                     new UnboxPhi(),
+                    new DefUseScheduling(),
                     new ElideRedundantBoxUnbox(),
                     new ElideEnv(),
                     new Inline(1000),
