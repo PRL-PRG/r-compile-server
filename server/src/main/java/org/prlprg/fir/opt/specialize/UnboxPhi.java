@@ -29,7 +29,7 @@ import org.prlprg.fir.opt.AbstractionOptimization;
 ///   `v1(X)` type for its existing users).
 /// - In each predecessor, for every [Target] pointing to this BB, inserts
 ///   `arg_to_i1 = unbox< v1(X) --> X >(arg_to_i)` immediately before the jump and replaces
-///   the phi argument at the given position with `arg_to_i1`.
+///   the phi argument at the given position (formerly `arg_to_i`) with `arg_to_i1`.
 public final class UnboxPhi implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
