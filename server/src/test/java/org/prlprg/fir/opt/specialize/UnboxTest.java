@@ -8,10 +8,10 @@ import org.prlprg.fir.opt.AbstractionOptimization;
 import org.prlprg.fir.opt.AbstractionOptimizationUnitTest;
 import org.prlprg.parseprint.Printer;
 
-class UnboxV1Test implements AbstractionOptimizationUnitTest {
+class UnboxTest implements AbstractionOptimizationUnitTest {
   @Override
   public AbstractionOptimization optimization() {
-    return new UnboxV1();
+    return new Unbox();
   }
 
   @Test
