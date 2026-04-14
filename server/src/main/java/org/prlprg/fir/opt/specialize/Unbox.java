@@ -49,7 +49,7 @@ import org.prlprg.util.ImmutableBoolArray;
 ///   `r = box<X --> v1(X)>(r1)` after the call.
 /// - Compatible scalar-return versions can be created from non-stub versions, by copying,
 ///   changing the return type to unboxed, and unboxing the returned value before every return.
-public class UnboxV1 implements AbstractionOptimization {
+public class Unbox implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
       @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
@@ -152,19 +152,6 @@ public class UnboxV1 implements AbstractionOptimization {
     return okVersion.orElse(null);
   }
 
-  private static boolean canUnbox(Type argumentType) {
-    return argumentType.isValue()
-        && argumentType.ownership() != Ownership.FRESH
-        && argumentType.concreteness() == Concreteness.DEFINITE
-        && argumentType.kind() instanceof Kind.PrimitiveVector(var isScalar, _)
-        && isScalar;
-  }
-
-  private static Type unboxed(Type type) {
-    assert canUnbox(type);
-    return Type.primitiveScalar(((Kind.PrimitiveVector) type.kind()).primitive());
-  }
-
   private static final class SpecializationFinder {
     private final Signature original;
     private final ImmutableBoolArray unboxableParameters;
@@ -174,7 +161,7 @@ public class UnboxV1 implements AbstractionOptimization {
       this.original = original;
       unboxableParameters =
           original.parameterTypes().stream()
-              .map(UnboxV1::canUnbox)
+              .map(Unbox::canUnbox)
               .collect(ImmutableBoolArray.toImmutableBoolArray());
       unboxableReturn = canUnbox(original.returnType());
     }
@@ -308,12 +295,25 @@ public class UnboxV1 implements AbstractionOptimization {
     return unboxedReg;
   }
 
-  private static Call boxCall(Argument scalarArgument, Type boxedType) {
+  static boolean canUnbox(Type argumentType) {
+    return argumentType.isValue()
+        && argumentType.ownership() != Ownership.FRESH
+        && argumentType.concreteness() == Concreteness.DEFINITE
+        && argumentType.kind() instanceof Kind.PrimitiveVector(var isScalar, _)
+        && isScalar;
+  }
+
+  static Type unboxed(Type type) {
+    assert canUnbox(type);
+    return Type.primitiveScalar(((Kind.PrimitiveVector) type.kind()).primitive());
+  }
+
+  static Call boxCall(Argument scalarArgument, Type boxedType) {
     var boxSig = new Signature(ImmutableList.of(unboxed(boxedType)), boxedType, Effects.NONE);
     return new Call(new StaticFnCallee(false, BOX_FUN, boxSig), ImmutableList.of(scalarArgument));
   }
 
-  private static Call unboxCall(Argument boxedArgument, Type boxedType) {
+  static Call unboxCall(Argument boxedArgument, Type boxedType) {
     var unboxSig = new Signature(ImmutableList.of(boxedType), unboxed(boxedType), Effects.NONE);
     return new Call(
         new StaticFnCallee(false, UNBOX_FUN, unboxSig), ImmutableList.of(boxedArgument));

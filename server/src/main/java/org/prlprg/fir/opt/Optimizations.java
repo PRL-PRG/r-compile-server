@@ -15,7 +15,8 @@ import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
-import org.prlprg.fir.opt.specialize.UnboxV1;
+import org.prlprg.fir.opt.specialize.Unbox;
+import org.prlprg.fir.opt.specialize.UnboxPhi;
 
 public class Optimizations {
   public static Optimization defaultOptimizations() {
@@ -51,7 +52,8 @@ public class Optimizations {
                         new ResolveLoad(),
                         new ImproveSignatures()),
                     new PromoteStaticallyKnownVariables(),
-                    new UnboxV1(),
+                    new Unbox(),
+                    new UnboxPhi(),
                     new ElideRedundantBoxUnbox(),
                     new ElideEnv(),
                     new Inline(1000),
