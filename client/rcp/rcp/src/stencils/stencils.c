@@ -328,6 +328,163 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 	NEXT;
 }
 
+enum {
+	RSH_RECORDING_SCALAR = 0,
+	RSH_RECORDING_VECTOR = 1,
+	RSH_RECORDING_CALLTYPE = 2,
+	RSH_RECORDING_PROMISE = 3,
+	RSH_RECORDING_MISSING = 4,
+	RSH_RECORDING_OTHER = 5,
+};
+
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_2)
+{
+	int *recording_types = (int *)GETCUSTOM();
+	int type;
+	if(VAL_IS_SXP(*GET_VAL(-1)))
+	{
+		SEXP val = VAL_SXP(*GET_VAL(-1));
+		switch(TYPEOF(val))
+		{
+			case CLOSXP:
+			case BUILTINSXP:
+			case SPECIALSXP:
+			{
+				type = RSH_RECORDING_CALLTYPE;
+				break;
+			}
+			case PROMSXP:
+			{
+				type = RSH_RECORDING_PROMISE;
+				break;
+			}
+			case SYMSXP:
+			{
+				static_assert(RSH_RECORDING_MISSING + 1 == RSH_RECORDING_OTHER);
+				type = RSH_RECORDING_MISSING;
+				type += (val == R_MissingArg);
+				break;
+			}
+			case LGLSXP:
+			case INTSXP:
+			case REALSXP:
+			case STRSXP:
+			{
+				if (ATTRIB(val) == R_NilValue && !ALTREP(val))
+				{
+					static_assert(RSH_RECORDING_SCALAR + 1 == RSH_RECORDING_VECTOR);
+					type = RSH_RECORDING_SCALAR;
+					assert(val->sxpinfo.scalar == 0 || val->sxpinfo.scalar == 1);
+					type += val->sxpinfo.scalar;
+					break;
+				}
+			}
+			default:
+				type = RSH_RECORDING_OTHER;
+				break;
+		}
+	}
+	else
+	{
+		if(GET_VAL(-1)->tag != ISQSXP)
+			type = RSH_RECORDING_SCALAR;
+		else
+			type = RSH_RECORDING_OTHER;
+	}
+	recording_types[type]++;
+	NEXT;
+}
+
+enum {
+	RSH_RECORDING_CUSTOM_VECTOR = 26,
+	RSH_RECORDING_CUSTOM_SCALAR = 27,
+	RSH_RECORDING_CUSTOM_MISSING = 28,
+};
+
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING)
+{
+	int *recording_types = (int *)GETCUSTOM();
+	int type;
+	if(VAL_IS_SXP(*GET_VAL(-1)))
+	{
+		SEXP val = VAL_SXP(*GET_VAL(-1));
+
+		switch(TYPEOF(val))
+		{
+			case LGLSXP:
+			case INTSXP:
+			case REALSXP:
+			case STRSXP:
+			{
+				if (ATTRIB(val) == R_NilValue && !ALTREP(val))
+				{
+					static_assert(RSH_RECORDING_CUSTOM_VECTOR + 1 == RSH_RECORDING_CUSTOM_SCALAR);
+					type = RSH_RECORDING_CUSTOM_VECTOR;
+					assert(val->sxpinfo.scalar == 0 || val->sxpinfo.scalar == 1);
+					type += val->sxpinfo.scalar;
+					goto record;
+				}
+				break;
+			}
+			default:
+			{
+				assert(TYPEOF(val) < 26);
+				if (val == R_MissingArg)
+				{
+					type = RSH_RECORDING_CUSTOM_MISSING;
+					goto record;
+				}
+			}
+		}
+		type = TYPEOF(val);
+	}
+	else
+	{
+		if(GET_VAL(-1)->tag != ISQSXP)
+			type = GET_VAL(-1)->tag;
+		else
+			type = INTSXP;
+	}
+record:
+	recording_types[type]++;
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
+{
+	SEXP *recording_constant = (SEXP *)GETCUSTOM();
+	if (*recording_constant != NULL)
+	{
+		if (VAL_IS_SXP(*GET_VAL(-1)))
+		{
+			if (*recording_constant != VAL_SXP(*GET_VAL(-1)))
+			{
+				if (*recording_constant == (void *)1)
+				{
+					// This is the first time we see a constant, record it
+					*recording_constant = VAL_SXP(*GET_VAL(-1));
+					// TODO SETVECELT protection stuff necessary?
+				}
+				else
+				{
+					// We have seen a different constant before, stop recording
+					*recording_constant = NULL;
+				}
+			}
+		}
+		else
+		{
+			if (IS_ANY_SIMPLE_SCALAR(*recording_constant))
+			{
+				if(INTEGER0(*recording_constant)[0] == GET_VAL(-1)->u.ival)
+				
+			}
+		}
+	}
+
+	NEXT;
+}
+
 RCP_OP(RETURN,
 	   return *(stack - 1);)
 
