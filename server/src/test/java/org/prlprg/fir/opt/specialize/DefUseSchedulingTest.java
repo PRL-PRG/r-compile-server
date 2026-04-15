@@ -156,6 +156,29 @@ class DefUseSchedulingTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void siblingUnboxesWithSameAnchorDoNotOscillate() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg x:I) --> I { reg boxed:v1(I), reg y:I, reg a:I, reg b:I, reg r:I |
+              boxed = box< I --> v1(I) >(x);
+              y = `+`< I,I --> I >(x, <int 1>);
+              b = unbox< v1(I) --> I >(boxed);
+              a = unbox< v1(I) --> I >(boxed);
+              r = `+`< I,I --> I >(a, b);
+              return r;
+            }
+            """);
+
+    assertTrue(run(abstraction), "unboxes should hoist next to the box once");
+    assertFalse(run(abstraction), "sibling unboxes with the same anchor should be stable");
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "boxed = box< I --> v1(I) >(x);", "b = unbox< v1(I) --> I >(boxed);");
+    assertOrder(printed, "b = unbox< v1(I) --> I >(boxed);", "a = unbox< v1(I) --> I >(boxed);");
+  }
+
+  @Test
   void secondRunIsIdempotent() {
     var abstraction =
         ParseUtil.parseAbstraction(

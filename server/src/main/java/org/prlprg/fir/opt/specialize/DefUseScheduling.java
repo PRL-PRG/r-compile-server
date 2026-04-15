@@ -5,6 +5,7 @@ import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -86,7 +87,28 @@ public final class DefUseScheduling implements AbstractionOptimization {
 
   private record InsertionPoint(BB bb, int instructionIndex) {}
 
-  private record Analyses(CfgHierarchy hierarchy, DefUses defUses) {}
+  private static final class Analyses {
+    private final CfgHierarchy hierarchy;
+    private final DefUses defUses;
+    private final LinkedHashMap<CFG, CfgDominatorTree> dominatorTrees = new LinkedHashMap<>();
+
+    private Analyses(CfgHierarchy hierarchy, DefUses defUses) {
+      this.hierarchy = hierarchy;
+      this.defUses = defUses;
+    }
+
+    CfgHierarchy hierarchy() {
+      return hierarchy;
+    }
+
+    DefUses defUses() {
+      return defUses;
+    }
+
+    CfgDominatorTree dominatorTree(CFG cfg) {
+      return dominatorTrees.computeIfAbsent(cfg, CfgDominatorTree::new);
+    }
+  }
 
   private static final class OnAbstraction {
     private final Abstraction scope;
@@ -166,7 +188,7 @@ public final class DefUseScheduling implements AbstractionOptimization {
         effectiveUses.add(effectiveUse);
       }
 
-      return latestPlacementBeforeUses(targetCfg, effectiveUses);
+      return latestPlacementBeforeUses(targetCfg, effectiveUses, analyses);
     }
 
     private @Nullable CFG deepestPromiseContainingAllUses(
@@ -199,12 +221,12 @@ public final class DefUseScheduling implements AbstractionOptimization {
     }
 
     private @Nullable InsertionPoint latestPlacementBeforeUses(
-        CFG cfg, List<CfgPosition> effectiveUses) {
+        CFG cfg, List<CfgPosition> effectiveUses, Analyses analyses) {
       if (effectiveUses.isEmpty()) {
         return null;
       }
 
-      var domTree = new CfgDominatorTree(cfg);
+      var domTree = analyses.dominatorTree(cfg);
       var commonDominators = new LinkedHashSet<>(domTree.dominators(effectiveUses.getFirst().bb()));
       for (var use : effectiveUses.subList(1, effectiveUses.size())) {
         commonDominators.retainAll(domTree.dominators(use.bb()));
@@ -241,13 +263,16 @@ public final class DefUseScheduling implements AbstractionOptimization {
       }
 
       var latestDefinition =
-          latestDefinitionInCfg(match.argumentRegisters(), targetCfg, boundary, analyses.defUses());
+          latestDefinitionInCfg(
+              match.argumentRegisters(), targetCfg, boundary, analyses.defUses(), analyses);
       if (latestDefinition == null) {
         return null;
       }
 
       var insertIndex =
           latestDefinition.instructionIndex() < 0 ? 0 : latestDefinition.instructionIndex() + 1;
+      insertIndex =
+          stableHoistInsertIndex(origin, targetCfg, latestDefinition, insertIndex, analyses);
       if (latestDefinition.bb() == boundary.bb() && insertIndex > boundary.instructionIndex()) {
         return null;
       }
@@ -267,8 +292,29 @@ public final class DefUseScheduling implements AbstractionOptimization {
     }
 
     private @Nullable CfgPosition latestDefinitionInCfg(
-        List<Register> argumentRegisters, CFG cfg, CfgPosition boundary, DefUses defUses) {
-      var domTree = new CfgDominatorTree(cfg);
+        List<Register> argumentRegisters,
+        CFG cfg,
+        CfgPosition boundary,
+        DefUses defUses,
+        Analyses analyses) {
+      if (argumentRegisters.size() == 1) {
+        var definition = defUses.definition(argumentRegisters.getFirst());
+        if (definition == null) {
+          return null;
+        }
+
+        var innermostDefinition = definition.inInnermostCfg();
+        if (innermostDefinition.cfg() != cfg) {
+          return new CfgPosition(cfg.entry(), -1, null);
+        }
+        if (innermostDefinition.bb() == boundary.bb()
+            && innermostDefinition.instructionIndex() > boundary.instructionIndex()) {
+          return null;
+        }
+        return innermostDefinition;
+      }
+
+      var domTree = analyses.dominatorTree(cfg);
       CfgPosition latest = null;
 
       for (var argument : argumentRegisters) {
@@ -292,6 +338,47 @@ public final class DefUseScheduling implements AbstractionOptimization {
       }
 
       return latest != null ? latest : new CfgPosition(cfg.entry(), -1, null);
+    }
+
+    private int stableHoistInsertIndex(
+        CfgPosition origin,
+        CFG targetCfg,
+        CfgPosition latestDefinition,
+        int insertIndex,
+        Analyses analyses) {
+      if (latestDefinition.bb() != origin.bb()) {
+        return insertIndex;
+      }
+
+      while (insertIndex < origin.instructionIndex()) {
+        var statement = origin.bb().statements().get(insertIndex);
+        var candidateMatch = matchUnbox(statement);
+        if (candidateMatch == null) {
+          break;
+        }
+
+        var candidateDefinition =
+            latestDefinitionInCfg(
+                candidateMatch.argumentRegisters(),
+                targetCfg,
+                new CfgPosition(origin.bb(), insertIndex, statement),
+                analyses.defUses(),
+                analyses);
+        if (!samePosition(candidateDefinition, latestDefinition)) {
+          break;
+        }
+
+        insertIndex++;
+      }
+
+      return insertIndex;
+    }
+
+    private boolean samePosition(@Nullable CfgPosition left, @Nullable CfgPosition right) {
+      return left != null
+          && right != null
+          && left.bb() == right.bb()
+          && left.instructionIndex() == right.instructionIndex();
     }
 
     private @Nullable CfgPosition laterOf(
