@@ -474,10 +474,20 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
 		}
 		else
 		{
-			if (IS_ANY_SIMPLE_SCALAR(*recording_constant))
+			if (*recording_constant == (void *)1)
 			{
-				if(INTEGER0(*recording_constant)[0] == GET_VAL(-1)->u.ival)
-				
+				// This is the first time we see a constant, record it
+				*recording_constant = val_as_sexp(*GET_VAL(-1));
+				// TODO SETVECELT protection stuff necessary?
+			}
+			else
+			{
+				//  We can compare the memory even if the type is different
+				if (!IS_ANY_SIMPLE_SCALAR((*recording_constant)) || TYPEOF(*recording_constant) != GET_VAL(-1)->tag || SCALAR_DVAL(*recording_constant) != GET_VAL(-1)->u.dval)
+				{
+					// We have seen a different constant before, stop recording
+					*recording_constant = NULL;
+				}
 			}
 		}
 	}
