@@ -438,21 +438,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return origins == null ? null : origins.uniqueOrNull();
     }
 
-    private void put(Register register, @Nullable Argument argument) {
-      if (argument == null) {
+    private void put(Register register, @Nullable Argument origin) {
+      if (origin == null) {
         registerOrigins.remove(register);
-        state().registerOrigins.remove(register);
       } else {
-        registerOrigins.put(register, argument);
-        state().registerOrigins.put(register, argument);
+        registerOrigins.put(register, origin);
       }
+      state().registerOrigins.put(register, Optional.ofNullable(origin));
     }
 
-    private void put(NamedVariable variable, @Nullable Argument argument) {
-      if (argument == null) {
+    private void put(NamedVariable variable, @Nullable Argument origin) {
+      if (origin == null) {
         state().variableOrigins.remove(variable);
       } else {
-        state().variableOrigins.put(variable, KnownOrigins.of(argument));
+        state().variableOrigins.put(variable, KnownOrigins.of(origin));
       }
     }
 
