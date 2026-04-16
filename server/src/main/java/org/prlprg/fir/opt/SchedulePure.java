@@ -5,6 +5,7 @@ import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -19,9 +20,12 @@ import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -33,7 +37,21 @@ import org.prlprg.fir.ir.variable.Register;
 
 /// Hoists and defers specific pure instructions.
 ///
-/// TODO use documentation from unpushed
+/// Current rules:
+/// - `r = box< X --> v1(X) >(r1)` is deferred
+/// - `r = unbox< v1(X) --> X >(r1)` is hoisted
+///
+/// Can be easily extended with more defer/hoist rules.
+///
+/// A deferred instruction is specifically deferred to the latest position(s) that dominate
+/// every use of its assignee and aren't themselves dominated by other possible positions. It's
+/// copied if there are uses in branches that don't dominate each other. Iff every use is inside
+/// a promise within the instruction's current CFG, the instruction is deferred into that
+/// promise.
+///
+/// A hoisted instruction is specifically hoisted immediately after the latest assignment of one
+/// of its arguments. If the instruction is in a promise and every argument is in the enclosing
+/// CFG, it's hoisted to the enclosing CFG.
 public final class SchedulePure implements AbstractionOptimization {
   private static final ImmutableList<Rule> HOIST_RULES = ImmutableList.of(matchRule(UNBOX_FUN));
   private static final ImmutableList<Rule> DEFER_RULES = ImmutableList.of(matchRule(BOX_FUN));
@@ -70,6 +88,7 @@ public final class SchedulePure implements AbstractionOptimization {
     private final Analyses analyses;
     private final DefUses defUses;
     private final CfgHierarchy hierarchy;
+    private final DominatorTree domTree;
 
     private final Map<Motion, Map<BB, TreeMap<Integer, Set<CfgPosition>>>> motions =
         new LinkedHashMap<>();
@@ -77,9 +96,16 @@ public final class SchedulePure implements AbstractionOptimization {
     Run(Abstraction scope) {
       // Setup
       this.scope = scope;
-      analyses = new Analyses(scope, DefUses.class, CfgHierarchy.class, CfgDominatorTree.class);
+      analyses =
+          new Analyses(
+              scope,
+              DefUses.class,
+              CfgHierarchy.class,
+              DominatorTree.class,
+              CfgDominatorTree.class);
       defUses = analyses.get(DefUses.class);
       hierarchy = analyses.get(CfgHierarchy.class);
+      domTree = analyses.get(DominatorTree.class);
 
       // Run
       collectMotions();
@@ -221,27 +247,22 @@ public final class SchedulePure implements AbstractionOptimization {
         return List.of();
       }
 
-      // Return all uses in `targetCfg` except dominees
+      // Return all uses in `targetCfg` not dominated by other uses
       var domTree = domTree(targetCfg);
       var usesInCfg = new ArrayList<CfgPosition>();
-      for (var use : uses) {
-        var useInCfg = Objects.requireNonNull(use.inCfg(targetCfg));
+      for (var nextUse : uses) {
+        var nextUseInCfg = Objects.requireNonNull(nextUse.inCfg(targetCfg));
 
-        var added = false;
-        for (var i = 0; i < usesInCfg.size(); i++) {
-          var existingUse = usesInCfg.get(i);
-          if (domTree.dominates(useInCfg, existingUse)) {
-            usesInCfg.set(i, useInCfg);
-            added = true;
-            break;
-          } else if (domTree.dominates(existingUse, useInCfg)) {
-            added = true;
-            break;
-          }
+        // Don't add if dominated by a previously-added use
+        if (usesInCfg.stream()
+            .anyMatch(existingUse -> domTree.dominates(existingUse, nextUseInCfg))) {
+          continue;
         }
-        if (!added) {
-          usesInCfg.add(useInCfg);
-        }
+
+        // Remove all previously-added uses dominated by it before adding
+        usesInCfg.removeIf(existingUse -> domTree.dominates(nextUseInCfg, existingUse));
+
+        usesInCfg.add(nextUseInCfg);
       }
       return usesInCfg;
     }
@@ -303,6 +324,9 @@ public final class SchedulePure implements AbstractionOptimization {
         }
       }
 
+      var insertedAssignees = new HashSet<>();
+      var substs = new DomineeSubstituter(domTree, scope);
+
       for (var motionEntry : motions.entrySet()) {
         var motionType = motionEntry.getKey();
         for (var bbEntry : motionEntry.getValue().entrySet()) {
@@ -319,13 +343,40 @@ public final class SchedulePure implements AbstractionOptimization {
               if (motionType == Motion.HOIST) {
                 index++;
               }
-              bb.insertStatement(index, statement);
+
+              // We can defer the same instruction into multiple positions,
+              // if none dominate each other.
+              // This means we copy the instruction,
+              // but since we use SSA,
+              // we must rename the non-first assignees.
+              var assignee = statement.assignee();
+              if (assignee != null && !insertedAssignees.add(assignee)) {
+                // Deferring a non-first time
+                var assigneeType = scope.typeOf(assignee);
+                // assigneeType is only `null` if the CFG is invalid
+                if (assigneeType == null) {
+                  continue;
+                }
+
+                var newAssignee = scope.addLocal(assignee.name(), assigneeType);
+                substs.stage(assignee, new Read(newAssignee), new CfgPosition(bb, index));
+
+                // Insert with substituted assignee
+                var newStatement =
+                    new Statement(statement.comments(), newAssignee, statement.expression());
+                bb.insertStatement(index, newStatement);
+              } else {
+                // Regular insertion
+                bb.insertStatement(index, statement);
+              }
 
               changed = true;
             }
           }
         }
       }
+
+      substs.commit();
     }
   }
 }
