@@ -36,8 +36,10 @@ public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction ins
     bb.replaceStatementAt(instructionIndex, new Statement(comments, assignee, replacement));
   }
 
+  /// Replaces at `bb`/`instructionIndex` in the real [CFG]. Doesn't change this value
+  ///
   /// @throws IllegalArgumentException If this is a phi group, `replacement` is a [Statement]
-  /// and this is a [Jump], or `replacement` is a [Jump] and this is a [Statement].
+  /// and this is a [Jump], or `replacement` is a [Jump] and this is a [Statement]
   public void replaceWith(Instruction replacement) {
     if (instruction == null) {
       throw new IllegalArgumentException("Can't replace a phi group:\n" + this);

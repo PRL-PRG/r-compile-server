@@ -1,9 +1,9 @@
-package org.prlprg.fir.opt.specialize;
+package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.opt.specialize.Unbox.boxCall;
-import static org.prlprg.fir.opt.specialize.Unbox.canUnbox;
-import static org.prlprg.fir.opt.specialize.Unbox.unboxCall;
-import static org.prlprg.fir.opt.specialize.Unbox.unboxed;
+import static org.prlprg.fir.opt.Unbox.boxCall;
+import static org.prlprg.fir.opt.Unbox.canUnbox;
+import static org.prlprg.fir.opt.Unbox.unboxCall;
+import static org.prlprg.fir.opt.Unbox.unboxed;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
@@ -19,7 +19,6 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.opt.AbstractionOptimization;
 
 /// Unboxes phi parameters of type `v1(X)` into scalar `X` phis.
 ///

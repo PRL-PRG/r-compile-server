@@ -1,4 +1,4 @@
-package org.prlprg.fir.opt.specialize;
+package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.GlobalModules.BOX_FUN;
 import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
@@ -23,7 +23,6 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.opt.AbstractionOptimization;
 
 /// Elides redundant `box`/`unbox` calls by substituting their results with an equivalent register.
 ///
