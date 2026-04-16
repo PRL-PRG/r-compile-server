@@ -1,4 +1,4 @@
-package org.prlprg.fir.opt.specialize;
+package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.GlobalModules.BOX_FUN;
 import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
@@ -30,7 +30,6 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.opt.AbstractionOptimization;
 import org.prlprg.util.ImmutableBoolArray;
 
 /// Optimization that unboxes `v1(X)` arguments and return values in calls where a scalar `X`

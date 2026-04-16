@@ -1,17 +1,15 @@
-package org.prlprg.fir.opt.specialize;
+package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
-import org.prlprg.fir.opt.AbstractionOptimization;
-import org.prlprg.fir.opt.AbstractionOptimizationUnitTest;
 import org.prlprg.parseprint.Printer;
 
-class DefUseSchedulingTest implements AbstractionOptimizationUnitTest {
+class SchedulePureTest implements AbstractionOptimizationUnitTest {
   @Override
   public AbstractionOptimization optimization() {
-    return new DefUseScheduling();
+    return new SchedulePure();
   }
 
   @Test

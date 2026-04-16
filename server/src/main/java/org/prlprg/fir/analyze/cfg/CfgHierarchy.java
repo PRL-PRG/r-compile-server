@@ -8,9 +8,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collector;
+import java.util.stream.Collector.Characteristics;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -51,6 +54,58 @@ public final class CfgHierarchy implements Analysis {
   public Stream<CfgPosition> streamDescendants(CFG cfg) {
     return Streams.worklist2(
         children(cfg), (next, worklist) -> worklist.addAll(children(next.cfg())));
+  }
+
+  public @Nullable CFG commonAncestor(CFG cfg1, CFG cfg2) {
+    return cfg1 == cfg2
+        ? cfg1
+        : streamAncestors(cfg1)
+            .map(CfgPosition::cfg)
+            .filter(
+                ancestor1 ->
+                    ancestor1 == cfg2
+                        || streamAncestors(cfg2)
+                            .map(CfgPosition::cfg)
+                            .anyMatch(ancestor2 -> ancestor1 == ancestor2))
+            .findFirst()
+            .orElse(null);
+  }
+
+  public Collector<CFG, ?, Optional<CFG>> commonAncestor() {
+    class Result {
+      boolean isSet = false;
+      @Nullable CFG value = null;
+
+      void add(CFG next) {
+        if (!isSet) {
+          isSet = true;
+          value = next;
+          return;
+        }
+
+        if (value != null && value != next) {
+          value = commonAncestor(value, next);
+        }
+      }
+
+      Result merge(Result other) {
+        if (!isSet) {
+          isSet = other.isSet;
+          value = other.value;
+        } else if (other.isSet) {
+          value = value == null || other.value == null ? null : commonAncestor(value, other.value);
+        }
+
+        return this;
+      }
+
+      Optional<CFG> get() {
+        return Optional.ofNullable(value);
+      }
+    }
+
+    return Collector.of(
+        Result::new, Result::add, Result::merge, Result::get, Characteristics.CONCURRENT);
   }
 
   private void run(ArrayList<CfgPosition> parents, CFG cfg) {

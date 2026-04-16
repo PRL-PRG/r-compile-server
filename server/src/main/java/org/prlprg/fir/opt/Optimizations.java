@@ -3,12 +3,10 @@ package org.prlprg.fir.opt;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
-import org.prlprg.fir.opt.specialize.DefUseScheduling;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideCheckMissing;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoadFun;
-import org.prlprg.fir.opt.specialize.ElideRedundantBoxUnbox;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
@@ -16,8 +14,6 @@ import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
-import org.prlprg.fir.opt.specialize.Unbox;
-import org.prlprg.fir.opt.specialize.UnboxPhi;
 
 public class Optimizations {
   public static Optimization defaultOptimizations() {
@@ -55,7 +51,7 @@ public class Optimizations {
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),
                     new UnboxPhi(),
-                    new DefUseScheduling(),
+                    new SchedulePure(),
                     new ElideRedundantBoxUnbox(),
                     new ElideEnv(),
                     new Inline(1000),

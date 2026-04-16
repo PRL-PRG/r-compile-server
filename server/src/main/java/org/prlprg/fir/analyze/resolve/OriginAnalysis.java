@@ -8,11 +8,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
@@ -464,7 +465,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     // Register origins are global, but `State` must store then, so that states with different
     // register origins aren't equal, so that we re-run blocks whose register origin
     // dependencies changed.
-    final Map<Register, Argument> registerOrigins = new LinkedHashMap<>();
+    final Map<Register, Optional<Argument>> registerOrigins = new LinkedHashMap<>();
     final Map<NamedVariable, KnownOrigins> variableOrigins = new LinkedHashMap<>();
 
     @Override
@@ -478,26 +479,34 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     @Override
     public void merge(State other) {
-      // Merge register origins = assume they're the same except for `null`s, unify
-      // (because we may get origins of unreachable phis, for the workaround in `run(Jump)`).
-      // Without support for the workaround, it would be the same as merging variable origins
+      // Merge register origins = unify possible origins
+      // - `null` = 0 possibilities
+      // - `Optional.empty()` = infinite possibilities
+      // - `Optional.of(arg)` = 1 possibility, `arg`
+      for (var entry : registerOrigins.entrySet()) {
+        var variable = entry.getKey();
+        var origin = entry.getValue();
+        var otherOrigin = other.registerOrigins.remove(variable);
+        //noinspection OptionalAssignedToNull
+        if (otherOrigin != null && !origin.equals(otherOrigin)) {
+          entry.setValue(Optional.empty());
+        }
+      }
       registerOrigins.putAll(other.registerOrigins);
-      // Merge variable origins = keep only variables present in both states,
-      // unioning all statically-known origins across the incoming paths.
-      mergeVariableOrigins(variableOrigins, other.variableOrigins);
-    }
 
-    private static <T> void mergeVariableOrigins(
-        Map<T, KnownOrigins> origins, Map<T, KnownOrigins> otherOrigins) {
-      for (var iterator = origins.entrySet().iterator(); iterator.hasNext(); ) {
+      // Merge variable origins = unify possible origins
+      // - `null` = infinite possibilities
+      // - non-null = finite possibilities, in [KnownOrigins]
+      for (var iterator = variableOrigins.entrySet().iterator(); iterator.hasNext(); ) {
         var entry = iterator.next();
         var variable = entry.getKey();
-        var otherOrigin = otherOrigins.get(variable);
+        var origin = entry.getValue();
+        var otherOrigin = other.variableOrigins.get(variable);
         if (otherOrigin == null) {
           iterator.remove();
           continue;
         }
-        entry.getValue().merge(otherOrigin);
+        origin.merge(otherOrigin);
       }
     }
 
@@ -517,37 +526,31 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   }
 
   static final class KnownOrigins {
-    private static final Comparator<Argument> ORDER = Comparator.comparing(Argument::toString);
-
     static KnownOrigins of(Argument argument) {
-      return new KnownOrigins(new LinkedHashSet<>(List.of(argument)));
+      var origins = new KnownOrigins();
+      origins.inner.add(argument);
+      return origins;
     }
 
-    private final LinkedHashSet<Argument> origins;
-
-    private KnownOrigins(LinkedHashSet<Argument> origins) {
-      this.origins = origins;
-    }
+    private final TreeSet<Argument> inner = new TreeSet<>(Comparator.comparing(Argument::toString));
 
     KnownOrigins copy() {
-      return new KnownOrigins(new LinkedHashSet<>(origins));
+      var copy = new KnownOrigins();
+      copy.inner.addAll(inner);
+      return copy;
     }
 
     void merge(KnownOrigins other) {
-      var merged = new LinkedHashSet<Argument>();
-      origins.stream().sorted(ORDER).forEach(merged::add);
-      other.origins.stream().sorted(ORDER).forEach(merged::add);
-      origins.clear();
-      origins.addAll(merged);
+      inner.addAll(other.inner);
     }
 
     @Nullable Argument uniqueOrNull() {
-      return origins.size() == 1 ? origins.getFirst() : null;
+      return inner.size() == 1 ? inner.getFirst() : null;
     }
 
     @UnmodifiableView
     Set<Argument> asSet() {
-      return Collections.unmodifiableSet(origins);
+      return Collections.unmodifiableSet(inner);
     }
 
     @Override
@@ -558,12 +561,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       if (!(o instanceof KnownOrigins other)) {
         return false;
       }
-      return origins.equals(other.origins);
+      return inner.equals(other.inner);
     }
 
     @Override
     public int hashCode() {
-      return origins.hashCode();
+      return inner.hashCode();
     }
   }
 
