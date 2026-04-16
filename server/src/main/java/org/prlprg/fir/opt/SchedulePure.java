@@ -5,6 +5,8 @@ import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -29,6 +31,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -40,6 +43,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// Current rules:
 /// - `r = box< X --> v1(X) >(r1)` is deferred
 /// - `r = unbox< v1(X) --> X >(r1)` is hoisted
+/// - Assumptions are hoisted
 ///
 /// Can be easily extended with more defer/hoist rules.
 ///
@@ -53,18 +57,11 @@ import org.prlprg.fir.ir.variable.Register;
 /// of its arguments. If the instruction is in a promise and every argument is in the enclosing
 /// CFG, it's hoisted to the enclosing CFG.
 public final class SchedulePure implements AbstractionOptimization {
-  private static final ImmutableList<Rule> HOIST_RULES = ImmutableList.of(matchRule(UNBOX_FUN));
+  private static final ImmutableList<Rule> HOIST_RULES =
+      ImmutableList.of(
+          matchRule(UNBOX_FUN),
+          new Rule("<assume>", statement -> statement.expression() instanceof Assume));
   private static final ImmutableList<Rule> DEFER_RULES = ImmutableList.of(matchRule(BOX_FUN));
-
-  @Override
-  public boolean runWithoutRecording(
-      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
-    var changed = false;
-    while (new Run(scope).changed) {
-      changed = true;
-    }
-    return changed;
-  }
 
   private static Rule matchRule(Function function) {
     return new Rule(
@@ -81,6 +78,46 @@ public final class SchedulePure implements AbstractionOptimization {
 
   private record Rule(String name, Predicate<Statement> matcher) {}
 
+  @Override
+  public boolean runWithoutRecording(
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
+    return new Run(scope).changed;
+  }
+
+  private static class Motions {
+    final Map<BB, TreeMap<Integer, Set<CfgPosition>>> targetToOrigin = new LinkedHashMap<>();
+    private final Map<CfgPosition, Set<CfgPosition>> originToTarget = new LinkedHashMap<>();
+
+    void add(CfgPosition origin, CfgPosition target) {
+      if (originToTarget.containsKey(target)) {
+        // If we have target → C, add origin → C instead
+        for (var nextTarget : originToTarget.get(target)) {
+          add(origin, nextTarget);
+        }
+      } else {
+        // Do add (origin → target)
+        var thisTargetToOrigin =
+            targetToOrigin
+                .computeIfAbsent(target.bb(), _ -> new TreeMap<>())
+                .computeIfAbsent(target.instructionIndex(), _ -> new LinkedHashSet<>());
+        thisTargetToOrigin.add(origin);
+        originToTarget.computeIfAbsent(origin, _ -> new LinkedHashSet<>()).add(target);
+
+        // Convert A → origin to A → target
+        if (targetToOrigin.containsKey(origin.bb())
+            && targetToOrigin.get(origin.bb()).containsKey(origin.instructionIndex())) {
+          var nextOrigins = targetToOrigin.get(origin.bb()).remove(origin.instructionIndex());
+          thisTargetToOrigin.addAll(nextOrigins);
+          for (var nextOrigin : nextOrigins) {
+            var nextOriginTo = Objects.requireNonNull(originToTarget.get(nextOrigin));
+            nextOriginTo.remove(origin);
+            nextOriginTo.add(target);
+          }
+        }
+      }
+    }
+  }
+
   private static final class Run {
     boolean changed = false;
 
@@ -90,8 +127,7 @@ public final class SchedulePure implements AbstractionOptimization {
     private final CfgHierarchy hierarchy;
     private final DominatorTree domTree;
 
-    private final Map<Motion, Map<BB, TreeMap<Integer, Set<CfgPosition>>>> motions =
-        new LinkedHashMap<>();
+    private final Map<Motion, Motions> motions = new HashMap<>();
 
     Run(Abstraction scope) {
       // Setup
@@ -118,8 +154,8 @@ public final class SchedulePure implements AbstractionOptimization {
     }
 
     private void collectMotions() {
-      var hoists = new LinkedHashMap<BB, TreeMap<Integer, Set<CfgPosition>>>();
-      var defers = new LinkedHashMap<BB, TreeMap<Integer, Set<CfgPosition>>>();
+      var hoists = new Motions();
+      var defers = new Motions();
       motions.put(Motion.HOIST, hoists);
       motions.put(Motion.DEFER, defers);
 
@@ -142,10 +178,7 @@ public final class SchedulePure implements AbstractionOptimization {
                         continue;
                       }
 
-                      hoists
-                          .computeIfAbsent(target.bb(), _ -> new TreeMap<>())
-                          .computeIfAbsent(target.instructionIndex(), _ -> new LinkedHashSet<>())
-                          .add(origin);
+                      hoists.add(origin, target);
                     }
 
                     for (var rule : DEFER_RULES) {
@@ -155,10 +188,7 @@ public final class SchedulePure implements AbstractionOptimization {
 
                       var targets = deferTarget(origin);
                       for (var target : targets) {
-                        defers
-                            .computeIfAbsent(target.bb(), _ -> new TreeMap<>())
-                            .computeIfAbsent(target.instructionIndex(), _ -> new LinkedHashSet<>())
-                            .add(origin);
+                        defers.add(origin, target);
                       }
                     }
                   }
@@ -276,7 +306,7 @@ public final class SchedulePure implements AbstractionOptimization {
               case DEFER -> -1;
             };
 
-        for (var bbEntry : motionEntry.getValue().entrySet()) {
+        for (var bbEntry : motionEntry.getValue().targetToOrigin.entrySet()) {
           var bb = bbEntry.getKey();
 
           // Keep nicer order by hoisting after and deferring before removed redundant motions
@@ -313,7 +343,7 @@ public final class SchedulePure implements AbstractionOptimization {
       // To avoid insertion offsets, replace with NOOP instead of delete,
       // then insert in reverse order
       for (var motionsOfType : motions.values()) {
-        for (var motionsToBb : motionsOfType.values()) {
+        for (var motionsToBb : motionsOfType.targetToOrigin.values()) {
           for (var motionsToIndex : motionsToBb.values()) {
             for (var motion : motionsToIndex) {
               // Takes advantage of the fact that [CfgPosition]'s statement remains unchanged:
@@ -329,12 +359,21 @@ public final class SchedulePure implements AbstractionOptimization {
 
       for (var motionEntry : motions.entrySet()) {
         var motionType = motionEntry.getKey();
-        for (var bbEntry : motionEntry.getValue().entrySet()) {
+        for (var bbEntry : motionEntry.getValue().targetToOrigin.entrySet()) {
           var bb = bbEntry.getKey();
           // Iterate backwards because earlier insertions offset later ones
           for (var indexEntry : bbEntry.getValue().sequencedEntrySet().reversed()) {
             int index = indexEntry.getKey();
-            var motionsToIndex = indexEntry.getValue();
+            var motionsToIndex = indexEntry.getValue().toArray(CfgPosition[]::new);
+
+            // Always hoist assumes before other instructions to maintain assume invariant
+            Arrays.sort(
+                motionsToIndex,
+                (a, b) -> {
+                  var aIsAssume = a.instruction() instanceof Statement(_, _, Assume _);
+                  var bIsAssume = b.instruction() instanceof Statement(_, _, Assume _);
+                  return Boolean.compare(bIsAssume, aIsAssume);
+                });
 
             for (var motion : motionsToIndex) {
               var statement = (Statement) Objects.requireNonNull(motion.instruction());
