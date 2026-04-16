@@ -93,6 +93,12 @@ public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction ins
 
   @PrintMethod
   private void print(Printer p) {
+    var w = p.writer();
+    w.write(bb.label());
+    w.write(':');
+    p.print(instructionIndex);
+    w.write('\n');
+
     p.print(new CFGCursor(bb, instructionIndex));
   }
 }

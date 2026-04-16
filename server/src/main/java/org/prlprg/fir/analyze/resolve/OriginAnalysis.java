@@ -66,6 +66,7 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 
 /// Computes each variable's **origin**: the earliest known register or constant that it was
