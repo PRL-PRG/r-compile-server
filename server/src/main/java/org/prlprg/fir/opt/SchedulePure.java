@@ -4,6 +4,7 @@ import static org.prlprg.fir.GlobalModules.BOX_FUN;
 import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -126,15 +127,13 @@ public final class SchedulePure implements AbstractionOptimization {
                         continue;
                       }
 
-                      var target = deferTarget(origin);
-                      if (target == null) {
-                        continue;
+                      var targets = deferTarget(origin);
+                      for (var target : targets) {
+                        defers
+                            .computeIfAbsent(target.bb(), _ -> new TreeMap<>())
+                            .computeIfAbsent(target.instructionIndex(), _ -> new LinkedHashSet<>())
+                            .add(origin);
                       }
-
-                      defers
-                          .computeIfAbsent(target.bb(), _ -> new TreeMap<>())
-                          .computeIfAbsent(target.instructionIndex(), _ -> new LinkedHashSet<>())
-                          .add(origin);
                     }
                   }
                 }
@@ -201,16 +200,16 @@ public final class SchedulePure implements AbstractionOptimization {
           : domTree.dominates(right.bb(), left.bb()) ? left : null;
     }
 
-    private @Nullable CfgPosition deferTarget(CfgPosition origin) {
+    private List<CfgPosition> deferTarget(CfgPosition origin) {
       var statement = (Statement) Objects.requireNonNull(origin.instruction());
       var assignee = statement.assignee();
       if (assignee == null) {
-        return null;
+        return List.of();
       }
 
       var uses = defUses.uses(assignee);
       if (uses.isEmpty()) {
-        return null;
+        return List.of();
       }
 
       var targetCfg =
@@ -219,36 +218,32 @@ public final class SchedulePure implements AbstractionOptimization {
               .collect(hierarchy.commonAncestor())
               .orElse(null);
       if (targetCfg == null) {
-        return null;
+        return List.of();
       }
 
-      var usesInCfg = uses.stream().map(use -> use.inCfg(targetCfg)).toList();
-      return latestPlacementBeforeUses(targetCfg, usesInCfg);
-    }
-
-    private @Nullable CfgPosition latestPlacementBeforeUses(CFG cfg, List<CfgPosition> uses) {
-      if (uses.isEmpty()) {
-        return null;
-      }
-
-      var domTree = domTree(cfg);
-      var commonDominators = new LinkedHashSet<>(domTree.dominators(uses.getFirst().bb()));
-      for (var use : uses.subList(1, uses.size())) {
-        commonDominators.retainAll(domTree.dominators(use.bb()));
-      }
-      var targetBb = commonDominators.stream().max(domTree.comparator()).orElse(null);
-      if (targetBb == null) {
-        return null;
-      }
-
-      var firstUseIndex = targetBb.statements().size();
+      // Return all uses in `targetCfg` except dominees
+      var domTree = domTree(targetCfg);
+      var usesInCfg = new ArrayList<CfgPosition>();
       for (var use : uses) {
-        if (use.bb() == targetBb) {
-          firstUseIndex = Math.min(firstUseIndex, use.instructionIndex());
+        var useInCfg = Objects.requireNonNull(use.inCfg(targetCfg));
+
+        var added = false;
+        for (var i = 0; i < usesInCfg.size(); i++) {
+          var existingUse = usesInCfg.get(i);
+          if (domTree.dominates(useInCfg, existingUse)) {
+            usesInCfg.set(i, useInCfg);
+            added = true;
+            break;
+          } else if (domTree.dominates(existingUse, useInCfg)) {
+            added = true;
+            break;
+          }
+        }
+        if (!added) {
+          usesInCfg.add(useInCfg);
         }
       }
-
-      return new CfgPosition(targetBb, firstUseIndex);
+      return usesInCfg;
     }
 
     private void removeRedundantMotions() {
@@ -273,7 +268,11 @@ public final class SchedulePure implements AbstractionOptimization {
             // If a hoisted instruction is immediately after where it will be hoisted,
             // or a deferred instruction immediately before where it will be deferred,
             // the hoist or defer is redundant, so don't apply it.
-            while (motionsToIndex.remove(new CfgPosition(bb, index + offset))) {
+            // Also ignore NOOPs, which may be previous hoists or defers.
+            while (motionsToIndex.remove(new CfgPosition(bb, index + offset))
+                || (index + offset >= 0
+                    && index + offset < bb.statements().size()
+                    && bb.statements().get(index + offset).equals(Statement.NOOP))) {
               index += offset;
             }
 
