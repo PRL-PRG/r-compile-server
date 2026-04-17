@@ -59,15 +59,21 @@ public final class CfgHierarchy implements Analysis {
   public @Nullable CFG commonAncestor(CFG cfg1, CFG cfg2) {
     return cfg1 == cfg2
         ? cfg1
-        : streamAncestors(cfg1)
+        : streamAncestors(cfg2)
             .map(CfgPosition::cfg)
-            .filter(
-                ancestor1 ->
-                    ancestor1 == cfg2
-                        || streamAncestors(cfg2)
-                            .map(CfgPosition::cfg)
-                            .anyMatch(ancestor2 -> ancestor1 == ancestor2))
+            .filter(ancestor2 -> cfg1 == ancestor2)
             .findFirst()
+            .or(
+                () ->
+                    streamAncestors(cfg1)
+                        .map(CfgPosition::cfg)
+                        .filter(
+                            ancestor1 ->
+                                ancestor1 == cfg2
+                                    || streamAncestors(cfg2)
+                                        .map(CfgPosition::cfg)
+                                        .anyMatch(ancestor2 -> ancestor1 == ancestor2))
+                        .findFirst())
             .orElse(null);
   }
 
