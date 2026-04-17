@@ -93,8 +93,8 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I, reg c:B) --> I { reg boxed:v1(I), reg unboxed:I |
-              boxed = box< I --> v1(I) >(x);
+            (reg x:v(I), reg c:B) --> I { reg boxed:v1(I), reg unboxed:I |
+              boxed = x as v1(I);
               if c then L0() else L1();
             L0():
               unboxed = unbox< v1(I) --> I >(boxed);
@@ -107,13 +107,57 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "unbox should move to the boxed definition");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(
-        printed, "boxed = box< I --> v1(I) >(x);", "unboxed = unbox< v1(I) --> I >(boxed);");
+    assertOrder(printed, "boxed = x as v1(I);", "unboxed = unbox< v1(I) --> I >(boxed);");
     assertOrder(printed, "unboxed = unbox< v1(I) --> I >(boxed);", "if c then L0() else L1();");
   }
 
   @Test
+  void cyclicDependency() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg x:I, reg c:B) --> I { reg boxed:v1(I), reg unboxed:I |
+              boxed = box< I --> v1(I) >(x);
+              if c then L0() else L1();
+            L0():
+              unboxed = unbox< v1(I) --> I >(boxed);
+              return unboxed;
+            L1():
+              return x;
+            }
+            """);
+
+    assertTrue(run(abstraction), "either `boxed` is deferred after the `if`, or `unboxed` before");
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(
+        printed, "boxed = box< I --> v1(I) >(x);", "unboxed = unbox< v1(I) --> I >(boxed);");
+  }
+
+  @Test
   void unboxIsHoistedOutOfPromiseWhenArgumentIsOuter() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg x:v(I)) -~> p(I -) { reg boxed:v1(I), reg p:p(I -), reg unboxed:I |
+              boxed = x as v1(I);
+              p = prom<I ->{
+                unboxed = unbox< v1(I) --> I >(boxed);
+                return unboxed;
+              };
+              return p;
+            }
+            """);
+
+    assertTrue(run(abstraction), "unbox should hoist before the promise");
+
+    var printed = Printer.toString(abstraction);
+    assertOrder(printed, "boxed = x as v1(I);", "unboxed = unbox< v1(I) --> I >(boxed);");
+    assertOrder(printed, "unboxed = unbox< v1(I) --> I >(boxed);", "p = prom<I ->{");
+  }
+
+  @Test
+  void cyclicDependencyInPromise() {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
@@ -127,12 +171,11 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
             }
             """);
 
-    assertTrue(run(abstraction), "unbox should hoist before the promise");
+    assertTrue(run(abstraction), "`boxed` should move into the promise, or `unbox` out");
 
     var printed = Printer.toString(abstraction);
     assertOrder(
         printed, "boxed = box< I --> v1(I) >(x);", "unboxed = unbox< v1(I) --> I >(boxed);");
-    assertOrder(printed, "unboxed = unbox< v1(I) --> I >(boxed);", "p = prom<I ->{");
   }
 
   @Test
