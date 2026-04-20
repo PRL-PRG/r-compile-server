@@ -1,9 +1,12 @@
 package org.prlprg.fir.interpret.internal;
 
+import static org.prlprg.fir.GlobalModules.BOX_FUN;
+import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1195,7 +1198,8 @@ public final class InternalInterpreter implements Interpreter {
     // Reverse-evaluate from deopt to checkpoint
     cursor = new CFGCursor(deoptBc, deoptBc.statements().size() - 1);
     while (cursor.instructionIndex() >= 0) {
-      var expression = ((Statement) Objects.requireNonNull(cursor.instruction())).expression();
+      var stmt = (Statement) Objects.requireNonNull(cursor.instruction());
+      var expression = stmt.expression();
       switch (expression) {
         case MkEnv() -> {
           try {
@@ -1206,6 +1210,51 @@ public final class InternalInterpreter implements Interpreter {
           }
         }
         case Store(var storeType, _, _) when storeType == StoreType.LOCAL_VAR -> {}
+        case Call call when stmt.assignee() != null && isReversiblePureFun(call) -> {
+          var assigneeValue = topFrame().get(stmt.assignee());
+          if (assigneeValue == null) {
+            throw fail("deopt box/unbox assignee is uninitialized: " + stmt.assignee());
+          }
+
+          var inverseCall =
+              switch (call.callee()) {
+                case StaticFnCallee(var isDispatch, var functionRef, var signature)
+                    when !isDispatch && functionRef.get() == BOX_FUN ->
+                    new Call(
+                        new StaticFnCallee(
+                            false,
+                            UNBOX_FUN,
+                            new Signature(
+                                ImmutableList.of(signature.returnType()),
+                                signature.parameterTypes().getFirst(),
+                                signature.effects())),
+                        ImmutableList.of(new Constant(assigneeValue)));
+                case StaticFnCallee(var isDispatch, var functionRef, var signature)
+                    when !isDispatch && functionRef.get() == UNBOX_FUN ->
+                    new Call(
+                        new StaticFnCallee(
+                            false,
+                            BOX_FUN,
+                            new Signature(
+                                ImmutableList.of(signature.returnType()),
+                                signature.parameterTypes().getFirst(),
+                                signature.effects())),
+                        ImmutableList.of(new Constant(assigneeValue)));
+                default -> throw new UnreachableError();
+              };
+          var argumentRegister =
+              switch (call.callArguments().getFirst()) {
+                case Read(var register) -> register;
+                case Consume(var register) -> register;
+                default ->
+                    throw fail(
+                        "deopt box/unbox argument must be a register, got: "
+                            + call.callArguments().getFirst());
+              };
+          var argumentValue = Objects.requireNonNull(run(null, inverseCall));
+          topFrame().put(argumentRegister, argumentValue);
+          recordTypeFeedback(topFrame().scopeFeedback(), argumentRegister, argumentValue);
+        }
         default ->
             throw fail(
                 "unexpected expression in deopt branch: "
@@ -1229,12 +1278,28 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     var env = topFrame().environment().deepCopyUserEnvs();
+    var localRegs = new LinkedHashMap<Register, Value>();
     for (var i = 0; i < deopt.bb().statements().size(); i++) {
       var stmt = deopt.bb().statements().get(i);
       switch (stmt.expression()) {
         case MkEnv() -> env = new UserEnvSXP(env);
+        case Call call when stmt.assignee() != null && isReversiblePureFun(call) ->
+            localRegs.put(
+                stmt.assignee(),
+                Objects.requireNonNull(
+                    run(
+                        null,
+                        call.mapArguments(
+                            arg ->
+                                switch (arg) {
+                                  case Read(var register) when localRegs.containsKey(register) ->
+                                      new Constant(localRegs.get(register));
+                                  case Consume(var register) when localRegs.containsKey(register) ->
+                                      new Constant(localRegs.get(register));
+                                  default -> arg;
+                                }))));
         case Store(var storeType, var variable, var arg) when storeType == StoreType.LOCAL_VAR -> {
-          var value = run(arg);
+          var value = runInSnapshotDeopt(arg, localRegs);
           if (!(value instanceof Value.Sexp(var valueSexp))) {
             throw fail("Can't store non-SEXP in environment: " + value);
           }
@@ -1244,16 +1309,13 @@ public final class InternalInterpreter implements Interpreter {
             throw fail(
                 "Unsupported expression in deopt branch at index " + i + ": " + stmt.expression());
       }
-      if (stmt.assignee() != null) {
-        throw fail("Deopt branch statement has assignee at index " + i + ": " + stmt);
-      }
     }
 
     var deoptJump = (Deopt) deopt.bb().jump();
     var pc = deoptJump.pc();
     var bcStack =
         deoptJump.stack().stream()
-            .map(this::run)
+            .map(arg -> runInSnapshotDeopt(arg, localRegs))
             .map(
                 value -> {
                   if (!(value instanceof Value.Sexp(var sexp))) {
@@ -1264,6 +1326,21 @@ public final class InternalInterpreter implements Interpreter {
             .collect(ImmutableList.toImmutableList());
 
     return new DeoptSnapshot(pc, bcStack, env, stackToString());
+  }
+
+  private Value runInSnapshotDeopt(Argument arg, LinkedHashMap<Register, Value> localRegs) {
+    return switch (arg) {
+      case Read(var register) when localRegs.containsKey(register) -> localRegs.get(register);
+      case Consume(var register) when localRegs.containsKey(register) -> localRegs.get(register);
+      default -> run(arg);
+    };
+  }
+
+  private boolean isReversiblePureFun(Call call) {
+    return call.callee() instanceof StaticFnCallee(var isDispatch, var functionRef, _)
+        && !isDispatch
+        && call.callArguments().size() == 1
+        && (functionRef.get() == BOX_FUN || functionRef.get() == UNBOX_FUN);
   }
 
   private void recordTypeFeedback(AbstractionFeedback feedback, Register variable, Value value) {
