@@ -328,7 +328,8 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 	NEXT;
 }
 
-enum {
+enum
+{
 	RSH_RECORDING_SCALAR = 0,
 	RSH_RECORDING_VECTOR = 1,
 	RSH_RECORDING_CALLTYPE = 2,
@@ -341,10 +342,10 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_2)
 {
 	int *recording_types = (int *)GETCUSTOM();
 	int type;
-	if(VAL_IS_SXP(*GET_VAL(-1)))
+	if (VAL_IS_SXP(*GET_VAL(-1)))
 	{
 		SEXP val = VAL_SXP(*GET_VAL(-1));
-		switch(TYPEOF(val))
+		switch (TYPEOF(val))
 		{
 			case CLOSXP:
 			case BUILTINSXP:
@@ -386,7 +387,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_2)
 	}
 	else
 	{
-		if(GET_VAL(-1)->tag != ISQSXP)
+		if (GET_VAL(-1)->tag != ISQSXP)
 			type = RSH_RECORDING_SCALAR;
 		else
 			type = RSH_RECORDING_OTHER;
@@ -395,7 +396,8 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_2)
 	NEXT;
 }
 
-enum {
+enum
+{
 	RSH_RECORDING_CUSTOM_VECTOR = 26,
 	RSH_RECORDING_CUSTOM_SCALAR = 27,
 	RSH_RECORDING_CUSTOM_MISSING = 28,
@@ -405,11 +407,11 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING)
 {
 	int *recording_types = (int *)GETCUSTOM();
 	int type;
-	if(VAL_IS_SXP(*GET_VAL(-1)))
+	if (VAL_IS_SXP(*GET_VAL(-1)))
 	{
 		SEXP val = VAL_SXP(*GET_VAL(-1));
 
-		switch(TYPEOF(val))
+		switch (TYPEOF(val))
 		{
 			case LGLSXP:
 			case INTSXP:
@@ -440,7 +442,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING)
 	}
 	else
 	{
-		if(GET_VAL(-1)->tag != ISQSXP)
+		if (GET_VAL(-1)->tag != ISQSXP)
 			type = GET_VAL(-1)->tag;
 		else
 			type = INTSXP;
@@ -467,7 +469,6 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 	unsigned *recording_types = (unsigned *)GETCUSTOM();
 	char type;
 	Value val = *GET_VAL(-1);
-	val_unbox_inplace(&val);
 	if (VAL_IS_SXP(val))
 	{
 		SEXP sexp = VAL_SXP(val);
@@ -510,28 +511,50 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 	}
 	else
 	{
-		if (GET_VAL(-1)->tag != ISQSXP)
-			type = GET_VAL(-1)->tag;
-		else
+		switch (val.tag)
 		{
-			assert(TYPEOF(val_as_sexp(val)) == INTSXP);
-			type = INTSXP;
+			case LGLSXP:
+				type = RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_SCALAR;
+				break;
+			case INTSXP:
+				type = RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_SCALAR;
+				break;
+			case REALSXP:
+				type = RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_SCALAR;
+				break;
+			case ISQSXP:
+				assert(TYPEOF(val_as_sexp(val)) == INTSXP);
+				type = RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_SCALAR;
+				break;
+			default:
+				UNREACHABLE();
+				break;
 		}
 	}
 	*recording_types |= (1U << type);
 	NEXT;
 }
 
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_COUNTER)
+{
+	int *counter = (int *)GETCUSTOM();
+	(*counter)++;
+	NEXT;
+}
+
+#define RECORDING_CONSTANT_UNRECORDED R_NilValue
+#define RECORDING_CONSTANT_AMBIGUOUS  R_UnboundValue
+
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
 {
 	SEXP *recording_constant = (SEXP *)GETCUSTOM();
-	if (*recording_constant != NULL)
+	if (*recording_constant != RECORDING_CONSTANT_AMBIGUOUS)
 	{
 		if (VAL_IS_SXP(*GET_VAL(-1)))
 		{
 			if (*recording_constant != VAL_SXP(*GET_VAL(-1)))
 			{
-				if (*recording_constant == (void *)1)
+				if (*recording_constant == RECORDING_CONSTANT_UNRECORDED)
 				{
 					// This is the first time we see a constant, record it
 					*recording_constant = VAL_SXP(*GET_VAL(-1));
@@ -540,13 +563,13 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
 				else
 				{
 					// We have seen a different constant before, stop recording
-					*recording_constant = NULL;
+					*recording_constant = RECORDING_CONSTANT_AMBIGUOUS;
 				}
 			}
 		}
 		else
 		{
-			if (*recording_constant == (void *)1)
+			if (*recording_constant == RECORDING_CONSTANT_UNRECORDED)
 			{
 				// This is the first time we see a constant, record it
 				*recording_constant = val_as_sexp(*GET_VAL(-1));
@@ -558,7 +581,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
 				if (!IS_ANY_SIMPLE_SCALAR((*recording_constant)) || TYPEOF(*recording_constant) != GET_VAL(-1)->tag || SCALAR_DVAL(*recording_constant) != GET_VAL(-1)->u.dval)
 				{
 					// We have seen a different constant before, stop recording
-					*recording_constant = NULL;
+					*recording_constant = RECORDING_CONSTANT_AMBIGUOUS;
 				}
 			}
 		}

@@ -1936,7 +1936,7 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 
 			// Get pointer to the existing value
 			SEXP value_num = VECTOR_ELT(entry, 0);
-			value_ptr = INTEGER(value_num);
+			value_ptr = INTEGER0(value_num);
 		}
 		UNPROTECT_SAFE(key_symbol);
 
@@ -1947,6 +1947,58 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 
 	DEBUG_PRINT("Total unique sourcerefs: %d\n", used_srcrefs_count);
 	vmaxset(vmax);
+}
+
+static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins)
+{
+	int count = 0;
+	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		switch (bytecode[i])
+		{
+			case BRIFNOT_BCOP:
+			case GETVAR_BCOP:
+			case GETFUN_BCOP:
+			case CALL_BCOP:
+				count++;
+		}
+	}
+	SEXP recording_bcids = PROTECT(Rf_allocVector(INTSXP, count));
+	SEXP recording_counters = PROTECT(Rf_allocVector(INTSXP, count));
+	SEXP recording_types = PROTECT(Rf_allocVector(INTSXP, count));
+	SEXP recording_consts = PROTECT(Rf_allocVector(VECSXP, count));
+	SEXP result = PROTECT(allocVector(VECSXP, 4));
+	SET_VECTOR_ELT(result, 0, recording_bcids);
+	SET_VECTOR_ELT(result, 1, recording_counters);
+	SET_VECTOR_ELT(result, 2, recording_types);
+	SET_VECTOR_ELT(result, 3, recording_consts);
+
+	for (int i, j = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		int pos;
+		switch (bytecode[i])
+		{
+			case BRIFNOT_BCOP:
+				pos = i;
+				break;
+			case GETVAR_BCOP:
+			case GETFUN_BCOP:
+			case CALL_BCOP:
+				pos = i + RCP_BC_ARG_CNT[bytecode[i]] + 1; // Record after
+				break;
+			default:
+				continue;
+		}
+		INTEGER(recording_bcids)
+		[j] = i + 1; // +1 to adjust for version number at the start of bytecode
+		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_COUNTER, &INTEGER0(recording_counters)[j]);
+		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_BITMAP, &INTEGER0(recording_types)[j]);
+		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_CONSTANT, &INTEGER0(recording_consts)[j]);
+		j++;
+	}
+
+	UNPROTECT(5);
+	return result;
 }
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
@@ -2065,6 +2117,12 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	if (hooks_registry != R_NilValue)
 		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
 
+	SEXP recording_option = Rf_GetOption1(Rf_install("rcp.cmpfun.type_recording"));
+	int attach_recording = (TYPEOF(recording_option) == LGLSXP && LOGICAL(recording_option)[0] == TRUE);
+	SEXP recording_results;
+	if (attach_recording)
+		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins));
+
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
 	// add_plugin_stencil_instr(&plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_MYATEXIT, NULL);
@@ -2091,7 +2149,14 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	PROTECT(ptr);
 	// We do not free structures if R is shutting down, there will be memory leaks.
 	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, FALSE);
-	UNPROTECT_SAFE(ptr); // ptr
+
+	if (attach_recording)
+	{
+		Rf_setAttrib(ptr, Rf_install("recording"), recording_results);
+		UNPROTECT(1);
+	}
+
+	UNPROTECT(1);
 	return ptr;
 }
 
