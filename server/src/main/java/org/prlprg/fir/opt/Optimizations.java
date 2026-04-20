@@ -16,11 +16,14 @@ import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
 
 public class Optimizations {
+  /// An optimization that never changes anything
+  private static final Optimization NOOP = (_, _) -> false;
+
   public static Optimization defaultOptimizations() {
-    return defaultOptimizations(10);
+    return defaultOptimizations(10, true);
   }
 
-  public static Optimization defaultOptimizations(int threshold) {
+  public static Optimization defaultOptimizations(int threshold, boolean modifyCheckpoints) {
     return new Sequence(
         "default",
         new ElideUnusedVersions(threshold),
@@ -59,8 +62,8 @@ public class Optimizations {
                     new StrictifyPromise(),
                     new Cleanup(false)),
                 new CreateBestVersion(9)),
-            new MergeConsecutiveCheckpoints(),
-            new ElideUnusedCheckpoints()));
+            modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
+            modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP));
   }
 
   private Optimizations() {}
