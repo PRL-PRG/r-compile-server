@@ -450,6 +450,78 @@ record:
 	NEXT;
 }
 
+enum
+{
+	RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_SCALAR = 10,
+	RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_VECTOR = 11,
+	RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_SCALAR = 26,
+	RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_VECTOR = 27,
+	RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_SCALAR = 28,
+	RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_VECTOR = 29,
+	RSH_RECORDING_CUSTOM_STRSXP_SIMPLE_SCALAR = 30,
+	RSH_RECORDING_CUSTOM_STRSXP_SIMPLE_VECTOR = 31,
+};
+
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
+{
+	unsigned *recording_types = (unsigned *)GETCUSTOM();
+	char type;
+	Value val = *GET_VAL(-1);
+	val_unbox_inplace(&val);
+	if (VAL_IS_SXP(val))
+	{
+		SEXP sexp = VAL_SXP(val);
+
+		switch (TYPEOF(sexp))
+		{
+			case LGLSXP:
+			case INTSXP:
+			case REALSXP:
+			case STRSXP:
+			{
+				if (ATTRIB(sexp) == R_NilValue && !ALTREP(sexp))
+				{
+					switch (TYPEOF(sexp))
+					{
+						case LGLSXP:
+							type = RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_VECTOR;
+							break;
+						case INTSXP:
+							type = RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_VECTOR;
+							break;
+						case REALSXP:
+							type = RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_VECTOR;
+							break;
+						case STRSXP:
+							type = RSH_RECORDING_CUSTOM_STRSXP_SIMPLE_VECTOR;
+							break;
+					}
+					assert(sexp->sxpinfo.scalar == 0 || sexp->sxpinfo.scalar == 1);
+					type -= sexp->sxpinfo.scalar;
+					break;
+				}
+			}
+			default:
+			{
+				ASSUME(TYPEOF(sexp) < 26);
+				type = TYPEOF(sexp);
+			}
+		}
+	}
+	else
+	{
+		if (GET_VAL(-1)->tag != ISQSXP)
+			type = GET_VAL(-1)->tag;
+		else
+		{
+			assert(TYPEOF(val_as_sexp(val)) == INTSXP);
+			type = INTSXP;
+		}
+	}
+	*recording_types |= (1U << type);
+	NEXT;
+}
+
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
 {
 	SEXP *recording_constant = (SEXP *)GETCUSTOM();
