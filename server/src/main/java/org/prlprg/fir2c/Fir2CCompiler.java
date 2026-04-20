@@ -1252,7 +1252,9 @@ public final class Fir2CCompiler {
 
             return switch (assumption) {
               case AssumeConstant(var target, var constant) ->
-                  "Fir_assume_constant(%s, %s)"
+                  (constant instanceof Value.Sexp
+                          ? "(bool)R_compute_identical(%s, %s, 0)"
+                          : "%s == %s")
                       .formatted(emitArgument(target), constantRef(pool, constant));
               case AssumeFunction a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =

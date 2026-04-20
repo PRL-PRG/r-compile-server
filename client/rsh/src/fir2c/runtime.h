@@ -160,7 +160,6 @@ void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
-bool Fir_assume_constant(SEXP value, SEXP constant);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_builtin_function(SEXP value, int bltIdx);
 bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch);
