@@ -1,6 +1,7 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
+import static org.prlprg.fir.opt.SchedulePure.HOIST_RULES;
 
 import com.google.common.collect.Iterables;
 import java.util.LinkedHashMap;
@@ -68,7 +69,8 @@ public record DeferIntoPromise() implements AbstractionOptimization {
 
     // The algorithm:
     // 1. *Copy* the entire sub-graph reachable to the promise into its body
-    // 2. Remove copied instructions that are impure, or have no assignee (effectively no-ops)
+    // 2. Remove copied instructions that are impure, hoisted, or have no assignee (effectively
+    //    no-ops)
     // 3. Remove copied instructions that have uses in not-copied instructions, repeat
     // 4. Remaining copied instructions, replace their not-copied counterparts with `NOOP`
     //    (effectively removes, but doesn't mess up other runs)
@@ -155,7 +157,9 @@ public record DeferIntoPromise() implements AbstractionOptimization {
       var entry = copiedIter.next();
       var stmt = (Statement) Objects.requireNonNull(entry.getKey().instruction());
 
-      if (stmt.assignee() == null || inferEffects.of(stmt.expression()) != Effects.NONE) {
+      if (stmt.assignee() == null
+          || inferEffects.of(stmt.expression()) != Effects.NONE
+          || HOIST_RULES.stream().anyMatch(rule -> rule.test(stmt))) {
         entry.getValue().replaceWith(Statement.NOOP);
         copiedIter.remove();
       }

@@ -30,7 +30,6 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -42,7 +41,6 @@ import org.prlprg.fir.ir.variable.Register;
 /// Current rules:
 /// - `r = box< X --> v1(X) >(r1)` is deferred
 /// - `r = unbox< v1(X) --> X >(r1)` is hoisted
-/// - Assumptions are hoisted
 ///
 /// Can be easily extended with more defer/hoist rules.
 ///
@@ -52,30 +50,25 @@ import org.prlprg.fir.ir.variable.Register;
 /// a promise within the instruction's current CFG, the instruction is deferred into that
 /// promise.
 ///
-/// A hoisted instruction is specifically hoisted immediately after the latest assignment of one
+/// A hoisted instruction is specifically hoisted immediately after the latest assignment to one
 /// of its arguments. If the instruction is in a promise and every argument is in the enclosing
 /// CFG, it's hoisted to the enclosing CFG.
 public final class SchedulePure implements AbstractionOptimization {
-  private static final ImmutableList<Rule> HOIST_RULES =
-      ImmutableList.of(
-          matchRule(UNBOX_FUN),
-          new Rule("<assume>", statement -> statement.expression() instanceof Assume));
-  private static final ImmutableList<Rule> DEFER_RULES = ImmutableList.of(matchRule(BOX_FUN));
+  static final ImmutableList<Predicate<Statement>> HOIST_RULES =
+      ImmutableList.of(matchRule(UNBOX_FUN));
+  private static final ImmutableList<Predicate<Statement>> DEFER_RULES =
+      ImmutableList.of(matchRule(BOX_FUN));
 
-  private static Rule matchRule(Function function) {
-    return new Rule(
-        function.name().toString(),
-        statement ->
-            statement.expression() instanceof Call(StaticFnCallee callee, _)
-                && callee.function() == function);
+  private static Predicate<Statement> matchRule(Function function) {
+    return statement ->
+        statement.expression() instanceof Call(StaticFnCallee callee, _)
+            && callee.function() == function;
   }
 
   private enum Motion {
     DEFER,
     HOIST,
   }
-
-  private record Rule(String name, Predicate<Statement> matcher) {}
 
   @Override
   public boolean runWithoutRecording(
@@ -141,7 +134,7 @@ public final class SchedulePure implements AbstractionOptimization {
                     var origin = new CfgPosition(bb, i, statement);
 
                     for (var rule : HOIST_RULES) {
-                      if (!rule.matcher().test(statement)) {
+                      if (!rule.test(statement)) {
                         continue;
                       }
 
@@ -154,7 +147,7 @@ public final class SchedulePure implements AbstractionOptimization {
                     }
 
                     for (var rule : DEFER_RULES) {
-                      if (!rule.matcher().test(statement)) {
+                      if (!rule.test(statement)) {
                         continue;
                       }
 
@@ -350,15 +343,7 @@ public final class SchedulePure implements AbstractionOptimization {
           var hoistsToIndex =
               motionsToIndex.motions.entrySet().stream()
                   .filter(e -> e.getValue() == Motion.HOIST)
-                  .map(Entry::getKey)
-                  .sorted(
-                      (a, b) -> {
-                        // Always hoist assumes before other instructions to maintain assume
-                        // invariant
-                        var aIsAssume = a.instruction() instanceof Statement(_, _, Assume _);
-                        var bIsAssume = b.instruction() instanceof Statement(_, _, Assume _);
-                        return Boolean.compare(bIsAssume, aIsAssume);
-                      });
+                  .map(Entry::getKey);
           var defersToIndex =
               motionsToIndex.motions.entrySet().stream()
                   .filter(e -> e.getValue() == Motion.DEFER)
