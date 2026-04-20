@@ -48,8 +48,8 @@ public final class Function {
   /// See [#versionsSorted()]
   private final SortedSet<Abstraction> versionsSorted =
       new TreeSet<>(
-          Comparator.<Abstraction>naturalOrder()
-              .thenComparingInt(v -> !versions.isEmpty() && v == baseline() ? 1 : 0));
+          Comparator.<Abstraction>comparingInt(v -> !versions.isEmpty() && v == baseline() ? 1 : 0)
+              .thenComparing(Comparator.naturalOrder()));
 
   Function(
       Module owner,

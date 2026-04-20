@@ -4,7 +4,6 @@ import static org.prlprg.fir.GlobalModules.BOX_FUN;
 import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -91,7 +90,6 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
                   }
                 }
               });
-      conversions.sort(Comparator.comparing(Conversion::definition));
       return conversions;
     }
 
