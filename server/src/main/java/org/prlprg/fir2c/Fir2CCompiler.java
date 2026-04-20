@@ -1707,20 +1707,26 @@ public final class Fir2CCompiler {
     }
   }
 
-  private static String promiseConstantsCName(Promise promise) {
-    return "Fir_prom_constants_" + Integer.toHexString(promise.hashCode());
+  private String promiseConstantsCName(Promise promise) {
+    return "Fir_prom_constants_" + promiseIndex(promise);
   }
 
-  private static String promiseInitCName(Promise promise) {
-    return "Fir_prom_init_" + Integer.toHexString(promise.hashCode());
+  private String promiseInitCName(Promise promise) {
+    return "Fir_prom_init_" + promiseIndex(promise);
   }
 
-  private static String promiseFromRCName(Promise promise) {
-    return "Fir_prom_from_r_" + Integer.toHexString(promise.hashCode());
+  private String promiseFromRCName(Promise promise) {
+    return "Fir_prom_from_r_" + promiseIndex(promise);
   }
 
-  private static String promiseEvalCName(Promise promise) {
-    return "Fir_prom_eval_" + Integer.toHexString(promise.hashCode());
+  private String promiseEvalCName(Promise promise) {
+    return "Fir_prom_eval_" + promiseIndex(promise);
+  }
+
+  private final HashMap<Promise, Integer> promiseIndices = new HashMap<>();
+
+  private int promiseIndex(Promise promise) {
+    return promiseIndices.computeIfAbsent(promise, _ -> promiseIndices.size());
   }
 
   private static final String CONSTANTS_C_TYPE = "SEXP";

@@ -358,14 +358,34 @@ public final class BB implements Comparable<BB> {
             });
   }
 
-  /// Basic blocks are ordered by [CFG], then label.
+  /// Basic blocks are ordered by label.
+  ///
+  /// @throws IllegalArgumentException Comparing blocks in different [CFG]s, or non-equal blocks
+  ///   with the same print
   @Override
   public int compareTo(BB o) {
-    int cfgCmp = Integer.compare(owner.hashCode(), o.owner.hashCode());
-    if (cfgCmp != 0) {
-      return cfgCmp;
+    if (this == o) {
+      return 0;
     }
-    return label.compareTo(o.label);
+
+    if (owner != o.owner) {
+      throw new IllegalArgumentException("Can't compare BBs in different CFGs");
+    }
+
+    var cmp = label.compareTo(o.label);
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    // Tiebreaker: compare by print to have a deterministic order, but this is only used for
+    // non-equal blocks with the same label, which should be very rare and not rely on any
+    // particular order, so it's fine if it's not super efficient.
+    cmp = toString().compareTo(o.toString());
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    throw new IllegalArgumentException("Can't compare non-equal BBs with the same print: " + this);
   }
 
   @Override

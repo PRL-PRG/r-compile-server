@@ -357,9 +357,20 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   /// Sort so that "better" versions are strictly less than "worse" ones. A version is "better"
-  /// if its parameter types, effects, and return type are narrower.
+  /// if its parameter types, effects, and return type are narrower
+  ///
+  /// @throws IllegalArgumentException Comparing versions in different [Module]s, or non-equal
+  ///    versions with the same signature and print
   @Override
   public int compareTo(Abstraction o) {
+    if (this == o) {
+      return 0;
+    }
+
+    if (module != o.module) {
+      throw new IllegalArgumentException("Can't compare versions in different modules.");
+    }
+
     // Parameter size (if different, neither is better).
     var cmp = Integer.compare(parameters.length, o.parameters.length);
     if (cmp != 0) {
@@ -387,7 +398,13 @@ public final class Abstraction implements Comparable<Abstraction> {
     }
 
     // Tiebreaker
-    return Integer.compare(hashCode(), o.hashCode());
+    cmp = toString().compareTo(o.toString());
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    throw new IllegalArgumentException(
+        "Can't compare non-equal versions with the same signature and print:\n" + this);
   }
 
   @Override
