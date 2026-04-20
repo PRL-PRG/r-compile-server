@@ -769,10 +769,6 @@ void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env) {
   Rf_error("FIŘ deoptimization triggered at pc=%d (unsupported)", pc);
 }
 
-bool Fir_assume_constant(SEXP value, SEXP constant) {
-  return (bool)R_compute_identical(value, constant, 0);
-}
-
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
   Fir_FunctionData *data = NULL;
   if (!Fir_is_compiled_closure(value, &data)) {
