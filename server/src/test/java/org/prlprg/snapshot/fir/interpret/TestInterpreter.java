@@ -25,6 +25,7 @@ final class TestInterpreter {
   }
 
   public InterpretOutput call(String functionName, SEXP... arguments) {
+    System.out.println("Test " + functionName + "(" + Strings.join(", ", arguments) + ")");
     @SuppressWarnings({"DataFlowIssue"})
     SexpResult[] result = new SexpResult[] {null};
     var checkpointTrace =

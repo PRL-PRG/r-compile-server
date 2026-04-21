@@ -27,6 +27,7 @@ import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
@@ -1040,7 +1041,7 @@ public final class Builtins {
                       "Mock `" + name + "` not implemented for non-vector objects");
                 }
                 int idx = sexpToInt(args.get(1).box(), interpreter, name);
-                var value = args.get(2);
+                var value = sexpToValueOfType(args.get(2).box(), vector.type(), interpreter, name);
                 var result = vector.copy();
                 interpreter.subscriptStore(result, idx - 1, value);
                 return new Value.Sexp(result);
@@ -1061,7 +1062,7 @@ public final class Builtins {
                       "Mock `" + name + "` not implemented for non-vector objects");
                 }
                 int idx = sexpToInt(args.get(1).box(), interpreter, name);
-                var value = args.get(2);
+                var value = sexpToValueOfType(args.get(2).box(), vector.type(), interpreter, name);
                 var result = vector.copy();
                 interpreter.subscriptStore(result, idx - 1, value);
                 return new Value.Sexp(result);
@@ -1859,6 +1860,17 @@ public final class Builtins {
               var l = sexpToLogical(sexp, interpreter, "as.logical");
               return new Value.Bool(l == Logical.TRUE);
             }));
+    // v3: (L, miss) --> B
+    interpreter.registerExternal(
+        "as.logical",
+        sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (!(args.getFirst() instanceof Value.Lgl(var lgl))) {
+                throw interpreter.fail("`as.logical` first argument must be logical");
+              }
+              return new Value.Bool(lgl == Logical.TRUE);
+            }));
   }
 
   private static void registerAsCharacter(InternalInterpreter interpreter) {
@@ -2463,6 +2475,17 @@ public final class Builtins {
   // endregion
 
   // region helper methods
+
+  private static Value sexpToValueOfType(
+      SEXP sexp, SEXPType type, InternalInterpreter interpreter, String ctx) {
+    return switch (type) {
+      case REAL -> new Value.Real(sexpToDouble(sexp, interpreter, ctx));
+      case INT -> new Value.Int(sexpToInt(sexp, interpreter, ctx));
+      case LGL -> new Value.Lgl(sexpToLogical(sexp, interpreter, ctx));
+      case STR -> new Value.Str(sexpToString(sexp));
+      default -> throw interpreter.failUnsupported("Unsupported target type for " + ctx);
+    };
+  }
 
   private static double sexpToDouble(SEXP sexp, InternalInterpreter interpreter, String ctx) {
     if (sexp.asScalarInteger().isPresent()) return sexp.asScalarInteger().get();
