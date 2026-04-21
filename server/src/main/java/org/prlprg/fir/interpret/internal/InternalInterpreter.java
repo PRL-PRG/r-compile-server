@@ -213,6 +213,29 @@ public final class InternalInterpreter implements Interpreter {
     if (function == null) {
       throw new IllegalArgumentException("Function " + functionName + " not in module:\n" + module);
     }
+    registerExternal(function, versionSignature, javaClosure);
+
+    // If we hijack a builtin, it also exists in `GlobalModules.BASE` for dynamic calls,
+    // so we must hijack that
+    // (Note: `GlobalModules.BASE` is confusing,
+    //  it's effectively only used by the interpreter,
+    //  and mostly contains duplicate redefinitions of `GlobalModules.BUILTINS`.
+    //  A builtin call goes to `GlobalModules.BUILTINS`,
+    //  a dynamic call that happens to usually go to a builtin goes to `GlobalModules.BASE`;
+    //  both may occur in execution and we must hijack both).
+    if (function.owner() == GlobalModules.BUILTINS) {
+      var baseFunction = GlobalModules.BASE.localFunction(function.name());
+      if (baseFunction == null) {
+        throw new IllegalArgumentException(
+            "Currently all registered builtins also exist in `BASE`. Otherwise, specify those that don't in `builtins.fir` and remove this check\nOffending function:\n"
+                + function);
+      }
+      registerExternal(baseFunction, versionSignature, javaClosure);
+    }
+  }
+
+  public void registerExternal(
+      Function function, Signature versionSignature, ExternalVersion javaClosure) {
     var registeredAny = false;
     for (var version : function.versions()) {
       if (!version.signature().hasNarrowerParameters(versionSignature)
@@ -220,13 +243,13 @@ public final class InternalInterpreter implements Interpreter {
         continue;
       }
 
-      registerExternal(functionName, version, javaClosure);
+      registerExternal(function, version, javaClosure);
       registeredAny = true;
     }
     if (!registeredAny) {
       throw new IllegalArgumentException(
           "Function "
-              + functionName
+              + function.name()
               + " has no version with signature "
               + versionSignature
               + ":\n"
@@ -235,11 +258,11 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   private void registerExternal(
-      String functionName, Abstraction version, ExternalVersion javaClosure) {
+      Function function, Abstraction version, ExternalVersion javaClosure) {
     if (!version.isStub()) {
       throw new IllegalArgumentException(
           "Function "
-              + functionName
+              + function.name()
               + " version with signature "
               + version.signature()
               + " isn't a stub:\n"
@@ -422,6 +445,7 @@ public final class InternalInterpreter implements Interpreter {
           cursor = restoreDeopt(pc, deoptStack, deoptRestoreCfg);
           frame.exit();
           frame.enter(cursor, feedback);
+          System.out.println("DEOPT");
         }
       }
     }
@@ -438,6 +462,7 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Executes a statement instruction.
   private void run(Statement statement) {
+    System.out.println("R: " + statement);
     var assignee = statement.assignee();
     var value = run(assignee, statement.expression());
 
@@ -456,6 +481,7 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Executes a jump instruction and returns the next control-flow action.
   private ControlFlow run(Jump jump) {
+    System.out.println("R: " + jump);
     return switch (jump) {
       case Goto(_, var next) -> new ControlFlow.Goto(next);
       case If(_, var condition, var ifTrue, var ifFalse) -> {
@@ -472,7 +498,6 @@ public final class InternalInterpreter implements Interpreter {
       }
       case Return(_, var ret) -> new ControlFlow.Return(run(ret));
       case Checkpoint(_, var ok, var deopt) -> {
-        // TODO: refactor lambda into method for readability.
         checkpointTrace.record(() -> snapshotAtCheckpoint(deopt));
         yield new ControlFlow.Goto(check(ok) ? ok : deopt);
       }

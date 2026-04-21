@@ -25,7 +25,10 @@ public final class GlobalModules {
   /// "internal" builtins, and the builtins are slightly different. It's currently only used by
   /// the internal interpreter; if not writing an interpreter, you usually want [#BUILTINS]
   /// instead.
-  public static final Module BASE = new Module();
+  ///
+  /// `builtins.fir` only defines builtins that are also here.
+  public static final Module BASE =
+      Parser.fromResource(Path.of("../../builtins.fir"), Module.class);
   /// Module containing GNU-R builtins.
   public static final Module BUILTINS =
       Parser.fromResource(Path.of("../../builtins.fir"), Module.class);
@@ -54,6 +57,10 @@ public final class GlobalModules {
     for (var entry : baseEnv.bindings()) {
       var name = Variable.named(entry.getKey());
       var value = entry.getValue();
+      if (BASE.localFunction(name) != null) {
+        // Already defined (shared by `BUILTINS`)
+        continue;
+      }
 
       if (!value.isFunction()) {
         // FIR doesn't support global variables, they just don't exist
