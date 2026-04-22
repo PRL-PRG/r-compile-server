@@ -110,8 +110,10 @@ static inline uint64_t rdtsc(void)
 #define PROFILING_END(opcode)	((void)0)
 #endif
 
+#define RET_T Value
+
 // Macros to define stencil functions
-#define RCP_STENCIL_FUNCTION(name) __attribute__((noinline)) STENCIL_ATTRIBUTES SEXP name(Value *restrict stack, rcpEval_locals *restrict locals)
+#define RCP_STENCIL_FUNCTION(name) __attribute__((noinline)) STENCIL_ATTRIBUTES RET_T name(Value *restrict stack, rcpEval_locals *restrict locals)
 #define RCP_OP_EX(op, ex)		   RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
 #define RCP_STENCIL(op)			   RCP_STENCIL_FUNCTION(_RCP_##op##_OP)
 
@@ -139,13 +141,13 @@ static inline uint64_t rdtsc(void)
 #define RCP_OP(...)						 EXPAND(GET_MACRO(__VA_ARGS__, RCP_OP_TEMPLATE_JUMP, RCP_OP_TEMPLATE_CONTINUE)(__VA_ARGS__))
 
 /* PATCHING SYMBOLS */
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_NEXT(Value *stack, rcpEval_locals *locals);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT(Value *stack, rcpEval_locals *locals);
 #define NEXT return _RCP_EXEC_NEXT(stack, locals)
 
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM0(Value *stack, rcpEval_locals *locals);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM1(Value *stack, rcpEval_locals *locals);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM2(Value *stack, rcpEval_locals *locals);
-extern STENCIL_ATTRIBUTES SEXP _RCP_EXEC_IMM3(Value *stack, rcpEval_locals *locals);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM0(Value *stack, rcpEval_locals *locals);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM1(Value *stack, rcpEval_locals *locals);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM2(Value *stack, rcpEval_locals *locals);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM3(Value *stack, rcpEval_locals *locals);
 #define GOTO_IMM(i) return _RCP_EXEC_IMM##i(stack, locals)
 //__attribute__((musttail))
 //[[gnu::musttail]]
@@ -194,7 +196,7 @@ extern const void *const _RCP_EXECUTABLE[];
 #define GETEXECUTABLE() (const void *const)&_RCP_EXECUTABLE
 #define GOTO_VAL(i)                                                                                                                      \
 	{                                                                                                                                    \
-		STENCIL_ATTRIBUTES SEXP (*call)(Value * stack, rcpEval_locals * locals) = (const void *const)(((uint8_t *)GETEXECUTABLE()) + i); \
+		STENCIL_ATTRIBUTES RET_T (*call)(Value * stack, rcpEval_locals * locals) = (const void *const)(((uint8_t *)GETEXECUTABLE()) + i); \
 		return call(stack, locals);                                                                                                      \
 	}
 
@@ -326,11 +328,8 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 	NEXT;
 }
 
-
 RCP_OP(RETURN,
-       ,
-       PUSH_VAL(1);
-       return Rsh_Return(stack);)
+	   return *(stack - 1);)
 
 RCP_OP(GOTO,
 	   ,

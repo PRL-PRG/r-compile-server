@@ -47,13 +47,6 @@ static struct StencilProfileInfo
 	stencil_profile_info[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
 #endif
 
-#define UNPROTECT_SAFE(ptr)                         \
-	do                                              \
-	{                                               \
-		assert(R_PPStack[R_PPStackTop - 1] == ptr); \
-		UNPROTECT(1);                               \
-	} while (0)
-
 // Used as a hint where to map address space close to R internals to allow
 // relative addressing
 #define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
@@ -389,7 +382,8 @@ static void prepare_shared_memory()
 		PROTECT(R_MakeExternalPtr(mem_shared, R_NilValue, R_NilValue));
 	R_PreserveObject(mem_shared_sexp);
 	UNPROTECT(1); // mem_shared_sexp
-	R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, TRUE);
+	// We do not free structures if R is shutting down, there will be memory leaks.
+	R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, FALSE);
 }
 
 #ifdef STEPFOR_SPECIALIZE
@@ -2095,7 +2089,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
 	UNPROTECT_SAFE(prot); // prot
 	PROTECT(ptr);
-	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, TRUE);
+	// We do not free structures if R is shutting down, there will be memory leaks.
+	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, FALSE);
 	UNPROTECT_SAFE(ptr); // ptr
 	return ptr;
 }
@@ -3147,6 +3142,19 @@ void __attribute__((used)) rcp_print_stack_val(void *p)
 			else
 				Rprintf("NULL SEXP\n");
 	}
+}
+
+void __attribute__((used)) rcp_print_stack_val_unbox(void *p)
+{
+	if (!p)
+	{
+		Rprintf("Stack value is NULL\n");
+		return;
+	}
+	R_bcstack_t v = *(R_bcstack_t *)p;
+	val_unbox_inplace(&v, 1, 1, 1);
+
+	rcp_print_stack_val(&v);
 }
 
 SEXP rcp_init(void)
