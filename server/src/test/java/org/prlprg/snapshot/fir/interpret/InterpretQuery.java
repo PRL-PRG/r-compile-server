@@ -22,12 +22,17 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
     implements Query<InterpretOutput> {
   public static final InterpretQuery MAIN = new InterpretQuery("interpret", "main");
 
-  public static final InterpretQuery DEOPT_INT =
-      new InterpretQuery("interpret.deopt.integer", "f", SEXPs.integer(1));
-  public static final InterpretQuery DEOPT_REAL =
-      new InterpretQuery("interpret.deopt.real", "f", SEXPs.real(1));
-  public static final InterpretQuery DEOPT_LGL =
-      new InterpretQuery("interpret.deopt.logical", "f", SEXPs.TRUE);
+  public static InterpretQuery deopt_int(String deoptFnName) {
+    return new InterpretQuery("interpret.deopt.integer", deoptFnName, SEXPs.integer(1));
+  }
+
+  public static InterpretQuery deopt_real(String deoptFnName) {
+    return new InterpretQuery("interpret.deopt.real", deoptFnName, SEXPs.real(1));
+  }
+
+  public static InterpretQuery deopt_lgl(String deoptFnName) {
+    return new InterpretQuery("interpret.deopt.logical", deoptFnName, SEXPs.TRUE);
+  }
 
   @Override
   public InterpretOutput compute(Example example, SnapshotStore store) {

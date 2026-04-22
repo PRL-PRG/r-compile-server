@@ -53,7 +53,7 @@ public class InterpretAfterOptTest {
   void testDeopt(Example example, SnapshotStore store) {
     var optimization = optimizations();
 
-    var module = store.load(example, FirQuery.INSTANCE);
+    var module = store.load(example, new OptimizedFirQuery(optimization));
     var interpreter = new TestInterpreter(module);
 
     var deoptFnName =
@@ -74,54 +74,54 @@ public class InterpretAfterOptTest {
                         new AssertionError(
                             "deopt example doesn't start by declaring a function (the deopt function)")));
 
-    // Warmup
-    for (int i = 1; i <= 3; i++) {
-      store.assumeVerify(example, InterpretQuery.MAIN, interpreter.call("main"));
-    }
-    optimization.run(interpreter.feedback(), module);
-    store.assumeVerify(example, InterpretQuery.MAIN, interpreter.call("main"));
+    // Module is already optimized, but make sure it runs
+    store.assumeVerify(
+        example,
+        InterpretQuery.deopt_int(deoptFnName),
+        interpreter.call(deoptFnName, SEXPs.integer(1)),
+        "run before deopts");
 
     // Test
 
     for (int i = 1; i <= 3; i++) {
       store.verify(
           example,
-          InterpretQuery.DEOPT_REAL,
+          InterpretQuery.deopt_real(deoptFnName),
           interpreter.call(deoptFnName, SEXPs.real(1)),
           "phase 1 run " + i);
     }
     optimization.run(interpreter.feedback(), module);
     store.verify(
         example,
-        InterpretQuery.DEOPT_REAL,
+        InterpretQuery.deopt_real(deoptFnName),
         interpreter.call(deoptFnName, SEXPs.real(1)),
         "phase 1 post-opt run");
 
     for (int i = 1; i <= 3; i++) {
       store.verify(
           example,
-          InterpretQuery.DEOPT_INT,
+          InterpretQuery.deopt_int(deoptFnName),
           interpreter.call(deoptFnName, SEXPs.integer(1)),
           "phase 2 run " + i);
     }
     optimization.run(interpreter.feedback(), module);
     store.verify(
         example,
-        InterpretQuery.DEOPT_INT,
+        InterpretQuery.deopt_int(deoptFnName),
         interpreter.call(deoptFnName, SEXPs.integer(1)),
         "phase 2 post-opt run");
 
     for (int i = 1; i <= 3; i++) {
       store.verify(
           example,
-          InterpretQuery.DEOPT_LGL,
+          InterpretQuery.deopt_lgl(deoptFnName),
           interpreter.call(deoptFnName, SEXPs.TRUE),
           "phase 3 run " + i);
     }
     optimization.run(interpreter.feedback(), module);
     store.verify(
         example,
-        InterpretQuery.DEOPT_LGL,
+        InterpretQuery.deopt_lgl(deoptFnName),
         interpreter.call(deoptFnName, SEXPs.TRUE),
         "phase 3 post-opt run");
   }

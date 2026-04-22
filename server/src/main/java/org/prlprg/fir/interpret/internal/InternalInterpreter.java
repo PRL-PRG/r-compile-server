@@ -462,7 +462,6 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Executes a statement instruction.
   private void run(Statement statement) {
-    System.out.println("R: " + statement);
     var assignee = statement.assignee();
     var value = run(assignee, statement.expression());
 
@@ -481,7 +480,6 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Executes a jump instruction and returns the next control-flow action.
   private ControlFlow run(Jump jump) {
-    System.out.println("R: " + jump);
     return switch (jump) {
       case Goto(_, var next) -> new ControlFlow.Goto(next);
       case If(_, var condition, var ifTrue, var ifFalse) -> {

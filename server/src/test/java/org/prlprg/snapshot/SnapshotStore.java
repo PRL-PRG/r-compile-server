@@ -32,8 +32,7 @@ public class SnapshotStore {
   /// - OR [Query#verifyNoRegression(Object, Object, Example, SnapshotStore)] fails, and
   ///   [TestConfig#IGNORE_SNAPSHOTS] is unset.
   /// If other checks (e.g. [Query#verifyExtra(Object, Example, SnapshotStore)]) fail, they are
-  // reported
-  /// (this call raises an exception) but the snapshot is still saved for debugging.
+  /// reported (this call raises an exception) but the snapshot is still saved for debugging.
   ///
   /// Returns the actual computed value (and only returns if it passes verification).
   public <T> T verify(Example example, Query<T> query) {
@@ -133,8 +132,17 @@ public class SnapshotStore {
   /// For when verification is expected to fail in some cases, and in those cases the rest of
   /// the enclosing test is expected to not necessarily work either (abort != fail).
   public <T> void assumeVerify(Example example, Query<T> query, T actual) {
+    assumeVerify(example, query, actual, null);
+  }
+
+  /// Same as [#verify(Example, Query, Object, String)] but aborts the test instead of failing.
+  ///
+  /// For when verification is expected to fail in some cases, and in those cases the rest of
+  /// the enclosing test is expected to not necessarily work either (abort != fail).
+  public <T> void assumeVerify(
+      Example example, Query<T> query, T actual, @Nullable String context) {
     try {
-      verify(example, query, actual);
+      verify(example, query, actual, context);
     } catch (AssertionError e) {
       throw new TestAbortedException("Verification failed for " + query.name(), e);
     }

@@ -383,7 +383,12 @@ public final class Builtins {
         int len = Math.max(i1.size(), i2.size());
         return SEXPs.integer(
             IntStream.range(0, len)
-                .map(i -> (int) fn.applyAsDouble(i1.get(i % i1.size()), i2.get(i % i2.size())))
+                .map(
+                    i ->
+                        i1.get(i % i1.size()) == Constants.NA_INT
+                                || i2.get(i % i2.size()) == Constants.NA_INT
+                            ? Constants.NA_INT
+                            : (int) fn.applyAsDouble(i1.get(i % i1.size()), i2.get(i % i2.size())))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof RealSXP r2 -> {
@@ -393,23 +398,94 @@ public final class Builtins {
                 .mapToDouble(i -> fn.applyAsDouble(r1.get(i % r1.size()), r2.get(i % r2.size())))
                 .toArray());
       }
+      case LglSXP l1 when s2 instanceof LglSXP l2 -> {
+        int len = Math.max(l1.size(), l2.size());
+        return SEXPs.integer(
+            IntStream.range(0, len)
+                .map(
+                    i ->
+                        l1.get(i % l1.size()) == Logical.NA || l2.get(i % l2.size()) == Logical.NA
+                            ? Constants.NA_INT
+                            : (int)
+                                fn.applyAsDouble(
+                                    l1.get(i % l1.size()).toInt(), l2.get(i % l2.size()).toInt()))
+                .toArray());
+      }
       case IntSXP i1 when s2 instanceof RealSXP r2 -> {
         int len = Math.max(i1.size(), r2.size());
         return SEXPs.real(
             IntStream.range(0, len)
-                .mapToDouble(i -> fn.applyAsDouble(i1.get(i % i1.size()), r2.get(i % r2.size())))
+                .mapToDouble(
+                    i ->
+                        i1.get(i % i1.size()) == Constants.NA_INT
+                            ? Double.NaN
+                            : fn.applyAsDouble(i1.get(i % i1.size()), r2.get(i % r2.size())))
+                .toArray());
+      }
+      case IntSXP i1 when s2 instanceof LglSXP l2 -> {
+        int len = Math.max(i1.size(), l2.size());
+        return SEXPs.real(
+            IntStream.range(0, len)
+                .mapToDouble(
+                    i ->
+                        i1.get(i % i1.size()) == Constants.NA_INT
+                                || l2.get(i % l2.size()) == Logical.NA
+                            ? Double.NaN
+                            : fn.applyAsDouble(
+                                i1.get(i % i1.size()), l2.get(i % l2.size()).toInt()))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof IntSXP i2 -> {
         int len = Math.max(r1.size(), i2.size());
         return SEXPs.real(
             IntStream.range(0, len)
-                .mapToDouble(i -> fn.applyAsDouble(r1.get(i % r1.size()), i2.get(i % i2.size())))
+                .mapToDouble(
+                    i ->
+                        i2.get(i % i2.size()) == Constants.NA_INT
+                            ? Double.NaN
+                            : fn.applyAsDouble(r1.get(i % r1.size()), i2.get(i % i2.size())))
+                .toArray());
+      }
+      case RealSXP r1 when s2 instanceof LglSXP l2 -> {
+        int len = Math.max(r1.size(), l2.size());
+        return SEXPs.real(
+            IntStream.range(0, len)
+                .mapToDouble(
+                    i ->
+                        l2.get(i % l2.size()) == Logical.NA
+                            ? Double.NaN
+                            : fn.applyAsDouble(
+                                r1.get(i % r1.size()), l2.get(i % l2.size()).toInt()))
+                .toArray());
+      }
+      case LglSXP l1 when s2 instanceof IntSXP i2 -> {
+        int len = Math.max(l1.size(), i2.size());
+        return SEXPs.real(
+            IntStream.range(0, len)
+                .mapToDouble(
+                    i ->
+                        l1.get(i % l1.size()) == Logical.NA
+                                || i2.get(i % i2.size()) == Constants.NA_INT
+                            ? Double.NaN
+                            : fn.applyAsDouble(
+                                l1.get(i % l1.size()).toInt(), i2.get(i % i2.size())))
+                .toArray());
+      }
+      case LglSXP l1 when s2 instanceof RealSXP r2 -> {
+        int len = Math.max(l1.size(), r2.size());
+        return SEXPs.real(
+            IntStream.range(0, len)
+                .mapToDouble(
+                    i ->
+                        l1.get(i % l1.size()) == Logical.NA || r2.get(i % r2.size()).isNaN()
+                            ? Double.NaN
+                            : fn.applyAsDouble(
+                                l1.get(i % l1.size()).toInt(), r2.get(i % r2.size())))
                 .toArray());
       }
       default -> {}
     }
-    throw interpreter.fail("`" + ctx + "` generic requires numeric args");
+    throw interpreter.fail("`" + ctx + "` generic requires logical or numeric args");
   }
 
   /// Apply unary math op on SEXP, preserving int type (for +, -)
@@ -422,14 +498,29 @@ public final class Builtins {
       return SEXPs.real(fn.applyAsDouble(s.asScalarReal().get()));
     }
     // Vector operations
-    if (s instanceof IntSXP iv) {
-      return SEXPs.integer(
-          IntStream.range(0, iv.size()).map(i -> (int) fn.applyAsDouble(iv.get(i))).toArray());
-    } else if (s instanceof RealSXP rv) {
-      return SEXPs.real(
-          IntStream.range(0, rv.size()).mapToDouble(i -> fn.applyAsDouble(rv.get(i))).toArray());
-    }
-    throw interpreter.fail("`" + ctx + "` unary requires a numeric arg");
+    return switch (s) {
+      case IntSXP iv ->
+          SEXPs.integer(
+              IntStream.range(0, iv.size())
+                  .map(
+                      i ->
+                          iv.get(i) == Constants.NA_INT
+                              ? Constants.NA_INT
+                              : (int) fn.applyAsDouble(iv.get(i)))
+                  .toArray());
+      case RealSXP rv ->
+          SEXPs.real(
+              IntStream.range(0, rv.size())
+                  .mapToDouble(i -> fn.applyAsDouble(rv.get(i)))
+                  .toArray());
+      case LglSXP lv ->
+          SEXPs.integer(
+              IntStream.range(0, lv.size())
+                  .map(i -> lv.get(i) == Logical.NA ? Constants.NA_INT : lv.get(i).toInt())
+                  .map(j -> (int) fn.applyAsDouble(j))
+                  .toArray());
+      default -> throw interpreter.fail("`" + ctx + "` unary requires a logical or numeric arg");
+    };
   }
 
   private static void registerBinaryMathToRealBuiltin(
@@ -2488,7 +2579,10 @@ public final class Builtins {
   }
 
   private static double sexpToDouble(SEXP sexp, InternalInterpreter interpreter, String ctx) {
-    if (sexp.asScalarInteger().isPresent()) return sexp.asScalarInteger().get();
+    if (sexp.asScalarInteger().isPresent())
+      return sexp.asScalarInteger().get() == Constants.NA_INT
+          ? Double.NaN
+          : sexp.asScalarInteger().get();
     if (sexp.asScalarReal().isPresent()) return sexp.asScalarReal().get();
     if (sexp.asScalarLogical().isPresent()) return sexp.asScalarLogical().get().toInt();
     throw interpreter.fail(ctx + " requires a numeric scalar");
@@ -2496,14 +2590,20 @@ public final class Builtins {
 
   private static @Nullable Double sexpToDoubleOpt(SEXP sexp) {
     if (sexp.asScalarReal().isPresent()) return sexp.asScalarReal().get();
-    if (sexp.asScalarInteger().isPresent()) return (double) sexp.asScalarInteger().get();
+    if (sexp.asScalarInteger().isPresent())
+      return sexp.asScalarInteger().get() == Constants.NA_INT
+          ? Double.NaN
+          : (double) sexp.asScalarInteger().get();
     if (sexp.asScalarLogical().isPresent()) return (double) sexp.asScalarLogical().get().toInt();
     return null;
   }
 
   private static int sexpToInt(SEXP sexp, InternalInterpreter interpreter, String ctx) {
     if (sexp.asScalarInteger().isPresent()) return sexp.asScalarInteger().get();
-    if (sexp.asScalarReal().isPresent()) return (int) sexp.asScalarReal().get().doubleValue();
+    if (sexp.asScalarReal().isPresent())
+      return sexp.asScalarReal().get().isNaN()
+          ? Constants.NA_INT
+          : (int) sexp.asScalarReal().get().doubleValue();
     if (sexp.asScalarLogical().isPresent()) return sexp.asScalarLogical().get().toInt();
     throw interpreter.fail(ctx + " requires a numeric scalar");
   }
