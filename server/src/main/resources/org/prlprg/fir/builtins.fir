@@ -174,6 +174,8 @@ fun `==`(lhs, rhs) {
   (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
   (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
   (reg lhs:v1(S), reg rhs:v1(S)) --> v1(L) { ... }
+  (reg lhs:*@!, reg rhs:*@!) --> L { ... }
+  (reg lhs:*@!, reg rhs:*@!) --> B { ... }
   (reg lhs:L, reg rhs:L) --> L { ... }
   (reg lhs:I, reg rhs:I) --> L { ... }
   (reg lhs:R, reg rhs:R) --> L { ... }
@@ -182,7 +184,6 @@ fun `==`(lhs, rhs) {
   (reg lhs:I, reg rhs:I) --> B { ... }
   (reg lhs:R, reg rhs:R) --> B { ... }
   (reg lhs:S, reg rhs:S) --> B { ... }
-  (reg lhs:*@!, reg rhs:*@!) --> B { ... }
 }
 
 fun `!=`(lhs, rhs) {
@@ -195,6 +196,8 @@ fun `!=`(lhs, rhs) {
   (reg lhs:v1(I), reg rhs:v1(I)) --> v1(L) { ... }
   (reg lhs:v1(R), reg rhs:v1(R)) --> v1(L) { ... }
   (reg lhs:v1(S), reg rhs:v1(S)) --> v1(L) { ... }
+  (reg lhs:*@!, reg rhs:*@!) --> L { ... }
+  (reg lhs:*@!, reg rhs:*@!) --> B { ... }
   (reg lhs:L, reg rhs:L) --> L { ... }
   (reg lhs:I, reg rhs:I) --> L { ... }
   (reg lhs:R, reg rhs:R) --> L { ... }
@@ -203,7 +206,6 @@ fun `!=`(lhs, rhs) {
   (reg lhs:I, reg rhs:I) --> B { ... }
   (reg lhs:R, reg rhs:R) --> B { ... }
   (reg lhs:S, reg rhs:S) --> B { ... }
-  (reg lhs:cls, reg rhs:cls) --> L { ... }
 }
 
 fun `&`(lhs, rhs) {

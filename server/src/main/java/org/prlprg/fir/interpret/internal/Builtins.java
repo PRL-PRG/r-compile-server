@@ -3,6 +3,7 @@ package org.prlprg.fir.interpret.internal;
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Predicate;
@@ -729,80 +730,80 @@ public final class Builtins {
               throw interpreter.failUnsupported(
                   "Mock `" + name + "` not implemented for these argument types");
             }));
-    // Scalar --> B: (L, L) --> B
+    // (*, *) --> B | L
+    registerBinaryBoolAndLogical(
+        interpreter,
+        name,
+        Type.ANY_SEXP,
+        (lhs, rhs) -> lhs.box() == rhs.box() ? Logical.TRUE : Logical.FALSE);
+    // (L, L) --> B | L
+    registerBinaryBoolAndLogical(
+        interpreter,
+        name,
+        Type.LOGICAL,
+        (lhs, rhs) -> {
+          var a = ((Value.Lgl) lhs).value();
+          var b = ((Value.Lgl) rhs).value();
+          return a == Logical.NA || b == Logical.NA
+              ? Logical.NA
+              : a == b ? Logical.TRUE : Logical.FALSE;
+        });
+    // (I, I) --> B | L
+    registerBinaryBoolAndLogical(
+        interpreter,
+        name,
+        Type.INTEGER,
+        (lhs, rhs) -> {
+          var a = ((Value.Int) lhs).value();
+          var b = ((Value.Int) rhs).value();
+          return a == Constants.NA_INT || b == Constants.NA_INT
+              ? Logical.NA
+              : a == b ? Logical.TRUE : Logical.FALSE;
+        });
+    // (R, R) --> B | L
+    registerBinaryBoolAndLogical(
+        interpreter,
+        name,
+        Type.REAL,
+        (lhs, rhs) -> {
+          var a = ((Value.Real) lhs).value();
+          var b = ((Value.Real) rhs).value();
+          return Double.isNaN(a) || Double.isNaN(b)
+              ? Logical.NA
+              : a == b ? Logical.TRUE : Logical.FALSE;
+        });
+    // (S, S) --> B | L
+    registerBinaryBoolAndLogical(
+        interpreter,
+        name,
+        Type.STRING,
+        (lhs, rhs) -> {
+          var a = ((Value.Str) lhs).value();
+          var b = ((Value.Str) rhs).value();
+          return Constants.isNaString(a) || Constants.isNaString(b)
+              ? Logical.NA
+              : a.equals(b) ? Logical.TRUE : Logical.FALSE;
+        });
+  }
+
+  private static void registerBinaryBoolAndLogical(
+      InternalInterpreter interpreter,
+      String name,
+      Type arg,
+      BiFunction<Value, Value, Logical> pred) {
+    // (T, T) --> B
     interpreter.registerExternal(
         name,
-        sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL, Type.LOGICAL),
+        sig(Type.BOOLEAN, Effects.NONE, arg, arg),
         ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var a = ((Value.Lgl) args.getFirst()).value();
-              var b = ((Value.Lgl) args.get(1)).value();
-              if (a == Logical.NA || b == Logical.NA) {
-                // NA comparison: return Bool(false) for ==, Bool(true) for !=?
-                // Actually NA comparisons should yield NA, but B type has no NA.
-                // Keep same logic as before but return Bool.
-                return new Value.Bool(false);
-              }
-              boolean eq = a == b;
-              return new Value.Bool(isEqual == eq);
-            }));
-    // Scalar --> B: (I, I) --> B
+            (_, _, args, _) ->
+                new Value.Bool(pred.apply(args.getFirst(), args.get(1)) == Logical.TRUE)));
+    // (T, T) --> L
     interpreter.registerExternal(
         name,
-        sig(Type.BOOLEAN, Effects.NONE, Type.INTEGER, Type.INTEGER),
+        sig(Type.LOGICAL, Effects.NONE, arg, arg),
         ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var a = ((Value.Int) args.getFirst()).value();
-              var b = ((Value.Int) args.get(1)).value();
-              boolean eq = a == b;
-              return new Value.Bool(isEqual == eq);
-            }));
-    // Scalar --> B: (R, R) --> B
-    interpreter.registerExternal(
-        name,
-        sig(Type.BOOLEAN, Effects.NONE, Type.REAL, Type.REAL),
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var a = ((Value.Real) args.getFirst()).value();
-              var b = ((Value.Real) args.get(1)).value();
-              boolean eq = a == b;
-              return new Value.Bool(isEqual == eq);
-            }));
-    // Scalar --> B: (S, S) --> B
-    interpreter.registerExternal(
-        name,
-        sig(Type.BOOLEAN, Effects.NONE, Type.STRING, Type.STRING),
-        ExternalVersion.strict(
-            (_, _, args, _) -> {
-              var a = ((Value.Str) args.getFirst()).value();
-              var b = ((Value.Str) args.get(1)).value();
-              boolean eq = a.equals(b);
-              return new Value.Bool(isEqual == eq);
-            }));
-    // (cls, cls) --> B for ==, (cls, cls) --> L for !=
-    if (isEqual) {
-      interpreter.registerExternal(
-          name,
-          sig(Type.BOOLEAN, Effects.NONE, Type.ANY_SEXP, Type.ANY_SEXP),
-          ExternalVersion.strict(
-              (_, _, args, _) -> {
-                var c1 = (CloSXP) args.getFirst().box();
-                var c2 = (CloSXP) args.get(1).box();
-                boolean eq = c1 == c2;
-                return new Value.Bool(eq);
-              }));
-    } else {
-      interpreter.registerExternal(
-          name,
-          sig(Type.LOGICAL, Effects.NONE, Type.CLOSURE, Type.CLOSURE),
-          ExternalVersion.strict(
-              (_, _, args, _) -> {
-                var c1 = (CloSXP) args.getFirst().box();
-                var c2 = (CloSXP) args.get(1).box();
-                boolean eq = c1 == c2;
-                return new Value.Lgl(isEqual == eq ? Logical.TRUE : Logical.FALSE);
-              }));
-    }
+            (_, _, args, _) -> new Value.Lgl(pred.apply(args.getFirst(), args.get(1)))));
   }
 
   // endregion
