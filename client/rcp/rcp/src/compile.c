@@ -1824,7 +1824,11 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 {
 	SEXP srcrefs_index_sexp = get_attribute(constpool, "srcrefsIndex");
 	if (TYPEOF(srcrefs_index_sexp) != INTSXP)
-		error("srcrefsIndex attribute in constpool is missing or is not an integer vector.");
+	{
+		warning("srcrefsIndex attribute in constpool is missing or is not an integer vector. Source reference coverage will not be registered.");
+		return;
+	}
+
 	int *srcrefs_index = INTEGER(srcrefs_index_sexp);
 	const int len = LENGTH(bytecode);
 
@@ -2180,6 +2184,12 @@ static const char *guess_closure_name(SEXP f)
 	return result;
 }
 
+static Rboolean is_option_true(const char *option_name)
+{
+	SEXP option = Rf_GetOption1(Rf_install(option_name));
+	return (TYPEOF(option) == LGLSXP && LOGICAL(option)[0] == TRUE);
+}
+
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
 	DEBUG_PRINT("Starting to JIT a function...\n");
@@ -2189,9 +2199,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	SEXP coverage_registry = R_NilValue;
 
-	SEXP coverage_option = Rf_GetOption1(Rf_install("rcp.cmpfun.coverage"));
-	int attach_coverage = (TYPEOF(coverage_option) == LGLSXP && LOGICAL(coverage_option)[0] == TRUE);
-	if (attach_coverage)
+	if (is_option_true("rcp.cmpfun.coverage"))
 	{
 		// Get the covr namespace environment
 		SEXP covr_ns = PROTECT(R_FindNamespace(Rf_mkString("covr")));
@@ -2209,9 +2217,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	// R option "rcp.entry_exit_hooks"
 	SEXP hooks_registry = R_NilValue;
-	SEXP entry_exit_hooks = Rf_GetOption1(Rf_install("rcp.cmpfun.entry_exit_hooks"));
-	int attach_entry_exit_hooks = (TYPEOF(entry_exit_hooks) == LGLSXP && LOGICAL(entry_exit_hooks)[0] == TRUE);
-	if (attach_entry_exit_hooks)
+	if (is_option_true("rcp.cmpfun.entry_exit_hooks"))
 	{
 		// Reuse existing .rcp_hooks environment if already present, otherwise create it
 		SEXP existing_hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
@@ -2232,55 +2238,23 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		}
 	}
 
-#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
-	if (options == R_NilValue)
-	{
-		// Create the options list with optimize = 3
-		options = PROTECT(Rf_allocVector(VECSXP, 1));
-		SEXP optimize_value = PROTECT(Rf_ScalarInteger(BC_DEFAULT_OPTIMIZE_LEVEL));
-		SET_VECTOR_ELT(options, 0, optimize_value);
-		UNPROTECT(1); // optimize_value
-
-		// Set the names for the options list
-		SEXP options_names = PROTECT(Rf_allocVector(STRSXP, 1));
-		SET_STRING_ELT(options_names, 0, Rf_mkChar("optimize"));
-		Rf_setAttrib(options, R_NamesSymbol, options_names);
-		UNPROTECT(1); // options_names
-	}
-	else
-		PROTECT(options); // To balance PROTECT/UNPROTECT
-#endif
-
-	struct timespec start, mid, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	CompilationStats stats = {0, 0};
 	const char *name = "<unknown>";
 
-	if (options != R_NilValue)
+	SEXP name_element = Rf_getAttrib(options, R_NamesSymbol);
+	if (TYPEOF(name_element) == STRSXP)
 	{
-		if (TYPEOF(options) == VECSXP)
+		for (int i = 0; i < LENGTH(name_element); i++)
 		{
-			SEXP name_element = Rf_getAttrib(options, R_NamesSymbol);
-			if (name_element != R_NilValue && TYPEOF(name_element) == STRSXP)
+			if (strcmp(CHAR(STRING_ELT(name_element, i)), "name") == 0)
 			{
-				int name_index = -1;
-				for (int i = 0; i < LENGTH(name_element); i++)
+				SEXP name_sexp = VECTOR_ELT(options, i);
+				if (TYPEOF(name_sexp) == STRSXP && LENGTH(name_sexp) == 1)
 				{
-					if (strcmp(CHAR(STRING_ELT(name_element, i)), "name") == 0)
-					{
-						SEXP name_sexp = VECTOR_ELT(options, i);
-						if (TYPEOF(name_sexp) == STRSXP && LENGTH(name_sexp) == 1)
-						{
-							name = CHAR(STRING_ELT(name_sexp, 0));
-						}
-						break;
-					}
+					name = CHAR(STRING_ELT(name_sexp, 0));
+					DEBUG_PRINT("Using function name from options: %s\n", name);
 				}
+				break;
 			}
-		}
-		else
-		{
-			Rf_error("options must be either NULL or a list");
 		}
 	}
 
@@ -2295,47 +2269,63 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	DEBUG_PRINT("Compiling %s to bytecode...\n", name);
 
+	struct timespec start, end;
+	double elapsed_time_mid, elapsed_time;
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
 	SEXP compiled;
-	if (TYPEOF(BODY(f)) == BCODESXP)
+	if (TYPEOF(BODY(f)) != BCODESXP || is_option_true("rcp.cmpfun.force_bc_recomp"))
 	{
-		DEBUG_PRINT("Function is already bytecode, skipping compilation.\n");
-		compiled = f;
+#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
+		if (options == R_NilValue)
+		{
+			// Create the options list with optimize = 3
+			options = PROTECT(Rf_allocVector(VECSXP, 1));
+			SEXP optimize_value = Rf_ScalarInteger(BC_DEFAULT_OPTIMIZE_LEVEL);
+			SET_VECTOR_ELT(options, 0, optimize_value);
+
+			// Set the names for the options list
+			SEXP options_names = PROTECT(Rf_allocVector(STRSXP, 1));
+			SET_STRING_ELT(options_names, 0, Rf_mkChar("optimize"));
+			Rf_setAttrib(options, R_NamesSymbol, options_names);
+			UNPROTECT_SAFE(options_names);
+		}
+		else
+			PROTECT(options); // To balance PROTECT/UNPROTECT
+#endif
+		compiled = compile_to_bc(f, options);
+#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
+		UNPROTECT_SAFE(options);
+#endif
+		if (TYPEOF(BODY(compiled)) != BCODESXP)
+		{
+			DEBUG_PRINT("The BC compiler could not compile this function. Returning original function.\n");
+			return f;
+		}
+
+		struct timespec mid;
+		clock_gettime(CLOCK_MONOTONIC, &mid);
+		elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 +
+						   (mid.tv_nsec - start.tv_nsec) / 1000000.0;
+		DEBUG_PRINT("Bytecode compilation finished.\n");
 	}
 	else
 	{
-		compiled = compile_to_bc(f, options);
+		DEBUG_PRINT("Function is already bytecode compiled, skipping compilation.\n");
+		compiled = f;
+		elapsed_time_mid = 0;
 	}
-#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
-	UNPROTECT(1); // options
-#endif
-
-	if (TYPEOF(BODY(compiled)) != BCODESXP)
-	{
-		DEBUG_PRINT("The BC compiler could not compile this function.");
-		return f;
-	}
-
-	DEBUG_PRINT("Bytecode compilation finished.\n");
 
 	PROTECT(compiled);
-
-	clock_gettime(CLOCK_MONOTONIC, &mid);
+	CompilationStats stats = {0, 0};
 	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled));
 	SET_BODY(compiled, ptr);
+
 	clock_gettime(CLOCK_MONOTONIC, &end);
-	UNPROTECT(1); // compiled
+	elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 +
+				   (end.tv_nsec - start.tv_nsec) / 1000000.0;
 
-	double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 +
-						  (end.tv_nsec - start.tv_nsec) / 1000000.0;
-	double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 +
-							  (mid.tv_nsec - start.tv_nsec) / 1000000.0;
-
-	// Check if R option "rcp.cmpfun.stats" is set to TRUE
-	SEXP stats_option = Rf_GetOption1(Rf_install("rcp.cmpfun.stats"));
-	int attach_stats =
-		(stats_option != R_NilValue && LOGICAL(stats_option)[0] == TRUE);
-
-	if (attach_stats)
+	if (is_option_true("rcp.cmpfun.stats"))
 	{
 		stats_values[0] = (double)stats.total_size;
 		stats_values[1] = (double)stats.executable_size;
@@ -2374,6 +2364,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 					elapsed_time - elapsed_time_mid);
 	}
 
+	UNPROTECT_SAFE(compiled);
 	return compiled;
 }
 
