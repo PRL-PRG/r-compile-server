@@ -3,6 +3,8 @@ package org.prlprg.fir.interpret.internal;
 import com.google.common.collect.ImmutableList;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXP;
@@ -10,6 +12,8 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 public class DeoptSnapshot {
+  private final Function function;
+  private final Abstraction version;
   private final int pc;
   private final ImmutableList<SEXP> bcStack;
   private final EnvSXP env;
@@ -17,7 +21,15 @@ public class DeoptSnapshot {
   private @Nullable String moduleToString = null;
   private final String toString;
 
-  DeoptSnapshot(int pc, ImmutableList<SEXP> bcStack, EnvSXP env, String fullStackToString) {
+  DeoptSnapshot(
+      Function function,
+      Abstraction version,
+      int pc,
+      ImmutableList<SEXP> bcStack,
+      EnvSXP env,
+      String fullStackToString) {
+    this.function = function;
+    this.version = version;
     this.pc = pc;
     this.bcStack = bcStack;
     this.env = env;
@@ -78,6 +90,10 @@ public class DeoptSnapshot {
     var p1 = p.withContext(new SEXPPrintContext(SEXPPrintOptions.SEMANTIC));
 
     w.write("deopt ");
+    p.print(function.name());
+    w.write("< ");
+    p.print(version.signature());
+    w.write(" >@");
     p.print(pc);
     w.write(' ');
     p1.printAsList("[", "]", bcStack);
