@@ -337,14 +337,15 @@ public final class InternalInterpreter implements Interpreter {
               + "]");
     }
 
-    var result = call(best, arguments, environment, function.baseline().cfg());
+    var result = call(function, best, arguments, environment, function.baseline().cfg());
 
     checkType(result, function.baseline().returnType(), "return");
     return result;
   }
 
   /// Calls the function version with the arguments in the environment.
-  public Value call(
+  private Value call(
+      Function function,
       Abstraction abstraction,
       List<Value> arguments,
       EnvSXP environment,
@@ -360,7 +361,7 @@ public final class InternalInterpreter implements Interpreter {
       throw failUnsupported("Can't call unregistered stub");
     }
 
-    var frame = mkFrame(environment);
+    var frame = mkFrame(function, environment);
     var feedback = feedback().get(abstraction);
     feedback.recordCall();
 
@@ -408,8 +409,8 @@ public final class InternalInterpreter implements Interpreter {
     }
   }
 
-  private StackFrame mkFrame(EnvSXP parentEnv) {
-    return new StackFrame(parentEnv);
+  private StackFrame mkFrame(Function function, EnvSXP parentEnv) {
+    return new StackFrame(function, parentEnv);
   }
 
   /// Interprets the control flow graph starting from the entry block.
@@ -576,6 +577,7 @@ public final class InternalInterpreter implements Interpreter {
               throw fail("No versions of " + function.name() + " match signature: " + signature);
             }
             yield call(
+                function,
                 Objects.requireNonNull(exactVersion),
                 arguments,
                 environment,
@@ -1348,7 +1350,8 @@ public final class InternalInterpreter implements Interpreter {
                 })
             .collect(ImmutableList.toImmutableList());
 
-    return new DeoptSnapshot(pc, bcStack, env, stackToString());
+    return new DeoptSnapshot(
+        topFrame().function(), topFrame().scope(), pc, bcStack, env, stackToString());
   }
 
   private Value runInSnapshotDeopt(Argument arg, LinkedHashMap<Register, Value> localRegs) {

@@ -10,7 +10,9 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -25,14 +27,20 @@ import org.prlprg.util.Lists;
 
 /// Runtime stack frame for FIŘ interpretation, managing register and environment bindings.
 final class StackFrame {
+  private final Function function;
   /// If there are multiple, that's because we're in a promise being forced.
   private final List<SubFrame> subFrames = new ArrayList<>();
   private final Map<Register, Value> registers = new LinkedHashMap<>();
   private EnvSXP environment;
   private int numEnvsPushed = 0;
 
-  StackFrame(EnvSXP parentEnv) {
+  StackFrame(Function function, EnvSXP parentEnv) {
+    this.function = function;
     environment = parentEnv;
+  }
+
+  Function function() {
+    return function;
   }
 
   @UnmodifiableView
@@ -67,6 +75,13 @@ final class StackFrame {
 
   public EnvSXP environment() {
     return environment;
+  }
+
+  public Abstraction scope() {
+    if (subFrames.isEmpty()) {
+      throw new IllegalStateException("Stack frame has no sub-frame (empty/invalid state)");
+    }
+    return subFrames.getLast().position.cfg().scope();
   }
 
   public AbstractionFeedback scopeFeedback() {

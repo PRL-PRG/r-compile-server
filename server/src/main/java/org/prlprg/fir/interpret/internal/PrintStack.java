@@ -138,9 +138,11 @@ final class PrintStack {
       w.write("[ ...see " + appearances.get(appearanceIndex - 1) + "... ]");
     } else {
       // Actually print the variables
-      w.write("[ ");
+      w.write("[ in " + frame.function().name());
       w.runIndented(
           () -> {
+            w.write('\n');
+
             var feedback = frame.scopeFeedback();
 
             for (var entry : frame.registers().entrySet()) {
