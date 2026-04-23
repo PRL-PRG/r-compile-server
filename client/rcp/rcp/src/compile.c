@@ -1993,7 +1993,7 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 		[j] = i + 1; // +1 to adjust for version number at the start of bytecode
 		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_COUNTER, &INTEGER0(recording_counters)[j]);
 		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_BITMAP, &INTEGER0(recording_types)[j]);
-		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_CONSTANT, &INTEGER0(recording_consts)[j]);
+		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE0, &INTEGER0(recording_consts)[j]);
 		j++;
 	}
 

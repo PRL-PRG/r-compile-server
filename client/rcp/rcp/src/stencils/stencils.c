@@ -142,6 +142,7 @@ static inline uint64_t rdtsc(void)
 
 /* PATCHING SYMBOLS */
 extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT(Value *stack, rcpEval_locals *locals);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT_FORCEJMP(Value *stack, rcpEval_locals *locals);
 #define NEXT return _RCP_EXEC_NEXT(stack, locals)
 
 extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM0(Value *stack, rcpEval_locals *locals);
@@ -188,6 +189,9 @@ extern void *const _RCP_CUSTOM_DATA[];
 #define GETCUSTOM()	  (const void *)&_RCP_CUSTOM_DATA
 #define GETVARIANTS() (const void *)&_RCP_CUSTOM_DATA
 
+extern void *const _RCP_SMC_SELF[];
+#define GETSELFADDR()	  (const void *)&_RCP_SMC_SELF
+
 extern const void *const _RCP_LOOPCNTXT;
 #define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
 #define GET_LOCAL_RCNTXT() locals->rcntxts[GET_RCNTXT_INDEX()]
@@ -232,7 +236,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 }
 
 RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
-{	
+{
 	// do we actually need an entry hook for the types?
 	// If we have evaluated promises, and an argument is assigned with another type
 	// later in the function, yes...
@@ -244,7 +248,7 @@ RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
 }
 
 RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
-{	
+{
 	#ifdef RCP_TRACE
 		Rprintf("Exit hook\n");
 	#endif
@@ -545,7 +549,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_COUNTER)
 #define RECORDING_CONSTANT_UNRECORDED R_NilValue
 #define RECORDING_CONSTANT_AMBIGUOUS  R_UnboundValue
 
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_DYNAMIC)
 {
 	SEXP *recording_constant = (SEXP *)GETCUSTOM();
 	if (*recording_constant != RECORDING_CONSTANT_AMBIGUOUS)
@@ -588,6 +592,70 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT)
 	}
 
 	NEXT;
+}
+
+static __attribute__((noinline)) STENCIL_ATTRIBUTES RET_T rcp_smc_copy(Value *restrict stack, rcpEval_locals *restrict locals, size_t size, void *restrict dst, const void *restrict src)
+{
+    memcpy(dst, src, size);
+    NEXT;
+}
+
+static RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2)
+{
+    return _RCP_EXEC_NEXT_FORCEJMP(stack, locals);
+}
+
+static RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED)
+{
+    SEXP *recording_constant = (SEXP *)GETCUSTOM();
+	if (VAL_IS_SXP(*GET_VAL(-1)))
+	{
+		if (*recording_constant != VAL_SXP(*GET_VAL(-1)))
+		{
+			return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
+		}
+	}
+	else
+	{
+	    return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
+	}
+
+	NEXT;
+}
+
+static RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED)
+{
+    SEXP *recording_constant = (SEXP *)GETCUSTOM();
+	if (!VAL_IS_SXP(*GET_VAL(-1)))
+	{
+	    //  We can compare the memory even if the type is different
+		assert((uintptr_t)GET_VAL(-1)->u.sxpval == GET_VAL(-1)->u.ival);
+	    if (TYPEOF(*recording_constant) != GET_VAL(-1)->tag || *(uintptr_t*)STDVEC_DATAPTR(*recording_constant) != (uintptr_t)GET_VAL(-1)->u.sxpval)
+	    {
+			// We have seen a different constant before, stop recording
+			return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
+		}
+	}
+	else
+	{
+	    return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
+	}
+
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE0)
+{
+	SEXP *recording_constant = (SEXP *)GETCUSTOM();
+	*recording_constant = val_as_sexp(*GET_VAL(-1));
+	if(VAL_IS_SXP(*GET_VAL(-1)))
+	{
+        return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE0, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED);
+    }
+    else
+    {
+        return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED);
+    }
 }
 
 RCP_OP(RETURN,
