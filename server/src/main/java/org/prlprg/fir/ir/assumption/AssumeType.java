@@ -14,7 +14,7 @@ import org.prlprg.parseprint.Printer;
 public record AssumeType(@Override Argument target, Type type) implements Assumption {
   public AssumeType {
     if (type.kind().repr() != Repr.SEXP) {
-      throw new IllegalArgumentException("never assume non-SEXP type:\n" + this);
+      throw new IllegalArgumentException("never assume non-SEXP type:\n" + target + " :? " + type);
     }
   }
 

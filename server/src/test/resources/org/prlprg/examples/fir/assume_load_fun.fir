@@ -1,5 +1,5 @@
 fun main() {
-  () -~> I { reg target0:*, var target:* |
+  () -+> I { reg target0:*, var target:* |
     mkenv;
     target0 = clos target;
     st target = target0;

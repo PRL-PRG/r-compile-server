@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { reg r:I |
+  () -+> I { reg r:I |
     r = 0;
     check L1() else L2();
   L1():

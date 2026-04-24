@@ -1,12 +1,12 @@
 fun main() {
-  () --> V { reg out:V |
-    out = body< --> V >();
+  () -+> V { reg out:V |
+    out = body< -+> V >();
     return out;
   }
 }
 
 fun body() {
-  () --> V { reg val:V |
+  () -+> V { reg val:V |
     val = <int 1>;
     check BBopt() else BBdeopt();
   BBopt():
