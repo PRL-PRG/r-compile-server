@@ -26,10 +26,15 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
+import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Goto;
+import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 
@@ -48,7 +53,6 @@ public final class InferEffects implements Analysis {
 
   public Effects of(CFG cfg) {
     return cfg.bbs().stream()
-        .filter(bb -> !(bb.jump() instanceof Deopt))
         .flatMap(bb -> bb.instructions().stream())
         .map(this::of)
         .reduce(Effects::union)
@@ -60,7 +64,6 @@ public final class InferEffects implements Analysis {
   /// TODO: this is hacky, solution for mutual recursion
   public Effects ofNonRecursive(CFG cfg) {
     return cfg.bbs().stream()
-        .filter(bb -> !(bb.jump() instanceof Deopt))
         .flatMap(bb -> bb.instructions().stream())
         .filter(
             i ->
@@ -76,7 +79,7 @@ public final class InferEffects implements Analysis {
   public Effects of(Instruction instruction) {
     return switch (instruction) {
       case Statement(_, _, var expression) -> of(expression);
-      case Jump _ -> Effects.NONE;
+      case Jump jump -> of(jump);
     };
   }
 
@@ -109,6 +112,13 @@ public final class InferEffects implements Analysis {
       case Store _ -> Effects.IMPURE;
       case SubscriptRead _ -> Effects.NONE;
       case SubscriptWrite _ -> Effects.IMPURE;
+    };
+  }
+
+  public Effects of(Jump jump) {
+    return switch (jump) {
+      case Checkpoint _, Goto _, If _, Return _, Unreachable _ -> Effects.NONE;
+      case Deopt _ -> Effects.REFLECT;
     };
   }
 }

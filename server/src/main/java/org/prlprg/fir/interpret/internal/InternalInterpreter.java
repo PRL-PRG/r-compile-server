@@ -1350,8 +1350,7 @@ public final class InternalInterpreter implements Interpreter {
                 })
             .collect(ImmutableList.toImmutableList());
 
-    return new DeoptSnapshot(
-        topFrame().function(), topFrame().scope(), pc, bcStack, env, stackToString());
+    return new DeoptSnapshot(topFrame().function(), pc, bcStack, env, stackToString());
   }
 
   private Value runInSnapshotDeopt(Argument arg, LinkedHashMap<Register, Value> localRegs) {
