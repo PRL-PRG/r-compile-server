@@ -532,7 +532,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
           ParseUtil.parseAbstraction(
               """
               (reg x:V) -~> V { |
-                x ?: I;
+                x ?: v1(I);
                 check L0() else D0();
               D0():
                 deopt 0 [];
@@ -545,7 +545,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
 
       var printed = Printer.toString(abstraction);
       assertTrue(
-          printed.contains("?: I"),
+          printed.contains("?: v1(I)"),
           "assume should not be removed (used by checkpoint); got:\n" + printed);
     }
   }
