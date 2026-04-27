@@ -2,6 +2,7 @@ package org.prlprg.fir.interpret.internal;
 
 import static org.prlprg.fir.GlobalModules.BOX_FUN;
 import static org.prlprg.fir.GlobalModules.UNBOX_FUN;
+import static org.prlprg.fir.ir.cfg.iterator.BbDfs.bbDfs;
 import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
@@ -1168,11 +1169,13 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     // Get corresponding deopt BC and run sanity checks
+    // Corresponding = same bytecode, and if there are multiple, the one with the dominating
+    // predecessor (the other(s) do speculative pure instructions that are redundant in
+    // bytecode, but may not be here).
     var deoptBc =
-        deoptRestoreCfg.bbs().stream()
+        com.google.common.collect.Streams.stream(bbDfs(deoptRestoreCfg))
             .filter(bb -> bb.jump() instanceof Deopt(_, var pc1, _) && pc == pc1)
-            .collect(
-                Streams.zeroOneOrThrow(() -> fail("multiple deopt branches with the same pc?")))
+            .findFirst()
             .orElseThrow(
                 () ->
                     fail(

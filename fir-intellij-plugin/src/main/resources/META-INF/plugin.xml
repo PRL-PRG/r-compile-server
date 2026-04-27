@@ -39,5 +39,7 @@
 
     <breadcrumbsInfoProvider
         implementation="org.prlprg.fir.intellij.FirBreadcrumbsProvider"/>
+
+    <navbar implementation="org.prlprg.fir.intellij.FirNavBarModelExtension"/>
   </extensions>
 </idea-plugin>

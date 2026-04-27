@@ -1,5 +1,5 @@
 fun main() {
-  () -+> I { reg c:*, var target:* |
+  () -+> V { reg c:*, var target:* |
     mkenv;
     c = clos target;
     st target = c;
@@ -10,7 +10,7 @@ fun main() {
   BB2():
     ldf target ?- target;
     popenv;
-    return 7;
+    return <int 7>;
   BBdeopt1():
     deopt 0 [];
   BBdeopt2():
@@ -19,7 +19,7 @@ fun main() {
 }
 
 fun target() {
-  () --> I { |
-    return 7;
+  () --> v1(I) { |
+    return <int 7>;
   }
 }

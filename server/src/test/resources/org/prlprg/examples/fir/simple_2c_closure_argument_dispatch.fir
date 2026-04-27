@@ -24,7 +24,7 @@ fun apply_closure(closure) {
 }
 
 fun payload() {
-  () --> I { |
-    return 37;
+  () --> v1(I) { |
+    return <int 37>;
   }
 }

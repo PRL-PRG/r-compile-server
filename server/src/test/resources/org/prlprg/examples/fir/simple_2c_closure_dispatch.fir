@@ -15,7 +15,7 @@ fun make_closure() {
 }
 
 fun produce() {
-  () --> I { |
-    return 42;
+  () --> V { |
+    return <int 42>;
   }
 }
