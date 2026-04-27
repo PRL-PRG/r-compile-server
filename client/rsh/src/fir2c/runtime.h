@@ -311,7 +311,7 @@ DEFINE_OVERRIDDEN_BUILTIN(double, abs, scalar_real_fx_none_ret_scalar_real, doub
 // math1: I→R, R→R
 #define V(name, func)\
   DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_int_fx_none_ret_scalar_real, int value);\
-  DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_real_fx_none_ret_scalar_real, double value);\
+  DEFINE_OVERRIDDEN_BUILTIN(double, name, scalar_real_fx_none_ret_scalar_real, double value);
 DEFINE_MATH1_BUILTINS(V)
 #undef V
 
