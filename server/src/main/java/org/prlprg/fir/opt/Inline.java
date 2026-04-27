@@ -287,8 +287,13 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // substitute parameters with arguments, and substitute locals with new locals.
       var body = new Abstraction(scope.module(), List.of());
       assert body.cfg() != null;
+      var tempLocalsForDisambiguation = new ArrayList<Register>();
       for (var parameter : callee.parameters()) {
         body.addLocal(new Local(parameter.variable(), parameter.type()));
+        if (!scope.contains(parameter.variable())) {
+          scope.addLocal(new Local(parameter.variable(), Type.ANY_SEXP));
+          tempLocalsForDisambiguation.add(parameter.variable());
+        }
       }
       for (var local : callee.locals()) {
         if (!(local.variable() instanceof Register _)) {
@@ -307,6 +312,9 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         localSubstituter.stage(oldVariable, disambiguatedVariable);
       }
       localSubstituter.commit();
+      for (var tempLocalForDisambiguation : tempLocalsForDisambiguation) {
+        scope.removeLocal(tempLocalForDisambiguation);
+      }
       var parameterSubstituter = new Substituter(body);
       for (int i = 0; i < callee.parameters().size(); i++) {
         var parameter = callee.parameters().get(i).variable();

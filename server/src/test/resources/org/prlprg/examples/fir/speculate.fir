@@ -7,15 +7,15 @@ fun main() {
     r5 = blackBox< V --> V >(<int 5>);
 
     # Optimized
-    g< V,I -+> I >(r1, 1);
+    g< V,I -+> V >(r1, 1);
     # Baseline
-    g< V,V -+> I >(r2, <real 2.0>);
+    g< V,V -+> V >(r2, <real 2.0>);
     # Optimized -> baseline
-    g< V,I -+> I >(r3, 3);
+    g< V,I -+> V >(r3, 3);
     # Baseline
-    g< V,V -+> I >(r4, <real 4.0>);
+    g< V,V -+> V >(r4, <real 4.0>);
     # Optimized
-    g< V,I -+> I >(r5, 5);
+    g< V,I -+> V >(r5, 5);
 
     require< V --> V >(<int 1>);
     require< V --> V >(<str "bar">);
@@ -33,7 +33,7 @@ fun main() {
 }
 
 fun g(n, a) {
-  (reg n:V, reg a:V) -+> I { reg r:V, var x:* |
+  (reg n:V, reg a:V) -+> V { reg r:V, var x:* |
     mkenv;
     provide< V --> V >(n);
     r = <int 14>;
@@ -42,19 +42,19 @@ fun g(n, a) {
     r ?= <int 14>;
     provide< V --> V >(<str "foo">);
     popenv;
-    return 42;
+    return <int 42>;
   BB2():
     st x = r;
     deopt 5 [r, n];
   }
-  (reg n:V, reg a:I) -+> I { reg r:v1(I), reg r1:V, var x:* |
+  (reg n:V, reg a:I) -+> V { reg r:v1(I), reg r1:V, var x:* |
     provide< V --> V >(n);
     r1 = n;
     check BB1() else BB2();
   BB1():
     r = n ?: v1(I);
     provide< V --> V >(<str "bar">);
-    return 24;
+    return <int 24>;
   BB2():
     mkenv;
     deopt 5 [<int 14>, r1];

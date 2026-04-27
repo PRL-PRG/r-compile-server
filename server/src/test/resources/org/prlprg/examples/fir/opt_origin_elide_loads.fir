@@ -1,15 +1,15 @@
 fun main() {
-  () -+> I { reg c0:cls |
+  () -+> v1(I) { reg c0:cls |
     mkenv;
     c0 = clos f;
-    f< I,cls -+> I >(42, c0);
+    f< I,cls -+> v1(I) >(42, c0);
     popenv;
-    return 100;
+    return <int 100>;
   }
 }
 
 fun f(r0, c0) {
-  (reg r0:I, reg c0:cls) -+> I { var x:v1(I)?, reg r0b:v1(I), reg r1:v1(I)?, reg r2:cls, reg r3:cls, reg r4:v1(I), reg r4u:I |
+  (reg r0:I, reg c0:cls) -+> v1(I) { var x:v1(I)?, reg r0b:v1(I), reg r1:v1(I)?, reg r2:cls, reg r3:cls, reg r4:v1(I) |
     mkenv;
     r0b = box<I --> v1(I)>(r0);
     st x = r0b;
@@ -21,9 +21,8 @@ fun f(r0, c0) {
     # we can remove `r3`, but we can't remove the instruction, because it may force
     r3 = ldf z;
     r4 = r1 as v1(I);
-    r4u = unbox<v1(I) --> I>(r4);
     popenv;
-    return r4u;
+    return r4;
   }
 }
 

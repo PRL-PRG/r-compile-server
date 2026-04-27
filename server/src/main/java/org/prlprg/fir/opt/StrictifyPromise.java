@@ -151,10 +151,15 @@ public record StrictifyPromise() implements AbstractionOptimization {
           var newParams = new ArrayList<>(oldParams);
           for (var inlineable : inlineables) {
             var oldParamReg = oldParams.get(inlineable.argIndex).variable();
-            var newParamReg = oldVersion.resemblance(oldParamReg.name());
+            // Temporarily add local to disambiguate further param names
+            var newParamReg = oldVersion.addLocal(oldParamReg.name(), inlineable.valueType);
 
             newParams.set(
                 inlineable.argIndex, new Parameter(newParamReg, inlineable.valueType, false));
+          }
+          for (var inlineable : inlineables) {
+            var newParam = newParams.get(inlineable.argIndex);
+            oldVersion.removeLocal(newParam.variable());
           }
 
           var newVersion = copy2(feedback.module(), calleeFun, oldVersion, newParams);

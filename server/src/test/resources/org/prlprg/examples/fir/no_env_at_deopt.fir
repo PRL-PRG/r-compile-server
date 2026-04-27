@@ -1,10 +1,10 @@
 fun main() {
-  () -+> I { reg r:B |
+  () -+> V { reg r:B |
     r = blackBox< B --> B >(TRUE);
     check L1() else L2();
   L1():
     r ?= TRUE;
-    return 0;
+    return <int 0>;
   L2():
     # env-error: Deopt must exit with at least 1 environment
     deopt 5 [];

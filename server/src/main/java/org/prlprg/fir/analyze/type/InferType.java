@@ -31,6 +31,7 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -56,8 +57,12 @@ public final class InferType implements Analysis {
   public @Nullable Type of(CFG cfg) {
     Type result = null;
     for (var bb : cfg.bbs()) {
-      if (bb.jump() instanceof Return(_, var value)) {
-        result = Type.union(result, of(value));
+      switch (bb.jump()) {
+        case Return(_, var value) -> result = Type.union(result, of(value));
+        case Deopt _ -> {
+          return Type.ANY_VALUE_SEXP;
+        }
+        default -> {}
       }
     }
     return result;

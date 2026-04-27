@@ -58,8 +58,8 @@ public class InlineSubstituter extends AbstractSubstituter {
       var type = scope.removeLocal(oldRegister).type();
       newLocals.add(new Local(newRegister, type));
     }
-    // Must add new locals after,
-    // otherwise we may add a local that already exists, but will be removed later.
+    // Must add new locals after
+    // Otherwise we may add a local that initially existed, but was removed
     for (var local : newLocals) {
       scope.addLocal(local);
     }

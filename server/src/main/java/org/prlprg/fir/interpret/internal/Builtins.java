@@ -486,7 +486,7 @@ public final class Builtins {
       }
       default -> {}
     }
-    throw interpreter.fail("`" + ctx + "` generic requires logical or numeric args");
+    throw interpreter.failUnsupported("`" + ctx + "` generic requires logical or numeric args");
   }
 
   /// Apply unary math op on SEXP, preserving int type (for +, -)
@@ -520,7 +520,9 @@ public final class Builtins {
                   .map(i -> lv.get(i) == Logical.NA ? Constants.NA_INT : lv.get(i).toInt())
                   .map(j -> (int) fn.applyAsDouble(j))
                   .toArray());
-      default -> throw interpreter.fail("`" + ctx + "` unary requires a logical or numeric arg");
+      default ->
+          throw interpreter.failUnsupported(
+              "`" + ctx + "` unary requires a logical or numeric arg");
     };
   }
 
@@ -2586,7 +2588,7 @@ public final class Builtins {
           : sexp.asScalarInteger().get();
     if (sexp.asScalarReal().isPresent()) return sexp.asScalarReal().get();
     if (sexp.asScalarLogical().isPresent()) return sexp.asScalarLogical().get().toInt();
-    throw interpreter.fail(ctx + " requires a numeric scalar");
+    throw interpreter.failUnsupported("Mock " + ctx + " only implemented for a numeric scalar");
   }
 
   private static @Nullable Double sexpToDoubleOpt(SEXP sexp) {
@@ -2606,7 +2608,7 @@ public final class Builtins {
           ? Constants.NA_INT
           : (int) sexp.asScalarReal().get().doubleValue();
     if (sexp.asScalarLogical().isPresent()) return sexp.asScalarLogical().get().toInt();
-    throw interpreter.fail(ctx + " requires a numeric scalar");
+    throw interpreter.failUnsupported("Mock " + ctx + " only implemented for numeric scalar");
   }
 
   private static Logical sexpToLogical(SEXP sexp, InternalInterpreter interpreter, String ctx) {
@@ -2621,7 +2623,8 @@ public final class Builtins {
       if (Double.isNaN(v)) return Logical.NA;
       return v == 0.0 ? Logical.FALSE : Logical.TRUE;
     }
-    throw interpreter.failUnsupported(ctx + " requires a scalar convertible to logical");
+    throw interpreter.failUnsupported(
+        "Mock " + ctx + " only implemented for scalar convertible to logical");
   }
 
   private static String sexpToString(SEXP sexp) {

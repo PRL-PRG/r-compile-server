@@ -41,8 +41,8 @@ class ElideRedundantAssumeLoadFunTest implements AbstractionOptimizationUnitTest
               }
             }
             fun target() {
-              () --> I { |
-                return 7;
+              () --> v1(I) { |
+                return <int 7>;
               }
             }
             """);
@@ -83,8 +83,8 @@ class ElideRedundantAssumeLoadFunTest implements AbstractionOptimizationUnitTest
               }
             }
             fun target() {
-              () --> I { |
-                return 7;
+              () --> v1(I) { |
+                return <int 7>;
               }
             }
             """);
@@ -125,8 +125,8 @@ class ElideRedundantAssumeLoadFunTest implements AbstractionOptimizationUnitTest
               }
             }
             fun target() {
-              () --> I { |
-                return 7;
+              () --> v1(I) { |
+                return <int 7>;
               }
             }
             """);
@@ -166,8 +166,8 @@ class ElideRedundantAssumeLoadFunTest implements AbstractionOptimizationUnitTest
               }
             }
             fun target() {
-              () --> I { |
-                return 7;
+              () --> v1(I) { |
+                return <int 7>;
               }
             }
             fun other() {
@@ -220,8 +220,8 @@ class ElideRedundantAssumeLoadFunTest implements AbstractionOptimizationUnitTest
               }
             }
             fun target() {
-              () --> I { |
-                return 7;
+              () --> v1(I) { |
+                return <int 7>;
               }
             }
             """);
@@ -268,8 +268,8 @@ class ElideRedundantAssumeLoadFunTest implements AbstractionOptimizationUnitTest
               }
             }
             fun target() {
-              () --> I { |
-                return 7;
+              () --> v1(I) { |
+                return <int 7>;
               }
             }
             """);

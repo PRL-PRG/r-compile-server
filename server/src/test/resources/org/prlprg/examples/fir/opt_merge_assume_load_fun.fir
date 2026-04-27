@@ -1,12 +1,12 @@
 fun main() {
-  () -+> I { reg out:I |
-    out = call_f< -+> I >();
+  () -+> V { reg out:V |
+    out = call_f< -+> V >();
     return out;
   }
 }
 
 fun call_f() {
-  () -+> I { reg callee:cls, reg lf:cls |
+  () -+> V { reg callee:cls, reg lf:cls |
     callee = clos target;
     check BB1() else BBdeopt1();
   BB1():
@@ -15,7 +15,7 @@ fun call_f() {
     check BB2() else BBdeopt2();
   BB2():
     lf ?- target;
-    return 7;
+    return <int 7>;
   BBdeopt1():
     mkenv;
     deopt 0 [callee];
@@ -26,7 +26,7 @@ fun call_f() {
 }
 
 fun target() {
-  () --> I { |
-    return 7;
+  () --> v1(I) { |
+    return <int 7>;
   }
 }

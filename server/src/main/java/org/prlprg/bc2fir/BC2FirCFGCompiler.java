@@ -533,12 +533,16 @@ public class BC2FirCFGCompiler {
                     seq));
         var init = new Constant(SEXPs.integer(0));
         var index = insertAndReturn("_idx", new Aea(init));
+        // Must be pushed for deopt in body
+        push(length);
         push(index);
         setJump(goto_(stepBb));
 
         // For loop step
         moveTo(stepBb);
         // Increment the index
+        index = pop();
+        length = top();
         var index1 =
             insertAndReturn(
                 "_idx",
@@ -548,7 +552,7 @@ public class BC2FirCFGCompiler {
                         ImmutableList.of(Type.BOXED_INTEGER, Type.BOXED_INTEGER),
                         Type.BOXED_INTEGER,
                         Effects.NONE),
-                    pop(),
+                    index,
                     new Constant(SEXPs.integer(1))));
         push(index1);
         // Compare the index to the length
@@ -651,7 +655,8 @@ public class BC2FirCFGCompiler {
       }
       case EndFor() -> {
         compileEndLoop(LoopType.FOR);
-        // Pop index and replace with `NULL` (a SEXP, in case we use it)
+        // Pop index and length and push `NULL` (loop's "output")
+        pop();
         pop();
         push(new Constant(SEXPs.NULL));
       }
@@ -661,31 +666,34 @@ public class BC2FirCFGCompiler {
       case LdTrue() -> push(new Constant(SEXPs.TRUE));
       case LdFalse() -> push(new Constant(SEXPs.FALSE));
       case GetVar(var name) -> {
+        var preStack = ImmutableList.copyOf(stack);
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
-        tryAddCheckpoint(false);
+        tryAddCheckpoint(false, preStack);
+
         pushInsert(getStr(name), new Force(true, pop()));
         insert(intrinsic("checkMissing", top()));
-        tryAddCheckpoint(true);
+        tryAddCheckpoint(true, stack);
       }
       case DdVal(var name) -> {
+        var preStack = ImmutableList.copyOf(stack);
         var ddIndex = NamedVariable.ddNum(get(name).ddNum());
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, ddIndex));
-        tryAddCheckpoint(false);
+        tryAddCheckpoint(false, preStack);
+
         pushInsert(getStr(name), new Force(true, pop()));
         insert(intrinsic("checkMissing", top()));
-        tryAddCheckpoint(true);
+        tryAddCheckpoint(true, stack);
       }
       case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name), top()));
       case GetFun(var name) -> {
-        tryAddCheckpoint(false);
         var fun = insertAndReturn(getStr(name), new Load(LoadType.LOCAL_FUN, getVar(name)));
         pushCall(fun);
-        tryAddCheckpoint(true);
+        tryAddCheckpoint(true, stack);
       }
       case GetGlobFun(var name) -> {
         var fun = insertAndReturn(getStr(name), new Load(LoadType.GLOBAL_FUN, getVar(name)));
         pushCall(fun);
-        tryAddCheckpoint(true);
+        tryAddCheckpoint(true, stack);
       }
       case GetBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
       case GetIntlBuiltin(var name) -> pushCall(new Builtin(get(name).name()));
@@ -890,14 +898,18 @@ public class BC2FirCFGCompiler {
         insert(this::goto_);
       }
       case GetVarMissOk(var name) -> {
+        var preStack = ImmutableList.copyOf(stack);
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
-        tryAddCheckpoint(false);
+        tryAddCheckpoint(false, preStack);
+
         pushInsertThenCp(getStr(name), new Force(true, pop()));
       }
       case DdValMissOk(var name) -> {
+        var preStack = ImmutableList.copyOf(stack);
         var ddIndex = get(name).ddNum();
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, NamedVariable.ddNum(ddIndex)));
-        tryAddCheckpoint(false);
+        tryAddCheckpoint(false, preStack);
+
         pushInsertThenCp(getStr(name), new Force(true, pop()));
       }
       case Visible() -> insert(intrinsic("setVisible"));
@@ -1196,9 +1208,9 @@ public class BC2FirCFGCompiler {
     return insertAndReturn("_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg));
   }
 
-  /// End the previously-compiled for loop instruction (the latest [#pushWhileOrRepeatLoop(BB,
-  /// BB)] or [#pushForLoop(BB,BB,BB)]): pop its data, assert that the loop is of the correct
-  /// type, and that the cursor is right after its end.
+  /// End the previously-compiled for loop instruction (the latest
+  /// [#pushWhileOrRepeatLoop(BB, BB)] or [#pushForLoop(BB,BB,BB)]): pop its data, assert that
+  /// the loop is of the correct type, and that the cursor is right after its end.
   private void compileEndLoop(LoopType type) {
     var loop = popLoop();
     if (loop.type != type) {
@@ -1288,27 +1300,33 @@ public class BC2FirCFGCompiler {
   // endregion compile instructions
 
   // region checkpoints
-  void pushInsertThenCp(String name, Expression expression) {
+  private void pushInsertThenCp(String name, Expression expression) {
     pushInsert(name, expression);
-    tryAddCheckpoint(true);
+    tryAddCheckpoint(true, stack);
   }
 
-  void pushInsertThenCp(Expression expression) {
+  private void pushInsertThenCp(Expression expression) {
     pushInsert(expression);
-    tryAddCheckpoint(true);
+    tryAddCheckpoint(true, stack);
   }
 
-  void tryAddCheckpoint(boolean afterInstruction) {
-    var deoptBcPos = afterInstruction ? bcPos + 1 : bcPos;
+  /// Add a checkpoint at the current FIŘ position, before or after the current bytecode
+  /// position
+  ///
+  /// - If `afterBcInstr = false`, `stack` must be the stack before the bytecode was compiled,
+  ///   and every FIŘ instruction emitted for the bytecode so far must be pure.
+  /// - If `afterBcInstr = true`, `stack` must be the current stack, and no more FIŘ
+  ///   instructions can be emitted for this bytecode instruction.
+  private void tryAddCheckpoint(boolean afterBcInstr, List<Argument> stack) {
+    var deoptBcPos = afterBcInstr ? bcPos + 1 : bcPos;
     var deopt = cfg.addBB("D" + numDeopts++);
-    deopt.setJump(new Deopt(deoptBcPos, ImmutableList.copyOf(stack)));
+    deopt.setJump(new Deopt(deoptBcPos, stack));
 
     // Don't add phis because they're never necessary.
     // Don't use `insert` because it adds phis.
     var success = cfg.addBB();
     cursor.bb().setJump(new Checkpoint(new Target(success), new Target(deopt)));
     cursor.moveToStart(success);
-    // TODO: Is the below correct?
     bbsWithPhis.add(success);
   }
 
@@ -1537,8 +1555,8 @@ public class BC2FirCFGCompiler {
     push(insertAndReturn(name, expression));
   }
 
-  /// Push a value onto the "virtual stack" so that the next call to [#pop(Class)] or
-  /// [#top(Class)] will return it.
+  /// Push a value onto the "virtual stack" so that the next call to [#pop()] or
+  /// [#top()] will return it.
   ///
   /// The bytecode is stack-based and IR is SSA-form. To convert properly, when the compiler
   /// encounters `BcInstr.Ld...` and other instructions that push real values onto the
@@ -1767,8 +1785,8 @@ public class BC2FirCFGCompiler {
         new Constant(SEXPs.NULL));
   }
 
-  /// Stub for function guard (TODO what does [#BcInstr.CheckFun] do again?), which can fallback to
-  /// an intrinsic but usually gets caught and turned into [DynamicCallee].
+  /// Stub for function guard (TODO what does [BcInstr.CheckFun] do again?), which can fallback
+  /// to an intrinsic but usually gets caught and turned into [DynamicCallee].
   private Expression checkFun(Argument fun) {
     return intrinsic("checkFun", fun);
   }

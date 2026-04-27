@@ -324,7 +324,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   /// Converts the string into a register name that is valid and doesn't already exist.
-  public Register resemblance(String prefix) {
+  private Register resemblance(String prefix) {
     return Variable.register(
         nextLocalDisambiguator.disambiguate(Register.resemblance(prefix).name()));
   }

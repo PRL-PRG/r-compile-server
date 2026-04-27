@@ -3,12 +3,15 @@ package org.prlprg.fir.opt;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
@@ -28,6 +31,7 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization.DeferredInsertions;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization.NonLocalSpecializations;
+import org.prlprg.util.Streams;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
 public class Specialize implements AbstractionOptimization {
@@ -92,7 +96,15 @@ public class Specialize implements AbstractionOptimization {
     }
 
     void run() {
-      var changes = new TreeSet<CfgPosition>();
+      var cfgs =
+          scope
+              .streamCfgs()
+              .gather(Streams.mapWithIndex(Map::entry))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      var changes =
+          new TreeSet<>(
+              Comparator.<CfgPosition>comparingInt(pos -> cfgs.get(pos.cfg()))
+                  .thenComparing(Comparator.naturalOrder()));
       var deferredInsertions = new LinkedHashMap<BB, TreeMap<Integer, List<Runnable>>>();
 
       // Initially, run on every expression.

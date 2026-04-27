@@ -238,10 +238,17 @@ public class Unbox implements AbstractionOptimization {
 
       var oldParam = newParams.get(i);
       var sigParamType = signature.parameterTypes().get(i);
-      var newParamName = boxedVersion.resemblance(oldParam.variable().name());
+      // Temporarily add local to disambiguate further param names
+      var newParamName = boxedVersion.addLocal(oldParam.variable().name(), unboxed(sigParamType));
       var newParam = new Parameter(newParamName, unboxed(sigParamType), false);
 
       newParams.set(i, newParam);
+    }
+    for (var i = 0; i < numParams; i++) {
+      if (!specialization.parameterUnboxings().get(i)) continue;
+
+      var newParam = newParams.get(i);
+      boxedVersion.removeLocal(newParam.variable());
     }
 
     var newVersion = copy2(feedback.module(), function, boxedVersion, newParams);
