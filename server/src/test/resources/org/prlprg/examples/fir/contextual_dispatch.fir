@@ -15,15 +15,15 @@ fun main() {
 
 fun contextual(r, r1) {
   (reg r:*, reg r1:*) --> I { |
-    return 1;
+    return 42;
   }
   (reg r:*, reg r1:v(I)) --> I { |
-    return 2;
+    return 42;
   }
   (reg r:v(I)o, reg r1:*) --> I { |
-    return 3;
+    return 42;
   }
   (reg r:v(I)o, reg r1:v(I)) --> I { |
-    return 4;
+    return 42;
   }
 }

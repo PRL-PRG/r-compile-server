@@ -1,3 +1,4 @@
+#? crashes
 x <- 2
 
 if (switch(x, 1, 2, g(3))) {

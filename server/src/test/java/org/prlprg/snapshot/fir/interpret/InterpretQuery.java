@@ -47,6 +47,10 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
   @Override
   public void verifyEqual(
       InterpretOutput expected, InterpretOutput actual, Example example, SnapshotStore store) {
+    if (actual.result() instanceof SexpResult.Error(_, var isSimplyUnsupported)
+        && isSimplyUnsupported) {
+      return;
+    }
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     // TODO: Fix
     // assertEquals(

@@ -1,8 +1,9 @@
 fun main() {
-  () -+> I { reg closure:cls, reg result:V, reg ret:I |
-    closure = make_closure< --> cls >();
-    result = dyn closure();
-    ret = result as I;
+  () -+> V { reg outer:cls, reg inner:V, reg inner1:cls, reg ret:V |
+    outer = make_closure< --> cls >();
+    inner = dyn outer();
+    inner1 = inner as cls;
+    ret = dyn inner1();
     return ret;
   }
 }

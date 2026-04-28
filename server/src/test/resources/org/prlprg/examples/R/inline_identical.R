@@ -1,1 +1,1 @@
-identical(unzip, "internal")
+identical(quit, "internal")
