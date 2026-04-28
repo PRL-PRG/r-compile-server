@@ -1,3 +1,4 @@
+#? crashes
 fun main() {
   () -~> V { reg r0:v1(I), reg r1:v1(I), reg r2:v1(I), reg r3:V, reg r4:V, reg r5:p(v1(I) -), reg r6:p(v1(I) -) |
     r0 = upcast< * -~> v1(I) >(<int 1>);  # nil
@@ -13,7 +14,6 @@ fun main() {
 
 fun upcast(`...`) {
   (reg r:*) -~> v1(I) { reg r0:p(v1(I) -), reg r1:v1(I) |
-    # crash: Type mismatch in cast: <int 1> {:v1(I)} isn't a(n) p(v1(I) -)
     r0 = r as p(v1(I) -);
     r1 = force r0;
     return r1;

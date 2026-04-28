@@ -157,14 +157,14 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     return expr;
   }
 
-  /// Gets the origin of a named variable at a specific location.
+  /// Gets the origin of a named variable after a specific location.
   public @Nullable Argument get(BB bb, int instructionIndex, NamedVariable variable) {
     var state = at(bb, instructionIndex);
     var origins = state.variableOrigins.get(variable);
     return origins == null ? null : origins.uniqueOrNull();
   }
 
-  /// Gets all statically-known origins of a named variable at a specific location.
+  /// Gets all statically-known origins of a named variable after a specific location.
   ///
   /// This is empty iff the variable's origin is unknown on at least one reaching path.
   public @UnmodifiableView Set<Argument> getKnown(

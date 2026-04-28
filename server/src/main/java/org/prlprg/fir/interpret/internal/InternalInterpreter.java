@@ -1096,8 +1096,7 @@ public final class InternalInterpreter implements Interpreter {
               .map(te -> new TaggedElem(te.tag(), eval(te.value())))
               .collect(SEXPs.toDots());
       case LangSXP langSxp ->
-          throw new UnsupportedOperationException(
-              "Evaluation of LangSXP not implemented: " + langSxp);
+          throw failUnsupported("Evaluation of LangSXP not implemented: " + langSxp);
       default -> valueSexp;
     };
   }

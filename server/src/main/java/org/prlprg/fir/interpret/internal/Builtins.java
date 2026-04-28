@@ -425,15 +425,16 @@ public final class Builtins {
       }
       case IntSXP i1 when s2 instanceof LglSXP l2 -> {
         int len = Math.max(i1.size(), l2.size());
-        return SEXPs.real(
+        return SEXPs.integer(
             IntStream.range(0, len)
-                .mapToDouble(
+                .map(
                     i ->
                         i1.get(i % i1.size()) == Constants.NA_INT
                                 || l2.get(i % l2.size()) == Logical.NA
-                            ? Double.NaN
-                            : fn.applyAsDouble(
-                                i1.get(i % i1.size()), l2.get(i % l2.size()).toInt()))
+                            ? Constants.NA_INT
+                            : (int)
+                                fn.applyAsDouble(
+                                    i1.get(i % i1.size()), l2.get(i % l2.size()).toInt()))
                 .toArray());
       }
       case RealSXP r1 when s2 instanceof IntSXP i2 -> {
@@ -461,15 +462,16 @@ public final class Builtins {
       }
       case LglSXP l1 when s2 instanceof IntSXP i2 -> {
         int len = Math.max(l1.size(), i2.size());
-        return SEXPs.real(
+        return SEXPs.integer(
             IntStream.range(0, len)
-                .mapToDouble(
+                .map(
                     i ->
                         l1.get(i % l1.size()) == Logical.NA
                                 || i2.get(i % i2.size()) == Constants.NA_INT
-                            ? Double.NaN
-                            : fn.applyAsDouble(
-                                l1.get(i % l1.size()).toInt(), i2.get(i % i2.size())))
+                            ? Constants.NA_INT
+                            : (int)
+                                fn.applyAsDouble(
+                                    l1.get(i % l1.size()).toInt(), i2.get(i % i2.size())))
                 .toArray());
       }
       case LglSXP l1 when s2 instanceof RealSXP r2 -> {
@@ -737,7 +739,10 @@ public final class Builtins {
         interpreter,
         name,
         Type.ANY_SEXP,
-        (lhs, rhs) -> lhs.box() == rhs.box() ? Logical.TRUE : Logical.FALSE);
+        (lhs, rhs) -> {
+          boolean eq = lhs.box() == rhs.box();
+          return isEqual == eq ? Logical.TRUE : Logical.FALSE;
+        });
     // (L, L) --> B | L
     registerBinaryBoolAndLogical(
         interpreter,
@@ -746,9 +751,10 @@ public final class Builtins {
         (lhs, rhs) -> {
           var a = ((Value.Lgl) lhs).value();
           var b = ((Value.Lgl) rhs).value();
+          boolean eq = a == b;
           return a == Logical.NA || b == Logical.NA
               ? Logical.NA
-              : a == b ? Logical.TRUE : Logical.FALSE;
+              : isEqual == eq ? Logical.TRUE : Logical.FALSE;
         });
     // (I, I) --> B | L
     registerBinaryBoolAndLogical(
@@ -758,9 +764,10 @@ public final class Builtins {
         (lhs, rhs) -> {
           var a = ((Value.Int) lhs).value();
           var b = ((Value.Int) rhs).value();
+          boolean eq = a == b;
           return a == Constants.NA_INT || b == Constants.NA_INT
               ? Logical.NA
-              : a == b ? Logical.TRUE : Logical.FALSE;
+              : isEqual == eq ? Logical.TRUE : Logical.FALSE;
         });
     // (R, R) --> B | L
     registerBinaryBoolAndLogical(
@@ -770,9 +777,10 @@ public final class Builtins {
         (lhs, rhs) -> {
           var a = ((Value.Real) lhs).value();
           var b = ((Value.Real) rhs).value();
+          boolean eq = a == b;
           return Double.isNaN(a) || Double.isNaN(b)
               ? Logical.NA
-              : a == b ? Logical.TRUE : Logical.FALSE;
+              : isEqual == eq ? Logical.TRUE : Logical.FALSE;
         });
     // (S, S) --> B | L
     registerBinaryBoolAndLogical(
@@ -782,9 +790,10 @@ public final class Builtins {
         (lhs, rhs) -> {
           var a = ((Value.Str) lhs).value();
           var b = ((Value.Str) rhs).value();
+          boolean eq = a.equals(b);
           return Constants.isNaString(a) || Constants.isNaString(b)
               ? Logical.NA
-              : a.equals(b) ? Logical.TRUE : Logical.FALSE;
+              : isEqual == eq ? Logical.TRUE : Logical.FALSE;
         });
   }
 
@@ -1328,7 +1337,7 @@ public final class Builtins {
               int times;
               if (args.get(1) instanceof Value.Sexp(var sexp) && sexp instanceof DotsListSXP dots) {
                 if (dots.size() != 1) {
-                  throw interpreter.fail("Mock `rep` dots must have exactly 1 value");
+                  throw interpreter.failUnsupported("Mock `rep` dots must have exactly 1 value");
                 }
                 times = sexpToInt(dots.get(0).value(), interpreter, "rep");
               } else {
@@ -1526,7 +1535,7 @@ public final class Builtins {
                 throw interpreter.fail("`sum` first argument must be dots");
               }
               if (dots.size() != 1) {
-                throw interpreter.fail("Mock `sum` dots must have exactly 1 value");
+                throw interpreter.failUnsupported("Mock `sum` dots must have exactly 1 value");
               }
               var arg = dots.get(0).value();
               return new Value.Sexp(sumSexp(arg, interpreter));
