@@ -17,7 +17,10 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Aea;
@@ -137,7 +140,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
                   continue;
                 }
 
-                var origins = originAnalysis.getKnown(bb, i, variable);
+                var origins = originAnalysis.getPossible(bb, i, variable);
                 if (origins.isEmpty()
                     || origins.stream().anyMatch(origin -> !isPromotableOrigin(origin))
                     || (loadType == LoadType.LOCAL_FUN
@@ -153,7 +156,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
               case org.prlprg.fir.ir.expression.Assume(var assumption) -> {
                 switch (assumption) {
                   case AssumeLoadFun(var variable, var _) -> forbidden.add(variable);
-                  default -> {}
+                  case AssumeConstant _, AssumeFunction _, AssumeType _ -> {}
                 }
               }
               default -> {}
@@ -199,7 +202,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       while (!worklist.isEmpty()) {
         var bb = worklist.removeFirst();
         for (var frontierBb : dominanceFrontier.getOrDefault(bb, Set.of())) {
-          if (originAnalysis.getKnown(frontierBb, -1, candidate.variable()).size() <= 1
+          if (originAnalysis.getPossible(frontierBb, -1, candidate.variable()).size() <= 1
               || !result.add(frontierBb)) {
             continue;
           }
@@ -222,8 +225,8 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
         }
 
         var phiType =
-            originAnalysis.getKnown(bb, -1, variable).stream()
-                .map(origin -> scope.typeOf(origin))
+            originAnalysis.getPossible(bb, -1, variable).stream()
+                .map(scope::typeOf)
                 .reduce(
                     Type.ANY_SEXP,
                     (left, right) -> Type.union(left, right == null ? Type.ANY_SEXP : right));
