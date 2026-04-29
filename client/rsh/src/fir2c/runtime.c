@@ -356,7 +356,7 @@ static SEXP Fir_make_names(int count, SEXP const *names) {
   return result;
 }
 
-SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names) {
+SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names) {
   switch (kind.tag) {
   case FIR_KIND_PRIMITIVE_VECTOR:
   case FIR_KIND_PRIMITIVE_VECTOR1: {
@@ -366,27 +366,26 @@ SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *nam
         : kind.as.primitive.primitive == FIR_PRIMITIVE_REAL ? REALSXP
         : STRSXP;
     SEXP vec = PROTECT(Rf_allocVector(type, count));
-    for (int i = 0; i < count; ++i) {
-      SEXP element = values ? values[i] : R_NilValue;
-      switch (type) {
-      case LGLSXP:
-        LOGICAL(vec)[i] = Rf_asLogical(element);
-        break;
-      case INTSXP:
-        INTEGER(vec)[i] = Rf_asInteger(element);
-        break;
-      case REALSXP:
-        REAL(vec)[i] = Rf_asReal(element);
-        break;
-      case STRSXP: {
-        SEXP chr = PROTECT(Rf_asChar(element));
+    switch (type) {
+    case LGLSXP:
+      memcpy(LOGICAL(vec), values, count * sizeof(Rboolean));
+      break;
+    case INTSXP:
+      memcpy(INTEGER(vec), values, count * sizeof(int));
+      break;
+    case REALSXP:
+      memcpy(REAL(vec), values, count * sizeof(double));
+      break;
+    case STRSXP: {
+      for (int i = 0; i < count; ++i) {
+        SEXP chr = PROTECT(Rf_mkChar(((char**)values)[i]));
         SET_STRING_ELT(vec, i, chr);
         UNPROTECT(1);
-        break;
       }
-      default:
-        Rf_error("Unsupported vector type");
-      }
+      break;
+    }
+    default:
+      Rf_error("Unsupported vector type");
     }
     if (names) {
       SEXP nm = PROTECT(Fir_make_names(count, names));
@@ -402,7 +401,7 @@ SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *nam
     SEXP result = R_NilValue;
     int protect_count = 0;
     for (int i = count - 1; i >= 0; --i) {
-      SEXP elem = values ? values[i] : R_NilValue;
+      SEXP elem = ((SEXP*)values)[i];
       SEXP node = PROTECT(Rf_cons(elem, result));
       protect_count++;
       if (names) {
