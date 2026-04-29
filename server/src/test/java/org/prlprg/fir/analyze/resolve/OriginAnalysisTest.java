@@ -134,7 +134,7 @@ class OriginAnalysisTest {
     assertNull(analysis.get(bb3, -1, Variable.named("x")));
     assertEquals(
         Set.of(new Constant(SEXPs.integer(1)), new Constant(SEXPs.integer(2))),
-        analysis.getKnown(bb3, -1, Variable.named("x")));
+        analysis.getPossible(bb3, -1, Variable.named("x")));
   }
 
   @Test
@@ -161,26 +161,32 @@ class OriginAnalysisTest {
 
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(Set.of(), analysis.getKnown(entry, 0, Variable.named("x")));
-    assertEquals(Set.of(), analysis.getKnown(entry, 0, Variable.named("y")));
+    assertEquals(Set.of(), analysis.getPossible(entry, 0, Variable.named("x")));
+    assertEquals(Set.of(), analysis.getPossible(entry, 0, Variable.named("y")));
 
     assertEquals(
-        Set.of(new Constant(SEXPs.integer(1))), analysis.getKnown(entry, 3, Variable.named("x")));
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 3, Variable.named("x")));
     assertEquals(
-        Set.of(new Constant(SEXPs.integer(2))), analysis.getKnown(entry, 3, Variable.named("y")));
+        Set.of(new Constant(SEXPs.integer(2))),
+        analysis.getPossible(entry, 3, Variable.named("y")));
 
     assertEquals(
-        Set.of(new Constant(SEXPs.integer(3))), analysis.getKnown(entry, 4, Variable.named("x")));
+        Set.of(new Constant(SEXPs.integer(3))),
+        analysis.getPossible(entry, 4, Variable.named("x")));
     assertEquals(
-        Set.of(new Constant(SEXPs.integer(2))), analysis.getKnown(entry, 4, Variable.named("y")));
+        Set.of(new Constant(SEXPs.integer(2))),
+        analysis.getPossible(entry, 4, Variable.named("y")));
 
     assertEquals(
-        Set.of(new Constant(SEXPs.integer(1))), analysis.getKnown(entry, 5, Variable.named("x")));
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 5, Variable.named("x")));
     assertEquals(
-        Set.of(new Constant(SEXPs.integer(2))), analysis.getKnown(entry, 5, Variable.named("y")));
+        Set.of(new Constant(SEXPs.integer(2))),
+        analysis.getPossible(entry, 5, Variable.named("y")));
 
-    assertEquals(Set.of(), analysis.getKnown(entry, 6, Variable.named("x")));
-    assertEquals(Set.of(), analysis.getKnown(entry, 6, Variable.named("y")));
+    assertEquals(Set.of(), analysis.getPossible(entry, 6, Variable.named("x")));
+    assertEquals(Set.of(), analysis.getPossible(entry, 6, Variable.named("y")));
   }
 
   @Test
@@ -212,8 +218,8 @@ class OriginAnalysisTest {
 
     assertEquals(
         Set.of(new Constant(SEXPs.integer(1)), new Constant(SEXPs.integer(2))),
-        analysis.getKnown(bb2, -1, Variable.named("x")));
+        analysis.getPossible(bb2, -1, Variable.named("x")));
     assertEquals(
-        Set.of(new Constant(SEXPs.integer(1))), analysis.getKnown(bb2, 0, Variable.named("x")));
+        Set.of(new Constant(SEXPs.integer(1))), analysis.getPossible(bb2, 0, Variable.named("x")));
   }
 }

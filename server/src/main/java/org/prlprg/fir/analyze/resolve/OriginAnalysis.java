@@ -47,7 +47,6 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
@@ -61,6 +60,7 @@ import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -72,25 +72,30 @@ import org.prlprg.util.Streams;
 /// Computes each variable's **origin**: the earliest known register or constant that it was
 /// assigned.
 ///
-/// Named variable's origins are different at different locations. Register origins are the same
-/// throughout all locations.
+/// Named variable origins are different at different locations. Register origins are the same
+/// throughout all locations (SSA).
 ///
-/// Only named variable origins can be `null`, as every register's origin is at least itself.
-/// However:
-/// - If a register is assigned a constant (e.g. `a = 42`), the constant is it's origin.
-/// - If a register is assigned another register (e.g. `b = a`), that register's origin becomes
-///   its origin (this is transitive, e.g. in `b = a; c = b`, `c`'s origin is `a`).
-/// - If a register is assigned a [Load] whose named variable has an origin, that becomes its
-///   origin.
-/// - TODO: If a register is assigned a call that can be constant-folded, its origin is the
-///   computed constant.
+/// Named variables may have multiple possible origins or `null` (undefined). Every register has
+/// one origin, which in the worst case is itself.
+///
+/// Register rules:
+/// - If a register is assigned a constant (`a = 42`), the constant is its origin.
+/// - If a register is assigned another register (`b = a`), that register's origin becomes its
+///   origin (this is transitive; in `b = a; c = b`, `c`'s origin is `a`).
+/// - If a register is assigned a (local or super) load whose named variable has a single origin
+///   at the position, that becomes its origin.
+/// - If a register is assigned a call that can be constant-folded, its origin is the computed
+///   constant.
+/// - Otherwise, its origin is itself.
 ///
 /// Named variables live on a stack of environments, pushed by [MkEnv] and popped by [PopEnv].
-/// A local store writes the topmost environment; a local load reads from the highest environment
-/// in which the variable is present, falling through to the parent if the topmost may or may
-/// not have it. A super load/store works the same way, but starts from the highest non-topmost
-/// environment. An environment that has been "tainted" by reflection has all of its variables'
-/// origins forgotten and may have any other variable present with unknown origin.
+/// Named variable rules:
+/// - A local store writes the topmost environment.
+/// - A local load reads from the highest environment in which the variable is present, falling
+///   through to the parent if the topmost may or may not have it.
+/// - A super load/store works the same way, but starts from the highest non-topmost environment.
+/// - A reflective instruction "taints" every environment; any lookup that reaches a tainted
+///   environment is ambiguous. Outer environments (global or outer closure) are always tainted.
 public final class OriginAnalysis extends AbstractInterpretation<State> implements Analysis {
   private final DefUses defUses;
   private final InferType inferType;
@@ -134,7 +139,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         : new Read(register);
   }
 
-  /// If the argument is a [Read] or [Consume], looks up its origin.
+  /// Gets the origin of an argument.
+  ///
+  /// - [Read] = looks up its origin
+  /// - [Consume] = looks up its origin, which is always [Read] in valid code, and wraps in
+  ///   [Consume]
+  /// - [Constant] = returns itself
   public Argument resolve(Argument arg) {
     return switch (arg) {
       case Constant _ -> arg;
@@ -146,12 +156,18 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     };
   }
 
-  /// If the argument is a [Read] or [Consume], looks up the expression it's assigned to.
+  /// Iff the argument is a [Read] or [Consume], looks up the expression it's assigned to.
+  ///
+  /// e.g. in `a = v(I)[1, 2, 3]; b = a`, `resolveExpression(a)` and `resolveExpression(b)`
+  /// return `v(I)[1, 2, 3]`.
   public @Nullable Expression resolveExpression(Argument arg) {
     return definitionExpression(resolve(arg));
   }
 
-  /// Same as [#resolveExpression(Argument)] but skips finding the argument's origin.
+  /// Same as [#resolveExpression(Argument)], but skips finding the argument's origin.
+  ///
+  /// e.g. in `a = v(I)[1, 2, 3]; b = a`, `definitionExpression(a)` returns `v(I)[1, 2, 3]`, and
+  /// `definitionExpression(b)` returns `a`.
   private @Nullable Expression definitionExpression(Argument origin) {
     if (!(origin instanceof Read(var originReg))) {
       return null;
@@ -167,25 +183,25 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
   /// Gets the origin of a named variable after a specific location.
   ///
-  /// `null` iff the variable's origin can't be uniquely determined: either some reaching path
-  /// has unknown origin, or there are multiple possible origins.
+  /// `null` iff the variable's origin can't be uniquely determined: either there are multiple
+  /// possible origins, or it's completely unknown.
   public @Nullable Argument get(BB bb, int instructionIndex, NamedVariable variable) {
-    return uniqueOrNull(loadFromTop(at(bb, instructionIndex), variable));
+    return uniqueOrNull(at(bb, instructionIndex).load(variable));
   }
 
-  /// Gets all statically-known origins of a named variable after a specific location.
+  /// Gets the possible origins of a named variable after a specific location.
   ///
-  /// This is empty iff the variable's origin is unknown on at least one reaching path.
-  public @UnmodifiableView Set<Argument> getKnown(
+  /// This is empty iff the variable's origin is completely unknown (infinite set).
+  public @UnmodifiableView Set<Argument> getPossible(
       BB bb, int instructionIndex, NamedVariable variable) {
-    var origins = loadFromTop(at(bb, instructionIndex), variable);
+    var origins = at(bb, instructionIndex).load(variable);
     return origins == null ? Set.of() : Set.copyOf(origins);
   }
 
   /// Gets the origin of the return value.
   ///
-  /// `null` iff there are no returns, a return has unknown origin, or the return origins are
-  /// different.
+  /// `null` iff there are no returns, a return has unknown origin, or the possible return
+  /// origins are different.
   public @Nullable Argument getReturn() {
     var mainCfg = scope.cfg();
     if (mainCfg == null) {
@@ -194,61 +210,6 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     return ((OnCfg) onCfg(mainCfg)).returnOrigin();
-  }
-
-  /// Resolves a load of `variable` against the env stack starting from the topmost frame.
-  private static @Nullable Set<Argument> loadFromTop(State state, NamedVariable variable) {
-    return loadFromStack(state.envs, variable, state.envs.size() - 1);
-  }
-
-  /// Resolves a "super" load of `variable`, which starts from the highest non-topmost frame.
-  private static @Nullable Set<Argument> loadFromSuper(State state, NamedVariable variable) {
-    return loadFromStack(state.envs, variable, state.envs.size() - 2);
-  }
-
-  /// Walks the env stack downward starting at `frameIdx` and returns all possible load origins.
-  ///
-  /// `null` indicates at least one reaching path has unknown origin (e.g. the variable falls off
-  /// the bottom of the stack into the global env, or the relevant frame is tainted).
-  private static @Nullable Set<Argument> loadFromStack(
-      List<EnvFrame> envs, NamedVariable variable, int frameIdx) {
-    if (frameIdx < 0) {
-      // Beyond the local stack: outer (global/closure) env, which we don't track.
-      return null;
-    }
-    var frame = envs.get(frameIdx);
-    var info = frame.variables.get(variable);
-
-    // A definitely-present variable with known origins resolves at this frame regardless of taint.
-    if (info != null && !info.mayBeAbsent && !info.origins.isEmpty()) {
-      return Set.copyOf(info.origins);
-    }
-
-    if (frame.tainted) {
-      // Reflection may have placed the variable here with an unknown value, so we can't fall
-      // through to the parent.
-      return null;
-    }
-
-    if (info == null) {
-      // Definitely not in this frame; look at the parent.
-      return loadFromStack(envs, variable, frameIdx - 1);
-    }
-
-    if (info.origins.isEmpty()) {
-      // Present but with unknown origin (defensive; not normally produced).
-      return null;
-    }
-
-    // Variable may or may not be in this frame: union the local origins with the parent's.
-    var parent = loadFromStack(envs, variable, frameIdx - 1);
-    if (parent == null) {
-      return null;
-    }
-    var result = new LinkedHashSet<Argument>();
-    result.addAll(info.origins);
-    result.addAll(parent);
-    return result;
   }
 
   private static @Nullable Argument uniqueOrNull(@Nullable Set<Argument> origins) {
@@ -288,39 +249,31 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         case Store(var storeType, var variable, var value) -> {
           var o = resolve(value);
           switch (storeType) {
-            case LOCAL_VAR -> localStore(state(), variable, o);
-            case SUPER_VAR -> superStore(state(), variable, o);
+            case LOCAL_VAR -> state().store(variable, o);
+            case SUPER_VAR -> state().superStore(variable, o);
           }
-          yield o;
+          yield null;
         }
         case Load(var loadType, var variable) -> {
-          Set<Argument> origins;
+          // Java is dumb:
+          // replacing `case GLOBAL_FUN, BASE_FUN` with `default` removes the need for `= null`
+          Set<Argument> origins = null;
           switch (loadType) {
-            case LOCAL_VAR, LOCAL_FUN -> origins = loadFromTop(state(), variable);
-            case SUPER_VAR -> origins = loadFromSuper(state(), variable);
-            default -> {
-              // Currently not tracking non-local lookups.
+            case LOCAL_VAR -> origins = state().load(variable);
+            case LOCAL_FUN -> origins = state().loadFun(variable);
+            case SUPER_VAR -> origins = state().superLoad(variable);
+            case GLOBAL_FUN, BASE_FUN -> {
+              // Must actually be looked up
               yield null;
             }
           }
-          var loadOrigin = uniqueOrNull(origins);
-          if (loadOrigin == null) {
-            yield null;
-          }
-          if (loadType == LoadType.LOCAL_FUN) {
-            var loadOriginType = inferType.of(loadOrigin);
-            if (loadOriginType == null || !loadOriginType.isSubtypeOf(Type.CLOSURE)) {
-              // Lookup (maybe) goes through (maybe-)non-function into parent
-              yield null;
-            }
-          }
-          yield loadOrigin;
+          yield uniqueOrNull(origins);
         }
         case Aea(var arg) -> resolve(arg);
         case Cast(var value, var type) -> {
           var valueOrigin = resolve(value);
           // Only see through the cast if it's guaranteed to succeed.
-          // Otherwise we'll get a type error substituting,
+          // Otherwise, we'll get a type error substituting,
           // and a runtime error iff the instruction gets rearranged before the cast
           // and the cast would fail.
           var valueType = inferType.of(valueOrigin);
@@ -331,7 +284,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
               case AssumeType(var value, var type) -> {
                 var valueOrigin = resolve(value);
                 // Only see through the assumption if it's guaranteed to succeed.
-                // Otherwise we'll get a type error substituting,
+                // Otherwise, we'll get a type error substituting,
                 // and a deopt iff the instruction gets rearranged before the assumption
                 // and the assumption fails.
                 var valueType = inferType.of(valueOrigin);
@@ -354,13 +307,14 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             // We're forcing an unknown thing.
             // We can't keep named variable origins:
             // even if its type has no reflection, it may be a local promise, which may mutate them.
-            taintAllEnvs();
+            state().taintEnvs();
             yield null;
           }
         }
-        // We must run promises because `AbstractInterpretation` doesn't.
         case Promise(_, _, var code) -> {
+          // We must explicitly run promises because `AbstractInterpretation` doesn't.
           runSubAnalysis(code, state()::merge);
+          // The promise itself isn't a constant (nor `code`'s return origin)
           yield null;
         }
         case Call(var callee, var arguments) -> {
@@ -370,18 +324,16 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           }
 
           if (inferEffects.of(expr).reflect()) {
-            taintAllEnvs();
+            state().taintEnvs();
           }
           yield null;
         }
         case MkEnv _ -> {
-          state().envs.add(new EnvFrame());
+          state().mkEnv();
           yield null;
         }
         case PopEnv _ -> {
-          if (!state().envs.isEmpty()) {
-            state().envs.removeLast();
-          }
+          state().popEnv();
           yield null;
         }
         case Closure _,
@@ -393,47 +345,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             SubscriptRead _,
             SubscriptWrite _ -> {
           if (inferEffects.of(expr).reflect()) {
-            taintAllEnvs();
+            state().taintEnvs();
           }
           yield null;
         }
       };
-    }
-
-    private void localStore(State state, NamedVariable variable, Argument value) {
-      if (state.envs.isEmpty()) {
-        // No local environment to store to (would write to the global env).
-        return;
-      }
-      state.envs.getLast().variables.put(variable, VariableInfo.of(value));
-    }
-
-    /// Writes a super-store: targets the highest non-topmost frame in which the variable is
-    /// present.
-    ///
-    /// In a frame where the variable may-or-may-not be present, the store may write here or fall
-    /// through to a deeper frame, so we union the new value into the local origins (still
-    /// may-be-absent) and continue searching.
-    private void superStore(State state, NamedVariable variable, Argument value) {
-      for (int i = state.envs.size() - 2; i >= 0; i--) {
-        var frame = state.envs.get(i);
-        if (frame.tainted) {
-          // We don't know what the super-store actually targets.
-          return;
-        }
-        var info = frame.variables.get(variable);
-        if (info == null) {
-          continue;
-        }
-        if (!info.mayBeAbsent) {
-          frame.variables.put(variable, VariableInfo.of(value));
-          return;
-        }
-        var updated = info.copy();
-        updated.origins.add(value);
-        frame.variables.put(variable, updated);
-      }
-      // Fell through to the global env (not tracked).
     }
 
     private @Nullable Argument tryConstantFold(Callee callee, List<Argument> arguments) {
@@ -558,21 +474,166 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
       state().registerOrigins.put(register, Optional.ofNullable(origin));
     }
+  }
 
-    private void taintAllEnvs() {
-      for (var env : state().envs) {
+  public final class State implements AbstractInterpretation.State<State> {
+    /// Register origins are global, but `State` must store them, so that states with different
+    /// register origins aren't equal, so that we re-run blocks whose register origin
+    /// dependencies changed.
+    private final Map<Register, Optional<Argument>> registerOrigins = new LinkedHashMap<>();
+    /// The stack of local environments; the last entry is the topmost (innermost).
+    private final List<EnvFrame> envs = new ArrayList<>();
+
+    private void mkEnv() {
+      envs.add(new EnvFrame());
+    }
+
+    private void popEnv() {
+      if (!envs.isEmpty()) {
+        envs.removeLast();
+      }
+    }
+
+    /// Resolves a load of `variable` against the env stack starting from the topmost frame.
+    private @Nullable Set<Argument> load(NamedVariable variable) {
+      return loadFrom(variable, envs.size() - 1);
+    }
+
+    /// Resolves a "super" load of `variable`, which starts from the highest non-topmost frame.
+    private @Nullable Set<Argument> superLoad(NamedVariable variable) {
+      return loadFrom(variable, envs.size() - 2);
+    }
+
+    /// Walks the env stack downward starting at `frameIdx` and returns all possible load origins.
+    ///
+    /// `null` indicates at least one reaching path has unknown origin (e.g. the variable falls off
+    /// the bottom of the stack into the global env, or the relevant frame is tainted).
+    private @Nullable Set<Argument> loadFrom(NamedVariable variable, int frameIdx) {
+      var candidates = new LinkedHashSet<Argument>();
+
+      for (; frameIdx >= 0; frameIdx--) {
+        var frame = envs.get(frameIdx);
+
+        if (frame.tainted) {
+          // Tainted env = completely unknown (infinite candidates)
+          return null;
+        }
+
+        var info = frame.variables.get(variable);
+
+        if (info != null) {
+          candidates.addAll(info.origins);
+        }
+
+        if (info != null && !info.mayBeAbsent) {
+          // Stop looking through parents
+          return candidates;
+        }
+      }
+
+      // Outer env = tainted = completely unknown (infinite candidates)
+      return null;
+    }
+
+    /// Function lookup: same as [#load(NamedVariable)], but treats non-functions as absent
+    /// (and maybe-functions as maybe absent). Additionally, handles maybe-reflective-forces
+    private @Nullable Set<Argument> loadFun(NamedVariable variable) {
+      var candidates = new LinkedHashSet<Argument>();
+
+      for (int frameIdx = envs.size() - 1; frameIdx >= 0; frameIdx--) {
+        var frame = envs.get(frameIdx);
+
+        if (frame.tainted) {
+          // Tainted env = completely unknown (infinite candidates)
+          return null;
+        }
+
+        var info = frame.variables.get(variable);
+
+        var mayBeAbsent = info == null || info.mayBeAbsent;
+        if (info != null) {
+          for (var origin : info.origins) {
+            var originType = inferType.of(origin);
+
+            // Taint iff maybe a reflective force
+            if (originType != null && originType.promisity().effects().reflect()) {
+              return null;
+            }
+
+            // Only add if maybe-closure, set `mayBeAbsent` if maybe-not-closure
+            if (originType != null
+                && Type.CLOSURE.isSubtypeOf(originType.withPromisity(Promisity.ANY))) {
+              candidates.add(origin);
+            }
+            if (originType != null
+                && !originType.isSubtypeOf(Type.CLOSURE.withPromisity(Promisity.ANY))) {
+              mayBeAbsent = true;
+            }
+          }
+        }
+
+        if (!mayBeAbsent) {
+          // Stop looking through parents
+          return candidates;
+        }
+      }
+
+      // Outer env = tainted = completely unknown (infinite candidates)
+      return null;
+    }
+
+    private void store(NamedVariable variable, Argument value) {
+      if (envs.isEmpty()) {
+        // Stores in the untracked outer env.
+        return;
+      }
+      envs.getLast().variables.put(variable, VariableInfo.of(value));
+    }
+
+    /// Stores in the highest non-topmost frame where the variable is present.
+    ///
+    /// In a frame where the variable may-or-may-not be present, the store may write here or
+    /// fall through to a deeper frame, so we union the new value into the local origins (still
+    /// maybe-absent) and continue searching.
+    private void superStore(NamedVariable variable, Argument value) {
+      var isAmbiguous = false;
+      for (int frameIdx = envs.size() - 2; frameIdx >= 0; frameIdx--) {
+        var frame = envs.get(frameIdx);
+        if (frame.tainted) {
+          // May store to tainted, maybe-store in super
+          isAmbiguous = true;
+          continue;
+        }
+
+        var info = frame.variables.get(variable);
+
+        if (info == null) {
+          // Definitely not present, (if ambiguous, maybe-)store in super
+          continue;
+        }
+
+        if (!info.mayBeAbsent) {
+          // Definitely present, (if ambiguous, maybe-)store here
+          if (!isAmbiguous) {
+            info.origins.clear();
+          }
+          info.origins.add(value);
+          return;
+        }
+
+        // Maybe present, maybe-store here and maybe-store in super
+        info.origins.add(value);
+        isAmbiguous = true;
+      }
+
+      // Fell through to the global env (not tracked).
+    }
+
+    private void taintEnvs() {
+      for (var env : envs) {
         env.taint();
       }
     }
-  }
-
-  public static final class State implements AbstractInterpretation.State<State> {
-    // Register origins are global, but `State` must store them, so that states with different
-    // register origins aren't equal, so that we re-run blocks whose register origin
-    // dependencies changed.
-    final Map<Register, Optional<Argument>> registerOrigins = new LinkedHashMap<>();
-    // The stack of local environments; the last entry is the topmost (innermost).
-    final List<EnvFrame> envs = new ArrayList<>();
 
     @Override
     public State copy() {
@@ -604,18 +665,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // Merge env stacks. Well-formed IR balances mkenv/popenv, so the depths should match.
       // If they don't, the stack is ambiguous; we collapse to the shorter depth and taint the
       // surviving frames.
-      var depthMismatch = envs.size() != other.envs.size();
-      var commonDepth = Math.min(envs.size(), other.envs.size());
-      while (envs.size() > commonDepth) {
-        envs.removeLast();
-      }
-      for (int i = 0; i < commonDepth; i++) {
-        envs.get(i).merge(other.envs.get(i));
-      }
-      if (depthMismatch) {
-        for (var env : envs) {
-          env.taint();
+      if (envs.size() == other.envs.size()) {
+        for (int i = 0; i < envs.size(); i++) {
+          envs.get(i).merge(other.envs.get(i));
         }
+      } else {
+        while (envs.size() > other.envs.size()) {
+          envs.removeLast();
+        }
+        taintEnvs();
       }
     }
 
@@ -634,12 +692,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
   }
 
-  /// A single environment frame on the env stack.
+  /// A single environment frame in a state's environment stack.
   static final class EnvFrame {
     final Map<NamedVariable, VariableInfo> variables = new LinkedHashMap<>();
     /// Set when reflection has run while this frame was on the stack: the previously-known
     /// variables are forgotten, and arbitrary other variables may now be present here.
     boolean tainted = false;
+
+    void taint() {
+      tainted = true;
+      variables.clear();
+    }
 
     EnvFrame copy() {
       var copy = new EnvFrame();
@@ -652,7 +715,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     void merge(EnvFrame other) {
       if (tainted || other.tainted) {
-        // Tainted on either side means we can't trust the contents of this frame.
+        // Result = tainted
         taint();
         return;
       }
@@ -662,10 +725,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           e.getValue().mayBeAbsent = true;
         }
       }
-      // Vars in other.
+      // Add and merge vars in other.
       for (var e : other.variables.entrySet()) {
         var info = variables.get(e.getKey());
         if (info == null) {
+          // In other but no in this, so may be absent.
           var copy = e.getValue().copy();
           copy.mayBeAbsent = true;
           variables.put(e.getKey(), copy);
@@ -673,11 +737,6 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           info.merge(e.getValue());
         }
       }
-    }
-
-    void taint() {
-      tainted = true;
-      variables.clear();
     }
 
     @Override
@@ -693,7 +752,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
   }
 
-  /// Per-variable information stored in an [EnvFrame].
+  /// A single named variable in an [EnvFrame] in a [State].
   static final class VariableInfo {
     static VariableInfo of(Argument origin) {
       var info = new VariableInfo();
