@@ -1,12 +1,12 @@
 fun main() {
-  () -+> v1(I) { reg out:v1(I) |
-    out = constant< -+> v1(I) >();
+  () -+> V{ reg out:V|
+    out = constant< -+> V>();
     return out;
   }
 }
 
 fun constant() {
-  () -+> v1(I) { reg cond:B, reg zero:v1(I) |
+  () -+> V { reg cond:B, reg zero:V |
     cond = TRUE;
     zero = <int 0>;
     check BBopt() else BBdeopt();
