@@ -1,5 +1,5 @@
 fun main() {
-  () -~> I { reg r:B |
+  () -~> v1(I) { reg r:B |
     r = blackBox< B --> B >(TRUE);
     if r then L0() else L1();
   L0():
@@ -7,7 +7,7 @@ fun main() {
     goto L1();
   # env-error: Predecessors have different environments:
   L1():
-    return 0;
+    return <int 0>;
   }
 }
 

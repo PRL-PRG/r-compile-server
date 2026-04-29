@@ -3,7 +3,6 @@ package org.prlprg.snapshot.fir.interpret;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import org.junit.jupiter.api.Disabled;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.FirExampleTest;
 import org.prlprg.examples.SexpResult.Error;
@@ -15,7 +14,6 @@ import org.prlprg.snapshot.gen2c.EvalQuery;
 
 /// Runs supported FIŘ modules in the internal interpreter, testing the interpreter, BC->FIŘ,
 /// and FIŘ parsing.
-@Disabled
 class InterpretTest {
   /// Call the interpreter once, check output.
   @FirExampleTest(skipOption = "noEval")

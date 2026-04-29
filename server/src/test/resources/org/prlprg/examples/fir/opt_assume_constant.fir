@@ -18,6 +18,6 @@ fun constant() {
     return zero;
   BBdeopt():
     mkenv;
-    deopt 0 [cond];
+    deopt 0 [];
   }
 }

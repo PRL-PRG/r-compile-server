@@ -1,10 +1,13 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="FIŘ Snapshots" type="JUnit" factoryName="JUnit">
+  <configuration default="false" name="FIŘ Snapshots (no stdlib)" type="JUnit" factoryName="JUnit">
     <module name="r-compile-server" />
     <option name="PACKAGE_NAME" value="org.prlprg.snapshot.fir" />
     <option name="MAIN_CLASS_NAME" value="" />
     <option name="METHOD_NAME" value="" />
     <option name="TEST_OBJECT" value="package" />
+    <envs>
+      <env name="EXAMPLE_FILTER" value="(?!stdlib_).*" />
+    </envs>
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

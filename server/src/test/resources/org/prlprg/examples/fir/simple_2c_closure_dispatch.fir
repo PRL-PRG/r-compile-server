@@ -1,6 +1,6 @@
 fun main() {
   () -+> V { reg outer:cls, reg inner:V, reg inner1:cls, reg ret:V |
-    outer = make_closure< --> cls >();
+    outer = outermost_f< --> cls >();
     inner = dyn outer();
     inner1 = inner as cls;
     ret = dyn inner1();
@@ -8,14 +8,21 @@ fun main() {
   }
 }
 
-fun make_closure() {
+fun outermost_f() {
   () --> cls { reg c:cls |
-    c = clos produce;
+    c = clos outer_f;
     return c;
   }
 }
 
-fun produce() {
+fun outer_f() {
+  () --> cls { reg c:cls |
+    c = clos inner_f;
+    return c;
+  }
+}
+
+fun inner_f() {
   () --> V { |
     return <int 42>;
   }
