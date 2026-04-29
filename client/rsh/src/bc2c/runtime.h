@@ -444,6 +444,17 @@ static INLINE SEXP VAL_SXP(Value v) {
 
 #define VAL_TAG(v) ((v).tag)
 
+static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
+  switch (x) {
+  case NA_LOGICAL:
+    return R_LogicalNAValue;
+  case 0:
+    return R_FalseValue;
+  default:
+    return R_TrueValue;
+  }
+}
+
 // Checked accessors
 
 // TODO: can we share this bcell expand?
@@ -459,7 +470,7 @@ static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
   case INTSXP:
     return Rf_ScalarInteger(VAL_INT(v));
   case LGLSXP:
-    return Rf_ScalarLogical(VAL_INT(v));
+    return Rsh_ScalarLogical(VAL_INT(v));
   case ISQSXP: {
     int *seqinfo = INTEGER(VAL_SXP(v));
     return R_compact_intrange(seqinfo[0], seqinfo[1]);
