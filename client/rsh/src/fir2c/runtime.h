@@ -150,11 +150,15 @@ void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed)
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
 void Fir_push_env(SEXP *env);
 void Fir_pop_env(SEXP *env);
-SEXP Fir_mk_vector(Fir_Kind kind, int count, SEXP const *values, SEXP const *names);
+SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);
+// TODO: Replace with `int Fir_subscript_read_int(SEXP vector, int index)` etc.
+//  in here, `runtime.c`, and `Fir2CCompiler` (note: `index` is `int` for all scalar types)
 SEXP Fir_subscript_read(SEXP vector, SEXP index);
-SEXP Fir_subscript_write(SEXP vector, SEXP index, SEXP value);
+// TODO: Replace with `SEXP Fir_subscript_write_int(SEXP vector, int index, int value)` etc.
+//  in here, `runtime.c`, and `Fir2CCompiler` (note: `index` is `int` for all scalar types)
+SEXP Fir_subscript_write(SEXP vector, int index, SEXP value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names);
