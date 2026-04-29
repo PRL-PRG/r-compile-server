@@ -1,5 +1,5 @@
 fun main() {
-  () --> v1(I) { reg r:v1(I) |
+  () -~> v1(I) { reg r:v1(I) |
     # cfg-error: Local register r used before assignment
     # prov-error: Read before write: r
     # env-error: No environment to store into

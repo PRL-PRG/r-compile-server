@@ -201,7 +201,7 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
       subAnalysis.run(state());
 
-      var returnState = subAnalysis.returnState();
+      S returnState = subAnalysis.returnState();
       if (returnState != null) {
         merge.accept(returnState);
       }
