@@ -104,7 +104,13 @@ public class EnvironmentChecker extends Checker {
 
       switch (statement.expression()) {
         case PopEnv _ when !hasEnv -> report(bb, instructionIndex, "No environment to pop");
-        case Store _ when !hasEnv -> report(bb, instructionIndex, "No environment to store into");
+        case Store(var storeType, _, _) when !hasEnv -> {
+          switch (storeType) {
+            case LOCAL_VAR -> report(bb, instructionIndex, "No environment to store into");
+            case SUPER_VAR ->
+                report(bb, instructionIndex, "No environment for super-store to skip");
+          }
+        }
         default -> {}
       }
     }
