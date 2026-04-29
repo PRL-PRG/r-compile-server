@@ -20,9 +20,9 @@ if [ -n "$partially_staged" ]; then
 elif [ -n "$everything_staged" ]; then
 	# Format only staged changes. We must re-add them because the formats aren't committed.
 	$MVN spotless:apply $format_only_staged
-	echo "$staged_files" | tr '\n' '\0' | xargs -0 git add
+	if [ -n "$staged_files" ]; then echo "$staged_files" | tr '\n' '\0' | xargs -0 git add; fi
 else
 	# Format everything because spotless caches. We must re-add everything because the formats aren't committed.
 	$MVN spotless:apply
-	echo "$staged_files" | tr '\n' '\0' | xargs -0 git add
+	if [ -n "$staged_files" ]; then echo "$staged_files" | tr '\n' '\0' | xargs -0 git add; fi
 fi
