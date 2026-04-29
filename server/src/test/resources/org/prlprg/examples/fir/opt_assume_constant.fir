@@ -1,14 +1,14 @@
 fun main() {
-  () --> I { reg out:I |
-    out = constant< --> I >();
+  () -+> v1(I) { reg out:v1(I) |
+    out = constant< -+> v1(I) >();
     return out;
   }
 }
 
 fun constant() {
-  () --> I { reg cond:B, reg zero:I |
+  () -+> v1(I) { reg cond:B, reg zero:v1(I) |
     cond = TRUE;
-    zero = 0;
+    zero = <int 0>;
     check BBopt() else BBdeopt();
   BBopt():
     if cond then BBtrue() else BBfalse();
