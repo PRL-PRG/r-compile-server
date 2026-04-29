@@ -1,10 +1,11 @@
 fun main() {
-  () --> I { reg first:p(v1(I) -), reg second:p(v1(I) -), reg total:I, reg ret:I |
+  () --> v1(I) { reg first:p(v1(I) -), reg second:p(v1(I) -), reg total:I, reg ret:I, reg retu:v1(I) |
     first = prom<v1(I) ->{ return <int 15>; };
     second = prom<v1(I) ->{ return <int 27>; };
     total = sum_promises< p(v1(I) -),p(v1(I) -) --> I >(first, second);
     ret = `+`< I,I --> I >(total, 1);
-    return ret;
+    retu = box< I --> v1(I) >(ret);
+    return retu;
   }
 }
 

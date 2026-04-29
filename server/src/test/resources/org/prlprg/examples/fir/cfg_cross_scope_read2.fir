@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { reg x:I, reg y:I, reg z:I, reg xb:v1(I), reg yb:v1(I), reg zb:v1(I) |
+  () --> v1(I) { reg x:I, reg y:I, reg z:I, reg xb:v1(I), reg yb:v1(I), reg zb:v1(I), reg xu:v1(I) |
     x = 42;
     xb = box<I --> v1(I)>(x);
     prom<v1(I) ->{
@@ -19,6 +19,7 @@ fun main() {
       yb = box<I --> v1(I)>(y);
       return yb;
     };
-    return x;
+    xu = box< I --> v1(I) >(x);
+    return xu;
   }
 }

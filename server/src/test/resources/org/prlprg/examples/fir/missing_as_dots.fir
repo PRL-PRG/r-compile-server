@@ -1,7 +1,8 @@
 fun main() {
-  () --> I { reg r:I |
+  () --> v1(I) { reg r:I, reg ru:v1(I) |
     r = f< dots --> I >(<missing>);
-    return r;
+    ru = box< I --> v1(I) >(r);
+    return ru;
   }
 }
 

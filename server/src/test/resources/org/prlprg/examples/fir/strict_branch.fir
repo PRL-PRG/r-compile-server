@@ -1,5 +1,5 @@
 fun main() {
-  () --> I { reg x:p(v1(I) -), reg f:I, reg g:I, reg g2:I, reg gSum:I, reg res:I |
+  () --> v1(I) { reg x:p(v1(I) -), reg f:I, reg g:I, reg g2:I, reg gSum:I, reg res:I, reg resu:v1(I) |
     x = prom<v1(I) ->{
       return <int 42>;
     };
@@ -8,7 +8,8 @@ fun main() {
     g2 = g< p(v1(I) -)@!,B --> I >(x, TRUE);
     gSum = `+`< I,I --> I >(g, g2);
     res = `+`< I,I --> I >(f, gSum);
-    return res;
+    resu = box< I --> v1(I) >(res);
+    return resu;
   }
 }
 
