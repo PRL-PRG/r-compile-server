@@ -18,7 +18,6 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
@@ -63,7 +62,11 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
     }
     var staticFunction =
         switch (analyses.get(OriginAnalysis.class).resolveExpression(calleeReg)) {
-          case Closure closure -> closure.code();
+          // TODO: Doesn't work if the closure loads/stores from the environment.
+          //  Maybe we can only inline
+          //  And inlining global closures doesn't work if they load or super-store in the
+          //  global environment...
+          // case Closure closure -> closure.code();
           case Load(var loadType, var variable) when loadType == LoadType.GLOBAL_FUN ->
               bb.module().lookupFunction(variable);
           case Load(var loadType, var variable) when loadType == LoadType.BASE_FUN ->
