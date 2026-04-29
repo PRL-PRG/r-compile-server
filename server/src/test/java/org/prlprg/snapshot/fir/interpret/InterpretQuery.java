@@ -39,6 +39,11 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
     if (example.hasOption(name(), "noEval")) {
       throw new SkipQueryException(name);
     }
+    if (example.text().contains("-error:")) {
+      // Don't try to interpret invalid FIR
+      throw new SkipQueryException(name, new RuntimeException("Invalid FIR"));
+    }
+
     var module = store.load(example, FirQuery.INSTANCE);
 
     return new TestInterpreter(module).call(functionName, arguments);

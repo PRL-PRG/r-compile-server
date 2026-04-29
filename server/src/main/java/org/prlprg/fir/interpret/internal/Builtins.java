@@ -2310,6 +2310,9 @@ public final class Builtins {
                 throw interpreter.fail("`c` requires a `...` argument");
               }
               if (dots.isEmpty()) return Value.NULL;
+              if (dots.names().stream().anyMatch(x -> !x.isEmpty())) {
+                throw interpreter.failUnsupported("Mock `c` doesn't support named arguments");
+              }
 
               // Determine the widest element type
               int widest = 0; // 0=lgl, 1=int, 2=real, 3=str

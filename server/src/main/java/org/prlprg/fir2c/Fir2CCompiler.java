@@ -1035,7 +1035,15 @@ public final class Fir2CCompiler {
                 yield null;
               }
               case MkVector(var kind, var elements) -> {
-                var namedArrays = emitNamedArgumentArrays(elements);
+                var scalarRepr =
+                    switch (kind) {
+                      case Kind.PrimitiveVector(_, var primitive) -> primitive.repr();
+                      case Kind.Dots _ -> Repr.SEXP;
+                      default ->
+                          throw new IllegalArgumentException(
+                              "Vector kind must be primitive or dots: " + kind);
+                    };
+                var namedArrays = emitNamedArgumentArrays(scalarRepr, elements);
                 yield "Fir_mk_vector(%s, %d, %s, %s)"
                     .formatted(
                         emitKind(kind),
@@ -1163,7 +1171,7 @@ public final class Fir2CCompiler {
                 }
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {
-                var arguments = emitArgumentArray("args", call.callArguments());
+                var arguments = emitArgumentArray("args", Repr.SEXP, call.callArguments());
                 var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
                 yield "Fir_call_dynamic(%s, %s, %d, %s, %s)"
                     .formatted(
@@ -1180,7 +1188,7 @@ public final class Fir2CCompiler {
             var builtinIndex =
                 Objects.requireNonNull(rSession.RFunTab().get(calleeFun.name().name())).index();
 
-            var arguments = emitArgumentArray("args", call.callArguments());
+            var arguments = emitArgumentArray("args", Repr.SEXP, call.callArguments());
             var names =
                 emitArray(
                     "arg_names",
@@ -1226,7 +1234,7 @@ public final class Fir2CCompiler {
                 emitJumpTo(1, success);
               }
               case Deopt(_, var pc, var stack) -> {
-                var stackArgs = emitArgumentArray("deopt_stack", stack);
+                var stackArgs = emitArgumentArray("deopt_stack", Repr.SEXP, stack);
                 cCode.stmt(
                     "Fir_deopt(%d, %d, %s, %s);",
                     pc, stackArgs.size(), stackArgs.pointer(), VAR_ENV);
@@ -1378,20 +1386,26 @@ public final class Fir2CCompiler {
                     emitEffects(signature.effects()));
           }
 
-          private Array emitArgumentArray(String baseName, List<Argument> arguments) {
+          private Array emitArgumentArray(String baseName, Repr repr, List<Argument> arguments) {
             for (var argument : arguments) {
-              if (argumentRepr(argument) != Repr.SEXP) {
+              if (argumentRepr(argument) != repr) {
                 throw new IllegalStateException(
-                    "Argument array must only contain SEXP arguments, found non-SEXP: "
+                    "Argument array must only contain "
+                        + repr
+                        + "s, found non-"
+                        + repr
+                        + ": "
                         + argument
                         + "\n"
                         + cfg);
               }
             }
-            return emitArray(baseName, "SEXP", Lists.mapLazy(arguments, this::emitArgument));
+            return emitArray(
+                baseName, reprCType(repr), Lists.mapLazy(arguments, this::emitArgument));
           }
 
-          private ArrayAndNames emitNamedArgumentArrays(List<NamedArgument> namedArguments) {
+          private ArrayAndNames emitNamedArgumentArrays(
+              Repr repr, List<NamedArgument> namedArguments) {
             var values = new ArrayList<Argument>(namedArguments.size());
             var names = new ArrayList<OptionalNamedVariable>(namedArguments.size());
             var hasNames = false;
@@ -1402,7 +1416,7 @@ public final class Fir2CCompiler {
                 hasNames = true;
               }
             }
-            var valueArray = emitArgumentArray("vector_values", values);
+            var valueArray = emitArgumentArray("vector_values", repr, values);
             var nameArray = emitOptionalNameArray("vector_names", names, names.size());
             return new ArrayAndNames(valueArray, hasNames ? nameArray.pointer() : "NULL");
           }
