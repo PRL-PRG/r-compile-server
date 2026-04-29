@@ -60,13 +60,20 @@ import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.primitive.Logical;
+import org.prlprg.sexp.IntSXP;
+import org.prlprg.sexp.LglSXP;
+import org.prlprg.sexp.ListOrVectorSXP;
+import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.util.Streams;
 
 /// Computes each variable's **origin**: the earliest known register or constant that it was
@@ -428,6 +435,242 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           } else {
             yield null;
           }
+        }
+        // TODO: test the following
+        case "c" -> {
+          if (arguments.size() != 1) yield null;
+          var dotsExpr = resolveExpression(arguments.getFirst());
+          if (!(dotsExpr instanceof MkVector(var dotsKind, var namedElements))) yield null;
+          if (!(dotsKind instanceof Kind.Dots)) yield null;
+
+          if (namedElements.isEmpty()) yield new Constant(SEXPs.NULL);
+
+          // Only support unnamed primitive SEXP elements
+          var sexps = new ArrayList<SEXP>(namedElements.size());
+          for (var ne : namedElements) {
+            if (ne.name() != null) yield null;
+            var elemArg = resolve(ne.argument());
+            if (!(elemArg instanceof Constant(Value.Sexp(var elemSexp)))) yield null;
+            if (!(elemSexp instanceof LglSXP
+                || elemSexp instanceof IntSXP
+                || elemSexp instanceof RealSXP
+                || elemSexp instanceof StrSXP)) yield null;
+            sexps.add(elemSexp);
+          }
+
+          // Determine widest type: 0=lgl, 1=int, 2=real, 3=str
+          int widest = 0;
+          for (var s : sexps) {
+            int w =
+                s instanceof LglSXP ? 0 : s instanceof IntSXP ? 1 : s instanceof RealSXP ? 2 : 3;
+            if (w > widest) widest = w;
+          }
+
+          // Count total elements
+          int total = 0;
+          for (var s : sexps) total += ((ListOrVectorSXP<?>) s).size();
+
+          yield new Constant(
+              switch (widest) {
+                case 0 -> {
+                  var res = new Logical[total];
+                  int i = 0;
+                  for (var s : sexps) {
+                    var l = (LglSXP) s;
+                    for (int j = 0; j < l.size(); j++) res[i++] = l.get(j);
+                  }
+                  yield SEXPs.logical(res);
+                }
+                case 1 -> {
+                  var res = new int[total];
+                  int i = 0;
+                  for (var s : sexps) {
+                    switch (s) {
+                      case LglSXP l -> {
+                        for (int j = 0; j < l.size(); j++) res[i++] = l.get(j).toInt();
+                      }
+                      case IntSXP iv -> {
+                        for (int j = 0; j < iv.size(); j++) res[i++] = iv.get(j);
+                      }
+                      default -> throw new AssertionError();
+                    }
+                  }
+                  yield SEXPs.integer(res);
+                }
+                case 2 -> {
+                  var res = new double[total];
+                  int i = 0;
+                  for (var s : sexps) {
+                    switch (s) {
+                      case LglSXP l -> {
+                        for (int j = 0; j < l.size(); j++) res[i++] = l.get(j).toInt();
+                      }
+                      case IntSXP iv -> {
+                        for (int j = 0; j < iv.size(); j++) res[i++] = iv.get(j);
+                      }
+                      case RealSXP rv -> {
+                        for (int j = 0; j < rv.size(); j++) res[i++] = rv.get(j);
+                      }
+                      default -> throw new AssertionError();
+                    }
+                  }
+                  yield SEXPs.real(res);
+                }
+                default -> {
+                  var res = new String[total];
+                  int i = 0;
+                  for (var s : sexps) {
+                    switch (s) {
+                      case LglSXP l -> {
+                        for (int j = 0; j < l.size(); j++) res[i++] = l.get(j).toString();
+                      }
+                      case IntSXP iv -> {
+                        for (int j = 0; j < iv.size(); j++) res[i++] = String.valueOf(iv.get(j));
+                      }
+                      case RealSXP rv -> {
+                        for (int j = 0; j < rv.size(); j++) res[i++] = String.valueOf(rv.get(j));
+                      }
+                      case StrSXP sv -> {
+                        for (int j = 0; j < sv.size(); j++) res[i++] = sv.get(j);
+                      }
+                      default -> throw new AssertionError();
+                    }
+                  }
+                  yield SEXPs.string(res);
+                }
+              });
+        }
+        case "[", "[[" -> {
+          if (arguments.size() != 4) yield null;
+          var vectorArg = resolve(arguments.get(0));
+          var idxArg = resolve(arguments.get(1));
+
+          if (!(vectorArg instanceof Constant(Value.Sexp(var vSexp))
+              && vSexp instanceof ListOrVectorSXP<?> vector)) yield null;
+
+          int idx;
+          if (idxArg instanceof Constant(Value.Int(var i))) {
+            idx = i;
+          } else if (idxArg instanceof Constant(Value.Sexp(var iSexp))
+              && iSexp instanceof IntSXP iVec
+              && iVec.size() == 1) {
+            idx = iVec.get(0);
+          } else {
+            yield null;
+          }
+
+          if (idx < 1 || idx > vector.size()) yield null;
+
+          Value elementValue =
+              switch (vector) {
+                case LglSXP l -> new Value.Lgl(l.get(idx - 1));
+                case IntSXP iv -> new Value.Int(iv.get(idx - 1));
+                case RealSXP rv -> new Value.Real(rv.get(idx - 1));
+                case StrSXP sv -> new Value.Str(sv.get(idx - 1));
+                default -> null;
+              };
+
+          yield elementValue == null ? null : new Constant(elementValue);
+        }
+        case "[<-" -> {
+          if (arguments.size() != 4) yield null;
+          var vectorArg = resolve(arguments.get(0));
+          var idxArg = resolve(arguments.get(1));
+          var valueArg = resolve(arguments.get(2));
+
+          if (!(vectorArg instanceof Constant(Value.Sexp(var vSexp))
+              && vSexp instanceof ListOrVectorSXP<?> vector)) yield null;
+
+          int idx;
+          if (idxArg instanceof Constant(Value.Int(var i))) {
+            idx = i;
+          } else if (idxArg instanceof Constant(Value.Sexp(var iSexp))
+              && iSexp instanceof IntSXP iVec
+              && iVec.size() == 1) {
+            idx = iVec.get(0);
+          } else {
+            yield null;
+          }
+
+          if (idx < 1 || idx > vector.size()) yield null;
+
+          var copied = vector.copy();
+          boolean stored =
+              switch (copied) {
+                case LglSXP l -> {
+                  if (!(valueArg instanceof Constant(Value.Lgl(var v)))) yield false;
+                  l.set(idx - 1, v);
+                  yield true;
+                }
+                case IntSXP iv -> {
+                  if (!(valueArg instanceof Constant(Value.Int(var v)))) yield false;
+                  iv.set(idx - 1, v);
+                  yield true;
+                }
+                case RealSXP rv -> {
+                  if (!(valueArg instanceof Constant(Value.Real(var v)))) yield false;
+                  rv.set(idx - 1, v);
+                  yield true;
+                }
+                case StrSXP sv -> {
+                  if (!(valueArg instanceof Constant(Value.Str(var v)))) yield false;
+                  sv.set(idx - 1, v);
+                  yield true;
+                }
+                default -> false;
+              };
+
+          yield stored ? new Constant(copied) : null;
+        }
+        case "[[<-" -> {
+          if (arguments.size() != 3) yield null;
+          var vectorArg = resolve(arguments.get(0));
+          var idxArg = resolve(arguments.get(1));
+          var valueArg = resolve(arguments.get(2));
+
+          if (!(vectorArg instanceof Constant(Value.Sexp(var vSexp))
+              && vSexp instanceof ListOrVectorSXP<?> vector)) yield null;
+
+          int idx;
+          if (idxArg instanceof Constant(Value.Int(var i))) {
+            idx = i;
+          } else if (idxArg instanceof Constant(Value.Sexp(var iSexp))
+              && iSexp instanceof IntSXP iVec
+              && iVec.size() == 1) {
+            idx = iVec.get(0);
+          } else {
+            yield null;
+          }
+
+          if (idx < 1 || idx > vector.size()) yield null;
+
+          var copied = vector.copy();
+          boolean stored =
+              switch (copied) {
+                case LglSXP l -> {
+                  if (!(valueArg instanceof Constant(Value.Lgl(var v)))) yield false;
+                  l.set(idx - 1, v);
+                  yield true;
+                }
+                case IntSXP iv -> {
+                  if (!(valueArg instanceof Constant(Value.Int(var v)))) yield false;
+                  iv.set(idx - 1, v);
+                  yield true;
+                }
+                case RealSXP rv -> {
+                  if (!(valueArg instanceof Constant(Value.Real(var v)))) yield false;
+                  rv.set(idx - 1, v);
+                  yield true;
+                }
+                case StrSXP sv -> {
+                  if (!(valueArg instanceof Constant(Value.Str(var v)))) yield false;
+                  sv.set(idx - 1, v);
+                  yield true;
+                }
+                default -> false;
+              };
+
+          yield stored ? new Constant(copied) : null;
         }
         default -> null;
       };

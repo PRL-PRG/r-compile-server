@@ -222,4 +222,155 @@ class OriginAnalysisTest {
     assertEquals(
         Set.of(new Constant(SEXPs.integer(1))), analysis.getPossible(bb2, 0, Variable.named("x")));
   }
+
+  @Test
+  void testConstantFoldC() {
+    var firText =
+        """
+      fun main() {
+        () --> V { reg vargs:dots, reg result:V |
+          mkenv;
+          vargs = dots[<int 1>, <int 2>, <int 3>];
+          result = c< dots --> V >(vargs);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.integer(1, 2, 3)), analysis.get(Variable.register("result")));
+  }
+
+  @Test
+  void testConstantFoldSubscriptRead() {
+    var firText =
+        """
+      fun main() {
+        () --> I { reg vec:v1(I), reg result:I |
+          mkenv;
+          vec = box< I --> v1(I) >(42);
+          result = `[`< v(I),I,miss,miss --> I >(vec, 2, <missing>, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var analysis = new OriginAnalysis(main);
+
+    // box(<int 42>) = v1(I)[42], then [2] on a size-1 vector is out of bounds → no fold
+    assertNotEquals(new Constant(new Value.Int(42)), analysis.get(Variable.register("result")));
+  }
+
+  @Test
+  void testConstantFoldSubscriptReadInBounds() {
+    var firText =
+        """
+      fun main() {
+        () --> I { reg vec:v1(I), reg result:I |
+          mkenv;
+          vec = box< I --> v1(I) >(42);
+          result = `[`< v(I),I,miss,miss --> I >(vec, 1, <missing>, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(new Value.Int(42)), analysis.get(Variable.register("result")));
+  }
+
+  @Test
+  void testConstantFoldDoubleSubscriptRead() {
+    var firText =
+        """
+      fun main() {
+        () --> I { reg vec:v1(I), reg result:I |
+          mkenv;
+          vec = box< I --> v1(I) >(42);
+          result = `[[`< v(I),I,miss,miss --> I >(vec, 1, <missing>, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(new Value.Int(42)), analysis.get(Variable.register("result")));
+  }
+
+  @Test
+  void testConstantFoldSubscriptWrite() {
+    var firText =
+        """
+      fun main() {
+        () --> v(I) { reg vec:v1(I), reg result:v(I) |
+          mkenv;
+          vec = box< I --> v1(I) >(42);
+          result = `[<-`< v(I),I,I,miss --> v(I) >(vec, 1, 99, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(Variable.register("result")));
+  }
+
+  @Test
+  void testConstantFoldDoubleSubscriptWrite() {
+    var firText =
+        """
+      fun main() {
+        () --> v(I) { reg vec:v1(I), reg result:v(I) |
+          mkenv;
+          vec = box< I --> v1(I) >(42);
+          result = `[[<-`< v(I),I,I --> v(I) >(vec, 1, 99);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(Variable.register("result")));
+  }
+
+  @Test
+  void testConstantFoldSubscriptWriteChain() {
+    // Tests that c + [ + [<- can all chain together
+    var firText =
+        """
+      fun main() {
+        () --> v(I) { reg vargs:dots, reg vec:V, reg result:v(I) |
+          mkenv;
+          vargs = dots[<int 10>, <int 20>, <int 30>];
+          vec = c< dots --> V >(vargs);
+          result = `[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        new Constant(SEXPs.integer(10, 99, 30)), analysis.get(Variable.register("result")));
+  }
 }
