@@ -22,7 +22,7 @@ fun main() {
 }
 
 fun force_twice(r) {
-  (reg r:p(v1(I) ~)) -~> I { reg r1:v1(I) |
+  (reg r:p(v1(I) ~)) -~> v1(I) { reg r1:v1(I) |
     force r;
     r1 = force r;
     return r1;

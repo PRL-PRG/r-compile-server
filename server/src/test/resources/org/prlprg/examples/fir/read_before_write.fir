@@ -1,7 +1,8 @@
 fun main() {
   # cfg-error: Local register r is never assigned
-  () --> I { reg r:I |
+  () --> v1(I) { reg r:I, reg ru:v1(I) |
     # prov-error: Read before write: r
-    return r;
+    ru = box< I --> v1(I) >(r);
+    return ru;
   }
 }

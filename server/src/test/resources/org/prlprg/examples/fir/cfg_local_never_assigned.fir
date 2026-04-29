@@ -1,6 +1,6 @@
 fun main() {
   # cfg-error: Local register r is never assigned
-  () --> I { reg r:I |
-    return 42;
+  () --> v1(I) { reg r:I |
+    return <int 42>;
   }
 }

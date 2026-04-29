@@ -1,10 +1,11 @@
 fun main() {
-  () --> I { reg lhs:I, reg rhs:I, reg sum:I, reg doubled:I |
+  () --> v1(I) { reg lhs:I, reg rhs:I, reg sum:I, reg doubled:I, reg doubledu:v1(I) |
     lhs = 7;
     rhs = 14;
     sum = add_pair< I,I --> I >(lhs, rhs);
     doubled = double_value< I --> I >(sum);
-    return doubled;
+    doubledu = box< I --> v1(I) >(doubled);
+    return doubledu;
   }
 }
 
