@@ -329,6 +329,16 @@ JIT_DECL SEXP LOG_OP; // FIXME: Is this needed? Log primitive is already defined
 
 #define ISQSXP 9999
 
+static ALWAYS_INLINE int TYPEOF_VAL(Value v) {
+  switch (v.tag) {
+  case 0:
+    return TYPEOF(v.u.sxpval);
+  case ISQSXP:
+    return INTSXP;
+  default:
+    return v.tag;
+  }
+}
 // Accessors
 
 #ifdef ASSERTS
