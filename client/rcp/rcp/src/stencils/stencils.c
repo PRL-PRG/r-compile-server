@@ -232,7 +232,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 }
 
 RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
-{	
+{
 	// do we actually need an entry hook for the types?
 	// If we have evaluated promises, and an argument is assigned with another type
 	// later in the function, yes...
@@ -244,7 +244,7 @@ RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
 }
 
 RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
-{	
+{
 	#ifdef RCP_TRACE
 		Rprintf("Exit hook\n");
 	#endif
@@ -321,8 +321,7 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 	}
 
 	// Record return value type (top of stack before RETURN)
-	SEXP ret = val_as_sexp(*GET_VAL(-1));
-	rec->ret = TYPEOF(ret);
+	rec->ret = TYPEOF_VAL(*GET_VAL(-1));
 
 	trace->count++;
 	NEXT;
