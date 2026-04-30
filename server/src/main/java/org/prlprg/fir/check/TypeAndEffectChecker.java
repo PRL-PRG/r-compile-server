@@ -244,25 +244,40 @@ public final class TypeAndEffectChecker extends Checker {
                       + argType
                       + ")");
             }
+
+            var function =
+                switch (assumption) {
+                  case AssumeFunction a -> a.function();
+                  case AssumeLoadFun a -> a.function();
+                  default -> null;
+                };
+            if (function != null && !function.canDispatch()) {
+              report("Assume non-dispatchable function:\n" + function);
+            }
           }
           case Call(var callee, var callArguments) -> {
             var argumentTypes = callArguments.stream().map(inferType::of).toList();
 
             switch (callee) {
-              case StaticFnCallee(_, var functionRef, var signature) -> {
+              case StaticFnCallee(var isDispatch, var functionRef, var signature) -> {
                 var function = functionRef.get();
                 var version = function.guess(signature);
 
-                // If there's no explicit version, the actual version is unknown, but this is
-                // also an error: an explicit signature means we expect a known version, though
-                // it may have weaker parameters or stronger effects/return.
+                if (isDispatch) {
+                  if (!function.canDispatch()) {
+                    report("Dispatch to non-dispatchable function:\n" + function);
+                  } else if (signature.returnType().kind().repr() != Repr.SEXP) {
+                    report("Dispatch to a version that doesn't return SEXP: " + signature);
+                  }
+                }
+
                 if (version == null) {
                   report(
                       "Call to "
                           + function.name()
                           + " with signature "
                           + signature
-                          + " has no matching version");
+                          + " has no minimum version");
                 }
 
                 // Check arguments against signature parameters.
@@ -304,7 +319,14 @@ public final class TypeAndEffectChecker extends Checker {
               }
             }
           }
-          case Cast _, Closure _ -> {}
+          case Cast _ -> {}
+          case Closure(var functionRef) -> {
+            var function = functionRef.get();
+
+            if (!function.canDispatch()) {
+              report("Closure of non-dispatchable function:\n" + function);
+            }
+          }
           case Dup(var value) -> {
             var type = scope.typeOf(value);
             if (type == null) {

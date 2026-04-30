@@ -36,37 +36,39 @@ class SingleGNURProcess implements GNUR {
 
     // Start process
     try {
-      var versionProc = new ProcessBuilder(R_BIN, "--version").start();
-      if (!versionProc.waitFor(10, TimeUnit.SECONDS)) {
-        throw new RuntimeException("R (`" + R_BIN + " --version`) timed out");
-      }
       String version;
-      try (var versionReader = versionProc.inputReader()) {
-        var versionStr = versionReader.readLine();
-
-        // Skip lines like "WARNING: ignoring environment value of R_HOME"
-        while (versionStr.startsWith("WARNING:")) {
-          versionStr = versionReader.readLine();
+      try (var versionProc = new ProcessBuilder(R_BIN, "--version").start()) {
+        if (!versionProc.waitFor(10, TimeUnit.SECONDS)) {
+          throw new RuntimeException("R (`" + R_BIN + " --version`) timed out");
         }
 
-        if (versionStr.startsWith("R version")) {
-          version = versionStr.substring("R version ".length()).split(" ", 2)[0];
-          if (!version.equals(session.version())) {
-            throw new RuntimeException(
-                "R version can't be used for compiler tests: expected version "
-                    + session.version()
-                    + " but found "
-                    + version
-                    + " (R_BIN = "
-                    + R_BIN
-                    + ")");
+        try (var versionReader = versionProc.inputReader()) {
+          var versionStr = versionReader.readLine();
+
+          // Skip lines like "WARNING: ignoring environment value of R_HOME"
+          while (versionStr.startsWith("WARNING:")) {
+            versionStr = versionReader.readLine();
           }
-        } else if (versionStr.startsWith("R Under development (unstable)")) {
-          // OK -- this should be a bundled version
-          version = "bundled";
-        } else {
-          throw new RuntimeException(
-              "R (`" + R_BIN + " --version`) returned unexpected output:\n" + versionStr);
+
+          if (versionStr.startsWith("R version")) {
+            version = versionStr.substring("R version ".length()).split(" ", 2)[0];
+            if (!version.equals(session.version())) {
+              throw new RuntimeException(
+                  "R version can't be used for compiler tests: expected version "
+                      + session.version()
+                      + " but found "
+                      + version
+                      + " (R_BIN = "
+                      + R_BIN
+                      + ")");
+            }
+          } else if (versionStr.startsWith("R Under development (unstable)")) {
+            // OK -- this should be a bundled version
+            version = "bundled";
+          } else {
+            throw new RuntimeException(
+                "R (`" + R_BIN + " --version`) returned unexpected output:\n" + versionStr);
+          }
         }
       }
 
@@ -106,6 +108,7 @@ class SingleGNURProcess implements GNUR {
 
   @Override
   public Pair<SEXP, String> capturingEval(String source) {
+    String output = null;
     try {
       var sourceFile = File.createTempFile("RCS-test", ".R");
       var targetFile = File.createTempFile("RCS-test", ".rds");
@@ -119,7 +122,7 @@ class SingleGNURProcess implements GNUR {
               "saveRDS(eval(parse(file='%s'), envir=new.env(parent=globalenv())), '%s', version=2, compress=FALSE)",
               sourceFile.getAbsoluteFile(), targetFile.getAbsoluteFile());
 
-      var output = run(code);
+      output = run(code);
 
       var res = RDSReader.readFile(session, targetFile);
 
@@ -129,7 +132,10 @@ class SingleGNURProcess implements GNUR {
 
       return Pair.of(res, output);
     } catch (IOException e) {
-      throw new RuntimeException("I/O exception during R source evaluation", e);
+      throw new RuntimeException(
+          "I/O exception during R source evaluation"
+              + (output != null ? "\nOutput:\n" + output : ""),
+          e);
     }
   }
 

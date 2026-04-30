@@ -1,3 +1,4 @@
+#? noEval
 fun main() {
   () -+> V { reg r:B |
     r = blackBox< B --> B >(TRUE);

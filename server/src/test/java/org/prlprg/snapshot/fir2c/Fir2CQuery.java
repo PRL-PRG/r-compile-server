@@ -12,6 +12,7 @@ import org.prlprg.fir2c.Option;
 import org.prlprg.gen2c.CompiledModule;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.GNUR;
+import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.ir.FirQuery;
 import org.prlprg.snapshot.fir.opt.OptimizedFirQuery;
@@ -46,6 +47,11 @@ public record Fir2CQuery(
 
   @Override
   public CompiledModule compute(Example example, SnapshotStore store) {
+    if (example.text().contains("-error:")) {
+      // Don't try to compile invalid FIR
+      throw new SkipQueryException(name(), new RuntimeException("Invalid FIR"));
+    }
+
     var R = GNUR.instance();
 
     var firQuery = optimization == null ? FirQuery.INSTANCE : new OptimizedFirQuery(optimization);

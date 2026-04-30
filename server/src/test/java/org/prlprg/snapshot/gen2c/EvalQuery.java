@@ -14,6 +14,7 @@ import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.Query;
+import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir2c.Fir2CQuery;
 import org.prlprg.util.Files;
@@ -34,6 +35,10 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
   @Override
   public EvalOutput compute(Example example, SnapshotStore store) {
+    if (example.hasOption(name(), "noEval")) {
+      throw new SkipQueryException(name());
+    }
+
     var R = GNUR.instance();
     var modulePath = store.loadPath(example, moduleQuery);
 

@@ -19,6 +19,7 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -127,6 +128,13 @@ public final class Function {
 
   public Abstraction baseline() {
     return versions.firstEntry().getValue();
+  }
+
+  /// A function can only be dispatched if its baseline's parameter and return types are SEXPs
+  public boolean canDispatch() {
+    return baseline().parameters().stream()
+            .allMatch(param -> param.type().kind().repr() == Repr.SEXP)
+        && baseline().returnType().kind().repr() == Repr.SEXP;
   }
 
   /// @throws IllegalArgumentException If there's no version at the index

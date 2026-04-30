@@ -199,9 +199,11 @@ public final class Fir2CCompiler {
 
       beginEmitInit();
 
-      emitDispatchFromR();
+      if (function.canDispatch()) {
+        emitDispatchFromR();
 
-      emitDispatch();
+        emitDispatch();
+      }
 
       emitVersions();
 
@@ -238,7 +240,9 @@ public final class Fir2CCompiler {
       cCode.stmt("Fir_FunctionData *data = (Fir_FunctionData*) STDVEC_DATAPTR(data_sexp);");
       cCode.stmt(
           "*data = (Fir_FunctionData) {.name = %s, .dispatch = %s, .formal_names = %s};",
-          functionName, functionDispatchCName(function), formalNames);
+          functionName,
+          function.canDispatch() ? functionDispatchCName(function) : "NULL",
+          formalNames);
       cCode.stmt("Fir_set_const(%s, %d, data_sexp);", VAR_POOL, idx);
     }
 
@@ -540,6 +544,9 @@ public final class Fir2CCompiler {
           throw new IllegalArgumentException(
               "Call new FirVersionEmitter(...).run() for non-stub:\n" + version);
         }
+
+        var constantsCName = versionConstantsCName(function, version);
+        cUnit.addExternGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
 
         var cName = versionCallCName(function, version);
         var cParams = versionCallCParams(version);
@@ -1061,7 +1068,7 @@ public final class Fir2CCompiler {
                       .formatted(emitArgument(promArg), nvSymbolRef(pool, variable));
               case ReflectiveStore(var promArg, var variable, var value) -> {
                 cCode.stmt(
-                    "Fir_reflective_store(%s, %s, %s)",
+                    "Fir_reflective_store(%s, %s, %s);",
                     emitArgument(promArg), nvSymbolRef(pool, variable), emitArgument(value));
                 yield null;
               }
@@ -1599,7 +1606,7 @@ public final class Fir2CCompiler {
 
   // endregion emit types
 
-  // region misc
+  // region C names
   private static String functionConstantsCName(Function function) {
     assert function.owner() != BUILTINS && function.owner() != INTRINSICS
         : "builtins and intrinsics have no constants";
@@ -1770,6 +1777,9 @@ public final class Fir2CCompiler {
     return promiseIndices.computeIfAbsent(promise, _ -> promiseIndices.size());
   }
 
+  // endregion C names
+
+  // region params and return type
   private static final String CONSTANTS_C_TYPE = "SEXP";
 
   private static final List<String> INIT_C_PARAMS = List.of("SEXP %s".formatted(VAR_POOL));
@@ -1829,6 +1839,8 @@ public final class Fir2CCompiler {
 
   private static final String PROMISE_EVAL_C_RETURN = "SEXP";
 
+  // endregion params and return type
+
   private static String registerCName(Register register) {
     return "r_" + register.name();
   }
@@ -1840,6 +1852,7 @@ public final class Fir2CCompiler {
     return "l_" + bb.label();
   }
 
+  // region constants
   private static String nvSymbolRef(ConstantPool pool, NamedVariable nv) {
     return nv == NamedVariable.DOTS ? "R_DotsSymbol" : constantRef(pool, SEXPs.symbol(nv.name()));
   }
@@ -1864,6 +1877,9 @@ public final class Fir2CCompiler {
     return "Fir_const(%s, %d)".formatted(VAR_POOL, pool.intern(sexp));
   }
 
+  // endregion constants
+
+  // region debug
   private void debugComment(CCode cCode, @PrintFormat String fmt, Object... args) {
     debugCommentComptimeOnly(cCode, fmt, args);
     debugCommentRuntimeOnly(cCode, fmt, args);
@@ -1893,6 +1909,9 @@ public final class Fir2CCompiler {
     }
   }
 
+  // endregion debug
+
+  // region misc
   private static String sanitizeString(String value) {
     return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"");
   }
