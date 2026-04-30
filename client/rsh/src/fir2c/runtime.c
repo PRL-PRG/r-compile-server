@@ -488,55 +488,48 @@ SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
   return value;
 }
 
-SEXP Fir_subscript_read(SEXP vector, SEXP index) {
-  int idx = Rf_asInteger(index);
-  ASSERT(idx != NA_INTEGER, "Subscript index cannot be NA");
-  ASSERT(idx >= 0 && (R_xlen_t)idx < XLENGTH(vector), "Subscript index out of bounds");
-
-  switch (TYPEOF(vector)) {
-  case LGLSXP:
-    return Rf_ScalarLogical(LOGICAL(vector)[idx]);
-  case INTSXP:
-    return Rf_ScalarInteger(INTEGER(vector)[idx]);
-  case REALSXP:
-    return Rf_ScalarReal(REAL(vector)[idx]);
-  case STRSXP:
-    return Rf_ScalarString(STRING_ELT(vector, idx));
-  case VECSXP:
-    return VECTOR_ELT(vector, idx);
-  default:
-    Rf_error("Unsupported vector type for subscript_read");
-  }
+int Fir_subscript_read_int(SEXP vector, int index) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  return INTEGER(vector)[index];
 }
 
-SEXP Fir_subscript_write(SEXP vector, SEXP index, SEXP value) {
-  int idx = Rf_asInteger(index);
-  ASSERT(idx != NA_INTEGER, "Subscript index cannot be NA");
-  ASSERT(idx >= 0 && (R_xlen_t)idx < XLENGTH(vector), "Subscript index out of bounds");
+double Fir_subscript_read_real(SEXP vector, int index) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  return REAL(vector)[index];
+}
 
-  switch (TYPEOF(vector)) {
-  case LGLSXP:
-    LOGICAL(vector)[idx] = Rf_asLogical(value);
-    break;
-  case INTSXP:
-    INTEGER(vector)[idx] = Rf_asInteger(value);
-    break;
-  case REALSXP:
-    REAL(vector)[idx] = Rf_asReal(value);
-    break;
-  case STRSXP: {
-    SEXP chr = PROTECT(Rf_asChar(value));
-    SET_STRING_ELT(vector, idx, chr);
-    UNPROTECT(1);
-    break;
-  }
-  case VECSXP:
-    SET_VECTOR_ELT(vector, idx, value);
-    break;
-  default:
-    Rf_error("Unsupported vector type for subscript_write");
-  }
-  return value;
+Rboolean Fir_subscript_read_logical(SEXP vector, int index) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  return (Rboolean)LOGICAL(vector)[index];
+}
+
+char* Fir_subscript_read_string(SEXP vector, int index) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  return (char*)CHAR(STRING_ELT(vector, index));
+}
+
+SEXP Fir_subscript_write_int(SEXP vector, int index, int value) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  INTEGER(vector)[index] = value;
+  return vector;
+}
+
+SEXP Fir_subscript_write_real(SEXP vector, int index, double value) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  REAL(vector)[index] = value;
+  return vector;
+}
+
+SEXP Fir_subscript_write_logical(SEXP vector, int index, Rboolean value) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  LOGICAL(vector)[index] = value;
+  return vector;
+}
+
+SEXP Fir_subscript_write_string(SEXP vector, int index, char* value) {
+  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  SET_STRING_ELT(vector, index, Rf_mkChar(value));
+  return vector;
 }
 
 SEXP Fir_super_load(SEXP symbol, SEXP env) {
