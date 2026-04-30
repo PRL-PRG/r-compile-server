@@ -468,10 +468,11 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
       SETCDR(VAL_SXP(*(__t__)), __elem__);                                     \
     }                                                                          \
     SET_SXP_VAL(__t__, __elem__);                                              \
+    assert(!BNDCELL_TAG(__elem__));                                            \
     if (RC) {                                                                  \
-      INCREMENT_NAMED(CAR(__elem__));                                          \
+      INCREMENT_NAMED(CAR0(__elem__));                                         \
     } else {                                                                   \
-      INCREMENT_LINKS(CAR(__elem__));                                          \
+      INCREMENT_LINKS(CAR0(__elem__));                                         \
     }                                                                          \
   } while (0)
 
