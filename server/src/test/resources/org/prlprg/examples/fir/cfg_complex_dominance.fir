@@ -1,10 +1,11 @@
 fun main() {
-  () -+> I { reg r1:I, reg r2:I, reg r3:I, reg r4:I |
+  () -+> v1(I) { reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r1u:v1(I) |
     r1 = f< B,B -+> I >(TRUE, TRUE);
     r2 = f< B,B -+> I >(TRUE, FALSE);
     r3 = f< B,B -+> I >(FALSE, TRUE);
     r4 = f< B,B -+> I >(FALSE, FALSE);
-    return r1;
+    r1u = box< I --> v1(I) >(r1);
+    return r1u;
   }
 }
 

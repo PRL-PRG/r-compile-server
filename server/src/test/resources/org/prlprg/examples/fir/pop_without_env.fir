@@ -1,11 +1,11 @@
 fun main() {
-  () -~> I { |
+  () -~> v1(I) { |
     mkenv;
     mkenv;
     popenv;
     popenv;
     # env-error: No environment to pop
     popenv;
-    return 0;
+    return <int 0>;
   }
 }

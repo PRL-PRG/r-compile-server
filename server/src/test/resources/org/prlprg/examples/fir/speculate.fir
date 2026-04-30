@@ -1,5 +1,5 @@
 fun main() {
-  () -+> I { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
+  () -+> v1(I) { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
     r1 = blackBox< V --> V >(<int 1>);
     r2 = blackBox< V --> V >(<int 2>);
     r3 = blackBox< V --> V >(<real 3.0>);
@@ -28,7 +28,7 @@ fun main() {
     require< V --> V >(<int 5>);
     require< V --> V >(<str "bar">);
 
-    return 49;
+    return <int 49>;
   }
 }
 
