@@ -1,4 +1,5 @@
 #? crashes
+#? [fir2c.eval]noEval
 fun main() {
   () -~> V { reg r0:v1(I), reg r1:v1(I), reg r2:v1(I), reg r3:V, reg r4:V, reg r5:p(v1(I) -), reg r6:p(v1(I) -) |
     r0 = upcast< * -~> v1(I) >(<int 1>);  # nil

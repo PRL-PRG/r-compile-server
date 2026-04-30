@@ -1,3 +1,4 @@
+#? noEval
 fun main() {
   () -+> v1(I) { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
     r1 = blackBox< V --> V >(<int 1>);

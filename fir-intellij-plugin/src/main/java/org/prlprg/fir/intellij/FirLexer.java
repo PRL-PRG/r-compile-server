@@ -23,9 +23,11 @@ public final class FirLexer extends LexerBase {
           "mkenv",
           "popenv",
           "st",
-          "sst",
+          "st-super",
           "ld",
-          "sld",
+          "ld-super",
+          "ld-global",
+          "ld-base",
           "ldf",
           "prom",
           "clos",
@@ -132,6 +134,30 @@ public final class FirLexer extends LexerBase {
 
     if (startsWith("force?") && isBoundary(position + 6)) {
       tokenEnd = position + 6;
+      tokenType = FirTokenTypes.KEYWORD;
+      return;
+    }
+
+    if (startsWith("ld-super") && isBoundary(position + 8)) {
+      tokenEnd = position + 8;
+      tokenType = FirTokenTypes.KEYWORD;
+      return;
+    }
+
+    if (startsWith("ld-global") && isBoundary(position + 9)) {
+      tokenEnd = position + 9;
+      tokenType = FirTokenTypes.KEYWORD;
+      return;
+    }
+
+    if (startsWith("ld-base") && isBoundary(position + 7)) {
+      tokenEnd = position + 7;
+      tokenType = FirTokenTypes.KEYWORD;
+      return;
+    }
+
+    if (startsWith("st-super") && isBoundary(position + 8)) {
+      tokenEnd = position + 8;
       tokenType = FirTokenTypes.KEYWORD;
       return;
     }

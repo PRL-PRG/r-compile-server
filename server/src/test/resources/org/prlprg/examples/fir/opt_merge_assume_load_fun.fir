@@ -11,6 +11,9 @@ fun call_f() {
     check BB1() else BBdeopt1();
   BB1():
     callee ?- target;
+    mkenv;
+    st-super target = callee;
+    popenv;
     lf = ldf target;
     check BB2() else BBdeopt2();
   BB2():

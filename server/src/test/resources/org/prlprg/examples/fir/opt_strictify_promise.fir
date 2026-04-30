@@ -1,3 +1,4 @@
+#? noEval
 fun main() {
   () -+> V { reg p:p(V +), reg r:V, reg res:V |
     p = prom<V +>{

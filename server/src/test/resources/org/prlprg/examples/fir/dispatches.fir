@@ -1,34 +1,33 @@
 fun main() {
   () -~> v(I)f { reg r:v(I)o |
-    r = f%< I -~> v(I)f >(42);
+    r = f%< v1(I) -~> v(I)f >(<int 42>);
     return consume r;
   }
 }
 
 fun f(rx) {
-  (reg rx:I) -~> v(I)f { reg rx0:v1(I), reg r0:p(v1(I) -), reg r1:p(v1(I) -), reg r2:p(v1(I) -), reg r3:p(v1(I) -), reg r4:p(v1(I) -), reg r5:p(v1(I) -), reg r6:v(I)o |
-    rx0 = box<I --> v1(I)>(rx);
-    r0 = prom<v1(I) ->{ return rx0; };
+  (reg rx:v1(I)) -~> v(I)f { reg r0:p(v1(I) -), reg r1:p(v1(I) -), reg r2:p(v1(I) -), reg r3:p(v1(I) -), reg r4:p(v1(I) -), reg r5:p(v1(I) -), reg r6:v(I)o |
+    r0 = prom<v1(I) ->{ return rx; };
     r1 = prom<v1(I) ->{ return <int 0>; };
     g%< *,* -~> V >(r0, r1);
 
-    r2 = prom<v1(I) ->{ return rx0; };
+    r2 = prom<v1(I) ->{ return rx; };
     r3 = prom<v1(I) ->{ return <int 4>; };
     g< p(v1(I) -),p(v1(I) -) --> v(I)f >(r2, r3);
 
     r4 = prom<v1(I) ->{ return <int 5>; };
-    g< v1(I),p(v1(I) -) --> v(I)f >(rx0, r4);
+    g< v1(I),p(v1(I) -) --> v(I)f >(rx, r4);
 
-    r5 = prom<v1(I) ->{ return rx0; };
+    r5 = prom<v1(I) ->{ return rx; };
     g< p(v1(I) -),v1(I) --> v(I)f >(r5, <int 6>);
 
-    r6 = g< v1(I),v1(I) --> v(I)f >(rx0, <int 7>);
+    r6 = g< v1(I),v1(I) --> v(I)f >(rx, <int 7>);
     return consume r6;
   }
 }
 
 fun g(ra, rb) {
-  (reg ra:*, reg rb:*) -~> v(I)f { reg r0:p(v1(I) -), reg r1:p(v1(I) -), reg r2:v1(I), reg r3:v1(I), reg r4:I, reg r5:I, reg r6:v(I)o |
+  (reg ra:*, reg rb:*) -~> v(I) { reg r0:p(v1(I) -), reg r1:p(v1(I) -), reg r2:v1(I), reg r3:v1(I), reg r4:I, reg r5:I, reg r6:v(I)o |
     r0 = ra as p(v1(I) -);
     r1 = rb as p(v1(I) -);
     r2 = force r0;

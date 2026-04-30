@@ -1,4 +1,5 @@
 #? crashes
+#? [fir2c.eval]noEval
 fun main() {
   () -~> v(R) { reg r0:v(I)o, reg r1:v(R) |
     r0 = v(I)[1, 2, 3];

@@ -12,7 +12,7 @@ fun g(x) {
     r = v(I)[1, 2];
     return r;
   }
-  (reg x:I) --> v(I)f { reg r:v(I)o |
+  (reg x:v1(I)) --> v(I)f { reg r:v(I)o |
     r = v(I)[1, 2];
     return consume r;
   }

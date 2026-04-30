@@ -36,7 +36,7 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
 
   @Override
   public InterpretOutput compute(Example example, SnapshotStore store) {
-    if (example.hasOption(name(), "noEval")) {
+    if (example.hasOption(name, "noEval")) {
       throw new SkipQueryException(name);
     }
     if (example.text().contains("-error:")) {
