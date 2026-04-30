@@ -153,12 +153,14 @@ void Fir_pop_env(SEXP *env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value);
-// TODO: Replace with `int Fir_subscript_read_int(SEXP vector, int index)` etc.
-//  in here, `runtime.c`, and `Fir2CCompiler` (note: `index` is `int` for all scalar types)
-SEXP Fir_subscript_read(SEXP vector, SEXP index);
-// TODO: Replace with `SEXP Fir_subscript_write_int(SEXP vector, int index, int value)` etc.
-//  in here, `runtime.c`, and `Fir2CCompiler` (note: `index` is `int` for all scalar types)
-SEXP Fir_subscript_write(SEXP vector, int index, SEXP value);
+int Fir_subscript_read_int(SEXP vector, int index);
+double Fir_subscript_read_real(SEXP vector, int index);
+Rboolean Fir_subscript_read_logical(SEXP vector, int index);
+char* Fir_subscript_read_string(SEXP vector, int index);
+SEXP Fir_subscript_write_int(SEXP vector, int index, int value);
+SEXP Fir_subscript_write_real(SEXP vector, int index, double value);
+SEXP Fir_subscript_write_logical(SEXP vector, int index, Rboolean value);
+SEXP Fir_subscript_write_string(SEXP vector, int index, char* value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names);

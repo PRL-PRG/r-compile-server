@@ -1078,12 +1078,28 @@ public final class Fir2CCompiler {
                 }
                 yield null;
               }
-              case SubscriptRead(var vector, var index) ->
-                  "Fir_subscript_read(%s, %s)".formatted(emitArgument(vector), emitArgument(index));
+              case SubscriptRead(var vector, var index) -> {
+                if (!(argumentType(vector).kind()
+                    instanceof Kind.PrimitiveVector(_, var primitiveKind))) {
+                  throw new IllegalArgumentException(
+                      "Can't subscript non-primitive vector: " + vector);
+                }
+                var suffix = primitiveKindCName(primitiveKind);
+
+                yield "Fir_subscript_read_%s(%s, %s)"
+                    .formatted(suffix, emitArgument(vector), emitArgument(index));
+              }
               case SubscriptWrite(var vector, var index, var value) -> {
+                if (!(argumentType(vector).kind()
+                    instanceof Kind.PrimitiveVector(_, var primitiveKind))) {
+                  throw new IllegalArgumentException(
+                      "Can't subscript non-primitive vector: " + vector);
+                }
+                var suffix = primitiveKindCName(primitiveKind);
+
                 cCode.stmt(
-                    "Fir_subscript_write(%s, %s, %s)",
-                    emitArgument(vector), emitArgument(index), emitArgument(value));
+                    "Fir_subscript_write_%s(%s, %s, %s);",
+                    suffix, emitArgument(vector), emitArgument(index), emitArgument(value));
                 yield null;
               }
             };
@@ -1506,6 +1522,15 @@ public final class Fir2CCompiler {
         };
       }
 
+      private Type argumentType(Argument argument) {
+        return switch (argument) {
+          case Constant(var value) ->
+              throw new IllegalArgumentException("Cannot get Type of constant: " + value);
+          case Read(var reg) -> registerTypes.get(reg);
+          case Consume(var reg) -> registerTypes.get(reg);
+        };
+      }
+
       private Repr registerRepr(Register register) {
         var type = registerTypes.get(register);
         if (type == null) {
@@ -1677,26 +1702,26 @@ public final class Fir2CCompiler {
       case AnySexp() -> sb.append("value");
       case Kind.PrimitiveVector(var isScalar, var primitiveKind) -> {
         sb.append(isScalar ? "vec1_" : "vec_");
-        emitPrimitiveKindCName(sb, primitiveKind);
+        sb.append(primitiveKindCName(primitiveKind));
       }
       case Kind.Closure() -> sb.append("closure");
       case Kind.Dots() -> sb.append("dots");
       case Kind.Missing() -> sb.append("missing");
       case Kind.PrimitiveScalar(var primitiveKind) -> {
         sb.append("scalar_");
-        emitPrimitiveKindCName(sb, primitiveKind);
+        sb.append(primitiveKindCName(primitiveKind));
       }
       case Kind.Boolean() -> sb.append("bool");
     }
   }
 
-  private static void emitPrimitiveKindCName(StringBuilder sb, PrimitiveKind primitiveKind) {
-    switch (primitiveKind) {
-      case LOGICAL -> sb.append("logical");
-      case INTEGER -> sb.append("int");
-      case REAL -> sb.append("real");
-      case STRING -> sb.append("string");
-    }
+  private static String primitiveKindCName(PrimitiveKind primitiveKind) {
+    return switch (primitiveKind) {
+      case LOGICAL -> "logical";
+      case INTEGER -> "int";
+      case REAL -> "real";
+      case STRING -> "string";
+    };
   }
 
   private static void emitOwnershipCName(StringBuilder sb, Ownership ownership) {
