@@ -482,7 +482,8 @@ static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
   case LGLSXP:
     return Rsh_ScalarLogical(VAL_INT(v));
   case ISQSXP: {
-    int *seqinfo = INTEGER(VAL_SXP(v));
+    assert(!ALTREP(VAL_SXP(v)));
+    int *seqinfo = (int *)STDVEC_DATAPTR(VAL_SXP(v));
     return R_compact_intrange(seqinfo[0], seqinfo[1]);
   }
   default:
@@ -2756,7 +2757,8 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     break;
   }
   case ISQSXP: {
-    int *info = INTEGER(seq);
+    assert(!ALTREP(seq));
+    int *info = (int *)STDVEC_DATAPTR(seq);
     int n1 = info[0];
     int n2 = info[1];
     int ii = (int)i;
@@ -2824,8 +2826,9 @@ static INLINE void Rsh_EndFor(Value *stack, SEXP rho) {
   do {                                                                         \
     Value *__r__ = (res);                                                      \
     SEXP __v__ = Rf_allocVector(INTSXP, 2);                                    \
-    INTEGER(__v__)[0] = (int)(x);                                              \
-    INTEGER(__v__)[1] = (int)(y);                                              \
+    assert(!ALTREP(__v__));                                                    \
+    ((int *)STDVEC_DATAPTR(__v__))[0] = (int)(x);                              \
+    ((int *)STDVEC_DATAPTR(__v__))[1] = (int)(y);                              \
     SET_SXP_VAL(__r__, __v__);                                                 \
     __r__->tag = ISQSXP;                                                       \
     RSH_PC_INC(isq);                                                           \
@@ -2970,7 +2973,7 @@ static INLINE void Rsh_IsInteger(Value *stack) {
   Value *v = GET_VAL(-1);
   switch (VAL_TAG(*v)) {
   case INTSXP:
-  case ISQSXP: // TODO: should ISQSXP be here? Not present in eval.c
+  case ISQSXP:
     assert(!Rf_inherits(val_as_sexp(*v), "factor"));
     SET_LGL_VAL(v, TRUE);
     break;
