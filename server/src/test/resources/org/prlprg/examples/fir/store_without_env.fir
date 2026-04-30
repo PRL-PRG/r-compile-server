@@ -1,5 +1,5 @@
 fun main() {
-  () -~> I { |
+  () -~> v1(I) { |
     # env-error: No environment to store into
     st x = <int 0>;  # Bad
     mkenv;     # (#envs = 1)
@@ -16,6 +16,6 @@ fun main() {
     popenv;    # (#envs = 0)
     # env-error: No environment to store into
     st x = <int 6>;  # Bad
-    return 7;
+    return <int 7>;
   }
 }

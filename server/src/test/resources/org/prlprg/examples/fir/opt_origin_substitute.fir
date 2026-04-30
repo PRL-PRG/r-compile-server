@@ -1,9 +1,9 @@
 fun main() {
-  () -+> I { |
+  () -+> v1(I) { |
     mkenv;
     f< I --> I >(42);
     popenv;
-    return 42;
+    return <int 42>;
   }
 }
 

@@ -1,5 +1,5 @@
 fun main() {
-  () -+> I { |
-    return 42;
+  () -+> v1(I) { |
+    return <int 42>;
   }
 }

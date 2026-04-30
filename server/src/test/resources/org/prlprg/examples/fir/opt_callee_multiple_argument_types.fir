@@ -1,10 +1,11 @@
 fun main() {
-  () -+> I { reg r:I |
+  () -+> v1(I) { reg r:I, reg ru:v1(I) |
     mkenv;
     f< *,* --> I >(<int 1>, <real 2.0>);
     r = f< *,* --> I >(<int 3>, <int 4>);
     popenv;
-    return r;
+    ru = box< I --> v1(I) >(r);
+    return ru;
   }
 }
 

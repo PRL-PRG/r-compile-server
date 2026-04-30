@@ -1,10 +1,11 @@
 fun main() {
-  () -~> I { reg vec:v(I)o, reg first:I, reg third:I, reg sum:I |
+  () -~> v1(I) { reg vec:v(I)o, reg first:I, reg third:I, reg sum:I, reg sumu:v1(I) |
     vec = build_vector< -~> v(I)f >();
     first = vec[0];
     third = vec[2];
     sum = `+`< I,I --> I >(first, third);
-    return sum;
+    sumu = box< I --> v1(I) >(sum);
+    return sumu;
   }
 }
 

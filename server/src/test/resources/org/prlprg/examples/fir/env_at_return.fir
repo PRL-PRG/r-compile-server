@@ -1,7 +1,7 @@
 fun main() {
-  () -~> I { |
+  () -~> v1(I) { |
     mkenv;
     # env-error: Closure version return must exit with 0 environments
-    return 0;
+    return <int 0>;
   }
 }
