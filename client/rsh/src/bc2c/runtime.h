@@ -1353,13 +1353,18 @@ static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
     return (Rboolean)(VAL_DBL(value) == 0.0);
   }
 
-  SEXP value_sxp = VAL_SXP(value);
-
-  if (IS_SCALAR(value_sxp, LGLSXP)) {
-    Rboolean lval = (Rboolean)LOGICAL0(value_sxp)[0];
-    if (lval != NA_LOGICAL) {
-      return (Rboolean)!lval;
+  SEXP value_sxp;
+  if (VAL_IS_SXP(value)) {
+    value_sxp = VAL_SXP(value);
+    if (IS_SCALAR(value_sxp, LGLSXP)) {
+      Rboolean lval = (Rboolean)LOGICAL0(value_sxp)[0];
+      if (lval != NA_LOGICAL) {
+        return (Rboolean)!lval;
+      }
     }
+  } else {
+    // We can only get here if value is NAN, which throws an error
+    value_sxp = R_LogicalNAValue;
   }
 
   Rboolean ans = asLogicalNoNA(value_sxp, call, rho);
@@ -2983,9 +2988,12 @@ static INLINE void Rsh_IsInteger(Value *stack) {
     SET_LGL_VAL(v, (TYPEOF(s) == INTSXP) && !Rf_inherits(s, "factor"));
     break;
   }
-  default:
+  case LGLSXP:
+  case REALSXP:
     SET_LGL_VAL(v, FALSE);
     break;
+  default:
+    UNREACHABLE();
   }
   R_Visible = TRUE;
 }
