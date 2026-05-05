@@ -205,7 +205,7 @@ export_body(std::ostream &file, const StencilExport &stencil,
 			const char *opcode_name,
 			const std::vector<StencilExport> &functions_not_inlined)
 {
-	file << std::format("Hole _{}_HOLES[] = {{\n", opcode_name);
+	file << std::format("Hole _{}_HOLES[{}] = {{\n", opcode_name, stencil.holes.size());
 	for (const auto &hole : stencil.holes)
 	{
 		file << std::format("{{ .offset = 0x{:x}, .addend = {}, .size = {}, .kind "
@@ -254,7 +254,7 @@ export_body(std::ostream &file, const StencilExport &stencil,
 
 	file << "};\n\n";
 
-	file << std::format("uint8_t _{}_BODY[] = {{\n", opcode_name);
+	file << std::format("uint8_t _{}_BODY[{}] = {{\n", opcode_name, stencil.body.size());
 	print_byte_array(file, stencil.body.data(), stencil.body.size());
 	file << "\n};\n\n";
 }
@@ -562,7 +562,8 @@ static void export_opcode_stencil_bodies(std::ostream &c_file,
 	{
 		if (!current.stencils.empty())
 		{
-			h_file << current.extra_string << "\n";
+			if (!current.extra_string.empty())
+				h_file << current.extra_string << "\n";
 
 			for (const auto &stencil : current.stencils)
 			{
@@ -1481,15 +1482,16 @@ static void print_sizes(const Stencils &stencils)
 	size_t count = 0;
 	for (const auto &current : stencils.stencils_opcodes)
 	{
-		size_t size_specific = 0;
-		for (const auto &current : current.stencils)
-		{
-			size_specific += current.body.size();
-		}
-
 		if (!current.stencils.empty())
 		{
-			total_size += size_specific / current.stencils.size();
+			size_t size_specific = 0;
+			for (const auto &current : current.stencils)
+			{
+				size_specific += current.body.size();
+			}
+			size_specific /= current.stencils.size(); // Average size per stencil in this set
+
+			total_size += size_specific;
 			count++;
 		}
 	}

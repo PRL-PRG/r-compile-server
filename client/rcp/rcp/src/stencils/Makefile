@@ -50,8 +50,10 @@ OBJ = $(notdir $(STENCILS_OBJ))
 all: $(OBJ)
 
 RUNTIME_H := $(RSH_HOME)/src/bc2c/runtime.h
+RUNTIME_INTERNALS_H := $(RSH_HOME)/src/bc2c/runtime_internals.h
+RINTERNALS_H := $(R_HOME)/include/Rinternals.h
 
-$(OBJ): $(OBJ:.o=.c) $(RUNTIME_H)
+$(OBJ): $(OBJ:.o=.c) $(RUNTIME_H) $(RUNTIME_INTERNALS_H) $(RINTERNALS_H) ../rcp_bc_info.h ../rcp_hooks.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY: clean

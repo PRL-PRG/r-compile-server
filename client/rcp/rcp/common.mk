@@ -1,6 +1,6 @@
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 ## SETTINGS
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 
 # Should do a debug build
 DEBUG ?= 0
@@ -41,9 +41,9 @@ ALIGN_INSTRUCTIONS ?= 1
 # Whether to compile promises to native code
 RCP_COMPILE_PROMISES ?= 0
 
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 ## END OF SETTINGS
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 
 ifeq ($(DEBUG), 1)
     # Debug flags
@@ -93,6 +93,10 @@ SPECIALIZE_MAKEPROM ?= 1
 EXTRACTOR_BIN = extractor
 EXTRACTOR_DIR = extractor
 EXTRACTOR = $(EXTRACTOR_DIR)/$(EXTRACTOR_BIN)
+
+STENCIL_DIFF_BIN = stencil_diff.a
+STENCIL_DIFF_DIR = $(ROOT_DIR)/tools/stencil-diff
+STENCIL_DIFF = $(STENCIL_DIFF_DIR)/$(STENCIL_DIFF_BIN)
 
 STENCILS_DIR = stencils
 STENCILS_OBJ = $(STENCILS_DIR)/stencils.o

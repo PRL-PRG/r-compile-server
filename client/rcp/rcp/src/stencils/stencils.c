@@ -328,7 +328,9 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 }
 
 RCP_OP(RETURN,
-	   return *(stack - 1);)
+       Value ret = *GET_VAL(-1);
+       ,
+	   return ret;)
 
 RCP_OP(GOTO,
 	   ,
@@ -562,17 +564,29 @@ static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho, int code_type
 #ifdef MAKEPROM_SPECIALIZE
 RCP_OP_EX(MAKEPROM, 0_DEFAULT)
 {
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tSTART\n");
 	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), -1);
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tDONE\n");
 	NEXT;
 }
 RCP_OP_EX(MAKEPROM, 1_BCODESXP)
 {
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tSTART\n");
 	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), BCODESXP);
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tDONE\n");
 	NEXT;
 }
 RCP_OP_EX(MAKEPROM, 2_EXTPTRSXP)
 {
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tSTART\n");
 	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), EXTPTRSXP);
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tDONE\n");
 	NEXT;
 }
 #else

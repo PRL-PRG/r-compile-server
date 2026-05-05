@@ -54,9 +54,9 @@ OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o rcp_exceptions.
 # Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
 stencils-runtime.o: PKG_CFLAGS += -fno-omit-frame-pointer
 
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 ## targets
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 
 .PHONY: force_check
 
@@ -66,11 +66,18 @@ $(SHLIB): $(SHARED_LIB)
 
 $(OBJECTS): $(STENCILS_H)
 
-$(STENCILS_H): $(EXTRACTOR) $(STENCILS_OBJ)
+$(STENCILS_H): $(EXTRACTOR) $(STENCILS_OBJ) $(STENCIL_DIFF)
+	@if [ -f $(STENCILS_BUILD_DIR)/stencils_data.c ]; then \
+		mv $(STENCILS_BUILD_DIR)/stencils_data.c $(STENCILS_BUILD_DIR)/stencils_data.c.old; \
+	fi
 	$(EXTRACTOR) $(STENCILS_OBJ) $(STENCILS_BUILD_DIR)
+	@$(STENCIL_DIFF) $(STENCILS_BUILD_DIR)/stencils_data.c.old $(STENCILS_BUILD_DIR)/stencils_data.c || true
 
 $(EXTRACTOR): force_check
 	$(MAKE) -C $(EXTRACTOR_DIR)
+
+$(STENCIL_DIFF): force_check
+	$(MAKE) -C $(STENCIL_DIFF_DIR)
 
 $(STENCILS_OBJ): force_check
 	$(MAKE) -C $(STENCILS_DIR)
@@ -81,6 +88,7 @@ $(SHARED_LIB):
 .PHONY: clean
 clean:
 	$(MAKE) -C $(EXTRACTOR_DIR) clean
+	$(MAKE) -C $(STENCIL_DIFF_DIR) clean
 	$(MAKE) -C $(STENCILS_DIR) clean
 	$(MAKE) -C $(SHARED_LIB_DIR) clean
 	rm -f *.o *.so
