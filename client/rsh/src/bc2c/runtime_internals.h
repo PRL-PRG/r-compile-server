@@ -219,17 +219,14 @@ extern int R_Expressions;
 // flags. This is a destructive operation as we lose the original SEXP. Use only
 // at places where the original SEXP is not observable later. Ported from
 // bcStackScalar.
-static ALWAYS_INLINE void val_unbox_inplace(R_bcstack_t *s, int allow_real,
-                                            int allow_int, int allow_lgl) {
-  switch (s->tag) {
-  case REALSXP:
-  case INTSXP:
-  case LGLSXP:
-    return; // Value is already unboxed
-  }
+static ALWAYS_INLINE void val_unbox_inplace(R_bcstack_t *s, int require_simple,
+                                            int allow_real, int allow_int,
+                                            int allow_lgl) {
+  if (s->tag != 0)
+    return;
 
   SEXP x = s->u.sxpval;
-  if (IS_ANY_SIMPLE_SCALAR(x)) {
+  if (x->sxpinfo.scalar && (!require_simple || ATTRIB(x) == R_NilValue)) {
     assert(XLENGTH(x) == 1);
     switch (TYPEOF(x)) {
     case REALSXP: {
@@ -346,21 +343,23 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
                           /* Rboolean */ subassign2)                           \
   do {                                                                         \
     if (i >= 0 && XLENGTH(vec) > i) {                                          \
+      Value __rhs__ = (rhs);                                                   \
+      val_unbox_inplace(&__rhs__, 1, 1, 1, 1);                                 \
+      ASSUME(TYPEOF(vec) != 0); /* Cannot be NULL after length check */        \
       if (TYPEOF(vec) == REALSXP) {                                            \
-        val_unbox_inplace(&rhs, 1, 1, 1);                                      \
-        switch (VAL_TAG(rhs)) {                                                \
+        switch (VAL_TAG(__rhs__)) {                                            \
         case REALSXP:                                                          \
-          REAL(vec)[i] = VAL_DBL(rhs);                                         \
+          REAL(vec)[i] = VAL_DBL(__rhs__);                                     \
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case INTSXP:                                                           \
-          REAL(vec)[i] = INTEGER_TO_REAL(VAL_INT(rhs));                        \
+          REAL(vec)[i] = INTEGER_TO_REAL(VAL_INT(__rhs__));                    \
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case LGLSXP:                                                           \
-          REAL(vec)[i] = LOGICAL_TO_REAL(VAL_INT(rhs));                        \
+          REAL(vec)[i] = LOGICAL_TO_REAL(VAL_INT(__rhs__));                    \
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
@@ -369,16 +368,15 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
         default:                                                               \
           UNREACHABLE();                                                       \
         }                                                                      \
-      } else if (VAL_TAG(rhs) == TYPEOF(vec)) {                                \
-        val_unbox_inplace(&rhs, 0, 1, 1);                                      \
-        switch (VAL_TAG(rhs)) {                                                \
+      } else if (VAL_TAG(__rhs__) == TYPEOF(vec)) {                            \
+        switch (VAL_TAG(__rhs__)) {                                            \
         case INTSXP:                                                           \
-          INTEGER(vec)[i] = VAL_INT(rhs);                                      \
+          INTEGER(vec)[i] = VAL_INT(__rhs__);                                  \
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
         case LGLSXP:                                                           \
-          LOGICAL(vec)[i] = VAL_INT(rhs);                                      \
+          LOGICAL(vec)[i] = VAL_INT(__rhs__);                                  \
           SET_SXP_VAL(target, vec);                                            \
           SETTER_CLEAR_NAMED(vec);                                             \
           return;                                                              \
