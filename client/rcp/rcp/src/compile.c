@@ -1613,11 +1613,12 @@ static const uint8_t *prepare_notinlined_functions(void)
 }
 
 static SEXP original_cmpfun = NULL;
+static SEXP used_cmpfun = NULL;
 
 static SEXP compile_to_bc(SEXP f, SEXP options)
 {
 	// Create the function call: compile(f)
-	SEXP call = PROTECT(Rf_lang3(original_cmpfun, f, options));
+	SEXP call = PROTECT(Rf_lang3(used_cmpfun, f, options));
 
 	// Evaluate the function call in R
 	SEXP result = Rf_eval(call, R_GlobalEnv);
@@ -2371,23 +2372,38 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 static void save_original_cmpfun(void)
 {
 	// Get the compiler namespace
-	SEXP compiler_namespace =
-		Rf_eval(PROTECT(Rf_lang2(PROTECT(Rf_install("getNamespace")),
-								 PROTECT(Rf_mkString("compiler")))),
-				R_GlobalEnv);
-	UNPROTECT(3);
-	PROTECT(compiler_namespace);
+	SEXP compiler_namespace = PROTECT(R_FindNamespace(Rf_mkString("compiler")));
 
 	// Save the original cmpfun to a global variable
 	original_cmpfun = Rf_findVarInFrame(compiler_namespace, Rf_install("cmpfun"));
-	if (original_cmpfun == R_UnboundValue)
-	{
-		error("Could not find compiler::cmpfun function");
-	}
 
-	PROTECT(original_cmpfun);
-	R_PreserveObject(original_cmpfun);
-	UNPROTECT(1);
+	UNPROTECT_SAFE(compiler_namespace);
+}
+
+static void choose_cmpfun(void)
+{
+    if (is_option_true("rcp.cmpfun.use_original_cmpfun"))
+    {
+        used_cmpfun = original_cmpfun;
+        return;
+    }
+	// Try to find the crbcc namespace, falling back gracefully if not available
+	SEXP getNamespace_call = Rf_lang2(PROTECT(Rf_install("getNamespace")),
+									  PROTECT(Rf_mkString("crbcc")));
+	UNPROTECT(2);
+	PROTECT(getNamespace_call);
+	int error_occurred = 0;
+	SEXP compiler_namespace = R_tryEvalSilent(getNamespace_call, R_GlobalEnv, &error_occurred);
+	UNPROTECT_SAFE(getNamespace_call);
+	if (error_occurred)
+	{
+		used_cmpfun = original_cmpfun;
+		return;
+	}
+	PROTECT(compiler_namespace);
+	used_cmpfun = Rf_findVarInFrame(compiler_namespace, Rf_install("cmpfun"));
+	UNPROTECT_SAFE(compiler_namespace);
+	R_ShowMessage("Using cmpfun from crbcc package for JIT compilation.");
 }
 
 static SEXP cmpfun_call_sexp(void)
@@ -3169,6 +3185,8 @@ SEXP rcp_init(void)
 
 	save_original_cmpfun();
 
+	choose_cmpfun();
+
 	DEBUG_PRINT("Allignment: LABELS=%d, JUMPS=%d, LOOPS=%d, UNLIKELY_LABELS=%d, "
 				"UNLIKELY_LOOPS=%d\n",
 				ALIGNMENT_LABELS, ALIGNMENT_JUMPS, ALIGNMENT_LOOPS,
@@ -3212,7 +3230,6 @@ void rcp_destr(void)
 	{
 		C_rcp_override_cmpfun(original_cmpfun);
 		DEBUG_PRINT("Restored original cmpfun\n");
-		R_ReleaseObject(original_cmpfun);
 		original_cmpfun = NULL;
 	}
 }
