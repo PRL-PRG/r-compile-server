@@ -6,7 +6,7 @@ import org.prlprg.fir.opt.sequence.Sequence;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideCheckMissing;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
-import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoadFun;
+import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoad;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
 import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
@@ -31,7 +31,7 @@ public class Optimizations {
         new ElideUnforcedPromise(threshold),
         new SpeculateDispatch(threshold, 3, 9),
         new SpeculateAssume(threshold),
-        new MergeAssumeLoadFun(),
+        new MergeAssumeLoadVar(),
         new ModuleFixpointSequence(
             "mainThenElideCheckpoints",
             new ModuleFixpointSequence(
@@ -44,7 +44,7 @@ public class Optimizations {
                         new ElideCheckMissing(),
                         new ElideDeadStore(),
                         new ElideTrivialAssume(),
-                        new ElideRedundantAssumeLoadFun(),
+                        new ElideRedundantAssumeLoad(),
                         new ElideTrivialCast(),
                         new ElideUseSubscriptWrite(),
                         new OptimizeCallee(threshold),
@@ -60,6 +60,7 @@ public class Optimizations {
                     new Inline(1000),
                     new DeferIntoPromise(),
                     new StrictifyPromise(),
+                    new RaiseOnAssumeLoadFail(),
                     new Cleanup(false)),
                 new CreateBestVersion(9)),
             modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,

@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Aea;
@@ -53,9 +54,9 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
 
         yield new Aea(value);
       }
-      case AssumeFunction a -> {
-        var origin = analyses.get(OriginAnalysis.class).resolveExpression(a.target());
-        if (!Objects.equals(origin, new Closure(a.function()))) {
+      case AssumeFunction(var target, var functionRef) -> {
+        var origin = analyses.get(OriginAnalysis.class).resolveExpression(target);
+        if (!Objects.equals(origin, new Closure(functionRef.get()))) {
           yield expression;
         }
 
@@ -69,14 +70,27 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
 
         yield new Noop();
       }
-      case AssumeLoadFun a -> {
+      case AssumeLoadFun(var variable, var functionRef) -> {
         var originAnalysis = analyses.get(OriginAnalysis.class);
-        var originRegister = originAnalysis.get(bb, index, a.variable());
+        var originRegister = originAnalysis.get(bb, index, variable);
         if (originRegister == null) {
           yield expression;
         }
         var originExpression = originAnalysis.resolveExpression(originRegister);
-        if (!Objects.equals(originExpression, new Closure(a.function()))) {
+        if (!Objects.equals(originExpression, new Closure(functionRef.get()))) {
+          yield expression;
+        }
+
+        yield new Noop();
+      }
+      case AssumeLoadVar(var variable, var constant) -> {
+        var originAnalysis = analyses.get(OriginAnalysis.class);
+        var originRegister = originAnalysis.get(bb, index, variable);
+        if (originRegister == null) {
+          yield expression;
+        }
+        var originValue = originAnalysis.resolve(originRegister);
+        if (!originValue.equals(new Constant(constant))) {
           yield expression;
         }
 

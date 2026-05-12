@@ -14,6 +14,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
@@ -146,6 +147,14 @@ public sealed interface Expression
           }
 
           var variable = p.parse(NamedVariable.class);
+
+          // Check for AssumeLoadVar syntax: `ld <variable> ?= <const>`
+          if (type == LoadType.LOCAL_VAR
+              && s.runWithWhitespacePolicy(
+                  SkipWhitespace.ALL_EXCEPT_NEWLINES, () -> s.trySkip("?= "))) {
+            return new Assume(new AssumeLoadVar(variable, p.parse(Value.class)));
+          }
+
           return new Load(type, variable);
         }
         case "mkenv" -> {

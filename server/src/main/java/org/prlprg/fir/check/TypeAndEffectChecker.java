@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.binding.Binding;
@@ -44,6 +45,7 @@ import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
@@ -131,9 +133,8 @@ public final class TypeAndEffectChecker extends Checker {
           case AssumeType(_, var type) -> type;
           case AssumeConstant(_, var constant) -> constant.type();
           case AssumeFunction _ -> Type.CLOSURE;
-          case AssumeLoadFun _ ->
-              throw new IllegalArgumentException(
-                  "AssumeLoadFun has no target, so this isn't called");
+          case AssumeLoadFun _, AssumeLoadVar _ ->
+              throw new IllegalArgumentException("Assumption has no target, so this isn't called");
         };
     // Every runtime value's type is guaranteed to either be `argType` or a subtype.
     // Iff `requiredType` is disjoint, the assumption can't succeed.
@@ -540,6 +541,10 @@ public final class TypeAndEffectChecker extends Checker {
           case If(_, var condition, _, _) -> {
             var condType = scope.typeOf(condition);
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");
+          }
+          case Raise(_, var value) -> {
+            var valueType = scope.typeOf(value);
+            checkSubtype(valueType, Type.STRING, "Type mismatch in raise");
           }
         }
       }

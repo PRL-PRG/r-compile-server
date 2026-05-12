@@ -8,10 +8,87 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 
 /// Test [InternalInterpreter] behavior with larger, parsed modules.
 class InternalInterpretTest {
+  private static final String ASSUME_LOAD_FUN_GLOBAL_MODULE =
+      """
+      fun main() {
+        () -+> V { |
+          check BBopt() else BBfail();
+        BBopt():
+          ldf target ?- static_target;
+          return <int 1>;
+        BBfail():
+          return <int 0>;
+        }
+      }
+
+      fun static_target() {
+        () --> v1(I) { |
+          return <int 7>;
+        }
+      }
+      """;
+
+  private static final String ASSUME_LOAD_FUN_LOCAL_MODULE =
+      """
+      fun main(x) {
+        (reg x:*) -+> V { var target:* |
+          mkenv;
+          st target = x;
+          check BBopt() else BBfail();
+        BBopt():
+          ldf target ?- static_target;
+          popenv;
+          return <int 1>;
+        BBfail():
+          popenv;
+          return <int 0>;
+        }
+      }
+
+      fun static_target() {
+        () --> v1(I) { |
+          return <int 7>;
+        }
+      }
+      """;
+
+  private static final String ASSUME_LOAD_GLOBAL_VAR_MODULE =
+      """
+      fun main() {
+        () --> V { var target:* |
+          check BBopt() else BBfail();
+        BBopt():
+          ld target ?= <int 1>;
+          return <int 1>;
+        BBfail():
+          return <int 0>;
+        }
+      }
+      """;
+
+  private static final String ASSUME_LOAD_GLOBAL_VAR_LOCAL_MODULE =
+      """
+      fun main() {
+        () --> V { var target:* |
+          mkenv;
+          st target = <int 1>;
+          check BBopt() else BBfail();
+        BBopt():
+          ld target ?= <int 1>;
+          popenv;
+          return <int 1>;
+        BBfail():
+          popenv;
+          return <int 0>;
+        }
+      }
+      """;
+
   @Test
   void deoptRestoreReverseEvaluatesBoxAndUnbox() {
     var module =
@@ -83,5 +160,59 @@ class InternalInterpretTest {
     assertEquals(1, snapshots.size());
     assertEquals(SEXPs.integer(1), snapshots.getFirst().env().getLocal("y").orElseThrow());
     assertSame(snapshots.getFirst().env().parent(), interpreter.globalEnv());
+  }
+
+  @Test
+  void assumeLoadFunSucceedsForClosureFoundInGlobalEnv() {
+    var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_GLOBAL_MODULE));
+    interpreter.globalEnv().set("target", plainClosure(interpreter.globalEnv()));
+
+    var result = interpreter.call("main");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
+  }
+
+  @Test
+  void assumeLoadFunSucceedsForClosureFoundInBaseEnv() {
+    var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_GLOBAL_MODULE));
+    interpreter.baseEnv().set("target", plainClosure(interpreter.baseEnv()));
+
+    var result = interpreter.call("main");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
+  }
+
+  @Test
+  void assumeLoadFunStillFailsForNonGlobalBinding() {
+    var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_LOCAL_MODULE));
+
+    var result = interpreter.call("main", new Value.Sexp(plainClosure(interpreter.globalEnv())));
+
+    assertEquals(new Value.Sexp(SEXPs.integer(0)), result);
+  }
+
+  @Test
+  void assumeLoadGlobalVarSucceedsForMatchingGlobalBinding() {
+    var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_GLOBAL_VAR_MODULE));
+    interpreter.globalEnv().set("target", SEXPs.integer(1));
+
+    var result = interpreter.call("main");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
+  }
+
+  @Test
+  void assumeLoadGlobalVarFailsForMatchingNonGlobalBinding() {
+    var interpreter =
+        new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_GLOBAL_VAR_LOCAL_MODULE));
+    interpreter.globalEnv().set("target", SEXPs.integer(1));
+
+    var result = interpreter.call("main");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(0)), result);
+  }
+
+  private static org.prlprg.sexp.CloSXP plainClosure(EnvSXP env) {
+    return SEXPs.closure(SEXPs.list(), SEXPs.symbol("plain_target"), env);
   }
 }

@@ -26,6 +26,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -58,6 +59,7 @@ import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
@@ -497,6 +499,13 @@ public final class InternalInterpreter implements Interpreter {
         yield new ControlFlow.Goto(condBool ? ifTrue : ifFalse);
       }
       case Return(_, var ret) -> new ControlFlow.Return(run(ret));
+      case Raise(_, var value) -> {
+        var valueResult = run(value);
+        if (!(valueResult instanceof Value.Str(var message))) {
+          throw fail("raise value is not a string: " + valueResult);
+        }
+        throw fail(message);
+      }
       case Checkpoint(_, var ok, var deopt) -> {
         checkpointTrace.record(() -> snapshotAtCheckpoint(deopt));
         yield new ControlFlow.Goto(check(ok) ? ok : deopt);
@@ -557,7 +566,7 @@ public final class InternalInterpreter implements Interpreter {
               checkType(value, type, "assume-type");
               yield value;
             }
-            case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> null;
+            case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ -> null;
           };
       case Call call -> {
         var callee = call.callee();
@@ -1137,18 +1146,14 @@ public final class InternalInterpreter implements Interpreter {
       case AssumeLoadFun(var variable, var functionRef) -> {
         var function = functionRef.get();
 
-        // Returns `false` when an unevaluated promise is encountered,
-        // by returning a stub so that `extractClosure` never returns `function`
-        var valueCls =
-            topFrame()
-                .getFunction(
-                    variable,
-                    _ -> SEXPs.closure(SEXPs.list(), SEXPs.symbol(".stub"), SEXPs.EMPTY_ENV));
-        if (valueCls == null) {
-          return false;
-        }
-        var valueFun = extractClosure(valueCls);
-        return valueFun == function;
+        var found = loadFunctionForAssume(variable.name(), topFrame().environment());
+        return found != null
+            && isGlobalEnvOrAncestor(found.closure().env())
+            && extractClosure(found.closure()) == function;
+      }
+      case AssumeLoadVar(var variable, var constant) -> {
+        var found = loadVariableForAssume(variable.name(), topFrame().environment());
+        return found != null && Objects.equals(found.value(), constant.box());
       }
       case AssumeType(var arg, var type) -> {
         var value = run(arg);
@@ -1475,6 +1480,36 @@ public final class InternalInterpreter implements Interpreter {
     return stack.getLast();
   }
 
+  private @Nullable AssumeLoadFunLookup loadFunctionForAssume(String name, EnvSXP env) {
+    while (!(env instanceof EmptyEnvSXP)) {
+      var value = env.getLocal(name).orElse(null);
+      if (value != null) {
+        if (value instanceof PromSXP promSXP) {
+          if (promSXP.boundVal() == null) {
+            return null;
+          }
+          value = promSXP.boundVal();
+        }
+        if (value instanceof CloSXP cloSXP) {
+          return new AssumeLoadFunLookup(env, cloSXP);
+        }
+      }
+      env = env.parent();
+    }
+    return null;
+  }
+
+  private boolean isGlobalEnvOrAncestor(EnvSXP env) {
+    for (EnvSXP current = globalEnv; ; current = current.parent()) {
+      if (env == current) {
+        return true;
+      }
+      if (current instanceof EmptyEnvSXP) {
+        return false;
+      }
+    }
+  }
+
   /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].
   public @Nullable Function extractClosure(CloSXP cloSxp) {
     var function = closures.get(cloSxp);
@@ -1515,6 +1550,21 @@ public final class InternalInterpreter implements Interpreter {
     var sexp = SEXPs.promise(codeStub, topFrame().environment());
     promises.put(sexp, new PromiseCode(promExpr, topFrame(), assignee));
     return sexp;
+  }
+
+  private record AssumeLoadFunLookup(EnvSXP environment, CloSXP closure) {}
+
+  private record AssumeLoadVarLookup(EnvSXP environment, SEXP value) {}
+
+  private @Nullable AssumeLoadVarLookup loadVariableForAssume(String name, EnvSXP env) {
+    while (!(env instanceof EmptyEnvSXP)) {
+      var value = env.getLocal(name).orElse(null);
+      if (value != null) {
+        return new AssumeLoadVarLookup(env, value);
+      }
+      env = env.parent();
+    }
+    return null;
   }
 
   @Override

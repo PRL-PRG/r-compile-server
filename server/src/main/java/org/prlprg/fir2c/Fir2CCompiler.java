@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.binding.Parameter;
@@ -53,6 +54,7 @@ import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
@@ -1008,7 +1010,8 @@ public final class Fir2CCompiler {
               case Aea(var arg) -> emitArgument(arg);
               case Assume(var assumption) ->
                   switch (assumption) {
-                    case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _ -> null;
+                    case AssumeConstant _, AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ ->
+                        null;
                     case AssumeType(var target, _) -> emitArgument(target);
                   };
               case Call call -> emitCall(call);
@@ -1236,6 +1239,10 @@ public final class Fir2CCompiler {
             switch (jump) {
               case Return(_, var value) -> cCode.stmt("return %s;", emitArgument(value));
               case Goto(_, var target) -> emitJumpTo(1, target);
+              case Raise(_, var value) -> {
+                cCode.stmt("Rf_error(\"%%s\", %s);", emitArgument(value));
+                cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
+              }
               case Unreachable(_) -> {
                 cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
                 cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
@@ -1283,10 +1290,7 @@ public final class Fir2CCompiler {
 
             return switch (assumption) {
               case AssumeConstant(var target, var constant) ->
-                  (constant instanceof Value.Sexp
-                          ? "(bool)R_compute_identical(%s, %s, 0)"
-                          : "%s == %s")
-                      .formatted(emitArgument(target), constantRef(pool, constant));
+                  "%s == %s".formatted(emitArgument(target), constantRef(pool, constant));
               case AssumeFunction a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =
                     Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
@@ -1326,6 +1330,10 @@ public final class Fir2CCompiler {
                         VAR_ENV,
                         functionDispatchCName(a.function()));
               }
+              case AssumeLoadVar(var variable, var constant) ->
+                  "Fir_assume_load_var(%s, %s, %s)"
+                      .formatted(
+                          nvSymbolRef(pool, variable), VAR_ENV, constantRef(pool, constant.box()));
               case AssumeType(var target, var type) ->
                   "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
             };

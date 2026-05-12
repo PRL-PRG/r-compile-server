@@ -11,7 +11,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 
 public sealed interface Jump extends Instruction
-    permits Checkpoint, Deopt, Goto, If, Return, Unreachable {
+    permits Checkpoint, Deopt, Goto, If, Raise, Return, Unreachable {
   @UnmodifiableView
   Collection<Target> targets();
 
@@ -56,6 +56,10 @@ public sealed interface Jump extends Instruction
       case "goto" -> {
         var target = p2.parse(Target.class);
         yield new Goto(comments, target);
+      }
+      case "raise" -> {
+        var arg = p.parse(Argument.class);
+        yield new Raise(comments, arg);
       }
       case "return" -> {
         var ret = p.parse(Argument.class);

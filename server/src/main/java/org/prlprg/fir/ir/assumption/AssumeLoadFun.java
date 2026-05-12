@@ -12,7 +12,7 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 /// Assume that a local function lookup of [#variable] doesn't encounter promises and yields
-/// [#function].
+/// [#function]
 ///
 /// Effectively combines `ldf` with [AssumeFunction], additionally assuming no promises are
 /// forced, to remove the reflection in `ldf`. When checked, performs a function lookup of

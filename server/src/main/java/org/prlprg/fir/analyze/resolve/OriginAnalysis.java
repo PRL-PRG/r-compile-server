@@ -33,6 +33,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
@@ -297,7 +298,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                 var valueType = inferType.of(valueOrigin);
                 yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
               }
-              case AssumeConstant _, AssumeFunction _, AssumeLoadFun _ -> null;
+              case AssumeConstant _, AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ -> null;
             };
         case Force(var isMaybe, var value) -> {
           var forceeOrigin = resolve(value);

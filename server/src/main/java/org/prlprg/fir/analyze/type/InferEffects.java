@@ -32,6 +32,7 @@ import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
@@ -118,6 +119,7 @@ public final class InferEffects implements Analysis {
   public Effects of(Jump jump) {
     return switch (jump) {
       case Checkpoint _, Goto _, If _, Return _, Unreachable _ -> Effects.NONE;
+      case Raise _ -> Effects.IMPURE;
       case Deopt _ -> Effects.REFLECT;
     };
   }

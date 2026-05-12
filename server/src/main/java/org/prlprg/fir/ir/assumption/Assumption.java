@@ -16,7 +16,7 @@ import org.prlprg.parseprint.Parser;
 /// into the deopt successor.
 @Immutable
 public sealed interface Assumption
-    permits AssumeConstant, AssumeFunction, AssumeLoadFun, AssumeType {
+    permits AssumeConstant, AssumeFunction, AssumeLoadFun, AssumeLoadVar, AssumeType {
   /// The argument whose value is being assumed.
   @Nullable Argument target();
 
