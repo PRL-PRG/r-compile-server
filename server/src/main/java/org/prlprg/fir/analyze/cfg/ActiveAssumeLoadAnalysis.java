@@ -9,43 +9,46 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Assume;
+import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.NamedVariable;
 
-/// Forward must-dataflow analysis that computes which `AssumeLoadFun` assumptions are "active"
-/// (have been established and not invalidated) at each basic block entry.
+/// Forward must-dataflow analysis that computes which `AssumeLoadFun`/`AssumeLoadVar` assumptions
+/// are "active" (have been established and not invalidated) at each basic block entry.
 ///
-/// An `AssumeLoadFun(v, f)` is active at a point if, on every path from the CFG entry to that
-/// point, there is an earlier `AssumeLoadFun(v, f)` with no intervening reflective instruction or
-/// `Store`/`SuperStore` to `v`.
+/// An `AssumeLoadFun(v, f)` (resp. `AssumeLoadVar(v, c)`) is active at a point if, on every path
+/// from the CFG entry to that point, there is an earlier identical assumption with no intervening
+/// reflective instruction or `Store`/`SuperStore` to `v`.
 ///
-/// Used by {@link org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoadFun} to remove redundant
+/// Used by {@link org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoad} to remove redundant
 /// assumptions.
-public final class ActiveAssumeLoadFunAnalysis implements CfgAnalysis {
+public final class ActiveAssumeLoadAnalysis implements CfgAnalysis {
   private final Map<BB, Set<Key>> bbEntryActive;
   private final InferEffects inferEffects;
 
-  public record Key(NamedVariable variable, Function function) {}
+  /// `value` is a `Function` for `AssumeLoadFun` and an `org.prlprg.fir.ir.value.Value` for
+  /// `AssumeLoadVar`.
+  public record Key(NamedVariable variable, Object value) {}
 
   @AnalysisConstructor
-  public ActiveAssumeLoadFunAnalysis(CFG cfg) {
+  public ActiveAssumeLoadAnalysis(CFG cfg) {
     inferEffects = new InferEffects(cfg.scope());
     bbEntryActive = compute(cfg);
   }
 
-  /// Returns `true` if the `AssumeLoadFun(variable, function)` at `(bb, index)` is redundant
-  /// because an identical assumption is already active at that point.
-  public boolean isRedundant(BB bb, int index, NamedVariable variable, Function function) {
+  /// Returns `true` if the assumption at `(bb, index)` with the given `(variable, value)` key is
+  /// redundant because an identical assumption is already active at that point.
+  public boolean isRedundant(BB bb, int index, NamedVariable variable, Object value) {
     var active = new HashSet<>(bbEntryActive.getOrDefault(bb, Set.of()));
     // Replay transfer through statements [0, index) to get the active set just before `index`.
     for (var i = 0; i < index; i++) {
       transfer(bb.statements().get(i).expression(), active);
     }
-    return active.contains(new Key(variable, function));
+    return active.contains(new Key(variable, value));
   }
 
   private Map<BB, Set<Key>> compute(CFG cfg) {
@@ -83,7 +86,7 @@ public final class ActiveAssumeLoadFunAnalysis implements CfgAnalysis {
     return bbEntry;
   }
 
-  private void transfer(org.prlprg.fir.ir.expression.Expression expression, Set<Key> active) {
+  private void transfer(Expression expression, Set<Key> active) {
     // Reflective expressions invalidate all assumptions.
     if (inferEffects.of(expression).reflect()) {
       active.clear();
@@ -91,9 +94,14 @@ public final class ActiveAssumeLoadFunAnalysis implements CfgAnalysis {
     }
 
     switch (expression) {
-      case Assume(var assumption)
-          when assumption instanceof AssumeLoadFun(var variable, var functionRef) ->
-          active.add(new Key(variable, functionRef.get()));
+      case Assume(var assumption) -> {
+        switch (assumption) {
+          case AssumeLoadFun(var variable, var functionRef) ->
+              active.add(new Key(variable, functionRef.get()));
+          case AssumeLoadVar(var variable, var constant) -> active.add(new Key(variable, constant));
+          default -> {}
+        }
+      }
       case Store(_, var variable, var _) -> active.removeIf(k -> k.variable().equals(variable));
       default -> {}
     }

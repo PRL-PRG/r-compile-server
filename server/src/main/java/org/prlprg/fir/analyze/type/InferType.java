@@ -8,6 +8,7 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
@@ -74,7 +75,7 @@ public final class InferType implements Analysis {
       case Assume(var assumption) ->
           switch (assumption) {
             case AssumeType(_, var type) -> type;
-            case AssumeConstant _, AssumeFunction _, AssumeLoadFun _ -> null;
+            case AssumeConstant _, AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ -> null;
           };
       case Call call ->
           switch (call.callee()) {

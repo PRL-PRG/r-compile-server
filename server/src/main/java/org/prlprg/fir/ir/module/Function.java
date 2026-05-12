@@ -19,6 +19,7 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.properties.FunctionUserProperties;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
@@ -35,6 +36,7 @@ public final class Function {
   private final Module owner;
 
   // Data
+  private final FunctionUserProperties userProperties = new FunctionUserProperties();
   private final Comments comments;
   private final NamedVariable name;
   private final List<NamedVariable> parameterNames;
@@ -96,6 +98,14 @@ public final class Function {
 
   public Module owner() {
     return owner;
+  }
+
+  public FunctionUserProperties userProperties() {
+    return userProperties;
+  }
+
+  public Comments comments() {
+    return comments;
   }
 
   public NamedVariable name() {

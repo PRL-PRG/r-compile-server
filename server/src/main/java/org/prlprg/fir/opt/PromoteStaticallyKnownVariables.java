@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -156,6 +157,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
               case org.prlprg.fir.ir.expression.Assume(var assumption) -> {
                 switch (assumption) {
                   case AssumeLoadFun(var variable, var _) -> forbidden.add(variable);
+                  case AssumeLoadVar(var variable, var _) -> forbidden.add(variable);
                   case AssumeConstant _, AssumeFunction _, AssumeType _ -> {}
                 }
               }

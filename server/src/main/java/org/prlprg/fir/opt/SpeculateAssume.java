@@ -18,6 +18,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.cfg.BB;
@@ -207,8 +208,9 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
           }
           case AssumeConstant(_, var constant) ->
               assumptionSubsts.stage(target, new Constant(constant), successBb);
-          case AssumeLoadFun _ ->
-              throw new IllegalStateException("SpeculateAssume never creates AssumeLoadFun");
+          case AssumeLoadFun _, AssumeLoadVar _ ->
+              throw new IllegalStateException(
+                  "SpeculateAssume never creates load-based assumptions");
         }
       }
     }

@@ -53,6 +53,7 @@ public sealed interface Instruction permits Statement, Jump {
         || (s.nextCharsAre("deopt ") && !s.nextCharsAre("deopt ="))
         || (s.nextCharsAre("if ") && !s.nextCharsAre("if ="))
         || (s.nextCharsAre("goto ") && !s.nextCharsAre("goto ="))
+        || (s.nextCharsAre("raise ") && !s.nextCharsAre("raise ="))
         || (s.nextCharsAre("return ") && !s.nextCharsAre("return ="))
         || (s.nextCharsAre("unreachable ") && !s.nextCharsAre("unreachable ="))
         || s.nextCharsAre("unreachable;")) {

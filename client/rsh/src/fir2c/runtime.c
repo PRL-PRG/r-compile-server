@@ -778,6 +778,19 @@ bool Fir_assume_builtin_function(SEXP value, int bltIdx) {
   return PRIMOFFSET(value) == bltIdx;
 }
 
+static bool Fir_is_global_env_or_ancestor(SEXP env) {
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected");
+
+  for (SEXP current = R_GlobalEnv; ; current = ENCLOS(current)) {
+    if (env == current) {
+      return true;
+    }
+    if (current == R_EmptyEnv) {
+      return false;
+    }
+  }
+}
+
 static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "assume_load_fun");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for assume_load_fun");
@@ -813,10 +826,9 @@ bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {
   }
 
   Fir_FunctionData *data = NULL;
-  if (!Fir_is_compiled_closure(found, &data)) {
-    return false;
-  }
-  return data->dispatch == dispatch;
+  return Fir_is_global_env_or_ancestor(CLOENV(found))
+    && Fir_is_compiled_closure(found, &data)
+    && data->dispatch == dispatch;
 }
 
 bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int bltIdx) {
@@ -826,6 +838,21 @@ bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int bltIdx) {
   }
 
   return PRIMOFFSET(found) == bltIdx;
+}
+
+bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant) {
+  Fir_assert_symbol(symbol, "assume_load_global_var");
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for assume_load_global_var");
+
+  while (env != R_EmptyEnv) {
+    SEXP found = R_findVarInFrame(env, symbol);
+    if (found != R_UnboundValue) {
+      return found == constant;
+    }
+    env = ENCLOS(env);
+  }
+
+  return false;
 }
 
 bool Fir_assume_type(SEXP value, Fir_Type type) {
