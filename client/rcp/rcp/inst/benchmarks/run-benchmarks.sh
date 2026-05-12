@@ -126,11 +126,13 @@ printf '%s\n' "${files[@]}" | xargs -P "$PARALLEL" -I{} bash -c 'run_one "$@"' _
 
 # count actual failures from exit codes tracked above
 failures=0
+failed_names=()
 for file in "${files[@]}"; do
   name=$(basename "$file")
   name="${name%.*}"
   if [ ! -f "$OUTPUT/$name.csv" ]; then
     failures=$((failures + 1))
+    failed_names+=("$name")
   fi
 done
 
@@ -139,6 +141,11 @@ if [ $failures -eq 0 ] && [ $exit_code -eq 0 ]; then
   color "0;32" "All ${#files[@]} benchmarks passed"
 else
   color "0;31" "$failures/${#files[@]} benchmarks failed"
+  echo
+  for name in "${failed_names[@]}"; do
+    local_time=$(grep -oP '(?<=Elapsed \(wall clock\) time \(h:mm:ss or m:ss\): )\S+' "$OUTPUT/$name.time" 2>/dev/null || echo '?')
+    echo "  - $name ($local_time)"
+  done
   echo
   echo "Logs in: $OUTPUT"
 fi
