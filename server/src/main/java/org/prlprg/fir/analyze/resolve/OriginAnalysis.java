@@ -206,6 +206,14 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     return origins == null ? Set.of() : Set.copyOf(origins);
   }
 
+  /// Returns true iff any local environment at this location is tainted or may define any of
+  /// `variables`
+  ///
+  /// This ignores the untracked static environment below the local environment stack
+  public boolean anyMayBeLocal(BB bb, int instructionIndex, Collection<NamedVariable> variables) {
+    return at(bb, instructionIndex).mayContainAny(variables);
+  }
+
   /// Gets the origin of the return value.
   ///
   /// `null` iff there are no returns, a return has unknown origin, or the possible return
@@ -877,6 +885,18 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       for (var env : envs) {
         env.taint();
       }
+    }
+
+    private boolean mayContainAny(Collection<NamedVariable> variables) {
+      if (variables.isEmpty()) {
+        return false;
+      }
+      for (var env : envs) {
+        if (env.tainted || variables.stream().anyMatch(env.variables::containsKey)) {
+          return true;
+        }
+      }
+      return false;
     }
 
     @Override
