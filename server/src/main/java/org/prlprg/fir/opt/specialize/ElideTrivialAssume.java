@@ -56,7 +56,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
       }
       case AssumeFunction(var target, var functionRef) -> {
         var origin = analyses.get(OriginAnalysis.class).resolveExpression(target);
-        if (!Objects.equals(origin, new Closure(functionRef.get()))) {
+        if (!Objects.equals(origin, new Closure(true, functionRef.get()))) {
           yield expression;
         }
 
@@ -77,7 +77,7 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
         var originExpression = originAnalysis.resolveExpression(originRegister);
-        if (!Objects.equals(originExpression, new Closure(functionRef.get()))) {
+        if (!Objects.equals(originExpression, new Closure(true, functionRef.get()))) {
           yield expression;
         }
 

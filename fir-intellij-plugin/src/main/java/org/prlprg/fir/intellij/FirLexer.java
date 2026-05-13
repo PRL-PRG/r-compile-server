@@ -20,6 +20,7 @@ public final class FirLexer extends LexerBase {
           "goto",
           "check",
           "deopt",
+          "raise",
           "mkenv",
           "popenv",
           "st",
@@ -132,6 +133,12 @@ public final class FirLexer extends LexerBase {
       return;
     }
 
+    if (startsWith("@strict") && isBoundary(position + 7)) {
+      tokenEnd = position + 7;
+      tokenType = FirTokenTypes.KEYWORD;
+      return;
+    }
+
     if (startsWith("force?") && isBoundary(position + 6)) {
       tokenEnd = position + 6;
       tokenType = FirTokenTypes.KEYWORD;
@@ -158,6 +165,12 @@ public final class FirLexer extends LexerBase {
 
     if (startsWith("st-super") && isBoundary(position + 8)) {
       tokenEnd = position + 8;
+      tokenType = FirTokenTypes.KEYWORD;
+      return;
+    }
+
+    if (startsWith("clos-static") && isBoundary(position + 11)) {
+      tokenEnd = position + 11;
       tokenType = FirTokenTypes.KEYWORD;
       return;
     }
@@ -222,7 +235,7 @@ public final class FirLexer extends LexerBase {
           case ':' -> FirTokenTypes.COLON;
           case ';' -> FirTokenTypes.SEMICOLON;
           case '*' -> FirTokenTypes.TYPE;
-          case '+', '-', '=', '<', '>', '?', '$', '|', '.', '~', '/', '@', '!' -> FirTokenTypes.OPERATOR;
+          case '+', '-', '=', '<', '>', '%', '$', '|', '.', '~', '/', '@', '!' -> FirTokenTypes.OPERATOR;
           default -> TokenType.BAD_CHARACTER;
         };
   }

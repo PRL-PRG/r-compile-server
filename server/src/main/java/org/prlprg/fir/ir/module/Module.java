@@ -139,7 +139,7 @@ public final class Module {
 
   @PrintMethod
   private void print(Printer p) {
-    p.printSeparated("\n", functions.values());
+    p.printSeparated("\n\n", functions.values());
   }
 
   @ParseMethod

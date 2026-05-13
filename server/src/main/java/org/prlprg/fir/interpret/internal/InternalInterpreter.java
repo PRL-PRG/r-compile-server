@@ -102,6 +102,7 @@ import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.TaggedElem;
 import org.prlprg.sexp.UserEnvSXP;
@@ -634,7 +635,8 @@ public final class InternalInterpreter implements Interpreter {
             var result = call(function, null, matchedArguments, environment);
 
             // Only record after the call, in case the function is an unregistered stub
-            if (actualCallee instanceof Read(var calleeReg)) {
+            if (actualCallee instanceof Read(var calleeReg)
+                && cloSXP.env() instanceof StaticEnvSXP) {
               topFrame().scopeFeedback().recordCallee(calleeReg, function);
             }
 
@@ -647,7 +649,9 @@ public final class InternalInterpreter implements Interpreter {
         checkType(value, type, "cast");
         yield value;
       }
-      case Closure closure -> new Value.Sexp(closureStub(closure.code(), topFrame().environment()));
+      case Closure(var isStatic, var codeRef) ->
+          new Value.Sexp(
+              closureStub(codeRef.get(), isStatic ? globalEnv : topFrame().environment()));
       case Dup(var arg) -> {
         var value = run(arg);
 
@@ -1148,7 +1152,7 @@ public final class InternalInterpreter implements Interpreter {
 
         var found = loadFunctionForAssume(variable.name(), topFrame().environment());
         return found != null
-            && isGlobalEnvOrAncestor(found.closure().env())
+            && found.closure().env() instanceof StaticEnvSXP
             && extractClosure(found.closure()) == function;
       }
       case AssumeLoadVar(var variable, var constant) -> {
@@ -1497,17 +1501,6 @@ public final class InternalInterpreter implements Interpreter {
       env = env.parent();
     }
     return null;
-  }
-
-  private boolean isGlobalEnvOrAncestor(EnvSXP env) {
-    for (EnvSXP current = globalEnv; ; current = current.parent()) {
-      if (env == current) {
-        return true;
-      }
-      if (current instanceof EmptyEnvSXP) {
-        return false;
-      }
-    }
   }
 
   /// If the closure was produced by [#closureStub(Function, EnvSXP)], returns the [Function].

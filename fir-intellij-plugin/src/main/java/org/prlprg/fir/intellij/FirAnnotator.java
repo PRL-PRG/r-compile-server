@@ -136,7 +136,7 @@ public final class FirAnnotator implements Annotator {
     if (trimmedLine.isEmpty() || trimmedLine.equals("...")) {
       return false;
     }
-    if (trimmedLine.startsWith("fun ")) {
+    if (trimmedLine.startsWith("@") || trimmedLine.startsWith("fun ")) {
       return false;
     }
     return !trimmedLine.endsWith(";")
@@ -196,7 +196,7 @@ public final class FirAnnotator implements Annotator {
     for (var i = 0; i < stripped.length(); i++) {
       if (stripped.charAt(i) != '(') continue;
 
-      var close = findMatchingDelimiter(stripped, i, '(', ')');
+      var close = findMatchingParenDelimiter(stripped, i);
       if (close < 0 || !isVersionArrowAfterParen(stripped, close + 1)) continue;
 
       lintMissingDeclarationKindsInList(
@@ -269,12 +269,12 @@ public final class FirAnnotator implements Annotator {
     }
   }
 
-  private static int findMatchingDelimiter(String stripped, int openOffset, char open, char close) {
+  private static int findMatchingParenDelimiter(String stripped, int openOffset) {
     var depth = 1;
     for (var i = openOffset + 1; i < stripped.length(); i++) {
       var c = stripped.charAt(i);
-      if (c == open) depth++;
-      else if (c == close) {
+      if (c == '(') depth++;
+      else if (c == ')') {
         depth--;
         if (depth == 0) return i;
       }

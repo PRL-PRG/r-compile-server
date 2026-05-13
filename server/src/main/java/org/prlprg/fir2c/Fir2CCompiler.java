@@ -892,10 +892,10 @@ public final class Fir2CCompiler {
 
           private @Nullable String emitExpression(Expression expression) {
             return switch (expression) {
-              case Closure closure -> {
+              case Closure(var isStatic, var codeRef) -> {
                 // Compile the closure or protect its constant pool
 
-                var function = closure.code();
+                var function = codeRef.get();
 
                 var fromRCName = functionFromRCName(function);
 
@@ -937,7 +937,8 @@ public final class Fir2CCompiler {
                 }
 
                 // Emit the runtime constructor
-                yield "Fir_mk_closure(%s, %s, %s, %s)".formatted(fromRCName, formals, cp, VAR_ENV);
+                var env = isStatic ? "R_GlobalEnv" : VAR_ENV;
+                yield "Fir_mk_closure(%s, %s, %s, %s)".formatted(fromRCName, formals, cp, env);
               }
               case Promise promise -> {
                 // Compile the promise

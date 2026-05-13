@@ -321,7 +321,7 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case Cast _ -> {}
-          case Closure(var functionRef) -> {
+          case Closure(_, var functionRef) -> {
             var function = functionRef.get();
 
             if (!function.canDispatch()) {

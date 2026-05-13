@@ -806,7 +806,7 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   return NULL;
 }
 
-static bool Fir_is_global_env_or_ancestor(SEXP env) {
+static bool Fir_is_static_env(SEXP env) {
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected");
 
   for (SEXP current = R_GlobalEnv; ; current = ENCLOS(current)) {
@@ -826,7 +826,7 @@ bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {
   }
 
   Fir_FunctionData *data = NULL;
-  return Fir_is_global_env_or_ancestor(CLOENV(found))
+  return Fir_is_static_env(CLOENV(found))
     && Fir_is_compiled_closure(found, &data)
     && data->dispatch == dispatch;
 }

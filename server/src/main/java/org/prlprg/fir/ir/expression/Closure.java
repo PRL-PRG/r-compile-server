@@ -9,9 +9,9 @@ import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record Closure(FunctionRef codeRef) implements Expression {
-  public Closure(Function code) {
-    this(new FunctionRef(code));
+public record Closure(boolean isStatic, FunctionRef codeRef) implements Expression {
+  public Closure(boolean isStatic, Function code) {
+    this(isStatic, new FunctionRef(code));
   }
 
   public Function code() {
@@ -37,7 +37,11 @@ public record Closure(FunctionRef codeRef) implements Expression {
   private void print(Printer p) {
     var w = p.writer();
 
-    w.write("clos ");
+    w.write("clos");
+    if (isStatic) {
+      w.write("-static");
+    }
+    w.write(' ');
     p.print(code().name());
   }
 }
