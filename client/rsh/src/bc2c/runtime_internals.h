@@ -89,6 +89,8 @@ SEXP R_compact_intrange(R_xlen_t n1, R_xlen_t n2);
 SEXP do_seq_along(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_seq_len(SEXP call, SEXP op, SEXP args, SEXP rho);
 R_varloc_t R_findVarLoc(SEXP rho, SEXP symbol);
+SEXP findVarLoc(SEXP symbol, SEXP rho);
+SEXP findVarLocInFrame(SEXP rho, SEXP symbol, Rboolean *canCache);
 SEXP do_log_builtin(SEXP call, SEXP op, SEXP args, SEXP env);
 NORET void nodeStackOverflow(void);
 SEXP R_findVar(SEXP symbol, SEXP rho);
@@ -120,8 +122,9 @@ static INLINE double R_logbase(double x, double base) {
 
 static INLINE SEXP Rsh_get_dim_attr(SEXP v) {
   SEXP attr = ATTRIB(v);
+  assert(!BNDCELL_TAG(attr));
   SEXP dim =
-      TAG(attr) == R_DimSymbol ? CAR(attr) : Rf_getAttrib(v, R_DimSymbol);
+      TAG(attr) == R_DimSymbol ? CAR0(attr) : Rf_getAttrib(v, R_DimSymbol);
   if (TYPEOF(dim) == INTSXP) {
     return dim;
   } else {
@@ -499,7 +502,8 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
   do {                                                                         \
     SEXP __a__ = (args);                                                       \
     while (__a__ != R_NilValue) {                                              \
-      DECREMENT_LINKS(CAR(__a__));                                             \
+      assert(!BNDCELL_TAG(__a__));                                             \
+      DECREMENT_LINKS(CAR0(__a__));                                            \
       __a__ = CDR(__a__);                                                      \
     }                                                                          \
   } while (0)

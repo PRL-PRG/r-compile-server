@@ -548,6 +548,9 @@ typedef union {
   int ival;
   double dval;
   SEXP sxpval;
+#ifdef UNBOXED_ISQ_CELL
+  Rsh_isqinfo_t isqval;
+#endif
 } BCellVal;
 
 #define DEFINE_BCELL(name) BCell name = R_NilValue;
@@ -633,65 +636,68 @@ static INLINE void bcell_expand(BCell b) {
     SEXP val;
     BCellVal vv;
     vv.sxpval = CAR0(b);
+    PROTECT(b);
     switch (typetag) {
     case REALSXP:
-      PROTECT(b);
       val = Rf_ScalarReal(vv.dval);
-      BCELL_SET(b, val);
-      INCREMENT_NAMED(val);
-      UNPROTECT(1);
       break;
     case INTSXP:
-      PROTECT(b);
       val = Rf_ScalarInteger(vv.ival);
-      BCELL_SET(b, val);
-      INCREMENT_NAMED(val);
-      UNPROTECT(1);
       break;
     case LGLSXP:
-      PROTECT(b);
-      val = Rf_ScalarLogical(vv.ival);
-      BCELL_SET(b, val);
-      INCREMENT_NAMED(val);
-      UNPROTECT(1);
+      val = Rsh_ScalarLogical(vv.ival);
       break;
+#ifdef UNBOXED_ISQ_CELL
+    case ISQSXP: {
+      Rsh_isqinfo_t isqinfo = vv.isqval;
+      val = R_compact_intrange(isqinfo.n1, isqinfo.n2);
+      break;
+    }
+#endif
     default:
       UNREACHABLE();
     }
+    BCELL_SET(b, val);
+    INCREMENT_NAMED(val);
+    UNPROTECT(1);
   }
 }
 
 #define IS_USER_DATABASE(rho)                                                  \
   (OBJECT((rho)) && Rf_inherits((rho), "UserDefinedDatabase"))
 
-// Returns a binding cell of the given symbol in rho or R_NilValue if the symbol
-// is not bound or not bindable
-static INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
-  if (rho == R_BaseEnv || rho == R_BaseNamespace || IS_USER_DATABASE(rho)) {
+// Returns a binding cell of the given symbol in rho or R_NilValue if the
+// symbol is not bound or not bindable Ported from GET_BINDING_CELL
+static ALWAYS_INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
+  assert(rho != R_BaseEnv && rho != R_BaseNamespace && !IS_USER_DATABASE(rho));
+  SEXP cell = findVarLocInFrame(rho, symbol, NULL);
+  assert(cell != NULL);
+  if (IS_ACTIVE_BINDING(cell)) {
     return R_NilValue;
   }
-
-  R_varloc_t loc = R_findVarLocInFrame(rho, symbol);
-  SEXP cell = loc.cell;
-
-  return cell == NULL ? R_NilValue : cell;
+  return cell;
 }
 static INLINE SEXP bcell_value(SEXP cell);
 // Ensures that the symbol from rho is bound in the given cell as long
 // as the symbol in rho is bindable. If not, it sets the cell to R_NilValue
 static SEXP ALWAYS_INLINE bcell_ensure_cached(SEXP symbol, SEXP rho,
                                               BCell *const cell) {
-  if (TAG(*cell) == symbol && !BCELL_IS_UNBOUND(*cell)) {
-    return *cell;
+  /* The value returned by GET_CACHED_BINDING_CELL is either a
+     binding cell or R_NilValue.  TAG(R_NilValue) is R_NilValue, and
+     that will not equal symbol. So a separate test for cell !=
+     R_NilValue is not needed. */
+  // Is is faster to check for R_NilValue tho
+  if (*cell == R_NilValue || BCELL_IS_UNBOUND(*cell)) {
+    *cell = bcell_get(symbol, rho);
+  } else {
+    // If this ever fails, we need to check for it above and
+    // also think more about the branching we removed below
+    assert(TAG(*cell) == symbol);
   }
 
-  SEXP ncell = bcell_get(symbol, rho);
-  if (ncell != R_NilValue) {
-    *cell = ncell;
-  } else if (*cell != R_NilValue && BCELL_IS_UNBOUND(*cell)) {
-    *cell = R_NilValue;
-  }
-  return ncell;
+  assert(*cell != NULL);
+  assert(!BCELL_IS_UNBOUND(*cell));
+  return *cell;
 }
 
 // Returns the bound value in the case it is bound or Rsh_UnboundValue
@@ -731,7 +737,7 @@ static INLINE SEXP bcell_value(SEXP cell) {
 static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
   if (cell != R_NilValue && !BINDING_IS_LOCKED(cell) &&
       !IS_ACTIVE_BINDING(cell)) {
-    if (BNDCELL_TAG(cell) || CAR(cell) != value) {
+    if (BNDCELL_TAG(cell) || CAR0(cell) != value) {
       BCELL_SET(cell, value);
       if (MISSING(cell)) {
         SET_MISSING(cell, 0);
@@ -794,8 +800,8 @@ static INLINE R_xlen_t as_index(Value v) {
   case REALSXP: {
     double i = VAL_DBL(v);
     // Originally tested for !ISNAN(i), but the other comparison check(s) fail
-    // for NaN anyway (IEEE 754). Originally tested for i > 0, but we can return
-    // arbitrary non-positive value to indicate failure.
+    // for NaN anyway (IEEE 754). Originally tested for i > 0, but we can
+    // return arbitrary non-positive value to indicate failure.
     if (i <= R_XLEN_T_MAX) {
       return (R_xlen_t)i;
     }
@@ -954,70 +960,59 @@ static ALWAYS_INLINE void Rsh_get_ddval(Value *res, SEXP symbol, BCell *cell,
   Rsh_do_get_var(res, symbol, value, keepmiss, rho);
 }
 
-static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol,
-                                      BCell *cell_cache, Rboolean keepmiss,
-                                      SEXP rho) {
+static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
+                                      Rboolean keepmiss, SEXP rho) {
   RSH_PC_INC(getvar);
-  assert(cell_cache != NULL);
+  assert(*cell != NULL);
 
   R_Visible = TRUE;
 
-  SEXP value;
-  SEXP cell = *cell_cache;
-
-  if (cell == R_NilValue) {
-    cell = bcell_ensure_cached(symbol, rho, cell_cache);
+  if (*cell == R_NilValue) {
+    bcell_ensure_cached(symbol, rho, cell);
+    //*cell = findVarLocInFrame(rho, symbol, NULL);
   }
 
   // Since the format of BCells and unboxed stack is the same,
   // we can directly assign the value no matter its type
-  if (BCELL_TAG(cell) != 0) {
-    res->tag = BCELL_TAG(cell);
+  if (BCELL_TAG(*cell) != 0) {
+    res->tag = BCELL_TAG(*cell);
     //*((BCellVal *)&(res->u)) = *((BCellVal *)&CAR0(cell));
     // memcpy does not throw warning and compiles in the same code
-    static_assert(sizeof(res->u) == sizeof(CAR0(cell)),
+    static_assert(sizeof(res->u) == sizeof(CAR0(*cell)),
                   "BCellVal and Value union should be the same size");
-    memcpy(&res->u, &CAR0(cell), sizeof(res->u));
+    memcpy(&res->u, &CAR0(*cell), sizeof(res->u));
     return;
   }
-  value = CAR0(cell);
+  SEXP value = CAR0(*cell);
 
   if (TYPEOF(value) == PROMSXP && PROMISE_IS_EVALUATED(value)) {
     Rsh_evaluated_promise_to_value(res, value);
     return;
   }
 
-  /* try fast handling of some types; for these the */
-  /* cell won't be R_NilValue or an active binding */
-  switch (TYPEOF(value)) {
-  default:
-    if (cell == R_NilValue || IS_ACTIVE_BINDING(cell)) {
+  // Active bindings are set to R_NilValue by bcell_ensure_cached,
+  // if cell was R_NilValue. They should never be cached.
+  assert(!IS_ACTIVE_BINDING(*cell));
+  if (*cell != R_NilValue) {
+    switch (TYPEOF(value)) {
+    default:
+    case REALSXP:
+    case INTSXP:
+    case LGLSXP:
+    case CPLXSXP:
+    case STRSXP:
+    case VECSXP:
+    case RAWSXP:
+      SET_SXP_VAL(res, value);
+      return;
+    case PROMSXP:
+    case SYMSXP:
       break;
     }
-  case REALSXP:
-  case INTSXP:
-  case LGLSXP:
-  case CPLXSXP:
-  case STRSXP:
-  case VECSXP:
-  case RAWSXP:
-    SET_SXP_VAL(res, value);
-    return;
-  case PROMSXP:
-  case SYMSXP:
-    // Cell cannot be NULL here because the 'type' variable
-    // is retrieved from the actual cell. The only case where cell
-    // can be null at this point is if 'type' is 0, so not for this case.
-    // Assumption here simplifies the branching below.
-    ASSUME(cell != R_NilValue);
-    break;
-  }
-
-  // This is what remains of BINDING_VALUE/bcell_value that matters here.
-  // 'value' would be set to R_UnboundValue and overwritten right after.
-  // Compiler should be smart enough to jump inside of the branch directly
-  // from the breaks in the switch.
-  if ((cell == R_NilValue || IS_ACTIVE_BINDING(cell))) {
+  } else {
+    // This is what remains of BINDING_VALUE/bcell_value that matters here.
+    // 'value' would be set to R_UnboundValue and overwritten right after.
+    assert(BCELL_TAG(*cell) != ISQSXP); // Custom ISQSXP not supported
     // value = R_GetVarLocValue(R_findVarLoc(symbol, rho));
     // TODO thorough check whether this is an equivalent to the version
     // commented above
@@ -1033,39 +1028,116 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
   int tag = VAL_TAG(value);
 
   assert(cell != NULL);
-  if (tag == BCELL_TAG_WR(*cell)) {
-    if (tag != 0) {
-      assert(tag == REALSXP || tag == INTSXP || tag == LGLSXP);
-      memcpy(&((*cell)->u.listsxp.carval), &value.u, sizeof(value.u));
-      return;
+
+  // Fast path for updating already cached variables
+  if (!BINDING_IS_LOCKED(*cell) && *cell != R_NilValue) {
+    // Active bindings should never be cached (?)
+    assert(!IS_ACTIVE_BINDING(*cell));
+    // assert(*cell == R_findVarLocInFrame(rho, symbol).cell);
+    assert(!BCELL_IS_UNBOUND(*cell));
+    assert(TAG(*cell) == symbol);
+
+    switch (tag) {
+    case 0: {
+      // Value is a SEXP, we need to update REFCOUNT for new values
+      SEXP val_sxp = VAL_SXP(value);
+      if (BCELL_TAG(*cell) || CAR0(*cell) != val_sxp) {
+        BCELL_SET(*cell, val_sxp);
+        SET_MISSING(*cell, 0);
+      }
+      break;
     }
-  } else if (BCELL_WRITABLE(*cell)) {
-    if (tag != 0 && tag != ISQSXP) {
-      assert(tag == REALSXP || tag == INTSXP || tag == LGLSXP);
-      BCELL_INIT(*cell, tag);
+    default: {
+      // Value is unboxed, so we can directly update the cell (fastest case)
+      if (tag != BCELL_TAG(*cell)) {
+        BCELL_INIT(*cell, tag);
+      }
+
+      static_assert(sizeof(value.u) == sizeof(CAR0(*cell)),
+                    "BCellVal and Value union should be the same size");
       memcpy(&((*cell)->u.listsxp.carval), &value.u, sizeof(value.u));
-      return;
+      break;
     }
+#ifndef UNBOXED_ISQ_CELL
+    case ISQSXP: {
+      // Unfortunately, GNU R runtime does not support ISQSXP in BCells
+      Rsh_isqinfo_t isqinfo = VAL_ISQ(value);
+      SEXP val_sxp = R_compact_intrange(isqinfo.n1, isqinfo.n2);
+      BCELL_SET(*cell, val_sxp);
+      SET_MISSING(*cell, 0);
+      break;
+    }
+#endif
+    }
+    return;
   }
 
-  SEXP value_sxp = val_as_sexp(value);
-  INCREMENT_NAMED(value_sxp);
-
-  if (!bcell_set_value(*cell, value_sxp)) {
-    PROTECT(value_sxp);
-    Rf_defineVar(symbol, value_sxp, rho);
-    UNPROTECT(1);
-    bcell_ensure_cached(symbol, rho, cell); // Not in GNU R. Is it worth it?
-#ifdef RSH_AGGRESSIVE_UNBOXING
-    BCELL_INLINE(*cell, value_sxp);
+  // Slow path (initial assignment and rare binding behaviour)
+  SEXP define_val;
+  switch (tag) {
+  case 0: {
+    define_val = VAL_SXP(value);
+    INCREMENT_NAMED(define_val);
+    break;
+  }
+  default: {
+    // Don't convert to SEXP if the value is unboxed,
+    // we can directly store it in the cell later.
+    define_val = R_NilValue;
+    break;
+  }
+#ifndef UNBOXED_ISQ_CELL
+  case ISQSXP: {
+    Rsh_isqinfo_t isqinfo = VAL_ISQ(value);
+    define_val = R_compact_intrange(isqinfo.n1, isqinfo.n2);
+    tag = 0;
+    break;
+  }
 #endif
+  }
+  Rf_defineVar(symbol, define_val, rho);
+
+  if (*cell == R_NilValue || BCELL_IS_UNBOUND(*cell)) {
+    // Path for the first assignment (happens once)
+    // and for case the variable was unassigned (rare)
+
+    assert(rho != R_BaseEnv && rho != R_BaseNamespace &&
+           !IS_USER_DATABASE(rho));
+
+    bcell_ensure_cached(symbol, rho, cell);
+    //*cell = findVarLocInFrame(rho, symbol, NULL);
+
+    // Save the unboxed value (not done in GNU R)
+    // may be good for variables only assigned once?
+    if (tag != 0) {
+      assert(*cell != R_NilValue);
+      assert(TAG(*cell) == symbol);
+
+      assert(!MISSING(*cell));
+      BCELL_TAG_SET(*cell, tag);
+      memcpy(&((*cell)->u.listsxp.carval), &value.u, sizeof(value.u));
+    } else {
+#ifdef RSH_AGGRESSIVE_UNBOXING
+      BCELL_INLINE(*cell, VAL_SXP(value));
+#endif
+    }
+  } else {
+    // Path for locked and active bindings (very rare)
+    assert(BINDING_IS_LOCKED(*cell) || IS_ACTIVE_BINDING(*cell));
+
+    SEXP value_sxp = val_as_sexp(value);
+    INCREMENT_NAMED(value_sxp);
+
+    // No need to PROTECT, will be done in defineVar
+    Rf_defineVar(symbol, value_sxp, rho);
   }
 }
 
 static INLINE void Rsh_SetVar2(Value *stack, SEXP symbol, SEXP rho) {
   Value *r0 = GET_VAL(-1);
-  INCREMENT_NAMED(value);
-  Rf_setVar(symbol, val_as_sexp(*r0), rho);
+  SEXP res = val_as_sexp(*r0);
+  INCREMENT_NAMED(res);
+  Rf_setVar(symbol, res, rho);
 }
 
 static INLINE NODISCARD SEXP Rsh_Return(Value *stack) {
@@ -1085,17 +1157,19 @@ static INLINE NODISCARD SEXP Rsh_Return(Value *stack) {
 
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
-    DECREMENT_LINKS(CAR(a));
+    assert(!BNDCELL_TAG(a));
+    DECREMENT_LINKS(CAR0(a));
   }
   return args;
 }
 
 static INLINE SEXP Rsh_closure_call_args(SEXP args) {
   for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
-    DECREMENT_LINKS(CAR(a));
+    assert(!BNDCELL_TAG(a));
+    DECREMENT_LINKS(CAR0(a));
     if (!TRACKREFS(a)) {
       ENABLE_REFCNT(a);
-      INCREMENT_REFCNT(CAR(a));
+      INCREMENT_REFCNT(CAR0(a));
       INCREMENT_REFCNT(CDR(a));
     }
   }
@@ -1220,8 +1294,9 @@ static INLINE void Rsh_finish_inline_closure_call(SEXP fun, SEXP args,
   } else {
     SEXP value = VAL_SXP(*unboxed_val);
 #ifdef ADJUST_ENVIR_REFCNTS
+    assert(!BNDCELL_TAG(call));
     Rboolean is_getter_call = (Rboolean)(CADR(call) == Rsh_TmpvalSym &&
-                                         !R_isReplaceSymbol(CAR(call)));
+                                         !R_isReplaceSymbol(CAR0(call)));
     R_CleanupEnvir(newrho, value);
     if (is_getter_call && MAYBE_REFERENCED(value))
       value = shallow_duplicate(value);
@@ -2799,7 +2874,8 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     ENSURE_NAMEDMAX(value);
     break;
   case LISTSXP:
-    value = CAR(seq);
+    assert(!BNDCELL_TAG(seq));
+    value = CAR0(seq);
     ENSURE_NAMEDMAX(value);
     SET_SXP_VAL(seq_val, CDR(seq));
     break;
@@ -2835,7 +2911,7 @@ static INLINE void Rsh_EndFor(Value *stack, SEXP rho) {
 #define ISQ_NEW(/* int */ x, /* int */ y, /* Value* */ res)                    \
   do {                                                                         \
     Value *__r__ = (res);                                                      \
-    Rsh_isqinfo_t __v__;                                                             \
+    Rsh_isqinfo_t __v__;                                                       \
     __v__.n1 = (int)(x);                                                       \
     __v__.n2 = (int)(y);                                                       \
     SET_ISQ_VAL(__r__, __v__);                                                 \
@@ -3147,11 +3223,12 @@ static INLINE void Rsh_LogBase(Value *stack, SEXP call, SEXP rho) {
 }
 
 static INLINE Rsh_Math1Fun Rsh_get_math1_fun(int i, SEXP call, SEXP r_op_sym) {
-  if (CAR(call) != r_op_sym) {
-    Rf_error("math1 compiler/interpreter mismatch");
-  } else {
-    return R_MATH1_EXT_FUNS[i];
-  }
+  assert(CAR(call) == r_op_sym && "math1 compiler/interpreter mismatch");
+  // if (CAR(call) != r_op_sym) {
+  //   Rf_error("math1 compiler/interpreter mismatch");
+  // } else {
+  return R_MATH1_EXT_FUNS[i];
+  //}
 }
 
 static INLINE void Rsh_do_math1(Value *stack, SEXP call, int op, SEXP rho,
@@ -3230,7 +3307,8 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
   PROTECT(args);
 
   // 3. call the builtin
-  SEXP sym = CAR(call);
+  assert(!BNDCELL_TAG(call));
+  SEXP sym = CAR0(call);
   SEXP opPrim = getPrimitive(sym, BUILTINSXP);
   SEXP val = do_dotcall(call, opPrim, args, rho);
 
@@ -3263,12 +3341,13 @@ static INLINE void Rsh_DoDots(Value *stack, SEXP rho) {
     PROTECT(h);
     for (; h != R_NilValue; h = CDR(h)) {
       SEXP val;
+      assert(!BNDCELL_TAG(h));
       if (ftype == BUILTINSXP) {
-        val = Rf_eval(CAR(h), rho);
-      } else if (CAR(h) == R_MissingArg) {
-        val = CAR(h);
+        val = Rf_eval(CAR0(h), rho);
+      } else if (CAR0(h) == R_MissingArg) {
+        val = CAR0(h);
       } else {
-        val = Rf_mkPROMISE(CAR(h), rho);
+        val = Rf_mkPROMISE(CAR0(h), rho);
       }
       RSH_PUSH_ARG(args_head, args_tail, val);
       RSH_SET_TAG(*args_tail, TAG(h));
@@ -3281,7 +3360,8 @@ static INLINE void Rsh_DoDots(Value *stack, SEXP rho) {
 
 static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   Value *value = GET_VAL(-1);
-  SEXP symbol = CAR(call);
+  assert(!BNDCELL_TAG(call));
+  SEXP symbol = CAR0(call);
   SEXP fun = getPrimitive(symbol, SPECIALSXP);
 
   const void *vmax = vmaxget();
@@ -3339,7 +3419,8 @@ static INLINE SEXP SymbolValue(SEXP sym) {
 
 static INLINE NODISCARD Rboolean Rsh_BaseGuard(Value *stack, SEXP expr,
                                                SEXP rho) {
-  SEXP sym = CAR(expr);
+  assert(!BNDCELL_TAG(expr));
+  SEXP sym = CAR0(expr);
   if (Rf_findFun(sym, rho) != SymbolValue(sym)) {
     // function redefined -- bail out to R interpreter
     SET_SXP_VAL(GET_VAL(-1), Rf_eval(expr, rho));
