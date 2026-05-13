@@ -1,13 +1,13 @@
 package org.prlprg.fir.ir.properties;
 
 public class FunctionUserProperties {
-  private boolean raiseOnAssumeLoadFail = false;
+  private boolean strict = false;
 
-  public boolean raiseOnAssumeLoadFail() {
-    return raiseOnAssumeLoadFail;
+  public boolean strict() {
+    return strict;
   }
 
-  public void setRaiseOnAssumeLoadFail(boolean raiseOnAssumeLoadFail) {
-    this.raiseOnAssumeLoadFail = raiseOnAssumeLoadFail;
+  public void setStrict(boolean strict) {
+    this.strict = strict;
   }
 }

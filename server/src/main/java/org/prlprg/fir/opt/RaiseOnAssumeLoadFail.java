@@ -18,16 +18,16 @@ import org.prlprg.util.Strings;
 
 /// Replaces deopts guarded by load-assumption-only checkpoints with a [Raise].
 ///
-/// Only applies to abstractions in functions whose `userProperties().raiseOnAssumeLoadFail()` is
-/// set. For every [Checkpoint] whose success BB has at least one assumption and whose assumptions
-/// are all [AssumeLoadVar] or [AssumeLoadFun] (i.e. variable/function lookups), if the deopt BB
-/// ends in a [Deopt] jump, this removes all other instructions in that BB and replaces the [Deopt]
-/// with a [Raise] reporting the assumed variables.
+/// Only applies to abstractions in functions whose `userProperties().strict()` is set. For
+/// every [Checkpoint] whose success BB has at least one assumption and whose assumptions are
+/// all [AssumeLoadVar] or [AssumeLoadFun] (i.e. variable/function lookups), if the deopt BB
+/// ends in a [Deopt] jump, this removes all other instructions in that BB and replaces the
+/// [Deopt] with a [Raise] reporting the assumed variables.
 public record RaiseOnAssumeLoadFail() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
       @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
-    if (function == null || !function.userProperties().raiseOnAssumeLoadFail()) {
+    if (function == null || !function.userProperties().strict()) {
       return false;
     }
 

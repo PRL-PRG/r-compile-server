@@ -48,7 +48,7 @@ class RaiseOnAssumeLoadFailTest implements AbstractionOptimizationUnitTest {
   private static void setRaiseOnAssumeLoadFail(Module module) {
     Objects.requireNonNull(module.localFunction(Variable.named("main")))
         .userProperties()
-        .setRaiseOnAssumeLoadFail(true);
+        .setStrict(true);
   }
 
   @Test
@@ -79,7 +79,7 @@ class RaiseOnAssumeLoadFailTest implements AbstractionOptimizationUnitTest {
   void propertyNotSet_noChange() {
     var module = ParseUtil.parseModule(MODULE);
 
-    assertFalse(run(module), "optimization should not run when raiseOnAssumeLoadFail is unset");
+    assertFalse(run(module), "optimization should not run when non-strict");
 
     var printed = Printer.toString(module);
     assertTrue(printed.contains("deopt 0 []"), "deopt should remain; printed:\n" + printed);

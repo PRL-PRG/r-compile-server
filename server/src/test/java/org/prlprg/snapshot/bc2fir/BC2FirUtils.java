@@ -15,7 +15,7 @@ import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
 
 public final class BC2FirUtils {
-  public static Module compile(EnvSXP rModuleEnv, RSession session) {
+  public static Module compile(EnvSXP rModuleEnv, RSession session, boolean strict) {
     var firModule = new Module();
     for (var binding : rModuleEnv.bindings()) {
       var funName = binding.getKey();
@@ -44,9 +44,15 @@ public final class BC2FirUtils {
       BC2FirClosureCompiler.compile(session, firModule, funName, funSexp);
       cleanup(firModule);
 
-      // Don't check flow, because it's trivial (no `consume` annotations) but expensive.
+      // Don't check provenance, because it's trivial (no `consume` annotations) but expensive.
       if (!checkAll(firModule, Exclude.PROVENANCE)) {
         fail("Compiled FIŘ failed verification\n" + firModule);
+      }
+
+      if (strict) {
+        for (var function : firModule.localFunctions()) {
+          function.userProperties().setStrict(true);
+        }
       }
     }
     return firModule;

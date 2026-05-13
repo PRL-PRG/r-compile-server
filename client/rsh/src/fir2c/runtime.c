@@ -778,19 +778,6 @@ bool Fir_assume_builtin_function(SEXP value, int bltIdx) {
   return PRIMOFFSET(value) == bltIdx;
 }
 
-static bool Fir_is_global_env_or_ancestor(SEXP env) {
-  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected");
-
-  for (SEXP current = R_GlobalEnv; ; current = ENCLOS(current)) {
-    if (env == current) {
-      return true;
-    }
-    if (current == R_EmptyEnv) {
-      return false;
-    }
-  }
-}
-
 static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "assume_load_fun");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for assume_load_fun");
@@ -817,6 +804,19 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
 
   // No function found for `symbol`
   return NULL;
+}
+
+static bool Fir_is_global_env_or_ancestor(SEXP env) {
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected");
+
+  for (SEXP current = R_GlobalEnv; ; current = ENCLOS(current)) {
+    if (current == env) {
+      return true;
+    }
+    if (current == R_EmptyEnv) {
+      return false;
+    }
+  }
 }
 
 bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {

@@ -256,6 +256,10 @@ public final class Function {
 
     p.print(comments);
 
+    if (userProperties.strict()) {
+      w.write("@strict\n");
+    }
+
     w.write("fun ");
     p.print(name);
 
@@ -290,6 +294,13 @@ public final class Function {
     var s = p.scanner();
 
     comments = p.parse(Comments.class);
+
+    if (s.trySkip('@')) {
+      switch (s.readIdentifierOrKeyword()) {
+        case "strict" -> userProperties.setStrict(true);
+        case String unknown -> throw s.fail("unknown user property: @" + unknown);
+      }
+    }
 
     s.assertAndSkip("fun ");
     name = p.parse(NamedVariable.class);
