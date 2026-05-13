@@ -1,7 +1,5 @@
 package org.prlprg.fir.opt;
 
-import java.util.List;
-import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -35,39 +33,35 @@ public record RaiseOnAssumeLoadFail() implements AbstractionOptimization {
 
     abstraction
         .streamCfgs()
+        .flatMap(cfg -> cfg.bbs().stream())
         .forEach(
-            cfg -> {
-              // Copy because we mutate BBs (their jumps and statements) while iterating.
-              for (var bb : List.copyOf(cfg.bbs())) {
-                if (!(bb.jump() instanceof Checkpoint checkpoint)) {
-                  continue;
-                }
-
-                var assumptions =
-                    checkpoint.success().bb().statements().stream()
-                        .filter(s -> s.expression() instanceof Assume)
-                        .map(s -> ((Assume) s.expression()).assumption())
-                        .toList();
-                if (assumptions.isEmpty()
-                    || !assumptions.stream()
-                        .allMatch(a -> a instanceof AssumeLoadVar || a instanceof AssumeLoadFun)) {
-                  continue;
-                }
-
-                var deoptBb = checkpoint.deopt().bb();
-                if (!(deoptBb.jump() instanceof Deopt)) {
-                  continue;
-                }
-
-                Stream<NamedVariable> vars =
-                    assumptions.stream().map(RaiseOnAssumeLoadFail::variableOf);
-
-                deoptBb.clearStatements();
-                deoptBb.setJump(
-                    new Raise(
-                        "Variable assumption(s) failed: " + vars.collect(Strings.joining(", "))));
-                changed[0] = true;
+            bb -> {
+              if (!(bb.jump() instanceof Checkpoint checkpoint)) {
+                return;
               }
+
+              var assumptions =
+                  checkpoint.success().bb().statements().stream()
+                      .filter(s -> s.expression() instanceof Assume)
+                      .map(s -> ((Assume) s.expression()).assumption())
+                      .toList();
+              if (!assumptions.stream()
+                  .allMatch(a -> a instanceof AssumeLoadVar || a instanceof AssumeLoadFun)) {
+                return;
+              }
+
+              var deoptBb = checkpoint.deopt().bb();
+              if (!(deoptBb.jump() instanceof Deopt)) {
+                return;
+              }
+
+              var vars = assumptions.stream().map(RaiseOnAssumeLoadFail::variableOf);
+
+              deoptBb.clearStatements();
+              deoptBb.setJump(
+                  new Raise(
+                      "Variable assumption(s) failed: " + vars.collect(Strings.joining(", "))));
+              changed[0] = true;
             });
 
     return changed[0];
