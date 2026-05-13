@@ -41,6 +41,9 @@ public class FirQuery implements GenFirQuery {
     return switch (example.type()) {
       case "fir" -> parseModule(example.text());
       case "R" -> {
+        // Most functions are fine strict, so it's on by default
+        var strict = !example.hasOption(name(), "noStrict");
+
         var R = GNUR.instance();
         var bc = store.load(example, BCQuery.FIR);
 
@@ -50,7 +53,7 @@ public class FirQuery implements GenFirQuery {
         env.set("main", SEXPs.closure(SEXPs.list(), SEXPs.bcode(bc), env));
 
         try {
-          yield compile(env, R.getSession());
+          yield compile(env, R.getSession(), strict);
         } catch (BC2FirClosureCompilerUnsupportedException
             | BC2FirCFGCompilerUnsupportedException e) {
           throw new SkipQueryException(name(), e);
