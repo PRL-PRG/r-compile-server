@@ -781,7 +781,7 @@ public class BC2FirCFGCompiler {
                 ? alreadyGenerated
                 : BC2FirClosureCompiler.compile(r, module(), generatedName, cloSxp);
 
-        pushInsert(new Closure(code));
+        pushInsert(new Closure(false, code));
       }
       case UMinus(var _) -> pushInsertThenCp(builtin("-", pop(), new Constant(SEXPs.MISSING_ARG)));
       case UPlus(var _) -> pushInsertThenCp(builtin("+", pop(), new Constant(SEXPs.MISSING_ARG)));

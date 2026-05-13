@@ -69,7 +69,8 @@ public class AbstractionFeedback {
     types.computeIfAbsent(register, _ -> new TypeFeedback()).record(type);
   }
 
-  /// Record that the register was assigned a closure whose function is `callee`
+  /// Record that the register was assigned a closure whose function is `callee` and environment
+  /// is static
   public void recordCallee(Register register, Function callee) {
     var oldCallee = callees.get(register);
     var updatedCallee =

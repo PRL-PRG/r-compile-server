@@ -4,12 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.sexp.UserEnvSXP;
 
 /// Test [InternalInterpreter] behavior with larger, parsed modules.
 class InternalInterpretTest {
@@ -163,9 +166,21 @@ class InternalInterpretTest {
   }
 
   @Test
+  void assumeLoadFunFailsForClosureFoundInLocalEnv() {
+    var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_GLOBAL_MODULE));
+    interpreter
+        .baseEnv()
+        .set("target", staticTarget(interpreter, new UserEnvSXP(interpreter.globalEnv())));
+
+    var result = interpreter.call("main");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(0)), result);
+  }
+
+  @Test
   void assumeLoadFunSucceedsForClosureFoundInGlobalEnv() {
     var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_GLOBAL_MODULE));
-    interpreter.globalEnv().set("target", plainClosure(interpreter.globalEnv()));
+    interpreter.globalEnv().set("target", staticTarget(interpreter, interpreter.globalEnv()));
 
     var result = interpreter.call("main");
 
@@ -175,7 +190,7 @@ class InternalInterpretTest {
   @Test
   void assumeLoadFunSucceedsForClosureFoundInBaseEnv() {
     var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_GLOBAL_MODULE));
-    interpreter.baseEnv().set("target", plainClosure(interpreter.baseEnv()));
+    interpreter.baseEnv().set("target", staticTarget(interpreter, interpreter.baseEnv()));
 
     var result = interpreter.call("main");
 
@@ -183,12 +198,14 @@ class InternalInterpretTest {
   }
 
   @Test
-  void assumeLoadFunStillFailsForNonGlobalBinding() {
+  void assumeLoadFunSucceedsForNonGlobalBinding() {
     var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_LOCAL_MODULE));
 
-    var result = interpreter.call("main", new Value.Sexp(plainClosure(interpreter.globalEnv())));
+    var result =
+        interpreter.call(
+            "main", new Value.Sexp(staticTarget(interpreter, interpreter.globalEnv())));
 
-    assertEquals(new Value.Sexp(SEXPs.integer(0)), result);
+    assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
   }
 
   @Test
@@ -202,17 +219,30 @@ class InternalInterpretTest {
   }
 
   @Test
-  void assumeLoadGlobalVarFailsForMatchingNonGlobalBinding() {
-    var interpreter =
-        new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_GLOBAL_VAR_LOCAL_MODULE));
-    interpreter.globalEnv().set("target", SEXPs.integer(1));
+  void assumeLoadGlobalVarSucceedsForNonMatchingGlobalBinding() {
+    var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_GLOBAL_VAR_MODULE));
+    interpreter.globalEnv().set("target", SEXPs.integer(2));
 
     var result = interpreter.call("main");
 
     assertEquals(new Value.Sexp(SEXPs.integer(0)), result);
   }
 
-  private static org.prlprg.sexp.CloSXP plainClosure(EnvSXP env) {
-    return SEXPs.closure(SEXPs.list(), SEXPs.symbol("plain_target"), env);
+  @Test
+  void assumeLoadGlobalVarSucceedsForMatchingNonGlobalBinding() {
+    var interpreter =
+        new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_GLOBAL_VAR_LOCAL_MODULE));
+    interpreter.globalEnv().set("target", SEXPs.integer(2));
+
+    var result = interpreter.call("main");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
+  }
+
+  private static org.prlprg.sexp.CloSXP staticTarget(
+      InternalInterpreter interpreter, EnvSXP cloEnv) {
+    return interpreter.closureStub(
+        Objects.requireNonNull(interpreter.module().localFunction(Variable.named("static_target"))),
+        cloEnv);
   }
 }

@@ -101,7 +101,7 @@ public sealed interface Expression
           return new Noop();
         }
         case "clos" -> {
-          return new Closure(p2.parse(FunctionRef.class));
+          return new Closure(s.trySkip("-static"), p2.parse(FunctionRef.class));
         }
         case "dup" -> {
           var value = p.parse(Argument.class);

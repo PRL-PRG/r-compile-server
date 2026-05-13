@@ -103,7 +103,7 @@ import org.prlprg.util.Streams;
 ///   through to the parent if the topmost may or may not have it.
 /// - A super load/store works the same way, but starts from the highest non-topmost environment.
 /// - A reflective instruction "taints" every environment; any lookup that reaches a tainted
-///   environment is ambiguous. Outer environments (global or outer closure) are always tainted.
+///   environment is ambiguous. Static environments are always tainted.
 public final class OriginAnalysis extends AbstractInterpretation<State> implements Analysis {
   private final DefUses defUses;
   private final InferType inferType;
@@ -775,7 +775,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         }
       }
 
-      // Outer env = tainted = completely unknown (infinite candidates)
+      // Static env = tainted = completely unknown (infinite candidates)
       return null;
     }
 
@@ -822,13 +822,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         }
       }
 
-      // Outer env = tainted = completely unknown (infinite candidates)
+      // Static env = tainted = completely unknown (infinite candidates)
       return null;
     }
 
     private void store(NamedVariable variable, Argument value) {
       if (envs.isEmpty()) {
-        // Stores in the untracked outer env.
+        // Stores in the untracked static env.
         return;
       }
       envs.getLast().variables.put(variable, VariableInfo.of(value));
