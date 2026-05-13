@@ -32,13 +32,13 @@ public class Optimizations {
         new ElideUnforcedPromise(threshold),
         new SpeculateDispatch(threshold, 3, 9),
         new SpeculateAssume(threshold),
-        new MergeAssumeLoadVar(),
         new ModuleFixpointSequence(
             "mainThenElideCheckpoints",
             new ModuleFixpointSequence(
                 "mainThenCreateBestVersions",
                 new AbstractionFixpointSequence(
                     "main",
+                    new MergeAssumeLoadVar(),
                     new Specialize(
                         "specialize",
                         new DefiniteForce(),
