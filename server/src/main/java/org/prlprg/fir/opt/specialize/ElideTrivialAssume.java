@@ -77,7 +77,8 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
         var originExpression = originAnalysis.resolveExpression(originRegister);
-        if (!Objects.equals(originExpression, new Closure(true, functionRef.get()))) {
+        if (!(originExpression instanceof Closure(_, var codeRef)
+            && codeRef.get().equals(functionRef.get()))) {
           yield expression;
         }
 

@@ -166,7 +166,7 @@ class InternalInterpretTest {
   }
 
   @Test
-  void assumeLoadFunFailsForClosureFoundInLocalEnv() {
+  void assumeLoadFunSucceedsForClosureFoundInLocalEnv() {
     var interpreter = new InternalInterpreter(ParseUtil.parseModule(ASSUME_LOAD_FUN_GLOBAL_MODULE));
     interpreter
         .baseEnv()
@@ -174,7 +174,7 @@ class InternalInterpretTest {
 
     var result = interpreter.call("main");
 
-    assertEquals(new Value.Sexp(SEXPs.integer(0)), result);
+    assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
   }
 
   @Test
