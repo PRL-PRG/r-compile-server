@@ -182,7 +182,8 @@ public record StrictifyPromise() implements AbstractionOptimization {
         // Replace statement with new call.
         // The promise registers themselves are replaced with the inlined return values,
         // so call arguments remain unchanged
-        var newCallee = new StaticFnCallee(calleeIsDispatch, calleeFun, newSig);
+        var newCallee =
+            new StaticFnCallee(calleeFun, calleeIsDispatch, callee.closureWithEnv(), newSig);
         var newCall = new Call(newCallee, callArguments);
         var newStmt = stmt.withExpression(newCall);
         bb.replaceStatementAt(callIdx, newStmt);

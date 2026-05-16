@@ -3,16 +3,23 @@ package org.prlprg.fir.ir.callee;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public record StaticFnCallee(boolean isDispatch, FunctionRef functionRef, Signature signature)
+public record StaticFnCallee(
+    FunctionRef functionRef, boolean isDispatch, Argument closureWithEnv, Signature signature)
     implements Callee {
-  public StaticFnCallee(boolean isDispatch, Function function, Signature signature) {
-    this(isDispatch, new FunctionRef(function), signature);
+  public StaticFnCallee(
+      Function function, boolean isDispatch, Argument closureWithEnv, Signature signature) {
+    this(new FunctionRef(function), isDispatch, closureWithEnv, signature);
+  }
+
+  public StaticFnCallee(Function function, boolean isDispatch, Signature signature) {
+    this(new FunctionRef(function), isDispatch, Constant.ELIDED_CLOSURE, signature);
   }
 
   public Function function() {
@@ -31,7 +38,8 @@ public record StaticFnCallee(boolean isDispatch, FunctionRef functionRef, Signat
 
   @Override
   public Callee mapArguments(java.util.function.Function<Argument, Argument> transformer) {
-    return this;
+    return new StaticFnCallee(
+        functionRef, isDispatch, transformer.apply(closureWithEnv), signature);
   }
 
   @Override
@@ -46,6 +54,10 @@ public record StaticFnCallee(boolean isDispatch, FunctionRef functionRef, Signat
     p.print(function().name());
     if (isDispatch) {
       w.write('%');
+    }
+    if (!closureWithEnv.equals(Constant.ELIDED_CLOSURE)) {
+      w.write('@');
+      p.print(closureWithEnv);
     }
     w.write("< ");
     p.print(signature);

@@ -133,7 +133,8 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                     });
 
     // ...if so (`!isBestAtRuntime`), dispatch
-    return new StaticFnCallee(!isBestAtRuntime, calleeFun, newBestSignature);
+    return new StaticFnCallee(
+        calleeFun, !isBestAtRuntime, callee.closureWithEnv(), newBestSignature);
   }
 
   /// Returns the callee's signature with the types replaced by `argumentTypes`, i.e. the best
@@ -141,7 +142,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
   public static Signature bestSignature(Callee callee, ImmutableList<Type> argumentTypes) {
     var oldSignature =
         switch (callee) {
-          case StaticFnCallee(_, _, var signature) -> signature;
+          case StaticFnCallee(_, _, _, var signature) -> signature;
           case DynamicCallee _ -> null;
         };
     return new Signature(

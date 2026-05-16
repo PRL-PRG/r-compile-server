@@ -1272,7 +1272,7 @@ public class BC2FirCFGCompiler {
                       .collect(ImmutableList.toImmutableList());
 
               yield new org.prlprg.fir.ir.expression.Call(
-                  new StaticFnCallee(true, builtinFun, builtinFun.baseline().signature()),
+                  new StaticFnCallee(builtinFun, true, builtinFun.baseline().signature()),
                   arguments);
             } catch (IllegalArgumentException | MatchException e) {
               // We can't statically match the arguments,
@@ -1744,8 +1744,8 @@ public class BC2FirCFGCompiler {
             BUILTINS.localFunction(Variable.named(name)), "missing builtin " + name);
     var callee =
         staticSignature == null
-            ? new StaticFnCallee(true, function, function.baseline().signature())
-            : new StaticFnCallee(false, function, staticSignature);
+            ? new StaticFnCallee(function, true, function.baseline().signature())
+            : new StaticFnCallee(function, false, staticSignature);
     return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }
 
@@ -1759,8 +1759,8 @@ public class BC2FirCFGCompiler {
             INTRINSICS.localFunction(Variable.named(name)), "missing intrinsic " + name);
     var callee =
         new StaticFnCallee(
-            false,
             function,
+            false,
             staticSignature == null ? function.baseline().signature() : staticSignature);
     return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
   }

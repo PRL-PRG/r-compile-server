@@ -290,13 +290,14 @@ public sealed interface Expression
         // Static function call
         var functionRef = ctx.forFunctionRef.deferredLookup(Variable.named(headAsName));
         var isDispatch = s.trySkip('%');
+        var closureWithEnv = s.trySkip('@') ? p.parse(Argument.class) : Constant.ELIDED_CLOSURE;
         if (s.nextCharIs('(')) {
           throw s.fail("Can't call function without signature");
         }
         s.assertAndSkip('<');
         var signature = p.parse(Signature.class);
         s.assertAndSkip('>');
-        var callee = new StaticFnCallee(isDispatch, functionRef, signature);
+        var callee = new StaticFnCallee(functionRef, isDispatch, closureWithEnv, signature);
 
         var arguments = p.parseList("(", ")", Argument.class);
 

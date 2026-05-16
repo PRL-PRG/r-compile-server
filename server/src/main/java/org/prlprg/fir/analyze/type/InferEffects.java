@@ -89,7 +89,7 @@ public final class InferEffects implements Analysis {
       case Aea _, Assume _ -> Effects.NONE;
       case Call call ->
           switch (call.callee()) {
-            case StaticFnCallee(_, _, var signature) -> signature.effects();
+            case StaticFnCallee(_, _, _, var signature) -> signature.effects();
             case DynamicCallee _ -> Effects.REFLECT;
           };
       case Cast _ -> Effects.IMPURE;

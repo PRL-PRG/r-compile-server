@@ -1118,12 +1118,25 @@ public final class Fir2CCompiler {
 
           private String emitCall(Call call) {
             return switch (call.callee()) {
-              case StaticFnCallee(var isDispatch, var calleeFunRef, var signature) -> {
+              case StaticFnCallee(
+                      var calleeFunRef,
+                      var isDispatch,
+                      var closureWithEnv,
+                      var signature) -> {
                 var calleeFun = calleeFunRef.get();
                 var calleeModule = calleeFun.owner();
+                var closureEnv =
+                    closureWithEnv.equals(Constant.ELIDED_CLOSURE)
+                        ? "R_EmptyEnv"
+                        : "ENCLOS(%s)".formatted(emitArgument(closureWithEnv));
+
                 if (calleeModule == INTRINSICS && isDispatch) {
                   throw new IllegalArgumentException(
                       "Intrinsic should never be dispatched: " + call);
+                } else if ((calleeModule == BUILTINS || calleeModule == INTRINSICS)
+                    && !closureWithEnv.equals(Constant.ELIDED_CLOSURE)) {
+                  throw new IllegalArgumentException(
+                      "Builtin with closure environment is unimplemented");
                 } else if (calleeModule == BUILTINS
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
                   yield emitBuiltinCall(call, calleeFun);
@@ -1159,7 +1172,7 @@ public final class Fir2CCompiler {
                   var cName = functionDispatchCName(calleeFun);
                   var cSignature = emitSignature(signature);
                   var arguments = emitArgumentSplice(call.callArguments());
-                  yield "%s(%s, %s%s)".formatted(cName, VAR_ENV, cSignature, arguments);
+                  yield "%s(%s, %s%s)".formatted(cName, closureEnv, cSignature, arguments);
                 } else {
                   var calleeVersion =
                       calleeModule == BUILTINS
@@ -1194,7 +1207,7 @@ public final class Fir2CCompiler {
 
                   var cName = versionCallCName(calleeFun, calleeVersion);
                   var arguments = emitArgumentSplice(call.callArguments());
-                  yield "%s(%s%s)".formatted(cName, VAR_ENV, arguments);
+                  yield "%s(%s%s)".formatted(cName, closureEnv, arguments);
                 }
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {

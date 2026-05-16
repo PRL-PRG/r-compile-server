@@ -33,6 +33,7 @@ import org.prlprg.sexp.ArgumentMatcher.MatchException;
 import org.prlprg.sexp.ArgumentMatcher.MatchResults;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Lists;
+import org.prlprg.util.Pair;
 import org.prlprg.util.Streams;
 
 /// Replaces [DynamicCallee]s that statically resolve to [Closure]s and global-/base-function
@@ -61,18 +62,25 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
         || names.contains(OptionalNamedVariable.of(NamedVariable.DOTS))) {
       return expression;
     }
-    var staticFunction =
+    var staticFunctionAndClosureWithEnv =
         switch (analyses.get(OriginAnalysis.class).resolveExpression(calleeReg)) {
-          case Closure(var isStatic, var codeRef) when isStatic -> codeRef.get();
-          case Load(var loadType, var variable) when loadType == LoadType.GLOBAL_FUN ->
-              bb.module().lookupFunction(variable);
-          case Load(var loadType, var variable) when loadType == LoadType.BASE_FUN ->
-              GlobalModules.BUILTINS.localFunction(variable);
+          case Closure(var isStatic, var codeRef) ->
+              Pair.of(codeRef.get(), isStatic ? Constant.ELIDED_CLOSURE : calleeReg);
+          case Load(var loadType, var variable) when loadType == LoadType.GLOBAL_FUN -> {
+            var code = bb.module().lookupFunction(variable);
+            yield code == null ? null : Pair.of(code, Constant.ELIDED_CLOSURE);
+          }
+          case Load(var loadType, var variable) when loadType == LoadType.BASE_FUN -> {
+            var code = GlobalModules.BUILTINS.localFunction(variable);
+            yield code == null ? null : Pair.of(code, Constant.ELIDED_CLOSURE);
+          }
           case null, default -> null;
         };
-    if (staticFunction == null) {
+    if (staticFunctionAndClosureWithEnv == null) {
       return expression;
     }
+    var staticFunction = staticFunctionAndClosureWithEnv.first();
+    var closureWithEnv = staticFunctionAndClosureWithEnv.second();
 
     var formalParameters = Lists.mapLazy(staticFunction.parameterNames(), NamedVariable::name);
     var realNames =
@@ -120,7 +128,9 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
                 })
             .collect(ImmutableList.toImmutableList());
 
-    var newCallee = new StaticFnCallee(true, staticFunction, staticFunction.baseline().signature());
+    var newCallee =
+        new StaticFnCallee(
+            staticFunction, true, closureWithEnv, staticFunction.baseline().signature());
     return new Call(newCallee, staticArguments);
   }
 }

@@ -260,17 +260,13 @@ public final class TypeAndEffectChecker extends Checker {
             var argumentTypes = callArguments.stream().map(inferType::of).toList();
 
             switch (callee) {
-              case StaticFnCallee(var isDispatch, var functionRef, var signature) -> {
+              case StaticFnCallee(
+                      var functionRef,
+                      var isDispatch,
+                      var closureWithEnv,
+                      var signature) -> {
                 var function = functionRef.get();
                 var version = function.guess(signature);
-
-                if (isDispatch) {
-                  if (!function.canDispatch()) {
-                    report("Dispatch to non-dispatchable function:\n" + function);
-                  } else if (signature.returnType().kind().repr() != Repr.SEXP) {
-                    report("Dispatch to a version that doesn't return SEXP: " + signature);
-                  }
-                }
 
                 if (version == null) {
                   report(
@@ -280,6 +276,18 @@ public final class TypeAndEffectChecker extends Checker {
                           + signature
                           + " has no minimum version");
                 }
+
+                if (isDispatch) {
+                  if (!function.canDispatch()) {
+                    report("Dispatch to non-dispatchable function:\n" + function);
+                  } else if (signature.returnType().kind().repr() != Repr.SEXP) {
+                    report("Dispatch to a version that doesn't return SEXP: " + signature);
+                  }
+                }
+
+                var closureWithEnvType = scope.typeOf(closureWithEnv);
+                checkSubtype(
+                    closureWithEnvType, Type.CLOSURE, "Environment provider must be a closure");
 
                 // Check arguments against signature parameters.
                 if (signature.parameterTypes().size() != argumentTypes.size()) {
