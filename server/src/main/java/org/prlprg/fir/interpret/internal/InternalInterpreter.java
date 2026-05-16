@@ -304,7 +304,7 @@ public final class InternalInterpreter implements Interpreter {
         throw fail("Unknown function: " + functionName);
       }
 
-      return call(function, null, List.of(arguments), globalEnv);
+      return call(function, null, globalEnv, List.of(arguments));
     } catch (InternalInterpretException e) {
       throw e;
     } catch (Throwable e) {
@@ -313,12 +313,12 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   /// Gets the function's best applicable version, and calls it with the arguments in the
-  /// environment.
+  /// nested-closure and stack environment
   public Value call(
       Function function,
       @Nullable Signature explicitSignature,
-      List<Value> arguments,
-      EnvSXP environment) {
+      EnvSXP closureEnv,
+      List<Value> arguments) {
     var signature = computeSignature(function.baseline(), explicitSignature, arguments);
 
     var best = function.guess(signature);
@@ -340,23 +340,23 @@ public final class InternalInterpreter implements Interpreter {
               + "]");
     }
 
-    var result = call(function, best, arguments, environment, function.baseline().cfg());
+    var result = call(function, best, closureEnv, arguments, function.baseline().cfg());
 
     checkType(result, function.baseline().returnType(), "return");
     return result;
   }
 
-  /// Calls the function version with the arguments in the environment.
+  /// Calls the function version with the arguments in the nested-closure and stack environment
   private Value call(
       Function function,
       Abstraction abstraction,
+      EnvSXP closureEnv,
       List<Value> arguments,
-      EnvSXP environment,
       @Nullable CFG deoptRestoreCfg) {
     // Hijack if we registered external code for this version
     var hijacker = externalVersions.get(abstraction);
     if (hijacker != null) {
-      return callExternal(hijacker, abstraction, arguments, environment);
+      return callExternal(hijacker, abstraction, arguments, closureEnv);
     }
 
     var cfg = abstraction.cfg();
@@ -364,7 +364,7 @@ public final class InternalInterpreter implements Interpreter {
       throw failUnsupported("Can't call unregistered stub");
     }
 
-    var frame = mkFrame(function, environment);
+    var frame = mkFrame(function, closureEnv);
     var feedback = feedback().get(abstraction);
     feedback.recordCall();
 
@@ -571,14 +571,24 @@ public final class InternalInterpreter implements Interpreter {
       case Call call -> {
         var callee = call.callee();
         var arguments = call.callArguments().stream().map(this::run).toList();
-        var environment = topFrame().environment();
 
         yield switch (callee) {
-          case StaticFnCallee(var isDispatch, var functionRef, var signature) -> {
+          case StaticFnCallee(
+                  var functionRef,
+                  var isDispatch,
+                  var closureWithEnv,
+                  var signature) -> {
             var function = functionRef.get();
+
+            var closureWithEnvValue = run(closureWithEnv);
+            if (!(closureWithEnvValue instanceof Value.Sexp(CloSXP closureWithEnvSxp))) {
+              throw fail("Environment provider isn't a closure: " + closureWithEnvValue);
+            }
+            var closureEnv = closureWithEnvSxp.env();
+
             if (isDispatch) {
               // Dispatch call
-              yield call(function, signature, arguments, environment);
+              yield call(function, signature, closureEnv, arguments);
             }
 
             // Static call
@@ -589,8 +599,8 @@ public final class InternalInterpreter implements Interpreter {
             yield call(
                 function,
                 Objects.requireNonNull(exactVersion),
+                closureEnv,
                 arguments,
-                environment,
                 function.baseline().cfg());
           }
           case DynamicCallee(var actualCallee, var argumentNames) -> {
@@ -631,7 +641,7 @@ public final class InternalInterpreter implements Interpreter {
             }
             List<Value> matchedArguments = Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new);
 
-            var result = call(function, null, matchedArguments, environment);
+            var result = call(function, null, cloSXP.env(), matchedArguments);
 
             // Only record after the call, in case the function is an unregistered stub
             if (actualCallee instanceof Read(var calleeReg)) {
@@ -1250,23 +1260,18 @@ public final class InternalInterpreter implements Interpreter {
 
           var inverseCall =
               switch (call.callee()) {
-                case StaticFnCallee(var isDispatch, var functionRef, var signature)
-                    when !isDispatch && functionRef.get() == BOX_FUN ->
+                case StaticFnCallee(
+                        var functionRef,
+                        var isDispatch,
+                        var closureWithEnv,
+                        var signature)
+                    when !isDispatch
+                        && closureWithEnv.equals(Constant.ELIDED_CLOSURE)
+                        && (functionRef.get() == BOX_FUN || functionRef.get() == UNBOX_FUN) ->
                     new Call(
                         new StaticFnCallee(
+                            functionRef.get() == BOX_FUN ? UNBOX_FUN : BOX_FUN,
                             false,
-                            UNBOX_FUN,
-                            new Signature(
-                                ImmutableList.of(signature.returnType()),
-                                signature.parameterTypes().getFirst(),
-                                signature.effects())),
-                        ImmutableList.of(new Constant(assigneeValue)));
-                case StaticFnCallee(var isDispatch, var functionRef, var signature)
-                    when !isDispatch && functionRef.get() == UNBOX_FUN ->
-                    new Call(
-                        new StaticFnCallee(
-                            false,
-                            BOX_FUN,
                             new Signature(
                                 ImmutableList.of(signature.returnType()),
                                 signature.parameterTypes().getFirst(),
@@ -1369,8 +1374,10 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   private boolean isReversiblePureFun(Call call) {
-    return call.callee() instanceof StaticFnCallee(var isDispatch, var functionRef, _)
+    return call.callee()
+            instanceof StaticFnCallee(var functionRef, var isDispatch, var closureWithEnv, _)
         && !isDispatch
+        && closureWithEnv.equals(Constant.ELIDED_CLOSURE)
         && call.callArguments().size() == 1
         && (functionRef.get() == BOX_FUN || functionRef.get() == UNBOX_FUN);
   }

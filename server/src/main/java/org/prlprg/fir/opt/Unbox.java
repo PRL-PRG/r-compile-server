@@ -80,9 +80,10 @@ public class Unbox implements AbstractionOptimization {
           var newCallExpr =
               new Call(
                   new StaticFnCallee(
+                      callee.function(),
                       // Can't dispatch if the return isn't `SEXP`
                       callee.isDispatch() && !specialization.returnUnboxing(),
-                      callee.function(),
+                      callee.closureWithEnv(),
                       specialization.rewriteSignature(callee.signature())),
                   ImmutableList.copyOf(newArgs));
 
@@ -316,12 +317,12 @@ public class Unbox implements AbstractionOptimization {
 
   static Call boxCall(Argument scalarArgument, Type boxedType) {
     var boxSig = new Signature(ImmutableList.of(unboxed(boxedType)), boxedType, Effects.NONE);
-    return new Call(new StaticFnCallee(false, BOX_FUN, boxSig), ImmutableList.of(scalarArgument));
+    return new Call(new StaticFnCallee(BOX_FUN, false, boxSig), ImmutableList.of(scalarArgument));
   }
 
   static Call unboxCall(Argument boxedArgument, Type boxedType) {
     var unboxSig = new Signature(ImmutableList.of(boxedType), unboxed(boxedType), Effects.NONE);
     return new Call(
-        new StaticFnCallee(false, UNBOX_FUN, unboxSig), ImmutableList.of(boxedArgument));
+        new StaticFnCallee(UNBOX_FUN, false, unboxSig), ImmutableList.of(boxedArgument));
   }
 }

@@ -8,6 +8,7 @@ import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
@@ -36,7 +37,9 @@ public record ElideCheckMissing() implements SpecializeOptimization {
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
     if (!(expression instanceof Call(var callee, var callArguments)
-        && callee instanceof StaticFnCallee(_, var functionRef, _)
+        && callee instanceof StaticFnCallee(var functionRef, var isDispatch, var closureWithEnv, _)
+        && !isDispatch
+        && closureWithEnv.equals(Constant.ELIDED_CLOSURE)
         && functionRef.get().owner() == INTRINSICS
         && functionRef.get().name().name().equals("checkMissing")
         && callArguments.size() == 1)) {

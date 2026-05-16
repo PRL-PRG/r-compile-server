@@ -6,9 +6,15 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.SEXP;
+import org.prlprg.sexp.SEXPs;
 
 /// Argument that is a constant (or global, e.g. static environment)
 public record Constant(Value value) implements Argument {
+  public static final Constant ELIDED_CLOSURE =
+      new Constant(
+          new Value.Sexp(
+              SEXPs.closure(SEXPs.NULL, SEXPs.symbol(".elidedClosure"), SEXPs.EMPTY_ENV)));
+
   public Constant(SEXP value) {
     this(new Value.Sexp(value));
   }

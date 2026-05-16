@@ -79,7 +79,7 @@ public final class InferType implements Analysis {
           };
       case Call call ->
           switch (call.callee()) {
-            case StaticFnCallee(_, _, var signature) -> signature.returnType();
+            case StaticFnCallee(_, _, _, var signature) -> signature.returnType();
             case DynamicCallee _ -> Type.ANY_VALUE_SEXP;
           };
       case Cast(_, var castType) -> castType;

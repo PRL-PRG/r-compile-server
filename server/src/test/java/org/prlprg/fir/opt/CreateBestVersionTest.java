@@ -51,7 +51,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
+            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -82,7 +82,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
+            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -116,7 +116,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
+            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -148,7 +148,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
+            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 
@@ -210,7 +210,7 @@ class CreateBestVersionTest {
 
     var call =
         new Call(
-            new StaticFnCallee(true, calleeFun, calleeFun.baseline().signature()),
+            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
             ImmutableList.of(new Read(Variable.register("a")), new Read(Variable.register("b"))));
     callerVersion.cfg().entry().appendStatement(new Statement(call));
 

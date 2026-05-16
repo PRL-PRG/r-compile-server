@@ -369,8 +369,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     private @Nullable Argument tryConstantFold(Callee callee, List<Argument> arguments) {
-      if (!(callee instanceof StaticFnCallee(var isDispatch, var functionRef, var _))
-          || isDispatch) {
+      if (!(callee
+              instanceof StaticFnCallee(var functionRef, var isDispatch, var closureWithEnv, _))
+          || isDispatch
+          || !closureWithEnv.equals(Constant.ELIDED_CLOSURE)) {
         return null;
       }
       var function = functionRef.get();
