@@ -10,6 +10,7 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.parseprint.PrettyPrintWriter;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
+import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.GlobalEnvSXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
@@ -141,35 +142,33 @@ final class PrintStack {
       w.write("[ in " + frame.function().name());
       w.runIndented(
           () -> {
-            w.write('\n');
-
             var feedback = frame.scopeFeedback();
 
             for (var entry : frame.registers().entrySet()) {
               var register = entry.getKey();
               var value = entry.getValue();
 
-              w.write("reg ");
+              w.write("\nreg ");
               p.print(register);
               w.write(" = ");
               p2.print(value);
               feedback.print(register, p, new AbstractionFeedback.PrintContext(ctx.forSexp));
-              w.write('\n');
             }
 
             for (var entry : frame.environment().bindings()) {
               var variable = entry.getKey();
               var value = entry.getValue();
 
-              w.write("var ");
+              w.write("\nvar ");
               Names.write(w, variable);
               w.write(" = ");
               p2.print(value);
-              w.write('\n');
             }
 
-            w.write("parent = ");
-            p2.print(frame.environment().parent());
+            if (!(frame.environment() instanceof EmptyEnvSXP)) {
+              w.write("\nparent = ");
+              p2.print(frame.environment().parent());
+            }
           });
       w.write("\n]");
     }

@@ -62,7 +62,6 @@ public class Optimizations {
                     new Inline(1000),
                     new DeferIntoPromise(),
                     new StrictifyPromise(),
-                    new RaiseOnAssumeLoadFail(),
                     new Cleanup(false)),
                 new CreateBestVersion(9)),
             modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,

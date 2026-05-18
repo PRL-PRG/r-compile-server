@@ -299,14 +299,40 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             switch (assumption) {
               case AssumeType(var value, var type) -> {
                 var valueOrigin = resolve(value);
+
                 // Only see through the assumption if it's guaranteed to succeed.
                 // Otherwise, we'll get a type error substituting,
                 // and a deopt iff the instruction gets rearranged before the assumption
-                // and the assumption fails.
+                // and the assumption fails
                 var valueType = inferType.of(valueOrigin);
                 yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
               }
-              case AssumeConstant _, AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ -> null;
+              case AssumeFunction(var target, var functionRef) -> {
+                var targetOrigin = resolve(target);
+
+                // Again, only see through the assumption if it's guaranteed to succeed
+                var targetOriginExpr = definitionExpression(targetOrigin);
+                yield targetOriginExpr instanceof Closure(_, var originFucntionRef)
+                        && originFucntionRef.get().equals(functionRef.get())
+                    ? targetOrigin
+                    : null;
+              }
+              case AssumeLoadFun(var variable, var functionRef) -> {
+                var targetOrigins = state().loadFun(variable);
+                // We don't support multiple origins for an *expression* or *register*
+                if (targetOrigins == null || targetOrigins.size() != 1) {
+                  yield null;
+                }
+                var targetOrigin = targetOrigins.iterator().next();
+
+                // Again, only see through the assumption if it's guaranteed to succeed
+                var targetOriginExpr = definitionExpression(targetOrigin);
+                yield targetOriginExpr instanceof Closure(_, var originFucntionRef)
+                        && originFucntionRef.get().equals(functionRef.get())
+                    ? targetOrigin
+                    : null;
+              }
+              case AssumeConstant _, AssumeLoadVar _ -> null;
             };
         case Force(var isMaybe, var value) -> {
           var forceeOrigin = resolve(value);

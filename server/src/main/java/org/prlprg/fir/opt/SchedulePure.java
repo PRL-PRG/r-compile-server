@@ -30,6 +30,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -304,12 +305,15 @@ public final class SchedulePure implements AbstractionOptimization {
           // or a deferred instruction immediately before where it will be deferred,
           // the hoist or defer is redundant, so don't apply it.
           // Also ignore NOOPs, which may be previous hoists or defers.
+          // Lastly, hoist after assumptions.
           // Store in [MotionsTo] to keep nicer order by still hoisting after and deferring
           // before the redundant motions.
           while (motionsToIndex.hoistIndex + 1 < bb.statements().size()
               && (motionsToIndex.motions.remove(
                       new CfgPosition(bb, motionsToIndex.hoistIndex + 1), Motion.HOIST)
-                  || bb.statements().get(motionsToIndex.hoistIndex + 1).equals(Statement.NOOP))) {
+                  || bb.statements().get(motionsToIndex.hoistIndex + 1).equals(Statement.NOOP)
+                  || bb.statements().get(motionsToIndex.hoistIndex + 1).expression()
+                      instanceof Assume)) {
             motionsToIndex.hoistIndex++;
           }
           while (motionsToIndex.deferIndex - 1 >= 0

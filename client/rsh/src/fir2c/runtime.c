@@ -602,8 +602,8 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
   return list;
 }
 
-SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names) {
-  FUNTAB fun = R_FunTab[bltIdx];
+SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) {
+  FUNTAB fun = R_FunTab[blt_idx];
 
   ASSERT(
     fun.arity == -1 || fun.arity == argc ||
@@ -646,7 +646,7 @@ SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names) {
     }
   }
 
-  int visibility = (bltIdx / 100) % 10;
+  int visibility = (blt_idx / 100) % 10;
   R_Visible = (Rboolean)(visibility != 1);
 
   int protect_count = 0;
@@ -770,12 +770,12 @@ bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch) {
   return data->dispatch == dispatch;
 }
 
-bool Fir_assume_builtin_function(SEXP value, int bltIdx) {
+bool Fir_assume_builtin_function(SEXP value, int blt_idx) {
   if (TYPEOF(value) != BUILTINSXP && TYPEOF(value) != SPECIALSXP) {
     return false;
   }
 
-  return PRIMOFFSET(value) == bltIdx;
+  return PRIMOFFSET(value) == blt_idx;
 }
 
 static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
@@ -806,24 +806,29 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   return NULL;
 }
 
-bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch) {
+bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* found_ref) {
   SEXP found = Fir_load_fun_for_assume(symbol, env);
-  if (found == NULL) {
+  Fir_FunctionData *data = NULL;
+  if (found == NULL || !Fir_is_compiled_closure(found, &data) || data->dispatch != dispatch) {
     return false;
   }
 
-  Fir_FunctionData *data = NULL;
-  return Fir_is_compiled_closure(found, &data)
-    && data->dispatch == dispatch;
+  if (found_ref != NULL) {
+    *found_ref = found;
+  }
+  return true;
 }
 
-bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int bltIdx) {
+bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref) {
   SEXP found = Fir_load_fun_for_assume(symbol, env);
-  if (found == NULL) {
+  if (found == NULL || PRIMOFFSET(found) != blt_idx) {
     return false;
   }
 
-  return PRIMOFFSET(found) == bltIdx;
+  if (found_ref != NULL) {
+    *found_ref = found;
+  }
+  return true;
 }
 
 bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant) {

@@ -1,6 +1,5 @@
 package org.prlprg.fir.opt.specialize;
 
-import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
@@ -56,11 +55,12 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
       }
       case AssumeFunction(var target, var functionRef) -> {
         var origin = analyses.get(OriginAnalysis.class).resolveExpression(target);
-        if (!Objects.equals(origin, new Closure(true, functionRef.get()))) {
+        if (!(origin instanceof Closure(_, var originFunctionRef)
+            && originFunctionRef.get().equals(functionRef.get()))) {
           yield expression;
         }
 
-        yield new Noop();
+        yield new Aea(target);
       }
       case AssumeConstant(var value, var constant) -> {
         var origin = analyses.get(OriginAnalysis.class).resolve(value);
@@ -77,12 +77,12 @@ public record ElideTrivialAssume() implements SpecializeOptimization {
           yield expression;
         }
         var originExpression = originAnalysis.resolveExpression(originRegister);
-        if (!(originExpression instanceof Closure(_, var codeRef)
-            && codeRef.get().equals(functionRef.get()))) {
+        if (!(originExpression instanceof Closure(_, var originFunctionRef)
+            && originFunctionRef.get().equals(functionRef.get()))) {
           yield expression;
         }
 
-        yield new Noop();
+        yield new Aea(originRegister);
       }
       case AssumeLoadVar(var variable, var constant) -> {
         var originAnalysis = analyses.get(OriginAnalysis.class);

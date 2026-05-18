@@ -1,8 +1,7 @@
 package org.prlprg.fir.ir.assumption;
 
-import java.util.Collection;
 import java.util.List;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.module.Function;
@@ -34,7 +33,7 @@ public record AssumeLoadFun(NamedVariable variable, FunctionRef functionRef) imp
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return List.of();
   }
 

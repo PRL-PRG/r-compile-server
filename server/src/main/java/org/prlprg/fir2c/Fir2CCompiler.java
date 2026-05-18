@@ -869,7 +869,7 @@ public final class Fir2CCompiler {
               return;
             }
 
-            var expr = emitExpression(statement.expression());
+            var expr = emitExpression(statement.assignee(), statement.expression());
             if (expr == null) {
               return;
             }
@@ -890,7 +890,8 @@ public final class Fir2CCompiler {
             }
           }
 
-          private @Nullable String emitExpression(Expression expression) {
+          private @Nullable String emitExpression(
+              @Nullable Register assignee, Expression expression) {
             return switch (expression) {
               case Closure(var isStatic, var codeRef) -> {
                 // Compile the closure or protect its constant pool
@@ -1009,12 +1010,7 @@ public final class Fir2CCompiler {
                 yield "Fir_mk_promise(%s, %s, %s, %s)".formatted(fromRCName, cp, captures, VAR_ENV);
               }
               case Aea(var arg) -> emitArgument(arg);
-              case Assume(var assumption) ->
-                  switch (assumption) {
-                    case AssumeConstant _, AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ ->
-                        null;
-                    case AssumeType(var target, _) -> emitArgument(target);
-                  };
+              case Assume(var assumption) -> emitAssumptionValue(assignee, assumption);
               case Call call -> emitCall(call);
               case Cast(var target, var type) ->
                   "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(type));
@@ -1128,7 +1124,7 @@ public final class Fir2CCompiler {
                 var closureEnv =
                     closureWithEnv.equals(Constant.ELIDED_CLOSURE)
                         ? "R_EmptyEnv"
-                        : "ENCLOS(%s)".formatted(emitArgument(closureWithEnv));
+                        : "CLOENV(%s)".formatted(emitArgument(closureWithEnv));
 
                 if (calleeModule == INTRINSICS && isDispatch) {
                   throw new IllegalArgumentException(
@@ -1269,8 +1265,12 @@ public final class Fir2CCompiler {
                 cCode.stmt("}");
               }
               case Checkpoint(_, var success, var deopt) -> {
-                for (var assume : assumptionsFor(success)) {
-                  var condition = emitAssumptionCondition(assume);
+                for (var statement : success.bb().statements()) {
+                  if (!(statement.expression() instanceof Assume(var assumption))) {
+                    break;
+                  }
+
+                  var condition = emitAssumptionCondition(statement.assignee(), assumption);
                   cCode.stmt("if (!(%s)) {", condition);
                   emitJumpTo(2, deopt);
                   cCode.stmt("}");
@@ -1298,9 +1298,13 @@ public final class Fir2CCompiler {
             return assumptions;
           }
 
-          private String emitAssumptionCondition(Assumption assumption) {
+          private String emitAssumptionCondition(
+              @Nullable Register assignee, Assumption assumption) {
             debugComment(cCode, "? %s", assumption);
             debugArgs(cCode, assumption.arguments());
+
+            var refAssigneePlace =
+                assignee == null ? "NULL" : "&%s".formatted(registerPlace(assignee));
 
             return switch (assumption) {
               case AssumeConstant(var target, var constant) ->
@@ -1327,8 +1331,9 @@ public final class Fir2CCompiler {
                 var builtinIndex =
                     Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
                         .index();
-                yield "Fir_assume_load_builtin_fun(%s, %s, %d)"
-                    .formatted(nvSymbolRef(pool, a.variable()), VAR_ENV, builtinIndex);
+                yield "Fir_assume_load_builtin_fun(%s, %s, %d, %s)"
+                    .formatted(
+                        nvSymbolRef(pool, a.variable()), VAR_ENV, builtinIndex, refAssigneePlace);
               }
               case AssumeLoadFun a when a.function().owner() == INTRINSICS ->
                   throw new IllegalArgumentException(
@@ -1338,11 +1343,12 @@ public final class Fir2CCompiler {
                 // (without duplicates, builtins, or intrinsics).
                 referencedFunctions.add(a.function());
 
-                yield "Fir_assume_load_fun(%s, %s, &%s)"
+                yield "Fir_assume_load_fun(%s, %s, &%s, %s)"
                     .formatted(
                         nvSymbolRef(pool, a.variable()),
                         VAR_ENV,
-                        functionDispatchCName(a.function()));
+                        functionDispatchCName(a.function()),
+                        refAssigneePlace);
               }
               case AssumeLoadVar(var variable, var constant) ->
                   "Fir_assume_load_var(%s, %s, %s)"
@@ -1350,6 +1356,16 @@ public final class Fir2CCompiler {
                           nvSymbolRef(pool, variable), VAR_ENV, constantRef(pool, constant.box()));
               case AssumeType(var target, var type) ->
                   "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
+            };
+          }
+
+          private @Nullable String emitAssumptionValue(
+              @Nullable Register assignee, Assumption assumption) {
+            return switch (assumption) {
+              case AssumeType _, AssumeFunction _ -> emitArgument(assumption.target());
+              // `assignee` is assigned by-reference in `emitAssumptionCondition`
+              case AssumeLoadFun _ -> assignee == null ? null : registerPlace(assignee);
+              case AssumeConstant _, AssumeLoadVar _ -> null;
             };
           }
 
@@ -1523,6 +1539,10 @@ public final class Fir2CCompiler {
           private void debugArgs(CCode cCode, Collection<Argument> arguments) {
             if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
               for (var arg : arguments) {
+                if (arg.equals(Constant.ELIDED_CLOSURE)) {
+                  continue;
+                }
+
                 var argEmit = emitArgument(arg);
                 debugValue(cCode, arg.toString(), argEmit, argumentRepr(arg));
               }
