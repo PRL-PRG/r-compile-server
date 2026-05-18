@@ -89,12 +89,14 @@ SEXP R_compact_intrange(R_xlen_t n1, R_xlen_t n2);
 SEXP do_seq_along(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_seq_len(SEXP call, SEXP op, SEXP args, SEXP rho);
 R_varloc_t R_findVarLoc(SEXP rho, SEXP symbol);
+SEXP R_GetVarLocValue(R_varloc_t vl);
 SEXP findVarLoc(SEXP symbol, SEXP rho);
 SEXP findVarLocInFrame(SEXP rho, SEXP symbol, Rboolean *canCache);
 SEXP do_log_builtin(SEXP call, SEXP op, SEXP args, SEXP env);
 NORET void nodeStackOverflow(void);
 SEXP R_findVar(SEXP symbol, SEXP rho);
 SEXP getPrimitive(SEXP symbol, SEXPTYPE type);
+SEXP R_tryUnwrap(SEXP value);
 
 SEXP make_applyClosure_env(SEXP call, SEXP op, SEXP arglist, SEXP rho,
                            SEXP suppliedvars);
@@ -216,6 +218,14 @@ extern int R_Expressions;
 /* GCC 13+: __attribute__((assume(expr))) */
 #define ASSUME(cond) __attribute__((assume(cond)))
 #endif
+#endif
+
+#if defined(__GNUC__) && (__GNUC__ >= 3)
+#define LIKELY(x) __builtin_expect(!!(x), 1)
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define LIKELY(x) (x)
+#define UNLIKELY(x) (x)
 #endif
 
 // Unboxes a value in-place if it is a simple scalar and is allowed by the
@@ -537,6 +547,31 @@ static INLINE Rboolean R_isReplaceSymbol(SEXP fun) {
     return TRUE;
   else
     return FALSE;
+}
+
+static INLINE SEXP getActiveValue(SEXP fun) {
+  SEXP expr = LCONS(fun, R_NilValue);
+  PROTECT(expr);
+  expr = eval(expr, R_GlobalEnv);
+  UNPROTECT(1);
+  return expr;
+}
+
+static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
+                                     SEXP cell) {
+  /* If EnsureLocal() has introduced a wrapper for the LHS object in
+     a complex assignment and the data has been duplicated, then it
+     may be possible to remove the wrapper before assigning the
+     final value to a its symbol. */
+  assert(cell != NULL);
+  if (!MAYBE_REFERENCED(value) ||
+      (!MAYBE_SHARED(value) && !IS_ACTIVE_BINDING(cell) && !BNDCELL_TAG(cell) &&
+       CAR0(cell) == value)) {
+    /* Typical case for NAMED; can also happen for REFCNT. */
+    return R_tryUnwrap(value);
+  }
+
+  return value;
 }
 
 #define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
