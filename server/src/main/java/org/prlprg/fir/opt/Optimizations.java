@@ -4,6 +4,7 @@ import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
 import org.prlprg.fir.opt.specialize.DefiniteForce;
+import org.prlprg.fir.opt.specialize.ElideBuiltinClosure;
 import org.prlprg.fir.opt.specialize.ElideCheckMissing;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoad;
@@ -42,6 +43,7 @@ public class Optimizations {
                     new Specialize(
                         "specialize",
                         new DefiniteForce(),
+                        new ElideBuiltinClosure(),
                         new ElideCheckMissing(),
                         new ElideDeadStore(),
                         new ElideTrivialAssume(),

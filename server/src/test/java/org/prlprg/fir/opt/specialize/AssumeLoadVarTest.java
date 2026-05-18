@@ -58,8 +58,8 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () --> I { ... }
-              () --> I { reg c:*, reg x:*, var target:* |
+              () --> cls { ... }
+              () --> cls { reg c:*, reg x:*, var target:*, reg target:cls |
                 mkenv;
                 c = clos target;
                 st target = c;
@@ -68,9 +68,9 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
                 x = ldf target;
                 check BB2() else BBdeopt2();
               BB2():
-                x ?- target;
+                target = x ?- target;
                 popenv;
-                return 7;
+                return target;
               BBdeopt1():
                 deopt 0 [];
               BBdeopt2():
@@ -91,7 +91,7 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
         printed.contains("ldf target ?- target"),
         "Load + AssumeFunction should be merged into AssumeLoadFun; printed:\n" + printed);
     assertFalse(
-        printed.contains("= ldf target"),
+        printed.contains("x = ldf target"),
         "the original Load should be removed; printed:\n" + printed);
   }
 

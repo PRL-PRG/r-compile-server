@@ -108,9 +108,10 @@ public class SEXPPrintContext {
         p,
         () -> {
           if (options.printDelimited()) {
-            printGeneralStart(sexp.type(), p);
-            p.writer().write(sexp.toString());
-            printGeneralEnd(p);
+            var w = p.writer();
+            w.write('<');
+            p.print(sexp.type());
+            w.write('>');
           } else {
             p.writer().write(sexp.toString());
           }

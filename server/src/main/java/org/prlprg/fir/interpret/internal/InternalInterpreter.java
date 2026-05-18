@@ -806,7 +806,9 @@ public final class InternalInterpreter implements Interpreter {
                 }
                 parentEnv = parentEnv.parent();
               }
-              throw fail("Unbound variable in parent environment: " + variable.name());
+              // If unbound, store in the global environment
+              globalEnv.set(variable.name(), valueSexp);
+              yield null;
             }
           };
       case SubscriptRead(var vectorArg, var indexArg) -> {

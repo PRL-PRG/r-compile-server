@@ -6,13 +6,13 @@ fun main() {
 }
 
 fun call_f() {
-  () -+> V { reg callee:cls, reg lf:cls |
+  () -+> V { reg callee:cls, reg callee1:cls, reg lf:cls |
     callee = clos target;
     check BB1() else BBdeopt1();
   BB1():
-    callee ?- target;
+    callee1 = callee ?- target;
     mkenv;
-    st-super target = callee;
+    st-super target = callee1;
     popenv;
     lf = ldf target;
     check BB2() else BBdeopt2();

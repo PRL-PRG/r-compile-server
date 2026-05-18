@@ -94,11 +94,13 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
                 if (loadType == LoadType.LOCAL_FUN
                     && assumption instanceof AssumeFunction(var target, var functionRef)
                     && target instanceof Read(var assumeTarget)
-                    && assumeTarget.equals(loadAssignee)
-                    && assumeStmt.assignee() != null) {
+                    && assumeTarget.equals(loadAssignee)) {
                   assumeIndex = i;
                   mergedAssumption = new AssumeLoadFun(loadVariable, functionRef);
-                  loadReplacement = new Read(assumeStmt.assignee());
+                  loadReplacement =
+                      assumeStmt.assignee() == null
+                          ? Constant.ELIDED_CLOSURE
+                          : new Read(assumeStmt.assignee());
                   break;
                 }
                 if (loadType == LoadType.LOCAL_VAR
