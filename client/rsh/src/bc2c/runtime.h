@@ -690,8 +690,13 @@ static SEXP ALWAYS_INLINE bcell_ensure_cached(SEXP symbol, SEXP rho,
   if (*cell == R_NilValue || BCELL_IS_UNBOUND(*cell)) {
     *cell = bcell_get(symbol, rho);
   } else {
-    // If this ever fails, we need to check for it above and
-    // also think more about the branching we removed below
+    // Claude claims the assert should never trigger:
+    /* The assert's else-branch requires `!BCELL_IS_UNBOUND(*cell)`, defined as
+     * `!(BCELL_TAG==0 && CAR==R_UnboundValue)`. The only R-level operation that
+     * removes a binding and makes the cell collectible is `rm()`, which calls
+     * `RemoveFromList` → `SET_BNDCELL(cell, R_UnboundValue)` →
+     * `CLEAR_BNDCELL_TAG(cell)`. This **sets `BCELL_TAG=0` and
+     * `CAR=R_UnboundValue`**, making `BCELL_IS_UNBOUND=TRUE`.*/
     assert(TAG(*cell) == symbol);
   }
 
@@ -702,10 +707,9 @@ static SEXP ALWAYS_INLINE bcell_ensure_cached(SEXP symbol, SEXP rho,
 
 // Returns the bound value in the case it is bound or Rsh_UnboundValue
 // otherwise.
+#define BINDING_VALUE bcell_value
 static INLINE SEXP bcell_value(SEXP cell) {
-  if (cell == R_NilValue) {
-    return R_UnboundValue;
-  } else if (BCELL_TAG(cell)) {
+  if (BCELL_TAG(cell)) {
     bcell_expand(cell);
     return CAR0(cell);
   } else if (cell != R_NilValue && !IS_ACTIVE_BINDING(cell)) {
@@ -739,9 +743,7 @@ static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
       !IS_ACTIVE_BINDING(cell)) {
     if (BNDCELL_TAG(cell) || CAR0(cell) != value) {
       BCELL_SET(cell, value);
-      if (MISSING(cell)) {
-        SET_MISSING(cell, 0);
-      }
+      SET_MISSING(cell, 0);
 #ifdef RSH_AGGRESSIVE_UNBOXING
       else {
         BCELL_INLINE(cell, value);
@@ -1030,20 +1032,19 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
   assert(cell != NULL);
 
   // Fast path for updating already cached variables
-  if (!BINDING_IS_LOCKED(*cell) && *cell != R_NilValue) {
+  if (LIKELY(!BINDING_IS_LOCKED(*cell) && *cell != R_NilValue)) {
     // Active bindings should never be cached (?)
     assert(!IS_ACTIVE_BINDING(*cell));
     // assert(*cell == R_findVarLocInFrame(rho, symbol).cell);
     assert(!BCELL_IS_UNBOUND(*cell));
     assert(TAG(*cell) == symbol);
-
+    SEXP val_sxp;
     switch (tag) {
     case 0: {
       // Value is a SEXP, we need to update REFCOUNT for new values
-      SEXP val_sxp = VAL_SXP(value);
-      if (BCELL_TAG(*cell) || CAR0(*cell) != val_sxp) {
-        BCELL_SET(*cell, val_sxp);
-        SET_MISSING(*cell, 0);
+      val_sxp = VAL_SXP(value);
+      if (!BCELL_TAG(*cell) && CAR0(*cell) == val_sxp) {
+        return;
       }
       break;
     }
@@ -1056,19 +1057,19 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
       static_assert(sizeof(value.u) == sizeof(CAR0(*cell)),
                     "BCellVal and Value union should be the same size");
       memcpy(&((*cell)->u.listsxp.carval), &value.u, sizeof(value.u));
-      break;
+      return;
     }
 #ifndef UNBOXED_ISQ_CELL
     case ISQSXP: {
       // Unfortunately, GNU R runtime does not support ISQSXP in BCells
       Rsh_isqinfo_t isqinfo = VAL_ISQ(value);
-      SEXP val_sxp = R_compact_intrange(isqinfo.n1, isqinfo.n2);
-      BCELL_SET(*cell, val_sxp);
-      SET_MISSING(*cell, 0);
+      val_sxp = R_compact_intrange(isqinfo.n1, isqinfo.n2);
       break;
     }
 #endif
     }
+    BCELL_SET(*cell, val_sxp);
+    SET_MISSING(*cell, 0);
     return;
   }
 
@@ -1097,7 +1098,7 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
   }
   Rf_defineVar(symbol, define_val, rho);
 
-  if (*cell == R_NilValue || BCELL_IS_UNBOUND(*cell)) {
+  if (LIKELY(*cell == R_NilValue || BCELL_IS_UNBOUND(*cell))) {
     // Path for the first assignment (happens once)
     // and for case the variable was unassigned (rare)
 
@@ -1135,9 +1136,9 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
 
 static INLINE void Rsh_SetVar2(Value *stack, SEXP symbol, SEXP rho) {
   Value *r0 = GET_VAL(-1);
-  SEXP res = val_as_sexp(*r0);
-  INCREMENT_NAMED(res);
-  Rf_setVar(symbol, res, rho);
+  SEXP value = val_as_sexp(*r0);
+  INCREMENT_NAMED(value);
+  Rf_setVar(symbol, value, ENCLOS(rho));
 }
 
 static INLINE NODISCARD SEXP Rsh_Return(Value *stack) {
@@ -2101,13 +2102,13 @@ static INLINE void Rsh_StartAssign(Value *stack, SEXP symbol, BCell *cell,
   } else {
     loc.cell = *cell;
   }
-  int maybe_in_assign = ASSIGNMENT_PENDING(loc.cell);
+
+  if (ASSIGNMENT_PENDING(loc.cell) || MAYBE_SHARED(value)) {
+    value = Rf_shallow_duplicate(value);
+  }
   SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
   SET_SXP_VAL(lhs_cell, loc.cell);
 
-  if (maybe_in_assign || MAYBE_SHARED(value)) {
-    value = Rf_shallow_duplicate(value);
-  }
   SET_SXP_VAL(lhs_val, value);
   *rhs_dup = *rhs;
 }
@@ -2118,22 +2119,40 @@ static INLINE void Rsh_StartAssign2(Value *stack, SEXP symbol, SEXP rho) {
   Value *lhs_val = GET_VAL(-2);
   Value *rhs_dup = GET_VAL(-1);
 
-  R_varloc_t loc = R_findVarLoc(symbol, rho);
-  if (loc.cell == NULL) {
-    loc.cell = R_NilValue;
-  }
+  // TODO INCLNK_stack_commit
 
-  int maybe_in_assign = ASSIGNMENT_PENDING(loc.cell);
-  SET_ASSIGNMENT_PENDING(loc.cell, TRUE);
-  SET_SXP_VAL(lhs_cell, loc.cell);
+  // There is a bug in GNU R BC interpreter that is different
+  // from AST interpeter: it sets the pending assignment flag
+  // on a local cell, which can shadow the global cell we should
+  // truly be looking at.
 
-  SEXP value = R_findVar(symbol, rho);
-  Rsh_do_get_var(lhs_val, symbol, value, FALSE, ENCLOS(rho));
-  SEXP value_sxp = val_as_sexp(*lhs_val);
-  if (maybe_in_assign || MAYBE_SHARED(value_sxp)) {
-    value_sxp = Rf_shallow_duplicate(value_sxp);
+  BCell cell = findVarLoc(symbol, ENCLOS(rho));
+
+  SEXP value_sxp;
+  if (LIKELY(!BCELL_TAG(cell))) {
+    SEXP value = bcell_value(cell);
+    if (value == R_UnboundValue) {
+      R_varloc_t loc;
+      loc.cell = cell;
+      value = R_GetVarLocValue(loc);
+    }
+    Rsh_do_get_var(lhs_val, symbol, value, FALSE, ENCLOS(rho));
+    if (LIKELY(VAL_IS_SXP(*lhs_val))) {
+      value_sxp = VAL_SXP(*lhs_val);
+      if (ASSIGNMENT_PENDING(cell) || MAYBE_SHARED(value_sxp)) {
+        value_sxp = Rf_shallow_duplicate(value_sxp);
+      }
+    } else {
+      value_sxp = val_as_sexp(*lhs_val);
+    }
+  } else {
+    bcell_expand(cell);
+    value_sxp = CAR0(cell);
   }
   SET_SXP_VAL(lhs_val, value_sxp);
+
+  SET_ASSIGNMENT_PENDING(cell, TRUE);
+  SET_SXP_VAL(lhs_cell, cell);
 
   *rhs_dup = *rhs;
   if (VAL_IS_SXP(*rhs_dup)) {
@@ -2148,21 +2167,28 @@ static INLINE void Rsh_StartAssign2(Value *stack, SEXP symbol, SEXP rho) {
   // top -->
 }
 
-static INLINE void Rsh_EndAssign(Value *stack, SEXP symbol, BCell *cell,
+static INLINE void Rsh_EndAssign(Value *stack, SEXP symbol, BCell *cell_ptr,
                                  SEXP rho) {
   Value *rhs = GET_VAL(-3);
-  SEXP lhs_cell_sxp = VAL_SXP(*GET_VAL(-2));
-  Value value = *GET_VAL(-1);
+  BCell lhscell = VAL_SXP(*GET_VAL(-2));
+  Value *val = GET_VAL(-1);
 
-  SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
+  SET_ASSIGNMENT_PENDING(lhscell, FALSE);
 
-  bcell_ensure_cached(symbol, rho, cell);
-  SEXP value_sxp = val_as_sexp(value);
+  BCell cell = bcell_ensure_cached(symbol, rho, cell_ptr);
 
-  // FIXME: try_unwrap ALTREP
+  // Values should always be boxed here - all instructions produce boxed vectors
+  assert(VAL_IS_SXP(*val));
+  SEXP value_sxp = VAL_SXP(*val);
 
+  if (UNLIKELY(ALTREP(value_sxp))) {
+    SEXP v = try_assign_unwrap(value_sxp, symbol, rho, cell);
+    val->u.sxpval = v;
+    value_sxp = v;
+    assert(VAL_IS_SXP(*val));
+  }
   INCREMENT_NAMED(value_sxp);
-  if (!bcell_set_value(*cell, value_sxp)) {
+  if (!bcell_set_value(cell, value_sxp)) {
     Rf_defineVar(symbol, value_sxp, rho);
   }
 
@@ -2177,19 +2203,23 @@ static INLINE void Rsh_EndAssign(Value *stack, SEXP symbol, BCell *cell,
 
 static INLINE void Rsh_EndAssign2(Value *stack, SEXP symbol, SEXP rho) {
   Value *rhs = GET_VAL(-3);
-  SEXP lhs_cell_sxp = VAL_SXP(*GET_VAL(-2));
+  SEXP lhscell = VAL_SXP(*GET_VAL(-2));
+  Value *val = GET_VAL(-1);
 
-  SET_ASSIGNMENT_PENDING(lhs_cell_sxp, FALSE);
+  SET_ASSIGNMENT_PENDING(lhscell, FALSE);
 
-  SEXP value_sxp = val_as_sexp(*GET_VAL(-1));
+  assert(VAL_IS_SXP(*val));
+  SEXP value_sxp = VAL_SXP(*val);
   INCREMENT_NAMED(value_sxp);
 
-  // FIXME: this is not what GNUR does, but
-  // it feels logical. We have the binding cell so
-  // why cannot we update it directly?
-  BCELL_SET(lhs_cell_sxp, value_sxp);
-  // instead this is what GNUR does:
-  // Rf_setVar(symbol, value_sxp, ENCLOS(rho));
+  // Write fast path: lhscell came from findVarLoc(ENCLOS(rho)) in
+  // StartAssign2, so it's the cell Rf_setVar would update. bcell_set_value
+  // succeeds for plain writable cells; for active/locked/unbound it returns
+  // FALSE and we fall through to Rf_setVar, which invokes the active setter,
+  // errors on locked bindings, or defineVar's into R_GlobalEnv as needed.
+  if (!bcell_set_value(lhscell, value_sxp)) {
+    Rf_setVar(symbol, value_sxp, ENCLOS(rho));
+  }
 
   if (VAL_IS_SXP(*rhs)) {
     SEXP rhs_sxp = VAL_SXP(*rhs);
