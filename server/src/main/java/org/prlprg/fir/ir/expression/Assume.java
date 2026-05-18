@@ -1,9 +1,9 @@
 package org.prlprg.fir.ir.expression;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.parseprint.PrintMethod;
@@ -15,7 +15,7 @@ import org.prlprg.parseprint.Printer;
 @Immutable
 public record Assume(Assumption assumption) implements Expression {
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return assumption.arguments();
   }
 

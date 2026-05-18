@@ -1,9 +1,9 @@
 package org.prlprg.fir.ir.assumption;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Assume;
@@ -20,8 +20,8 @@ public sealed interface Assumption
   /// The argument whose value is being assumed.
   @Nullable Argument target();
 
-  @UnmodifiableView
-  Collection<Argument> arguments();
+  @Unmodifiable
+  List<Argument> arguments();
 
   Assumption mapArguments(Function<Argument, Argument> transformer);
 

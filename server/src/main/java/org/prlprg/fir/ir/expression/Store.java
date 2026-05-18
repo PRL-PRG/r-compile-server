@@ -1,9 +1,8 @@
 package org.prlprg.fir.ir.expression;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.EnumSerialCaseIs;
@@ -19,7 +18,7 @@ public record Store(StoreType type, NamedVariable variable, Argument value) impl
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return List.of(value);
   }
 

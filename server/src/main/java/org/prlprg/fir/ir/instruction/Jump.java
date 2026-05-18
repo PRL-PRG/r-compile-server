@@ -1,6 +1,6 @@
 package org.prlprg.fir.ir.instruction;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.Comments;
@@ -13,10 +13,10 @@ import org.prlprg.parseprint.Parser;
 public sealed interface Jump extends Instruction
     permits Checkpoint, Deopt, Goto, If, Raise, Return, Unreachable {
   @UnmodifiableView
-  Collection<Target> targets();
+  List<Target> targets();
 
   @UnmodifiableView
-  Collection<BB> targetBBs();
+  List<BB> targetBBs();
 
   @Override
   Jump mapArguments(Function<Argument, Argument> transformer);

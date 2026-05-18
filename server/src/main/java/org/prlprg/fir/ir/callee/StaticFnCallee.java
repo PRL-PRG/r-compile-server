@@ -1,5 +1,7 @@
 package org.prlprg.fir.ir.callee;
 
+import java.util.List;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -34,6 +36,11 @@ public record StaticFnCallee(
   /// The exact version that will be dispatched. `null` if dynamic or none exist
   public @Nullable Abstraction exactVersion() {
     return isDispatch ? null : minVersion();
+  }
+
+  @Override
+  public @Unmodifiable List<Argument> arguments() {
+    return List.of(closureWithEnv);
   }
 
   @Override

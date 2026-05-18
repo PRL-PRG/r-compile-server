@@ -1,9 +1,8 @@
 package org.prlprg.fir.ir.assumption;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.parseprint.PrintMethod;
@@ -13,7 +12,7 @@ import org.prlprg.parseprint.Printer;
 /// This is a no-op when evaluated, but is checked when reaching a checkpoint.
 public record AssumeConstant(@Override Argument target, Value constant) implements Assumption {
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return List.of(target);
   }
 

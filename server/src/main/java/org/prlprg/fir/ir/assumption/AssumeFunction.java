@@ -1,8 +1,7 @@
 package org.prlprg.fir.ir.assumption;
 
-import java.util.Collection;
 import java.util.List;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.FunctionRef;
@@ -20,7 +19,7 @@ public record AssumeFunction(Argument target, FunctionRef functionRef) implement
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return List.of(target);
   }
 

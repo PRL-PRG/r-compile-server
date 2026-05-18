@@ -163,13 +163,13 @@ SEXP Fir_subscript_write_logical(SEXP vector, int index, Rboolean value);
 SEXP Fir_subscript_write_string(SEXP vector, int index, char* value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
-SEXP Fir_call_builtin(int bltIdx, SEXP env, int argc, SEXP *args, SEXP *names);
+SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
-bool Fir_assume_builtin_function(SEXP value, int bltIdx);
-bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch);
-bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int bltIdx);
+bool Fir_assume_builtin_function(SEXP value, int blt_idx);
+bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* found_ref);
+bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref);
 bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant);
 bool Fir_assume_type(SEXP value, Fir_Type type);
 

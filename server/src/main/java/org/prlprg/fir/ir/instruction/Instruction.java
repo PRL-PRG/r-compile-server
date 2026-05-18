@@ -1,6 +1,6 @@
 package org.prlprg.fir.ir.instruction;
 
-import java.util.Collection;
+import java.util.List;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -18,7 +18,7 @@ public sealed interface Instruction permits Statement, Jump {
   Comments comments();
 
   @UnmodifiableView
-  Collection<Argument> arguments();
+  List<Argument> arguments();
 
   /// Apply the function to each argument.
   Instruction mapArguments(Function<Argument, Argument> transformer);

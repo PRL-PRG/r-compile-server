@@ -75,7 +75,8 @@ public final class InferType implements Analysis {
       case Assume(var assumption) ->
           switch (assumption) {
             case AssumeType(_, var type) -> type;
-            case AssumeConstant _, AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ -> null;
+            case AssumeFunction _, AssumeLoadFun _ -> Type.CLOSURE;
+            case AssumeConstant _, AssumeLoadVar _ -> null;
           };
       case Call call ->
           switch (call.callee()) {

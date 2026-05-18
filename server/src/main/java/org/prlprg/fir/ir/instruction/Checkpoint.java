@@ -1,8 +1,8 @@
 package org.prlprg.fir.ir.instruction;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
@@ -18,17 +18,17 @@ public record Checkpoint(Comments comments, Target success, Target deopt) implem
   }
 
   @Override
-  public @UnmodifiableView Collection<Target> targets() {
+  public @UnmodifiableView List<Target> targets() {
     return List.of(success, deopt);
   }
 
   @Override
-  public @UnmodifiableView Collection<BB> targetBBs() {
+  public @UnmodifiableView List<BB> targetBBs() {
     return success.bb() == deopt.bb() ? List.of(success.bb()) : List.of(success.bb(), deopt.bb());
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return List.of();
   }
 

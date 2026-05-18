@@ -1,8 +1,8 @@
 package org.prlprg.fir.ir.instruction;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
@@ -18,17 +18,17 @@ public record If(Comments comments, Argument cond, Target ifTrue, Target ifFalse
   }
 
   @Override
-  public @UnmodifiableView Collection<Target> targets() {
+  public @UnmodifiableView List<Target> targets() {
     return List.of(ifTrue, ifFalse);
   }
 
   @Override
-  public @UnmodifiableView Collection<BB> targetBBs() {
+  public @UnmodifiableView List<BB> targetBBs() {
     return ifTrue.bb() == ifFalse.bb() ? List.of(ifTrue.bb()) : List.of(ifTrue.bb(), ifFalse.bb());
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return Lists.concatLazy(List.of(cond), ifTrue.phiArgs(), ifFalse.phiArgs());
   }
 

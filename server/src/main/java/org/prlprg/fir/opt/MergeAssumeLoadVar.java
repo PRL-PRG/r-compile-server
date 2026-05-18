@@ -1,9 +1,10 @@
 package org.prlprg.fir.opt;
 
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.abstraction.substitute.Substituter;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
@@ -11,14 +12,10 @@ import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.Assumption;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.Closure;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.instruction.Checkpoint;
-import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -30,23 +27,17 @@ import org.prlprg.fir.ir.variable.Register;
 /// checkpoint2) → success BB with (assumptions*, `AssumeFunction`/`AssumeConstant` targeting
 /// `Load`'s register).
 ///
-/// Then inserts an `AssumeLoadFun`/`AssumeLoadVar` after checkpoint1, replaces the `Load` with
-/// [Closure]/the constant, and deletes the `AssumeFunction`/`AssumeConstant`.
+/// Then inserts an `AssumeLoadFun`/`AssumeLoadVar` after checkpoint1, deletes the `Load` and
+/// `AssumeFunction`/`AssumeConstant`, and replaces `Load` uses with the assumed value.
 ///
 /// Note that it does *not* combine `Load(LOCAL_FUN)` with `AssumeConstant`, nor `Load(LOCAL_VAR)`
 /// with `AssumeFunction`.
-///
-/// It also does cleanup (removes the `Load` instead of replacing if the only use was the
-/// assumption, and actually deletes the assumption instead of replacing with a no-op), because this
-/// is typically the last optimization in a sequence; otherwise, either the sequence would often run
-/// an extra iteration because the cleanup would trigger, or (if the sequence doesn't rerun, e.g.
-/// because it ran out of fuel) we'd have unoptimized, ugly final code.
 public record MergeAssumeLoadVar() implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
       @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     boolean[] changed = {false};
-    var defUses = new DefUses(scope);
+    var substs = new Substituter(scope);
 
     scope
         .streamCfgs()
@@ -94,18 +85,20 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
               // `AssumeConstant` for `LOCAL_VAR`)
               int assumeIndex = -1;
               Assumption mergedAssumption = null;
-              Expression loadReplacement = null;
+              Argument loadReplacement = null;
               for (int i = 0; i < bb2.statements().size(); i++) {
-                if (!(bb2.statements().get(i).expression() instanceof Assume(var assumption))) {
+                var assumeStmt = bb2.statements().get(i);
+                if (!(assumeStmt.expression() instanceof Assume(var assumption))) {
                   continue;
                 }
                 if (loadType == LoadType.LOCAL_FUN
                     && assumption instanceof AssumeFunction(var target, var functionRef)
                     && target instanceof Read(var assumeTarget)
-                    && assumeTarget.equals(loadAssignee)) {
+                    && assumeTarget.equals(loadAssignee)
+                    && assumeStmt.assignee() != null) {
                   assumeIndex = i;
                   mergedAssumption = new AssumeLoadFun(loadVariable, functionRef);
-                  loadReplacement = new Closure(true, functionRef);
+                  loadReplacement = new Read(assumeStmt.assignee());
                   break;
                 }
                 if (loadType == LoadType.LOCAL_VAR
@@ -114,7 +107,7 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
                     && assumeTarget.equals(loadAssignee)) {
                   assumeIndex = i;
                   mergedAssumption = new AssumeLoadVar(loadVariable, constant);
-                  loadReplacement = new Aea(new Constant(constant));
+                  loadReplacement = new Constant(constant);
                   break;
                 }
               }
@@ -122,24 +115,16 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
                 return;
               }
 
-              var mergedAssume = new Statement(new Assume(mergedAssumption));
-              if (defUses.uses(loadAssignee).size() == 1) {
-                // Effectively insert the merged assume after `checkpoint1` and delete `Load`,
-                // by replacing `Load` (first non-assume) with the merged assume (last assume)
-                bb1.replaceStatementAt(loadIndex, mergedAssume);
-
-                // Remove now unused register from scope
-                scope.removeLocal(loadAssignee);
-              } else {
-                // Insert the merged assume after `checkpoint1`
-                bb1.insertStatement(loadIndex, mergedAssume);
-
-                // Replace `Load` with `Closure`/the constant
-                bb1.replaceStatementAt(loadIndex + 1, new Statement(loadReplacement));
-              }
-
               // Delete `AssumeFunction`/`AssumeConstant` from second success BB
-              bb2.removeStatementAt(assumeIndex);
+              var oldAssumeStmt = bb2.removeStatementAt(assumeIndex);
+
+              // Effectively insert the merged assume after `checkpoint1` and delete `Load`,
+              // by replacing `Load` (first non-assume) with the merged assume (last assume)
+              bb1.replaceStatementAt(
+                  loadIndex, oldAssumeStmt.withExpression(new Assume(mergedAssumption)));
+
+              // Substitute load assignee with assumed value
+              substs.stage(loadAssignee, loadReplacement);
 
               // We don't need to recompute `DefUses` or otherwise change iteration, because
               // none of the above modifications affect how we use `DefUses` or our other operations

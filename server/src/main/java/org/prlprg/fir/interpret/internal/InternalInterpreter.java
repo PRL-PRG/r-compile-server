@@ -561,12 +561,41 @@ public final class InternalInterpreter implements Interpreter {
       case Aea(var value) -> run(value);
       case Assume(var assumption) ->
           switch (assumption) {
-            case AssumeType(var arg, var type) -> {
-              var value = run(arg);
+            case AssumeType(var target, var type) -> {
+              var value = run(target);
               checkType(value, type, "assume-type");
               yield value;
             }
-            case AssumeConstant(_, _), AssumeFunction _, AssumeLoadFun _, AssumeLoadVar _ -> null;
+            case AssumeConstant(var target, var constant) -> {
+              var value = run(target);
+              if (!value.equals(constant)) {
+                throw fail("assume-constant actually interpreted and failed");
+              }
+              yield null;
+            }
+            case AssumeFunction(var target, var functionRef) -> {
+              var value = run(target);
+              if (!(value instanceof Value.Sexp(CloSXP sexp)
+                  && Objects.equals(extractClosure(sexp), functionRef.get()))) {
+                throw fail("assume-function actually interpreted and failed");
+              }
+              yield value;
+            }
+            case AssumeLoadFun(var variable, var functionRef) -> {
+              var sexp = loadFun(variable);
+              if (sexp == null || !Objects.equals(extractClosure(sexp), functionRef.get())) {
+                throw fail("assume-load-fun actually interpreted and failed");
+              }
+              yield new Value.Sexp(sexp);
+            }
+            case AssumeLoadVar(var variable, var constant) -> {
+              var sexp = load(variable);
+              if (!(constant instanceof Value.Sexp(var constantSexp)
+                  && constantSexp.equals(sexp))) {
+                throw fail("assume-load-var actually interpreted and failed");
+              }
+              yield null;
+            }
           };
       case Call call -> {
         var callee = call.callee();
@@ -685,7 +714,7 @@ public final class InternalInterpreter implements Interpreter {
             switch (loadType) {
               case LOCAL_VAR -> load(variable);
               case SUPER_VAR -> topFrame().environment().parent().get(variable.name()).orElse(null);
-              case LOCAL_FUN -> topFrame().getFunction(variable, this::force);
+              case LOCAL_FUN -> loadFun(variable);
               case GLOBAL_FUN -> globalEnv.getFunction(variable.name(), this::force).orElse(null);
               case BASE_FUN -> baseEnv().getFunction(variable.name(), this::force).orElse(null);
             };
@@ -873,6 +902,11 @@ public final class InternalInterpreter implements Interpreter {
       throw fail("Unbound variable: " + nv.name());
     }
     return ((Value.Sexp) value).value();
+  }
+
+  /// Function lookup
+  public @Nullable CloSXP loadFun(NamedVariable variable) {
+    return topFrame().getFunction(variable, this::force);
   }
 
   /// Create a vector of the correct type to hold `values`
@@ -1141,6 +1175,11 @@ public final class InternalInterpreter implements Interpreter {
 
   private boolean check(Assumption assumption) {
     switch (assumption) {
+      case AssumeType(var arg, var type) -> {
+        var value = run(arg);
+        var actualType = inferType(value, type.ownership());
+        return actualType.isSubtypeOf(type);
+      }
       case AssumeConstant(var arg, var constant) -> {
         var value = run(arg);
         return Objects.equals(value, constant);
@@ -1164,11 +1203,6 @@ public final class InternalInterpreter implements Interpreter {
       case AssumeLoadVar(var variable, var constant) -> {
         var found = loadVariableForAssume(variable.name(), topFrame().environment());
         return found != null && Objects.equals(found.value(), constant.box());
-      }
-      case AssumeType(var arg, var type) -> {
-        var value = run(arg);
-        var actualType = inferType(value, type.ownership());
-        return actualType.isSubtypeOf(type);
       }
     }
   }
