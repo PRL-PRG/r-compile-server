@@ -224,6 +224,70 @@ class OriginAnalysisTest {
   }
 
   @Test
+  void testStaticCallWithClosureEnvTaintsNestedEnvironment() {
+    var firText =
+        """
+        fun main() {
+          () -~> V { reg f:cls, var x:v1(I)? |
+            mkenv;
+            st x = <int 1>;
+            f = clos f;
+            f@f< -~> V >();
+            popenv;
+            return <nil>;
+          }
+        }
+
+        fun f() {
+          () -~> V { ... }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 2, Variable.named("x")));
+    assertEquals(Set.of(), analysis.getPossible(entry, 3, Variable.named("x")));
+  }
+
+  @Test
+  void testStaticCallWithoutClosureEnvDoesntTaintNestedEnvironment() {
+    var firText =
+        """
+        fun main() {
+          () -~> V { reg f:cls, var x:v1(I)? |
+            mkenv;
+            st x = <int 1>;
+            f = clos f;
+            f< -~> V >();
+            popenv;
+            return <nil>;
+          }
+        }
+
+        fun f() {
+          () -~> V { ... }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var entry = Objects.requireNonNull(main.cfg()).entry();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 2, Variable.named("x")));
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 3, Variable.named("x")));
+  }
+
+  @Test
   void testConstantFoldC() {
     var firText =
         """

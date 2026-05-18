@@ -20,11 +20,8 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
-import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -185,7 +182,6 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
     // Substitute assumed registers
     var assumptionSubsts = new DomineeSubstituter(domTree, scope);
     var assumptionDsts = new HashMap<Pair<Assumption, BB>, Register>();
-    var dynCallSubsts = new HashMap<Register, Function>();
     for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
       var assumptions = entry.getValue();
@@ -198,11 +194,12 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
             assumptionSubsts.stage(target, new Read(assumptionDst), successBb);
             assumptionDsts.put(Pair.of(assumption, successBb), assumptionDst);
           }
-          case AssumeFunction(_, var functionRef) -> {
+          case AssumeFunction(_, _) -> {
             var assumptionDst = scope.addLocal(target.name(), Type.CLOSURE);
             assumptionSubsts.stage(target, new Read(assumptionDst), successBb);
             assumptionDsts.put(Pair.of(assumption, successBb), assumptionDst);
-            dynCallSubsts.put(assumptionDst, functionRef.get());
+            // After we insert `f1 = f ?- f_static`,
+            // [ResolveDynamicCallee] will substitute `dyn f1` with `f_static@f1`
           }
           case AssumeConstant(_, var constant) ->
               assumptionSubsts.stage(target, new Constant(constant), successBb);
@@ -228,38 +225,6 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
 
       successBb.insertStatements(0, assumptionStmts);
     }
-
-    // Substitute assumed dynamic callees:
-    // if we inserted `f1 = f ?- f_static`,
-    // substitute formerly `dyn f`, now `dyn f1`, with `f_static@f1< ... >`
-    scope
-        .streamCfgs()
-        .flatMap(cfg -> cfg.bbs().stream())
-        .forEach(
-            bb -> {
-              for (var i = 0; i < bb.statements().size(); i++) {
-                var stmt = bb.statements().get(i);
-                if (!(stmt.expression() instanceof Call(DynamicCallee callee, var args))
-                    || !(callee.actualCallee() instanceof Read(var calleeReg))) {
-                  continue;
-                }
-                var dynCallSubst = dynCallSubsts.get(calleeReg);
-                if (dynCallSubst == null) {
-                  continue;
-                }
-
-                bb.replaceStatementAt(
-                    i,
-                    stmt.withExpression(
-                        new Call(
-                            new StaticFnCallee(
-                                dynCallSubst,
-                                true,
-                                new Read(calleeReg),
-                                dynCallSubst.baseline().signature()),
-                            args)));
-              }
-            });
 
     return true;
   }

@@ -14,9 +14,12 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
@@ -74,6 +77,12 @@ public record ResolveDynamicCallee() implements SpecializeOptimization {
             var code = GlobalModules.BUILTINS.localFunction(variable);
             yield code == null ? null : Pair.of(code, Constant.ELIDED_CLOSURE);
           }
+          case Assume(var assumption) ->
+              switch (assumption) {
+                case AssumeFunction(_, var functionRef) -> Pair.of(functionRef.get(), calleeReg);
+                case AssumeLoadFun(_, var functionRef) -> Pair.of(functionRef.get(), calleeReg);
+                default -> null;
+              };
           case null, default -> null;
         };
     if (staticFunctionAndClosureWithEnv == null) {

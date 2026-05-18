@@ -365,7 +365,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             yield constantFolded;
           }
 
-          if (inferEffects.of(expr).reflect()) {
+          if (inferEffects.of(expr).reflect()
+              || (callee instanceof StaticFnCallee c
+                  && !c.closureWithEnv().equals(Constant.ELIDED_CLOSURE))) {
             state().taintEnvs();
           }
           yield null;
