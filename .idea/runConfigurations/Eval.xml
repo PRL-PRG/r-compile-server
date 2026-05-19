@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Are we fast eval" type="JUnit" factoryName="JUnit">
+  <configuration default="false" name="Eval" type="JUnit" factoryName="JUnit">
     <module name="r-compile-server" />
     <extension name="coverage">
       <pattern>
@@ -11,9 +11,6 @@
     <option name="MAIN_CLASS_NAME" value="org.prlprg.snapshot.fir2c.FirAfterOpt2CTest" />
     <option name="METHOD_NAME" value="testEval" />
     <option name="TEST_OBJECT" value="method" />
-    <envs>
-      <env name="EXAMPLE_FILTER" value="are_we_fast_.*" />
-    </envs>
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
