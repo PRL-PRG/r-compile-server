@@ -1618,6 +1618,31 @@ DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u21, scalar_real_fx_none_ret_scalar_logical
   return a == 0.0;
 }
 
+// === bitwNot, bitwAnd, bitwOr, bitwXor, bitwShiftL, bitwShiftR ===
+DEFINE_OVERRIDDEN_BUILTIN(int, bitwNot, scalar_int_fx_none_ret_scalar_int, int a) {
+  return a == NA_INTEGER ? NA_INTEGER : ~a;
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, bitwAnd, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b) {
+  return a == NA_INTEGER || b == NA_INTEGER ? NA_INTEGER : a & b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, bitwOr, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b) {
+  return a == NA_INTEGER || b == NA_INTEGER ? NA_INTEGER : a | b;
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, bitwXor, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int b) {
+  return a == NA_INTEGER || b == NA_INTEGER ? NA_INTEGER : a ^ b;
+}
+// Shifts treat the value as unsigned; an out-of-range shift count yields NA.
+DEFINE_OVERRIDDEN_BUILTIN(int, bitwShiftL, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int n) {
+  return a == NA_INTEGER || n == NA_INTEGER || n < 0 || n > 31
+      ? NA_INTEGER
+      : (int)((unsigned int)a << n);
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, bitwShiftR, scalar_int_scalar_int_fx_none_ret_scalar_int, int a, int n) {
+  return a == NA_INTEGER || n == NA_INTEGER || n < 0 || n > 31
+      ? NA_INTEGER
+      : (int)((unsigned int)a >> n);
+}
+
 // === [ (scalar index read, 1-based) ===
 DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;

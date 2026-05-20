@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
+import java.util.function.IntBinaryOperator;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
@@ -99,6 +100,14 @@ public final class Builtins {
 
     // Logical not
     registerLogicalNot(interpreter);
+
+    // Bitwise logical operations
+    registerBitwiseNot(interpreter);
+    registerBitwiseBinaryBuiltin(interpreter, "bitwAnd", (a, b) -> a & b);
+    registerBitwiseBinaryBuiltin(interpreter, "bitwOr", (a, b) -> a | b);
+    registerBitwiseBinaryBuiltin(interpreter, "bitwXor", (a, b) -> a ^ b);
+    registerBitwiseShiftBuiltin(interpreter, "bitwShiftL", (a, n) -> a << n);
+    registerBitwiseShiftBuiltin(interpreter, "bitwShiftR", (a, n) -> a >>> n);
 
     // Colon operator
     registerColon(interpreter);
@@ -931,6 +940,104 @@ public final class Builtins {
               var a = ((Value.Real) args.getFirst()).value();
               return new Value.Lgl(realToLogicalNot(a));
             }));
+  }
+
+  // endregion
+
+  // region bitwise builtins
+
+  private static void registerBitwiseNot(InternalInterpreter interpreter) {
+    // Generic: (*) -+> V
+    interpreter.registerExternal(
+        "bitwNot",
+        SIG_GENERIC_1,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 1 || !(args.getFirst() instanceof Value.Sexp(var sexp))) {
+                throw interpreter.fail("`bitwNot` generic takes 1 sexp");
+              }
+              var a = sexpToInt(sexp, interpreter, "bitwNot");
+              return new Value.Sexp(SEXPs.integer(bitwiseNot(a)));
+            }));
+    // (I) --> I
+    interpreter.registerExternal(
+        "bitwNot",
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER),
+        ExternalVersion.strict(
+            (_, _, args, _) -> new Value.Int(bitwiseNot(((Value.Int) args.getFirst()).value()))));
+  }
+
+  private static void registerBitwiseBinaryBuiltin(
+      InternalInterpreter interpreter, String name, IntBinaryOperator op) {
+    // Generic: (*, *) -+> V
+    interpreter.registerExternal(
+        name,
+        SIG_GENERIC_2,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var s1)
+                      && args.get(1) instanceof Value.Sexp(var s2))) {
+                throw interpreter.fail("`" + name + "` generic takes 2 sexps");
+              }
+              var a = sexpToInt(s1, interpreter, name);
+              var b = sexpToInt(s2, interpreter, name);
+              return new Value.Sexp(SEXPs.integer(bitwiseBinary(a, b, op)));
+            }));
+    // (I, I) --> I
+    interpreter.registerExternal(
+        name,
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER, Type.INTEGER),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var a = ((Value.Int) args.getFirst()).value();
+              var b = ((Value.Int) args.get(1)).value();
+              return new Value.Int(bitwiseBinary(a, b, op));
+            }));
+  }
+
+  private static void registerBitwiseShiftBuiltin(
+      InternalInterpreter interpreter, String name, IntBinaryOperator op) {
+    // Generic: (*, *) -+> V
+    interpreter.registerExternal(
+        name,
+        SIG_GENERIC_2,
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              if (args.size() != 2
+                  || !(args.getFirst() instanceof Value.Sexp(var s1)
+                      && args.get(1) instanceof Value.Sexp(var s2))) {
+                throw interpreter.fail("`" + name + "` generic takes 2 sexps");
+              }
+              var a = sexpToInt(s1, interpreter, name);
+              var n = sexpToInt(s2, interpreter, name);
+              return new Value.Sexp(SEXPs.integer(bitwiseShift(a, n, op)));
+            }));
+    // (I, I) --> I
+    interpreter.registerExternal(
+        name,
+        sig(Type.INTEGER, Effects.NONE, Type.INTEGER, Type.INTEGER),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var a = ((Value.Int) args.getFirst()).value();
+              var n = ((Value.Int) args.get(1)).value();
+              return new Value.Int(bitwiseShift(a, n, op));
+            }));
+  }
+
+  /// `~a`, propagating `NA`.
+  private static int bitwiseNot(int a) {
+    return a == Constants.NA_INT ? Constants.NA_INT : ~a;
+  }
+
+  /// Bitwise binary op, propagating `NA`.
+  private static int bitwiseBinary(int a, int b, IntBinaryOperator op) {
+    return a == Constants.NA_INT || b == Constants.NA_INT ? Constants.NA_INT : op.applyAsInt(a, b);
+  }
+
+  /// Bitwise shift, propagating `NA` and treating an out-of-range shift count as `NA`.
+  private static int bitwiseShift(int a, int n, IntBinaryOperator op) {
+    return a == Constants.NA_INT || n < 0 || n > 31 ? Constants.NA_INT : op.applyAsInt(a, n);
   }
 
   // endregion

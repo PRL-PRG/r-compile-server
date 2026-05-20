@@ -241,6 +241,36 @@ fun xor(lhs, rhs) {
   (reg lhs:B, reg rhs:B) --> B { ... }
 }
 
+fun bitwNot(a) {
+  (reg a:*@!) -+> V { ... }
+  (reg a:I) --> I { ... }
+}
+
+fun bitwAnd(a, b) {
+  (reg a:*@!, reg b:*@!) -+> V { ... }
+  (reg a:I, reg b:I) --> I { ... }
+}
+
+fun bitwOr(a, b) {
+  (reg a:*@!, reg b:*@!) -+> V { ... }
+  (reg a:I, reg b:I) --> I { ... }
+}
+
+fun bitwXor(a, b) {
+  (reg a:*@!, reg b:*@!) -+> V { ... }
+  (reg a:I, reg b:I) --> I { ... }
+}
+
+fun bitwShiftL(a, n) {
+  (reg a:*@!, reg n:*@!) -+> V { ... }
+  (reg a:I, reg n:I) --> I { ... }
+}
+
+fun bitwShiftR(a, n) {
+  (reg a:*@!, reg n:*@!) -+> V { ... }
+  (reg a:I, reg n:I) --> I { ... }
+}
+
 fun `!`(x) {
   (reg x:*@!) -+> V { ... }
   (reg x:v(L)) --> v(L) { ... }
