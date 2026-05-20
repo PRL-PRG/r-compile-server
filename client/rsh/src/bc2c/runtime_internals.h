@@ -164,6 +164,8 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   (RSH_IS_JIT_PTR(body) && !RDEBUG(fun) && !RSTEP(fun) && !RDEBUG(rho) &&      \
    R_GlobalContext->callflag != CTXT_GENERIC)
 
+#define IS_SIMPLE_BINDING(b) (!((b)->sxpinfo.gp & (ACTIVE_BINDING_MASK | BINDING_LOCK_MASK)))
+
 extern int R_EvalDepth;
 extern int R_Expressions;
 
@@ -574,10 +576,6 @@ static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
   return value;
 }
 
-#define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
-#define SET_SCALAR_DVAL(s, v) REAL((s))[0] = (v)
-#define SET_SCALAR_CVAL(s, v) COMPLEX((s))[0] = (v)
-#define SET_SCALAR_BVAL(s, v) RAW((s))[0] = (v)
 
 #define BCODE_CODE(x) CAR(x)
 #define BCODE_CONSTS(x) CDR(x)
