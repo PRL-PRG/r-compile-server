@@ -415,6 +415,9 @@ static INLINE Rsh_isqinfo_t VAL_ISQ(Value v) {
     __node__->tag = 0;                                                         \
   } while (0);
 
+// TODO!! Needs fixing!
+#define SET_SXP_NLNK_VAL SET_SXP_VAL
+
 #define SET_ISQ_VAL(target, value)                                             \
   do {                                                                         \
     Value *__node__ = (target);                                                \
@@ -584,16 +587,16 @@ typedef union {
 #define BCELL_LVAL_SET(cell, lval) (BCELL_LVAL(cell) = (lval))
 
 #define BCELL_TAG_WR(v) (BINDING_IS_LOCKED(v) ? 0 : BCELL_TAG(v))
-#define BCELL_WRITABLE(v)                                                      \
-  (v != R_NilValue && !BINDING_IS_LOCKED(v) && !IS_ACTIVE_BINDING(v))
+#define BCELL_WRITABLE(v) (v != R_NilValue && IS_SIMPLE_BINDING(v))
 
 #define BCELL_INIT(cell, type)                                                 \
   do {                                                                         \
     if (BCELL_TAG(cell) == 0) {                                                \
       SETCAR(cell, R_NilValue);                                                \
+      SET_MISSING(cell, 0);                                                    \
     }                                                                          \
     BCELL_TAG_SET(cell, type);                                                 \
-    SET_MISSING(cell, 0);                                                      \
+    assert(MISSING(cell) == 0);                                                \
   } while (0)
 
 #define BCELL_DVAL_NEW(cell, val)                                              \
@@ -739,8 +742,7 @@ static INLINE SEXP bcell_value(SEXP cell) {
   } while (0)
 
 static ALWAYS_INLINE Rboolean bcell_set_value(BCell cell, SEXP value) {
-  if (cell != R_NilValue && !BINDING_IS_LOCKED(cell) &&
-      !IS_ACTIVE_BINDING(cell)) {
+  if (BCELL_WRITABLE(cell)) {
     if (BNDCELL_TAG(cell) || CAR0(cell) != value) {
       BCELL_SET(cell, value);
       SET_MISSING(cell, 0);
@@ -1124,7 +1126,7 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
     }
   } else {
     // Path for locked and active bindings (very rare)
-    assert(BINDING_IS_LOCKED(*cell) || IS_ACTIVE_BINDING(*cell));
+    assert(!IS_SIMPLE_BINDING(*cell));
 
     SEXP value_sxp = val_as_sexp(value);
     INCREMENT_NAMED(value_sxp);
@@ -2744,22 +2746,8 @@ typedef struct {
 
 static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
                                 BCell *cell, SEXP rho) {
+  Value *initial = GET_VAL(-1);
   Value *seq = GET_VAL(-3);
-  SEXP seq_sxp;
-  Rboolean isq;
-
-  if (!VAL_IS_ISQ(*seq)) {
-    seq_sxp = val_as_sexp(*seq);
-    if (VAL_IS_SXP(*seq) && Rf_inherits(seq_sxp, "factor")) {
-      seq_sxp = Rf_asCharacterFactor(seq_sxp);
-      SET_SXP_VAL(seq, seq_sxp);
-    } else {
-      assert(!Rf_inherits(seq_sxp, "factor"));
-    }
-    isq = FALSE;
-  } else {
-    isq = TRUE;
-  }
 
   // FIXME: BCPROT?
 
@@ -2767,91 +2755,145 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
   RshLoopInfo *info = (RshLoopInfo *)RAW0(info_sxp);
   SET_SXP_VAL_N(-2, info_sxp);
 
-  info->idx = -1;
+  int type;
+  // Split the logic into separate cases. It is too different to have together.
+  switch (VAL_TAG(*seq)) {
+  case 0: {
+    SEXP seq_sxp = VAL_SXP(*seq);
 
-  if (isq) {
+    /* if we are iterating over a factor, coerce to character first */
+    if (UNLIKELY(Rf_inherits(seq_sxp, "factor"))) {
+      seq_sxp = Rf_asCharacterFactor(seq_sxp);
+      SET_SXP_VAL(seq, seq_sxp);
+    }
+
+    info->type = TYPEOF(seq_sxp);
+    type = TYPEOF(seq_sxp);
+
+    // bump up links count of seq to avoid modification by loop code
+    INCREMENT_LINKS(seq_sxp);
+
+    if (Rf_isVector(seq_sxp)) {
+      info->len = XLENGTH(seq_sxp);
+    } else if (Rf_isList(seq_sxp) || isNull(seq_sxp)) {
+      info->len = Rf_length(seq_sxp);
+    } else {
+      Rf_errorcall(call, "invalid for() loop sequence");
+    }
+    break;
+  }
+  case ISQSXP: {
+    info->type = ISQSXP;
     Rsh_isqinfo_t isq_info = VAL_ISQ(*seq);
     int n1 = isq_info.n1;
     int n2 = isq_info.n2;
     info->len = n1 <= n2 ? n2 - n1 + 1 : n1 - n2 + 1;
-  } else if (Rf_isVector(seq_sxp)) {
-    info->len = XLENGTH(seq_sxp);
-  } else if (Rf_isList(seq_sxp) || isNull(seq_sxp)) {
-    info->len = Rf_length(seq_sxp);
-  } else {
-    Rf_errorcall(call, "invalid for() loop sequence");
+    type = INTSXP;
+    break;
   }
-
-  info->type = isq ? ISQSXP : TYPEOF(seq_sxp);
-  info->symbol = symbol;
-
-  // bump up links count of seq to avoid modification by loop code
-  if (!isq) {
+  default: {
+    // Always a simple scalar here, can skip a lot of code
+    info->type = VAL_TAG(*seq);
+    type = VAL_TAG(*seq);
+    SEXP seq_sxp = val_as_sexp(*seq);
     INCREMENT_LINKS(seq_sxp);
+    SET_SXP_VAL(seq, seq_sxp);
+    assert(XLENGTH(seq_sxp) == 1);
+    info->len = 1;
+    break;
+  }
   }
 
   // place initial loop variable value object on stack
-  int type = isq ? INTSXP : TYPEOF(seq_sxp);
-  SEXP value;
   switch (type) {
   case LGLSXP:
+    // SET_LGL_VAL(initial, NA_LOGICAL);
+    // break;
   case INTSXP:
+    // SET_INT_VAL(initial, NA_INTEGER);
+    // break;
   case REALSXP:
+    // SET_DBL_VAL(initial, NA_REAL);
+    // break;
   case CPLXSXP:
   case STRSXP:
   case RAWSXP:
-    value = Rf_allocVector(type, 1);
-    INCREMENT_NAMED(value);
-    break;
+  // The allocated value would be always overwritten anyway in the first
+  // iteration of STEPFOR
+
+  // SEXP value = Rf_allocVector(type, 1);
+  // INCREMENT_NAMED(value);
+  // SET_SXP_NLNK_VAL(initial, value);
+  // break;
   default:
-    value = R_NilValue;
+    SET_SXP_VAL(initial, R_NilValue);
+    break;
   }
 
-  Value *initial = GET_VAL(-1);
-  SET_SXP_VAL(initial, value);
+  info->idx = -1;
+  info->symbol = symbol;
 
-  Rsh_SetVar(initial, symbol, cell, rho);
+  // Have to define NULL: the semantics say that if loop body never
+  // iterates, the variable should be defined as NULL.
+  // The first iteration of STEPFOR should set the value as intended.
+  Rf_defineVar(symbol, R_NilValue, rho);
+  assert(rho != R_BaseEnv && rho != R_BaseNamespace && !IS_USER_DATABASE(rho));
+  // It sucks that we have to iterate again to get the cell after defining it.
+  // TODO: Maybe change GNU R to return the cell from defineVar?
+  *cell = findVarLocInFrame(rho, symbol, NULL);
+  assert(*cell != R_NilValue);
 
-  // stack at the end:
-  //         -3 - sequence
-  //         -2 - casted pointer for the RshLoopInfo
-  //         -1 - the initial value
+  //  stack at the end:
+  //          -3 - sequence
+  //          -2 - casted pointer for the RshLoopInfo
+  //          -1 - the initial value
+}
+
+static INLINE void GET_VEC_LOOP_VALUE(Value *val, BCell cell, int rtype) {
+  if (BCELL_TAG(cell) || VAL_SXP(*val) != CAR0(cell) ||
+      MAYBE_SHARED(VAL_SXP(*val)) || ATTRIB(VAL_SXP(*val)) != R_NilValue) {
+    SEXP val_sxp = allocVector(rtype, 1);
+    INCREMENT_NAMED(val_sxp);
+    SET_SXP_NLNK_VAL(val, val_sxp);
+  }
 }
 
 #define SET_FOR_LOOP_VAR(value, cell, symbol, rho)                             \
   do {                                                                         \
-    if (BCELL_IS_UNBOUND(cell) || !bcell_set_value(cell, value)) {             \
+    if (LIKELY(IS_SIMPLE_BINDING(cell))) {                                     \
+      BCELL_SET(cell, value);                                                  \
+      SET_MISSING(cell, 0);                                                    \
+    } else {                                                                   \
       Rf_defineVar(symbol, value, rho);                                        \
     }                                                                          \
   } while (0)
 
-#define FAST_STEP_NEXT(cell, value, v, s, ctype, rtype, btype)                 \
+#define FAST_STEP_NEXT(cell, value, v, s, ctype, rtype, btype, symbol, rho)    \
   do {                                                                         \
     SEXP __c__ = *(cell);                                                      \
     ctype __v__ = (v);                                                         \
-    if (!BINDING_IS_LOCKED(__c__)) {                                           \
-      if (BCELL_TAG(__c__) == rtype) {                                         \
-        BCELL_##btype##_SET(__c__, __v__);                                     \
-      } else if (!IS_ACTIVE_BINDING(__c__)) {                                  \
-        BCELL_##btype##_NEW(__c__, __v__);                                     \
-      }                                                                        \
-      return TRUE;                                                             \
+    assert(__c__ != R_NilValue);                                               \
+    if (LIKELY(BCELL_TAG(__c__) != 0) || IS_SIMPLE_BINDING(__c__)) {           \
+      BCELL_##btype##_NEW(__c__, __v__);                                       \
     } else {                                                                   \
+      GET_VEC_LOOP_VALUE((s), __c__, rtype);                                   \
       value = VAL_SXP(*(s));                                                   \
       SET_SCALAR_##btype((value), __v__);                                      \
+      Rf_defineVar(symbol, value, (rho));                                      \
     }                                                                          \
+    return TRUE;                                                               \
   } while (0)
 
 static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
-                                               RshLoopInfo *info,
+                                               RshLoopInfo *loopinfo,
                                                Value *initial, BCell *cell,
                                                SEXP rho, int type) {
   assert(VAL_TAG(*seq_val) == 0 || VAL_TAG(*seq_val) == ISQSXP);
-  assert(type == ISQSXP || info->len == Rf_xlength(seq_val->u.sxpval));
+  assert(type == ISQSXP || loopinfo->len == Rf_xlength(seq_val->u.sxpval));
 
-  R_xlen_t i = ++(info->idx);
+  R_xlen_t i = ++(loopinfo->idx);
 
-  if (i >= info->len) {
+  if (UNLIKELY(i >= loopinfo->len)) {
     return FALSE;
   }
 
@@ -2859,12 +2901,15 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
 
   SEXP seq = seq_val->u.sxpval;
 
+  assert(*cell != R_NilValue); // Should be always set by StartFor
+
   SEXP value;
   switch (type) {
   case INTSXP: {
     int v = INTEGER_ELT(seq, i);
-    FAST_STEP_NEXT(cell, value, v, initial, int, INTSXP, IVAL);
-    break;
+    FAST_STEP_NEXT(cell, value, v, initial, int, INTSXP, IVAL, loopinfo->symbol,
+                   rho);
+    return TRUE;
   }
   case ISQSXP: {
     Rsh_isqinfo_t info = VAL_ISQ(*seq_val);
@@ -2873,28 +2918,34 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     int ii = (int)i;
     int v = n1 <= n2 ? n1 + ii : n1 - ii;
     RSH_PC_INC(isq_for);
-    FAST_STEP_NEXT(cell, value, v, initial, int, INTSXP, IVAL);
-    break;
+    FAST_STEP_NEXT(cell, value, v, initial, int, INTSXP, IVAL, loopinfo->symbol,
+                   rho);
+    return TRUE;
   }
   case REALSXP: {
     double v = REAL_ELT(seq, i);
-    FAST_STEP_NEXT(cell, value, v, initial, double, REALSXP, DVAL);
-    break;
+    FAST_STEP_NEXT(cell, value, v, initial, double, REALSXP, DVAL,
+                   loopinfo->symbol, rho);
+    return TRUE;
   }
   case LGLSXP: {
     int v = LOGICAL_ELT(seq, i);
-    FAST_STEP_NEXT(cell, value, v, initial, int, LGLSXP, LVAL);
-    break;
+    FAST_STEP_NEXT(cell, value, v, initial, int, LGLSXP, LVAL, loopinfo->symbol,
+                   rho);
+    return TRUE;
   }
   case CPLXSXP:
+    GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP(*initial);
     SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));
     break;
   case STRSXP:
+    GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP(*initial);
     SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
     break;
   case RAWSXP:
+    GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP(*initial);
     SET_SCALAR_BVAL(value, RAW(seq)[i]);
     break;
@@ -2906,14 +2957,14 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
   case LISTSXP:
     assert(!BNDCELL_TAG(seq));
     value = CAR0(seq);
-    ENSURE_NAMEDMAX(value);
     SET_SXP_VAL(seq_val, CDR(seq));
+    ENSURE_NAMEDMAX(value);
     break;
   default:
     Rf_error("invalid sequence argument in for loop");
   }
 
-  SET_FOR_LOOP_VAR(value, *cell, info->symbol, rho);
+  SET_FOR_LOOP_VAR(value, *cell, loopinfo->symbol, rho);
   return TRUE;
 }
 
