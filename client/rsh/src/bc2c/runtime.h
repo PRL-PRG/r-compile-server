@@ -2405,9 +2405,14 @@ static INLINE void Rsh_GetIntlBuiltin(Value *stack, SEXP symbol) {
 static INLINE void Rsh_SetTag(Value *stack, SEXP tag) {
   Value *fun = GET_VAL(-3);
   Value *args_tail = GET_VAL(-1);
+
+  assert(tag != R_NilValue); // BC compiler never generates this
+
   // args_head is UNUSED
-  if (TYPEOF(VAL_SXP(*fun)) != SPECIALSXP) {
-    RSH_SET_TAG(*args_tail, tag);
+  if (LIKELY(TYPEOF(VAL_SXP(*fun)) != SPECIALSXP)) {
+    SEXP val = VAL_SXP(*args_tail);
+    assert(val != R_NilValue); // BC compiler never generates this
+    SET_TAG(val, Rf_CreateTag(tag));
   }
 }
 
