@@ -113,14 +113,38 @@ static inline uint64_t rdtsc(void)
 #define RET_T Value
 
 // Macros to define stencil functions
-#define RCP_STENCIL_FUNCTION(name) __attribute__((noinline)) STENCIL_ATTRIBUTES RET_T name(Value *restrict stack, rcpEval_locals *restrict locals)
+#define RCP_STENCIL_FUNCTION(name) __attribute__((noinline)) STENCIL_ATTRIBUTES RET_T name(void)
 #define RCP_OP_EX(op, ex)		   RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
 #define RCP_STENCIL(op)			   RCP_STENCIL_FUNCTION(_RCP_##op##_OP)
+
+/* RSH_RCP_REGISTER_STACK and RSH_RCP_REGISTER_LOCALS are defined in
+   Rinternals.h so the GNU R fork and the stencils agree on the ABI. */
+
+#define PROLOGUE                                                                 \
+	Value *restrict stack;                                                       \
+	rcpEval_locals *restrict locals;                                             \
+	do                                                                           \
+	{                                                                            \
+		register __typeof__(stack) stack_reg __asm__(RSH_RCP_REGISTER_STACK);    \
+		stack = stack_reg;                                                       \
+		register __typeof__(locals) locals_reg __asm__(RSH_RCP_REGISTER_LOCALS); \
+		locals = locals_reg;                                                     \
+	} while (0);
+
+#define EPILOGUE                                                                          \
+	do                                                                                    \
+	{                                                                                     \
+		register __typeof__(stack) stack_reg __asm__(RSH_RCP_REGISTER_STACK) = stack;     \
+		asm volatile("" : : "r"(stack_reg));                                              \
+		register __typeof__(locals) locals_reg __asm__(RSH_RCP_REGISTER_LOCALS) = locals; \
+		asm volatile("" : : "r"(locals_reg));                                             \
+	} while (0);
 
 // Macros to help generate boilerplate for stencil functions
 #define RCP_OP_TEMPLATE_JUMP(name, body, continuation)                                 \
 	RCP_STENCIL(name)                                                                  \
 	{                                                                                  \
+		PROLOGUE;                                                                      \
 		TRACE_PRINT(__FUNCTION__);                                                     \
 		TRACE_PRINT("\tSTART\n");                                                      \
 		PROFILING_START(name);                                                         \
@@ -141,14 +165,25 @@ static inline uint64_t rdtsc(void)
 #define RCP_OP(...)						 EXPAND(GET_MACRO(__VA_ARGS__, RCP_OP_TEMPLATE_JUMP, RCP_OP_TEMPLATE_CONTINUE)(__VA_ARGS__))
 
 /* PATCHING SYMBOLS */
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT(Value *stack, rcpEval_locals *locals);
-#define NEXT return _RCP_EXEC_NEXT(stack, locals)
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT(void);
+#define NEXT                     \
+	do                           \
+	{                            \
+		EPILOGUE;                \
+		return _RCP_EXEC_NEXT(); \
+	} while (0)
 
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM0(Value *stack, rcpEval_locals *locals);
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM1(Value *stack, rcpEval_locals *locals);
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM2(Value *stack, rcpEval_locals *locals);
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM3(Value *stack, rcpEval_locals *locals);
-#define GOTO_IMM(i) return _RCP_EXEC_IMM##i(stack, locals)
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM0(void);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM1(void);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM2(void);
+extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM3(void);
+#define GOTO_IMM(i)                \
+	do                             \
+	{                              \
+		EPILOGUE;                  \
+		return _RCP_EXEC_IMM##i(); \
+	} while (0)
+
 //__attribute__((musttail))
 //[[gnu::musttail]]
 
@@ -194,15 +229,17 @@ extern const void *const _RCP_LOOPCNTXT;
 
 extern const void *const _RCP_EXECUTABLE[];
 #define GETEXECUTABLE() (const void *const)&_RCP_EXECUTABLE
-#define GOTO_VAL(i)                                                                                                                      \
-	{                                                                                                                                    \
-		STENCIL_ATTRIBUTES RET_T (*call)(Value * stack, rcpEval_locals * locals) = (const void *const)(((uint8_t *)GETEXECUTABLE()) + i); \
-		return call(stack, locals);                                                                                                      \
+#define GOTO_VAL(i)                                                                                     \
+	{                                                                                                   \
+		STENCIL_ATTRIBUTES RET_T (*call)(void) = (const void *const)(((uint8_t *)GETEXECUTABLE()) + i); \
+		EPILOGUE;                                                                                       \
+		return call();                                                                                  \
 	}
 
 static __attribute__((always_inline)) inline SEXP rcp_binding_value(SEXP binding_cell)
 {
-	if (BNDCELL_TAG(binding_cell)) {
+	if (BNDCELL_TAG(binding_cell))
+	{
 		return R_NilValue;
 	}
 	return CAR0(binding_cell);
@@ -210,7 +247,8 @@ static __attribute__((always_inline)) inline SEXP rcp_binding_value(SEXP binding
 
 static __attribute__((always_inline)) inline int rcp_value_type(SEXP val)
 {
-	if (TYPEOF(val) == PROMSXP) {
+	if (TYPEOF(val) == PROMSXP)
+	{
 		SEXP prval = PRVALUE(val);
 		return (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
 	}
@@ -226,6 +264,7 @@ static __attribute__((always_inline)) inline int rcp_binding_type(SEXP binding_c
 
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 {
+	PROLOGUE;
 	int *coverage_counter = (int *)GETCUSTOM();
 	*coverage_counter += 1;
 	NEXT;
@@ -233,26 +272,30 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
 
 RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
 {
+	PROLOGUE;
 	// do we actually need an entry hook for the types?
 	// If we have evaluated promises, and an argument is assigned with another type
 	// later in the function, yes...
 	// But that should be rare.
-	#ifdef RCP_TRACE
-		Rprintf("Entry hook\n");
-	#endif
+
+#ifdef RCP_TRACE
+	Rprintf("Entry hook\n");
+#endif
 	NEXT;
 }
 
 RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 {
-	#ifdef RCP_TRACE
-		Rprintf("Exit hook\n");
-	#endif
-	TypeTrace* trace = (TypeTrace*) GETCUSTOM();
+	PROLOGUE;
+#ifdef RCP_TRACE
+	Rprintf("Exit hook\n");
+#endif
+	TypeTrace *trace = (TypeTrace *)GETCUSTOM();
 	SEXP rho = GET_RHO();
 
 	// Resize if needed
-	if (trace->count >= trace->capacity) {
+	if (trace->count >= trace->capacity)
+	{
 		trace->capacity *= 2;
 		trace->types = realloc(trace->types, trace->capacity * sizeof(TypeRecord));
 	}
@@ -277,25 +320,31 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 
 	// Record argument types (promises are forced by now for used args)
 	size_t i = 0;
-	for (SEXP f = b; f != R_NilValue; f = CDR(f)) {
+	for (SEXP f = b; f != R_NilValue; f = CDR(f))
+	{
 		SEXP tag = TAG(f);
-		if (tag == R_DotsSymbol) {
+		if (tag == R_DotsSymbol)
+		{
 			SEXP dots_val = rcp_binding_value(f);
-			if (TYPEOF(dots_val) == PROMSXP) {
+			if (TYPEOF(dots_val) == PROMSXP)
+			{
 				SEXP prval = PRVALUE(dots_val);
 				if (prval != R_UnboundValue)
 					dots_val = prval;
 			}
 
-			if (dots_val != R_MissingArg && TYPEOF(dots_val) == DOTSXP) {
+			if (dots_val != R_MissingArg && TYPEOF(dots_val) == DOTSXP)
+			{
 				size_t ndots = 0;
-				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d)) ndots++;
+				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d))
+					ndots++;
 				rec->dots_count = ndots;
 				rec->dots_names = malloc(ndots * sizeof(SEXP));
 				rec->dots_types = malloc(ndots * sizeof(int));
 
 				size_t di = 0;
-				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d), di++) {
+				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d), di++)
+				{
 					SEXP dtag = TAG(d);
 					SEXP dval = CAR(d);
 					rec->dots_names[di] = dtag;
@@ -310,13 +359,16 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 
 		rec->arguments[i] = rcp_binding_type(f);
 
-		#ifdef RCP_TRACE
-			if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {
-				Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
-			} else {
-				Rprintf("Arg <non-symbol>: %s\n", type2char(rec->arguments[i]));
-			}
-		#endif
+#ifdef RCP_TRACE
+		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP)
+		{
+			Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
+		}
+		else
+		{
+			Rprintf("Arg <non-symbol>: %s\n", type2char(rec->arguments[i]));
+		}
+#endif
 		i++;
 	}
 
@@ -328,8 +380,8 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 }
 
 RCP_OP(RETURN,
-       Value ret = *GET_VAL(-1);
-       ,
+	   Value ret = *GET_VAL(-1);
+	   ,
 	   return ret;)
 
 RCP_OP(GOTO,
@@ -426,6 +478,7 @@ X_STEPFOR_TYPES
 #define X(a, b)                                                                       \
 	RCP_OP_EX(STEPFOR, a)                                                             \
 	{                                                                                 \
+		PROLOGUE;                                                                     \
 		if (Rsh_StepFor_Specialized_##a(stack, GETCONSTCELL_LABEL_IMM(0), GET_RHO())) \
 			GOTO_IMM(0);                                                              \
 		else                                                                          \
@@ -461,24 +514,28 @@ RCP_OP(INVISIBLE,
 // Specialized versions
 RCP_OP_EX(LDCONST, INT)
 {
+	PROLOGUE;
 	PUSH_VAL(1);
 	Rsh_LdConstInt(stack, GETCONST_IMM(0));
 	NEXT;
 }
 RCP_OP_EX(LDCONST, DBL)
 {
+	PROLOGUE;
 	PUSH_VAL(1);
 	Rsh_LdConstDbl(stack, GETCONST_IMM(0));
 	NEXT;
 }
 RCP_OP_EX(LDCONST, LGL)
 {
+	PROLOGUE;
 	PUSH_VAL(1);
 	Rsh_LdConstLgl(stack, GETCONST_IMM(0));
 	NEXT;
 }
 RCP_OP_EX(LDCONST, SEXP)
 {
+	PROLOGUE;
 	PUSH_VAL(1);
 	Rsh_LdConst(stack, GETCONST_IMM(0));
 	NEXT;
@@ -564,29 +621,32 @@ static INLINE void Rcp_MakeProm(Value *stack, SEXP code, SEXP rho, int code_type
 #ifdef MAKEPROM_SPECIALIZE
 RCP_OP_EX(MAKEPROM, 0_DEFAULT)
 {
-    TRACE_PRINT(__FUNCTION__);
-    TRACE_PRINT("\tSTART\n");
+	PROLOGUE;
+	TRACE_PRINT(__FUNCTION__);
+	TRACE_PRINT("\tSTART\n");
 	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), -1);
-    TRACE_PRINT(__FUNCTION__);
-    TRACE_PRINT("\tDONE\n");
+	TRACE_PRINT(__FUNCTION__);
+	TRACE_PRINT("\tDONE\n");
 	NEXT;
 }
 RCP_OP_EX(MAKEPROM, 1_BCODESXP)
 {
-    TRACE_PRINT(__FUNCTION__);
-    TRACE_PRINT("\tSTART\n");
+	PROLOGUE;
+	TRACE_PRINT(__FUNCTION__);
+	TRACE_PRINT("\tSTART\n");
 	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), BCODESXP);
-    TRACE_PRINT(__FUNCTION__);
-    TRACE_PRINT("\tDONE\n");
+	TRACE_PRINT(__FUNCTION__);
+	TRACE_PRINT("\tDONE\n");
 	NEXT;
 }
 RCP_OP_EX(MAKEPROM, 2_EXTPTRSXP)
 {
-    TRACE_PRINT(__FUNCTION__);
-    TRACE_PRINT("\tSTART\n");
+	PROLOGUE;
+	TRACE_PRINT(__FUNCTION__);
+	TRACE_PRINT("\tSTART\n");
 	Rcp_MakeProm(stack, GETCONST_IMM(0), GET_RHO(), EXTPTRSXP);
-    TRACE_PRINT(__FUNCTION__);
-    TRACE_PRINT("\tDONE\n");
+	TRACE_PRINT(__FUNCTION__);
+	TRACE_PRINT("\tDONE\n");
 	NEXT;
 }
 #else
@@ -854,6 +914,7 @@ RCP_OP(SWITCH,
 #else
 RCP_OP_EX(SWITCH, 000)
 {
+	PROLOGUE;
 	SEXP call = GETCONST_IMM(0);
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
@@ -876,6 +937,7 @@ RCP_OP_EX(SWITCH, 000)
 
 RCP_OP_EX(SWITCH, 001)
 {
+	PROLOGUE;
 	SEXP call = GETCONST_IMM(0);
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
@@ -897,6 +959,7 @@ RCP_OP_EX(SWITCH, 001)
 
 RCP_OP_EX(SWITCH, 010)
 {
+	PROLOGUE;
 	SEXP call = GETCONST_IMM(0);
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
@@ -918,6 +981,7 @@ RCP_OP_EX(SWITCH, 010)
 
 RCP_OP_EX(SWITCH, 011)
 {
+	PROLOGUE;
 	SEXP call = GETCONST_IMM(0);
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
@@ -938,6 +1002,7 @@ RCP_OP_EX(SWITCH, 011)
 
 RCP_OP_EX(SWITCH, 100)
 {
+	PROLOGUE;
 	SEXP call = GETCONST_IMM(0);
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
@@ -959,6 +1024,7 @@ RCP_OP_EX(SWITCH, 100)
 
 RCP_OP_EX(SWITCH, 101)
 {
+	PROLOGUE;
 	SEXP call = GETCONST_IMM(0);
 	SEXP names = GETCONST_IMM(1);
 	SEXP coffsets = GETCONST_IMM(2);
@@ -1041,6 +1107,7 @@ RCP_OP(LOGBASE,
 #define X(a, b, c)                                       \
 	RCP_OP_EX(MATH1, b)                                  \
 	{                                                    \
+		PROLOGUE;                                        \
 		Rsh_Math1(stack, GETCONST_IMM(0), b, GET_RHO()); \
 		NEXT;                                            \
 	}
