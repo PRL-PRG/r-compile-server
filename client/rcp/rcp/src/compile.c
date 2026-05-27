@@ -661,25 +661,23 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 			SEXP coffsets = r_constpool[imms[2]];
 			SEXP ioffsets = r_constpool[imms[3]];
 
-			Rboolean is_names_null = names == R_NilValue;
-			int names_length = LENGTH(names);
-			int ioffsets_length = LENGTH(ioffsets);
+			Rboolean is_names_null = names == R_NilValue || LENGTH_0(names) == 0;
+			assert(!ALTREP(names));
+			assert(!ALTREP(ioffsets));
+			int names_length = LENGTH_0(names);
+			int ioffsets_length = LENGTH_0(ioffsets);
 			DEBUG_PRINT("SWITCH_OP specialization: is_names_null=%d names_length=%d, "
 						"ioffsets_length=%d\n",
 						is_names_null, names_length, ioffsets_length);
 
 			if (!is_names_null && names_length != 1 && ioffsets_length != 1)
 				return &stencil_set[0]; //&_RCP_SWITCH_000_OP;
-			else if (!is_names_null && names_length != 1 && ioffsets_length == 1)
-				return &stencil_set[1]; //&_RCP_SWITCH_001_OP;
 			else if (!is_names_null && names_length == 1 && ioffsets_length != 1)
-				return &stencil_set[2]; //&_RCP_SWITCH_010_OP;
-			else if (!is_names_null && names_length == 1 && ioffsets_length == 1)
-				return &stencil_set[3]; //&_RCP_SWITCH_011_OP;
+				return &stencil_set[1]; //&_RCP_SWITCH_010_OP;
 			else if (is_names_null && ioffsets_length != 1)
-				return &stencil_set[4]; //&_RCP_SWITCH_100_OP;
+				return &stencil_set[2]; //&_RCP_SWITCH_100_OP;
 			else if (is_names_null && ioffsets_length == 1)
-				return &stencil_set[5]; //&_RCP_SWITCH_101_OP;
+				return &stencil_set[3]; //&_RCP_SWITCH_101_OP;
 			else
 				error("Invalid SWITCH_OP immediate values\n");
 		}
@@ -869,10 +867,10 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock *bb,
 		SEXP coffsets_sexp = constpool[imms[2]];
 		SEXP ioffsets_sexp = constpool[imms[3]];
 
-		int ioffsets_size = (ioffsets_sexp != R_NilValue) ? LENGTH(ioffsets_sexp) : 0;
-		int coffsets_size = (coffsets_sexp != R_NilValue) ? LENGTH(coffsets_sexp) : 0;
-		int *ioffsets = ioffsets_size ? INTEGER(ioffsets_sexp) : NULL;
-		int *coffsets = coffsets_size ? INTEGER(coffsets_sexp) : NULL;
+		int ioffsets_size = (ioffsets_sexp != R_NilValue) ? LENGTH_0(ioffsets_sexp) : 0;
+		int coffsets_size = (coffsets_sexp != R_NilValue) ? LENGTH_0(coffsets_sexp) : 0;
+		int *ioffsets = ioffsets_size ? INTEGER0(ioffsets_sexp) : NULL;
+		int *coffsets = coffsets_size ? INTEGER0(coffsets_sexp) : NULL;
 
 		bb->next_blocks = (BasicBlock **)S_alloc(ioffsets_size + coffsets_size,
 												 sizeof(BasicBlock *));
@@ -938,13 +936,13 @@ static BasicBlock *build_basic_blocks(int bytecode[], int bytecode_size,
 			const SEXP ioffsets = constpool[imms[3]];
 
 			if (ioffsets != R_NilValue)
-				for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
-					block_lookup[INTEGER(ioffsets)[i] - 1].next_blocks = NULL;
+				for (int i = 0, size = LENGTH_0(ioffsets); i < size; i++)
+					block_lookup[INTEGER0(ioffsets)[i] - 1].next_blocks = NULL;
 
 			if (coffsets != R_NilValue && coffsets != ioffsets)
 			{
-				for (int i = 0, size = LENGTH(coffsets); i < size; i++)
-					block_lookup[INTEGER(coffsets)[i] - 1].next_blocks = NULL;
+				for (int i = 0, size = LENGTH_0(coffsets); i < size; i++)
+					block_lookup[INTEGER0(coffsets)[i] - 1].next_blocks = NULL;
 			}
 		}
 		else
@@ -1422,24 +1420,40 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 			case SWITCH_BCOP:
 			{
+				SEXP names = constpool[opargs[1]];
 				SEXP coffsets_sexp = constpool[opargs[2]];
 				SEXP ioffsets_sexp = constpool[opargs[3]];
 
 				if (ioffsets_sexp != R_NilValue)
 				{
-					int *ioffsets = INTEGER(ioffsets_sexp);
-					int ioffsets_size = LENGTH(ioffsets_sexp);
+					int *ioffsets = INTEGER0(ioffsets_sexp);
+					int ioffsets_size = LENGTH_0(ioffsets_sexp);
 					for (int i = 0; i < ioffsets_size; i++)
 						ioffsets[i] = inst_start[ioffsets[i] - 1] - executable;
 				}
-
-				if (coffsets_sexp != R_NilValue &&
-					coffsets_sexp != ioffsets_sexp) // Avoid double patching if they point to the same memory
+				else
 				{
-					int *coffsets = INTEGER(coffsets_sexp);
-					int coffsets_size = LENGTH(coffsets_sexp);
-					for (int i = 0; i < coffsets_size; i++)
-						coffsets[i] = inst_start[coffsets[i] - 1] - executable;
+					constpool[opargs[3]] = allocVector(INTSXP, 0);
+				}
+
+				if (coffsets_sexp != R_NilValue)
+				{
+					if (coffsets_sexp != ioffsets_sexp) // Avoid double patching if they point to the same memory
+					{
+						int *coffsets = INTEGER0(coffsets_sexp);
+						int coffsets_size = LENGTH_0(coffsets_sexp);
+						for (int i = 0; i < coffsets_size; i++)
+							coffsets[i] = inst_start[coffsets[i] - 1] - executable;
+					}
+				}
+				else
+				{
+					constpool[opargs[2]] = allocVector(INTSXP, 0);
+				}
+
+				if (names == R_NilValue)
+				{
+					constpool[opargs[1]] = allocVector(INTSXP, 0);
 				}
 			}
 			break;
