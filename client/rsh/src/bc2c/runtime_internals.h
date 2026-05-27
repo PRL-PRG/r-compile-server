@@ -156,6 +156,8 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   ((x) == NA_INTEGER ? NA_LOGICAL : (x) ? TRUE : FALSE)
 #define INTEGER_TO_REAL(x) ((x) == NA_INTEGER ? NA_REAL : (x))
 #define LOGICAL_TO_REAL(x) ((x) == NA_LOGICAL ? NA_REAL : (x))
+#define REAL_TO_LOGICAL(x)                                                     \
+  ((x) == NA_REAL ? NA_LOGICAL : (x) != 0.0 ? TRUE : FALSE)
 
 #define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
   (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue)
@@ -164,7 +166,8 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
   (RSH_IS_JIT_PTR(body) && !RDEBUG(fun) && !RSTEP(fun) && !RDEBUG(rho) &&      \
    R_GlobalContext->callflag != CTXT_GENERIC)
 
-#define IS_SIMPLE_BINDING(b) (!((b)->sxpinfo.gp & (ACTIVE_BINDING_MASK | BINDING_LOCK_MASK)))
+#define IS_SIMPLE_BINDING(b)                                                   \
+  (!((b)->sxpinfo.gp & (ACTIVE_BINDING_MASK | BINDING_LOCK_MASK)))
 
 extern int R_EvalDepth;
 extern int R_Expressions;
@@ -466,7 +469,8 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
 }
 
 #define RSH_LIST_APPEND_EX(/* Value* */ head, /* Value* */ tail,               \
-                           /* SEXP */ value, /* RBoolean */ RC)                \
+                           /* SEXP */ value, /* RBoolean */ RC,                \
+                           /* RBoolean */ ajust_refcount, /* RBoolean */ init) \
   do {                                                                         \
     Value *__h__ = (head);                                                     \
     Value *__t__ = (tail);                                                     \
@@ -475,22 +479,30 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
     SEXP __elem__ =                                                            \
         __rc__ ? CONS(__v__, R_NilValue) : CONS_NR(__v__, R_NilValue);         \
                                                                                \
-    if (VAL_SXP(*__h__) == R_NilValue) {                                       \
+    if (init || VAL_SXP(*__h__) == R_NilValue) {                               \
       SET_SXP_VAL(__h__, __elem__);                                            \
     } else {                                                                   \
       SETCDR(VAL_SXP(*(__t__)), __elem__);                                     \
     }                                                                          \
     SET_SXP_VAL(__t__, __elem__);                                              \
     assert(!BNDCELL_TAG(__elem__));                                            \
-    if (RC) {                                                                  \
-      INCREMENT_NAMED(CAR0(__elem__));                                         \
-    } else {                                                                   \
-      INCREMENT_LINKS(CAR0(__elem__));                                         \
+    SEXP __car__ = CAR0(__elem__);                                             \
+    ASSUME(__car__ == __v__);                                                  \
+    if (ajust_refcount) {                                                      \
+      if (RC) {                                                                \
+        INCREMENT_NAMED(__car__);                                              \
+      } else {                                                                 \
+        INCREMENT_LINKS(__car__);                                              \
+      }                                                                        \
     }                                                                          \
   } while (0)
 
 #define RSH_PUSH_ARG(/* Value* */ head, /* Value* */ tail, /* SEXP */ value)   \
-  RSH_LIST_APPEND_EX(head, tail, value, FALSE)
+  RSH_LIST_APPEND_EX(head, tail, value, FALSE, TRUE, FALSE)
+
+#define RSH_INIT_PUSH_ARG(/* Value* */ head, /* Value* */ tail,                \
+                          /* SEXP */ value)                                    \
+  RSH_LIST_APPEND_EX(head, tail, value, FALSE, TRUE, TRUE)
 
 #define RSH_SET_TAG(/* Value */ v, /* SEXP */ t)                               \
   do {                                                                         \
@@ -576,6 +588,27 @@ static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
   return value;
 }
 
+ALWAYS_INLINE R_xlen_t XLENGTH_0(SEXP x) { return STDVEC_LENGTH(x); }
+
+#define LONG_VECTOR_SUPPORT
+ALWAYS_INLINE int LENGTH_EX_0(SEXP x, const char *file, int line) {
+  if (x == R_NilValue)
+    return 0;
+  R_xlen_t len = XLENGTH_0(x);
+#ifdef LONG_VECTOR_SUPPORT
+  if (len > R_SHORT_LEN_MAX)
+    R_BadLongVector(x, file, line);
+#endif
+  return (int)len;
+}
+
+#define LENGTH_0(x) LENGTH_EX_0(x, __FILE__, __LINE__)
+
+/* For speed in cases when the argument is known to not be an ALTREP list. */
+#define VECTOR_ELT_0(x, i) ((SEXP *)STDVEC_DATAPTR(x))[i]
+#define SET_VECTOR_ELT_0(x, i, v) (((SEXP *)STDVEC_DATAPTR(x))[i] = (v))
+#define STRING_ELT_0(x, i) ((SEXP *)STDVEC_DATAPTR(x))[i]
+#define SET_STRING_ELT_0(x, i, v) (((SEXP *)STDVEC_DATAPTR(x))[i] = (v))
 
 #define BCODE_CODE(x) CAR(x)
 #define BCODE_CONSTS(x) CDR(x)
