@@ -36,6 +36,7 @@ static const Stencil NOP_STENCIL = {
 
 static int rcp_gdb_jit_enabled = 0;
 static int rcp_perf_jit_enabled = 0;
+static int compile_promises = RCP_COMPILE_PROMISES;
 
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
@@ -2033,8 +2034,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				DEBUG_PRINT("**********\nClosure compiled\n");
 			}
-#ifdef RCP_COMPILE_PROMISES
-			else if (opcode == MAKEPROM_BCOP)
+			else if (opcode == MAKEPROM_BCOP && compile_promises)
 			{
 				SEXP body = consts[opargs[0]];
 
@@ -2063,7 +2063,6 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				DEBUG_PRINT("**********\nPromise compiled\n");
 			}
-#endif
 		}
 	}
 
@@ -2198,10 +2197,18 @@ static const char *guess_closure_name(SEXP f)
 	return result;
 }
 
-static Rboolean is_option_true(const char *option_name)
+static Rboolean get_option_or_default(const char *option_name, Rboolean default_value)
 {
 	SEXP option = Rf_GetOption1(Rf_install(option_name));
-	return (TYPEOF(option) == LGLSXP && LOGICAL(option)[0] == TRUE);
+	if (TYPEOF(option) == LGLSXP && XLENGTH(option) == 1)
+		return LOGICAL(option)[0] == TRUE;
+	else
+		return default_value;
+}
+
+static Rboolean is_option_true(const char *option_name)
+{
+	return get_option_or_default(option_name, FALSE);
 }
 
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
@@ -2215,6 +2222,11 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	if (is_option_true("rcp.cmpfun.coverage"))
 	{
+		compile_promises = get_option_or_default("rcp.cmpfun.compile_promises", TRUE);
+		if (!compile_promises)
+		{
+			warning("Coverage recording requested, but promise compilation is forced disabled. Results will not be accurate.");
+		}
 		// Get the covr namespace environment
 		SEXP covr_ns = PROTECT(R_FindNamespace(Rf_mkString("covr")));
 		// Get the .counters variable from covr namespace
@@ -2225,8 +2237,12 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 		if (coverage_registry == R_UnboundValue || coverage_registry == R_NilValue)
 		{
-			error("covr package not found or .counters variable not found. Coverage data will not be attached.\n");
+			error("Cannot find covr:::.counters. Install covr package if you wish to record coverage.\n");
 		}
+	}
+	else
+	{
+		compile_promises = get_option_or_default("rcp.cmpfun.compile_promises", RCP_COMPILE_PROMISES);
 	}
 
 	// R option "rcp.entry_exit_hooks"
@@ -3139,13 +3155,12 @@ void __attribute__((used)) rcp_print_stack_val(void *p)
 			Rprintf("ISQ: %d,%d\n", seqinfo.n1, seqinfo.n2);
 			break;
 		}
+		case 0:
+			Rf_PrintValue(v.u.sxpval);
+			break;
 		default:
-			// Assume boxed SEXP
-			// Rprintf("Tag %d: ", v.tag); // Debugging
-			if (v.u.sxpval)
-				Rf_PrintValue(v.u.sxpval);
-			else
-				Rprintf("NULL SEXP\n");
+			Rprintf("Unknown tag %d\n", v.tag);
+			break;
 	}
 }
 
@@ -3199,15 +3214,10 @@ SEXP rcp_init(void)
 
 SEXP C_rcp_build_info(void)
 {
-	const char *names[] = {"git_commit", "compile_promises", ""};
+	const char *names[] = {"git_commit", ""};
 	SEXP info = PROTECT(Rf_mkNamed(VECSXP, names));
 	SET_VECTOR_ELT(info, 0, mkString(RCP_GIT_COMMIT));
-#ifdef RCP_COMPILE_PROMISES
-	SET_VECTOR_ELT(info, 1, ScalarLogical(1));
-#else
-	SET_VECTOR_ELT(info, 1, ScalarLogical(0));
-#endif
-	UNPROTECT(1);
+	UNPROTECT_SAFE(info);
 	return info;
 }
 

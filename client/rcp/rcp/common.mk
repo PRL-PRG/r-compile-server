@@ -38,9 +38,6 @@ endef
 RELOC_MODEL ?= 1
 ALIGN_INSTRUCTIONS ?= 1
 
-# Whether to compile promises to native code
-RCP_COMPILE_PROMISES ?= 0
-
 ## ------------------------------------------------------------------------
 ## END OF SETTINGS
 ## ------------------------------------------------------------------------
@@ -49,10 +46,12 @@ ifeq ($(DEBUG), 1)
     # Debug flags
     CFLAGS += -g -DASSERTS
     CXXFLAGS += -g -DASSERTS
+    RCP_COMPILE_PROMISES ?= 1
 else
     # Release flags
     CFLAGS += -g -DNDEBUG
     CXXFLAGS += -g -DNDEBUG
+    RCP_COMPILE_PROMISES ?= 0
 endif
 
 ifeq (,$(findstring -std=,$(CFLAGS)))

@@ -2,7 +2,6 @@
   info <- .Call("C_rcp_build_info")
   ver <- utils::packageVersion("rcp")
   flags <- c(
-    if (info$compile_promises) "promises",
     if (nzchar(Sys.getenv("RCP_DUMP_DIR"))) paste0("dump:", Sys.getenv("RCP_DUMP_DIR")),
     if (nzchar(Sys.getenv("RCP_GDB_JIT"))) "gdb",
     if (nzchar(Sys.getenv("RCP_PERF_JIT"))) "perf"
@@ -12,7 +11,7 @@
 }
 
 .onLoad <- function(libname, pkgname) {
-  .Call("rcp_init");
+  .Call("rcp_init")
 }
 
 .onAttach <- function(libname, pkgname) {
