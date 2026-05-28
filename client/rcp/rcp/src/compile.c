@@ -1843,20 +1843,20 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 		return;
 	}
 
-	int *srcrefs_index = INTEGER(srcrefs_index_sexp);
-	const int len = LENGTH(bytecode);
+	int *srcrefs_index = INTEGER0(srcrefs_index_sexp);
+	const R_xlen_t len = XLENGTH_0(bytecode);
 
 	if (func_name == NULL)
 		func_name = "";
 
 	void *vmax = vmaxget();
 	int *used_srcrefs = (int *)R_alloc(len, sizeof(int));
-	int used_srcrefs_count = 0;
+	R_xlen_t used_srcrefs_count = 0;
 
 	const SEXP *consts = (SEXP *)DATAPTR(constpool);
 
 	// First pass: discover unique expressions and record stencil positions
-	for (int i = 1; i < len; i++)
+	for (R_xlen_t i = 1; i < len; i++)
 	{
 		int expr_id = srcrefs_index[i];
 
@@ -1871,18 +1871,18 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 
 		SEXP srcref = consts[expr_id];
 
-		if (TYPEOF(srcref) != INTSXP || LENGTH(srcref) < 8)
+		if (TYPEOF(srcref) != INTSXP || XLENGTH_0(srcref) < 8)
 			error("Invalid srcref data for expression with id %d", expr_id);
 
 		// Extract srcref data
-		int *srcref_data = INTEGER(srcref);
+		int *srcref_data = INTEGER0(srcref);
 
 		// Get the filename from srcfile attribute
 		SEXP filename_sexp = R_GetSrcFilename(srcref);
 		const char *filename = "<text>";
-		if (TYPEOF(filename_sexp) == STRSXP && LENGTH(filename_sexp) > 0)
+		if (TYPEOF(filename_sexp) == STRSXP && XLENGTH_0(filename_sexp) > 0)
 		{
-			const char *filename_char = CHAR(STRING_ELT(filename_sexp, 0));
+			const char *filename_char = CHAR(STRING_ELT_0(filename_sexp, 0));
 			if (strlen(filename_char) > 0) // To protect from empty filenames
 			{
 				filename = filename_char;
@@ -1920,7 +1920,7 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 			// Create an integer value that the stencil will increment directly
 			SEXP value_num = PROTECT(Rf_ScalarInteger(0));
 			SET_VECTOR_ELT(entry, 0, value_num);
-			value_ptr = INTEGER(value_num);
+			value_ptr = INTEGER0(value_num);
 			UNPROTECT_SAFE(value_num);
 
 			// Add the srcref object
@@ -1941,20 +1941,20 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 		{
 			SEXP entry = existing;
 			// Entry exists - append this function to the functions list
-			SEXP funcs = VECTOR_ELT(entry, 2);
-			int n_funcs = LENGTH(funcs);
+			SEXP funcs = VECTOR_ELT_0(entry, 2);
+			R_xlen_t n_funcs = XLENGTH_0(funcs);
 			SEXP new_funcs = PROTECT(Rf_allocVector(STRSXP, n_funcs + 1));
-			for (int j = 0; j < n_funcs; j++)
+			for (R_xlen_t j = 0; j < n_funcs; j++)
 			{
-				SET_STRING_ELT(new_funcs, j, STRING_ELT(funcs, j));
+				SET_STRING_ELT(new_funcs, j, STRING_ELT_0(funcs, j));
 			}
 			SET_STRING_ELT(new_funcs, n_funcs, Rf_mkChar(func_name));
 			SET_VECTOR_ELT(entry, 2, new_funcs);
 			UNPROTECT_SAFE(new_funcs);
 
 			// Get pointer to the existing value
-			SEXP value_num = VECTOR_ELT(entry, 0);
-			value_ptr = INTEGER(value_num);
+			SEXP value_num = VECTOR_ELT_0(entry, 0);
+			value_ptr = INTEGER0(value_num);
 		}
 		UNPROTECT_SAFE(key_symbol);
 
@@ -1976,8 +1976,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 
 	SEXP code = PROTECT(R_bcDecode(bcode_code));
 
-	int *bytecode = INTEGER(code);
-	int bytecode_size = LENGTH(code);
+	int *bytecode = INTEGER0(code);
+	int bytecode_size = LENGTH_0(code);
 
 	if (bytecode_size == 0)
 		error("Cannot compile empty bytecode.\n");
@@ -1987,7 +1987,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	bytecode_size -= 1;
 
 	SEXP *consts = DATAPTR(bcode_consts);
-	int consts_size = LENGTH(bcode_consts);
+	int consts_size = LENGTH_0(bcode_consts);
 
 	if (recursive)
 	{
@@ -2815,7 +2815,7 @@ SEXP C_rcp_get_types(void)
 			SEXP args_names = PROTECT(Rf_allocVector(STRSXP, rec->count + rec->dots_count));
 			for (size_t k = 0; k < rec->count; k++)
 			{
-				INTEGER(args_vec)
+				INTEGER0(args_vec)
 				[k] = rec->arguments[k];
 				if (k < trace->argument_count && trace->argument_names && trace->argument_names[k] != R_NilValue && TYPEOF(trace->argument_names[k]) == SYMSXP)
 					SET_STRING_ELT(args_names, k, PRINTNAME(trace->argument_names[k]));
@@ -2829,7 +2829,7 @@ SEXP C_rcp_get_types(void)
 			for (size_t k = 0; k < rec->dots_count; k++)
 			{
 				size_t idx = rec->count + k;
-				INTEGER(args_vec)
+				INTEGER0(args_vec)
 				[idx] = rec->dots_types[k];
 				if (rec->dots_names[k] != R_NilValue && TYPEOF(rec->dots_names[k]) == SYMSXP)
 				{
@@ -3048,7 +3048,7 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 	// dots_count column
 	SEXP dots_count_col = PROTECT(Rf_allocVector(INTSXP, nrows));
 	for (size_t r = 0; r < nrows; r++)
-		INTEGER(dots_count_col)
+		INTEGER0(dots_count_col)
 	[r] = (int)trace->types[r].dots_count;
 	SET_VECTOR_ELT(df, ncols - 2, dots_count_col);
 	UNPROTECT(1); // dots_count_col
@@ -3067,9 +3067,9 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 
 	// Set row.names: 1:nrows
 	SEXP row_names = PROTECT(Rf_allocVector(INTSXP, 2));
-	INTEGER(row_names)
+	INTEGER0(row_names)
 	[0] = NA_INTEGER;
-	INTEGER(row_names)
+	INTEGER0(row_names)
 	[1] = -(int)nrows;
 	Rf_setAttrib(df, R_RowNamesSymbol, row_names);
 	UNPROTECT(1); // row_names
@@ -3135,8 +3135,8 @@ void __attribute__((used)) rcp_print_stack_val(void *p)
 			break;
 		case ISQSXP:
 		{
-			int *seqinfo = INTEGER(v.u.sxpval);
-			Rprintf("ISQ: %d,%d\n", seqinfo[0], seqinfo[1]);
+			Rsh_isqinfo_t seqinfo = v.u.isqval;
+			Rprintf("ISQ: %d,%d\n", seqinfo.n1, seqinfo.n2);
 			break;
 		}
 		default:
