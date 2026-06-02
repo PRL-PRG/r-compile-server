@@ -1,0 +1,40 @@
+name: Report test failures
+description: >
+  Parses the Maven surefire/failsafe reports and emits a GitHub ::error::
+  annotation per failing test class (with the failing test names and their
+  cause), so failures are visible without downloading the full job logs.
+
+runs:
+  using: composite
+  steps:
+    - name: Summarize failing tests
+      shell: bash
+      run: |
+        python3 - <<'PY'
+        import glob, re
+        files = sorted(glob.glob('server/target/surefire-reports/*.txt')
+                       + glob.glob('server/target/failsafe-reports/*.txt'))
+        any_fail = False
+        for f in files:
+            try:
+                txt = open(f, encoding='utf-8', errors='replace').read()
+            except Exception:
+                continue
+            m = re.search(r'Tests run: \d+, Failures: (\d+), Errors: (\d+)', txt)
+            if not m or (int(m.group(1)) == 0 and int(m.group(2)) == 0):
+                continue
+            any_fail = True
+            lines = txt.splitlines()
+            cls = next((l.split('Test set:', 1)[1].strip()
+                        for l in lines if 'Test set:' in l), f)
+            cases = []
+            for i, l in enumerate(lines):
+                if '<<<' in l:
+                    cause = lines[i + 1].strip() if i + 1 < len(lines) else ''
+                    cases.append(l.strip() + ' => ' + cause)
+            msg = cls + ' :: ' + ' || '.join(cases[:10])
+            print('::error::' + msg[:1500])
+        if not any_fail:
+            print('::error::Maven failed but no surefire/failsafe report shows '
+                  'a failing test — likely a build/plugin error, not a test failure.')
+        PY

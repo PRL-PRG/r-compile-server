@@ -21,6 +21,9 @@ jobs:
       - name: Build artifact
         working-directory: server
         run: mvn --batch-mode --update-snapshots package
+      - name: Report test failures
+        if: failure()
+        uses: ./.github/actions/report-test-failures
       - run: mkdir staging && cp target/*.jar staging
         working-directory: server
       - name: Upload snapshot as artifact
@@ -44,6 +47,9 @@ jobs:
       - name: Run tests (no static analyses)
         working-directory: server
         run: mvn --batch-mode --update-snapshots test
+      - name: Report test failures
+        if: failure()
+        uses: ./.github/actions/report-test-failures
 
   verify:
     runs-on: ubuntu-latest
@@ -55,3 +61,6 @@ jobs:
       - name: Run tests and static analyses
         working-directory: server
         run: mvn --batch-mode --update-snapshots verify
+      - name: Report test failures
+        if: failure()
+        uses: ./.github/actions/report-test-failures
