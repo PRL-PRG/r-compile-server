@@ -38,6 +38,8 @@ static int rcp_gdb_jit_enabled = 0;
 static int rcp_perf_jit_enabled = 0;
 static int compile_promises = RCP_COMPILE_PROMISES;
 
+#define BC_ERROR Rf_error
+
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
 {
@@ -1987,7 +1989,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	bytecode += 1;
 	bytecode_size -= 1;
 
-	SEXP *consts = DATAPTR(bcode_consts);
+	SEXP *consts = STDVEC_DATAPTR(bcode_consts);
 	int consts_size = LENGTH_0(bcode_consts);
 
 	if (recursive)
@@ -2008,8 +2010,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			if (opcode == MAKECLOSURE_BCOP)
 			{
 				SEXP fb = consts[opargs[0]];
-				SEXP closure_formals = VECTOR_ELT(fb, 0);
-				SEXP body = VECTOR_ELT(fb, 1);
+				SEXP closure_formals = VECTOR_ELT_0(fb, 0);
+				SEXP body = VECTOR_ELT_0(fb, 1);
 
 				if (TYPEOF(body) == BCODESXP)
 				{
@@ -2030,7 +2032,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				else
 				{
-					error("Invalid closure type: %d\n", TYPEOF(body));
+					BC_ERROR("Invalid closure type: %d\n", TYPEOF(body));
 				}
 				DEBUG_PRINT("**********\nClosure compiled\n");
 			}
@@ -2038,30 +2040,50 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			{
 				SEXP body = consts[opargs[0]];
 
-				if (TYPEOF(body) == BCODESXP)
+				switch (TYPEOF(body))
 				{
-					DEBUG_PRINT("**********\nCompiling promise\n");
-					// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
-					// Should not be needed, constpool is ours
-					closure_counter++;
-					char closure_name_buf[256];
-					const char *base_name = name ? name : "promise";
-					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
-							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
-					// consts[opargs[0]] does not seem to work
-					// it seems that it does not propely handle GC
-					SET_VECTOR_ELT(bcode_consts, opargs[0], res);
+					case BCODESXP:
+					{
+						DEBUG_PRINT("**********\nCompiling promise\n");
+						// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
+						// Should not be needed, constpool is ours
+						closure_counter++;
+						char closure_name_buf[256];
+						const char *base_name = name ? name : "promise";
+						snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
+								 base_name, closure_counter);
+						SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
+						// consts[opargs[0]] does not seem to work
+						// it seems that it does not propely handle GC
+						SET_VECTOR_ELT(bcode_consts, opargs[0], res);
+						DEBUG_PRINT("**********\nPromise compiled\n");
+						break;
+					}
+					case LANGSXP:
+					case SYMSXP:
+					{
+						/* Promise body is an unevaluated AST expression (LANGSXP call
+						   or SYMSXP symbol) -- occurs in NSE contexts where the R
+						   bytecode compiler stores the original expression directly
+						   instead of compiling it to bytecode. Skip JIT compilation;
+						   it will be evaluated by the standard AST interpreter. */
+						DEBUG_PRINT("Skipping NSE promise (LANGSXP/SYMSXP body)\n");
+						break;
+					}
+					case EXTPTRSXP:
+					{
+						if (RSH_IS_CLOSURE_BODY(body))
+						{
+							DEBUG_PRINT("Using precompiled promise\n");
+							break;
+						}
+					}
+					default:
+					{
+						BC_ERROR("Invalid promise type: %d\n", TYPEOF(body));
+						break;
+					}
 				}
-				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
-				{
-					DEBUG_PRINT("Using precompiled promise\n");
-				}
-				else
-				{
-					error("Invalid promise type: %d\n", TYPEOF(body));
-				}
-				DEBUG_PRINT("**********\nPromise compiled\n");
 			}
 		}
 	}

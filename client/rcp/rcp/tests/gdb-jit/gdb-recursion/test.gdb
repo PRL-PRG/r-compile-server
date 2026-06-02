@@ -2,16 +2,12 @@ set pagination off
 set confirm off
 set breakpoint pending on
 
-break __jit_debug_register_code
-run
-
-# fac registration
-finish
+# Set breakpoint on the JIT-compiled fac before running.
+# GDB resolves this pending breakpoint automatically when rcp_cmpfun
+# registers "fac" via __jit_debug_register_code, regardless of how many
+# other JIT registrations happen first (e.g. promise bodies like fac_prom_1).
 break fac
-
-
-# Continue to execution
-continue
+run
 
 # Hit fac(3)
 echo ===BT1_START===\n
