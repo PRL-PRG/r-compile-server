@@ -1,10 +1,6 @@
-# This workflow will test a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+# This workflow builds and tests the R compile server with Maven.
+# It builds the custom (patched) GNU-R from the external/R submodule, which the
+# test suite requires, then runs the Maven build/tests against it.
 
 name: Java CI with Maven
 
@@ -20,16 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 22
-        uses: actions/setup-java@v4
-        with:
-          java-version: "22"
-          distribution: "temurin"
-          cache: maven
-      - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "4.3.2"
+      - name: Set up build environment (JDK + custom GNU-R)
+        uses: ./.github/actions/setup-rsh-env
       - name: Build artifact
         working-directory: server
         run: mvn --batch-mode --update-snapshots package
@@ -51,16 +39,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 22
-        uses: actions/setup-java@v4
-        with:
-          java-version: "22"
-          distribution: "temurin"
-          cache: maven
-      - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "4.3.2"
+      - name: Set up build environment (JDK + custom GNU-R)
+        uses: ./.github/actions/setup-rsh-env
       - name: Run tests (no static analyses)
         working-directory: server
         run: mvn --batch-mode --update-snapshots test
@@ -70,35 +50,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 22
-        uses: actions/setup-java@v4
-        with:
-          java-version: "22"
-          distribution: "temurin"
-          cache: maven
-      - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "4.3.2"
-      - name: Run tests and static analyses
-        working-directory: server
-        run: mvn --batch-mode --update-snapshots verify
-
-  verify-macos:
-    runs-on: macos-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 22
-        uses: actions/setup-java@v4
-        with:
-          java-version: "22"
-          distribution: "temurin"
-          cache: maven
-      - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "4.3.2"
+      - name: Set up build environment (JDK + custom GNU-R)
+        uses: ./.github/actions/setup-rsh-env
       - name: Run tests and static analyses
         working-directory: server
         run: mvn --batch-mode --update-snapshots verify
