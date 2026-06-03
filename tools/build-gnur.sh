@@ -77,7 +77,7 @@ if [[ $USING_OSX -eq 1 ]]; then
 
   # From https://groups.google.com/g/r-sig-mac/c/4smMULZWKPc?pli=1
   export CC="clang -arch arm64"
-  export CXX="clang++ -arch arm64"
+  export CXX="clang -arch arm64"
   export OBJC="clang -arch arm64"
   export FC="gfortran -arch arm64"
   export CFLAGS="-falign-functions=64 -Wall $OPT"
@@ -124,12 +124,10 @@ fi
 
 tools/rsync-recommended
 
-# Configure (only if necessary)
+# Configure
 
-if [[ ! -f Makefile ]]; then
-  echo "-> configure"
-  ./configure $CONFIGURE_ARGS
-fi
+echo "-> configure"
+./configure $CONFIGURE_ARGS
 
 # Patch config files (only if necessary)
 
@@ -146,7 +144,8 @@ Last Changed Date: 2000-01-01" >SVN-REVISION
   rm -f non-tarball
 fi
 
-# Make (regardless if necessary, but `Makefile` skips most of what's already done)
+# Make
 
 echo "-> make"
+make clean
 make -j8

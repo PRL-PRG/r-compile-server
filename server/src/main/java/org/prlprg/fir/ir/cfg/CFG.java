@@ -9,17 +9,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Strings;
 
 /// FIŘ [control-flow-graph](https://en.wikipedia.org/wiki/Control-flow_graph).
@@ -81,6 +81,7 @@ public final class CFG {
     return this.addBB(this.nextLabel());
   }
 
+  /// @throws IllegalArgumentException if a block with the given label already exists.
   public BB addBB(String label) {
     return module()
         .record(
@@ -126,19 +127,21 @@ public final class CFG {
 
   @PrintMethod
   private void print(Printer p) {
-    // Sort BBs dominators before dominees, then [naturally](Strings#naturalComparator())
-    // (lexicographically with explicit support for numbers) by label.
+    // Sort non-deopts before deopts, then BB dominators before dominees, then exits before
+    // non-exits, then [naturally](Strings#naturalComparator()) (lexicographically with explicit
+    // support for numbers) by label.
     var sortedBbs = new ArrayList<>(bbs.values());
     sortedBbs.sort(
-        new CfgDominatorTree(this)
-            .comparator()
+        Comparator.<BB>comparingInt(bb -> bb.label().startsWith("D") ? 1 : 0)
+            .thenComparing(new CfgDominatorTree(this).comparator())
+            .thenComparing(BB::isExit, Comparator.reverseOrder())
             .thenComparing(BB::label, Strings.naturalComparator()));
 
     p.printSeparated("\n", sortedBbs);
   }
 
   public record ParseContext(
-      Abstraction scope, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
+      Abstraction scope, FunctionRef.ParseContext forFunctionRef, @Nullable Object inner) {}
 
   @ParseMethod
   private CFG(Parser p1, ParseContext ctx) {
@@ -147,13 +150,15 @@ public final class CFG {
 
     var s = p.scanner();
 
-    var postCfg = new DeferredCallbacks<CFG>();
+    var deferredBbs = new LinkedHashMap<String, BBRef>();
+    var fixBbPreds = new ArrayList<Runnable>();
+    var bbRefCtx = new BBRef.ParseContext(deferredBbs, fixBbPreds);
 
     BB entry = null;
     while (!s.isAtEof() && !s.nextCharIs('}')) {
       var p2 =
           p.withContext(
-              new BB.ParseContext(entry == null, this, postCfg, ctx.postModule, p.context()));
+              new BB.ParseContext(entry == null, this, bbRefCtx, ctx.forFunctionRef, p.context()));
       var bb = p2.parse(BB.class);
       if (entry == null) {
         assert bb.isEntry();
@@ -172,6 +177,14 @@ public final class CFG {
     }
     this.entry = entry;
 
-    postCfg.run(this);
+    deferredBbs.forEach(
+        (label, bbRef) -> {
+          if (!bbs.containsKey(label)) {
+            throw new IllegalArgumentException(
+                "Basic block with label '" + label + "' does not exist.");
+          }
+          bbRef.set(bbs.get(label));
+        });
+    fixBbPreds.forEach(Runnable::run);
   }
 }

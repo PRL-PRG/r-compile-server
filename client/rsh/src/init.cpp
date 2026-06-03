@@ -5,6 +5,7 @@
 
 extern "C" {
 #include "bc2c/runtime.h"
+#include "fir2c/runtime.h"
 void R_init_rsh(DllInfo *dll);
 }
 

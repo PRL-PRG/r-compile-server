@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.ImmutableIntArray;
 import com.google.protobuf.ByteString;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
@@ -13,7 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.*;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
@@ -137,9 +136,11 @@ public class RDSReader implements Closeable {
             case NIL -> SEXPs.NULL;
             case SYM -> readSymbol();
             case CLO -> readClosure(flags);
-            case LIST -> readList(flags);
+            case LIST -> readList(flags, SEXPType.LIST);
+            case DOT -> readList(flags, SEXPType.DOT);
             case INT -> readInts(flags);
             case REAL -> readReals(flags);
+            case RAW -> readBytes(flags);
             case LGL -> readLogicals(flags);
             case VEC -> readVec(flags);
             case ENV -> readEnv();
@@ -177,9 +178,9 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readExternalPtr() throws IOException {
-    /* var prot = */ readItem();
-    /* var tag = */ readItem();
-    var ptr = new ExtptrSxp();
+    var prot = readItem();
+    var tag = readItem();
+    var ptr = new ExtptrSxp(prot, tag);
     refTable.add(ptr);
     return ptr;
   }
@@ -230,13 +231,13 @@ public class RDSReader implements Closeable {
   private int readBuiltinOrSpecial() throws IOException {
     var length = in.readInt();
     var name = in.readString(length, nativeEncoding);
-    var idx = rsession.RFunTab().indexOf(name);
+    var entry = rsession.RFunTab().get(name);
 
-    if (idx == -1) {
+    if (entry == null) {
       throw new RDSException("Unknown builtin/special function: " + name);
     }
 
-    return idx;
+    return entry.index();
   }
 
   private SEXP readPromise(Flags flags) throws IOException {
@@ -533,7 +534,6 @@ public class RDSReader implements Closeable {
     return SEXPs.string(strings.build(), attributes);
   }
 
-  @SuppressFBWarnings("DLS_DEAD_LOCAL_STORE")
   private UserEnvSXP readEnv() throws IOException {
     var item = new UserEnvSXP();
     refTable.add(item);
@@ -620,20 +620,35 @@ public class RDSReader implements Closeable {
     return SEXPs.integer(data, attributes);
   }
 
-  private ListSXP readList(Flags flags) throws IOException {
+  private RawSXP readBytes(Flags flags) throws IOException {
+    var length = in.readInt();
+    var data = in.readBytes(length);
+    var attributes = readAttributes(flags);
+
+    return SEXPs.raw(data, attributes);
+  }
+
+  private AbstractListSXP readList(Flags flags, SEXPType listType) throws IOException {
+    var listTypeDesc = listType.name().toLowerCase();
+
     var data = ImmutableList.<TaggedElem>builder();
     Attributes attributes = null;
 
     while (!flags.getType().isSexp(SEXPType.NIL)) {
-      if (!flags.getType().isSexp(SEXPType.LIST)) {
-        throw new RDSException("Expected list (reading in the middle or at the end of a list)");
+      if (!flags.getType().isSexp(listType)) {
+        throw new RDSException(
+            "Expected "
+                + listTypeDesc
+                + " (reading in the middle or at the end of a "
+                + listTypeDesc
+                + ")");
       }
       if (attributes == null) {
         attributes = readAttributes(flags);
       } else {
         var discard = readAttributes(flags);
         if (!discard.isEmpty()) {
-          throw new RDSException("Unexpected attributes in the middle of a list");
+          throw new RDSException("Unexpected attributes in the middle of a " + listTypeDesc);
         }
       }
 
@@ -645,7 +660,11 @@ public class RDSReader implements Closeable {
     }
 
     // TODO: add the attributes here?
-    return SEXPs.list(data.build());
+    return switch (listType) {
+      case LIST -> SEXPs.list(data.build());
+      case DOT -> SEXPs.dots(data.build());
+      default -> throw new IllegalArgumentException("Unhandled list type: " + listType);
+    };
   }
 
   private CloSXP readClosure(Flags flags) throws IOException {

@@ -1,0 +1,7 @@
+#? stdlib
+`df` <- function (x, df1, df2, ncp, log = FALSE) 
+{
+    if (missing(ncp)) 
+        .Call(C_df, x, df1, df2, log)
+    else .Call(C_dnf, x, df1, df2, ncp, log)
+}

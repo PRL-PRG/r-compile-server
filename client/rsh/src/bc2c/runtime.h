@@ -8,7 +8,7 @@
 #define RSH
 
 // MAKE SURE Rinternals.h is not listed!
-#include "runtime_internals.h"
+#include "../common2c/runtime_internals.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -1018,7 +1018,7 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
     SEXP body = BODY(fun_sxp);
 
     // inline our call
-    if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body) &&
+    if (TYPEOF(body) == EXTPTRSXP && IS_RSH_CODE(body) &&
         !RDEBUG(fun_sxp) && !RSTEP(fun_sxp) && !RDEBUG(rho) &&
         R_GlobalContext->callflag != CTXT_GENERIC) {
 
@@ -1045,15 +1045,12 @@ static INLINE void Rsh_Call(Value *r2, Value r1, UNUSED Value r0, SEXP call,
           assert(0);
         }
       } else {
-        // FIXME: the same code is in the eval.c - make it work with RCP
-        SEXP c_cp = R_ExternalPtrProtected(body);
-        assert(TYPEOF(c_cp) == VECSXP);
-
         // seems like unnecesary complicated casting, but otherwise C complains
         // cf. https://stackoverflow.com/a/19487645
-        Rsh_closure fun;
+        Rsh_code fun;
         *(void **)(&fun) = R_ExternalPtrAddr(body);
-        value = fun(newrho, c_cp);
+        SEXP data = R_ExternalPtrProtected(body);
+        value = fun(newrho, data);
       }
 
       UNPROTECT(1); // newrho
@@ -1370,11 +1367,11 @@ X_LOGIC2_OPS
 #undef X
 
 static INLINE void Rsh_MakeClosure(Value *r0, SEXP mkclos_arg,
-                                   Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
+                                   Rsh_code fun_ptr, SEXP c_cp, SEXP rho) {
 
   SEXP forms = VECTOR_ELT(mkclos_arg, 0);
   SEXP body =
-      PROTECT(R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp));
+      PROTECT(R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_CodeTag, c_cp));
   SEXP closure = PROTECT(Rf_mkCLOSXP(forms, body, rho));
 
   if (LENGTH(mkclos_arg) > 2) {
@@ -1408,11 +1405,11 @@ static INLINE void Rsh_CheckFun(Value *fun, Value *args_head,
 
 // FIXME: document
 static INLINE void Rsh_MakeProm2(Value *fun, Value *args_head, Value *args_tail,
-                                 Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
+                                 Rsh_code fun_ptr, SEXP c_cp, SEXP rho) {
   switch (TYPEOF(VAL_SXP(*fun))) {
   case CLOSXP: {
     SEXP code = PROTECT(
-        R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp));
+        R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_CodeTag, c_cp));
     SEXP value = Rf_mkPROMISE(code, rho);
     RSH_PUSH_ARG(args_head, args_tail, value);
     UNPROTECT(1);
@@ -2842,7 +2839,7 @@ static INLINE void Rsh_CallSpecial(Value *value, SEXP call, SEXP rho) {
 static INLINE Rboolean Rsh_StartLoopCntxt(RCNTXT *cntxt, SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
-  return sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK;
+  return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
 }
 
 static INLINE void Rsh_EndLoopCntxt(RCNTXT *ctntxt) { Rf_endcontext(ctntxt); }

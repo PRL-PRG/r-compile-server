@@ -3,31 +3,27 @@ package org.prlprg.fir.ir.cfg.cursor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.instruction.Checkpoint;
-import org.prlprg.fir.ir.instruction.Deopt;
-import org.prlprg.fir.ir.instruction.Goto;
-import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.util.Lists;
 
-public class CFGCopier {
+public final class CFGCopier {
   /// Assuming `dst` is empty, makes it a copy of `inner` (except [CFG#scope()]).
-  public static void copyFrom(CFG dst, CFG inner) {
-    copyFrom(dst.entry(), inner, Return::new);
+  public static void copyTo(CFG dst, CFG inner) {
+    copyTo(dst.entry(), inner, Return::new);
   }
 
   /// Appends instructions from `inner`'s entry block into `dstBb`, and copies all other blocks.
-  static void copyFrom(BB dstBb, CFG inner, Function<Argument, Jump> replaceReturn) {
+  static void copyTo(BB dstBb, CFG inner, BiFunction<Comments, Argument, Jump> replaceReturn) {
     var dst = dstBb.owner();
 
     var substitutedBbLabels = new HashMap<BB, String>();
@@ -51,11 +47,11 @@ public class CFGCopier {
 
       var bbCopy = bb.isEntry() ? dstBb : dst.bb(bbLabel);
       assert bbCopy != null;
-      bbCopy.appendParameters(bb.phiParameters());
+      bbCopy.appendPhiParameters(bb.phiParameters());
       bbCopy.appendStatements(Lists.mapLazy(bb.statements(), s -> copy(s, dst.scope())));
       bbCopy.setJump(
-          bb.jump() instanceof Return(var value)
-              ? replaceReturn.apply(value)
+          bb.jump() instanceof Return(var comments, var value)
+              ? replaceReturn.apply(comments, value)
               : substLabels(dst, bb.jump(), substitutedBbLabels));
     }
   }
@@ -71,26 +67,13 @@ public class CFGCopier {
     }
 
     var newCode = new CFG(newScope);
-    copyFrom(newCode, code);
-    return new Statement(stmt.assignee(), new Promise(innerType, effects, newCode));
+    copyTo(newCode, code);
+    return new Statement(
+        stmt.comments().copy(), stmt.assignee(), new Promise(innerType, effects, newCode));
   }
 
   private static Jump substLabels(CFG dst, Jump jump, Map<BB, String> substitutedBbLabels) {
-    return switch (jump) {
-      case Goto(var next) -> new Goto(substLabels(dst, next, substitutedBbLabels));
-      case If(var condition, var ifTrue, var ifFalse) ->
-          new If(
-              condition,
-              substLabels(dst, ifTrue, substitutedBbLabels),
-              substLabels(dst, ifFalse, substitutedBbLabels));
-      case Checkpoint(var success, var deopt) ->
-          new Checkpoint(
-              substLabels(dst, success, substitutedBbLabels),
-              substLabels(dst, deopt, substitutedBbLabels));
-      case Return(var value) -> new Return(value);
-      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-      case Unreachable() -> new Unreachable();
-    };
+    return jump.mapTargets(t -> substLabels(dst, t, substitutedBbLabels));
   }
 
   private static Target substLabels(CFG dst, Target target, Map<BB, String> substitutedBbLabels) {

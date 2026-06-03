@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -201,7 +201,7 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
       subAnalysis.run(state());
 
-      var returnState = subAnalysis.returnState();
+      S returnState = subAnalysis.returnState();
       if (returnState != null) {
         merge.accept(returnState);
       }

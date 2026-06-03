@@ -1,0 +1,33 @@
+#? stdlib
+`mostattributes<-` <- function (x, value) 
+{
+    if (length(value)) {
+        if (!is.list(value)) 
+            stop("'value' must be a list")
+        if (h.nam <- !is.na(inam <- match("names", names(value)))) {
+            n1 <- value[[inam]]
+            value <- value[-inam]
+        }
+        if (h.dim <- !is.na(idin <- match("dim", names(value)))) {
+            d1 <- value[[idin]]
+            value <- value[-idin]
+        }
+        if (h.dmn <- !is.na(idmn <- match("dimnames", names(value)))) {
+            dn1 <- value[[idmn]]
+            value <- value[-idmn]
+        }
+        attributes(x) <- value
+        dm <- attr(x, "dim")
+        L <- length(if (is.list(x)) unclass(x) else x)
+        if (h.dim && L == prod(d1)) 
+            attr(x, "dim") <- dm <- d1
+        if (h.dmn && !is.null(dm)) {
+            ddn <- lengths(dn1, use.names = FALSE)
+            if (all((dm == ddn)[ddn > 0])) 
+                attr(x, "dimnames") <- dn1
+        }
+        if (h.nam && is.null(dm) && L == length(n1)) 
+            attr(x, "names") <- n1
+    }
+    x
+}

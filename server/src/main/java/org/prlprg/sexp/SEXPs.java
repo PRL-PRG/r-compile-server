@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collector;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.BuiltinId;
 import org.prlprg.primitive.Complex;
@@ -45,8 +45,6 @@ public final class SEXPs {
   public static final RegSymSXP SUPER_ASSIGN = symbol("<<-");
   public static final RegSymSXP ASSIGN_TMP = symbol("*tmp*");
   public static final RegSymSXP ASSIGN_VTMP = symbol("*vtmp*");
-
-  public static final RegSymSXP DOT_EXTERNAL2 = symbol(".External2");
 
   static {
     Set.of("TRUE", "FALSE", "NULL", "NA", "Inf", "NaN")
@@ -319,6 +317,17 @@ public final class SEXPs {
     return new VecSXPImpl(data, attributes);
   }
 
+  public static Collector<SEXP, ?, VecSXP> toVec() {
+    return Collector.<SEXP, ArrayList<SEXP>, VecSXP>of(
+        ArrayList::new,
+        ArrayList::add,
+        (left, right) -> {
+          left.addAll(right);
+          return left;
+        },
+        SEXPs::vec);
+  }
+
   public static ExprSXP expr(SEXP[] data, Attributes attributes) {
     return new ExprSXPImpl(data, attributes);
   }
@@ -423,6 +432,10 @@ public final class SEXPs {
         parameters, body, environment, attributes == null ? Attributes.NONE : attributes);
   }
 
+  public static LangSXP lang(SymOrLangSXP fun) {
+    return lang(fun, NULL);
+  }
+
   public static LangSXP lang(SymOrLangSXP fun, SEXP... args) {
     return lang(fun, list(args));
   }
@@ -447,12 +460,8 @@ public final class SEXPs {
     return new LangSXPImpl(fun, args, attributes);
   }
 
-  public static LangSXP blockLang(SEXP... args) {
-    return lang(symbol("{"), args);
-  }
-
-  public static LangSXP blockLang(List<TaggedElem> args) {
-    return lang(symbol("{"), args);
+  public static LangSXP blockLang(List<SEXP> args) {
+    return lang(symbol("{"), list1(args));
   }
 
   public static RegSymSXP symbol(String name) {

@@ -8,21 +8,14 @@ import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.*;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
 
-@GNURTestSupport
 public class RDSReaderTest {
-
-  private final GNUR R;
-
-  public RDSReaderTest(GNUR R) {
-    this.R = R;
-  }
-
   @Test
   public void testInts() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("c(-.Machine$integer.max, -1L, 0L, NA, 1L, .Machine$integer.max)");
 
     if (sexp instanceof IntSXP ints) {
@@ -40,6 +33,8 @@ public class RDSReaderTest {
 
   @Test
   public void testLgls() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("c(TRUE, FALSE, NA)");
 
     if (sexp instanceof LglSXP logs) {
@@ -54,6 +49,8 @@ public class RDSReaderTest {
 
   @Test
   public void testReals() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("c(-.Machine$double.xmax, -1, 0, NA, 1, .Machine$double.xmax)");
 
     if (sexp instanceof RealSXP reals) {
@@ -72,6 +69,8 @@ public class RDSReaderTest {
 
   @Test
   public void testList() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("pairlist(a = 1L, 2, c = TRUE)");
 
     if (sexp instanceof ListSXP list) {
@@ -86,6 +85,8 @@ public class RDSReaderTest {
 
   @Test
   public void testListWithMissingValues() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("as.pairlist(alist(a=,b=))");
 
     if (sexp instanceof ListSXP list) {
@@ -99,6 +100,8 @@ public class RDSReaderTest {
 
   @Test
   public void testNamedList() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("list(a=1L, 2)");
 
     if (sexp instanceof VecSXP list) {
@@ -122,6 +125,8 @@ public class RDSReaderTest {
 
   @Test
   public void testClosure() {
+    var R = GNUR.instance();
+
     var sexp = (CloSXP) R.eval("function(x, y=1) 'abc' + x + length(y)");
 
     var formals = sexp.parameters();
@@ -137,6 +142,8 @@ public class RDSReaderTest {
 
   @Test
   public void testClosureWithBC() {
+    var R = GNUR.instance();
+
     var sexp = (CloSXP) R.eval("compiler::cmpfun(function(x, y=1) 'abc' + x + length(y))");
 
     var formals = sexp.parameters();
@@ -149,12 +156,16 @@ public class RDSReaderTest {
 
   @Test
   public void testExpression() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("parse(text='function() {}', keep.source = TRUE)");
     assertThat(sexp).isInstanceOf(ExprSXP.class);
   }
 
   @Test
   public void testNullInParams() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("quote(match('AsIs', cl, 0L, NULL))");
     // FIXME: assert on the number of parameters
     assertThat(sexp).isInstanceOf(LangSXP.class);
@@ -162,6 +173,8 @@ public class RDSReaderTest {
 
   @Test
   public void testNullInParamsInBC() {
+    var R = GNUR.instance();
+
     var sexp = (BCodeSXP) R.eval("compiler::compile(quote(match('AsIs', cl, 0L, NULL)))");
     var ast = (LangSXP) sexp.bc().consts().getFirst();
     // here we want to make sure that the trailing NULL did not get lost
@@ -170,24 +183,32 @@ public class RDSReaderTest {
 
   @Test
   public void testFormatAsIs() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("format.AsIs");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
 
   @Test
   public void testComplex() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("c(-1+1i, 0+0i, 1+1i)");
     assertThat(sexp).isInstanceOf(ComplexSXP.class);
   }
 
   @Test
   public void testRoundPOSIXt() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("round.POSIXt");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }
 
   @Test
   public void testLocalFuncationBC() {
+    var R = GNUR.instance();
+
     var sexp = R.eval("compiler::cmpfun(function(x) local(x))");
     assertThat(sexp).isInstanceOf(CloSXP.class);
   }

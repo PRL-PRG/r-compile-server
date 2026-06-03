@@ -1,0 +1,32 @@
+fun main() {
+  () -+> v1(I) { reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r1u:v1(I) |
+    r1 = f< B,B -+> I >(TRUE, TRUE);
+    r2 = f< B,B -+> I >(TRUE, FALSE);
+    r3 = f< B,B -+> I >(FALSE, TRUE);
+    r4 = f< B,B -+> I >(FALSE, FALSE);
+    r1u = box< I --> v1(I) >(r1);
+    return r1u;
+  }
+}
+
+fun f(cond1, cond2) {
+  (reg cond1:B, reg cond2:B) -+> I { reg r:I, reg x:I, reg y:I, reg z:I |
+    if cond1 then BB1() else BB2();
+  BB1():
+    r = 42;
+    if cond2 then BB3() else BB4();
+  BB2():
+    x = 24;
+    goto BB5();
+  BB3():
+    # r dominates this use
+    y = r;
+    goto BB5();
+  BB4():
+    # r dominates this use
+    z = r;
+    goto BB5();
+  BB5():
+    return 100;
+  }
+}

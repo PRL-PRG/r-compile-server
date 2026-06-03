@@ -11,8 +11,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
@@ -97,6 +97,8 @@ public final class CfgDominatorTree implements CfgAnalysis {
 
   /// Sorts dominators before dominees. Specifically, sorts each node by its depth in a
   /// dominator tree.
+  ///
+  /// Sorts unreachable blocks or blocks outside the tree last.
   public Comparator<BB> comparator() {
     // Get the depth of each node in a dominator tree
     var depth = new HashMap<BB, Integer>();
@@ -112,7 +114,7 @@ public final class CfgDominatorTree implements CfgAnalysis {
       }
     }
 
-    return Comparator.comparingInt(depth::get);
+    return Comparator.comparingInt(bb -> depth.getOrDefault(bb, Integer.MAX_VALUE));
   }
 
   private void run() {

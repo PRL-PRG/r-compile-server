@@ -2,14 +2,13 @@ package org.prlprg.parseprint;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.Writer;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.function.Consumer;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.util.InvalidAnnotationError;
 
 /**
@@ -54,9 +53,19 @@ public class Printer {
     return use(p -> p.withContext(ctx).print(o));
   }
 
+  /** Use a printer to print the given object to a file. */
+  public static void toFile(File output, Object o) throws IOException {
+    use(output, p -> p.print(o));
+  }
+
+  /** Use a printer and context to write the given object to a file. */
+  public static void toFile(File output, Object o, Object ctx) throws IOException {
+    use(output, p -> p.print(o), ctx);
+  }
+
   /** Use a printer and return the output as a string. */
   public static String use(Consumer<Printer> usePrinter) {
-    return PrettyPrintWriter.use(writer -> usePrinter.accept(new Printer(writer, null)));
+    return use(usePrinter, null);
   }
 
   /** Use a printer and return the output as a string. */
@@ -64,24 +73,19 @@ public class Printer {
     return PrettyPrintWriter.use(writer -> usePrinter.accept(new Printer(writer, ctx)));
   }
 
+  /** Use a printer and write the output to a file. */
+  public static void use(File output, Consumer<Printer> usePrinter) throws IOException {
+    use(output, usePrinter, null);
+  }
+
+  /** Use a printer and write the output to a file. */
+  public static void use(File output, Consumer<Printer> usePrinter, @Nullable Object ctx)
+      throws IOException {
+    PrettyPrintWriter.use(output, writer -> usePrinter.accept(new Printer(writer, ctx)));
+  }
+
   /** Create a printer which prints to the given writer. */
   public Printer(Writer output) {
-    writer = new PrettyPrintWriter(output);
-    context = null;
-  }
-
-  /**
-   * Create a printer which prints to the given file.
-   *
-   * @throws IOException if the file couldn't be opened.
-   */
-  public Printer(File output) throws IOException {
-    writer = new PrettyPrintWriter(output);
-    context = null;
-  }
-
-  /** Create a parser which prints to the given stream. */
-  public Printer(OutputStream output) {
     writer = new PrettyPrintWriter(output);
     context = null;
   }

@@ -1,6 +1,6 @@
 package org.prlprg.bc;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public class CompilerException extends RuntimeException {
   private final @Nullable Loc loc;

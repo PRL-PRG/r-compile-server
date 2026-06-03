@@ -1,25 +1,27 @@
 package org.prlprg.fir.check;
 
 import com.google.common.collect.Iterables;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
+import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.binding.Binding;
-import org.prlprg.fir.ir.callee.DispatchCallee;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.StaticCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.AssumeConstant;
-import org.prlprg.fir.ir.expression.AssumeFunction;
-import org.prlprg.fir.ir.expression.AssumeType;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
@@ -27,47 +29,52 @@ import org.prlprg.fir.ir.expression.Dup;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
 import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.expression.SuperLoad;
-import org.prlprg.fir.ir.expression.SuperStore;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Raise;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
-import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveScalar;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.util.Strings;
 
 /// Checks type and effect soundness.
+///
+/// Also checks that untyped expressions (e.g. no-ops and stores) aren't assigned
 public final class TypeAndEffectChecker extends Checker {
   @Override
-  public void doRun(Abstraction version) {
+  public String name() {
+    return "type";
+  }
+
+  @Override
+  protected void doRun(Abstraction version) {
     var function = function();
     if (function != null) {
-      // Check guaranteed effects and return type
+      // Check guaranteed effects
       var baselineEffects = function.baseline().effects();
-      var baselineReturnType = function.baseline().returnType();
       if (!version.effects().isSubsetOf(baselineEffects)) {
         report(
             version,
@@ -77,29 +84,35 @@ public final class TypeAndEffectChecker extends Checker {
                 + baselineEffects
                 + "\nIn fun "
                 + function.name()
-                + " { ... }");
-      }
-      if (!version.returnType().canBeAssignedTo(baselineReturnType)) {
-        report(
-            version,
-            "Version's return type must be assignable to its function's baseline's return type: "
-                + version.returnType()
-                + " isn't assignable to "
-                + baselineReturnType
-                + "\nIn fun "
-                + function.name()
-                + " { ... }");
+                + "("
+                + Strings.join(", ", function.parameterNames())
+                + ") { ... }");
       }
 
-      // Check that versions with strictly worse parameters have strictly worse effects/return.
+      // Check parameter count
+      if (version.parameters().size() != function.parameterNames().size()) {
+        report(
+            version,
+            "Version has "
+                + version.parameters().size()
+                + " parameters, but function has "
+                + function.parameterNames().size()
+                + "\nIn fun "
+                + function.name()
+                + "("
+                + Strings.join(", ", function.parameterNames())
+                + ") { ... }");
+      }
+
+      // Check that versions with strictly worse parameters have strictly worse effects.
       var signature = version.signature();
       for (var worse : function.versionsSorted().tailSet(version)) {
         var worseSignature = worse.signature();
         if (signature.hasNarrowerParameters(worseSignature)
-            && !signature.hasNarrowerEffectsAndReturn(worseSignature)) {
+            && !signature.effects().isSubsetOf(worseSignature.effects())) {
           report(
               version,
-              "Version has strictly narrower parameters than another, but not strictly narrower effects and return type:"
+              "Version has strictly narrower parameters than another, but not strictly narrower effects:"
                   + "\nThis version's signature: "
                   + signature
                   + "\nOther version's signature: "
@@ -114,16 +127,18 @@ public final class TypeAndEffectChecker extends Checker {
     new OnAbstraction(version).run();
   }
 
-  public static boolean assumeCanSucceed(Assume assume, Type argType) {
+  public static boolean assumeCanSucceed(Assumption assumption, Type argType) {
     var requiredType =
-        switch (assume) {
-          case AssumeType(var _, var type) -> type;
-          case AssumeConstant(var _, var constant) -> Type.of(constant.sexp());
+        switch (assumption) {
+          case AssumeType(_, var type) -> type;
+          case AssumeConstant(_, var constant) -> constant.type();
           case AssumeFunction _ -> Type.CLOSURE;
+          case AssumeLoadFun _, AssumeLoadVar _ ->
+              throw new IllegalArgumentException("Assumption has no target, so this isn't called");
         };
     // Every runtime value's type is guaranteed to either be `argType` or a subtype.
-    // If and only if `requiredType` is a subtype, it's possible that a runtime type will be it.
-    return requiredType.isSubtypeOf(argType);
+    // Iff `requiredType` is disjoint, the assumption can't succeed.
+    return argType.isSubtypeOf(requiredType) || requiredType.isSubtypeOf(argType);
   }
 
   private class OnAbstraction {
@@ -153,9 +168,8 @@ public final class TypeAndEffectChecker extends Checker {
 
       // Check return type well-formedness
       onCfg.checkWellFormed(scope.returnType());
-      if (!scope.returnType().canBeAssignedTo(Type.ANY_VALUE)) {
-        onCfg.report(
-            "Return type's kind must subtype `V` and it must be definite: " + scope.returnType());
+      if (!scope.returnType().isValue()) {
+        onCfg.report("Return type must be a value: " + scope.returnType());
       }
 
       // Check return type and effects are expected
@@ -183,13 +197,21 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void run(Statement statement) {
+        if (statement.equals(Statement.NOOP)) {
+          return;
+        }
+
         var expr = statement.expression();
         var assignee = statement.assignee();
 
         run(expr);
 
         var type = inferType.of(expr);
-        if (type != null && assignee != null) {
+        if (assignee != null) {
+          if (type == null) {
+            report("Can't assign this, it doesn't output a value: " + expr);
+          }
+
           var assigneeType = scope.typeOf(assignee);
           if (assigneeType == null) {
             report("Undeclared register: " + assignee);
@@ -207,12 +229,15 @@ public final class TypeAndEffectChecker extends Checker {
         }
 
         switch (expression) {
-          case Aea(var _) -> {}
-          case Assume assume -> {
-            var target = assume.target();
+          case Aea _ -> {}
+          case Assume(var assumption) -> {
+            var target = assumption.target();
+            if (target == null) {
+              break;
+            }
             var argType = scope.typeOf(target);
 
-            if (argType != null && !assumeCanSucceed(assume, argType)) {
+            if (argType != null && !assumeCanSucceed(assumption, argType)) {
               report(
                   "Assumption can't succeed, clearly we never recorded it ("
                       + target
@@ -220,82 +245,70 @@ public final class TypeAndEffectChecker extends Checker {
                       + argType
                       + ")");
             }
+
+            var function =
+                switch (assumption) {
+                  case AssumeFunction a -> a.function();
+                  case AssumeLoadFun a -> a.function();
+                  default -> null;
+                };
+            if (function != null && !function.canDispatch()) {
+              report("Assume non-dispatchable function:\n" + function);
+            }
           }
-          case Call call -> {
-            var argumentTypes = call.callArguments().stream().map(inferType::of).toList();
+          case Call(var callee, var callArguments) -> {
+            var argumentTypes = callArguments.stream().map(inferType::of).toList();
 
-            switch (call.callee()) {
-              case StaticCallee(var _, var callee) -> {
-                if (callee.parameters().size() != argumentTypes.size()) {
-                  report(
-                      "Call expects "
-                          + callee.parameters().size()
-                          + " arguments, got "
-                          + argumentTypes.size());
-                }
-                for (int i = 0;
-                    i < Math.min(callee.parameters().size(), argumentTypes.size());
-                    i++) {
-                  var param = callee.parameters().get(i);
-                  var argType = argumentTypes.get(i);
-                  checkMatches(argType, param.type(), "Type mismatch in argument " + i);
-                }
-              }
-              case DispatchCallee(var function, var signature) -> {
-                var version = signature == null ? function.baseline() : function.guess(signature);
+            switch (callee) {
+              case StaticFnCallee(
+                      var functionRef,
+                      var isDispatch,
+                      var closureWithEnv,
+                      var signature) -> {
+                var function = functionRef.get();
+                var version = function.guess(signature);
 
-                // If there's no explicit version, the actual version is unknown, but this is
-                // also an error: an explicit signature means we expect a known version, though
-                // it may have weaker parameters or stronger effects/return.
                 if (version == null) {
                   report(
                       "Call to "
                           + function.name()
                           + " with signature "
                           + signature
-                          + " has no matching version");
+                          + " has no minimum version");
                 }
 
-                // Check arguments against baseline or signature parameters.
-                if (signature == null) {
-                  if (version.parameters().size() != argumentTypes.size()) {
-                    report(
-                        "Baseline expects "
-                            + version.parameters().size()
-                            + " arguments, got "
-                            + argumentTypes.size());
+                if (isDispatch) {
+                  if (!function.canDispatch()) {
+                    report("Dispatch to non-dispatchable function:\n" + function);
+                  } else if (signature.returnType().kind().repr() != Repr.SEXP) {
+                    report("Dispatch to a version that doesn't return SEXP: " + signature);
                   }
-                  for (int i = 0;
-                      i < Math.min(version.parameters().size(), argumentTypes.size());
-                      i++) {
-                    var param = version.parameters().get(i);
-                    var argType = argumentTypes.get(i);
-                    checkMatches(
-                        argType,
-                        param.type(),
-                        "Type mismatch in argument " + i + " (for baseline)");
-                  }
-                } else {
-                  if (signature.parameterTypes().size() != argumentTypes.size()) {
-                    report(
-                        "Signature expects "
-                            + signature.parameterTypes().size()
-                            + " arguments, got "
-                            + argumentTypes.size());
-                  }
-                  for (int i = 0;
-                      i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
-                      i++) {
-                    var paramType = signature.parameterTypes().get(i);
-                    var argType = argumentTypes.get(i);
-                    checkMatches(
-                        argType, paramType, "Type mismatch in argument " + i + " (for signature)");
-                  }
+                }
+
+                var closureWithEnvType = scope.typeOf(closureWithEnv);
+                checkSubtype(
+                    closureWithEnvType, Type.CLOSURE, "Environment provider must be a closure");
+
+                // Check arguments against signature parameters.
+                if (signature.parameterTypes().size() != argumentTypes.size()) {
+                  report(
+                      "Signature expects "
+                          + signature.parameterTypes().size()
+                          + " arguments, got "
+                          + argumentTypes.size());
+                }
+                for (int i = 0;
+                    i < Math.min(signature.parameterTypes().size(), argumentTypes.size());
+                    i++) {
+                  var paramType = signature.parameterTypes().get(i);
+                  var argType = argumentTypes.get(i);
+                  checkMatches(
+                      argType, paramType, "Type mismatch in argument " + i + " (for signature)");
                 }
               }
               case DynamicCallee(var actualCallee, var argumentNames) -> {
                 var calleeType = scope.typeOf(actualCallee);
-                if (calleeType != null && !calleeType.isDefinitely(Kind.Closure.class)) {
+                if (calleeType != null && !calleeType.isSubtypeOf(Type.CLOSURE)) {
                   report(
                       "Dynamic callee must be a closure, got "
                           + actualCallee
@@ -315,33 +328,46 @@ public final class TypeAndEffectChecker extends Checker {
               }
             }
           }
-          case Cast(var _, var _), Closure _ -> {}
+          case Cast _ -> {}
+          case Closure(_, var functionRef) -> {
+            var function = functionRef.get();
+
+            if (!function.canDispatch()) {
+              report("Closure of non-dispatchable function:\n" + function);
+            }
+          }
           case Dup(var value) -> {
             var type = scope.typeOf(value);
             if (type == null) {
               break;
             }
 
-            if (!type.isDefinitely(PrimitiveVector.class)) {
+            if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
             }
           }
-          case Force(var value) -> {
+          case Force(var isMaybe, var value) -> {
+            if (isMaybe) {
+              break;
+            }
+
             var type = scope.typeOf(value);
             if (type == null) {
               break;
             }
 
-            if (!(type.kind() instanceof Kind.Promise(var _, var _))) {
-              report("Can't force non-promise, got " + type);
-            } else if (type.concreteness() == Concreteness.MAYBE) {
-              report("Can't force maybe-non-promise (use maybe-force), got " + type);
+            if (!type.isPromise()) {
+              report("Can't force non-(definite-)promise, got " + type);
             }
           }
-          case Load(var _), LoadFun(var _, var _), MaybeForce(var _) -> {}
+          case Load _ -> {}
           case MkVector(var kind, var elements) -> {
             switch (kind) {
-              case PrimitiveVector(var primitiveKind) -> {
+              case PrimitiveVector(var isScalar, var primitiveKind) -> {
+                if (isScalar) {
+                  report("`box` is required to create typed size-1 vectors (i.e. boxed scalars)");
+                }
+
                 var elementType = Type.primitiveScalar(primitiveKind);
 
                 for (var i = 0; i < elements.size(); i++) {
@@ -355,13 +381,29 @@ public final class TypeAndEffectChecker extends Checker {
                   checkSubtype(type, elementType, "Type mismatch in element " + i);
                 }
               }
-              case Dots() -> {}
+              case Dots _ -> {}
               default -> report("Can't create a vector of kind " + kind);
             }
           }
-          case MkEnv(), PopEnv(), Placeholder() -> {}
+          case MkEnv _, Noop _, PopEnv _ -> {}
           case Promise(var expectedInnerType, var expectedEffects, var promiseCode) -> {
             checkWellFormed(expectedInnerType);
+            if (!expectedInnerType.isValue()) {
+              report(
+                  "Promise inner type must be a value (in <"
+                      + expectedInnerType
+                      + " "
+                      + expectedEffects
+                      + ">)");
+            }
+            if (expectedInnerType.kind().repr() != Repr.SEXP) {
+              report(
+                  "Promise inner type must be a SEXP (in <"
+                      + expectedInnerType
+                      + " "
+                      + expectedEffects
+                      + ">)");
+            }
             if (expectedInnerType.ownership() != Ownership.SHARED) {
               report(
                   "Promise inner type must be shared (in <"
@@ -379,9 +421,9 @@ public final class TypeAndEffectChecker extends Checker {
             checkAssignment(actualInnerType, expectedInnerType, "Promise inner type mismatch");
             checkSubEffects(actualEffects, expectedEffects, "Promise effects mismatch");
           }
-          case ReflectiveLoad(var promise, var _) -> {
+          case ReflectiveLoad(var promise, _) -> {
             var promiseType = scope.typeOf(promise);
-            if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
+            if (promiseType != null && !promiseType.isPromise()) {
               report(
                   "Reflective read target must be a promise, got "
                       + promise
@@ -390,9 +432,9 @@ public final class TypeAndEffectChecker extends Checker {
                       + "}");
             }
           }
-          case ReflectiveStore(var promise, var _, var _) -> {
+          case ReflectiveStore(var promise, _, _) -> {
             var promiseType = scope.typeOf(promise);
-            if (promiseType != null && !promiseType.isDefinitely(Kind.Promise.class)) {
+            if (promiseType != null && !promiseType.isPromise()) {
               report(
                   "Reflective write target must be a promise, got "
                       + promise
@@ -401,22 +443,27 @@ public final class TypeAndEffectChecker extends Checker {
                       + "}");
             }
           }
-          case Store(var variable, var value) -> {
+          case Store(var storeType, var variable, var value) -> {
+            if (storeType == StoreType.SUPER_VAR) {
+              break;
+            }
+
             var type = scope.typeOf(variable);
             var valueType = scope.typeOf(value);
 
             checkAssignment(valueType, type, "Can't assign " + value + " to " + variable);
 
-            if (value instanceof Use) {
+            if (value instanceof Consume) {
               report(
-                  "Never store a `use` because the load can't be optimized. Instead, assign it to a register and store that.");
+                  "Never store a `consume` because the load can't be optimized. Instead, assign it to a register and store that.");
             }
           }
           case SubscriptRead(var target, var index) -> {
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
 
-            if (targetType != null && !targetType.isDefinitely(PrimitiveVector.class)) {
+            if (targetType != null
+                && (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector))) {
               report(
                   "Subscript read target must be a vector, got "
                       + target
@@ -436,7 +483,7 @@ public final class TypeAndEffectChecker extends Checker {
             var valueType = scope.typeOf(value);
 
             if (targetType != null) {
-              if (!targetType.isDefinitely(PrimitiveVector.class)) {
+              if (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector)) {
                 report(
                     "Subscript write target must be a vector, got "
                         + target
@@ -457,7 +504,8 @@ public final class TypeAndEffectChecker extends Checker {
 
             checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
 
-            if (valueType != null && !valueType.isDefinitely(PrimitiveScalar.class)) {
+            if (valueType != null
+                && (!valueType.isValue() || !(valueType.kind() instanceof PrimitiveScalar))) {
               report(
                   "Subscript write value must be a primitive scalar, got "
                       + value
@@ -466,31 +514,30 @@ public final class TypeAndEffectChecker extends Checker {
                       + "}");
             }
             if (targetType != null
-                && targetType.kind() instanceof PrimitiveVector(var targetKind)
                 && valueType != null
+                && targetType.kind() instanceof PrimitiveVector(_, var targetKind)
                 && valueType.kind() instanceof PrimitiveScalar(var valueKind)
-                && valueKind != targetKind) {
+                && targetKind != valueKind) {
               report(
                   "Subscript write kind mismatch: expected " + targetKind + ", got " + valueKind);
             }
           }
-          case SuperLoad(var _), SuperStore(var _, var _) -> {}
         }
       }
 
       void run(Argument argument) {
         switch (argument) {
-          case Constant(var _), Read(var _) -> {}
-          case Use(var register) -> {
+          case Constant _, Read _ -> {}
+          case Consume(var register) -> {
             var type = scope.typeOf(register);
             if (type == null) {
               break;
             }
 
-            if (!type.isDefinitely(PrimitiveVector.class)) {
-              report("Can't use non-vector, got " + type);
+            if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
+              report("Can't consume non-(definite-)vector, got " + type);
             } else if (type.ownership() != Ownership.OWNED) {
-              report("Can't use non-owned vector, got " + type);
+              report("Can't consume non-owned vector, got " + type);
             }
           }
         }
@@ -498,14 +545,14 @@ public final class TypeAndEffectChecker extends Checker {
 
       void run(Jump jump) {
         switch (jump) {
-          case Checkpoint(var _, var _),
-              Deopt(var _, var _),
-              Goto(var _),
-              Return(var _),
-              Unreachable() -> {}
-          case If(var condition, var _, var _) -> {
+          case Checkpoint _, Deopt _, Goto _, Return _, Unreachable _ -> {}
+          case If(_, var condition, _, _) -> {
             var condType = scope.typeOf(condition);
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");
+          }
+          case Raise(_, var value) -> {
+            var valueType = scope.typeOf(value);
+            checkSubtype(valueType, Type.STRING, "Type mismatch in raise");
           }
         }
       }
@@ -515,10 +562,10 @@ public final class TypeAndEffectChecker extends Checker {
         var type = binding.type();
 
         if (!type.isWellFormed()) {
-          report("Variable type is not well-formed: " + binding);
+          report("Binding type is not well-formed: " + binding);
         }
         if (!isNamed && type.ownership() == Ownership.FRESH) {
-          report("Variables can't be fresh: " + binding);
+          report("Registers can't be fresh: " + binding);
         }
         if (isNamed && type.ownership() != Ownership.SHARED) {
           report("Named variables must be shared: " + binding);

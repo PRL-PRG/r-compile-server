@@ -1,12 +1,14 @@
 package org.prlprg.fir.opt.specialize;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.variable.Register;
 
@@ -25,14 +27,14 @@ public record ElideUseSubscriptWrite() implements SpecializeOptimization {
       @Nullable Register assignee,
       Expression expression,
       Abstraction scope,
+      AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof SubscriptWrite(var target, var _, var _))
-        || !(target instanceof Use)) {
+    if (!(expression instanceof SubscriptWrite(var target, _, _)) || !(target instanceof Consume)) {
       return expression;
     }
 
-    return Expression.NOOP;
+    return new Noop();
   }
 }

@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.module;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,12 +13,14 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.CommentParser;
+import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.properties.FunctionUserProperties;
+import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -27,13 +30,14 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 
 public final class Function {
   // Backlink
   private final Module owner;
 
   // Data
+  private final FunctionUserProperties userProperties = new FunctionUserProperties();
+  private final Comments comments;
   private final NamedVariable name;
   private final List<NamedVariable> parameterNames;
   /// Versions are stored so that removing a version doesn't decrement other versions' indices,
@@ -44,8 +48,11 @@ public final class Function {
   private int nextVersionIndex = 0;
 
   // Cached
-  /// See [#versionsSorted()].
-  private final SortedSet<Abstraction> versionsSorted = new TreeSet<>();
+  /// See [#versionsSorted()]
+  private final SortedSet<Abstraction> versionsSorted =
+      new TreeSet<>(
+          Comparator.<Abstraction>comparingInt(v -> !versions.isEmpty() && v == baseline() ? 1 : 0)
+              .thenComparing(Comparator.naturalOrder()));
 
   Function(
       Module owner,
@@ -53,6 +60,7 @@ public final class Function {
       List<NamedVariable> parameterNames,
       List<Parameter> baselineParameters,
       boolean baselineIsStub) {
+    comments = new Comments();
     this.owner = owner;
     this.name = name;
     this.parameterNames = List.copyOf(parameterNames);
@@ -67,7 +75,7 @@ public final class Function {
         .map(
             paramName -> {
               var baselineParamName = resemblance(paramName, baselineParamNames);
-              var paramType = paramName.equals(NamedVariable.DOTS) ? Type.DOTS : Type.ANY;
+              var paramType = paramName.equals(NamedVariable.DOTS) ? Type.DOTS : Type.ANY_SEXP;
               baselineParamNames.add(baselineParamName);
               return new Parameter(baselineParamName, paramType);
             })
@@ -92,6 +100,14 @@ public final class Function {
     return owner;
   }
 
+  public FunctionUserProperties userProperties() {
+    return userProperties;
+  }
+
+  public Comments comments() {
+    return comments;
+  }
+
   public NamedVariable name() {
     return name;
   }
@@ -100,22 +116,22 @@ public final class Function {
     return parameterNames;
   }
 
-  /// Use [#version(int)] to get the version at an index.
+  /// Use [#version(int)] to get the version at an index
   public @UnmodifiableView SequencedCollection<Abstraction> versions() {
     return Collections.unmodifiableSequencedCollection(versions.sequencedValues());
   }
 
   /// Versions that are sorted so that "better" ones are before "worse" ones: a version is
   /// "better" if its parameter types, effects, and return type are narrower (see
-  /// [Abstraction#compareTo(Abstraction)]).
+  /// [Abstraction#compareTo(Abstraction)]), or it's not baseline
   public @UnmodifiableView SortedSet<Abstraction> versionsSorted() {
     return Collections.unmodifiableSortedSet(versionsSorted);
   }
 
-  /// Indexes of versions that exist in the function.
+  /// Indexes of versions that exist in the function
   ///
   /// When a version removed, it's index isn't reused, because that leads to tricky bugs when
-  /// said version or later ones are referenced by index (e.g. in serialized code).
+  /// said version or later ones are referenced by index (e.g. in serialized code)
   public @UnmodifiableView SequencedCollection<Integer> versionIndices() {
     return Collections.unmodifiableSequencedCollection(versions.sequencedKeySet());
   }
@@ -124,7 +140,14 @@ public final class Function {
     return versions.firstEntry().getValue();
   }
 
-  /// @throws IllegalArgumentException If there's no version at the index.
+  /// A function can only be dispatched if its baseline's parameter and return types are SEXPs
+  public boolean canDispatch() {
+    return baseline().parameters().stream()
+            .allMatch(param -> param.type().kind().repr() == Repr.SEXP)
+        && baseline().returnType().kind().repr() == Repr.SEXP;
+  }
+
+  /// @throws IllegalArgumentException If there's no version at the index
   public Abstraction version(int index) {
     var version = versions.get(index);
     if (version == null) {
@@ -150,12 +173,25 @@ public final class Function {
     return index;
   }
 
+  /// Gets the *worst* version whose parameters are more permissive than `signature`, and whose
+  /// return value is *not disjoint*
+  public @Nullable Abstraction guessWorst(Signature signature) {
+    for (var version : versionsSorted.reversed()) {
+      if (signature.hasNarrowerParameters(version.signature())
+          && (version.signature().returnType().isSubtypeOf(signature.returnType())
+              || signature.returnType().isSubtypeOf(version.signature().returnType()))) {
+        return version;
+      }
+    }
+    return null;
+  }
+
   /// Gets the best version whose signature can be substituted with `signature` in a call, i.e.
   /// the best version with more permissive parameters and more restrictive effects/return.
   public @Nullable Abstraction guess(Signature signature) {
     for (var version : versionsSorted) {
       if (signature.hasNarrowerParameters(version.signature())
-          && version.signature().hasNarrowerEffectsAndReturn(signature)) {
+          && version.signature().hasNarrowerPostconditions(signature)) {
         return version;
       }
     }
@@ -174,7 +210,7 @@ public final class Function {
         .filter(
             other ->
                 other.signature().hasNarrowerParameters(version.signature())
-                    && other.signature().hasNarrowerEffectsAndReturn(version.signature()));
+                    && other.signature().hasNarrowerPostconditions(version.signature()));
   }
 
   public Abstraction addVersion(List<Parameter> params, boolean isStub) {
@@ -218,6 +254,12 @@ public final class Function {
   private void print(Printer p) {
     var w = p.writer();
 
+    p.print(comments);
+
+    if (userProperties.strict()) {
+      w.write("@strict\n");
+    }
+
     w.write("fun ");
     p.print(name);
 
@@ -241,15 +283,24 @@ public final class Function {
   }
 
   public record ParseContext(
-      Module owner, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
+      Module owner, FunctionRef.ParseContext forRef, @Nullable Object inner) {}
 
   @ParseMethod
   private Function(Parser p1, ParseContext ctx) {
     owner = ctx.owner;
     var p = p1.withContext(ctx.inner);
-    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.postModule, p.context()));
+    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.forRef, p.context()));
 
     var s = p.scanner();
+
+    comments = p.parse(Comments.class);
+
+    if (s.trySkip('@')) {
+      switch (s.readIdentifierOrKeyword()) {
+        case "strict" -> userProperties.setStrict(true);
+        case String unknown -> throw s.fail("unknown user property: @" + unknown);
+      }
+    }
 
     s.assertAndSkip("fun ");
     name = p.parse(NamedVariable.class);
@@ -258,8 +309,6 @@ public final class Function {
 
     s.assertAndSkip('{');
     for (; !s.nextCharIs('}'); nextVersionIndex++) {
-      CommentParser.skipComments(s);
-
       // Skip removed version but increment the index (hence the weird `for` loop).
       if (s.trySkip("<removed>")) {
         if (versions.isEmpty()) {

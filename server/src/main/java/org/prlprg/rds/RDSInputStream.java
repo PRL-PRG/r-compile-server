@@ -63,4 +63,10 @@ class RDSInputStream implements Closeable {
     }
     return doubles;
   }
+
+  public byte[] readBytes(int length) throws IOException {
+    var buf = new byte[length];
+    in.readFully(buf, 0, length);
+    return buf;
+  }
 }

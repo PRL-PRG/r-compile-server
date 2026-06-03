@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.bc.BcInstr.Add;
 import org.prlprg.bc.BcInstr.And;
 import org.prlprg.bc.BcInstr.And1st;
@@ -131,6 +131,7 @@ import org.prlprg.bc.BcInstr.VecSubassign2;
 import org.prlprg.bc.BcInstr.VecSubset;
 import org.prlprg.bc.BcInstr.VecSubset2;
 import org.prlprg.bc.BcInstr.Visible;
+import org.prlprg.bc2fir.BC2FirCFGCompiler;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
@@ -169,9 +170,6 @@ import org.prlprg.sexp.VectorSXP;
  * https://homepage.cs.uiowa.edu/~luke/R/compiler/compiler.pdf</a>
  */
 public class BCCompiler {
-  /** The default optimization level in GNU-R's {@code compiler::cmpfun} and here. */
-  public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
-
   /** SEXP types that can participate in constan folding. */
   private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES =
       Set.of(LGL, INT, REAL, CPLX, SEXPType.STR);
@@ -238,7 +236,7 @@ public class BCCompiler {
    * index into an array of math functions.
    *
    * <p>TODO: May want to move this somewhere else, because it's also used by {@link
-   * org.prlprg.bc2fir.CFGCompiler}.
+   * BC2FirCFGCompiler}.
    */
   public static final List<String> MATH1_FUNS =
       List.of(
@@ -355,37 +353,8 @@ public class BCCompiler {
   /** The current compilation context. */
   private Context ctx;
 
-  /**
-   * The optimization level:
-   *
-   * <table>
-   *     <tr>
-   *         <td>Level</td><td>Description (from compiler.R)</td>
-   *     </tr>
-   *     <tr>
-   *         <td>0</td>
-   *         <td>No inlining</td>
-   *     </tr>
-   *     <tr>
-   *         <td>1</td>
-   *         <td>Functions in the base packages found through a namespace that are not
-   *             shadowed by function arguments or visible local assignments may be inlined</td>
-   *     </tr>
-   *     <tr>
-   *         <td>2</td>
-   *         <td>In addition to the inlining permitted by Level 1, functions that are
-   *             syntactically special or are considered core language functions and are found via the global
-   *             environment at compile time may be inlined. Other functions in the base packages found via the
-   *             global environment may be inlined with a guard that ensures at runtime that the inlined function
-   *             has not been masked; if it has, then the call in handled by the AST interpreter.</td>
-   *     </tr>
-   *     <tr>
-   *         <td>3</td>
-   *         <td>Any function in the base packages found via the global environment may be inlined.</td>
-   *     </tr>
-   * </table>
-   */
-  private int optimizationLevel = DEFAULT_OPTIMIZATION_LEVEL;
+  /** The optimization level. */
+  private BcOptLevel optimizationLevel = BcOptLevel.DEFAULT;
 
   /**
    * Creates a compiler for the given expression, context, session, and location.
@@ -430,11 +399,11 @@ public class BCCompiler {
    */
   private BCCompiler fork(SEXP expr, Context ctx, Loc loc) {
     var compiler = new BCCompiler(expr, ctx, rsession, loc);
-    compiler.setOptimizationLevel(optimizationLevel);
+    compiler.optimizationLevel = optimizationLevel;
     return compiler;
   }
 
-  public void setOptimizationLevel(int level) {
+  public void setOptimizationLevel(BcOptLevel level) {
     this.optimizationLevel = level;
   }
 
@@ -670,7 +639,7 @@ public class BCCompiler {
    * @return true if the function was inlined, false otherwise
    */
   private boolean tryInlineCall(RegSymSXP fun, LangSXP call) {
-    if (optimizationLevel == 0) {
+    if (optimizationLevel == BcOptLevel.NONE) {
       return false;
     }
 
@@ -792,29 +761,30 @@ public class BCCompiler {
    * @return the inline information or empty if the function is not inlinable
    */
   private Optional<InlineInfo> getInlineInfo(String name, boolean guardOK) {
-    if (FORBIDDEN_INLINES.contains(name) || optimizationLevel < 1) {
+    if (FORBIDDEN_INLINES.contains(name) || optimizationLevel == BcOptLevel.NONE) {
       return Optional.empty();
     }
 
     // FIXME: this considers everything else "global" which is not true, but cannot be
     //  fixed until we have a proper environment chain supported in the Rsession
     return ctx.resolve(name)
-        .map(
+        .flatMap(
             res -> {
-              if (res.first() instanceof NamespaceEnvSXP) {
-                // if is in a namespace we do not have to worry about
-                // shadowing
-                return new InlineInfo(name, res.first(), res.second(), false);
-              } else if (optimizationLevel >= 3
-                  || (optimizationLevel == 2 && LANGUAGE_FUNS.contains(name))) {
-                return new InlineInfo(name, res.first(), res.second(), false);
+              if (optimizationLevel == BcOptLevel.MAX
+                  || ((optimizationLevel == BcOptLevel.DEFAULT
+                          || optimizationLevel == BcOptLevel.FIR)
+                      && LANGUAGE_FUNS.contains(name))
+                  ||
+                  // if is in a namespace we do not have to worry about shadowing
+                  res.first() instanceof NamespaceEnvSXP) {
+                return Optional.of(new InlineInfo(name, res.first(), res.second(), false));
               } else if (guardOK && res.first().isBase()) {
                 // this is the case when the function comes from baseenv()
                 // therefore it could be shadowed by some other function
                 // and thus needs to be guarded
-                return new InlineInfo(name, res.first(), res.second(), true);
+                return Optional.of(new InlineInfo(name, res.first(), res.second(), true));
               } else {
-                return null;
+                return Optional.empty();
               }
             });
   }
@@ -1097,6 +1067,7 @@ public class BCCompiler {
 
     usingCtx(ctx.nonTailContext(), () -> compile(v));
     cb.addInstr(ctx.isReturnJump() ? new ReturnJmp() : new Return());
+    maintainStackAfterJumpForFir();
 
     return true;
   }
@@ -1317,6 +1288,7 @@ public class BCCompiler {
     if (loop != null) {
       if (loop.gotoOK()) {
         cb.addInstr(new Goto(isBreak ? loop.end() : loop.start()));
+        maintainStackAfterJumpForFir();
         return true;
       } else {
         return inlineSpecial(call);
@@ -1735,7 +1707,7 @@ public class BCCompiler {
 
     // 6. compile the cases
 
-    // > emit code to signal an error if a numeric switch hist an
+    // > emit code to signal an error if a numeric switch hits an
     // > empty alternative (fall through, as for character, might
     // > make more sense but that isn't the way switch() works)
     if (miss.contains(true)) {
@@ -1744,6 +1716,11 @@ public class BCCompiler {
           SEXPs.lang(
               SEXPs.symbol("stop"),
               SEXPs.list(SEXPs.string("empty alternative in numeric switch"))));
+      // Ensure the stack is consistent for FIR
+      // It doesn't matter in GNU-R because control-flow exits after the `stop` call
+      if (!ctx.isTailCall() && optimizationLevel == BcOptLevel.FIR) {
+        cb.addInstr(new Pop());
+      }
     }
 
     // code for the default case
@@ -1970,6 +1947,9 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarSubset(LangSXP call) {
+    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
+    // because the `GetterCall` compiles a symbol index into a load.
+
     if (anyDots(call.args()) || call.args().size() != 2) {
       return false;
     }
@@ -1993,6 +1973,10 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketSubSet(boolean doubleBracket, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return false;
+    }
+
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       // inline cmpGetterDispatch from the R compiler
 
@@ -2041,6 +2025,9 @@ public class BCCompiler {
   }
 
   private boolean inlineDollarAssign(FlattenLHS flhs, LangSXP call) {
+    // We can't skip if `optimizationLevel == BcOptLevel.FIR`,
+    // because the `GetterCall` compiles a symbol index into a load.
+
     var place = flhs.temp();
     if (anyDots(place.args()) || place.args().size() != 2) {
       return false;
@@ -2061,6 +2048,10 @@ public class BCCompiler {
   }
 
   private boolean inlineSquareBracketAssign(boolean doubleSquare, FlattenLHS flhs, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return false;
+    }
+
     var place = flhs.temp();
 
     if (dotsOrMissing(place.args()) || place.args().hasTags() || place.args().size() < 2) {
@@ -2112,6 +2103,10 @@ public class BCCompiler {
   }
 
   private boolean inlineSubset(boolean doubleSquare, LangSXP call) {
+    if (optimizationLevel == BcOptLevel.FIR) {
+      return inlineSpecial(call);
+    }
+
     if (dotsOrMissing(call.args()) || call.args().hasTags() || call.args().size() < 2) {
       if (anyDots(call.args()) || call.args().isEmpty()) {
         return inlineSpecial(call);
@@ -2176,6 +2171,13 @@ public class BCCompiler {
       return true;
     } else {
       return false;
+    }
+  }
+
+  private void maintainStackAfterJumpForFir() {
+    if (!ctx.isTailCall() && optimizationLevel == BcOptLevel.FIR) {
+      // Maintain stack for FIŘ
+      cb.addInstr(new LdConst(cb.addConst(SEXPs.symbol(".firStackStub"))));
     }
   }
 

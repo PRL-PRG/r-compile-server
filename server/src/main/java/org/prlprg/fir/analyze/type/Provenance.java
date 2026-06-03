@@ -5,7 +5,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.generic.AbstractInterpretation;
@@ -13,8 +13,8 @@ import org.prlprg.fir.analyze.type.Provenance.ActionSet;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -27,10 +27,10 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Lists;
 
-/// Compute which registers are read, written, `use`d, or captured at any point in a [CFG].
+/// Compute which registers are read, written, `consume`d, or captured at any point in a [CFG].
 ///
 /// Effectively a general liveness analysis with extra information to enforce provenance
-/// invariants (registers that are `use`d can't be read afterward or captured anywhere).
+/// invariants (registers that are `consume`d can't be read afterward or captured anywhere).
 ///
 /// Unlike [InferType] and [InferEffects], this analysis isn't on-demand: constructing runs the
 /// full analysis, then [Provenance#at(BB, int)] and [Provenance#returnState()] queries the results.
@@ -69,8 +69,8 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     @Override
     protected void runEntry(BB bb) {
       for (var phi : bb.phiParameters()) {
-        if (state().use.contains(phi)) {
-          report("Write after use: ", phi);
+        if (state().consume.contains(phi)) {
+          report("Write after consume: ", phi);
         }
       }
       state().write.addAll(bb.phiParameters());
@@ -85,15 +85,15 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
       if (assignee != null) {
         // Check and update flow state
-        if (state().use.contains(assignee)) {
-          report("Write after use: ", assignee);
+        if (state().consume.contains(assignee)) {
+          report("Write after consume: ", assignee);
         }
         state().write.add(assignee);
       }
     }
 
     void run(Expression expression) {
-      if (expression instanceof Promise(var _, var _, var code)) {
+      if (expression instanceof Promise(_, _, var code)) {
         runSubAnalysis(code, state()::mergePromise);
       } else {
         for (var argument : expression.arguments()) {
@@ -104,30 +104,30 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
     void run(Argument argument) {
       switch (argument) {
-        case Constant(var _) -> {}
+        case Constant _ -> {}
         // Ensure register is written before read
         case Read(var variable) -> {
           if (!state().write.contains(variable)) {
             report("Read before write: ", variable);
           }
-          if (state().use.contains(variable)) {
-            report("Read after use: ", variable);
+          if (state().consume.contains(variable)) {
+            report("Read after consume: ", variable);
           }
           state().read.add(variable);
         }
-        // Ensure register is written before use, and not used or captured.
-        case Use(var register) -> {
+        // Ensure register is written before consume, and not consumed or captured.
+        case Consume(var register) -> {
           if (!state().write.contains(register)) {
-            report("Use before write: ", register);
+            report("Consume before write: ", register);
           }
-          if (state().use.contains(register)) {
-            report("Use after use: ", register);
+          if (state().consume.contains(register)) {
+            report("Consume after consume: ", register);
           }
           if (state().capture.contains(register)) {
-            report("Use after capture: ", register);
+            report("Consume after capture: ", register);
           }
           state().read.add(register);
-          state().use.add(register);
+          state().consume.add(register);
         }
       }
     }
@@ -160,7 +160,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
   public static class ActionSet implements AbstractInterpretation.State<ActionSet> {
     final Set<Register> read = new HashSet<>();
     final Set<Register> write = new HashSet<>();
-    final Set<Register> use = new HashSet<>();
+    final Set<Register> consume = new HashSet<>();
     final Set<Register> capture = new HashSet<>();
 
     @Override
@@ -168,19 +168,19 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       var clone = new ActionSet();
       clone.read.addAll(read);
       clone.write.addAll(write);
-      clone.use.addAll(use);
+      clone.consume.addAll(consume);
       clone.capture.addAll(capture);
       return clone;
     }
 
     /// Unifies requirements and intersects guarantees.
     ///
-    /// `read`, `use`, and `defer` are requirements, `write` is a guarantee.
+    /// `read`, `consume`, and `defer` are requirements, `write` is a guarantee.
     @Override
     public void merge(ActionSet other) {
       read.addAll(other.read);
       write.retainAll(other.write);
-      use.addAll(other.use);
+      consume.addAll(other.consume);
       capture.addAll(other.capture);
     }
 
@@ -188,13 +188,13 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
     ///
     /// This is the stateful analogue to the formalism's compose operator.
     ///
-    /// `read`, `use`, and `defer` are requirements, `write` is a guarantee.
+    /// `read`, `consume`, and `defer` are requirements, `write` is a guarantee.
     public void mergePromise(ActionSet promise) {
       read.addAll(promise.read);
-      use.addAll(promise.use);
+      consume.addAll(promise.consume);
       capture.addAll(promise.read);
       capture.addAll(promise.write);
-      capture.addAll(promise.use);
+      capture.addAll(promise.consume);
       capture.addAll(promise.capture);
     }
 
@@ -205,13 +205,13 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       }
       return Objects.equals(read, actionSet.read)
           && Objects.equals(write, actionSet.write)
-          && Objects.equals(use, actionSet.use)
+          && Objects.equals(consume, actionSet.consume)
           && Objects.equals(capture, actionSet.capture);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(read, write, use, capture);
+      return Objects.hash(read, write, consume, capture);
     }
 
     @Override
@@ -227,8 +227,8 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
       p.print(read);
       w.write("\n, write =");
       p.print(write);
-      w.write("\n, use =");
-      p.print(use);
+      w.write("\n, consume =");
+      p.print(consume);
       w.write("\n, capture =");
       p.print(capture);
       w.write("\n)");

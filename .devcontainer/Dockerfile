@@ -1,5 +1,5 @@
-ARG JAVA_VERSION=22
-ARG MAVEN_VERSION=3.9.11
+ARG JAVA_VERSION=26
+ARG MAVEN_VERSION=4.0.0-rc-5
 ARG LLVM_VERSION=17
 ARG BASE_IMAGE=ubuntu-24.04
 
@@ -22,7 +22,7 @@ RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
 
 # install maven
 RUN mkdir -p /opt/maven \
- && curl -fsSL -o /tmp/apache-maven.tar.gz "https://dlcdn.apache.org/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" \
+ && curl -fsSL -o /tmp/apache-maven.tar.gz "https://dlcdn.apache.org/maven/maven-4/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" \
  && tar -xzf /tmp/apache-maven.tar.gz -C /opt/maven --strip-components=1 \
  && rm -f /tmp/apache-maven.tar.gz
 

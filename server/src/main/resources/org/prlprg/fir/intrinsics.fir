@@ -1,28 +1,35 @@
 fun checkFun(r) {
-  (reg r:V) --> V { ... }
+  (reg r:V) -~> V { ... }
 }
 fun checkMissing(r) {
-  (reg r:V) --> V { ... }
+  (reg r:V) -~> V { ... }
 }
 fun toForSeq(r) {
-  (reg r:V) -+> V { ... }
+  (reg r:V) --> V { ... }
+  (reg r:v(L)) --> v(L) { ... }
+  (reg r:v(I)) --> v(I) { ... }
+  (reg r:v(R)) --> v(R) { ... }
+  (reg r:v(S)) --> v(S) { ... }
 }
-fun invisible() {
+fun setInvisible() {
   () --> V { ... }
 }
-fun visible() {
+fun setVisible() {
   () --> V { ... }
 }
-fun asSwitchIdx(r) {
-  (reg r:V) --> I { ... }
+fun naToFalse(r) {
+  (reg r:v1(L)) --> B { ... }
+  (reg r:L) --> B { ... }
 }
-fun tryDispatchBuiltin(name, target, rhs) {
-  (reg name:S, reg target:*, reg rhs:*) -+> V { ... }
-  (reg name:S, reg target:*) -+> V { ... }
+fun box(r) {
+  (reg r:L) --> v1(L) { ... }
+  (reg r:I) --> v1(I) { ... }
+  (reg r:R) --> v1(R) { ... }
+  (reg r:S) --> v1(S) { ... }
 }
-fun getTryDispatchBuiltinDispatched(dispatchResult) {
-  (reg dispatchResult:V) --> L { ... }
-}
-fun getTryDispatchBuiltinValue(dispatchResult) {
-  (reg dispatchResult:V) --> V { ... }
+fun unbox(r) {
+  (reg r:v1(L)b) --> L { ... }
+  (reg r:v1(I)b) --> I { ... }
+  (reg r:v1(R)b) --> R { ... }
+  (reg r:v1(S)b) --> S { ... }
 }

@@ -1,55 +1,30 @@
 package org.prlprg.fir.ir.expression;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
-import javax.annotation.Nullable;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-public final class Closure implements Expression {
-  private @Nullable Function code;
-
-  public Closure(Function code) {
-    this.code = code;
-  }
-
-  /// Only called when parsing, since the function parsed later, and we represent it via direct
-  /// reference.
-  void unsafeSetCode(Function code) {
-    if (this.code != null) {
-      throw new IllegalStateException("Callee is already set: " + this.code);
-    }
-    this.code = code;
-  }
-
-  @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
-    return List.of();
+public record Closure(boolean isStatic, FunctionRef codeRef) implements Expression {
+  public Closure(boolean isStatic, Function code) {
+    this(isStatic, new FunctionRef(code));
   }
 
   public Function code() {
-    return Objects.requireNonNull(code, "code was deferred and not set");
+    return codeRef.get();
   }
 
   @Override
-  public boolean equals(Object obj) {
-    if (obj == this) {
-      return true;
-    }
-    if (obj == null || obj.getClass() != this.getClass()) {
-      return false;
-    }
-    var that = (Closure) obj;
-    return Objects.equals(this.code, that.code);
+  public @Unmodifiable List<Argument> arguments() {
+    return List.of();
   }
 
   @Override
-  public int hashCode() {
-    return Objects.hash(code);
+  public Expression mapArguments(java.util.function.Function<Argument, Argument> transformer) {
+    return this;
   }
 
   @Override
@@ -61,7 +36,11 @@ public final class Closure implements Expression {
   private void print(Printer p) {
     var w = p.writer();
 
-    w.write("clos ");
+    w.write("clos");
+    if (isStatic) {
+      w.write("-static");
+    }
+    w.write(' ');
     p.print(code().name());
   }
 }

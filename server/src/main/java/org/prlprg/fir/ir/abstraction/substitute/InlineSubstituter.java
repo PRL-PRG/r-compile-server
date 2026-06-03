@@ -4,13 +4,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
@@ -26,7 +27,7 @@ import org.prlprg.fir.ir.variable.Register;
 ///   substituted are removed from the scope, unless they're the target of another substitution).
 /// - Doesn't do transitive substitutions.
 ///
-/// Like [Substituter], `use`-ness is preserved at substitution sites.
+/// Like [Substituter], `consume`-ness is preserved at substitution sites.
 public class InlineSubstituter extends AbstractSubstituter {
   private final Map<Register, Argument> locals = new LinkedHashMap<>();
 
@@ -57,8 +58,8 @@ public class InlineSubstituter extends AbstractSubstituter {
       var type = scope.removeLocal(oldRegister).type();
       newLocals.add(new Local(newRegister, type));
     }
-    // Must add new locals after,
-    // otherwise we may add a local that already exists, but will be removed later.
+    // Must add new locals after
+    // Otherwise we may add a local that initially existed, but was removed
     for (var local : newLocals) {
       scope.addLocal(local);
     }
@@ -81,7 +82,7 @@ public class InlineSubstituter extends AbstractSubstituter {
   }
 
   @Override
-  protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
+  protected @Nullable Register substituteAssignee(CfgPosition pos, @Nullable Register assignee) {
     if (assignee == null) {
       return null;
     }
@@ -94,11 +95,11 @@ public class InlineSubstituter extends AbstractSubstituter {
   }
 
   @Override
-  protected Argument substitute(BB bb, Argument argument) {
+  protected Argument substitute(CfgPosition pos, Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
-      // Preserve `use`-ness of substituted
-      case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
+      // Preserve `consume`-ness of substituted
+      case Consume(var r) when locals.containsKey(r) -> convertIntoConsume(locals.get(r));
       default -> argument;
     };
   }

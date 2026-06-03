@@ -7,6 +7,7 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.position.CfgPosition;
 
 /// Dominator tree that can check if instructions and blocks in promise [CFG]s dominate or are
 /// dominated by those outside or in other promises.
@@ -28,6 +29,12 @@ public final class DominatorTree implements Analysis {
   public DominatorTree(Abstraction scope, CfgHierarchy hierarchy) {
     cfgs = scope.streamCfgs().collect(Collectors.toMap(c -> c, CfgDominatorTree::new));
     this.hierarchy = hierarchy;
+  }
+
+  /// Check if `dominator` dominates `dominee`.
+  public boolean dominates(CfgPosition dominator, CfgPosition dominee) {
+    return dominates(
+        dominator.bb(), dominator.instructionIndex(), dominee.bb(), dominee.instructionIndex());
   }
 
   /// Check if `dominatorBb`/`dominatorIndex` dominates `domineeBb`/`domineeIndex`.

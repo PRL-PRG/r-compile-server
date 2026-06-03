@@ -1,57 +1,36 @@
 package org.prlprg.fir.ir.phi;
 
 import com.google.common.collect.ImmutableList;
-import java.util.Objects;
-import javax.annotation.Nullable;
+import java.util.function.Function;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 
-public final class Target {
-  private @Nullable BB bb = null;
-  private final ImmutableList<Argument> phiArgs;
-
+public record Target(BBRef bbRef, ImmutableList<Argument> phiArgs) {
   public Target(BB bb, ImmutableList<Argument> phiArgs) {
-    if (bb.isEntry()) {
-      throw new IllegalArgumentException("Jump can't target entry block");
-    }
-
-    this.bb = bb;
-    this.phiArgs = phiArgs;
+    this(new BBRef(bb), phiArgs);
   }
 
-  public Target(BB label, Argument... phiArgs) {
-    this(label, ImmutableList.copyOf(phiArgs));
+  public Target(BB bb, Argument... phiArgs) {
+    this(bb, ImmutableList.copyOf(phiArgs));
   }
 
   public BB bb() {
-    return Objects.requireNonNull(bb, "target BB was deferred and not set");
+    return bbRef.get();
   }
 
   public ImmutableList<Argument> phiArgs() {
     return phiArgs;
   }
 
-  @Override
-  public boolean equals(Object obj) {
-    if (obj == this) {
-      return true;
-    }
-    if (obj == null || obj.getClass() != this.getClass()) {
-      return false;
-    }
-    var that = (Target) obj;
-    return Objects.equals(this.bb, that.bb) && Objects.equals(this.phiArgs, that.phiArgs);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(bb, phiArgs);
+  public Target mapArguments(Function<Argument, Argument> transformer) {
+    return new Target(
+        bbRef, phiArgs.stream().map(transformer).collect(ImmutableList.toImmutableList()));
   }
 
   @Override
@@ -65,26 +44,16 @@ public final class Target {
     p.printAsList("(", ")", phiArgs);
   }
 
-  public record ParseContext(DeferredCallbacks<CFG> postCfg, @Nullable Object inner) {}
+  public record ParseContext(BBRef.ParseContext forBbRef, @Nullable Object inner) {}
 
   @ParseMethod
-  private Target(Parser p1, ParseContext ctx) {
-    var postCfg = ctx.postCfg;
+  private static Target parse(Parser p1, ParseContext ctx) {
     var p = p1.withContext(ctx.inner);
+    var p2 = p1.withContext(ctx.forBbRef);
 
-    var s = p.scanner();
+    var bbRef = p2.parse(BBRef.class);
+    var phiArgs = p.parseList("(", ")", Argument.class);
 
-    var bbLabel = s.readIdentifierOrKeyword();
-    phiArgs = p.parseList("(", ")", Argument.class);
-
-    postCfg.add(
-        cfg -> {
-          var bb = cfg.bb(bbLabel);
-          if (bb == null) {
-            throw s.fail("Target references a basic block that wasn't defined: " + bbLabel);
-          }
-
-          this.bb = bb;
-        });
+    return new Target(bbRef, phiArgs);
   }
 }

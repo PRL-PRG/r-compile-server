@@ -1,10 +1,10 @@
 package org.prlprg.sexp;
 
-public record ExtptrSxp() implements SEXP {
+public record ExtptrSxp(SEXP prot, SEXP tag) implements SEXP {
 
   @Override
   public SEXPType type() {
-    return SEXPType.EXPR;
+    return SEXPType.EXTPTR;
   }
 
   @Override

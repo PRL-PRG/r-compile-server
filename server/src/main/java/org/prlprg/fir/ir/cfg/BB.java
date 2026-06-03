@@ -7,14 +7,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.CommentParser;
+import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.Register;
@@ -23,7 +24,6 @@ import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Collections2;
-import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.Lists;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
@@ -38,6 +38,7 @@ public final class BB implements Comparable<BB> {
   private final CFG owner;
 
   // Data
+  private final Comments comments;
   private final String label;
   private final List<Register> parameters = new ArrayList<>();
   private final List<Statement> statements = new ArrayList<>();
@@ -54,6 +55,7 @@ public final class BB implements Comparable<BB> {
     }
 
     this.owner = owner;
+    this.comments = new Comments();
     this.label = label;
 
     // Since the jump is `Unreachable`, this is an exit.
@@ -68,12 +70,20 @@ public final class BB implements Comparable<BB> {
     return owner.module();
   }
 
+  public Comments comments() {
+    return comments;
+  }
+
   public String label() {
     return label;
   }
 
   public boolean isEntry() {
     return label.equals(ENTRY_LABEL);
+  }
+
+  public boolean isExit() {
+    return successors().isEmpty();
   }
 
   public @UnmodifiableView List<Register> phiParameters() {
@@ -128,15 +138,15 @@ public final class BB implements Comparable<BB> {
         targets -> Collections2.mapLazy(targets, target -> target.phiArgs().get(parameterIndex)));
   }
 
-  public void appendParameter(Register parameter) {
+  public void appendPhiParameter(Register parameter) {
     module()
         .record(
-            "BB#appendParameter",
+            "BB#appendPhiParameter",
             List.of(this, parameter),
             () -> {
               if (parameters.contains(parameter)) {
                 throw new IllegalArgumentException(
-                    "Parameter '"
+                    "Phi parameter '"
                         + parameter
                         + "' is already present in BB '"
                         + label
@@ -147,10 +157,10 @@ public final class BB implements Comparable<BB> {
             });
   }
 
-  public void appendParameters(List<Register> parameters) {
+  public void appendPhiParameters(List<Register> parameters) {
     module()
         .record(
-            "BB#appendParameters",
+            "BB#appendPhiParameters",
             List.of(this, parameters),
             () -> {
               if (parameters.stream().anyMatch(this.parameters::contains)) {
@@ -190,7 +200,7 @@ public final class BB implements Comparable<BB> {
               }
               if (parameters.contains(parameter) && parameters.get(index) != parameter) {
                 throw new IllegalArgumentException(
-                    "Parameter '"
+                    "Phi parameter '"
                         + parameter
                         + "' is already present in BB '"
                         + label
@@ -201,8 +211,8 @@ public final class BB implements Comparable<BB> {
             });
   }
 
-  public void clearParameters() {
-    module().record("BB#clearParameters", List.of(this), parameters::clear);
+  public void clearPhiParameters() {
+    module().record("BB#clearPhiParameters", List.of(this), parameters::clear);
   }
 
   public void appendStatement(Statement statement) {
@@ -288,6 +298,18 @@ public final class BB implements Comparable<BB> {
             });
   }
 
+  public ImmutableList<Statement> clearStatements() {
+    return module()
+        .record(
+            "BB#clearStatements",
+            List.of(this),
+            () -> {
+              var removed = ImmutableList.copyOf(statements);
+              statements.clear();
+              return removed;
+            });
+  }
+
   public Statement replaceStatementAt(int index, Statement statement) {
     return module()
         .record(
@@ -336,14 +358,34 @@ public final class BB implements Comparable<BB> {
             });
   }
 
-  /// Basic blocks are ordered by [CFG], then label.
+  /// Basic blocks are ordered by label.
+  ///
+  /// @throws IllegalArgumentException Comparing blocks in different [CFG]s, or non-equal blocks
+  ///   with the same print
   @Override
   public int compareTo(BB o) {
-    int cfgCmp = Integer.compare(owner.hashCode(), o.owner.hashCode());
-    if (cfgCmp != 0) {
-      return cfgCmp;
+    if (this == o) {
+      return 0;
     }
-    return label.compareTo(o.label);
+
+    if (owner != o.owner) {
+      throw new IllegalArgumentException("Can't compare BBs in different CFGs");
+    }
+
+    var cmp = label.compareTo(o.label);
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    // Tiebreaker: compare by print to have a deterministic order, but this is only used for
+    // non-equal blocks with the same label, which should be very rare and not rely on any
+    // particular order, so it's fine if it's not super efficient.
+    cmp = toString().compareTo(o.toString());
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    throw new IllegalArgumentException("Can't compare non-equal BBs with the same print: " + this);
   }
 
   @Override
@@ -354,6 +396,8 @@ public final class BB implements Comparable<BB> {
   @PrintMethod
   private void print(Printer p) {
     var w = p.writer();
+
+    p.print(comments);
 
     if (!label.equals(ENTRY_LABEL)) {
       w.write(label);
@@ -381,35 +425,34 @@ public final class BB implements Comparable<BB> {
   public record ParseContext(
       boolean isEntry,
       CFG owner,
-      DeferredCallbacks<CFG> postOwner,
-      DeferredCallbacks<Module> oostModule,
+      BBRef.ParseContext forRef,
+      FunctionRef.ParseContext forFunctionRef,
       @Nullable Object inner) {}
 
   @ParseMethod
   private BB(Parser p1, ParseContext ctx) {
     owner = ctx.owner;
-    var postOwner = ctx.postOwner;
     var p = p1.withContext(ctx.inner);
 
     var s = p.scanner();
 
     if (ctx.isEntry) {
+      comments = new Comments();
       label = ENTRY_LABEL;
     } else {
-      CommentParser.skipComments(s);
+      comments = p.parse(Comments.class);
       label = s.readIdentifierOrKeyword();
       var params = p.parseList("(", ")", Register.class);
       parameters.addAll(params);
       s.assertAndSkip(':');
     }
 
-    var p2 =
+    var p3 =
         p.withContext(
-            new Instruction.ParseContext(owner, ctx.postOwner, ctx.oostModule, p.context()));
+            new Instruction.ParseContext(owner, ctx.forRef, ctx.forFunctionRef, p.context()));
     Instruction instr;
     do {
-      CommentParser.skipComments(s);
-      instr = p2.parse(Instruction.class);
+      instr = p3.parse(Instruction.class);
       switch (instr) {
         case Statement expr -> statements.add(expr);
         case Jump jmp -> jump = jmp;
@@ -418,17 +461,19 @@ public final class BB implements Comparable<BB> {
     } while (!(instr instanceof Jump));
 
     // Need target's `postCfg` to run before `target.bb()` is called.
-    postOwner.add(
-        _ -> {
-          for (var targetBb : jump.targetBBs()) {
-            var added = targetBb.predecessors.add(this);
-            assert added
-                : "BB " + label + " was already a predecessor of target '" + targetBb + "'.";
-          }
-          if (jump.targetBBs().isEmpty()) {
-            var added = owner.exits.add(this);
-            assert added : "BB " + label + " was already an exit of the CFG.";
-          }
-        });
+    ctx.forRef
+        .fixPredecessors()
+        .add(
+            () -> {
+              for (var targetBb : jump.targetBBs()) {
+                var added = targetBb.predecessors.add(this);
+                assert added
+                    : "BB " + label + " was already a predecessor of target '" + targetBb + "'.";
+              }
+              if (jump.targetBBs().isEmpty()) {
+                var added = owner.exits.add(this);
+                assert added : "BB " + label + " was already an exit of the CFG.";
+              }
+            });
   }
 }

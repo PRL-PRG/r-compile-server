@@ -1,0 +1,7 @@
+#? stdlib
+`max.col` <- function (m, ties.method = c("random", "first", "last")) 
+{
+    ties.method <- match.arg(ties.method)
+    tieM <- which(ties.method == eval(formals()[["ties.method"]]))
+    .Internal(max.col(as.matrix(m), tieM))
+}

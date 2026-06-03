@@ -1,0 +1,3 @@
+#? stdlib
+`defaultPrototype` <- function () 
+.defaultPrototype

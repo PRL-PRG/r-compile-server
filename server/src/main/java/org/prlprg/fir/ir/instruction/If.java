@@ -1,9 +1,10 @@
 package org.prlprg.fir.ir.instruction;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Function;
+import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
@@ -11,20 +12,38 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Lists;
 
-public record If(Argument cond, Target ifTrue, Target ifFalse) implements Jump {
+public record If(Comments comments, Argument cond, Target ifTrue, Target ifFalse) implements Jump {
+  public If(Argument cond, Target ifTrue, Target ifFalse) {
+    this(new Comments(), cond, ifTrue, ifFalse);
+  }
+
   @Override
-  public @UnmodifiableView Collection<Target> targets() {
+  public @UnmodifiableView List<Target> targets() {
     return List.of(ifTrue, ifFalse);
   }
 
   @Override
-  public @UnmodifiableView Set<BB> targetBBs() {
-    return ifTrue.bb() == ifFalse.bb() ? Set.of(ifTrue.bb()) : Set.of(ifTrue.bb(), ifFalse.bb());
+  public @UnmodifiableView List<BB> targetBBs() {
+    return ifTrue.bb() == ifFalse.bb() ? List.of(ifTrue.bb()) : List.of(ifTrue.bb(), ifFalse.bb());
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return Lists.concatLazy(List.of(cond), ifTrue.phiArgs(), ifFalse.phiArgs());
+  }
+
+  @Override
+  public Jump mapArguments(Function<Argument, Argument> transformer) {
+    return new If(
+        comments,
+        transformer.apply(cond),
+        ifTrue.mapArguments(transformer),
+        ifFalse.mapArguments(transformer));
+  }
+
+  @Override
+  public Jump mapTargets(Function<Target, Target> transformer) {
+    return new If(comments, cond, transformer.apply(ifTrue), transformer.apply(ifFalse));
   }
 
   @Override
@@ -36,6 +55,7 @@ public record If(Argument cond, Target ifTrue, Target ifFalse) implements Jump {
   private void print(Printer p) {
     var w = p.writer();
 
+    p.print(comments);
     w.write("if ");
     p.print(cond);
     w.write(" then ");

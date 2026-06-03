@@ -1,0 +1,40 @@
+#? stdlib
+`rc.settings` <- function (ops, ns, args, dots, func, ipck, S3, data, help, argdb, 
+    fuzzy, quotes, files, backtick) 
+{
+    if (length(match.call()) == 1) 
+        return(unlist(.CompletionEnv[["settings"]]))
+    checkAndChange <- function(what, value) {
+        if ((length(value) == 1L) && is.logical(value) && !is.na(value)) 
+            .CompletionEnv$settings[[what]] <- value
+    }
+    if (!missing(ops)) 
+        checkAndChange("ops", ops)
+    if (!missing(ns)) 
+        checkAndChange("ns", ns)
+    if (!missing(args)) 
+        checkAndChange("args", args)
+    if (!missing(dots)) 
+        checkAndChange("dots", dots)
+    if (!missing(func)) 
+        checkAndChange("func", func)
+    if (!missing(ipck)) 
+        checkAndChange("ipck", ipck)
+    if (!missing(S3)) 
+        checkAndChange("S3", S3)
+    if (!missing(data)) 
+        checkAndChange("data", data)
+    if (!missing(help)) 
+        checkAndChange("help", help)
+    if (!missing(argdb)) 
+        checkAndChange("argdb", argdb)
+    if (!missing(files)) 
+        checkAndChange("files", files)
+    if (!missing(quotes)) 
+        checkAndChange("quotes", quotes)
+    if (!missing(fuzzy)) 
+        checkAndChange("fuzzy", fuzzy)
+    if (!missing(backtick)) 
+        checkAndChange("backtick", backtick)
+    invisible()
+}

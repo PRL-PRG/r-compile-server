@@ -1,6 +1,6 @@
 package org.prlprg.bc;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.SEXP;
 

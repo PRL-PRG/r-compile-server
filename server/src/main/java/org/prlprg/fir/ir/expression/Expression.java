@@ -1,27 +1,33 @@
 package org.prlprg.fir.ir.expression;
 
 import com.google.common.collect.ImmutableList;
-import java.util.Collection;
-import java.util.Optional;
-import javax.annotation.Nullable;
+import java.util.List;
+import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jetbrains.annotations.Unmodifiable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
-import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
+import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.StaticCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
-import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.Store.StoreType;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.PrimitiveKind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -30,11 +36,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.SkipWhitespace;
 import org.prlprg.primitive.Names;
-import org.prlprg.sexp.SEXP;
-import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Characters;
-import org.prlprg.util.DeferredCallbacks;
-import org.prlprg.util.Either;
 
 @Immutable
 public sealed interface Expression
@@ -46,24 +48,20 @@ public sealed interface Expression
         Dup,
         Force,
         Load,
-        LoadFun,
-        MaybeForce,
         MkEnv,
         MkVector,
-        Placeholder,
+        Noop,
         PopEnv,
         Promise,
         ReflectiveLoad,
         ReflectiveStore,
         Store,
         SubscriptRead,
-        SubscriptWrite,
-        SuperLoad,
-        SuperStore {
-  Expression NOOP = new Aea(new Constant(SEXPs.NULL));
+        SubscriptWrite {
+  @Unmodifiable
+  List<Argument> arguments();
 
-  @UnmodifiableView
-  Collection<Argument> arguments();
+  Expression mapArguments(Function<Argument, Argument> transformer);
 
   /// @param headAsName An ugly workaround because the parser has no dynamic lookahead and we
   ///   must parse `r = e`: if you scan a valid variable name, you can set this to non-null and
@@ -71,7 +69,7 @@ public sealed interface Expression
   record ParseContext(
       @Nullable String headAsName,
       CFG cfg,
-      DeferredCallbacks<Module> postModule,
+      FunctionRef.ParseContext forFunctionRef,
       @Nullable Object inner) {}
 
   @ParseMethod
@@ -80,9 +78,8 @@ public sealed interface Expression
     Argument headAsArg = null;
     var cfg = ctx.cfg;
     var scope = cfg.scope();
-    var module = scope.module();
-    var postModule = ctx.postModule;
-    var p = p1.withContext(ctx.inner());
+    var p = p1.withContext(ctx.inner);
+    var p2 = p.withContext(ctx.forFunctionRef);
 
     var s = p.scanner();
 
@@ -100,26 +97,11 @@ public sealed interface Expression
 
     if (headAsName != null) {
       switch (headAsName) {
+        case "noop" -> {
+          return new Noop();
+        }
         case "clos" -> {
-          var functionName = p.parse(NamedVariable.class);
-
-          // We must defer setting the function in case it's a forward reference.
-          @SuppressWarnings("DataFlowIssue")
-          var result = new Closure(null);
-
-          postModule.add(
-              m -> {
-                assert m == module;
-
-                var function = m.lookupFunction(functionName);
-                if (function == null) {
-                  throw s.fail("Callee references a function that wasn't defined: " + functionName);
-                }
-
-                result.unsafeSetCode(function);
-              });
-
-          return result;
+          return new Closure(s.trySkip("-static"), p2.parse(FunctionRef.class));
         }
         case "dup" -> {
           var value = p.parse(Argument.class);
@@ -137,19 +119,43 @@ public sealed interface Expression
         case "force" -> {
           var isMaybe = s.trySkip('?');
           var value = p.parse(Argument.class);
-          return isMaybe ? new MaybeForce(value) : new Force(value);
+          return new Force(isMaybe, value);
         }
         case "ldf" -> {
+          var type = LoadType.LOCAL_FUN;
+          if (s.trySkip("-glob")) {
+            type = LoadType.GLOBAL_FUN;
+          } else if (s.trySkip("-base")) {
+            type = LoadType.BASE_FUN;
+          }
+
           var variable = p.parse(NamedVariable.class);
-          var env =
-              s.runWithWhitespacePolicy(
-                  SkipWhitespace.ALL_EXCEPT_NEWLINES,
-                  () -> s.trySkip("in ") ? p.parse(Env.class) : Env.LOCAL);
-          return new LoadFun(variable, env);
+
+          // Check for AssumeLoadFun syntax: `ldf <variable> ?- <functionName>`
+          if (type == LoadType.LOCAL_FUN
+              && s.runWithWhitespacePolicy(
+                  SkipWhitespace.ALL_EXCEPT_NEWLINES, () -> s.trySkip("?- "))) {
+            return new Assume(new AssumeLoadFun(variable, p2.parse(FunctionRef.class)));
+          }
+
+          return new Load(type, variable);
         }
         case "ld" -> {
+          var type = LoadType.LOCAL_VAR;
+          if (s.trySkip("-super")) {
+            type = LoadType.SUPER_VAR;
+          }
+
           var variable = p.parse(NamedVariable.class);
-          return new Load(variable);
+
+          // Check for AssumeLoadVar syntax: `ld <variable> ?= <const>`
+          if (type == LoadType.LOCAL_VAR
+              && s.runWithWhitespacePolicy(
+                  SkipWhitespace.ALL_EXCEPT_NEWLINES, () -> s.trySkip("?= "))) {
+            return new Assume(new AssumeLoadVar(variable, p.parse(Value.class)));
+          }
+
+          return new Load(type, variable);
         }
         case "mkenv" -> {
           return new MkEnv();
@@ -165,37 +171,40 @@ public sealed interface Expression
 
           s.assertAndSkip('{');
           var code =
-              p.withContext(new CFG.ParseContext(scope, postModule, ctx.inner())).parse(CFG.class);
+              p.withContext(new CFG.ParseContext(scope, ctx.forFunctionRef, ctx.inner()))
+                  .parse(CFG.class);
           s.assertAndSkip('}');
 
           return new Promise(valueType, effects, code);
         }
-        case "sld" -> {
-          var variable = p.parse(NamedVariable.class);
-          return new SuperLoad(variable);
-        }
         case "st" -> {
+          var type = StoreType.LOCAL_VAR;
+          if (s.trySkip("-super")) {
+            type = StoreType.SUPER_VAR;
+          }
+
           var variable = p.parse(NamedVariable.class);
           s.assertAndSkip('=');
           var value = p.parse(Argument.class);
-          return new Store(variable, value);
+          return new Store(type, variable, value);
         }
-        case "sst" -> {
-          var variable = p.parse(NamedVariable.class);
-          s.assertAndSkip('=');
-          var value = p.parse(Argument.class);
-          return new SuperStore(variable, value);
-        }
-        case "use" -> {
+        case "consume" -> {
           var variable = p.parse(Register.class);
-          headAsArg = new Use(variable);
+          headAsArg = new Consume(variable);
         }
         case "v" -> {
           s.assertAndSkip('(');
           var primitiveKind = p.parse(PrimitiveKind.class);
           s.assertAndSkip(')');
           var elements = p.parseList("[", "]", NamedArgument.class);
-          return new MkVector(new Kind.PrimitiveVector(primitiveKind), elements);
+          return new MkVector(new Kind.PrimitiveVector(false, primitiveKind), elements);
+        }
+        case "v1" -> {
+          s.assertAndSkip('(');
+          var primitiveKind = p.parse(PrimitiveKind.class);
+          s.assertAndSkip(')');
+          var elements = p.parseList("[", "]", NamedArgument.class);
+          return new MkVector(new Kind.PrimitiveVector(true, primitiveKind), elements);
         }
         case "dots" -> {
           var elements = p.parseList("[", "]", NamedArgument.class);
@@ -203,70 +212,25 @@ public sealed interface Expression
         }
         // Constant
         case String headAsName1 when Names.isReserved(headAsName1) ->
-            headAsArg = new Constant(Parser.fromString(headAsName, SEXP.class));
+            headAsArg = new Constant(Parser.fromString(headAsName, Value.class));
         // Variable
         default -> {
-          if (!headAsName.startsWith("`") && scope.contains(Variable.register(headAsName))) {
+          if (!headAsName.startsWith("`")
+              && Register.isValid(headAsName)
+              && scope.contains(Variable.register(headAsName))) {
             headAsArg = new Read(Variable.register(headAsName));
           }
         }
       }
     }
 
-    if (headAsName == null && headAsArg == null) {
-      // Parse what doesn't start with a constant or identifier
-
-      if (s.trySkip('_')) {
-        return new Placeholder();
-      }
-
-    } else {
+    if (headAsName != null || headAsArg != null) {
       // Parse what starts with a constant or identifier.
       // `headAsName != null` iff it starts with an identifier.
       // `headAsArg != null` iff it starts with an argument, which may be a constant or
       // identifier which happens to be a register.
 
-      if (s.nextCharIs('.') || s.nextCharIs('<') || s.nextCharIs('(')) {
-        if (headAsName == null) {
-          throw s.fail("in 'f...(...)', 'f' must be a valid variable name");
-        }
-
-        // Static or dispatch call
-        var functionName = Variable.named(headAsName);
-        Either<Optional<Signature>, Integer> version;
-        if (s.trySkip('.')) {
-          version = Either.right(s.readUInt());
-        } else if (s.trySkip('<')) {
-          var signature = p.parse(Signature.class);
-          s.assertAndSkip('>');
-          version = Either.left(Optional.of(signature));
-        } else {
-          version = Either.left(Optional.empty());
-        }
-        var arguments = p.parseList("(", ")", Argument.class);
-
-        // We must defer setting the function in case it's a forward reference.
-        @SuppressWarnings("DataFlowIssue")
-        var result = new Call(null, arguments);
-
-        postModule.add(
-            m -> {
-              assert m == module;
-
-              var function = m.lookupFunction(functionName);
-              if (function == null) {
-                throw s.fail("Callee references a function that wasn't defined: " + functionName);
-              }
-              var callee =
-                  version.destruct(
-                      signature -> new DispatchCallee(function, signature.orElse(null)),
-                      index -> new StaticCallee(function, function.version(index)));
-
-              result.unsafeSetCallee(callee);
-            });
-
-        return result;
-      } else if (s.trySkip('$')) {
+      if (s.trySkip('$')) {
         if (headAsArg == null) {
           throw s.fail("In 'a$...', 'a' must be a register (or constant)");
         }
@@ -304,38 +268,42 @@ public sealed interface Expression
         }
 
         var type = p.parse(Type.class);
-        return new AssumeType(headAsArg, type);
+        return new Assume(new AssumeType(headAsArg, type));
       } else if (s.trySkip("?- ")) {
         if (headAsArg == null) {
           throw s.fail("In 'a ?- t', 'a' must be a register or constant");
         }
 
-        var functionName = p.parse(NamedVariable.class);
-
-        // We must defer setting the function in case it's a forward reference.
-        @SuppressWarnings("DataFlowIssue")
-        var assume = new AssumeFunction(headAsArg, null);
-        postModule.add(
-            m -> {
-              assert m == module;
-
-              var function = m.lookupFunction(functionName);
-              if (function == null) {
-                throw s.fail(
-                    "Assumption references a function that wasn't defined: " + functionName);
-              }
-              assume.unsafeSetFunction(function);
-            });
-
-        return assume;
+        return new Assume(new AssumeFunction(headAsArg, p2.parse(FunctionRef.class)));
       } else if (s.trySkip("?= ")) {
         if (headAsArg == null) {
           throw s.fail("In 'a ?= t', 'a' must be a register or constant");
         }
 
-        var constant = p.parse(Constant.class);
-        return new AssumeConstant(headAsArg, constant);
-      } else if (headAsArg != null) {
+        var constant = p.parse(Value.class);
+        return new Assume(new AssumeConstant(headAsArg, constant));
+      } else if (s.nextCharIs('%') || s.nextCharIs('@') || s.nextCharIs('<') || s.nextCharIs('(')) {
+        if (headAsName == null) {
+          throw s.fail("in 'f...(...)', 'f' must be a valid variable name");
+        }
+
+        // Static function call
+        var functionRef = ctx.forFunctionRef.deferredLookup(Variable.named(headAsName));
+        var isDispatch = s.trySkip('%');
+        var closureWithEnv = s.trySkip('@') ? p.parse(Argument.class) : Constant.ELIDED_CLOSURE;
+        if (s.nextCharIs('(')) {
+          throw s.fail("Can't call function without signature");
+        }
+        s.assertAndSkip('<');
+        var signature = p.parse(Signature.class);
+        s.assertAndSkip('>');
+        var callee = new StaticFnCallee(functionRef, isDispatch, closureWithEnv, signature);
+
+        var arguments = p.parseList("(", ")", Argument.class);
+
+        return new Call(callee, arguments);
+      }
+      if (headAsArg != null) {
         return new Aea(headAsArg);
       } else {
         throw s.fail("Not a keyword or in-scope register: '" + headAsName + "'");

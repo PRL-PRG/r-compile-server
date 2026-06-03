@@ -11,16 +11,15 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
+import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.NamedVariable;
 
-/// Computes a map of [NamedVariable] to [ScopePosition]s of `Load` and `LoadFun` instructions
-/// that load said variable.
+/// Computes a map of [NamedVariable] to [ScopePosition]s of local [Load] instructions that load
+/// said variable.
 public final class Loads implements Analysis {
   private final Multimap<NamedVariable, ScopePosition> loads = ArrayListMultimap.create();
 
@@ -50,10 +49,10 @@ public final class Loads implements Analysis {
     var scopePosition = new ScopePosition(parents, cfgPosition);
 
     switch (statement.expression()) {
-      case Load(var variable) -> loads.put(variable, scopePosition);
-      case LoadFun(var variable, var env) when env == Env.LOCAL ->
+      case Load(var loadType, var variable)
+          when loadType == LoadType.LOCAL_VAR || loadType == LoadType.LOCAL_FUN ->
           loads.put(variable, scopePosition);
-      case Promise(var _, var _, var code) -> {
+      case Promise(_, _, var code) -> {
         parents.add(cfgPosition);
         run(parents, code);
         parents.removeLast();

@@ -1,9 +1,5 @@
 /** Mutable data structures. Module and function. */
-@ParametersAreNonnullByDefault
-@FieldsAreNonNullByDefault
-@ReturnTypesAreNonNullByDefault
+@NullMarked
 package org.prlprg.fir.ir.module;
 
-import javax.annotation.ParametersAreNonnullByDefault;
-import org.prlprg.util.FieldsAreNonNullByDefault;
-import org.prlprg.util.ReturnTypesAreNonNullByDefault;
+import org.jspecify.annotations.NullMarked;

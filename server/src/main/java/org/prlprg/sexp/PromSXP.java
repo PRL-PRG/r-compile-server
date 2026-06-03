@@ -1,7 +1,7 @@
 package org.prlprg.sexp;
 
 import java.util.Objects;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.Printer;
 
 public sealed interface PromSXP extends SEXP {

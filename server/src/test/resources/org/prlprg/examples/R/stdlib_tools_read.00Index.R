@@ -1,0 +1,36 @@
+#? stdlib
+`read.00Index` <- function (file) 
+{
+    if (is.character(file)) {
+        if (file == "") 
+            file <- stdin()
+        else {
+            file <- file(file, "r")
+            on.exit(close(file))
+        }
+    }
+    if (!inherits(file, "connection")) 
+        stop(gettextf("argument '%s' must be a character string or connection", 
+            file), domain = NA)
+    y <- matrix("", nrow = 0L, ncol = 2L)
+    x <- paste(readLines(file), collapse = "\n")
+    for (chunk in unlist(strsplit(x, "\n[ \t\n]*\n"))) {
+        entries <- tryCatch({
+            if (!grepl("(   |\t)", chunk)) 
+                NULL
+            else {
+                chunk <- gsub("\n[ \t]+", "\t", chunk)
+                x <- strsplit(unlist(strsplit(chunk, "\n")), 
+                  "[ \t]")
+                cbind(unlist(lapply(x, `[[`, 1L)), unlist(lapply(x, 
+                  function(t) {
+                    paste(t[-c(1L, which(!nzchar(t)))], collapse = " ")
+                  })))
+            }
+        }, error = identity)
+        if (!inherits(entries, "error") && NCOL(entries) == 2L) 
+            y <- rbind(y, entries)
+    }
+    colnames(y) <- c("Item", "Description")
+    y
+}

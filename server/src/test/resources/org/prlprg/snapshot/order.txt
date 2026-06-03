@@ -1,0 +1,8 @@
+BC2CTest
+BC2FirTest
+FirParseTest
+InterpretTest
+OptimizeTest
+InterpretAfterOptTest
+Fir2CTest
+FirAfterOpt2CTest
