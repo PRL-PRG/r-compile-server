@@ -22,9 +22,9 @@ public class GNURSessionTest {
   public void testReadPackageDatabase() throws IOException {
     var session = new GNURSession(RVersion.LATEST_AWARE, RDir, libDir);
 
-    session.loadPackage("yaml", "2.3.10");
+    session.loadPackage("yaml", "2.3.12");
 
-    var ns = session.getNamespace("yaml", "2.3.10");
+    var ns = session.getNamespace("yaml", "2.3.12");
 
     Assertions.assertFalse(ns.bindings().isEmpty());
   }
@@ -64,9 +64,9 @@ public class GNURSessionTest {
   public void testRetrieveNamespaceAfterLoadingPackage() throws IOException {
     var session = new GNURSession(RVersion.LATEST_AWARE, RDir, libDir);
 
-    session.loadPackage("yaml", "2.3.10");
+    session.loadPackage("yaml", "2.3.12");
 
-    var ns = session.getNamespace("yaml", "2.3.10");
+    var ns = session.getNamespace("yaml", "2.3.12");
 
     Assertions.assertNotNull(ns);
   }
