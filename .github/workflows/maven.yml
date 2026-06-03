@@ -24,11 +24,11 @@ jobs:
       matrix:
         include:
           - name: bc2fir
-            tests: "org.prlprg.bc2fir.*"
+            tests: "BC2Fir*"
           - name: bc2c
-            tests: "org.prlprg.bc2c.*"
+            tests: "BC2C*"
           - name: other
-            tests: "!org.prlprg.bc2fir.*,!org.prlprg.bc2c.*"
+            tests: "!BC2Fir*,!BC2C*"
     steps:
       - uses: actions/checkout@v4
       - name: Set up build environment (JDK + custom GNU-R)
