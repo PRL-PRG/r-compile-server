@@ -6,6 +6,9 @@ public sealed interface DotsListSXP extends AbstractListSXP permits NilSXP, Dots
 
   @Override
   DotsListSXP copy();
+
+  @Override
+  DotsListSXP fromIndex(int fromIndex);
 }
 
 final class DotsListSXPImpl extends AbstractListSXPImpl implements DotsListSXP {
@@ -26,6 +29,13 @@ final class DotsListSXPImpl extends AbstractListSXPImpl implements DotsListSXP {
   @Override
   public DotsListSXP copy() {
     return new DotsListSXPImpl(data, attributes);
+  }
+
+  @Override
+  public DotsListSXP fromIndex(int fromIndex) {
+    var data = new TaggedElem[size() - fromIndex];
+    System.arraycopy(this.data, fromIndex, data, 0, data.length);
+    return SEXPs.dots(data, attributes);
   }
 
   @Override

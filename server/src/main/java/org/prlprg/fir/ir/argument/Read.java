@@ -4,7 +4,7 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-/// Argument that is a variable.
+/// Argument that is a register
 public record Read(@Override Register variable) implements Argument {
   @Override
   public String toString() {

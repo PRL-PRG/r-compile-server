@@ -19,7 +19,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collector.Characteristics;
 import java.util.stream.Gatherer;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public class Streams {
   /// Keeps yielding elements by calling `supplier` until it returns `null`.
@@ -170,6 +170,33 @@ public class Streams {
 
   /** Returns the only element of the stream. Throws if the stream has zero or multiple elements. */
   public static <T, E extends RuntimeException> Collector<T, ?, T> oneOrThrow(Supplier<E> exception)
+      throws E {
+    class MutableOptional {
+      @Nullable T value = null;
+    }
+
+    return Collector.of(
+        MutableOptional::new,
+        (o, elem) -> {
+          if (o.value != null) {
+            throw exception.get();
+          } else {
+            o.value = elem;
+          }
+        },
+        (o1, o2) -> {
+          if (o1.value != null && o2.value != null) {
+            throw exception.get();
+          } else {
+            return o1.value != null ? o1 : o2;
+          }
+        },
+        o -> Optional.ofNullable(o.value).orElseThrow(exception),
+        Characteristics.CONCURRENT);
+  }
+
+  /** Same as {@link #oneOrThrow(Supplier)} but throws an error. */
+  public static <T, E extends Error> Collector<T, ?, T> oneOrThrowError(Supplier<E> exception)
       throws E {
     class MutableOptional {
       @Nullable T value = null;

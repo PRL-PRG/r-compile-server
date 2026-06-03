@@ -1,0 +1,3 @@
+x <- NULL
+
+local(x)

@@ -1,7 +1,7 @@
 package org.prlprg.fir.ir.position;
 
 import java.util.Objects;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
@@ -15,7 +15,7 @@ import org.prlprg.parseprint.Printer;
 /// Location of an [Instruction] or phi group within a [CFG][org.prlprg.fir.ir.cfg.CFG].
 public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction instruction)
     implements Comparable<CfgPosition> {
-  /// Gets `instruction` from `bb` (not `null` unless it's a phi).
+  /// Gets `instruction` from `bb` (`null` iff it's a phi).
   public CfgPosition(BB bb, int instructionIndex) {
     this(
         bb,
@@ -29,15 +29,17 @@ public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction ins
 
   /// @throws IllegalArgumentException If this is a phi group or [Jump].
   public void replaceWith(Expression replacement) {
-    if (!(instruction instanceof Statement(var assignee, var _))) {
+    if (!(instruction instanceof Statement(var comments, var assignee, _))) {
       throw new IllegalArgumentException("Can't replace a phi group or jump:\n" + this);
     }
 
-    bb.replaceStatementAt(instructionIndex, new Statement(assignee, replacement));
+    bb.replaceStatementAt(instructionIndex, new Statement(comments, assignee, replacement));
   }
 
+  /// Replaces at `bb`/`instructionIndex` in the real [CFG]. Doesn't change this value
+  ///
   /// @throws IllegalArgumentException If this is a phi group, `replacement` is a [Statement]
-  /// and this is a [Jump], or `replacement` is a [Jump] and this is a [Statement].
+  /// and this is a [Jump], or `replacement` is a [Jump] and this is a [Statement]
   public void replaceWith(Instruction replacement) {
     if (instruction == null) {
       throw new IllegalArgumentException("Can't replace a phi group:\n" + this);
@@ -91,6 +93,12 @@ public record CfgPosition(BB bb, int instructionIndex, @Nullable Instruction ins
 
   @PrintMethod
   private void print(Printer p) {
+    var w = p.writer();
+    w.write(bb.label());
+    w.write(':');
+    p.print(instructionIndex);
+    w.write('\n');
+
     p.print(new CFGCursor(bb, instructionIndex));
   }
 }

@@ -1,0 +1,10 @@
+#? stdlib
+`strheight` <- function (s, units = "user", cex = NULL, font = NULL, vfont = NULL, 
+    ...) 
+{
+    if (!is.null(vfont)) 
+        vfont <- c(typeface = pmatch(vfont[1L], Hershey$typeface), 
+            fontindex = pmatch(vfont[2L], Hershey$fontindex))
+    .External.graphics(C_strHeight, as.graphicsAnnot(s), pmatch(units, 
+        c("user", "figure", "inches")), cex, font, vfont, ...)
+}

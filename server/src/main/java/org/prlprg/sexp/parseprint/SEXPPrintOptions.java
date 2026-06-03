@@ -1,5 +1,10 @@
 package org.prlprg.sexp.parseprint;
 
+import java.util.function.BiPredicate;
+import org.jspecify.annotations.Nullable;
+import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.EnvSXP;
+
 /// Pass this as a context to [org.prlprg.parseprint.Printer#print], [#toString], and other
 /// functions that print an [`SEXP`][org.prlprg.sexp.SEXP] to customize how it's printed.
 ///
@@ -11,11 +16,16 @@ package org.prlprg.sexp.parseprint;
 ///
 /// Default: `false`.
 ///
-/// @param printStaticEnvironmentDetails Print the parent and bindings of global environments.
+/// @param printEnvironmentDetails Which environments to print the parent and bindings of.
 ///
-/// Default: `false`.
+/// Default: [PrintEnvironmentDetails#BELOW_GLOBAL].
 ///
-/// @param printBcContents Print the contents of bytecode objects.
+/// @param environmentDetailPrinter Custom printer for environment details. Return `false` to
+/// (or pass `null`) to invoke the default printer
+///
+/// Default: `null`.
+///
+/// @param printBcDetails Print the contents of bytecode objects.
 ///
 /// Default: `false`.
 ///
@@ -50,8 +60,11 @@ package org.prlprg.sexp.parseprint;
 /// Default: `5`.
 public record SEXPPrintOptions(
     boolean printDelimited,
-    boolean printStaticEnvironmentDetails,
-    boolean printBcContents,
+    PrintEnvironmentDetails printEnvironmentDetails,
+    @Nullable BiPredicate<EnvSXP, Printer> environmentDetailPrinter,
+    boolean printBcDetails,
+    boolean printPromiseLazyDetails,
+    boolean printMapsSorted,
     long maxElements,
     long maxAttributes,
     long maxStringLength,
@@ -59,17 +72,38 @@ public record SEXPPrintOptions(
   /// The default print options that you get when calling
   /// [org.prlprg.parseprint.Printer#print(Object)] and [#toString()].
   public static final SEXPPrintOptions DEFAULT =
-      new SEXPPrintOptions(false, false, false, 10, 3, 100, 5);
+      new SEXPPrintOptions(
+          false, PrintEnvironmentDetails.BELOW_GLOBAL, null, false, true, false, 10, 3, 100, 5);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP].
   ///
   /// This or [#FULL_DELIMITED] is required for the string to be parse-able.
   public static final SEXPPrintOptions FULL =
       new SEXPPrintOptions(
-          false, true, true, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE);
+          false,
+          PrintEnvironmentDetails.ALL,
+          null,
+          true,
+          true,
+          false,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE,
+          Long.MAX_VALUE);
+
+  /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP] that indicate the SEXP is
+  /// definitely semantically different.
+  ///
+  /// e.g. different promise bodies or bytecode don't matter, because different promise bodies
+  /// may have the same semantics. But constants do.
+  public static final SEXPPrintOptions SEMANTIC =
+      SEXPPrintOptions.FULL
+          .withEnvironmentDetails(PrintEnvironmentDetails.BELOW_GLOBAL)
+          .withPromiseLazyDetails(false)
+          .withMapsSorted(true);
 
   /// Print every part of the [`SEXP`][org.prlprg.sexp.SEXP], and guarantee it's surrounded by
-  /// `<` and `>` if not `NULL` or scalar.
+  /// `<` and `>`.
   ///
   /// This or [#FULL] is required for the string to be parse-able.
   public static final SEXPPrintOptions FULL_DELIMITED = FULL.withDelimited(true);
@@ -79,8 +113,92 @@ public record SEXPPrintOptions(
         ? this
         : new SEXPPrintOptions(
             printDelimited,
-            printStaticEnvironmentDetails,
-            printBcContents,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withEnvironmentDetails(PrintEnvironmentDetails printEnvironmentDetails) {
+    return printEnvironmentDetails == this.printEnvironmentDetails
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withEnvironmentDetailPrinter(
+      BiPredicate<EnvSXP, Printer> environmentDetailPrinter) {
+    return environmentDetailPrinter == this.environmentDetailPrinter
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withBcDetails(boolean printBcDetails) {
+    return printBcDetails == this.printBcDetails
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withPromiseLazyDetails(boolean printPromiseLazyDetails) {
+    return printPromiseLazyDetails == this.printPromiseLazyDetails
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
+            maxElements,
+            maxAttributes,
+            maxStringLength,
+            maxDepth);
+  }
+
+  public SEXPPrintOptions withMapsSorted(boolean printMapsSorted) {
+    return printMapsSorted == this.printMapsSorted
+        ? this
+        : new SEXPPrintOptions(
+            printDelimited,
+            printEnvironmentDetails,
+            environmentDetailPrinter,
+            printBcDetails,
+            printPromiseLazyDetails,
+            printMapsSorted,
             maxElements,
             maxAttributes,
             maxStringLength,
@@ -100,5 +218,11 @@ public record SEXPPrintOptions(
     if (maxDepth < 1) {
       throw new IllegalArgumentException("`maxDepth` must be positive (can't be 0)");
     }
+  }
+
+  public enum PrintEnvironmentDetails {
+    NONE,
+    BELOW_GLOBAL,
+    ALL,
   }
 }

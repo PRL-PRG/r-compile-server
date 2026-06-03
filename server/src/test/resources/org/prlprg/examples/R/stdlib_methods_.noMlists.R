@@ -1,0 +1,3 @@
+#? stdlib
+`.noMlists` <- function () 
+TRUE

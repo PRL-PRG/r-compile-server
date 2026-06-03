@@ -1,0 +1,45 @@
+<idea-plugin>
+  <id>org.prlprg.fir.intellij</id>
+  <name>FIR Support</name>
+  <vendor>PRLPRG</vendor>
+
+  <description>
+    FIR syntax highlighting, linting, structure view, and code folding for .fir files.
+  </description>
+
+  <depends>com.intellij.modules.lang</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <fileType
+        name="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirFileType"
+        fieldName="INSTANCE"
+        language="FIR"
+        extensions="fir"/>
+
+    <lang.parserDefinition
+        language="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirParserDefinition"/>
+
+    <lang.syntaxHighlighterFactory
+        language="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirSyntaxHighlighterFactory"/>
+
+    <annotator
+        language="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirAnnotator"/>
+
+    <lang.psiStructureViewFactory
+        language="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirStructureViewFactory"/>
+
+    <lang.foldingBuilder
+        language="FIR"
+        implementationClass="org.prlprg.fir.intellij.FirFoldingBuilder"/>
+
+    <breadcrumbsInfoProvider
+        implementation="org.prlprg.fir.intellij.FirBreadcrumbsProvider"/>
+
+    <navbar implementation="org.prlprg.fir.intellij.FirNavBarModelExtension"/>
+  </extensions>
+</idea-plugin>

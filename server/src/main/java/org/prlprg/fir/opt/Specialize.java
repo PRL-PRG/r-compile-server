@@ -3,36 +3,48 @@ package org.prlprg.fir.opt;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import javax.annotation.Nullable;
+import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferType;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization.DeferredInsertions;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization.NonLocalSpecializations;
+import org.prlprg.util.Streams;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
 public class Specialize implements AbstractionOptimization {
+  private final String name;
   private final List<SpecializeOptimization> subOptimizations;
   private final AnalysisTypes analysisTypes;
 
-  public Specialize(SpecializeOptimization... subOptimizations) {
+  public Specialize(SpecializeOptimization subOptimization) {
+    this(subOptimization.name(), subOptimization);
+  }
+
+  public Specialize(String name, SpecializeOptimization... subOptimizations) {
+    this.name = name;
     this.subOptimizations = List.of(subOptimizations);
     this.analysisTypes =
         Arrays.stream(subOptimizations)
@@ -41,7 +53,18 @@ public class Specialize implements AbstractionOptimization {
   }
 
   @Override
-  public boolean run(Abstraction abstraction) {
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public String toString() {
+    return getClass().getSimpleName() + "[" + name + "]";
+  }
+
+  @Override
+  public boolean runWithoutRecording(
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =
         this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();
@@ -49,26 +72,39 @@ public class Specialize implements AbstractionOptimization {
       return false;
     }
 
-    var opt = new OnAbstraction(abstraction, analyses, subOptimizations);
+    var opt = new OnAbstraction(abstraction, feedback, analyses, subOptimizations);
     opt.run();
     return opt.changed;
   }
 
   private static class OnAbstraction {
     final Abstraction scope;
+    final AbstractionFeedback feedback;
     final Analyses analyses;
     final List<SpecializeOptimization> subOptimizations;
     boolean changed = false;
 
     public OnAbstraction(
-        Abstraction scope, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
+        Abstraction scope,
+        AbstractionFeedback feedback,
+        Analyses analyses,
+        List<SpecializeOptimization> subOptimizations) {
       this.scope = scope;
+      this.feedback = feedback;
       this.analyses = analyses;
       this.subOptimizations = subOptimizations;
     }
 
     void run() {
-      var changes = new TreeSet<CfgPosition>();
+      var cfgs =
+          scope
+              .streamCfgs()
+              .gather(Streams.mapWithIndex(Map::entry))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      var changes =
+          new TreeSet<>(
+              Comparator.<CfgPosition>comparingInt(pos -> cfgs.get(pos.cfg()))
+                  .thenComparing(Comparator.naturalOrder()));
       var deferredInsertions = new LinkedHashMap<BB, TreeMap<Integer, List<Runnable>>>();
 
       // Initially, run on every expression.
@@ -97,7 +133,7 @@ public class Specialize implements AbstractionOptimization {
       }
 
       for (var subOptimization : subOptimizations) {
-        subOptimization.finish(scope, analyses);
+        changed |= subOptimization.finish(scope, analyses);
       }
 
       // Commit deferred insertions.
@@ -140,7 +176,7 @@ public class Specialize implements AbstractionOptimization {
 
               // Immediately replace
               var assignee = oldStmt.assignee();
-              pos.replaceWith(new Statement(assignee, newExpression));
+              pos.replaceWith(new Statement(oldStmt.comments(), assignee, newExpression));
               changed = true;
 
               // Update type if necessary
@@ -173,6 +209,7 @@ public class Specialize implements AbstractionOptimization {
                 assignee,
                 expr,
                 scope,
+                feedback,
                 analyses,
                 nonLocalAdapter,
                 deferredInsertionsAdapter);
@@ -180,7 +217,7 @@ public class Specialize implements AbstractionOptimization {
 
       // If actually specialized, replace statement
       if (!expr.equals(oldStmt.expression())) {
-        var newStmt = new Statement(assignee, expr);
+        var newStmt = new Statement(oldStmt.comments(), assignee, expr);
         bb.replaceStatementAt(statementIndex, newStmt);
         changed = true;
       }

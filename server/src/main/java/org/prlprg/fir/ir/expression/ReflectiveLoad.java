@@ -1,8 +1,8 @@
 package org.prlprg.fir.ir.expression;
 
-import java.util.Collection;
 import java.util.List;
-import org.jetbrains.annotations.UnmodifiableView;
+import java.util.function.Function;
+import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.PrintMethod;
@@ -22,7 +22,12 @@ public record ReflectiveLoad(Argument promise, NamedVariable variable) implement
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
+  public @Unmodifiable List<Argument> arguments() {
     return List.of(promise);
+  }
+
+  @Override
+  public Expression mapArguments(Function<Argument, Argument> transformer) {
+    return new ReflectiveLoad(transformer.apply(promise), variable);
   }
 }

@@ -1,0 +1,4 @@
+#? stdlib
+`replicate` <- function (n, expr, simplify = "array") 
+sapply(integer(n), eval.parent(substitute(function(...) expr)), 
+    simplify = simplify)

@@ -3,7 +3,7 @@ package org.prlprg.fir.ir.position;
 import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.SequencedMap;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;

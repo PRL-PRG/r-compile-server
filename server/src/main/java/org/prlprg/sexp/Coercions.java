@@ -1,6 +1,5 @@
 package org.prlprg.sexp;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import java.util.regex.Pattern;
 import org.prlprg.primitive.Complex;
@@ -171,7 +170,6 @@ public final class Coercions {
     return isNA(x) ? Constants.NA_INT : Integer.parseInt(x);
   }
 
-  @SuppressFBWarnings("ES_COMPARING_PARAMETER_STRING_WITH_EQ")
   public static boolean isNA(String x) {
     //noinspection StringEquality
     return x == Constants.NA_STRING;

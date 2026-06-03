@@ -1,15 +1,26 @@
 package org.prlprg.fir.ir.type;
 
 import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 
 public enum PrimitiveKind {
-  LOGICAL,
-  INTEGER,
-  REAL,
-  STRING;
+  LOGICAL(Repr.LOGICAL),
+  INTEGER(Repr.INT),
+  REAL(Repr.FLOAT),
+  STRING(Repr.STRING);
+
+  private final Repr repr;
+
+  PrimitiveKind(Repr repr) {
+    this.repr = repr;
+  }
+
+  public Repr repr() {
+    return repr;
+  }
 
   @Override
   public String toString() {
@@ -29,7 +40,7 @@ public enum PrimitiveKind {
   }
 
   @ParseMethod(SkipWhitespace.NONE)
-  private static PrimitiveKind parse(org.prlprg.parseprint.Parser p) {
+  private static PrimitiveKind parse(Parser p) {
     var s = p.scanner();
 
     if (s.trySkip('L')) {

@@ -7,7 +7,6 @@ import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 public class Strings {
   @SafeVarargs
@@ -40,10 +39,6 @@ public class Strings {
         StringJoiner::merge,
         StringJoiner::toString,
         Collector.Characteristics.UNORDERED);
-  }
-
-  public static @Nullable String stripPrefix(String str, String prefix) {
-    return str.startsWith(prefix) ? str.substring(prefix.length()) : null;
   }
 
   /** Escape the string and surround in double-quotes. */
@@ -108,13 +103,28 @@ public class Strings {
     return true;
   }
 
+  public static String pascalCaseToCamelCase(String s) {
+    if (s.isEmpty()) {
+      return s;
+    }
+    return Character.toLowerCase(s.charAt(0)) + s.substring(1);
+  }
+
   public static String camelCaseToSnakeCase(String s) {
+    return camelCaseToGeneralizedSnakeCase(s, '_');
+  }
+
+  public static String camelCaseToKebabCase(String s) {
+    return camelCaseToGeneralizedSnakeCase(s, '-');
+  }
+
+  private static String camelCaseToGeneralizedSnakeCase(String s, char separator) {
     var sb = new StringBuilder();
     for (var i = 0; i < s.length(); i++) {
       var c = s.charAt(i);
       if (Character.isUpperCase(c)) {
         if (i > 0) {
-          sb.append('_');
+          sb.append(separator);
         }
         sb.append(Character.toLowerCase(c));
       } else {

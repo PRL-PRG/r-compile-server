@@ -5,12 +5,13 @@ import com.google.common.collect.MultimapBuilder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
@@ -18,9 +19,9 @@ import org.prlprg.fir.ir.variable.Register;
 /// Registers that are substituted are removed from the scope. Assignments to those registers
 /// are converted into non-assigning statements. Substitutions are transitive.
 ///
-/// `use`-ness is preserved at the substitution site: `r0 -> r1` implicitly creates the
-/// substitution `use r0 -> use r1`. Be aware that substituting with a `use` is tricky, because
-/// if there are multiple occurrences, it breaks `use` invariants.
+/// `consume`-ness is preserved at the substitution site: `r0 -> r1` implicitly creates the
+/// substitution `consume r0 -> consume r1`. Be aware that substituting with a `consume` is
+/// tricky, because if there are multiple occurrences, it breaks `consume` invariants.
 public class Substituter extends AbstractSubstituter {
   private final Map<Register, Argument> locals = new LinkedHashMap<>();
   private final Multimap<Register, PriorSubstitution> backwards =
@@ -58,8 +59,8 @@ public class Substituter extends AbstractSubstituter {
     var realSubst =
         switch (substitution) {
           case Read(var substReg) when locals.containsKey(substReg) -> locals.get(substReg);
-          case Use(var substReg) when locals.containsKey(substReg) ->
-              convertIntoUse(locals.get(substReg));
+          case Consume(var substReg) when locals.containsKey(substReg) ->
+              convertIntoConsume(locals.get(substReg));
           default -> substitution;
         };
     locals.put(local, realSubst);
@@ -67,7 +68,8 @@ public class Substituter extends AbstractSubstituter {
     // Maintain O(1) lookup in case we substitute `b` later
     // (or `c`, then we don't need to insert `b` because it can't be substituted again).
     if (realSubst.variable() != null) {
-      backwards.put(realSubst.variable(), new PriorSubstitution(local, realSubst instanceof Use));
+      backwards.put(
+          realSubst.variable(), new PriorSubstitution(local, realSubst instanceof Consume));
     }
 
     // If `z -> a` and we inserted `a -> b`, change the former to `z -> b`
@@ -75,8 +77,7 @@ public class Substituter extends AbstractSubstituter {
     var zToA = backwards.get(local);
     if (!zToA.isEmpty()) {
       for (var a : zToA) {
-        assert a != null;
-        locals.put(a.local, a.substitutedWithUse ? convertIntoUse(realSubst) : realSubst);
+        locals.put(a.local, a.substitutedWithConsume ? convertIntoConsume(realSubst) : realSubst);
       }
 
       // If we substitute `b` (or `c`) later, we must update `z` (and still also `a`).
@@ -105,16 +106,16 @@ public class Substituter extends AbstractSubstituter {
   }
 
   @Override
-  protected @Nullable Register substituteAssignee(BB bb, @Nullable Register assignee) {
+  protected @Nullable Register substituteAssignee(CfgPosition pos, @Nullable Register assignee) {
     return assignee != null && locals.containsKey(assignee) ? null : assignee;
   }
 
   @Override
-  protected Argument substitute(BB bb, Argument argument) {
+  protected Argument substitute(CfgPosition pos, Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
-      // Preserve `use`-ness of substituted
-      case Use(var r) when locals.containsKey(r) -> convertIntoUse(locals.get(r));
+      // Preserve `consume`-ness of substituted
+      case Consume(var r) when locals.containsKey(r) -> convertIntoConsume(locals.get(r));
       default -> argument;
     };
   }
@@ -124,5 +125,5 @@ public class Substituter extends AbstractSubstituter {
     return locals.entrySet();
   }
 
-  private record PriorSubstitution(Register local, boolean substitutedWithUse) {}
+  private record PriorSubstitution(Register local, boolean substitutedWithConsume) {}
 }

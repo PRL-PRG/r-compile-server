@@ -1,25 +1,32 @@
 package org.prlprg.fir.opt;
 
-import com.google.common.collect.ArrayListMultimap;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
+import org.prlprg.fir.ir.assumption.AssumeType;
+import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.AssumeConstant;
-import org.prlprg.fir.ir.expression.AssumeFunction;
-import org.prlprg.fir.ir.expression.AssumeType;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Concreteness;
+import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Lists;
@@ -28,7 +35,7 @@ import org.prlprg.util.Pair;
 /// Insert assumptions that feedback suggests will always pass.
 ///
 /// Specifically, if a register's feedback indicates:
-/// - It's always be a closure with global environment containing a compile function
+/// - It's always a closure whode body is a compiled function
 /// - It's always a constant
 /// - It's always an instance of some type
 ///
@@ -43,31 +50,29 @@ import org.prlprg.util.Pair;
 ///
 /// By default, this optimization doesn't run on baseline versions, since if we deoptimize from
 /// baseline we don't have anywhere to go that isn't FIŘ.
-public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean onBaseline)
+public record SpeculateAssume(int threshold, boolean onBaseline)
     implements AbstractionOptimization {
-  public SpeculateAssume(ModuleFeedback feedback, int threshold) {
-    this(feedback, threshold, false);
+  public SpeculateAssume(int threshold) {
+    this(threshold, false);
   }
 
   @Override
-  public void run(Function function) {
+  public boolean runWithoutRecording(ModuleFeedback feedback, Function function) {
+    var changed = false;
     for (var version : function.versions()) {
       // Don't run on baseline unless overridden via field
       if (!onBaseline && version == function.baseline()) {
         continue;
       }
 
-      run(version);
+      changed |= run(function, feedback.get(version), version);
     }
+    return changed;
   }
 
   @Override
-  public boolean run(Abstraction scope) {
-    var feedback = this.feedback.get(scope);
-    if (feedback == null) {
-      return false;
-    }
-
+  public boolean runWithoutRecording(
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction scope) {
     // Compute checkpoint BBs and analyses we'll need
     var checkpointBbs =
         scope
@@ -79,7 +84,7 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
     var domTree = new DominatorTree(scope);
 
     // Find assumptions
-    var assumesToInsert = ArrayListMultimap.<BB, Assume>create();
+    var assumptionsToInsert = new LinkedHashMap<BB, List<Assumption>>();
     for (var local : scope.locals()) {
       if (!(local.variable() instanceof Register register)) {
         continue;
@@ -102,6 +107,21 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
       var calleeFeedback = feedback.callee(register);
       var constantFeedback = feedback.constant(register);
       var typeFeedback = feedback.type(register).union();
+
+      // If type feedback is a promise, speculate on a maybe-promise,
+      // because callees to this closure may inline the promise argument
+      // which would cause deopt.
+      // ???: maybe we should change "promise" to "maybe-promise",
+      // because strict promises are replaced by SEXP values and semantics are equivalent,
+      // and we don't really get optimization since optimized code has minimal promises
+      // (although we do get better correctness, since a value can't be passed to a promise)
+      if (typeFeedback.isPromise()) {
+        typeFeedback =
+            typeFeedback.withPromisity(Promisity.maybe(typeFeedback.promisity().effects()));
+        if (typeFeedback.equals(Type.ANY_SEXP.withConcreteness(Concreteness.DEFINITE))) {
+          typeFeedback = Type.ANY_SEXP;
+        }
+      }
 
       // Skip if assumptions won't increase knowledge.
       if (calleeFeedback == null && constantFeedback == null && typeFeedback.equals(local.type())) {
@@ -141,68 +161,69 @@ public record SpeculateAssume(ModuleFeedback feedback, int threshold, boolean on
         // and we can't substitute multiple times.
         if (calleeFeedback != null) {
           var assumeCallee = new AssumeFunction(new Read(register), calleeFeedback);
-          assumesToInsert.put(successBb, assumeCallee);
+          assumptionsToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeCallee);
         } else if (constantFeedback != null) {
-          var assumeConstant =
-              new AssumeConstant(new Read(register), new Constant(constantFeedback));
-          assumesToInsert.put(successBb, assumeConstant);
+          var assumeConstant = new AssumeConstant(new Read(register), constantFeedback);
+          assumptionsToInsert
+              .computeIfAbsent(successBb, _ -> new ArrayList<>())
+              .add(assumeConstant);
         } else if (!typeFeedback.equals(local.type())) {
           var assumeType = new AssumeType(new Read(register), typeFeedback);
-          assumesToInsert.put(successBb, assumeType);
+          assumptionsToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeType);
         }
       }
     }
 
     // Stop unless we have changes
-    if (assumesToInsert.isEmpty()) {
+    if (assumptionsToInsert.isEmpty()) {
       return false;
     }
 
     // Substitute assumed registers
-    var assumeSubsts = new DomineeSubstituter(domTree, scope);
-    var assumeDsts = new HashMap<Pair<Assume, BB>, Register>();
-    var afterAssumeStmts = ArrayListMultimap.<BB, Statement>create();
-    for (var entry : assumesToInsert.entries()) {
+    var assumptionSubsts = new DomineeSubstituter(domTree, scope);
+    var assumptionDsts = new HashMap<Pair<Assumption, BB>, Register>();
+    for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
-      var assume = entry.getValue();
-      assert successBb != null && assume != null;
+      var assumptions = entry.getValue();
 
-      var target = ((Read) assume.target()).variable();
-      switch (assume) {
-        case AssumeType(var _, var type) -> {
-          var improvedType = scope.addLocal(target.name(), type);
-          assumeSubsts.stage(target, new Read(improvedType), successBb);
-          assumeDsts.put(Pair.of(assume, successBb), improvedType);
+      for (var assumption : assumptions) {
+        var target = Objects.requireNonNull((Read) assumption.target()).variable();
+        switch (assumption) {
+          case AssumeType(_, var type) -> {
+            var assumptionDst = scope.addLocal(target.name(), type);
+            assumptionSubsts.stage(target, new Read(assumptionDst), successBb);
+            assumptionDsts.put(Pair.of(assumption, successBb), assumptionDst);
+          }
+          case AssumeFunction(_, _) -> {
+            var assumptionDst = scope.addLocal(target.name(), Type.CLOSURE);
+            assumptionSubsts.stage(target, new Read(assumptionDst), successBb);
+            assumptionDsts.put(Pair.of(assumption, successBb), assumptionDst);
+            // After we insert `f1 = f ?- f_static`,
+            // [ResolveDynamicCallee] will substitute `dyn f1` with `f_static@f1`
+          }
+          case AssumeConstant(_, var constant) ->
+              assumptionSubsts.stage(target, new Constant(constant), successBb);
+          case AssumeLoadFun _, AssumeLoadVar _ ->
+              throw new IllegalStateException(
+                  "SpeculateAssume never creates load-based assumptions");
         }
-        case AssumeFunction af -> {
-          var fun = af.function();
-
-          var globalLookup = scope.addLocal(target.name(), Type.CLOSURE);
-          afterAssumeStmts.put(
-              successBb, new Statement(globalLookup, new LoadFun(fun.name(), Env.GLOBAL)));
-          assumeSubsts.stage(target, new Read(globalLookup), successBb);
-        }
-        case AssumeConstant(var _, var constant) -> assumeSubsts.stage(target, constant, successBb);
       }
     }
-    assumeSubsts.commit();
+    assumptionSubsts.commit();
 
-    for (var entry : assumesToInsert.asMap().entrySet()) {
+    for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
-      var assumes = (List<Assume>) entry.getValue();
-      assert successBb != null;
+      var assumptions = entry.getValue();
 
-      var assumeStmts =
-          Lists.concatLazy(
-              Lists.mapLazy(
-                  assumes,
-                  assume -> {
-                    var dst = assumeDsts.get(Pair.of(assume, successBb));
-                    return new Statement(dst, assume);
-                  }),
-              afterAssumeStmts.get(successBb));
+      var assumptionStmts =
+          Lists.mapLazy(
+              assumptions,
+              assumption -> {
+                var dst = assumptionDsts.get(Pair.of(assumption, successBb));
+                return new Statement(dst, new Assume(assumption));
+              });
 
-      successBb.insertStatements(0, assumeStmts);
+      successBb.insertStatements(0, assumptionStmts);
     }
 
     return true;

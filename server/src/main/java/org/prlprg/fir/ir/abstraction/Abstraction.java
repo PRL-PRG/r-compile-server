@@ -2,25 +2,29 @@ package org.prlprg.fir.ir.abstraction;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
+import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.argument.Use;
 import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.binding.Local;
 import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
@@ -33,8 +37,8 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 import org.prlprg.util.DisambiguatorMap;
+import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 
 public final class Abstraction implements Comparable<Abstraction> {
@@ -43,14 +47,15 @@ public final class Abstraction implements Comparable<Abstraction> {
   private final Module module;
 
   // Data
-  private final ImmutableList<Parameter> parameters;
+  private final Comments comments;
+  private final Parameter[] parameters;
   private Type returnType;
   private Effects effects;
   private final Map<Variable, Local> locals = new LinkedHashMap<>();
   private final @Nullable CFG cfg;
 
-  // Cached
-  private final ImmutableMap<String, Parameter> nameToParam;
+  // Cache
+  private final ImmutableMap<String, Integer> nameToParamIndex;
   private final DisambiguatorMap nextLocalDisambiguator = new DisambiguatorMap();
 
   public Abstraction(Module module, List<Parameter> parameters) {
@@ -58,26 +63,31 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public Abstraction(Module module, List<Parameter> parameters, boolean isStub) {
+    comments = new Comments();
     this.module = module;
-    this.parameters = ImmutableList.copyOf(parameters);
+    this.parameters = parameters.toArray(Parameter[]::new);
 
-    nameToParam = computeNameToParam(parameters);
-    returnType = Type.ANY_VALUE;
-    effects = Effects.ANY;
+    nameToParamIndex = computeNameToParamIndex(this.parameters);
+    returnType = Type.ANY_VALUE_SEXP;
+    effects = Effects.REFLECT;
     cfg = isStub ? null : new CFG(this);
 
     parameters.stream().map(p -> p.variable().name()).forEach(nextLocalDisambiguator::add);
   }
 
-  private static ImmutableMap<String, Parameter> computeNameToParam(List<Parameter> params) {
-    return params.stream()
+  private static ImmutableMap<String, Integer> computeNameToParamIndex(Parameter[] params) {
+    return IntStream.range(0, params.length)
+        .boxed()
         .collect(
             Streams.toImmutableMap(
-                p -> p.variable().name(),
-                p -> p,
-                (p1, p2) -> {
+                i -> params[i].variable().name(),
+                i -> i,
+                (i1, i2) -> {
                   throw new IllegalArgumentException(
-                      "Duplicate parameter variable: " + p1.variable() + " and " + p2.variable());
+                      "Duplicate parameter variable: "
+                          + params[i1].variable()
+                          + " and "
+                          + params[i2].variable());
                 }));
   }
 
@@ -85,8 +95,12 @@ public final class Abstraction implements Comparable<Abstraction> {
     return module;
   }
 
+  public Comments comments() {
+    return comments;
+  }
+
   public @Unmodifiable List<Parameter> parameters() {
-    return parameters;
+    return Arrays.asList(parameters);
   }
 
   public Type returnType() {
@@ -223,12 +237,21 @@ public final class Abstraction implements Comparable<Abstraction> {
         "Abstraction#setLocalType",
         List.of(this, variable, type),
         () -> {
-          if (type.equals(Type.ANY)) {
+          if (type.equals(Type.ANY_SEXP)) {
             locals.remove(variable);
           } else {
             locals.put(variable, new Local(variable, type));
           }
         });
+  }
+
+  /// Stream parameters and local registers.
+  ///
+  /// Every [Binding#variable()] is guaranteed to be a [Register].
+  public Stream<Binding> streamRegisterBindings() {
+    return Stream.concat(
+        Arrays.stream(parameters),
+        locals.values().stream().filter(local -> local.variable() instanceof Register));
   }
 
   /// True iff [#cfg()] is `null`, and this instance's constructor was called with
@@ -247,16 +270,29 @@ public final class Abstraction implements Comparable<Abstraction> {
     return lookup(register) != null;
   }
 
-  /// Whether [#locals()] includes a binding for this named variable.
-  ///
-  /// Named variables may be loaded and stored without being declared, the purpose of declaring
-  /// is to give a specific maybe-type, or for documentation (no semantic meaning) if type ANY.
-  public boolean isDeclared(NamedVariable nv) {
-    return lookup(nv) != null;
+  public boolean isParameter(Register register) {
+    return nameToParamIndex.containsKey(register.name());
   }
 
-  public boolean isParameter(Register register) {
-    return nameToParam.containsKey(register.name());
+  /// Marks the parameter with the given name as strict.
+  public void setParameterStrict(Register name) {
+    module.record(
+        "Abstraction#setParameterStrict",
+        List.of(this, name),
+        () -> {
+          var index = nameToParamIndex.get(name.name());
+          if (index == null) {
+            throw new IllegalArgumentException("No parameter named `" + name + "` in:\n" + this);
+          }
+
+          var param = parameters[index];
+          if (param.strict()) {
+            throw new IllegalArgumentException(
+                "Parameter at already strict `" + param + "` in:\n" + this);
+          }
+
+          parameters[index] = param.withStrict(true);
+        });
   }
 
   public @Nullable Type typeOf(Register register) {
@@ -267,14 +303,14 @@ public final class Abstraction implements Comparable<Abstraction> {
   public Type typeOf(NamedVariable named) {
     var lookup = lookup(named);
     // `lookup == null` means it's an unknown named variable, i.e. has type ANY.
-    return lookup != null ? lookup.type() : Type.ANY;
+    return lookup != null ? lookup.type() : Type.ANY_SEXP;
   }
 
   public @Nullable Type typeOf(Argument argument) {
     return switch (argument) {
-      case Constant(var constant) -> Type.of(constant);
+      case Constant(var constant) -> constant.type();
       case Read(var register) -> typeOf(register);
-      case Use(var register) -> {
+      case Consume(var register) -> {
         var type = typeOf(register);
         yield type == null ? null : type.withOwnership(Ownership.FRESH);
       }
@@ -282,19 +318,23 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   private @Nullable Binding lookup(Variable variable) {
-    var param = variable instanceof Register r ? nameToParam.get(r.name()) : null;
-    return param != null ? param : locals.get(variable);
+    // Try parameter, else try local
+    var paramIndex = variable instanceof Register r ? nameToParamIndex.get(r.name()) : null;
+    return paramIndex != null ? parameters[paramIndex] : locals.get(variable);
   }
 
   /// Converts the string into a register name that is valid and doesn't already exist.
-  public Register resemblance(String prefix) {
+  private Register resemblance(String prefix) {
     return Variable.register(
         nextLocalDisambiguator.disambiguate(Register.resemblance(prefix).name()));
   }
 
   public Signature signature() {
     return new Signature(
-        parameters.stream().map(Parameter::type).collect(ImmutableList.toImmutableList()),
+        Arrays.stream(parameters).map(Parameter::type).collect(ImmutableList.toImmutableList()),
+        Arrays.stream(parameters)
+            .map(Parameter::strict)
+            .collect(ImmutableBoolArray.toImmutableBoolArray()),
         returnType,
         effects);
   }
@@ -317,18 +357,29 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   /// Sort so that "better" versions are strictly less than "worse" ones. A version is "better"
-  /// if its parameter types, effects, and return type are narrower.
+  /// if its parameter types, effects, and return type are narrower
+  ///
+  /// @throws IllegalArgumentException Comparing versions in different [Module]s, or non-equal
+  ///    versions with the same signature and print
   @Override
   public int compareTo(Abstraction o) {
+    if (this == o) {
+      return 0;
+    }
+
+    if (module != o.module) {
+      throw new IllegalArgumentException("Can't compare versions in different modules.");
+    }
+
     // Parameter size (if different, neither is better).
-    var cmp = Integer.compare(parameters.size(), o.parameters.size());
+    var cmp = Integer.compare(parameters.length, o.parameters.length);
     if (cmp != 0) {
       return cmp;
     }
 
     // Parameter types
-    for (var i = 0; i < Math.min(parameters.size(), o.parameters.size()); i++) {
-      cmp = parameters.get(i).type().compareTo(o.parameters.get(i).type());
+    for (var i = 0; i < Math.min(parameters.length, o.parameters.length); i++) {
+      cmp = parameters[i].type().compareTo(o.parameters[i].type());
       if (cmp != 0) {
         return cmp;
       }
@@ -347,7 +398,13 @@ public final class Abstraction implements Comparable<Abstraction> {
     }
 
     // Tiebreaker
-    return Integer.compare(hashCode(), o.hashCode());
+    cmp = toString().compareTo(o.toString());
+    if (cmp != 0) {
+      return cmp;
+    }
+
+    throw new IllegalArgumentException(
+        "Can't compare non-equal versions with the same signature and print:\n" + this);
   }
 
   @Override
@@ -359,8 +416,10 @@ public final class Abstraction implements Comparable<Abstraction> {
   private void print(Printer p) {
     var w = p.writer();
 
+    p.print(comments);
+
     w.write('(');
-    p.printSeparated(", ", parameters);
+    p.printSeparated(", ", Arrays.asList(parameters));
     w.write(')');
 
     w.write(" -");
@@ -388,7 +447,7 @@ public final class Abstraction implements Comparable<Abstraction> {
   }
 
   public record ParseContext(
-      Module module, DeferredCallbacks<Module> postModule, @Nullable Object inner) {}
+      Module module, FunctionRef.ParseContext forFunctionRef, @Nullable Object inner) {}
 
   @ParseMethod
   private Abstraction(Parser p1, ParseContext ctx) {
@@ -397,8 +456,10 @@ public final class Abstraction implements Comparable<Abstraction> {
 
     var s = p.scanner();
 
-    parameters = p.parseList("(", ")", Parameter.class);
-    nameToParam = computeNameToParam(parameters);
+    comments = p.parse(Comments.class);
+
+    parameters = p.parseList("(", ")", Parameter.class).toArray(Parameter[]::new);
+    nameToParamIndex = computeNameToParamIndex(parameters);
 
     s.assertAndSkip('-');
     effects = p.parse(Effects.class);
@@ -423,13 +484,13 @@ public final class Abstraction implements Comparable<Abstraction> {
     }
     s.assertAndSkip('|');
 
-    parameters.stream().map(p2 -> p2.variable().name()).forEach(nextLocalDisambiguator::add);
+    Arrays.stream(parameters).map(p2 -> p2.variable().name()).forEach(nextLocalDisambiguator::add);
     locals.values().stream()
         .filter(l -> l.variable() instanceof Register)
         .map(l -> l.variable().name())
         .forEach(nextLocalDisambiguator::add);
 
-    var p2 = p.withContext(new CFG.ParseContext(this, ctx.postModule, p.context()));
+    var p2 = p.withContext(new CFG.ParseContext(this, ctx.forFunctionRef, p.context()));
     cfg = p2.parse(CFG.class);
 
     s.assertAndSkip('}');

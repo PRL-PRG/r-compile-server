@@ -28,6 +28,9 @@ public sealed interface Binding permits Local, Parameter {
     p.print(variable());
     w.write(":");
     p.print(type());
+    if (this instanceof Parameter param && param.strict()) {
+      w.write("@!");
+    }
   }
 }
 

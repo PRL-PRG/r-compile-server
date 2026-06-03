@@ -3,9 +3,10 @@
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 // FIXME: define out own error function
 #include <R_ext/Error.h>
-#include <llvm-17/llvm/ExecutionEngine/Orc/Core.h>
-#include <llvm-17/llvm/Object/Binary.h>
+#include <llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/Mangling.h>
+#include <llvm/Object/Binary.h>
 #include <llvm/Support/TargetSelect.h>
 
 namespace rsh {
@@ -85,7 +86,7 @@ void JIT::add_object(std::string const &vec) {
 
 void *JIT::lookup(const char *name) {
   // orc->getMainJITDylib().dump(llvm::outs());
-  auto v = orc->lookupLinkerMangled(name);
+  auto v = orc->lookup(name);
   if (auto err = v.takeError()) {
     Rf_error("Unable to load %s: %s\n", name, toString(std::move(err)).c_str());
     return nullptr;
@@ -97,8 +98,10 @@ void *JIT::lookup(const char *name) {
 void JIT::remove(const char *name) {
   // FIXME: this is conceptually wrong.
   // we should use ResourceTracker to remove the function and its dependencies
+  llvm::orc::MangleAndInterner mangle(orc->getExecutionSession(),
+                                      orc->getDataLayout());
   llvm::orc::SymbolNameSet names;
-  names.insert(orc->getExecutionSession().intern(name));
+  names.insert(mangle(name));
   auto err = orc->getMainJITDylib().remove(names);
   if (err) {
     Rf_error("Problem removing %s: %s\n", name,

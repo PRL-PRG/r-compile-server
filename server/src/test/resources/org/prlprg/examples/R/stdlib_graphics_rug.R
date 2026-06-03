@@ -1,0 +1,34 @@
+#? stdlib
+`rug` <- function (x, ticksize = 0.03, side = 1, lwd = 0.5, col = par("fg"), 
+    quiet = getOption("warn") < 0, ...) 
+{
+    x <- as.vector(x)
+    ok <- is.finite(x)
+    x <- x[ok]
+    if (!quiet) {
+        u <- par("usr")
+        u <- if (side%%2 == 1) {
+            if (par("xlog")) 
+                10^u[1L:2]
+            else u[1L:2]
+        }
+        else {
+            if (par("ylog")) 
+                10^u[3:4]
+            else u[3:4]
+        }
+        if (any(x < u[1L] | x > u[2L])) 
+            warning("some values will be clipped")
+    }
+    Axis(side = side, at = x, labels = FALSE, lwd = 0, lwd.ticks = lwd, 
+        col.ticks = col, tck = ticksize, ...)
+}
+
+# Examples
+require(stats)  # both 'density' and its default method
+with(faithful, {
+    plot(density(eruptions, bw = 0.15))
+    rug(eruptions)
+    rug(jitter(eruptions, amount = 0.01), side = 3, col = "light blue")
+})
+

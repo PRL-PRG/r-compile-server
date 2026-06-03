@@ -1,6 +1,6 @@
 package org.prlprg.util;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * {@link java.util.function.Function Function} variant which may explicitly return {@code null}.

@@ -112,13 +112,14 @@ public class RDSWriter implements Closeable {
         switch (s) {
           case SymSXP sym -> writeSymbol(sym);
           case EnvSXP env -> writeEnv(env);
-          case ListSXP list -> writeListSXP(list);
+          case AbstractListSXP list -> writeAbstractListSXP(list);
           case LangSXP lang -> writeLangSXP(lang);
           case PromSXP prom -> writePromSXP(prom);
           case CloSXP clo -> writeCloSXP(clo);
           case BuiltinOrSpecialSXP bos -> writeBuiltinOrSpecialSXP(bos);
           case VectorSXP<?> vec -> writeVectorSXP(vec);
           case BCodeSXP bc -> writeByteCode(bc);
+          case ExtptrSxp extptr -> writeExtptrSXP(extptr);
           default -> throw new RDSException("Unsupported SEXP type: " + s.type());
         }
       }
@@ -142,7 +143,7 @@ public class RDSWriter implements Closeable {
    * <ul>
    *   <li>{@link CloSXP}: the closure's environment
    *   <li>{@link PromSXP}: the promise's environment (null if the promise has been evaluated)
-   *   <li>{@link ListSXP}: the name assigned to an element
+   *   <li>{@link AbstractListSXP}: the name assigned to an element
    *   <li>{@link LangSXP}: a name assigned to the function (we do not support this since it's such
    *       a rare case)
    * </ul>
@@ -159,7 +160,7 @@ public class RDSWriter implements Closeable {
       // unevaluated (lazy)
       case PromSXP prom -> prom.isLazy();
       // hasTag is based on the first element
-      case ListSXP list -> !list.isEmpty() && list.get(0).hasTag();
+      case AbstractListSXP list -> !list.isEmpty() && list.get(0).hasTag();
       default -> false;
     };
   }
@@ -169,7 +170,7 @@ public class RDSWriter implements Closeable {
     return switch (s) {
       // "Save Special hooks" from serialize.c
       case NilSXP _ -> RDSItemType.Special.NILVALUE_SXP;
-      case ListSXP l when l.isEmpty() -> RDSItemType.Special.NILVALUE_SXP;
+      case AbstractListSXP l when l.isEmpty() -> RDSItemType.Special.NILVALUE_SXP;
       case EmptyEnvSXP _ -> RDSItemType.Special.EMPTYENV_SXP;
       case BaseEnvSXP _ -> RDSItemType.Special.BASEENV_SXP;
       case GlobalEnvSXP _ -> RDSItemType.Special.GLOBALENV_SXP;
@@ -332,7 +333,7 @@ public class RDSWriter implements Closeable {
     // - write the name as a String (not a CHARSXP, in that no additional flags are written)
   }
 
-  private void writeListSXP(ListSXP lsxp) throws IOException {
+  private void writeAbstractListSXP(AbstractListSXP lsxp) throws IOException {
     Flags listFlags = flags(lsxp);
 
     // Write the first element. This case is separate because:
@@ -410,6 +411,10 @@ public class RDSWriter implements Closeable {
         // Write all the ints to the stream
         var vec = StreamSupport.stream(ints.spliterator(), false).mapToInt(i -> i).toArray();
         out.writeInts(vec);
+      }
+      case RawSXP bytes -> {
+        // Write all the bytes to the stream
+        out.writeBytes(bytes.data());
       }
       case LglSXP lgls -> {
         // Write all the logicals to the stream as ints
@@ -599,6 +604,12 @@ public class RDSWriter implements Closeable {
 
     var nextRepIndex = new AtomicInteger(0);
     writeByteCode1(s, reps, nextRepIndex);
+  }
+
+  private void writeExtptrSXP(ExtptrSxp extptr) throws IOException {
+    refAdd(extptr);
+    writeItem(extptr.prot());
+    writeItem(extptr.tag());
   }
 
   @Override

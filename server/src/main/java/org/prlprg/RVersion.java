@@ -1,6 +1,6 @@
 package org.prlprg;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Major.Minor.Patch version number with an optional suffix for things like "Beta" and "RC".

@@ -1,14 +1,13 @@
 package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableMap;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.sexp.*;
 
 /**
@@ -16,7 +15,6 @@ import org.prlprg.sexp.*;
  * determined by its subtype, arguments are determined by its fields.
  */
 @SuppressWarnings("MissingJavadoc")
-@SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public sealed interface BcInstr {
   /** Every instruction class mapped to its {@linkplain Class#getSimpleName() simple name}. */
   @SuppressWarnings("unchecked")
@@ -44,16 +42,16 @@ public sealed interface BcInstr {
     return stackEffect == null ? 0 : stackEffect.push();
   }
 
+  @SuppressWarnings("unchecked")
   default Optional<ConstPool.Idx<RegSymSXP>> bindingCell() {
     var cls = getClass();
 
     if (cls.isRecord()) {
       for (RecordComponent rc : cls.getRecordComponents()) {
         if (rc.isAnnotationPresent(BindingCell.class)) {
-          Method accessor = null;
+          Method accessor;
           try {
-            accessor = this.getClass().getDeclaredMethod(rc.getName());
-            accessor.setAccessible(true);
+            accessor = cls.getDeclaredMethod(rc.getName());
             return Optional.ofNullable((ConstPool.Idx<RegSymSXP>) accessor.invoke(this));
           } catch (Exception e) {
             throw new RuntimeException("Unable to access @BindingCell field", e);
@@ -344,9 +342,9 @@ public sealed interface BcInstr {
     }
   }
 
+  /// `code` is usually but not always bytecode (see eval.c).
   @NeedsRho
   @StackEffect(pop = 3, push = 3)
-  /** {@code code} is usually but not always bytecode (see eval.c). */
   record MakeProm(ConstPool.Idx<SEXP> code) implements BcInstr {
     @Override
     public BcOp op() {
@@ -364,7 +362,7 @@ public sealed interface BcInstr {
   }
 
   @StackEffect(pop = 3, push = 3)
-  record SetTag(@Nullable ConstPool.Idx<StrOrRegSymSXP> tag) implements BcInstr {
+  record SetTag(ConstPool.@Nullable Idx<StrOrRegSymSXP> tag) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SETTAG;
@@ -869,7 +867,7 @@ public sealed interface BcInstr {
   // but not sure if
   // it's possible.
   // This applies to every other `@Nullable call` in this file.
-  record VecSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record VecSubset(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.VECSUBSET;
@@ -878,7 +876,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 3, push = 1)
-  record MatSubset(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record MatSubset(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.MATSUBSET;
@@ -887,7 +885,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 3, push = 1)
-  record VecSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record VecSubassign(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.VECSUBASSIGN;
@@ -896,7 +894,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 4, push = 1)
-  record MatSubassign(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record MatSubassign(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.MATSUBASSIGN;
@@ -1044,9 +1042,9 @@ public sealed interface BcInstr {
    */
   record Switch(
       ConstPool.Idx<LangSXP> ast,
-      @Nullable ConstPool.Idx<StrSXP> names,
-      @Nullable ConstPool.Idx<IntSXP> chrLabelsIdx,
-      @Nullable ConstPool.Idx<IntSXP> numLabelsIdx)
+      ConstPool.@Nullable Idx<StrSXP> names,
+      ConstPool.@Nullable Idx<IntSXP> chrLabelsIdx,
+      ConstPool.@Nullable Idx<IntSXP> numLabelsIdx)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -1095,7 +1093,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 2, push = 1)
-  record VecSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record VecSubset2(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.VECSUBSET2;
@@ -1104,7 +1102,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 3, push = 1)
-  record MatSubset2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record MatSubset2(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.MATSUBSET2;
@@ -1113,7 +1111,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 3, push = 1)
-  record VecSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record VecSubassign2(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.VECSUBASSIGN2;
@@ -1122,7 +1120,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 4, push = 1)
-  record MatSubassign2(@Nullable ConstPool.Idx<LangSXP> ast) implements BcInstr {
+  record MatSubassign2(ConstPool.@Nullable Idx<LangSXP> ast) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.MATSUBASSIGN2;
@@ -1163,7 +1161,7 @@ public sealed interface BcInstr {
   /// The SUBSET_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
+  ///  - pops the vector and a variable number of elements from the stack determined by `n`
   ///  - pushes the result
   ///
   /// @param ast
@@ -1171,7 +1169,7 @@ public sealed interface BcInstr {
   ///
   @NeedsRho
   @StackEffect(push = 1)
-  record SubsetN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+  record SubsetN(ConstPool.@Nullable Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SUBSET_N;
@@ -1182,7 +1180,7 @@ public sealed interface BcInstr {
   /// The SUBSET2_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
+  ///  - pops the vector and a variable number of elements from the stack determined by `n`
   ///  - pushes the result
   ///
   /// @param ast
@@ -1190,7 +1188,7 @@ public sealed interface BcInstr {
   ///
   @NeedsRho
   @StackEffect(push = 1)
-  record Subset2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+  record Subset2N(ConstPool.@Nullable Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SUBSET2_N;
@@ -1201,7 +1199,7 @@ public sealed interface BcInstr {
   /// The SUBASSIGN_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
+  ///  - pops the vector and a variable number of elements from the stack determined by `n`
   ///    <i>and</i> rhs
   ///  - pushes the result
   ///
@@ -1210,7 +1208,7 @@ public sealed interface BcInstr {
   ///
   @NeedsRho
   @StackEffect(push = 1)
-  record SubassignN(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+  record SubassignN(ConstPool.@Nullable Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SUBASSIGN_N;
@@ -1221,7 +1219,7 @@ public sealed interface BcInstr {
   /// The SUBASSIGN2_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
+  ///  - pops the vector and a variable number of elements from the stack determined by `n`
   ///    <i>and</i> rhs
   ///  - pushes the result
   ///
@@ -1230,7 +1228,7 @@ public sealed interface BcInstr {
   ///
   @NeedsRho
   @StackEffect(push = 1)
-  record Subassign2N(@Nullable ConstPool.Idx<LangSXP> ast, int n) implements BcInstr {
+  record Subassign2N(ConstPool.@Nullable Idx<LangSXP> ast, int n) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.SUBASSIGN2_N;
