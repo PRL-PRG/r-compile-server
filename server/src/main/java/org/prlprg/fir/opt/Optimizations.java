@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt;
 
+import org.prlprg.fir.opt.egraph.EGraphOptimization;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
@@ -59,6 +60,7 @@ public class Optimizations {
                     new Unbox(),
                     new UnboxPhi(),
                     new ElideRedundantBoxUnbox(),
+                    new EGraphOptimization(),
                     new SchedulePure(),
                     new ElideEnv(),
                     new Inline(1000),
