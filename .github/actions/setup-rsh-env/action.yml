@@ -1,0 +1,75 @@
+name: Set up rsh build & test environment
+description: >
+  Sets up the JDK + Maven and, when running the tests, builds (or restores from
+  cache) the custom GNU-R from the external/R submodule. The server test suite
+  needs this patched GNU-R (NOT a vanilla CRAN R): tests resolve it via the
+  default R_BIN (../external/R/bin/R) and the bc2c tests compile against
+  external/R/include. See tools/build-gnur.sh.
+
+inputs:
+  install-r:
+    description: >
+      Whether to install the R toolchain dependencies and build/restore GNU-R.
+      Set to "false" for jobs that only compile/package or run static analyses,
+      which do not execute R.
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install system dependencies
+      if: ${{ inputs.install-r == 'true' }}
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      # Dependencies needed to build GNU-R and to run the gcc-based bc2c tests.
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          ca-certificates \
+          gfortran \
+          libbz2-dev \
+          libcairo2-dev \
+          libcurl4-openssl-dev \
+          libicu-dev \
+          libjpeg-dev \
+          liblzma-dev \
+          libpango1.0-dev \
+          libpcre2-dev \
+          libpng-dev \
+          libreadline-dev \
+          libssl-dev \
+          libtiff5-dev \
+          libx11-dev \
+          libxt-dev \
+          rsync \
+          zlib1g-dev
+
+    - name: Record GNU-R submodule commit
+      if: ${{ inputs.install-r == 'true' }}
+      id: gnur
+      shell: bash
+      run: echo "sha=$(git rev-parse HEAD:external/R)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache custom GNU-R
+      if: ${{ inputs.install-r == 'true' }}
+      id: cache-gnur
+      uses: actions/cache@v4
+      with:
+        path: external/R
+        key: gnur-${{ runner.os }}-${{ steps.gnur.outputs.sha }}-${{ hashFiles('tools/build-gnur.sh') }}
+
+    - name: Build custom GNU-R
+      if: ${{ inputs.install-r == 'true' && steps.cache-gnur.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        git submodule update --init --depth 1 external/R
+        ./tools/build-gnur.sh external/R
+
+    - name: Set up JDK 24 + Maven
+      uses: actions/setup-java@v4
+      with:
+        java-version: "24"
+        distribution: "temurin"
+        cache: maven
