@@ -1,9 +1,11 @@
 package org.prlprg.fir.opt.egraph;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -24,24 +26,37 @@ import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.AbstractionOptimization;
 
-/// Egraph optimization inspired by
-/// [cranelift's](https://github.com/bytecodealliance/rfcs/blob/main/accepted/cranelift-egraph.md).
+/// Value-equivalence optimization built on an [AEGraph], inspired by
+/// [Cranelift's](https://github.com/bytecodealliance/rfcs/blob/main/accepted/cranelift-egraph.md).
 ///
-/// It builds an [AEGraph] over the abstraction's arguments, which discovers value equivalences:
-/// - **Copy propagation:** `r = a` makes `r` equal to `a`.
-/// - **GVN/CSE:** two pure, shareable instructions with equal (canonicalized) operands hash-cons
-///   to the same e-class.
+/// It runs in two phases:
 ///
-/// It then rewrites the code by replacing each register with the best *dominating* member of its
-/// e-class (a constant, or a register whose definition dominates this one and all its uses). This
-/// subsumes global value numbering and copy propagation. Code motion, dead-code elimination, and
-/// re-scheduling of the now-redundant definitions are intentionally left to the passes that run
-/// after this one (e.g. `SchedulePure`, `Cleanup`).
+/// 1. **Build** ([Run#buildGraph]). It pours the abstraction into an [AEGraph], one e-node per
+///    parameter, phi, and statement, in *dominator order* so every operand is canonical before the
+///    node that uses it (the acyclic invariant — see [AEGraph]). Two rewrites are applied as nodes
+///    are added:
+///    - **Copy-propagation:** `r = a` unions `r`'s class with `a`'s.
+///    - **GVN/CSE:** two pure, shareable instructions with equal canonical operands hash-cons to
+///      one e-class.
+///
+/// 2. **Extract & rewrite** ([Run#collectSubstitutions]). For each register it
+// [extracts][AEGraph#extract]
+///    the cheapest equivalent that's actually *usable* at the register's sites — a constant, or a
+///    register whose definition dominates this one and all of its uses — and substitutes it.
+///
+/// This subsumes global value numbering and copy propagation. It deliberately does **not** move,
+/// duplicate, or delete code: the now-redundant definitions and any freed-up scheduling are left to
+/// the passes that run after it (e.g. `SchedulePure`, `Cleanup`), keeping this pass idempotent.
+///
+/// Only *shareable* values participate (pure, effect-free, [shared][Ownership#SHARED] results with
+/// no `consume`d operands); anything side-effecting or owning a fresh value is pinned and only ever
+/// has its operands rewritten, never merged — this preserves R's reference-counting semantics.
 public class EGraphOptimization implements AbstractionOptimization {
   @Override
   public boolean runWithoutRecording(
@@ -79,8 +94,11 @@ public class EGraphOptimization implements AbstractionOptimization {
 
     // region build
 
-    /// Populate the e-graph from the abstraction: parameters and phis become [EParam] leaves, and
-    /// every statement becomes a copy-propagation [union][AEGraph#union] or an [EInstruction].
+    /// Populate the e-graph from the abstraction. Parameters and phis become [EParam] leaves; every
+    /// statement becomes a copy-propagation [union][AEGraph#union] or an [EInstruction]. Blocks are
+    /// visited in dominator order (and statements in their natural order) so that each node's
+    /// operands are already canonical when it's added — the precondition for hash-consing and
+    /// at-creation rewrites to be correct without a rebuild step.
     private void buildGraph() {
       for (var parameter : scope.parameters()) {
         graph.add(new EParam(parameter.variable()));
@@ -90,7 +108,12 @@ public class EGraphOptimization implements AbstractionOptimization {
           .streamCfgs()
           .forEach(
               cfg -> {
-                for (var bb : cfg.bbs()) {
+                // Dominators before dominees: a definition's e-class is finalized before any
+                // dominated use is canonicalized against it.
+                var blocks = new ArrayList<>(cfg.bbs());
+                blocks.sort(new CfgDominatorTree(cfg).comparator());
+
+                for (var bb : blocks) {
                   for (var phi : bb.phiParameters()) {
                     graph.add(new EParam(phi));
                   }
@@ -100,7 +123,7 @@ public class EGraphOptimization implements AbstractionOptimization {
                     addStatement(statement, new CfgPosition(bb, i, statement));
                   }
 
-                  // Register jump operands so their canonical forms participate in substitution.
+                  // Register jump operands so their canonical forms exist for substitution.
                   bb.jump().arguments().forEach(this::canonicalizeArgument);
                 }
               });
@@ -119,13 +142,13 @@ public class EGraphOptimization implements AbstractionOptimization {
       var out = new Read(assignee);
 
       // `r = a` (a zero-cost argument-as-expression): `r` is exactly `a`, so union their classes.
-      // A `consume` aliases an owned value, so it isn't a value-equivalence we can share.
+      // A `consume` aliases an owned value, so it isn't a value-equivalence we may freely share.
       if (statement.expression() instanceof Aea(var value) && !(value instanceof Consume)) {
         graph.union(canonicalizeArgument(value), out);
         return;
       }
 
-      if (isAegraphPure(statement)) {
+      if (isShareable(statement)) {
         // Pure + shareable: add with canonical operands so equal computations hash-cons (GVN/CSE).
         graph.add(new EInstruction(assignee, canonicalize(statement.expression()), null));
       } else {
@@ -139,7 +162,7 @@ public class EGraphOptimization implements AbstractionOptimization {
     }
 
     /// Register `argument` in the e-graph and return its canonical representative. A `consume` is
-    /// left as-is (treated as opaque), since it transfers ownership rather than naming a value.
+    /// left opaque (it transfers ownership rather than naming a reusable value).
     private Argument canonicalizeArgument(Argument argument) {
       if (argument instanceof Consume) {
         return argument;
@@ -147,11 +170,11 @@ public class EGraphOptimization implements AbstractionOptimization {
       return graph.addArgument(argument);
     }
 
-    /// Whether a statement's result can be shared with an equivalent one (and so participate in
-    /// GVN/CSE). It must assign a value, be pure (no effects, no `consume` operands), and -- since
-    /// sharing means two uses observe one result -- produce a [shared][Ownership#SHARED], not
+    /// Whether a statement's result may be shared with an equivalent one (i.e. participate in
+    /// GVN/CSE). It must assign a value, be pure (no effects, no `consume` operands), and — since
+    /// sharing means two uses observe one result — produce a [shared][Ownership#SHARED], not
     /// freshly-owned, value. Only `r = a` and pure static calls qualify; everything else is pinned.
-    private boolean isAegraphPure(Statement statement) {
+    private boolean isShareable(Statement statement) {
       var expression = statement.expression();
       if (statement.assignee() == null
           || expression instanceof Assume
@@ -163,28 +186,30 @@ public class EGraphOptimization implements AbstractionOptimization {
       }
 
       return expression instanceof Aea
-          || expression instanceof Call(StaticFnCallee(_, _, _, var signature), _)
+          || (expression instanceof Call(StaticFnCallee(_, _, _, var signature), _)
               && signature.effects() == Effects.NONE
-              && signature.returnType().ownership() == Ownership.SHARED;
+              && signature.returnType().ownership() == Ownership.SHARED);
     }
 
     // endregion build
 
-    // region rewrite
+    // region extract & rewrite
 
-    /// For every register, find the best equivalent argument to replace it with (if any). Returns
-    /// a map from each register to its replacement, ready to stage on the [Substituter].
+    /// For every register, extract the best equivalent argument to replace it with (if any), keyed
+    /// by the register and ready to stage on the [Substituter].
     private Map<Register, Argument> collectSubstitutions() {
       var substitutions = new LinkedHashMap<Register, Argument>();
-      for (var eclass : graph.classes().values()) {
-        for (var member : eclass) {
+      for (var members : graph.classes().values()) {
+        for (var member : members) {
           if (!(member instanceof Read(var original))
               || scope.isParameter(original)
               || substitutions.containsKey(original)) {
             continue;
           }
 
-          var replacement = replacementFor(original, eclass);
+          var replacement =
+              graph.extract(
+                  member, candidate -> isUsableReplacement(original, candidate), Run::cost);
           if (replacement != null) {
             substitutions.put(original, replacement);
           }
@@ -193,24 +218,20 @@ public class EGraphOptimization implements AbstractionOptimization {
       return substitutions;
     }
 
-    private @Nullable Argument replacementFor(Register original, Iterable<Argument> eclass) {
-      for (var candidate : eclass) {
-        if (candidate.equals(new Read(original))) {
-          continue;
-        }
-        if (canSubstitute(original, candidate)) {
-          return candidate;
-        }
-      }
-      return null;
+    /// Cost used to rank equivalent members during [extraction][AEGraph#extract]: a known constant
+    /// is free to rematerialize, so it's always preferred over keeping a register live.
+    private static int cost(Argument argument) {
+      return argument instanceof Constant ? 0 : 1;
     }
 
-    /// Whether every use of `original` can be replaced with `replacement` while preserving
-    /// semantics: `original` must still be a used, non-`consume`d local of a compatible type, and a
-    /// register `replacement` must be defined somewhere that dominates `original`'s definition and
-    /// all of its uses (so the replacement is always available where `original` was).
-    private boolean canSubstitute(Register original, Argument replacement) {
-      if (replacement instanceof Consume
+    /// Whether `candidate` may replace every occurrence of `original` while preserving semantics:
+    /// `original` must remain a used, non-`consume`d local of a compatible type, and a register
+    /// `candidate` must be defined somewhere that dominates `original`'s definition and all of its
+    /// uses (so the replacement is available everywhere `original` was). `candidate` is never
+    /// `original` itself, and never a `consume`.
+    private boolean isUsableReplacement(Register original, Argument candidate) {
+      if (candidate.equals(new Read(original))
+          || candidate instanceof Consume
           || !scope.contains(original)
           || defUses.uses(original).isEmpty()
           || hasConsumeUse(original)) {
@@ -218,30 +239,30 @@ public class EGraphOptimization implements AbstractionOptimization {
       }
 
       var originalType = scope.typeOf(original);
-      var replacementType = scope.typeOf(replacement);
+      var candidateType = scope.typeOf(candidate);
       if (originalType != null
-          && replacementType != null
-          && !replacementType.canBeAssignedTo(originalType)) {
+          && candidateType != null
+          && !candidateType.canBeAssignedTo(originalType)) {
         return false;
       }
 
-      return switch (replacement) {
-        case Constant _ -> true;
-        case Read(var replacementRegister) -> {
-          var originalDefinition = defUses.definition(original);
-          var replacementDefinition = defUses.definition(replacementRegister);
-          if (originalDefinition == null || replacementDefinition == null) {
-            yield false;
-          }
+      // A `Constant` (the only non-`Read` left, since `Consume` was excluded above) is always
+      // available. A `Read` is only available where its definition dominates.
+      if (!(candidate instanceof Read(var replacementRegister))) {
+        return true;
+      }
 
-          var replacementPosition = replacementDefinition.inInnermostCfg();
-          yield dominatorTree.dominates(replacementPosition, originalDefinition.inInnermostCfg())
-              && defUses.uses(original).stream()
-                  .map(use -> use.inInnermostCfg())
-                  .allMatch(use -> dominatorTree.dominates(replacementPosition, use));
-        }
-        case Consume _ -> false;
-      };
+      var originalDefinition = defUses.definition(original);
+      var replacementDefinition = defUses.definition(replacementRegister);
+      if (originalDefinition == null || replacementDefinition == null) {
+        return false;
+      }
+
+      var replacementPosition = replacementDefinition.inInnermostCfg();
+      return dominatorTree.dominates(replacementPosition, originalDefinition.inInnermostCfg())
+          && defUses.uses(original).stream()
+              .map(ScopePosition::inInnermostCfg)
+              .allMatch(use -> dominatorTree.dominates(replacementPosition, use));
     }
 
     /// Whether some use of `register` consumes it (`consume register`). Substituting a consumed
@@ -255,6 +276,6 @@ public class EGraphOptimization implements AbstractionOptimization {
               argument -> argument instanceof Consume(var consumed) && consumed.equals(register));
     }
 
-    // endregion rewrite
+    // endregion extract & rewrite
   }
 }

@@ -5,10 +5,13 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
-import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.expression.Expression;
 
 /// A small *acyclic* e-graph ("aegraph") over FIŘ [Argument]s, inspired by
 /// [Cranelift's e-graph
@@ -16,71 +19,97 @@ import org.prlprg.fir.ir.position.CfgPosition;
 ///
 /// ## Model
 ///
-/// - An **e-class** is a set of [Argument]s known to compute the same value. Each e-class is
-///   identified by a canonical [Argument] representative ([#find]).
-/// - An **e-node** ([ENode]) is one concrete way to compute a value: a constant ([EConst]), a
-///   parameter or phi ([EParam]), or an instruction ([EInstruction]). An e-node's [ENode#out] is
-///   the [Argument] (e-class) it defines.
+/// - An **e-class** is a set of [Argument]s proven to compute the same value. It's identified by a
+///   canonical representative [Argument] ([#find]).
+/// - An **e-node** ([ENode]) is one concrete way to *produce* such a value: a constant ([EConst]),
+///   a parameter/phi ([EParam]), or an instruction ([EInstruction]). An e-node's [ENode#out] names
+///   the e-class it defines.
 ///
-/// So a class maps an [Argument] to (i) the other [Argument]s equal to it and (ii) the [ENode]s
-/// that produce it.
+/// So an e-class records, for one value, both (i) the interchangeable [Argument]s that name it and
+/// (ii) the [ENode]s that compute it. Optimizations consume (i) to rewrite uses and (ii) to reason
+/// about / cost the value.
 ///
-/// ## Why "acyclic" / cascades-style
+/// ## "Acyclic" — why this is cheap
 ///
-/// Unlike a saturating e-graph, this structure keeps **no parent pointers** and never
-/// re-canonicalizes the *users* of an e-class after a merge. Instead, equivalences are discovered
-/// *as a node is added*: the caller adds nodes in dataflow order (operands before users), with
-/// each node's operands already canonicalized, so [#add] sees the canonical shape immediately and
-/// can hash-cons it (CSE/GVN) right then. This is the "apply once at node creation" / cascades
-/// strategy from the proposal, and it lets the whole thing be a plain
-/// [union-find](https://en.wikipedia.org/wiki/Disjoint-set_data_structure) with no rebuild step.
+/// A saturating e-graph keeps *parent pointers* and re-canonicalizes the users of an e-class every
+/// time two classes merge, iterating to a fixpoint. That bookkeeping is what makes general e-graphs
+/// expensive. Following the proposal, this structure drops it entirely:
 ///
-/// Equivalences are tracked by union-find ([#union], [#find]); structural deduplication uses a
-/// hash-cons map ([#add]). Higher-level rewrites (e.g. copy propagation, algebraic identities)
-/// are expressed by the caller as "add the equivalent node(s), then [#union] them with the
-/// original".
+/// - The caller adds e-nodes **bottom-up, in dataflow/dominator order**, so every operand is
+///   already in its final (canonical) e-class before the node that uses it is added.
+/// - Therefore [#add] sees a node's canonical shape immediately and can hash-cons it on the spot
+///   (this is GVN/CSE), and rewrite rules can be applied **once, at creation time** (the
+///   "cascades" strategy) — there's never anything to re-canonicalize afterward.
+///
+/// What remains is just a [union-find](https://en.wikipedia.org/wiki/Disjoint-set_data_structure)
+/// ([#find], [#union]) plus a hash-cons table ([#add]); there is no rebuild step. The cost is that
+/// equivalences discovered *after* a user node was added don't retroactively merge that user —
+// which
+/// is exactly the trade-off the proposal makes, and is fine for "optimizer-style" rewrites that
+/// only ever replace a value with a cheaper equivalent.
+///
+/// ## Rewrites
+///
+/// The structure itself is rules-agnostic (as in Cranelift, where rules live in ISLE). A rewrite is
+/// expressed by the caller as: build the equivalent e-node(s) with [#add]/[#addArgument], then
+/// [#union] the result with the original. CSE and copy-propagation are the two rewrites the
+/// optimization always performs; algebraic/constant-folding rules can be layered on the same way.
+///
+/// Once built, [#extract] reads a value back out of an e-class by choosing its cheapest member that
+/// satisfies a caller-supplied predicate (e.g. "is available here") — the e-graph analogue of
+/// extraction/elaboration.
 public final class AEGraph {
-  /// Union-find entry per [Argument], also holding the class's members and e-nodes.
+  /// Union-find: maps every [Argument] ever seen to its [EClass] entry. The class data (members,
+  /// nodes) is kept complete only at the class *root* — the argument whose `parent` is itself.
   private final Map<Argument, EClass> classes = new LinkedHashMap<>();
 
-  /// Hash-cons: maps an e-node's structural key to the representative of the class it defines, so
-  /// re-adding an equivalent e-node merges into the existing class instead of creating a new one.
-  /// Pinned (side-effecting) e-nodes use an identity key, so they never deduplicate.
-  private final Map<NodeKey, Argument> memo = new LinkedHashMap<>();
+  /// Hash-cons table for **pure** e-nodes: maps a (canonical) [Expression] to the representative of
+  /// the e-class it defines. Re-adding a structurally equal pure node merges into that class
+  // instead
+  /// of starting a new one — this is what implements GVN/CSE. Side-effecting ("pinned") nodes are
+  /// deliberately absent, so each remains a distinct value.
+  private final Map<Expression, Argument> pureMemo = new LinkedHashMap<>();
 
-  /// Add an e-node, returning the canonical [Argument] of the e-class it defines.
+  /// Add an e-node and return the canonical [Argument] of the e-class it defines.
   ///
-  /// If an equivalent e-node was already added (equal [NodeKey]), the two classes are
-  /// [merged][#union] -- this is what implements CSE/GVN. For deduplication to fire, an
-  /// [EInstruction]'s operands must already be canonical (see the class doc). Side-effecting
-  /// ("pinned") [EInstruction]s intentionally never deduplicate.
+  /// For a **pure** [EInstruction] (`pos == null`), if a structurally equal one was already added,
+  /// the two e-classes are [merged][#union] (GVN/CSE). For this to fire, the node's operands must
+  /// already be canonical — see the class doc on bottom-up insertion. Side-effecting (pinned)
+  /// instructions never deduplicate: every instance is a logically separate effect.
   public Argument add(ENode node) {
     var out = node.out();
-    addClass(out).nodes.add(node);
-
+    classOf(out).nodes.add(node);
     var root = find(out);
-    var existing = memo.putIfAbsent(NodeKey.of(node), root);
-    return existing == null ? root : union(existing, out);
+
+    // Only pure instructions are hash-consed. Constants and params are already canonicalized by
+    // [Argument] identity (a constant/register is its own class key), and pinned instructions must
+    // stay distinct.
+    if (node instanceof EInstruction(_, var expression, var pos) && pos == null) {
+      var existing = pureMemo.putIfAbsent(expression, root);
+      if (existing != null) {
+        return union(existing, out);
+      }
+    }
+    return root;
   }
 
   /// Ensure `argument` has an e-class and return its canonical representative.
   ///
-  /// A [Constant] is additionally recorded as an [EConst] e-node (a constant is its own
-  /// definition). Any other argument only gets a (possibly node-less) class; the e-node that
-  /// defines a register is added separately via [#add] when that register's defining instruction
-  /// is processed.
+  /// A [Constant] additionally records an [EConst] e-node (a constant computes itself). Any other
+  /// argument gets a (possibly node-less) class; the e-node that *defines* a register is added
+  /// separately via [#add] when that register's defining instruction is processed.
   public Argument addArgument(Argument argument) {
     if (argument instanceof Constant(var value)) {
       return add(new EConst(value));
     }
-    addClass(argument);
+    classOf(argument);
     return find(argument);
   }
 
-  /// Merge the e-classes of `a` and `b`, returning the canonical representative of the result.
+  /// Merge the e-classes of `keeper` and `merged`, returning the surviving representative.
   ///
-  /// `a`'s representative is kept as the root, so passing the "preferred" argument first yields a
-  /// stable, predictable canonical form.
+  /// `keeper`'s representative is retained as the root, so passing the "preferred" (e.g.
+  /// earlier-defined or canonical) argument first yields a stable, predictable canonical form.
   public Argument union(Argument keeper, Argument merged) {
     var keeperRoot = find(keeper);
     var mergedRoot = find(merged);
@@ -88,35 +117,32 @@ public final class AEGraph {
       return keeperRoot;
     }
 
-    var keeperClass = addClass(keeperRoot);
-    var mergedClass = addClass(mergedRoot);
-
+    var keeperClass = classOf(keeperRoot);
+    var mergedClass = classOf(mergedRoot);
     mergedClass.parent = keeperRoot;
     keeperClass.members.addAll(mergedClass.members);
     keeperClass.nodes.addAll(mergedClass.nodes);
-
     return keeperRoot;
   }
 
   /// The canonical representative of `argument`'s e-class (with path compression).
   public Argument find(Argument argument) {
-    var eclass = addClass(argument);
+    var eclass = classOf(argument);
     if (eclass.parent.equals(argument)) {
       return argument;
     }
-
     eclass.parent = find(eclass.parent);
     return eclass.parent;
   }
 
-  /// All [Argument]s known to be equal to `argument` (including `argument` itself).
+  /// All [Argument]s known to compute the same value as `argument` (including `argument` itself).
   public @UnmodifiableView Set<Argument> members(Argument argument) {
-    return Collections.unmodifiableSet(addClass(find(argument)).members);
+    return Collections.unmodifiableSet(classOf(find(argument)).members);
   }
 
-  /// All e-nodes in `argument`'s e-class: every known way to compute the value.
+  /// Every e-node in `argument`'s e-class: each known way to compute the value.
   public @UnmodifiableView Set<ENode> nodes(Argument argument) {
-    return Collections.unmodifiableSet(addClass(find(argument)).nodes);
+    return Collections.unmodifiableSet(classOf(find(argument)).nodes);
   }
 
   /// Every e-class, keyed by its canonical representative and mapping to that class's members.
@@ -124,17 +150,41 @@ public final class AEGraph {
     var result = new LinkedHashMap<Argument, Set<Argument>>();
     for (var argument : classes.keySet()) {
       var root = find(argument);
-      result.put(root, Collections.unmodifiableSet(addClass(root).members));
+      result.computeIfAbsent(root, r -> Collections.unmodifiableSet(classOf(r).members));
     }
     return Collections.unmodifiableMap(result);
   }
 
-  private EClass addClass(Argument argument) {
+  /// Extract a value from `argument`'s e-class: the cheapest member for which `isUsable` holds, or
+  /// `null` if none qualifies.
+  ///
+  /// This is how a caller "reads a value back out" of the e-graph. `isUsable` encodes the placement
+  /// constraint (e.g. "this member is a constant, or a register whose definition dominates here"),
+  /// and `cost` ranks the usable candidates (e.g. constants cheapest). Ties are broken by insertion
+  /// order, which — given bottom-up construction — prefers the earliest-discovered equivalent.
+  public @Nullable Argument extract(
+      Argument argument, Predicate<Argument> isUsable, ToIntFunction<Argument> cost) {
+    Argument best = null;
+    var bestCost = Integer.MAX_VALUE;
+    for (var member : classOf(find(argument)).members) {
+      if (!isUsable.test(member)) {
+        continue;
+      }
+      var memberCost = cost.applyAsInt(member);
+      if (best == null || memberCost < bestCost) {
+        best = member;
+        bestCost = memberCost;
+      }
+    }
+    return best;
+  }
+
+  private EClass classOf(Argument argument) {
     return classes.computeIfAbsent(argument, EClass::new);
   }
 
-  /// Union-find node: the parent pointer plus this class's members and e-nodes. The members and
-  /// nodes sets are only kept complete at the class root (the argument whose `parent` is itself).
+  /// Union-find entry: a parent pointer plus this class's members and e-nodes. `members` and
+  /// `nodes` are authoritative only at the root (the argument whose `parent` is itself).
   private static final class EClass {
     private Argument parent;
     private final Set<Argument> members = new LinkedHashSet<>();
@@ -144,24 +194,5 @@ public final class AEGraph {
       parent = argument;
       members.add(argument);
     }
-  }
-
-  /// Structural identity of an e-node, used for hash-consing.
-  ///
-  /// "Pure" e-nodes key on their contents, so equivalent ones deduplicate. A *pinned*
-  /// side-effecting [EInstruction] keys on its unique [CfgPosition] instead, so every instance
-  /// stays a logically distinct effect (matching the proposal's `Inst` vs. `Pure` distinction).
-  private record NodeKey(Class<? extends ENode> kind, Object payload) {
-    static NodeKey of(ENode node) {
-      return switch (node) {
-        case EConst(var value) -> new NodeKey(EConst.class, value);
-        case EParam(var param) -> new NodeKey(EParam.class, param);
-        case EInstruction(_, var expression, var pos) ->
-            new NodeKey(EInstruction.class, pos == null ? expression : new Pinned(pos));
-      };
-    }
-
-    /// Wraps a pinned e-node's (unique) position so its key never collides with a pure node's.
-    private record Pinned(CfgPosition pos) {}
   }
 }
