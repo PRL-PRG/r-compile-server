@@ -1,15 +1,24 @@
 name: Set up rsh build & test environment
 description: >
-  Installs the system dependencies, builds (or restores from cache) the custom
-  GNU-R from the external/R submodule, and sets up the JDK + Maven. The server
-  test suite needs this patched GNU-R (NOT a vanilla CRAN R): tests resolve it
-  via the default R_BIN (../external/R/bin/R) and the bc2c tests compile against
+  Sets up the JDK + Maven and, when running the tests, builds (or restores from
+  cache) the custom GNU-R from the external/R submodule. The server test suite
+  needs this patched GNU-R (NOT a vanilla CRAN R): tests resolve it via the
+  default R_BIN (../external/R/bin/R) and the bc2c tests compile against
   external/R/include. See tools/build-gnur.sh.
+
+inputs:
+  install-r:
+    description: >
+      Whether to install the R toolchain dependencies and build/restore GNU-R.
+      Set to "false" for jobs that only compile/package or run static analyses,
+      which do not execute R.
+    default: "true"
 
 runs:
   using: composite
   steps:
     - name: Install system dependencies
+      if: ${{ inputs.install-r == 'true' }}
       shell: bash
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -38,11 +47,13 @@ runs:
           zlib1g-dev
 
     - name: Record GNU-R submodule commit
+      if: ${{ inputs.install-r == 'true' }}
       id: gnur
       shell: bash
       run: echo "sha=$(git rev-parse HEAD:external/R)" >> "$GITHUB_OUTPUT"
 
     - name: Cache custom GNU-R
+      if: ${{ inputs.install-r == 'true' }}
       id: cache-gnur
       uses: actions/cache@v4
       with:
@@ -50,7 +61,7 @@ runs:
         key: gnur-${{ runner.os }}-${{ steps.gnur.outputs.sha }}-${{ hashFiles('tools/build-gnur.sh') }}
 
     - name: Build custom GNU-R
-      if: steps.cache-gnur.outputs.cache-hit != 'true'
+      if: ${{ inputs.install-r == 'true' && steps.cache-gnur.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
         git submodule update --init --depth 1 external/R

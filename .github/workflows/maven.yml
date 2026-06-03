@@ -1,6 +1,9 @@
-# This workflow builds and tests the R compile server with Maven.
-# It builds the custom (patched) GNU-R from the external/R submodule, which the
-# test suite requires, then runs the Maven build/tests against it.
+# Builds and tests the R compile server with Maven.
+#
+# The custom (patched) GNU-R from the external/R submodule is built (and cached)
+# only for the jobs that actually execute R. The unit-test suite is sharded by
+# area into separate jobs so it is clear which part fails; the full suite runs
+# exactly once across the shards (no more running everything 3x).
 
 name: Java CI with Maven
 
@@ -11,19 +14,91 @@ on:
     branches: ["main"]
 
 jobs:
-  artifact:
+  # Unit tests (surefire), sharded by area so failures are isolated per check.
+  # Each shard runs a disjoint subset, so the whole suite runs exactly once.
+  test:
+    name: test (${{ matrix.name }})
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: bc2fir
+            tests: "org.prlprg.bc2fir.*"
+          - name: bc2c
+            tests: "org.prlprg.bc2c.*"
+          - name: other
+            tests: "!org.prlprg.bc2fir.*,!org.prlprg.bc2c.*"
     steps:
       - uses: actions/checkout@v4
       - name: Set up build environment (JDK + custom GNU-R)
         uses: ./.github/actions/setup-rsh-env
-      - name: Build artifact
+      - name: Run unit tests
         working-directory: server
-        run: mvn --batch-mode --update-snapshots package
+        run: mvn --batch-mode --update-snapshots test -Dtest='${{ matrix.tests }}'
       - name: Report test failures
         if: failure()
         uses: ./.github/actions/report-test-failures
+
+  # Integration tests (failsafe, *IT). Skips surefire (run by the `test` shards)
+  # and spotless (run by `static-analysis`).
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up build environment (JDK + custom GNU-R)
+        uses: ./.github/actions/setup-rsh-env
+      - name: Run integration tests
+        working-directory: server
+        run: >
+          mvn --batch-mode --update-snapshots verify
+          -Dtest=_run_only_integration_tests_
+          -Dsurefire.failIfNoSpecifiedTests=false
+          -Dspotless.check.skip=true
+      - name: Report test failures
+        if: failure()
+        uses: ./.github/actions/report-test-failures
+
+  # Static analyses only (spotless). No R needed, so this is fast.
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK (no GNU-R needed)
+        uses: ./.github/actions/setup-rsh-env
+        with:
+          install-r: "false"
+      - name: Check formatting and static analyses
+        working-directory: server
+        run: mvn --batch-mode spotless:check
+      - name: Show required formatting changes
+        if: failure()
+        working-directory: server
+        shell: bash
+        run: |
+          mvn --batch-mode spotless:apply -q || true
+          python3 - <<'PY'
+          import subprocess
+          diff = subprocess.run(
+              ["git", "--no-pager", "diff"], capture_output=True, text=True
+          ).stdout
+          if diff.strip():
+              encoded = diff.replace("\r", "").replace("\n", "%0A")[:8000]
+              print("::error::spotless requires formatting changes:%0A" + encoded)
+          PY
+
+  # Build the deployable jar without re-running the tests. No R needed.
+  artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK (no GNU-R needed)
+        uses: ./.github/actions/setup-rsh-env
+        with:
+          install-r: "false"
+      - name: Build artifact
+        working-directory: server
+        run: mvn --batch-mode --update-snapshots package -DskipTests
       - run: mkdir staging && cp target/*.jar staging
         working-directory: server
       - name: Upload snapshot as artifact
@@ -36,31 +111,3 @@ jobs:
         uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
         with:
           directory: server
-
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up build environment (JDK + custom GNU-R)
-        uses: ./.github/actions/setup-rsh-env
-      - name: Run tests (no static analyses)
-        working-directory: server
-        run: mvn --batch-mode --update-snapshots test
-      - name: Report test failures
-        if: failure()
-        uses: ./.github/actions/report-test-failures
-
-  verify:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up build environment (JDK + custom GNU-R)
-        uses: ./.github/actions/setup-rsh-env
-      - name: Run tests and static analyses
-        working-directory: server
-        run: mvn --batch-mode --update-snapshots verify
-      - name: Report test failures
-        if: failure()
-        uses: ./.github/actions/report-test-failures
