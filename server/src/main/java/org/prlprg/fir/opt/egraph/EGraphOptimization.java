@@ -6,6 +6,7 @@ import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfs;
 
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -13,13 +14,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
+import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.type.InferEffects;
+import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.DomineeSubstituter;
@@ -38,19 +44,28 @@ import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.AbstractionOptimization;
+import org.prlprg.util.Streams;
 
-/// Value-equivalence + code-motion optimization built on an [AEGraph], inspired by
+/// Value-equivalence + code-motion + peephole optimization built on an [AEGraph], inspired by
 /// [Cranelift's](https://github.com/bytecodealliance/rfcs/blob/main/accepted/cranelift-egraph.md).
 ///
-/// It runs in three phases:
+/// It runs a rewrite phase followed by three e-graph phases:
+///
+/// 0. **Rewrite** ([Run#runRewrites]). It applies the configured [RewriteOptimization]s — local
+///    expression rewrites such as constant/trivial-cast/assume elimination, callee resolution, and
+///    load resolution — to a fixpoint, re-running rules on expressions an earlier rule changed and
+///    propagating type refinements to uses. This subsumes the standalone specialization pass
+///    ([org.prlprg.fir.opt.specialize]); with no rewrites configured it's skipped.
 ///
 /// 1. **Build** ([Run#buildGraph]). It pours the abstraction into an [AEGraph], one e-node per
 ///    parameter, phi, and statement, in *dominator order* so every operand is canonical before the
@@ -88,20 +103,46 @@ import org.prlprg.fir.opt.AbstractionOptimization;
 ///    can't push arbitrary pure code into them.
 ///
 /// This subsumes global value numbering, copy propagation, `box`/`unbox` peephole rewrites
-/// (`ElideRedundantBoxUnbox`), and pure-instruction scheduling / defer-into-promise
-/// (`SchedulePure` and `DeferIntoPromise`).
+/// (`ElideRedundantBoxUnbox`), pure-instruction scheduling / defer-into-promise (`SchedulePure`
+/// and `DeferIntoPromise`), and — via the configured [RewriteOptimization]s — the specialization
+/// pass (`Specialize`).
 ///
 /// Side-effecting and `consume`-owning instructions are pinned in phase 1 and never participate
 /// in CSE or motion — this preserves R's reference-counting semantics.
 public class EGraphOptimization implements AbstractionOptimization {
+  /// Analyses the e-graph and rewrite phases always need, before unioning in each rewrite's own.
+  private static final AnalysisTypes BASE_ANALYSES =
+      new AnalysisTypes(
+          DefUses.class,
+          DominatorTree.class,
+          CfgDominatorTree.class,
+          CfgHierarchy.class,
+          InferEffects.class,
+          InferType.class);
+
+  private final List<RewriteOptimization> rewrites;
+  private final AnalysisTypes analysisTypes;
+
+  /// Create an e-graph optimization that first applies the given [RewriteOptimization]s to a
+  /// fixpoint, then runs its value-equivalence and scheduling phases. With no rewrites it's purely
+  /// the latter.
+  public EGraphOptimization(RewriteOptimization... rewrites) {
+    this.rewrites = List.of(rewrites);
+    this.analysisTypes =
+        this.rewrites.stream()
+            .map(RewriteOptimization::analyses)
+            .reduce(BASE_ANALYSES, AnalysisTypes::union);
+  }
+
   @Override
   public boolean runWithoutRecording(
       @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
-    return new Run(abstraction).run();
+    return new Run(abstraction, feedback).run();
   }
 
-  private static final class Run {
+  private final class Run {
     private final Abstraction scope;
+    private final AbstractionFeedback feedback;
     private final AEGraph graph = new AEGraph();
     private DefUses defUses;
     private DominatorTree dominatorTree;
@@ -110,23 +151,21 @@ public class EGraphOptimization implements AbstractionOptimization {
     private Analyses analyses;
     private Substituter substituter;
 
-    // Phase 3 reconstructs the set of movable statements by walking the IR after substitutions
-    // commit, so there's no per-graph bookkeeping to keep in sync across phases.
+    /// Whether the rewrite-saturation phase changed anything. It's a field rather than a return
+    /// value because the rewrite helpers are mutually recursive through type propagation.
+    private boolean rewriteChanged;
 
-    Run(Abstraction scope) {
+    // The schedule phase reconstructs the set of movable statements by walking the IR after
+    // substitutions commit, so there's no per-graph bookkeeping to keep in sync across phases.
+
+    Run(Abstraction scope, AbstractionFeedback feedback) {
       this.scope = scope;
+      this.feedback = feedback;
       refreshAnalyses();
     }
 
     private void refreshAnalyses() {
-      analyses =
-          new Analyses(
-              scope,
-              DefUses.class,
-              DominatorTree.class,
-              CfgDominatorTree.class,
-              CfgHierarchy.class,
-              InferEffects.class);
+      analyses = new Analyses(scope, analysisTypes);
       defUses = analyses.get(DefUses.class);
       dominatorTree = analyses.get(DominatorTree.class);
       inferEffects = analyses.get(InferEffects.class);
@@ -135,17 +174,202 @@ public class EGraphOptimization implements AbstractionOptimization {
     }
 
     boolean run() {
+      // Phase 0: apply the rewrite rules to a fixpoint (subsumes the standalone specialize pass).
+      var changed = runRewrites();
+      if (changed) {
+        // Rewrites mutated the IR; refresh analyses before building the e-graph.
+        refreshAnalyses();
+      }
+
       buildGraph();
 
-      var changed = applySubstitutions();
-      if (changed) {
+      var substituted = applySubstitutions();
+      if (substituted) {
         // Substitutions may have removed locals and rewritten uses; refresh analyses before
         // deciding where to move the surviving pures.
         refreshAnalyses();
       }
+      changed |= substituted;
       changed |= schedulePures();
       return changed;
     }
+
+    // region rewrite saturation
+
+    /// Apply the [RewriteOptimization]s to a fixpoint: run every rule on every expression, then
+    /// re-run rules on the expressions an earlier rule changed (and on uses whose operand type was
+    /// narrowed), until none fire. Type refinements propagate to uses so dependent rules observe
+    /// the narrower types, and deferred insertions are committed at the end. This equality
+    /// saturation over the rule set is what lets this optimization subsume the specialization pass.
+    private boolean runRewrites() {
+      var activeRewrites = rewrites.stream().filter(r -> r.shouldRun(scope, analyses)).toList();
+      if (activeRewrites.isEmpty()) {
+        return false;
+      }
+
+      rewriteChanged = false;
+
+      var cfgs =
+          scope
+              .streamCfgs()
+              .gather(Streams.mapWithIndex(Map::entry))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      var changes =
+          new TreeSet<>(
+              Comparator.<CfgPosition>comparingInt(pos -> cfgs.get(pos.cfg()))
+                  .thenComparing(Comparator.naturalOrder()));
+      var deferredInsertions = new LinkedHashMap<BB, TreeMap<Integer, List<Runnable>>>();
+
+      // Initially, run on every expression.
+      scope
+          .streamCfgs()
+          .forEach(
+              cfg -> {
+                for (var bb : cfg.bbs()) {
+                  for (var i = 0; i < bb.statements().size(); i++) {
+                    var next = new CfgPosition(bb, i, bb.statements().get(i));
+                    // Remove from `changes` in case an earlier expression added it; we run it now.
+                    changes.remove(next);
+                    runRewriteAt(next, activeRewrites, changes, deferredInsertions);
+                  }
+                }
+              });
+
+      // Then, only run on expressions changed by other expressions, until there are no more.
+      // This always reaches a fixpoint because types only get more specific.
+      while (!changes.isEmpty()) {
+        runRewriteAt(changes.removeFirst(), activeRewrites, changes, deferredInsertions);
+      }
+
+      for (var rewrite : activeRewrites) {
+        rewriteChanged |= rewrite.finish(scope, analyses);
+      }
+
+      // Commit deferred insertions last, because they invalidate `analyses`.
+      rewriteChanged |= !deferredInsertions.isEmpty();
+      for (var insertions : deferredInsertions.values()) {
+        // Insert in reverse index order so earlier insertions don't shift later positions
+        // (all insertions are local per `DeferredInsertions#stage`).
+        for (var index : insertions.descendingKeySet()) {
+          for (var insertion : insertions.get(index)) {
+            insertion.run();
+          }
+        }
+      }
+
+      return rewriteChanged;
+    }
+
+    private void runRewriteAt(
+        CfgPosition position,
+        List<RewriteOptimization> activeRewrites,
+        TreeSet<CfgPosition> changes,
+        Map<BB, TreeMap<Integer, List<Runnable>>> deferredInsertions) {
+      var bb = position.bb();
+      var statementIndex = position.instructionIndex();
+      var oldStmt =
+          (Statement)
+              Objects.requireNonNull(position.instruction(), "only adds statements to changes");
+      var assignee = oldStmt.assignee();
+      var expr = oldStmt.expression();
+
+      var defer =
+          (RewriteOptimization.DeferredInsertions)
+              insertion ->
+                  deferredInsertions
+                      .computeIfAbsent(bb, _ -> new TreeMap<>())
+                      .computeIfAbsent(statementIndex, _ -> new ArrayList<>())
+                      .add(insertion);
+
+      for (var rewrite : activeRewrites) {
+        expr =
+            rewrite.rewrite(bb, statementIndex, assignee, expr, scope, feedback, analyses, defer);
+      }
+
+      // If actually rewritten, replace the statement.
+      if (!expr.equals(oldStmt.expression())) {
+        bb.replaceStatementAt(statementIndex, new Statement(oldStmt.comments(), assignee, expr));
+        rewriteChanged = true;
+      }
+
+      // If the type changed (even if the expression didn't), narrow the register's type and enqueue
+      // its uses to be further rewritten.
+      trySpecializeType(expr, assignee, changes);
+    }
+
+    private void trySpecializeType(
+        Expression expr, @Nullable Register assignee, TreeSet<CfgPosition> changes) {
+      if (assignee == null) {
+        return;
+      }
+      var oldType = scope.typeOf(assignee);
+      if (oldType == null) {
+        return;
+      }
+      var newType = analyses.get(InferType.class).of(expr);
+      if (newType == null) {
+        return;
+      }
+      newType = newType.withOwnership(oldType.ownership());
+      specializeType(assignee, oldType, newType, changes);
+    }
+
+    private void specializeType(
+        Register assignee, @Nullable Type oldType, Type newType, TreeSet<CfgPosition> changes) {
+      if (oldType != null && oldType.equals(newType)) {
+        // No specialization occurred.
+        return;
+      }
+
+      if (oldType != null && !newType.isSubtypeOf(oldType)) {
+        throw new IllegalStateException(
+            "A specialized expression's type must always subtype the original's:"
+                + "\nOriginal type: "
+                + oldType
+                + "\nCurrent type: "
+                + newType
+                + "\n"
+                + defUses.definitions(assignee).stream().findFirst().orElse(null));
+      }
+
+      scope.setLocalType(assignee, newType);
+      rewriteChanged = true;
+
+      for (var use : defUses.uses(assignee)) {
+        // The position in the innermost CFG is all we care about.
+        var use1 = use.inInnermostCfg();
+
+        switch (Objects.requireNonNull(use1.instruction(), "phis are never uses")) {
+          case Statement _ -> changes.add(use1);
+          case Jump jump -> {
+            // If it's a phi argument, try to refine the phi type.
+            for (var target : jump.targets()) {
+              var successor = target.bb();
+              for (var i = 0; i < target.phiArgs().size(); i++) {
+                var argument = target.phiArgs().get(i);
+                if (!argument.equals(new Read(assignee))) {
+                  continue;
+                }
+
+                var phi = successor.phiParameters().get(i);
+                var arguments = successor.phiArguments(i);
+
+                // Recompute the phi's best type (union of its arguments' types), then specialize.
+                // This always reaches a fixpoint because phi types only get more specific.
+                var oldPhiType = scope.typeOf(phi);
+                arguments.stream()
+                    .flatMap(Collection::stream)
+                    .map(scope::typeOf)
+                    .reduce(Type::union)
+                    .ifPresent(newPhiType -> specializeType(phi, oldPhiType, newPhiType, changes));
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // endregion rewrite saturation
 
     // region build
 

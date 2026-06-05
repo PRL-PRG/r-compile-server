@@ -1,22 +1,22 @@
 package org.prlprg.fir.opt;
 
+import org.prlprg.fir.opt.egraph.DefiniteForce;
 import org.prlprg.fir.opt.egraph.EGraphOptimization;
+import org.prlprg.fir.opt.egraph.ElideBuiltinClosure;
+import org.prlprg.fir.opt.egraph.ElideCheckMissing;
+import org.prlprg.fir.opt.egraph.ElideDeadStore;
+import org.prlprg.fir.opt.egraph.ElideRedundantAssumeLoad;
+import org.prlprg.fir.opt.egraph.ElideTrivialAssume;
+import org.prlprg.fir.opt.egraph.ElideTrivialCast;
+import org.prlprg.fir.opt.egraph.ElideUseSubscriptWrite;
+import org.prlprg.fir.opt.egraph.ImproveSignatures;
+import org.prlprg.fir.opt.egraph.OptimizeCallee;
+import org.prlprg.fir.opt.egraph.ResolveDynamicCallee;
+import org.prlprg.fir.opt.egraph.ResolveLoad;
+import org.prlprg.fir.opt.egraph.StaticClosure;
 import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.sequence.ModuleFixpointSequence;
 import org.prlprg.fir.opt.sequence.Sequence;
-import org.prlprg.fir.opt.specialize.DefiniteForce;
-import org.prlprg.fir.opt.specialize.ElideBuiltinClosure;
-import org.prlprg.fir.opt.specialize.ElideCheckMissing;
-import org.prlprg.fir.opt.specialize.ElideDeadStore;
-import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoad;
-import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
-import org.prlprg.fir.opt.specialize.ElideTrivialCast;
-import org.prlprg.fir.opt.specialize.ElideUseSubscriptWrite;
-import org.prlprg.fir.opt.specialize.ImproveSignatures;
-import org.prlprg.fir.opt.specialize.OptimizeCallee;
-import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
-import org.prlprg.fir.opt.specialize.ResolveLoad;
-import org.prlprg.fir.opt.specialize.StaticClosure;
 
 public class Optimizations {
   /// An optimization that never changes anything
@@ -41,8 +41,12 @@ public class Optimizations {
                 new AbstractionFixpointSequence(
                     "main",
                     new MergeAssumeLoadVar(),
-                    new Specialize(
-                        "specialize",
+                    // The rewrite rules that used to be a separate `Specialize` pass now run inside
+                    // an `EGraphOptimization`. They must run *before* `Unbox` (as `Specialize`
+                    // did),
+                    // so callee resolution (`OptimizeCallee`) picks the best version before `Unbox`
+                    // rewrites the call.
+                    new EGraphOptimization(
                         new DefiniteForce(),
                         new ElideBuiltinClosure(),
                         new ElideCheckMissing(),
@@ -59,6 +63,8 @@ public class Optimizations {
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),
                     new UnboxPhi(),
+                    // The value-equivalence + scheduling phases run after `Unbox` to fold the
+                    // box/unbox pairs it introduces (this instance carries no rewrite rules).
                     new EGraphOptimization(),
                     new ElideEnv(),
                     new Inline(1000),

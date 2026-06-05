@@ -1,12 +1,17 @@
 package org.prlprg.fir.opt.egraph;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.AbstractionOptimization;
 import org.prlprg.fir.opt.AbstractionOptimizationUnitTest;
+import org.prlprg.fir.opt.Optimization;
 import org.prlprg.parseprint.Printer;
 
 class EGraphOptimizationTest implements AbstractionOptimizationUnitTest {
@@ -493,6 +498,829 @@ class EGraphOptimizationTest implements AbstractionOptimizationUnitTest {
   }
 
   // endregion combined scenarios
+
+  // The remaining regions verify that the ported `RewriteOptimization`s behave like their
+  // `org.prlprg.fir.opt.specialize` counterparts when run by `EGraphOptimization`.
+
+  // region ElideCheckMissing
+
+  @Test
+  void checkMissing_nonMissingType_elided() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg x:I) -~> I { |
+              checkMissing< V -~> V >(x);
+              return x;
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new ElideCheckMissing()), abstraction),
+        "optimization should report a change");
+
+    var printed = Printer.toString(abstraction);
+    assertFalse(
+        printed.contains("checkMissing"),
+        "checkMissing should be elided for integer type; printed:\n" + printed);
+  }
+
+  @Test
+  void checkMissing_anyValueType_notElided() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg x:V) -~> V { |
+              checkMissing< V -~> V >(x);
+              return x;
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideCheckMissing()), abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(
+        printed.contains("checkMissing"),
+        "checkMissing should remain for any-value type; printed:\n" + printed);
+  }
+
+  @Test
+  void checkMissing_missingType_notElided() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg x:miss) -~> V { |
+              checkMissing< V -~> V >(x);
+              return x;
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideCheckMissing()), abstraction);
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(
+        printed.contains("checkMissing"),
+        "checkMissing should remain for missing type; printed:\n" + printed);
+  }
+
+  // endregion ElideCheckMissing
+
+  // region ElideBuiltinClosure
+
+  @Test
+  void builtinClosure_intrinsic_withClosure_elidesClosureWithEnv() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg clo:cls, reg x:V) -~> V { |
+              checkMissing@clo< V -~> V >(x);
+              return x;
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new ElideBuiltinClosure()), abstraction),
+        "optimization should report a change");
+
+    var printed = Printer.toString(abstraction);
+    assertFalse(
+        printed.contains("@clo"),
+        "closure-with-env should be elided for intrinsic; printed:\n" + printed);
+    assertTrue(
+        printed.contains("checkMissing<"), "call should still be present; printed:\n" + printed);
+  }
+
+  @Test
+  void builtinClosure_builtin_withClosure_elidesClosureWithEnv() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg clo:cls, reg x:B, reg y:B) -~> B { reg r:B |
+              r = xor@clo< B, B --> B >(x, y);
+              return r;
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new ElideBuiltinClosure()), abstraction),
+        "optimization should report a change");
+
+    var printed = Printer.toString(abstraction);
+    assertFalse(
+        printed.contains("@clo"),
+        "closure-with-env should be elided for builtin; printed:\n" + printed);
+    assertTrue(printed.contains("xor<"), "call should still be present; printed:\n" + printed);
+  }
+
+  @Test
+  void builtinClosure_builtin_alreadyElided_noChange() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg x:B, reg y:B) -~> B { reg r:B |
+              r = xor< B, B --> B >(x, y);
+              return r;
+            }
+            """);
+
+    assertFalse(
+        run(new EGraphOptimization(new ElideBuiltinClosure()), abstraction),
+        "optimization should report no change when already elided");
+  }
+
+  @Test
+  void builtinClosure_userFunction_withClosure_doesNotElideClosure() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun target(x) {
+              (reg x:B) --> B { ... }
+            }
+
+            fun main(clo, x) {
+              (reg clo:cls, reg x:B) --> B { reg r:B |
+                r = target@clo< B --> B >(x);
+                return r;
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideBuiltinClosure()), module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("@clo"),
+        "closure-with-env should remain for user function; printed:\n" + printed);
+  }
+
+  // endregion ElideBuiltinClosure
+
+  // region ElideRedundantAssumeLoad
+
+  @Test
+  void assumeLoad_dominatedSameVariable_elided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I { reg c:*, var target:* |
+                mkenv;
+                c = clos target;
+                st target = c;
+                check BB1() else BBdeopt1();
+              BB1():
+                ldf target ?- target;
+                check BB2() else BBdeopt2();
+              BB2():
+                ldf target ?- target;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            fun target() {
+              () --> v1(I) { |
+                return <int 7>;
+              }
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module),
+        "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        1,
+        countLdfTargetOccurrences(printed),
+        "second AssumeLoadFun should be elided; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_storeInvalidates_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I { reg c:*, var target:* |
+                mkenv;
+                c = clos target;
+                st target = c;
+                check BB1() else BBdeopt1();
+              BB1():
+                ldf target ?- target;
+                st target = c;
+                check BB2() else BBdeopt2();
+              BB2():
+                ldf target ?- target;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            fun target() {
+              () --> v1(I) { |
+                return <int 7>;
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module);
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        2,
+        countLdfTargetOccurrences(printed),
+        "store invalidates: both AssumeLoadFun should remain; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_reflectiveInvalidates_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () -+> I { reg c:*, reg g:V, var target:* |
+                mkenv;
+                c = clos target;
+                st target = c;
+                check BB1() else BBdeopt1();
+              BB1():
+                ldf target ?- target;
+                g = ldf g;
+                check BB2() else BBdeopt2();
+              BB2():
+                ldf target ?- target;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            fun target() {
+              () --> v1(I) { |
+                return <int 7>;
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module);
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        2,
+        countLdfTargetOccurrences(printed),
+        "reflective invalidates: both AssumeLoadFun should remain; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_differentFunction_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I { reg c:*, var target:* |
+                mkenv;
+                c = clos target;
+                st target = c;
+                check BB1() else BBdeopt1();
+              BB1():
+                ldf target ?- target;
+                check BB2() else BBdeopt2();
+              BB2():
+                ldf target ?- other;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            fun target() {
+              () --> v1(I) { |
+                return <int 7>;
+              }
+            }
+            fun other() {
+              () --> I { |
+                return 8;
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("ldf target ?- target"),
+        "different function: first AssumeLoadFun should remain; printed:\n" + printed);
+    assertTrue(
+        printed.contains("ldf target ?- other"),
+        "different function: second AssumeLoadFun should remain; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_branchThenMerge_elided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(cond) {
+              (reg cond:L) --> I { ... }
+              (reg cond:L) --> I { reg c:*, var target:* |
+                mkenv;
+                c = clos target;
+                st target = c;
+                check BB1() else BBdeopt1();
+              BB1():
+                ldf target ?- target;
+                if cond then L1() else L2();
+              L1():
+                goto LMerge();
+              L2():
+                goto LMerge();
+              LMerge():
+                check BB3() else BBdeopt2();
+              BB3():
+                ldf target ?- target;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            fun target() {
+              () --> v1(I) { |
+                return <int 7>;
+              }
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module),
+        "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        1,
+        countLdfTargetOccurrences(printed),
+        "second AssumeLoadFun should be elided after branch merge; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_oneBranchInvalidated_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(cond) {
+              (reg cond:L) --> I { ... }
+              (reg cond:L) --> I { reg c:*, var target:* |
+                mkenv;
+                c = clos target;
+                st target = c;
+                check BB1() else BBdeopt1();
+              BB1():
+                ldf target ?- target;
+                if cond then L1() else L2();
+              L1():
+                goto LMerge();
+              L2():
+                st target = c;
+                goto LMerge();
+              LMerge():
+                check BB3() else BBdeopt2();
+              BB3():
+                ldf target ?- target;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            fun target() {
+              () --> v1(I) { |
+                return <int 7>;
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module);
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        2,
+        countLdfTargetOccurrences(printed),
+        "one branch invalidated: both AssumeLoadFun should remain; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_var_dominatedSameVariable_elided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I { var target:* |
+                mkenv;
+                st target = <int 7>;
+                check BB1() else BBdeopt1();
+              BB1():
+                ld target ?= <int 7>;
+                check BB2() else BBdeopt2();
+              BB2():
+                ld target ?= <int 7>;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module),
+        "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        1,
+        countLdTargetOccurrences(printed),
+        "second AssumeLoadVar should be elided; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_var_storeInvalidates_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I { var target:* |
+                mkenv;
+                st target = <int 7>;
+                check BB1() else BBdeopt1();
+              BB1():
+                ld target ?= <int 7>;
+                st target = <int 7>;
+                check BB2() else BBdeopt2();
+              BB2():
+                ld target ?= <int 7>;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module);
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        2,
+        countLdTargetOccurrences(printed),
+        "store invalidates: both AssumeLoadVar should remain; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_var_reflectiveInvalidates_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () -+> I { reg g:V, var target:* |
+                mkenv;
+                st target = <int 7>;
+                check BB1() else BBdeopt1();
+              BB1():
+                ld target ?= <int 7>;
+                g = ldf g;
+                check BB2() else BBdeopt2();
+              BB2():
+                ld target ?= <int 7>;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module);
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        2,
+        countLdTargetOccurrences(printed),
+        "reflective invalidates: both AssumeLoadVar should remain; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_var_differentConstant_notElided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> I { ... }
+              () --> I { var target:* |
+                mkenv;
+                st target = <int 7>;
+                check BB1() else BBdeopt1();
+              BB1():
+                ld target ?= <int 7>;
+                check BB2() else BBdeopt2();
+              BB2():
+                ld target ?= <int 8>;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            """);
+
+    run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module);
+
+    var printed = Printer.toString(module);
+    assertTrue(
+        printed.contains("ld target ?= <int 7>"),
+        "different constant: first AssumeLoadVar should remain; printed:\n" + printed);
+    assertTrue(
+        printed.contains("ld target ?= <int 8>"),
+        "different constant: second AssumeLoadVar should remain; printed:\n" + printed);
+  }
+
+  @Test
+  void assumeLoad_var_branchThenMerge_elided() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(cond) {
+              (reg cond:L) --> I { ... }
+              (reg cond:L) --> I { var target:* |
+                mkenv;
+                st target = <int 7>;
+                check BB1() else BBdeopt1();
+              BB1():
+                ld target ?= <int 7>;
+                if cond then L1() else L2();
+              L1():
+                goto LMerge();
+              L2():
+                goto LMerge();
+              LMerge():
+                check BB3() else BBdeopt2();
+              BB3():
+                ld target ?= <int 7>;
+                popenv;
+                return 7;
+              BBdeopt1():
+                deopt 0 [];
+              BBdeopt2():
+                deopt 0 [];
+              }
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new ElideRedundantAssumeLoad()), module),
+        "optimization should report a change");
+
+    var printed = Printer.toString(module);
+    assertEquals(
+        1,
+        countLdTargetOccurrences(printed),
+        "second AssumeLoadVar should be elided after branch merge; printed:\n" + printed);
+  }
+
+  // endregion ElideRedundantAssumeLoad
+
+  // region StaticClosure
+
+  @Test
+  void staticClosure_freeVariableNotInLocalEnv_convertsToStaticClosure() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> cls { ... }
+              () --> cls { reg c:cls |
+                mkenv;
+                c = clos target;
+                popenv;
+                return c;
+              }
+            }
+
+            fun target() {
+              () --> I { reg loaded:* |
+                loaded = ld free;
+                return 1;
+              }
+            }
+            """);
+
+    assertTrue(
+        run(new EGraphOptimization(new StaticClosure()), module), "closure should become static");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("c = clos-static target"), "closure should be static:\n" + printed);
+  }
+
+  @Test
+  void staticClosure_maybeDefinedFreeVariable_keepsDynamicClosure() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main(cond) {
+              (reg cond:B) --> cls { ... }
+              (reg cond:B) --> cls { reg c:cls, var free:* |
+                mkenv;
+                if cond then Defines() else Empty();
+              Defines():
+                st free = 1;
+                goto Join();
+              Empty():
+                goto Join();
+              Join():
+                c = clos target;
+                popenv;
+                return c;
+              }
+            }
+
+            fun target() {
+              () --> I { reg loaded:* |
+                loaded = ld free;
+                return 1;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(new EGraphOptimization(new StaticClosure()), module),
+        "maybe-defined captured variable should block conversion");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertFalse(
+        printed.contains("clos-static target"), "closure should not be static:\n" + printed);
+  }
+
+  @Test
+  void staticClosure_taintedLocalEnv_keepsDynamicClosure() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> cls { ... }
+              () -+> cls { reg c:cls, reg p:p(V +), reg g:* |
+                mkenv;
+                p = prom<V +>{ return 1; };
+                g = p$free;
+                c = clos target;
+                popenv;
+                return c;
+              }
+            }
+
+            fun target() {
+              () --> I { reg loaded:* |
+                loaded = ld free;
+                return 1;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(new EGraphOptimization(new StaticClosure()), module),
+        "tainted local env should block conversion");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertFalse(
+        printed.contains("clos-static target"), "closure should not be static:\n" + printed);
+  }
+
+  @Test
+  void staticClosure_reflectiveClosureFunction_keepsDynamicClosure() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> cls { ... }
+              () --> cls { reg c:cls |
+                mkenv;
+                c = clos target;
+                popenv;
+                return c;
+              }
+            }
+
+            fun target() {
+              () -+> I { reg g:* |
+                g = ldf g;
+                return 1;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(new EGraphOptimization(new StaticClosure()), module),
+        "reflective closure function should block conversion");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertFalse(
+        printed.contains("clos-static target"), "closure should not be static:\n" + printed);
+  }
+
+  @Test
+  void staticClosure_superStoreToMaybeDefinedVariable_keepsDynamicClosure() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () --> cls { ... }
+              () --> cls { reg c:cls, var free:* |
+                mkenv;
+                st free = 1;
+                c = clos target;
+                popenv;
+                return c;
+              }
+            }
+
+            fun target() {
+              () -~> I { |
+                st-super free = 2;
+                return 1;
+              }
+            }
+            """);
+
+    assertFalse(
+        run(new EGraphOptimization(new StaticClosure()), module),
+        "super-store to a local variable should block conversion");
+
+    var printed = Printer.toString(module);
+    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertFalse(
+        printed.contains("clos-static target"), "closure should not be static:\n" + printed);
+  }
+
+  // endregion StaticClosure
+
+  private static boolean run(AbstractionOptimization optimization, Abstraction abstraction) {
+    return optimization.run(null, new MockModuleFeedback().get(abstraction), abstraction);
+  }
+
+  private static boolean run(Optimization optimization, Module module) {
+    return optimization.run(new MockModuleFeedback(), module);
+  }
+
+  private static int countLdfTargetOccurrences(String text) {
+    return countOccurrences(text, "ldf target ?- target");
+  }
+
+  private static int countLdTargetOccurrences(String text) {
+    return countOccurrences(text, "ld target ?= <int 7>");
+  }
+
+  private static int countOccurrences(String text, String needle) {
+    int count = 0;
+    int idx = 0;
+    while ((idx = text.indexOf(needle, idx)) != -1) {
+      count++;
+      idx += needle.length();
+    }
+    return count;
+  }
 
   private static void assertOrder(String printed, String first, String second) {
     var firstIndex = printed.indexOf(first);
