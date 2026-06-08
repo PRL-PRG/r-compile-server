@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.util.Streams;
 
 /// Acyclic e-graph (aegraph, from Cranelift)
@@ -39,19 +40,25 @@ public final class AEGraph<Expr, Arg> {
 
   /// Adds the expression and returns a fresh assignee, or reuses if redundant
   public Arg add(Expr expression) {
+    return add(null, expression);
+  }
+
+  /// Adds the expression and returns a `assignee` or (if null) afresh assignee. Or if
+  /// redundant, reuses and returns a different (older) assignee
+  public Arg add(@Nullable Arg assignee, Expr expression) {
     var dedupKey = a.mapArguments(expression, this::find);
     var dedupKeyNode = new ENode<>(dedupKey);
     var existing = memo.get(dedupKeyNode);
     if (existing != null) return existing;
 
-    var id = addNode(new ENode<>(expression));
+    var id = addNode(assignee, new ENode<>(expression));
     memo.put(dedupKeyNode, id);
     return id;
   }
 
   /// Asserts that `a` and `b` are equivalent and returns a new, higher id equivalent to both
   public Arg merge(Arg a, Arg b) {
-    var id = addNode(new UnionNode<>(a, b)); // new entry referring only to earlier ids
+    var id = addNode(null, new UnionNode<>(a, b)); // new entry referring only to earlier ids
     link(a, b); // canonicalization: a and b share a representative
     link(a, id); // ...and so does the combined id
     return id;
@@ -154,11 +161,13 @@ public final class AEGraph<Expr, Arg> {
     }
   }
 
-  private Arg addNode(Node node) {
-    var id = a.freshRegister();
-    nodes.put(id, node);
-    parent.put(id, id);
-    return id;
+  private Arg addNode(@Nullable Arg assignee, Node node) {
+    if (assignee == null) {
+      assignee = a.freshRegister();
+    }
+    nodes.put(assignee, node);
+    parent.put(assignee, assignee);
+    return assignee;
   }
 
   private void link(Arg a, Arg b) {
