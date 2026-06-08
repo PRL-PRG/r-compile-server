@@ -17,8 +17,10 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.iterator.BBIterator;
 import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.position.ScopePosition;
+import org.prlprg.util.NotImplementedError;
 
 /// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
 /// dominator of its children.
@@ -93,6 +95,17 @@ public final class CfgDominatorTree implements CfgAnalysis {
   /// Check if `dominator` dominates `dominee`.
   public boolean dominates(BB dominator, BB dominee) {
     return dominators(dominee).contains(dominator);
+  }
+
+  /// Yields dominators before dominees, outer promises before inner
+  public Iterable<BB> iterable() {
+    return this::iterator;
+  }
+
+  /// Yields dominators before dominees
+  public BBIterator iterator() {
+    // TODO(ai)
+    throw new NotImplementedError();
   }
 
   /// Sorts dominators before dominees. Specifically, sorts each node by its depth in a
