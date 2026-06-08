@@ -13,7 +13,7 @@ import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
-public sealed interface Value {
+public sealed interface Value extends Comparable<Value> {
   Value NULL = new Sexp(SEXPs.NULL);
 
   record Sexp(SEXP value) implements Value {
@@ -62,6 +62,31 @@ public sealed interface Value {
     public String toString() {
       return Printer.toString(value);
     }
+  }
+
+  @Override
+  default int compareTo(Value other) {
+    int kindCmp = kindOrder(this) - kindOrder(other);
+    if (kindCmp != 0) return kindCmp;
+    return switch (this) {
+      case Sexp(var v) -> Printer.toString(v).compareTo(Printer.toString(((Sexp) other).value()));
+      case Int(var v) -> Integer.compare(v, ((Int) other).value());
+      case Real(var v) -> Double.compare(v, ((Real) other).value());
+      case Lgl(var v) -> v.compareTo(((Lgl) other).value());
+      case Str(var v) -> v.compareTo(((Str) other).value());
+      case Bool(var v) -> Boolean.compare(v, ((Bool) other).value());
+    };
+  }
+
+  private static int kindOrder(Value v) {
+    return switch (v) {
+      case Sexp _ -> 0;
+      case Int _ -> 1;
+      case Real _ -> 2;
+      case Lgl _ -> 3;
+      case Str _ -> 4;
+      case Bool _ -> 5;
+    };
   }
 
   default Repr repr() {
