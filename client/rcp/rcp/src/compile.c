@@ -38,7 +38,17 @@ static int rcp_gdb_jit_enabled = 0;
 static int rcp_perf_jit_enabled = 0;
 static int compile_promises = RCP_COMPILE_PROMISES;
 
+// BC_ERROR marks a code path that is unreachable for a valid bytecode object.
+// By default it raises a recoverable R error, so corrupt input is reported
+// gracefully. When the caller guarantees validity by defining ASSUME_VALID_BC,
+// it becomes ASSUME(0): in debug builds (NDEBUG not defined) a hard-aborting
+// check that catches violations loudly, and in release builds the compiler
+// "assume" attribute that lets the dead check be optimized away entirely.
+#ifdef ASSUME_VALID_BC
+#define BC_ERROR(...) UNREACHABLE()
+#else
 #define BC_ERROR Rf_error
+#endif
 
 #ifdef PROFILE_STENCILS
 struct StencilProfileInfo
@@ -329,6 +339,23 @@ typedef struct
 static rcp_sharedmem_ptrs *mem_shared;
 static SEXP mem_shared_sexp;
 static const uint8_t *notinlined_executable;
+
+// Shared, preserved length-0 INTSXP used as a placeholder in SWITCH constpool
+// slots. Allocated once at package load instead of on every compilation, and
+// safe to share because these slots are only ever read (INTEGER0/LENGTH_0),
+// never mutated.
+static SEXP empty_intsxp = NULL;
+
+// Shared, immutable names vector c("value", "srcref", "functions") attached to
+// every coverage registry entry. Identical for every compilation, so it is
+// built once at package init rather than per call to srcref_coverage.
+static SEXP coverage_entry_names = NULL;
+
+// Interned symbols used by srcref_coverage, resolved once at package init.
+// Symbols returned by install() are permanently rooted in R's symbol table, so
+// they need no preservation.
+static SEXP coverage_srcfile_sym = NULL;
+static SEXP coverage_filename_sym = NULL;
 
 static void prepare_shared_memory()
 {
@@ -682,7 +709,7 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 			else if (is_names_null && ioffsets_length == 1)
 				return &stencil_set[3]; //&_RCP_SWITCH_101_OP;
 			else
-				error("Invalid SWITCH_OP immediate values\n");
+				BC_ERROR("Invalid SWITCH_OP immediate values\n");
 		}
 		break;
 #endif
@@ -1096,6 +1123,7 @@ typedef struct PluginStencils
 	size_t sparse_stencils_count;
 	size_t sparse_stencils_capacity;
 	PluginStencil *sparse_stencils;
+	int needs_sort; // set when a position is inserted out of (non-decreasing) order
 } PluginStencils;
 
 static int plugin_stencil_pos_cmp(const void *a, const void *b)
@@ -1436,7 +1464,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				}
 				else
 				{
-					constpool[opargs[3]] = allocVector(INTSXP, 0);
+					constpool[opargs[3]] = empty_intsxp;
 				}
 
 				if (coffsets_sexp != R_NilValue)
@@ -1451,12 +1479,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				}
 				else
 				{
-					constpool[opargs[2]] = allocVector(INTSXP, 0);
+					constpool[opargs[2]] = empty_intsxp;
 				}
 
 				if (names == R_NilValue)
 				{
-					constpool[opargs[1]] = allocVector(INTSXP, 0);
+					constpool[opargs[1]] = empty_intsxp;
 				}
 			}
 			break;
@@ -1707,6 +1735,13 @@ SEXP get_attribute(SEXP list, const char *attr_name)
 
 static PluginStencil *add_plugin_stencil_pos(PluginStencils *stencils, int pos, const Stencil *stencil, void *data)
 {
+	// Mark the array dirty if this position breaks the non-decreasing order, so
+	// the final sort can be skipped entirely when nothing was inserted out of
+	// order (e.g. coverage-only compilation).
+	if (stencils->sparse_stencils_count > 0 &&
+		pos < stencils->sparse_stencils[stencils->sparse_stencils_count - 1].pos)
+		stencils->needs_sort = 1;
+
 	if (stencils->sparse_stencils_count >= stencils->sparse_stencils_capacity)
 	{
 		if (stencils->sparse_stencils_capacity == 0)
@@ -1837,7 +1872,23 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils 
 	add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURNJMP_BCOP, &_RCP_EXIT_HOOK, trace);
 }
 
-static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, const char *func_name)
+// Appends the decimal representation of a non-negative int v to p (bounded by
+// end) and returns the new write pointer. Faster than snprintf's generic %d.
+static inline char *append_decimal(char *p, char *const end, unsigned int u)
+{
+	char tmp[11]; // enough for the 10 digits of UINT_MAX
+	int n = 0;
+	do
+	{
+		tmp[n++] = (char)('0' + (u % 10u));
+		u /= 10u;
+	} while (u != 0);
+	while (n > 0 && p < end)
+		*p++ = tmp[--n];
+	return p;
+}
+
+static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, SEXP func_name_char)
 {
 	SEXP srcrefs_index_sexp = get_attribute(constpool, "srcrefsIndex");
 	if (TYPEOF(srcrefs_index_sexp) != INTSXP)
@@ -1849,91 +1900,121 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 	int *srcrefs_index = INTEGER0(srcrefs_index_sexp);
 	const R_xlen_t len = XLENGTH_0(bytecode);
 
-	if (func_name == NULL)
-		func_name = "";
+	// All srcrefs in one function share the same "srcfile" environment object,
+	// so cache the resolved filename keyed by that object's pointer. This avoids
+	// R_GetSrcFilename's per-srcref getAttrib + install("filename") + env lookup.
+	SEXP cached_srcfile = NULL;
+	const char *cached_filename = "<text>";
+	size_t cached_filename_len = strlen(cached_filename); // set on each cache miss
 
 	void *vmax = vmaxget();
-	int *used_srcrefs = (int *)R_alloc(len, sizeof(int));
-	R_xlen_t used_srcrefs_count = 0;
 
 	const SEXP *consts = (SEXP *)DATAPTR(constpool);
+	const R_xlen_t n_consts = XLENGTH_0(constpool);
+
+	// expr_id is always a valid index into the constant pool, so we can use a
+	// direct-indexed "seen" bitmap for O(1) deduplication instead of a linear
+	// scan over the previously discovered ids.
+	char *seen_srcref = (char *)S_alloc(n_consts, sizeof(char));
+	R_xlen_t used_srcrefs_count = 0;
 
 	// First pass: discover unique expressions and record stencil positions
 	for (R_xlen_t i = 1; i < len; i++)
 	{
 		int expr_id = srcrefs_index[i];
 
-		for (int j = used_srcrefs_count - 1; j >= 0; j--)
-		{
-			if (used_srcrefs[j] == expr_id)
-				goto next_expr;
-		}
+		if (seen_srcref[expr_id])
+			goto next_expr;
+
 		DEBUG_PRINT("Sourceref %d used first at bytecode %d\n", expr_id, i);
-		used_srcrefs[used_srcrefs_count] = expr_id;
+		seen_srcref[expr_id] = 1;
 		used_srcrefs_count++;
 
 		SEXP srcref = consts[expr_id];
 
 		if (TYPEOF(srcref) != INTSXP || XLENGTH_0(srcref) < 8)
-			error("Invalid srcref data for expression with id %d", expr_id);
+			BC_ERROR("Invalid srcref data for expression with id %d", expr_id);
 
 		// Extract srcref data
 		int *srcref_data = INTEGER0(srcref);
 
-		// Get the filename from srcfile attribute
-		SEXP filename_sexp = R_GetSrcFilename(srcref);
-		const char *filename = "<text>";
-		if (TYPEOF(filename_sexp) == STRSXP && XLENGTH_0(filename_sexp) > 0)
+		// Get the filename from srcfile attribute (cached per srcfile object)
+		SEXP srcfile = Rf_getAttrib(srcref, coverage_srcfile_sym);
+		const char *filename;
+		if (srcfile == cached_srcfile)
 		{
-			const char *filename_char = CHAR(STRING_ELT_0(filename_sexp, 0));
-			if (strlen(filename_char) > 0) // To protect from empty filenames
+			filename = cached_filename;
+		}
+		else
+		{
+			// Inline of R_GetSrcFilename: we already hold the srcfile env from the
+			// getAttrib above, and the "filename" symbol is a shared singleton, so
+			// this avoids a second getAttrib, a per-call install, and an allocation.
+			filename = "<text>";
+			if (TYPEOF(srcfile) == ENVSXP)
 			{
-				filename = filename_char;
+				SEXP filename_sexp = Rf_findVarInFrame(srcfile, coverage_filename_sym);
+				if (TYPEOF(filename_sexp) != STRSXP || XLENGTH_0(filename_sexp) < 1)
+					BC_ERROR("Invalid 'filename' in srcfile environment for expression with id %d", expr_id);
+				const char *fn = CHAR(STRING_ELT_0(filename_sexp, 0));
+				if (fn[0] != '\0') // Non-empty filename
+					filename = fn;
 			}
+			cached_srcfile = srcfile;
+			cached_filename = filename;
+			cached_filename_len = strlen(filename);
 		}
 
-		// Build the key string: "filename:l1:c1:l2:c2:b1:b2:l3:c3"
-		char key[1024];
-		snprintf(key, sizeof(key), "%s:%d:%d:%d:%d:%d:%d:%d:%d",
-				 filename,
-				 srcref_data[0], srcref_data[1], srcref_data[2], srcref_data[3],
-				 srcref_data[4], srcref_data[5], srcref_data[6], srcref_data[7]);
+		// Build the key string "filename:l1:c1:l2:c2:b1:b2:l3:c3" directly.
+		// snprintf would re-parse the format and run its generic %s/%d machinery
+		// on every unique srcref; here the filename length is cached and the 8
+		// integers are converted inline. Bounded writes keep it overflow-safe.
+		char key[512];
+		char *p = key;
+		char *const end = key + sizeof(key) - 1; // reserve room for terminator
+		size_t fnlen = cached_filename_len;
+		if (fnlen > (size_t)(end - p))
+			fnlen = (size_t)(end - p);
+		memcpy(p, filename, fnlen);
+		p += fnlen;
+		for (int k = 0; k < 8; k++)
+		{
+			if (srcref_data[k] < 0)
+				BC_ERROR("Negative srcref component (%d) for expression with id %d", srcref_data[k], expr_id);
+			if (p < end)
+				*p++ = ':';
+			p = append_decimal(p, end, (unsigned)srcref_data[k]);
+		}
+		*p = '\0';
 
 		DEBUG_PRINT("Registering coverage for expression with key: %s\n", key);
-		SEXP key_symbol = PROTECT(Rf_install(key));
+		SEXP key_symbol = Rf_install(key);
 
 		// Check if this key already exists in the registry
 		SEXP existing = Rf_findVarInFrame(coverage_registry, key_symbol);
 
 		int *value_ptr;
 
-		if (existing == R_UnboundValue)
+		if (LIKELY(existing == R_UnboundValue))
 		{
 			// Create a new list with: value, srcref, functions
 			SEXP entry = PROTECT(Rf_allocVector(VECSXP, 3));
-			SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 3));
-
-			// Set names: value, srcref, functions
-			SET_STRING_ELT(entry_names, 0, Rf_mkChar("value"));
-			SET_STRING_ELT(entry_names, 1, Rf_mkChar("srcref"));
-			SET_STRING_ELT(entry_names, 2, Rf_mkChar("functions"));
-			Rf_setAttrib(entry, R_NamesSymbol, entry_names);
-			UNPROTECT_SAFE(entry_names);
 
 			// Create an integer value that the stencil will increment directly
-			SEXP value_num = PROTECT(Rf_ScalarInteger(0));
+			SEXP value_num = Rf_ScalarInteger(0);
 			SET_VECTOR_ELT(entry, 0, value_num);
 			value_ptr = INTEGER0(value_num);
-			UNPROTECT_SAFE(value_num);
 
 			// Add the srcref object
 			SET_VECTOR_ELT(entry, 1, srcref);
 
 			// Add the function name as a character vector
-			SEXP func_vec = PROTECT(Rf_allocVector(STRSXP, 1));
-			SET_STRING_ELT(func_vec, 0, Rf_mkChar(func_name));
+			SEXP func_vec = Rf_allocVector(STRSXP, 1);
+			SET_STRING_ELT(func_vec, 0, func_name_char);
 			SET_VECTOR_ELT(entry, 2, func_vec);
-			UNPROTECT_SAFE(func_vec);
+
+			// Set names (process-wide shared singleton): value, srcref, functions
+			Rf_setAttrib(entry, R_NamesSymbol, coverage_entry_names);
 
 			// Define in coverage_registry
 			Rf_defineVar(key_symbol, entry, coverage_registry);
@@ -1946,20 +2027,20 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 			// Entry exists - append this function to the functions list
 			SEXP funcs = VECTOR_ELT_0(entry, 2);
 			R_xlen_t n_funcs = XLENGTH_0(funcs);
-			SEXP new_funcs = PROTECT(Rf_allocVector(STRSXP, n_funcs + 1));
+			// No PROTECT: nothing allocates between the alloc and the SET_VECTOR_ELT
+			// that roots new_funcs via the (registry-reachable) entry.
+			SEXP new_funcs = Rf_allocVector(STRSXP, n_funcs + 1);
 			for (R_xlen_t j = 0; j < n_funcs; j++)
 			{
 				SET_STRING_ELT(new_funcs, j, STRING_ELT_0(funcs, j));
 			}
-			SET_STRING_ELT(new_funcs, n_funcs, Rf_mkChar(func_name));
+			SET_STRING_ELT(new_funcs, n_funcs, func_name_char);
 			SET_VECTOR_ELT(entry, 2, new_funcs);
-			UNPROTECT_SAFE(new_funcs);
 
 			// Get pointer to the existing value
 			SEXP value_num = VECTOR_ELT_0(entry, 0);
 			value_ptr = INTEGER0(value_num);
 		}
-		UNPROTECT_SAFE(key_symbol);
 
 		// Point the stencil at this expression's value field
 		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COVERAGE, value_ptr);
@@ -1983,7 +2064,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	int bytecode_size = LENGTH_0(code);
 
 	if (bytecode_size == 0)
-		error("Cannot compile empty bytecode.\n");
+		BC_ERROR("Cannot compile empty bytecode.\n");
 
 	// Skip the first member in the array, it is the version number
 	bytecode += 1;
@@ -2099,7 +2180,13 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	/* ALL PLUGINS MUST BE ADDED HERE */
 
 	if (coverage_registry != R_NilValue)
-		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
+	{
+		// Caller protects the argument SEXP for the duration of the call, like the
+		// other SEXP arguments srcref_coverage receives.
+		SEXP func_name_char = PROTECT(Rf_mkChar(name ? name : ""));
+		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, func_name_char);
+		UNPROTECT_SAFE(func_name_char);
+	}
 
 	if (hooks_registry != R_NilValue)
 		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
@@ -2110,7 +2197,11 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 
 	/******************************** */
 
-	qsort((void *)plugins.sparse_stencils, plugins.sparse_stencils_count, sizeof(PluginStencil), plugin_stencil_pos_cmp);
+	// qsort does no work-saving on already-sorted input, so only sort when an
+	// out-of-order insert was flagged while building the array (e.g. coverage-only
+	// compilation emits strictly increasing positions and skips the sort).
+	if (plugins.needs_sort)
+		qsort((void *)plugins.sparse_stencils, plugins.sparse_stencils_count, sizeof(PluginStencil), plugin_stencil_pos_cmp);
 
 	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, plugins.sparse_stencils, plugins.sparse_stencils_count, bbs, stats, name);
 	UNPROTECT_SAFE(code);
@@ -3210,6 +3301,24 @@ SEXP rcp_init(void)
 
 	prepare_shared_memory();
 
+	// Preserve a single shared length-0 INTSXP reused across all compilations
+	empty_intsxp = allocVector(INTSXP, 0);
+	R_PreserveObject(empty_intsxp);
+
+	// Preserve the shared coverage entry names vector built once for all calls.
+	// Protect during construction since mkChar may trigger a GC.
+	coverage_entry_names = PROTECT(allocVector(STRSXP, 3));
+	SET_STRING_ELT(coverage_entry_names, 0, mkChar("value"));
+	SET_STRING_ELT(coverage_entry_names, 1, mkChar("srcref"));
+	SET_STRING_ELT(coverage_entry_names, 2, mkChar("functions"));
+	R_PreserveObject(coverage_entry_names);
+	MARK_NOT_MUTABLE(coverage_entry_names); // shared across all entries; never modify
+	UNPROTECT(1);
+
+	// Resolve the symbols srcref_coverage needs (permanently rooted, no preserve).
+	coverage_srcfile_sym = install("srcfile");
+	coverage_filename_sym = install("filename");
+
 	prepare_active_holes();
 
 	notinlined_executable = prepare_notinlined_functions();
@@ -3252,6 +3361,18 @@ void rcp_destr(void)
 	{
 		R_ReleaseObject(mem_shared_sexp);
 		mem_shared_sexp = NULL;
+	}
+
+	if (empty_intsxp != NULL)
+	{
+		R_ReleaseObject(empty_intsxp);
+		empty_intsxp = NULL;
+	}
+
+	if (coverage_entry_names != NULL)
+	{
+		R_ReleaseObject(coverage_entry_names);
+		coverage_entry_names = NULL;
 	}
 
 	if (original_cmpfun != NULL)

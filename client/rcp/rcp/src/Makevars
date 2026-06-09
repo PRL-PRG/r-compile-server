@@ -35,11 +35,20 @@ ifneq ($(SPECIALIZE_MAKEPROM),0)
   PKG_CFLAGS += -DMAKEPROM_SPECIALIZE
 endif
 
+# Assume the bytecode object is always valid: turns BC_ERROR checks into ASSUME
+# (hard-aborting in debug, optimized away in release). Off by default since it
+# removes the graceful error path for corrupt/unexpected bytecode.
+ASSUME_VALID_BC ?= 1
+ifneq ($(ASSUME_VALID_BC),0)
+  PKG_CFLAGS += -DASSUME_VALID_BC
+endif
+
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
 $(info RCP_GIT_COMMIT=$(RCP_GIT_COMMIT))
 $(info OPENMP=$(OPENMP))
+$(info ASSUME_VALID_BC=$(ASSUME_VALID_BC))
 $(info RCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES))
 $(info ALIGNMENT_LABELS=$(ALIGNMENT_LABELS))
 $(info ALIGNMENT_JUMPS=$(ALIGNMENT_JUMPS))
