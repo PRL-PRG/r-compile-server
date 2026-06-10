@@ -9,7 +9,7 @@ public final class GlobalEnvSXP extends AbstractStaticEnvSXP implements StaticEn
 
   public GlobalEnvSXP(StaticEnvSXP parent, Map<String, SEXP> bindings) {
     this(parent);
-    this.bindings.putAll(bindings);
+    this.setBindings(bindings);
   }
 
   @Override

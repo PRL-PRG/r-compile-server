@@ -59,6 +59,11 @@ public class Printer {
     return PrettyPrintWriter.use(writer -> usePrinter.accept(new Printer(writer, null)));
   }
 
+  /** Use a printer and return the output as a string. */
+  public static String use(Consumer<Printer> usePrinter, @Nullable Object ctx) {
+    return PrettyPrintWriter.use(writer -> usePrinter.accept(new Printer(writer, ctx)));
+  }
+
   /** Create a printer which prints to the given writer. */
   public Printer(Writer output) {
     writer = new PrettyPrintWriter(output);
@@ -147,14 +152,37 @@ public class Printer {
     writer.write(object.toString());
   }
 
+  /** Print an iterable separated by the given separator. */
+  public void printSeparated(String separator, Iterable<?> items) {
+    var first = true;
+    for (var item : items) {
+      if (first) {
+        first = false;
+      } else {
+        writer.write(separator);
+      }
+      print(item);
+    }
+  }
+
   /**
-   * Print an iterable as a list of the form {@code [a,b,...]}.
+   * Print an iterable as a list of the form {@code [a, b, ...]}.
+   *
+   * @see #print(Object)
+   */
+  public void printAsList(String opener, String closer, Iterable<?> list) {
+    printAsList(opener, closer, list, true);
+  }
+
+  /**
+   * Print an iterable as a list of the form {@code [a,b,...]} or {@code [a, b, ...]}.
    *
    * @param whitespaceAfterComma whether to print a space after each comma.
    * @see #print(Object)
    */
-  public void printAsList(Iterable<?> list, boolean whitespaceAfterComma) {
-    writer.write('[');
+  public void printAsList(
+      String opener, String closer, Iterable<?> list, boolean whitespaceAfterComma) {
+    writer.write(opener);
     var first = true;
     for (var item : list) {
       if (first) {
@@ -167,7 +195,7 @@ public class Printer {
       }
       print(item);
     }
-    writer.write(']');
+    writer.write(closer);
   }
 
   // endregion

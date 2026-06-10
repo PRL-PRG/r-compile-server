@@ -1,12 +1,14 @@
 package org.prlprg.util;
 
-import com.google.common.collect.Streams;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 public class Reflection {
   /**
@@ -14,8 +16,8 @@ public class Reflection {
    *
    * @throws IllegalArgumentException If {@code target} isn't a record.
    */
-  public static Iterable<Object> getComponents(Record target) {
-    return () -> streamComponents(target).iterator();
+  public static Iterable<Optional<Object>> getComponentValues(Record target) {
+    return () -> streamComponentValues(target).iterator();
   }
 
   /**
@@ -23,14 +25,15 @@ public class Reflection {
    *
    * @throws IllegalArgumentException If {@code target} isn't a record.
    */
-  public static Stream<Object> streamComponents(Record target) {
+  public static Stream<Optional<Object>> streamComponentValues(Record target) {
     assert target.getClass().isRecord()
         : "target is an instance of `Record` but `getClass().isRecord()` is false?";
-    return Arrays.stream(target.getClass().getRecordComponents()).map(c -> getComponent(target, c));
+    return Arrays.stream(target.getClass().getRecordComponents())
+        .map(c -> Optional.ofNullable(getComponentValue(target, c)));
   }
 
   /** Reflectively get the record component, converting all exceptions to runtime exceptions. */
-  public static Object getComponent(Record target, RecordComponent component) {
+  public static @Nullable Object getComponentValue(Record target, RecordComponent component) {
     try {
       return component.getAccessor().invoke(target);
     } catch (InvocationTargetException e) {
@@ -55,7 +58,7 @@ public class Reflection {
    * @throws IllegalArgumentException If no methods in {@code target} have {@code methodName}.
    *     <p><b>OR</b> if multiple methods in {@code target} have {@code methodName}.
    */
-  public static <T> T construct(Class<T> target, Object... arguments) {
+  public static <T> T construct(Class<T> target, @Nullable Object... arguments) {
     try {
       @SuppressWarnings("unchecked")
       var constructor =
@@ -89,7 +92,7 @@ public class Reflection {
    *     <p><b>OR</b> if multiple methods in {@code target} have {@code methodName}.
    */
   public static Object callByName(
-      Object target, Class<?> methodClass, String methodName, Object... arguments) {
+      Object target, Class<?> methodClass, String methodName, @Nullable Object... arguments) {
     try {
       var method =
           getMethodThatCanBeCalledWithArguments(
@@ -119,7 +122,10 @@ public class Reflection {
    * multiple suitable methods were found.
    */
   private static <M extends Executable> M getMethodThatCanBeCalledWithArguments(
-      String methodDesc, Stream<M> methodsStream, Class<?> clazz, Object... arguments) {
+      String methodDesc, Stream<M> methodsStream, Class<?> clazz, @Nullable Object... arguments) {
+    // Each argument can be null, but not the entire array.
+    Objects.requireNonNull(arguments);
+
     var filteredMethods = methodsStream.filter(m -> canBeCalledWith(m, arguments)).toList();
     return switch (filteredMethods.size()) {
       case 0 ->
@@ -153,8 +159,10 @@ public class Reflection {
    * <p>Currently, variable-argument methods are not supported: given a var-args method, this will
    * simply return {@code false}.
    */
-  @SuppressWarnings("UnstableApiUsage")
-  private static boolean canBeCalledWith(Executable m, Object... arguments) {
+  private static boolean canBeCalledWith(Executable m, @Nullable Object... arguments) {
+    // The `@Nullable` is supposed to apply to the arguments, not the array.
+    Objects.requireNonNull(arguments);
+
     return !m.isVarArgs()
         && m.getParameterCount() == arguments.length
         && Streams.zip(

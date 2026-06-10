@@ -225,7 +225,7 @@ public class Context {
         && (call.funNameIs("::") || call.funNameIs(":::"))
         && call.arg(0) instanceof RegSymSXP
         && call.arg(1) instanceof RegSymSXP) {
-      var args = call.args().set(1, null, SEXPs.symbol(call.arg(1) + "<-"));
+      var args = call.args().with(1, "", SEXPs.symbol(call.arg(1) + "<-"));
       return Optional.of(SEXPs.lang(call.fun(), args));
     } else {
       return Optional.empty();

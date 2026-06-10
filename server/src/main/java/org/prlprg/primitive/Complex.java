@@ -81,17 +81,14 @@ public record Complex(double real, double imag) {
   private void print(Printer p) {
     var w = p.writer();
 
-    if (real != 0 || imag == 0) {
+    if (real != 0) {
       p.print(real);
-    }
-
-    if (imag != 0) {
-      if (real != 0 && imag > 0) {
+      if (imag >= 0 || Double.isNaN(imag)) {
         w.write('+');
       }
-      p.print(imag);
-      w.write('i');
     }
+    p.print(imag);
+    w.write('i');
   }
 
   @Override

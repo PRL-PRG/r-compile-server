@@ -3,6 +3,7 @@ package org.prlprg.rds;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.ImmutableIntArray;
 import com.google.protobuf.ByteString;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.Closeable;
@@ -12,7 +13,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import org.prlprg.bc.Bc;
 import org.prlprg.primitive.BuiltinId;
@@ -28,7 +28,6 @@ public class RDSReader implements Closeable {
   private final RSession rsession;
   private final RDSInputStream in;
   private final List<SEXP> refTable = new ArrayList<>(128);
-  private static Logger LOGGER = Logger.getLogger(RDSReader.class.getName());
 
   // User-provided hook for PERSISTSXP
   // Used for package databases for instance
@@ -36,7 +35,7 @@ public class RDSReader implements Closeable {
     SEXP hook(SEXP sexp) throws IOException;
   }
 
-  private Hook hook = null;
+  private @Nullable Hook hook = null;
 
   // FIXME: this should include the logic from platform.c
   //  or should we individually read the charset property of each SEXP? this will require
@@ -101,10 +100,10 @@ public class RDSReader implements Closeable {
 
     // versions
     var formatVersion = in.readInt();
-    if (formatVersion > 2) {
-      // we do not completely support RDS version 3 because it uses ALTREP
-      // LOGGER.warning("RDS version: " + formatVersion + "; some features are not supported.");
-    }
+    // if (formatVersion > 2) {
+    // we do not completely support RDS version 3 because it uses ALTREP
+    // LOGGER.warning("RDS version: " + formatVersion + "; some features are not supported.");
+    // }
     // writer version
     in.readInt();
     // minimal reader version
@@ -144,7 +143,7 @@ public class RDSReader implements Closeable {
             case LGL -> readLogicals(flags);
             case VEC -> readVec(flags);
             case ENV -> readEnv();
-            case STRING -> readStrs(flags);
+            case STR -> readStrs(flags);
             case LANG -> readLang(flags);
             case BCODE -> readByteCode();
             case EXPR -> readExpr(flags);
@@ -249,11 +248,11 @@ public class RDSReader implements Closeable {
 
     if (tag instanceof NilSXP) {
       // If the tag is nil, the promise is evaluated
-      return new PromSXP(expr, val, SEXPs.EMPTY_ENV);
+      return SEXPs.promise(expr, val, SEXPs.EMPTY_ENV);
     } else if (tag instanceof EnvSXP env) {
       // Otherwise, the promise is lazy. We represent lazy promises as having a val of
       // SEXPs.UNBOUND_VALUE, so we set it here accordingly
-      return new PromSXP(expr, SEXPs.UNBOUND_VALUE, env);
+      return SEXPs.promise(expr, SEXPs.UNBOUND_VALUE, env);
     } else {
       throw new RDSException("Expected promise ENV to be environment");
     }
@@ -319,7 +318,7 @@ public class RDSReader implements Closeable {
     }
 
     var consts = readByteCodeConsts(reps);
-    var factory = new GNURByteCodeDecoderFactory(code.data(), consts);
+    var factory = new GNURByteCodeDecoderFactory(ImmutableIntArray.copyOf(code.data()), consts);
 
     return SEXPs.bcode(factory.create());
   }
@@ -419,7 +418,7 @@ public class RDSReader implements Closeable {
     if (tagSexp instanceof RegSymSXP sym) {
       tag = sym.name();
     } else if (tagSexp instanceof NilSXP) {
-      tag = null;
+      tag = "";
     } else {
       throw new RDSException("Expected regular symbol or nil");
     }
@@ -438,7 +437,7 @@ public class RDSReader implements Closeable {
     if (tail instanceof ListSXP) {
       tailList = (ListSXP) tail;
     } else if (tail instanceof LangSXP lang) {
-      tailList = lang.args().prepend(new TaggedElem(null, lang.fun()));
+      tailList = lang.args().prepend(new TaggedElem(lang.fun()));
     } else {
       throw new RDSException("Expected list or language, got: " + tail.type());
     }
@@ -455,7 +454,7 @@ public class RDSReader implements Closeable {
 
       ListSXP args = SEXPs.NULL;
       if (ansList.size() > 1) {
-        args = ansList.subList(1);
+        args = ansList.fromIndex(1);
       }
 
       ans = SEXPs.lang(funSymOrLang, args, attributes);
@@ -512,7 +511,7 @@ public class RDSReader implements Closeable {
     if (length == -1) {
       out = Constants.NA_STRING;
     } else {
-      // TODO: can this actually happen?
+      // Sometimes R strings have no defined encoding.
       if (encoding == null) {
         encoding = nativeEncoding;
       }
@@ -556,7 +555,7 @@ public class RDSReader implements Closeable {
       case NilSXP _ -> {}
       case ListSXP frame -> {
         for (var elem : frame) {
-          item.set(requireNonNull(elem.tag()), elem.value());
+          item.set(elem.tag(), elem.value());
         }
       }
       default -> throw new RDSException("Expected list (FRAME)");
@@ -571,7 +570,7 @@ public class RDSReader implements Closeable {
             case NilSXP _ -> {}
             case ListSXP list -> {
               for (var e : list) {
-                item.set(requireNonNull(e.tag()), e.value());
+                item.set(e.tag(), e.value());
               }
             }
             default -> throw new RDSException("Expected list for the hashtab entries");
@@ -663,7 +662,8 @@ public class RDSReader implements Closeable {
     return SEXPs.closure(formals, body, env, attributes);
   }
 
-  private @Nullable String readTag(Flags flags) throws IOException {
+  /// Returns the empty string for no tag.
+  private String readTag(Flags flags) throws IOException {
     if (flags.hasTag()) {
       if (readItem() instanceof RegSymSXP s) {
         return s.name();
@@ -671,7 +671,7 @@ public class RDSReader implements Closeable {
         throw new RDSException("Expected tag to be a symbol");
       }
     } else {
-      return null;
+      return "";
     }
   }
 
@@ -688,11 +688,10 @@ public class RDSReader implements Closeable {
       var attrs = new Attributes.Builder();
 
       for (var x : xs) {
-        var attr = x.tag();
-        if (attr == null) {
+        if (!x.hasTag()) {
           throw new RDSException("Expected tag");
         }
-        attrs.put(attr, x.value());
+        attrs.put(x.tag(), x.value());
       }
 
       return attrs.build();
