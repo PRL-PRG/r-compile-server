@@ -2,14 +2,13 @@ package org.prlprg.primitive;
 
 import com.google.common.collect.ImmutableList;
 import java.util.regex.Pattern;
-import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.PrettyPrintWriter;
 import org.prlprg.parseprint.Scanner;
 import org.prlprg.util.Strings;
 
-/** Special symbols, and utilities for symbol string quoting and validating. */
+/// Special symbols, and utilities for symbol string quoting and validating.
 public final class Names {
-  /** The symbols which are treated as binary-operators in R (when parsing or printing). */
+  /// The symbols which are treated as binary-operators in R (when parsing or printing).
   public static final ImmutableList<String> BINOPS =
       ImmutableList.of(
           "+", "-", "*", "/", "^", "%%", "%/%", "==", "!=", "<", "<=", ">", ">=", "&", "|", "&&",
@@ -17,13 +16,12 @@ public final class Names {
           "%/%", "%+%", "%-%", "%&%", "%/%", "%|%", "%?%", "%$%", "%::%", "%:::%", "%>%", "%<>%",
           "%<>%");
 
-  /**
-   * Return the string quoted if it can't be a valid symbol string without being quoted.
-   *
-   * @throws IllegalArgumentException if given the empty string, since that is reserved for special
-   *     symbols and can't be a "symbol" as is usually referred to (e.g. can't be exposed to the
-   *     user).
-   */
+  /// Return the string quoted if it can't be a valid symbol string without being quoted.
+  ///
+  /// @throws IllegalArgumentException if given the empty string, since that is reserved for
+  // special
+  ///     symbols and can't be a "symbol" as is usually referred to (e.g. can't be exposed to the
+  ///     user).
   public static String quoteIfNecessary(String s) {
     if (s.isEmpty()) {
       throw new IllegalArgumentException("empty string is reserved for special symbols");
@@ -31,11 +29,9 @@ public final class Names {
     return isValid(s) ? s : PrettyPrintWriter.use(w -> w.writeQuoted('`', s));
   }
 
-  /**
-   * Return the string, assumed to be a valid symbol, unquoted if it is quoted.
-   *
-   * <p>If the string isn't a valid symbol, this will have unspecified behavior.
-   */
+  /// Return the string, assumed to be a valid symbol, unquoted if it is quoted.
+  ///
+  /// If the string isn't a valid symbol, this will have unspecified behavior.
   public static String unquoteIfNecessary(String s) {
     return s.charAt(0) == '`' && s.charAt(s.length() - 1) == '`'
         ? new Scanner(s).readQuoted('`')
@@ -44,10 +40,8 @@ public final class Names {
 
   private static final Pattern UNESCAPED_NOT_END_BACKTICK = Pattern.compile("(?<!\\\\)`(?!$)");
 
-  /**
-   * Whether the string {@linkplain #isValidUnquoted(String) is valid unquoted}, or is in quotes and
-   * not empty.
-   */
+  /// Whether the string {@linkplain #isValidUnquoted(String) is valid unquoted}, or is in
+  /// quotes and not empty.
   public static boolean isValid(String s) {
     return isValidUnquoted(s)
         || (s.startsWith("`")
@@ -56,44 +50,61 @@ public final class Names {
             && !UNESCAPED_NOT_END_BACKTICK.matcher(s).find(1));
   }
 
-  /**
-   * Whether the string can be a valid R symbol string not quoted (not between "`"s).
-   *
-   * <p>Returns true for R literals such as "TRUE" and "NULL".
-   */
+  /// Whether the string can be a valid R symbol string not quoted (not between "`"s).
+  ///
+  /// Returns true for R literals such as "TRUE" and "NULL".
   public static boolean isValidUnquoted(String s) {
     return !s.isEmpty()
         && !s.equals("_")
         && isValidStartChar(s.chars().findFirst().orElseThrow())
-        && s.chars().allMatch(Names::isValidMiddleCharOfUnquoted);
+        && s.chars().allMatch(Names::isValidMiddleCharOfUnquoted)
+        && !isReserved(s);
   }
 
-  /** Whether the character can be the first in an R symbol. */
+  /// Whether the character can be the first in an R symbol.
   public static boolean isValidStartChar(int c) {
     return isValidStartCharToUnquoted(c) || c == '`';
   }
 
-  /** Whether the character can be the first in an R symbol string which isn't quoted. */
+  /// Whether the character can be the first in an R symbol string which isn't quoted.
   public static boolean isValidStartCharToUnquoted(int c) {
-    return Character.isLetter(c) || c == '_' || c == '.' || c == '`';
+    return Character.isLetter(c) || c == '_' || c == '.';
   }
 
-  /** Whether the character can be in the middle of an R symbol string which isn't quoted. */
+  /// Whether the character can be in the middle of an R symbol string which isn't quoted.
   private static boolean isValidMiddleCharOfUnquoted(int c) {
     return isValidStartCharToUnquoted(c) || Character.isDigit(c);
   }
 
-  /**
-   * Reads a valid R symbol string.
-   *
-   * <p>If {@code unquote} is false and the symbol is quoted (between "`"s), returns it still
-   * quoted. Otherwise, returns it unquoted; however, the unquoted value may no longer be a valid
-   * symbol string and must be quoted again (via {@link #quoteIfNecessary(String)} or {@link
-   * #write(PrettyPrintWriter, String)}) to make it such.
-   *
-   * @throws ParseException if the next character isn't a letter, underscore, or "`" (the beginning
-   *     of a symbol), the entire symbol is only an underscore, or the symbol is "``".
-   */
+  /// Whether this refers to a constant. e.g. `NULL`, `TRUE`, `NA_INT`.
+  public static boolean isReserved(String name) {
+    return switch (name) {
+      case "NULL",
+          "TRUE",
+          "FALSE",
+          "NA_LGL",
+          "NA_INT",
+          "NA_REAL",
+          "NA_CPLX",
+          "NA_STR",
+          "NA",
+          "NaN",
+          "Infinity" ->
+          true;
+      default -> false;
+    };
+  }
+
+  /// Reads a valid R symbol string.
+  ///
+  /// If `unquote` is false and the symbol is quoted (between "`"s), returns it still
+  /// quoted. Otherwise, returns it unquoted; however, the unquoted value may no longer be a valid
+  /// symbol string and must be quoted again (via [#quoteIfNecessary(String)] or
+  /// [#write(PrettyPrintWriter,String)]) to make it such.
+  ///
+  /// @throws ParseException if the next character isn't a letter, underscore, or "`" (the
+  // beginning
+  ///     of a symbol), the entire symbol is only an underscore, or the symbol is "``".
   public static String read(Scanner scanner, boolean unquote) {
     if (scanner.nextCharIs('`')) {
       var result = unquote ? scanner.readQuoted('`') : scanner.readQuotedLiterally('`');
@@ -116,12 +127,9 @@ public final class Names {
     return result;
   }
 
-  /**
-   * Writes a valid R symbol string.
-   *
-   * <p>This is semantically equivalent to {@code w.write(}{@link Names#quoteIfNecessary(String)
-   * Names.quoteIfNecessary}{@code (s))}, but faster.
-   */
+  /// Writes a valid R symbol string.
+  ///
+  /// This is semantically equivalent to `w.write(Names.quoteIfNecessary(s))`, but faster.
   public static void write(PrettyPrintWriter w, String s) {
     if (isValidUnquoted(s)) {
       w.write(s);

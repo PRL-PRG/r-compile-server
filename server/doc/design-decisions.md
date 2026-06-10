@@ -63,9 +63,8 @@
 
 ### Plugins
 
-- Bug-finding / bad-code tools? **[pmd 7](https://pmd.github.io) with modified rules**
-  - We had initially went with [spotbugs](https://spotbugs.github.io) and PMD's default ruleset. However, they add many unnecessary warnings, and enforce conventions that we determine make the code worse. We also have inspections within the IDE which are tested regularly, so we don't really need PMD's rules except those not covered by IntelliJ.
-  - Nonetheless, we need some automated bug detection, because Java has a lot of footguns (like nulls, `==` instead of `equals`), and redundant/deprecated ways of doing things (e.g. anonymous class instead of lambda, POJO instead of record).
+- Bug-finding / bad-code tools? IntelliJ inspections
+  - We had initially went with [spotbugs](https://spotbugs.github.io) and PMD's default ruleset. However, they add many unnecessary warnings, and enforce conventions that we determine make the code worse.
 - The project is also setup so that everything is assumed non-null by default, and exceptions need an explicit `@Nullable` annotation. This has worked well.
 - Code formatting? **[google-java-format](https://google.github.io/styleguide/javaguide.html) via [spotless](https://github.com/diffplug/spotless#readme)**
   - Google's style guide is supported by nearly every tool and IDE including IntelliJ, I don't know of any other common style

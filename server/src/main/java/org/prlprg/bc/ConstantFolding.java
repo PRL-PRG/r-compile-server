@@ -2,8 +2,6 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
-import com.google.common.primitives.ImmutableDoubleArray;
-import com.google.common.primitives.ImmutableIntArray;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -282,12 +280,10 @@ public final class ConstantFolding {
     }
 
     var type = args.getFirst().type();
-    var capacity = 0;
 
     // compute the target type, the SEXPTYPE is ordered in a way that we can just take the max
     for (var arg : args) {
       type = Coercions.commonType(type, arg.type());
-      capacity += ((VectorSXP<?>) arg).size();
     }
 
     // this is safe as we have proved that all args are VectorSXP
@@ -296,31 +292,38 @@ public final class ConstantFolding {
 
     Optional<SEXP> vals =
         switch (type) {
-          case STRING -> {
-            var res = new ImmutableList.Builder<String>();
-            vecArgs.forEach(x -> res.add(x.coerceToStrings()));
-            yield Optional.of(SEXPs.string(res.build()));
-          }
-          case REAL -> {
-            var res = ImmutableDoubleArray.builder(capacity);
-            vecArgs.forEach(x -> Arrays.stream(x.coerceToReals()).forEach(res::add));
-            yield Optional.of(SEXPs.real(res.build()));
-          }
-          case INT -> {
-            var res = ImmutableIntArray.builder(capacity);
-            vecArgs.forEach(x -> Arrays.stream(x.coerceToInts()).forEach(res::add));
-            yield Optional.of(SEXPs.integer(res.build()));
-          }
-          case LGL -> {
-            var res = new ImmutableList.Builder<Logical>();
-            vecArgs.forEach(x -> res.add(x.coerceToLogicals()));
-            yield Optional.of(SEXPs.logical(res.build()));
-          }
-          case CPLX -> {
-            var res = new ImmutableList.Builder<Complex>();
-            vecArgs.forEach(x -> res.add(x.coerceToComplexes()));
-            yield Optional.of(SEXPs.complex(res.build()));
-          }
+          case STR ->
+              Optional.of(
+                  SEXPs.string(
+                      vecArgs.stream()
+                          .flatMap(x -> Arrays.stream(x.coerceToStrings()))
+                          .toArray(String[]::new)));
+          case REAL ->
+              Optional.of(
+                  SEXPs.real(
+                      vecArgs.stream()
+                          .flatMap(x -> Arrays.stream(x.coerceToReals()))
+                          .mapToDouble(d -> d)
+                          .toArray()));
+          case INT ->
+              Optional.of(
+                  SEXPs.integer(
+                      vecArgs.stream()
+                          .flatMap(x -> Arrays.stream(x.coerceToInts()))
+                          .mapToInt(i -> i)
+                          .toArray()));
+          case LGL ->
+              Optional.of(
+                  SEXPs.logical(
+                      vecArgs.stream()
+                          .flatMap(x -> Arrays.stream(x.coerceToLogicals()))
+                          .toArray(Logical[]::new)));
+          case CPLX ->
+              Optional.of(
+                  SEXPs.complex(
+                      vecArgs.stream()
+                          .flatMap(x -> Arrays.stream(x.coerceToComplexes()))
+                          .toArray(Complex[]::new)));
           default -> Optional.empty();
         };
 
@@ -354,12 +357,13 @@ public final class ConstantFolding {
 
     var imin = min.asInt(0);
     var imax = max.asInt(0);
-    var ints = ImmutableIntArray.builder(Math.abs(imax - imin));
+    var ints = new int[Math.abs(imax - imin) + 1];
     var inc = imin < imax ? 1 : -1;
-    for (var i = imin; i != imax + inc; i += inc) {
-      ints.add(i);
+    int i, j;
+    for (i = imin, j = 0; i != imax + inc; i += inc, j++) {
+      ints[j] = i;
     }
 
-    return Optional.of(SEXPs.integer(ints.build()));
+    return Optional.of(SEXPs.integer(ints));
   }
 }

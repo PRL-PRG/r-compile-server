@@ -132,7 +132,6 @@ import org.prlprg.bc.BcInstr.VecSubset;
 import org.prlprg.bc.BcInstr.VecSubset2;
 import org.prlprg.bc.BcInstr.Visible;
 import org.prlprg.session.RSession;
-import org.prlprg.sexp.*;
 import org.prlprg.sexp.BCodeSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -174,7 +173,8 @@ public class BCCompiler {
   public static final int DEFAULT_OPTIMIZATION_LEVEL = 2;
 
   /** SEXP types that can participate in constan folding. */
-  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES = Set.of(LGL, INT, REAL, CPLX, STRING);
+  private static final Set<SEXPType> ALLOWED_FOLDABLE_MODES =
+      Set.of(LGL, INT, REAL, CPLX, SEXPType.STR);
 
   private static final Set<String> MAYBE_NSE_SYMBOLS = Set.of("bquote");
 
@@ -236,8 +236,11 @@ public class BCCompiler {
    *
    * <p>NOTE that the order is important (and has to be the same as in R)! The MATH1_OP takes an
    * index into an array of math functions.
+   *
+   * <p>TODO: May want to move this somewhere else, because it's also used by {@link
+   * org.prlprg.bc2fir.CFGCompiler}.
    */
-  private static final List<String> MATH1_FUNS =
+  public static final List<String> MATH1_FUNS =
       List.of(
           "floor",
           "ceiling",
@@ -631,8 +634,8 @@ public class BCCompiler {
     }
   }
 
-  private void compileTag(@Nullable String tag) {
-    if (tag != null && !tag.isEmpty()) {
+  private void compileTag(String tag) {
+    if (!tag.isEmpty()) {
       cb.addInstr(new SetTag(cb.addConst(SEXPs.symbol(tag))));
     }
   }
@@ -1852,7 +1855,7 @@ public class BCCompiler {
     var afun =
         Context.getAssignFun(flhs.temp().fun())
             .orElseThrow(() -> new CompilerException("invalid function in complex assignment"));
-    var aargs = flhs.temp().args().set(0, null, SEXPs.ASSIGN_TMP).appended("value", value);
+    var aargs = flhs.temp().args().with(0, "", SEXPs.ASSIGN_TMP).appended("value", value);
     var acall = SEXPs.lang(afun, aargs);
 
     var sloc = cb.getCurrentLoc();
@@ -1866,7 +1869,7 @@ public class BCCompiler {
         var ci = cb.addConst(afunSym);
         cb.addInstr(new GetFun(ci));
         cb.addInstr(new PushNullArg());
-        compileArgs(flhs.temp().args().subList(1), false);
+        compileArgs(flhs.temp().args().fromIndex(1), false);
         var cci = cb.addConst(acall);
         var cvi = cb.addConst(value);
         cb.addInstr(new SetterCall(cci, cvi));
@@ -1875,7 +1878,7 @@ public class BCCompiler {
       compile(afun);
       cb.addInstr(new CheckFun());
       cb.addInstr(new PushNullArg());
-      compileArgs(flhs.temp().args().subList(1), false);
+      compileArgs(flhs.temp().args().fromIndex(1), false);
       var cci = cb.addConst(acall);
       var cvi = cb.addConst(value);
       cb.addInstr(new SetterCall(cci, cvi));
@@ -1896,7 +1899,7 @@ public class BCCompiler {
         var ci = cb.addConst(funSym);
         cb.addInstr(new GetFun(ci));
         cb.addInstr(new PushNullArg());
-        compileArgs(place.args().subList(1), false);
+        compileArgs(place.args().fromIndex(1), false);
         var cci = cb.addConst(place);
         cb.addInstr(new GetterCall(cci));
         cb.addInstr(new SpecialSwap());
@@ -1905,7 +1908,7 @@ public class BCCompiler {
       compile(fun);
       cb.addInstr(new CheckFun());
       cb.addInstr(new PushNullArg());
-      compileArgs(place.args().subList(1), false);
+      compileArgs(place.args().fromIndex(1), false);
       var cci = cb.addConst(place);
       cb.addInstr(new GetterCall(cci));
       cb.addInstr(new SpecialSwap());
@@ -1922,7 +1925,7 @@ public class BCCompiler {
         stop("bad assignment 1", loc);
       }
 
-      var temp = SEXPs.lang(orig.fun(), orig.args().set(0, null, SEXPs.ASSIGN_TMP));
+      var temp = SEXPs.lang(orig.fun(), orig.args().with(0, "", SEXPs.ASSIGN_TMP));
       places.add(new FlattenLHS(orig, temp));
       lhs = orig.arg(0);
     }
@@ -2002,7 +2005,7 @@ public class BCCompiler {
       cb.addInstr(new Dup2nd());
       cb.addInstr(doubleBracket ? new StartSubset2(ci, label) : new StartSubset(ci, label));
 
-      var args = call.args().subList(1);
+      var args = call.args().fromIndex(1);
       compileBuiltinArgs(args, true);
 
       cb.addInstr(doubleBracket ? new DfltSubset2() : new DfltSubset());
@@ -2016,7 +2019,7 @@ public class BCCompiler {
     var endLabel = cb.makeLabel();
     cb.addInstr(new Dup2nd());
     cb.addInstr(doubleBracket ? new StartSubset2N(ci, endLabel) : new StartSubsetN(ci, endLabel));
-    var indices = call.args().subList(1);
+    var indices = call.args().fromIndex(1);
     compileIndices(indices);
 
     switch (indices.size()) {
@@ -2070,7 +2073,7 @@ public class BCCompiler {
       var endLabel = cb.makeLabel();
       cb.addInstr(
           doubleSquare ? new StartSubassign2(ci, endLabel) : new StartSubassign(ci, endLabel));
-      var args = place.args().subList(1);
+      var args = place.args().fromIndex(1);
       compileBuiltinArgs(args, true);
       cb.addInstr(doubleSquare ? new DfltSubassign2() : new DfltSubassign());
       cb.patchLabel(endLabel);
@@ -2080,7 +2083,7 @@ public class BCCompiler {
     var ci = cb.addConst(call);
     var label = cb.makeLabel();
     cb.addInstr(doubleSquare ? new StartSubassign2N(ci, label) : new StartSubassignN(ci, label));
-    var indices = place.args().subList(1);
+    var indices = place.args().fromIndex(1);
     compileIndices(indices);
 
     switch (indices.size()) {
@@ -2122,7 +2125,7 @@ public class BCCompiler {
       var ci = cb.addConst(call);
       var endLabel = cb.makeLabel();
       cb.addInstr(doubleSquare ? new StartSubset2(ci, endLabel) : new StartSubset(ci, endLabel));
-      var args = call.args().subList(1);
+      var args = call.args().fromIndex(1);
       compileBuiltinArgs(args, true);
       cb.addInstr(doubleSquare ? new DfltSubset2() : new DfltSubset());
       cb.patchLabel(endLabel);
@@ -2140,7 +2143,7 @@ public class BCCompiler {
     var endLabel = cb.makeLabel();
     usingCtx(ctx.argContext(), () -> compile(oe));
     cb.addInstr(doubleSquare ? new StartSubset2N(ci, endLabel) : new StartSubsetN(ci, endLabel));
-    var indices = call.args().subList(1);
+    var indices = call.args().fromIndex(1);
     usingCtx(ctx.argContext(), () -> compileIndices(indices));
 
     switch (indices.size()) {
@@ -2167,7 +2170,7 @@ public class BCCompiler {
     if (!dotsOrMissing(place.args())
         && place.args().size() == 2
         && place.arg(1) instanceof RegSymSXP s) {
-      var newPlace = SEXPs.lang(place.fun(), place.args().set(1, null, SEXPs.string(s.name())));
+      var newPlace = SEXPs.lang(place.fun(), place.args().with(1, "", SEXPs.string(s.name())));
       var vexpr = call.args().values().getLast();
       compileSetterCall(new FlattenLHS(flhs.original(), newPlace), vexpr);
       return true;
@@ -2362,7 +2365,7 @@ public class BCCompiler {
     }
 
     for (var actual : call.args()) {
-      if (actual.tag() != null) {
+      if (actual.hasTag()) {
         matched.add(actual);
         formals = formals.remove(actual.tag());
       } else {

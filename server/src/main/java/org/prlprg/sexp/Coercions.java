@@ -19,7 +19,7 @@ public final class Coercions {
       case Logical x ->
           switch (targetType) {
             case LGL -> x;
-            case STRING -> stringFromLogical(x);
+            case STR -> stringFromLogical(x);
             case INT -> integerFromLogical(x);
             case REAL -> realFromLogical(x);
             case CPLX -> complexFromLogical(x);
@@ -28,7 +28,7 @@ public final class Coercions {
       case Integer x ->
           switch (targetType) {
             case LGL -> logicalFromInteger(x);
-            case STRING -> stringFromInteger(x);
+            case STR -> stringFromInteger(x);
             case INT -> x;
             case REAL -> realFromInteger(x);
             case CPLX -> complexFromInteger(x);
@@ -37,7 +37,7 @@ public final class Coercions {
       case Double x ->
           switch (targetType) {
             case LGL -> logicalFromReal(x);
-            case STRING -> stringFromReal(x);
+            case STR -> stringFromReal(x);
             case INT -> integerFromReal(x);
             case REAL -> x;
             case CPLX -> complexFromReal(x);
@@ -46,7 +46,7 @@ public final class Coercions {
       case String x ->
           switch (targetType) {
             case LGL -> logicalFromString(x);
-            case STRING -> x;
+            case STR -> x;
             case INT -> integerFromString(x);
             case REAL -> realFromString(x);
             case CPLX -> complexFromString(x);
@@ -55,7 +55,7 @@ public final class Coercions {
       case Complex x ->
           switch (targetType) {
             case LGL -> logicalFromComplex(x);
-            case STRING -> stringFromComplex(x);
+            case STR -> stringFromComplex(x);
             case INT -> integerFromComplex(x);
             case REAL -> realFromComplex(x);
             case CPLX -> x;
@@ -64,7 +64,7 @@ public final class Coercions {
       case ScalarRealSXP x ->
           switch (targetType) {
             case LGL -> logicalFromReal(x.value());
-            case STRING -> stringFromReal(x.value());
+            case STR -> stringFromReal(x.value());
             case INT -> integerFromReal(x.value());
             case REAL -> x.value();
             case CPLX -> complexFromReal(x.value());

@@ -100,7 +100,7 @@ public sealed interface BcInstr {
     }
   }
 
-  record Goto(@LabelName("") BcLabel dest) implements BcInstr {
+  record Goto(@LabelName("GOTO_DST") BcLabel dest) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.GOTO;
@@ -114,7 +114,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1)
-  record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("ifFalse") BcLabel dest)
+  record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("IF_FALSE") BcLabel dest)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -151,7 +151,7 @@ public sealed interface BcInstr {
   }
 
   @NeedsRho
-  record StartLoopCntxt(boolean isForLoop, @LabelName("loopEnd") BcLabel end) implements BcInstr {
+  record StartLoopCntxt(boolean isForLoop, @LabelName("LOOP_END") BcLabel end) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTLOOPCNTXT;
@@ -189,7 +189,7 @@ public sealed interface BcInstr {
   record StartFor(
       ConstPool.Idx<LangSXP> ast,
       @BindingCell ConstPool.Idx<RegSymSXP> elemName,
-      @LabelName("forStep") BcLabel step)
+      @LabelName("FOR_STEP") BcLabel step)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -204,7 +204,7 @@ public sealed interface BcInstr {
 
   @StackEffect(pop = 3, push = 3)
   @NeedsRho
-  record StepFor(@LabelName("forBody") BcLabel body) implements BcInstr {
+  record StepFor(@LabelName("FOR_BODY") BcLabel body) implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STEPFOR;
@@ -659,7 +659,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 4)
-  record StartSubset(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset") BcLabel after)
+  record StartSubset(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_SUBSET") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -683,7 +683,7 @@ public sealed interface BcInstr {
 
   @StackEffect(pop = 2, push = 5)
   @NeedsRho
-  record StartSubassign(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign") BcLabel after)
+  record StartSubassign(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_SUBASSIGN") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -705,7 +705,8 @@ public sealed interface BcInstr {
     }
   }
 
-  record StartC(ConstPool.Idx<LangSXP> ast, @LabelName("afterC") BcLabel after) implements BcInstr {
+  record StartC(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_C") BcLabel after)
+      implements BcInstr {
     @Override
     public BcOp op() {
       return BcOp.STARTC;
@@ -726,7 +727,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 4)
-  record StartSubset2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2") BcLabel after)
+  record StartSubset2(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_SUBSET_2") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -750,7 +751,7 @@ public sealed interface BcInstr {
 
   @StackEffect(pop = 2, push = 5)
   @NeedsRho
-  record StartSubassign2(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2") BcLabel after)
+  record StartSubassign2(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_SUBASSIGN_2") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -904,7 +905,7 @@ public sealed interface BcInstr {
   }
 
   @StackEffect(pop = 1, push = 1)
-  record And1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterAnd") BcLabel shortCircuit)
+  record And1st(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_AND") BcLabel shortCircuit)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -926,7 +927,7 @@ public sealed interface BcInstr {
   }
 
   @StackEffect(pop = 1, push = 1)
-  record Or1st(ConstPool.Idx<LangSXP> ast, @LabelName("afterOr") BcLabel shortCircuit)
+  record Or1st(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_OR") BcLabel shortCircuit)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -1077,7 +1078,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 1)
-  record StartSubsetN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubsetN") BcLabel after)
+  record StartSubsetN(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_SUBSET_N") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -1092,7 +1093,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 2, push = 2)
-  record StartSubassignN(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassignN") BcLabel after)
+  record StartSubassignN(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_SUBASSIGN_N") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -1143,7 +1144,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 1, push = 1)
-  record StartSubset2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubset2N") BcLabel after)
+  record StartSubset2N(ConstPool.Idx<LangSXP> ast, @LabelName("AFTER_SUBSET_2N") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -1158,7 +1159,7 @@ public sealed interface BcInstr {
 
   @NeedsRho
   @StackEffect(pop = 2, push = 2)
-  record StartSubassign2N(ConstPool.Idx<LangSXP> ast, @LabelName("afterSubassign2N") BcLabel after)
+  record StartSubassign2N(ConstPool.Idx<LangSXP> ast, @LabelName("ATER_SUBASSIGN_2N") BcLabel after)
       implements BcInstr {
     @Override
     public BcOp op() {
@@ -1175,8 +1176,7 @@ public sealed interface BcInstr {
   /// The SUBSET_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
-  // [[n]]
+  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
   ///  - pushes the result
   ///
   /// @param ast
@@ -1195,8 +1195,7 @@ public sealed interface BcInstr {
   /// The SUBSET2_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
-  // [[n]]
+  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
   ///  - pushes the result
   ///
   /// @param ast
@@ -1215,8 +1214,8 @@ public sealed interface BcInstr {
   /// The SUBASSIGN_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
-  // [[n]] and rhs
+  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
+  ///    <i>and</i> rhs
   ///  - pushes the result
   ///
   /// @param ast
@@ -1235,8 +1234,8 @@ public sealed interface BcInstr {
   /// The SUBASSIGN2_N instruction.
   ///
   /// Stack effect:
-  ///  - pops the vector and a variable number of elements from the stack determined by the value of
-  // [[n]] and rhs
+  ///  - pops the vector and a variable number of elements from the stack determined by [[n]]
+  ///    <i>and</i> rhs
   ///  - pushes the result
   ///
   /// @param ast
@@ -1314,7 +1313,7 @@ public sealed interface BcInstr {
   }
 
   @NeedsRho
-  record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("baseGuardAfter") BcLabel ifFail)
+  record BaseGuard(ConstPool.Idx<LangSXP> expr, @LabelName("AFTER_BASE_GUARD") BcLabel ifFail)
       implements BcInstr {
     @Override
     public BcOp op() {

@@ -6,13 +6,8 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.concurrent.Immutable;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.parseprint.HasSEXPParseContext;
-import org.prlprg.sexp.parseprint.HasSEXPPrintContext;
-import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /** Attributes on an {@link SEXP}. */
@@ -101,29 +96,22 @@ public final class Attributes extends ForwardingMap<String, SEXP> {
   }
 
   // region serialization and deserialization
-  @ParseMethod
-  private static Attributes parse(Parser p, HasSEXPParseContext h) {
-    return p.withContext(h.sexpParseContext()).parse(Attributes.class);
-  }
-
-  @ParseMethod
-  private static Attributes parse(Parser p) {
-    return p.withContext(new SEXPParseContext()).parse(Attributes.class);
-  }
-
-  @PrintMethod
-  private void print(Printer p, HasSEXPPrintContext h) {
-    p.withContext(h.sexpPrintContext()).print(this);
-  }
-
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new SEXPPrintContext()).print(this);
+    var w = p.writer();
+
+    if (isEmpty()) {
+      w.write("{}");
+    } else {
+      w.write("{ ");
+      w.runIndented(() -> p.withContext(new SEXPPrintContext()).print(this));
+      w.write(" }");
+    }
   }
 
   @Override
   public String toString() {
-    return "{ " + Printer.toString(this) + " }";
+    return Printer.toString(this);
   }
 
   // endregion serialization and deserialization

@@ -2,7 +2,6 @@ package org.prlprg.sexp;
 
 import com.google.common.collect.ImmutableList;
 import java.util.Optional;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.prlprg.parseprint.ParseMethod;
@@ -29,7 +28,6 @@ public sealed interface LangSXP extends SymOrLangSXP, SEXP, LangOrListSXP {
   }
 
   @Override
-  @Nonnull
   Attributes attributes();
 
   @Override

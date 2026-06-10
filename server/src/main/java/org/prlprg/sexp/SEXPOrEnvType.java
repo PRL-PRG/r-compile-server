@@ -16,7 +16,7 @@ public sealed interface SEXPOrEnvType permits SEXPType, EnvType {
 
     var id =
         StringCase.convert(
-            s.readJavaIdentifierOrKeyword(), StringCase.SNAKE, StringCase.SCREAMING_SNAKE);
+            s.readIdentifierOrKeyword(), StringCase.SNAKE, StringCase.SCREAMING_SNAKE);
     if (Arrays.stream(SEXPType.values()).anyMatch(e -> e.name().equals(id))) {
       return SEXPType.valueOf(id);
     } else if (Arrays.stream(EnvType.values()).anyMatch(e -> e.name().equals(id))) {

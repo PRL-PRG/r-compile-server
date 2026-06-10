@@ -1,11 +1,9 @@
 package org.prlprg.sexp;
 
-import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.util.EmptyIterator;
@@ -15,7 +13,7 @@ import org.prlprg.util.EmptyIterator;
  * that it represents "no value" (not to be confused with R's {@code NA} or {@code .missingVal}).
  */
 @Immutable
-public final class NilSXP implements ListSXP {
+public final class NilSXP implements ListSXP, DotsListSXP {
   static final NilSXP INSTANCE = new NilSXP();
 
   private NilSXP() {}
@@ -86,15 +84,13 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP set(int index, @Nullable String tag, SEXP value) {
+  public ListSXP with(int index, String tag, SEXP value) {
     throw new UnsupportedOperationException("NULL is empty");
   }
 
   @Override
   public ListSXP appended(String tag, SEXP value) {
-    return new ListSXPImpl(
-        new ImmutableList.Builder<TaggedElem>().add(new TaggedElem(tag, value)).build(),
-        Attributes.NONE);
+    return new ListSXPImpl(new TaggedElem[] {new TaggedElem(tag, value)}, Attributes.NONE);
   }
 
   @Override
@@ -103,7 +99,7 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP subList(int fromIndex) {
+  public ListSXP fromIndex(int fromIndex) {
     if (fromIndex == 0) {
       return this;
     } else {
@@ -112,11 +108,7 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP remove(@Nullable String tag) {
-    if (tag != null && tag.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The empty tag doesn't exist, pass `null` to remove untagged elements.");
-    }
+  public ListSXP remove(String tag) {
     return this;
   }
 
@@ -136,8 +128,23 @@ public final class NilSXP implements ListSXP {
   }
 
   @Override
-  public ListSXP withAttributes(Attributes attributes) {
+  public void set(int i, TaggedElem value) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public void set(int index, SEXP value) {
+    throw new UnsupportedOperationException("NULL is empty");
+  }
+
+  @Override
+  public NilSXP withAttributes(Attributes attributes) {
     throw new UnsupportedOperationException("Cannot set attributes on NULL");
+  }
+
+  @Override
+  public NilSXP copy() {
+    return this;
   }
 
   // This can't call `Printer.toString`, because it calls this.

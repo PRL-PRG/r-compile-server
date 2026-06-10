@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import javax.annotation.Nullable;
+import org.prlprg.TestConfig;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.session.RSession;
@@ -40,7 +41,7 @@ public class RDSSnapshotStore implements SnapshotStore<SEXP> {
   }
 
   protected void open() {
-    if (!Files.exists(snapshotPath)) {
+    if (TestConfig.OVERRIDE_SNAPSHOTS || !Files.exists(snapshotPath)) {
       snapshots = new UserEnvSXP();
       return;
     }
