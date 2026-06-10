@@ -28,7 +28,7 @@ extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
 extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCNodeStackBase,
     *R_BCProtTop;
-#ifndef RCP
+#if !defined(RCP) || !defined(COMPILING_STENCILS)
 extern SEXP R_TrueValue;
 extern SEXP R_LogicalNAValue;
 extern SEXP R_FalseValue;
@@ -105,9 +105,6 @@ void Rf_begincontext(RCNTXT *cptr, int flags, SEXP syscall, SEXP env, SEXP sysp,
 void Rf_endcontext(RCNTXT *cptr);
 void NORET Rf_findcontext(int mask, SEXP env, SEXP val);
 Rboolean Rf_pmatch(SEXP, SEXP, Rboolean);
-
-R_bcstack_t rcpEvalUnboxed(SEXP body, SEXP rho);
-SEXP rcpEval(SEXP body, SEXP rho);
 
 // from arithmetic.h
 static INLINE double R_log(double x) {
