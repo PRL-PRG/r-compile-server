@@ -27,10 +27,17 @@ R_HOME ?= $(ROOT_DIR)/../external/rsh/external/R
 R := $(R_HOME)/bin/R
 RSCRIPT := $(R_HOME)/bin/Rscript
 
+# microbenchmark is only needed for benchmarking (it is a Suggests dependency,
+# not required to build or install the package), so install it on demand the
+# first time a benchmark runs rather than during setup.
 define ensure_microbenchmark_installed
 if ! $(RSCRIPT) --vanilla -e 'if (!requireNamespace("microbenchmark", quietly=TRUE)) quit(status=1)' >/dev/null 2>&1; then \
-	echo "Error: R package 'microbenchmark' is not installed. Run 'make setup' from the repository root." >&2; \
-	exit 1; \
+	echo "Installing R package 'microbenchmark' (required for benchmarking) into $(R_HOME)..." >&2; \
+	$(RSCRIPT) --vanilla -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")' || true; \
+	if ! $(RSCRIPT) --vanilla -e 'if (!requireNamespace("microbenchmark", quietly=TRUE)) quit(status=1)' >/dev/null 2>&1; then \
+		echo "Error: failed to install 'microbenchmark' into $(R_HOME). Ensure R_HOME points to a writable R." >&2; \
+		exit 1; \
+	fi; \
 fi
 endef
 
@@ -53,6 +60,13 @@ else
     CXXFLAGS += -g -DNDEBUG
     RCP_COMPILE_PROMISES ?= 0
 endif
+
+# Select the copy-and-patch (RCP) variant of the unified GNU-R sources. The rcp
+# project only ever targets this variant (it includes the RCP-guarded R headers
+# and uses the custom calling convention); the RSH / r-compile-server build
+# leaves RCP undefined and gets the bytecode (BCODESXP) variant instead.
+CFLAGS += -DRCP
+CXXFLAGS += -DRCP
 
 ifeq (,$(findstring -std=,$(CFLAGS)))
   CFLAGS += $(C_STD_FLAG)

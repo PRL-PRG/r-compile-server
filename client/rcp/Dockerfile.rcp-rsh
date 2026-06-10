@@ -7,8 +7,11 @@ RUN git clone https://github.com/PRL-PRG/r-compile-server.git /rsh && \
     git -C /rsh checkout --detach ${RSH_COMMIT} && \
     git -C /rsh submodule update --init --depth 1 external/R
 
+# Build the RCP (copy-and-patch) variant of R so the rcp package can link the
+# rcp* runtime symbols (rcpEval, R_RcpFree, ...). The bc benchmarks use the
+# separate vanilla /R-vanilla from the base image, so this stays RCP-only.
 RUN cd /rsh && \
-    bash -x ./tools/build-gnur.sh external/R
+    RCP=1 bash -x ./tools/build-gnur.sh external/R
 
 RUN /rsh/external/R/bin/R --quiet -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")'
 

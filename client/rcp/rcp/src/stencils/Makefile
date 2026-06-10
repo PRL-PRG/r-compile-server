@@ -1,5 +1,10 @@
 include ../../common.mk
 
+# Marks this translation unit as the copy-and-patch stencil compilation.
+# Only stencils.c is built with this; the rest of the project (and R) never
+# sees it. Use it to guard stencil-only code paths in shared headers.
+CFLAGS += -DCOMPILING_STENCILS
+
 ifeq ($(RELOC_MODEL),1)
   CFLAGS += -fno-plt
 endif

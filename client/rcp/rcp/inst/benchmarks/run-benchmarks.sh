@@ -57,8 +57,12 @@ color() {
 }
 
 if ! "$RSCRIPT" -e 'if (!requireNamespace("microbenchmark", quietly=TRUE)) quit(status=1)' 2>/dev/null; then
-  echo "Error: R package 'microbenchmark' is not installed. Run 'make setup' first."
-  exit 1
+  echo "Installing R package 'microbenchmark' (required for benchmarking) into $R_HOME..." >&2
+  "$RSCRIPT" -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")' || true
+  if ! "$RSCRIPT" -e 'if (!requireNamespace("microbenchmark", quietly=TRUE)) quit(status=1)' 2>/dev/null; then
+    echo "Error: failed to install 'microbenchmark' into $R_HOME. Ensure R_HOME points to a writable R." >&2
+    exit 1
+  fi
 fi
 
 if [ -z "$OUTPUT" ]; then
