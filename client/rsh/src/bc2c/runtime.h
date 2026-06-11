@@ -1377,10 +1377,7 @@ static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
     break;
   case CLOSXP: {
     args = Rsh_closure_call_args(args);
-    SEXP body = BODY(fun);
-
-    // inline our call
-    if (RSH_INLINE_CLOSURE_CALL_OK(body)) {
+    if (RSH_INLINE_CLOSURE_CALL_OK(fun, rho)) {
       RSH_CHECK_SIGINT();
       SEXP newrho = make_applyClosure_env(call, fun, args, rho, R_NilValue);
       PROTECT(newrho);
@@ -1389,7 +1386,7 @@ static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
       int current_depth = R_EvalDepth;
       INCREMENT_EVAL_DEPTH();
       R_Visible = TRUE;
-      Rsh_inline_call(&pcntxt, res, body, newrho);
+      Rsh_inline_call(&pcntxt, res, BODY(fun), newrho);
       R_EvalDepth = current_depth;
       Rsh_finish_inline_closure_call(R_NilValue, R_NilValue, R_NilValue, res,
                                      &pcntxt, newrho);
@@ -3582,7 +3579,7 @@ static INLINE void Rsh_DoDots(Value *stack, SEXP rho) {
       RSH_SET_TAG(*args_tail, TAG(h));
     }
     UNPROTECT(1); /* h */
-  } else if (!((h != R_NilValue) || (h != R_MissingArg))) {
+  } else if (h != R_NilValue && h != R_MissingArg) {
     Rf_error("'...' used in an incorrect context");
   }
 }

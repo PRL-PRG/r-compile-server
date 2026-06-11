@@ -159,9 +159,9 @@ static INLINE SEXP Rsh_get_array_dim_attr(SEXP v) {
 #define IS_ANY_SIMPLE_SCALAR(__v__)                                            \
   (__v__->sxpinfo.scalar && ATTRIB(__v__) == R_NilValue)
 
-#define RSH_INLINE_CLOSURE_CALL_OK(fun)                                        \
-  (RSH_IS_JIT_PTR(body) && !RDEBUG(fun) && !RSTEP(fun) && !RDEBUG(rho) &&      \
-   R_GlobalContext->callflag != CTXT_GENERIC)
+#define RSH_INLINE_CLOSURE_CALL_OK(fun, rho)                                   \
+  (RSH_IS_CLOSURE_BODY(BODY(fun)) && !RDEBUG(fun) && !RSTEP(fun) &&            \
+   !RDEBUG(rho) && R_GlobalContext->callflag != CTXT_GENERIC)
 
 #define IS_SIMPLE_BINDING(b)                                                   \
   (!((b)->sxpinfo.gp & (ACTIVE_BINDING_MASK | BINDING_LOCK_MASK)))
