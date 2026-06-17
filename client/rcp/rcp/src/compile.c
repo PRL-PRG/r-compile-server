@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stencils.h>
 #include <sys/mman.h>
+#include <sys/random.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -60,9 +61,6 @@ static struct StencilProfileInfo
 	stencil_profile_info[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
 #endif
 
-// Used as a hint where to map address space close to R internals to allow
-// relative addressing
-#define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
 // #define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
 #ifndef ALIGNMENT_LABELS
@@ -107,72 +105,157 @@ static size_t align_to_higher(size_t size, size_t alignment)
 	return (size + alignment - 1) & ~(alignment - 1);
 }
 
-static void *find_free_space_near(void *target_ptr, size_t size)
-{
-	uintptr_t target = (uintptr_t)target_ptr;
-	FILE *maps = fopen("/proc/self/maps", "r");
-	if (!maps)
-	{
-		perror("fopen");
-		return NULL;
-	}
+/********************* MEMORY ALLOCATION ********************************************/
 
-	uintptr_t prev_start = 0, prev_end = 0;
-	ptrdiff_t best_diff = PTRDIFF_MAX;
-	uintptr_t best_addr = 0;
+// Glibc only exposes this under __USE_MISC; define it in case the build is in a
+// stricter mode. Value is stable in the kernel ABI (since Linux 4.17).
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
 
-	char line[256];
-	while (fgets(line, sizeof(line), maps))
-	{
-		uintptr_t start, end;
-		if (sscanf(line, "%lx-%lx", &start, &end) != 2)
-			continue;
+// Used as a hint where to map address space close to R internals to allow
+// relative addressing
+#define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
 
-		// Check for gap between previous and current region
-		if (prev_end && (start > prev_end))
-		{
-			size_t gap = start - prev_end;
-			if (gap >= size)
-			{
-				uintptr_t candidate = prev_end;
-				ptrdiff_t diff =
-					(candidate > target) ? (candidate - target) : (target - candidate);
-				if (diff < best_diff)
-				{
-					best_diff = diff;
-					best_addr = candidate;
-				}
-			}
-		}
+// Slack left below the hard signed-32-bit limit when sizing the arena window.
+// It absorbs relocation addends / instruction-pointer offsets and lets the
+// runtime symbols spread somewhat outside the arena window itself. Tune up if
+// relocations still overflow.
+#define R_INTERNALS_ADDRESS_HEADROOM (1 << 28) // 256 MB
 
-		prev_start = start;
-		prev_end = end;
-	}
+// HALF-width of the arena window on each side of the target. The CRITICAL
+// constraint is not just code->symbol reach but that the *entire* arena fits
+// inside a single signed rel32 span: generated code references the shared
+// GOT/rodata block (RELOC_RUNTIME_SYMBOL_GOT) which lives in this same arena, so
+// any two points in it (code <-> shared block, code <-> code) must be within
+// INT32_MAX of each other. The full window is therefore 2*NEAR_REACH =
+// INT32_MAX - HEADROOM wide -- strictly less than INT32_MAX -- and centered on
+// the target so code also stays within rel32 of the runtime symbols.
+#define NEAR_REACH (((uintptr_t)INT32_MAX - R_INTERNALS_ADDRESS_HEADROOM) / 2)
 
-	fclose(maps);
-
-	return (void *)best_addr;
-}
-
+// Bump pointer for the "near" arena: the address at which the next JIT-ed
+// program will try to map, i.e. right after the previously mapped program.
 static void *near_memory_start = NULL;
 
+// How many random anchor candidates to try at init before falling back to the
+// bottom of the window.
+#define NEAR_RANDOM_ATTEMPTS 128
+
+#define MEM_INIT_HEADROOM (1 << 28) // 256 MB
+
+// Reset the arena to the bottom of the rel32-reachable window -- "rotate the
+// pool" and restart the sequential walk from the beginning. Used during jitting
+// when mmap_near reports the window exhausted.
 static void refresh_near_memory_ptr(size_t size)
 {
 #ifdef MCMODEL_SMALL
-	near_memory_start = find_free_space_near(R_INTERNALS_ADDRESS, size);
+	(void)size;
+	size_t page = getpagesize();
+	uintptr_t target = (uintptr_t)R_INTERNALS_ADDRESS;
+	uintptr_t lo =
+		(target > NEAR_REACH) ? align_to_higher(target - NEAR_REACH, page) : page;
+	DEBUG_PRINT("Refresh near memory: target %p, reach %p, lo %p\n", (void *)target,
+				(void *)NEAR_REACH, (void *)lo);
+	near_memory_start = (void *)lo;
 #endif
 }
 
-static void *get_near_memory(size_t size)
+// Pick the arena's *initial* anchor at package init: a random page-aligned
+// address within the reachable window, probed with MAP_FIXED_NOREPLACE and
+// unmapped again (the real mapping happens later in mmap_near). R_INTERNALS_ADDRESS
+// sits inside the always-occupied R VM mapping, and the window extends NEAR_REACH
+// on each side of it. The randomness keeps two parallel R processes from
+// anchoring at the same place and fighting over the same slots; after this,
+// mmap_near() just walks upward sequentially from the anchor. The draw uses
+// per-process entropy (getrandom, with a pid/time fallback) so distinct
+// processes diverge. Falls back to the bottom of the window if no free spot is
+// drawn.
+static void init_near_memory_ptr(void)
 {
 #ifdef MCMODEL_SMALL
-	void *res = near_memory_start;
-	near_memory_start += align_to_higher(size, getpagesize());
-	return res;
-#else
-	return NULL;
+	size_t page = getpagesize();
+	uintptr_t target = (uintptr_t)R_INTERNALS_ADDRESS;
+	uintptr_t lo =
+		(target > NEAR_REACH) ? align_to_higher(target - NEAR_REACH, page) : page;
+	uintptr_t hi = target + NEAR_REACH;
+	uintptr_t span_pages = (hi > lo) ? (hi - lo) / page : 0;
+
+	for (int attempt = 0; span_pages && attempt < NEAR_RANDOM_ATTEMPTS; attempt++)
+	{
+		uint64_t r = 0;
+		if (getrandom(&r, sizeof(r), GRND_NONBLOCK) != (ssize_t)sizeof(r))
+			r = ((uint64_t)getpid() << 32) ^ (uint64_t)time(NULL) ^
+				((uint64_t)attempt * 0x9E3779B97F4A7C15ull);
+
+		uintptr_t cand = lo + (uintptr_t)(r % span_pages) * page;
+		void *m = mmap((void *)cand, MEM_INIT_HEADROOM, PROT_NONE,
+					   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+		if (m == MAP_FAILED)
+			continue; // slot taken: draw a new random anchor
+		if ((uintptr_t)m != cand)
+		{
+		    warning("Old kernel (pred 4.17), using memory search fall-back. Update your system for better performance.");
+			munmap(m, page); // pre-4.17 kernel relocated; reject
+			continue;
+		}
+		munmap(m, MEM_INIT_HEADROOM); // free; the real mapping happens later in mmap_near
+		DEBUG_PRINT("Init near memory: random anchor %p (attempt %d)\n",
+					(void *)cand, attempt);
+		near_memory_start = (void *)cand;
+		return;
+	}
+
+	// No free random anchor drawn (window very full); fall back to the bottom.
+	refresh_near_memory_ptr(0);
 #endif
 }
+
+// Map `size` bytes within rel32 reach of the runtime, packed right after the
+// previous program. Tries the exact next slot (near_memory_start) first; on
+// collision it steps forward a slot at a time until it finds a free one --
+// including stepping over the R VM mapping to the space above target if the
+// space below it fills up. MAP_FIXED_NOREPLACE means the kernel never relocates
+// us out of range: it returns the exact address or fails (EEXIST), so one
+// syscall per slot tells us whether it is free. Advances near_memory_start past
+// the new region. Returns NULL if the whole reachable window is exhausted.
+static void *mmap_near(size_t size)
+{
+#ifdef MCMODEL_SMALL
+	size_t aligned = align_to_higher(size, getpagesize());
+	uintptr_t target = (uintptr_t)R_INTERNALS_ADDRESS;
+	// Top of the reachable window, leaving room for the allocation itself.
+	uintptr_t hi = target + NEAR_REACH;
+	hi = (hi > aligned) ? hi - aligned : 0;
+
+	for (uintptr_t cand = (uintptr_t)near_memory_start; cand <= hi; cand += aligned)
+	{
+		void *m = mmap((void *)cand, size, PROT_READ | PROT_WRITE,
+					   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+		if (m == MAP_FAILED)
+		{
+		error("Memory occupied, iterating...");
+			continue;
+		}
+		if ((uintptr_t)m != cand)
+		{
+			warning("Old kernel (pred 4.17), using memory search fall-back. Update your system for better performance.");
+			// Pre-4.17 kernel ignored the flag and relocated; reject and retry.
+			munmap(m, size);
+			continue;
+		}
+		near_memory_start = (void *)(cand + aligned); // pack next program after this
+		return m;
+	}
+
+	return NULL; // reachable window exhausted
+#else
+	void *m = mmap(NULL, size, PROT_READ | PROT_WRITE,
+				   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	return (m == MAP_FAILED) ? NULL : m; // normalize failure to NULL
+#endif
+}
+
+/************************************************************************************/
 
 static const void **prepare_got_table(size_t *got_size)
 {
@@ -369,11 +452,9 @@ static void prepare_shared_memory()
 	mem_shared_data *mem_shared_near = NULL;
 	mem_shared_data *mem_shared_low = NULL;
 
-	mem_shared_near =
-		mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (mem_shared_near == MAP_FAILED)
-		exit(1);
+	mem_shared_near = mmap_near(total_size);
+	if (mem_shared_near == NULL)
+		error("Cannot allocate memory");
 
 	memcpy(mem_shared_near->rodata, rodata, sizeof(rodata));
 	mem_shared_near->got_table_size = got_table_size;
@@ -1317,22 +1398,19 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 						+ (for_count * sizeof(StepFor_specialized))
 #endif
 		;
-	uint8_t *memory =
-		mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	uint8_t *memory = mmap_near(total_size);
 
-	if (memory == MAP_FAILED)
+	if (memory == NULL)
 	{
 #ifdef MCMODEL_SMALL
-		fprintf(stderr, "mmap failed, trying to refresh near memory pointer...\n");
+		// Reachable window exhausted; reset the arena to the bottom and retry
+		// (regions from earlier compilations may have been freed since).
+		DEBUG_PRINT("near memory exhausted, resetting arena and retrying...\n");
 		refresh_near_memory_ptr(total_size);
-		memory = mmap(get_near_memory(total_size), total_size,
-					  PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-		if (memory == MAP_FAILED)
-			exit(1);
-#else
-		exit(1);
+		memory = mmap_near(total_size);
+		if (memory == NULL)
 #endif
+			error("Out of memory.");
 	}
 
 	res.memory_private = memory;
@@ -3292,7 +3370,7 @@ void __attribute__((used)) rcp_print_stack_val_unbox(void *p)
 
 SEXP rcp_init(void)
 {
-	refresh_near_memory_ptr(0);
+	init_near_memory_ptr();
 
 	rcp_gdb_jit_enabled = (getenv("RCP_GDB_JIT") != NULL);
 	rcp_perf_jit_enabled = (getenv("RCP_PERF_JIT") != NULL);
