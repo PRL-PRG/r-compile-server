@@ -218,7 +218,14 @@ extern int R_Expressions;
 #define ASSUME(cond) __builtin_assume(cond)
 #else
 /* GCC 13+: __attribute__((assume(expr))) */
-#define ASSUME(cond) __attribute__((assume(cond)))
+#define ASSUME(cond)                                                           \
+  do {                                                                         \
+    __attribute__((assume(cond)));                                             \
+    if (!(cond)) {                                                             \
+      UNREACHABLE();                                                           \
+    }                                                                          \
+  } while (0)
+
 #endif
 #endif
 
@@ -357,10 +364,10 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
                           /* R_xlen_t */ i, /* Value */ rhs,                   \
                           /* Rboolean */ subassign2)                           \
   do {                                                                         \
-    if (i >= 0 && XLENGTH(vec) > i) {                                          \
+    if (i >= 0 && vec != R_NilValue && XLENGTH(vec) > i) {                     \
       Value __rhs__ = (rhs);                                                   \
       val_unbox_inplace(&__rhs__, 1, 1, 1, 1);                                 \
-      ASSUME(TYPEOF(vec) != 0); /* Cannot be NULL after length check */        \
+      ASSUME(TYPEOF(vec) != 0); /* Cannot be NULL after check */               \
       if (TYPEOF(vec) == REALSXP) {                                            \
         switch (VAL_TAG(__rhs__)) {                                            \
         case REALSXP:                                                          \
