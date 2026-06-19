@@ -15,6 +15,25 @@ RUN cd /rsh && \
 
 RUN /rsh/external/R/bin/R --quiet -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")'
 
+# Provision the CRAN package benchmarks here, in the rsh image, so they are
+# CACHED across rcp commits: this layer is keyed on RSH_COMMIT and only rebuilds
+# when r-compile-server (which now owns the harvester + packages.csv) changes.
+# Installs into a per-R-version library for both the RCP R and the vanilla bc R;
+# the RCP run also generates the cran/ benchmark group. --binary pulls Posit's
+# prebuilt Linux binaries (codename auto-detected from /etc/os-release), with
+# automatic source fallback, and Ncpus defaults to all cores.
+#
+# OFF by default (HARVEST_CRAN=0) to keep CI fast. Set the build-arg to 1 to
+# enable; with it off no cran/ group is generated, so `make benchmark` runs only
+# the synthetic suites.
+ARG HARVEST_CRAN=0
+RUN if [ "$HARVEST_CRAN" = "1" ]; then \
+      /rsh/external/R/bin/Rscript /rsh/client/rsh/inst/benchmarks/cran-harvest/harvest.R --binary && \
+      /R-vanilla/bin/Rscript    /rsh/client/rsh/inst/benchmarks/cran-harvest/harvest.R --binary --install-only ; \
+    else \
+      echo "HARVEST_CRAN=$HARVEST_CRAN: skipping CRAN benchmark harvest (set build-arg HARVEST_CRAN=1 to enable)" ; \
+    fi
+
 ENV RSH_HOME=/rsh/client/rsh
 ENV R_HOME=/rsh/external/R
 ENV PATH="${PATH}:${R_HOME}/bin"

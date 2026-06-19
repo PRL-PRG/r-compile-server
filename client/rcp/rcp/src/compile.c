@@ -79,21 +79,19 @@ static struct StencilProfileInfo
 #define ALIGNMENT_LOOPS_UNLIKELY 1
 #endif
 
-static int fits_in(int64_t value, int size)
+// Does the signed `value` fit losslessly in a `size`-byte field? Branchless:
+// sign-extend `value` from its low size*8 bits and check the round-trip is
+// lossless. The left shift is done in the unsigned domain (well-defined wrap);
+// the right shift on int64_t is an arithmetic shift, which re-broadcasts the
+// sign bit. Compiles to roughly shl/sar/cmp/sete -- no branches, no tables.
+//
+// Precondition: size in 1..8. The only sizes the extractor emits are 1/2/4/8,
+// so this holds; a size of 0 or >8 would shift by >=64 (undefined behavior).
+static inline int fits_in(int64_t value, int size)
 {
-	switch (size)
-	{
-		case 1:
-			return value >= INT8_MIN && value <= INT8_MAX;
-		case 2:
-			return value >= INT16_MIN && value <= INT16_MAX;
-		case 4:
-			return value >= INT32_MIN && value <= INT32_MAX;
-		case 8:
-			return value >= INT64_MIN && value <= INT64_MAX;
-		default:
-			return 0;
-	}
+    assert(__builtin_popcount(size) == 1); // size is a power of two
+	int shift = 64 - (size << 3);
+	return ((int64_t)((uint64_t)value << shift) >> shift) == value;
 }
 
 static size_t align_to_higher(size_t size, size_t alignment)
