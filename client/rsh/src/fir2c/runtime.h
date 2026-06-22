@@ -15,6 +15,12 @@ extern "C" {
 #define Fir_set_const(env, idx, value) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)] = (value)
 
 typedef enum {
+  FIR_MKENV_REGULAR,
+  FIR_MKENV_NON_REFLECTIVE,
+  FIR_MKENV_ELIDED,
+} Fir_MkEnvType;
+
+typedef enum {
   FIR_PRIMITIVE_LOGICAL = 0,
   FIR_PRIMITIVE_INTEGER = 1,
   FIR_PRIMITIVE_REAL = 2,
@@ -148,7 +154,7 @@ SEXP Fir_load(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);
 void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
-void Fir_push_env(SEXP *env);
+void Fir_push_env(SEXP *env, Fir_MkEnvType type);
 void Fir_pop_env(SEXP *env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);

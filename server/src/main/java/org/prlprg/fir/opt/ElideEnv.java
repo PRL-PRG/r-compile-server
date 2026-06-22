@@ -11,6 +11,7 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
@@ -96,7 +97,7 @@ public record ElideEnv() implements AbstractionOptimization {
 
     // Prepend MkEnv to deopt branches
     for (var bb : deoptBBs) {
-      bb.prependStatement(new Statement(new MkEnv()));
+      bb.prependStatement(new Statement(new MkEnv(MkEnvType.REGULAR)));
     }
   }
 }
