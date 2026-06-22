@@ -20,6 +20,7 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.type.Effects;
@@ -158,7 +159,11 @@ public sealed interface Expression
           return new Load(type, variable);
         }
         case "mkenv" -> {
-          return new MkEnv();
+          var type =
+              s.trySkip('~')
+                  ? MkEnvType.NON_REFLECTIVE
+                  : s.trySkip('-') ? MkEnvType.ELIDED : MkEnvType.REGULAR;
+          return new MkEnv(type);
         }
         case "popenv" -> {
           return new PopEnv();

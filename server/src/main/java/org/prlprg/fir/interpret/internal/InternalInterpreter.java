@@ -739,7 +739,7 @@ public final class InternalInterpreter implements Interpreter {
                   kind,
                   Lists.mapLazy(elements, e -> OptionalNamedVariable.ofNullable(e.name())),
                   Lists.mapLazy(elements, e -> run(e.argument()))));
-      case MkEnv() -> {
+      case MkEnv _ -> {
         topFrame().mkEnv();
         yield null;
       }
@@ -1279,7 +1279,7 @@ public final class InternalInterpreter implements Interpreter {
       var stmt = (Statement) Objects.requireNonNull(cursor.instruction());
       var expression = stmt.expression();
       switch (expression) {
-        case MkEnv() -> {
+        case MkEnv _ -> {
           try {
             topFrame().popEnv();
           } catch (IllegalStateException e) {
@@ -1355,7 +1355,7 @@ public final class InternalInterpreter implements Interpreter {
     for (var i = 0; i < deopt.bb().statements().size(); i++) {
       var stmt = deopt.bb().statements().get(i);
       switch (stmt.expression()) {
-        case MkEnv() -> env = new UserEnvSXP(env);
+        case MkEnv _ -> env = new UserEnvSXP(env);
         case Call call when stmt.assignee() != null && isReversiblePureFun(call) ->
             localRegs.put(
                 stmt.assignee(),

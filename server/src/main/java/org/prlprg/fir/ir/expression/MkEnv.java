@@ -12,7 +12,13 @@ import org.prlprg.parseprint.Printer;
 /// Every closure compiled from GNU-R bytecode starts with mkenv, because
 /// every GNU-R call implicitly creates an environment, but we may delay or
 /// elide it if we remove stores and disprove reflection.
-public record MkEnv() implements Expression {
+public record MkEnv(MkEnvType type) implements Expression {
+  public enum MkEnvType {
+    REGULAR,
+    NON_REFLECTIVE,
+    ELIDED,
+  }
+
   @Override
   public @Unmodifiable List<Argument> arguments() {
     return List.of();
@@ -30,6 +36,12 @@ public record MkEnv() implements Expression {
 
   @PrintMethod
   private void print(Printer p) {
-    p.writer().write("mkenv");
+    var w = p.writer();
+    w.write("mkenv");
+    switch (type) {
+      case REGULAR -> {}
+      case NON_REFLECTIVE -> w.write('~');
+      case ELIDED -> w.write('-');
+    }
   }
 }

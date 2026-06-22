@@ -49,6 +49,7 @@ import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -349,7 +350,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             // We're forcing an unknown thing.
             // We can't keep named variable origins:
             // even if its type has no reflection, it may be a local promise, which may mutate them.
-            state().taintEnvs();
+            state().taintViaReflection();
             yield null;
           }
         }
@@ -368,12 +369,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           if (inferEffects.of(expr).reflect()
               || (callee instanceof StaticFnCallee c
                   && !c.closureWithEnv().equals(Constant.ELIDED_CLOSURE))) {
-            state().taintEnvs();
+            state().taintViaReflection();
           }
           yield null;
         }
-        case MkEnv _ -> {
-          state().mkEnv();
+        case MkEnv(var type) -> {
+          state().mkEnv(type == MkEnvType.REGULAR);
           yield null;
         }
         case PopEnv _ -> {
@@ -389,7 +390,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             SubscriptRead _,
             SubscriptWrite _ -> {
           if (inferEffects.of(expr).reflect()) {
-            state().taintEnvs();
+            state().taintViaReflection();
           }
           yield null;
         }
@@ -766,8 +767,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// The stack of local environments; the last entry is the topmost (innermost).
     private final List<EnvFrame> envs = new ArrayList<>();
 
-    private void mkEnv() {
-      envs.add(new EnvFrame());
+    private void mkEnv(boolean reflectivelyAccessible) {
+      envs.add(new EnvFrame(reflectivelyAccessible));
     }
 
     private void popEnv() {
@@ -911,9 +912,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // Fell through to the global env (not tracked).
     }
 
-    private void taintEnvs() {
+    private void taintViaReflection() {
       for (var env : envs) {
-        env.taint();
+        if (env.reflectivelyAccessible) {
+          env.taint();
+        }
       }
     }
 
@@ -967,7 +970,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         while (envs.size() > other.envs.size()) {
           envs.removeLast();
         }
-        taintEnvs();
+        taintViaReflection();
       }
     }
 
@@ -989,9 +992,15 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// A single environment frame in a state's environment stack.
   static final class EnvFrame {
     final Map<NamedVariable, VariableInfo> variables = new LinkedHashMap<>();
+    /// Whether the environment is tainted by reflection
+    boolean reflectivelyAccessible;
     /// Set when reflection has run while this frame was on the stack: the previously-known
     /// variables are forgotten, and arbitrary other variables may now be present here.
     boolean tainted = false;
+
+    EnvFrame(boolean reflectivelyAccessible) {
+      this.reflectivelyAccessible = reflectivelyAccessible;
+    }
 
     void taint() {
       tainted = true;
@@ -999,7 +1008,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     EnvFrame copy() {
-      var copy = new EnvFrame();
+      var copy = new EnvFrame(reflectivelyAccessible);
       copy.tainted = tainted;
       for (var e : variables.entrySet()) {
         copy.variables.put(e.getKey(), e.getValue().copy());
@@ -1008,6 +1017,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     void merge(EnvFrame other) {
+      reflectivelyAccessible &= other.reflectivelyAccessible;
       if (tainted || other.tainted) {
         // Result = tainted
         taint();

@@ -39,6 +39,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -1037,8 +1038,8 @@ public final class Fir2CCompiler {
                     case BASE_FUN ->
                         "Rf_findFun(%s, R_BaseEnv)".formatted(nvSymbolRef(pool, variable));
                   };
-              case MkEnv() -> {
-                cCode.stmt("Fir_push_env(&%s);", VAR_ENV);
+              case MkEnv(var type) -> {
+                cCode.stmt("Fir_push_env(&%s, %s);", VAR_ENV, emitMkEnvType(type));
                 yield null;
               }
               case MkVector(var kind, var elements) -> {
@@ -1592,6 +1593,11 @@ public final class Fir2CCompiler {
   }
 
   // region emit types
+
+  private static String emitMkEnvType(MkEnvType type) {
+    return "FIR_MKENV_" + type.name();
+  }
+
   private String emitType(Type type) {
     var comment = options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(type) : "";
     return "%sFir_type(%s, %s, %s, %s)"

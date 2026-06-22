@@ -137,6 +137,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
@@ -239,7 +240,7 @@ public class BC2FirCFGCompiler {
   /// Compile initial environment with parameters.
   void compileClosureEntry(List<NamedVariable> parameterNames, List<SEXP> parameterValues) {
     // Create the closure's environment
-    cursor.insert(new Statement(new MkEnv()));
+    cursor.insert(new Statement(new MkEnv(MkEnvType.REGULAR)));
 
     // Compile parameters
     for (var i = 0; i < parameterNames.size(); i++) {
