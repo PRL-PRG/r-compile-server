@@ -79,7 +79,9 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(abstraction);
     assertEquals(
-        2, countUnboxOccurrences(printed), "should insert one unbox per target; got:\n" + printed);
+        2,
+        ParseUtil.countOccurrences(printed, "unbox<"),
+        "should insert one unbox per target; got:\n" + printed);
     assertTrue(printed.contains("box<"), "should insert box at target entry; got:\n" + printed);
   }
 
@@ -120,17 +122,7 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     // One distinct arg => one unbox in the predecessor.
     assertEquals(
         1,
-        countUnboxOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "unbox<"),
         "should insert one unbox for a shared arg; got:\n" + printed);
-  }
-
-  private static int countUnboxOccurrences(String text) {
-    var count = 0;
-    var idx = 0;
-    while ((idx = text.indexOf("unbox<", idx)) != -1) {
-      count++;
-      idx += "unbox<".length();
-    }
-    return count;
   }
 }
