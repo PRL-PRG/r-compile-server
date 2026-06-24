@@ -9,7 +9,6 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
-import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
@@ -17,12 +16,6 @@ public sealed interface Value {
   Value NULL = new Sexp(SEXPs.NULL);
 
   record Sexp(SEXP value) implements Value {
-    public Sexp {
-      if (value instanceof UserEnvSXP) {
-        throw new IllegalArgumentException("Non-static environments can't be constants");
-      }
-    }
-
     @Override
     public String toString() {
       return Printer.toString(value);
