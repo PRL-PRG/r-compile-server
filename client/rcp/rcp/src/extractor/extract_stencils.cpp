@@ -880,6 +880,14 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#undef R_PosInf\n";
 	c_file << "#undef R_NegInf\n";
 	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n\n";
+	// Under PROFILE_STENCILS the opcode stencils reference the global
+	// stencil_profile_info[] counter array (defined in compile.c) via the
+	// hard-coded PROFILING_START/END timing. Declare it so the generated
+	// relocation table resolves; guarded so non-profiling builds are unaffected.
+	c_file << "#ifdef PROFILE_STENCILS\n";
+	c_file << "struct StencilProfileInfo { size_t call_count; size_t total_cycles; };\n";
+	c_file << "extern struct StencilProfileInfo stencil_profile_info[];\n";
+	c_file << "#endif\n\n";
 
 	// Export stencil bodies (machine code + holes + FDEs)
 	export_opcode_stencil_bodies(c_file, h_file, stencils);
@@ -1099,7 +1107,7 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 			hole.kind = RELOC_RCP_EXEC_IMM;
 			hole.val.imm_pos = atoi(descr_imm);
 		}
-		else if (strcmp(descr, "CUSTOM_DATA") == 0)
+		else if (strcmp(descr, "CUSTOM_DATA_REL32") == 0 || strcmp(descr, "CUSTOM_DATA_ABS64") == 0)
 		{
 			hole.kind = RELOC_RCP_CUSTOM;
 		}

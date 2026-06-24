@@ -33,7 +33,14 @@ format:
 
 BENCH_ITER ?= 15
 BENCH_PARALLEL ?= 1
-BENCH_OUT_DIR ?=
+# Benchmark results go under the repo's (gitignored) measurements/ folder, which
+# unifies all local measurement output (benchmarks here, profiling counts under
+# tools/profile-counts). Each run lands in its own datetime subfolder so previous
+# results are never overwritten. Absolute so the harness, which chdir()s into
+# each benchmark's directory, writes to the right place. (tools/profile-counts'
+# throughput target overrides BENCH_OUT_DIR to share its run's stamp.)
+BENCH_STAMP := $(shell date +%Y-%m-%d_%H-%M-%S)
+BENCH_OUT_DIR ?= $(ROOT_DIR)/measurements/benchmarks/$(BENCH_STAMP)
 HARVEST_OPTS ?=
 
 RSH_HOME ?= ../external/rsh

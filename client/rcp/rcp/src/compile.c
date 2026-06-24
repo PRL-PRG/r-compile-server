@@ -52,14 +52,50 @@ static int compile_promises = RCP_COMPILE_PROMISES;
 #endif
 
 #ifdef PROFILE_STENCILS
+// Hard-coded per-stencil timing counters (call count + rdtsc cycles), written
+// directly by the PROFILING_START/END pairs baked into every opcode stencil
+// (stencils.c) and read by C_rcp_get_profiling. Gated behind PROFILE_STENCILS.
+// OPCODES_NAMES is only an incomplete extern array here (defined in
+// shared/opcodes.c) so sizeof() does not work; size by the NUM_OPCODES sentinel.
+// Must have external linkage (not static): the stencils reference it as an
+// external symbol resolved against this definition (see extract_stencils.cpp).
 struct StencilProfileInfo
 {
 	size_t call_count;
 	size_t total_cycles;
 };
-static struct StencilProfileInfo
-	stencil_profile_info[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
+struct StencilProfileInfo stencil_profile_info[NUM_OPCODES];
 #endif
+
+// Per-opcode execution counts gathered by the runtime-toggled plugin counting
+// (rcp_count_enable). Independent of PROFILE_STENCILS.
+//
+// The counters live directly in an R integer vector (named by opcode, in opcode
+// order) so C_rcp_get_counts can hand it back with zero copying or post-
+// processing: the _RCP_CUSTOM_COUNTER_ABS64 plugin that count_instructions()
+// inserts before each instruction increments INTEGER(stencil_exec_counts)[op]
+// in place. Allocated lazily on the first rcp_count_enable() and kept alive with
+// R_PreserveObject -- it must never be reallocated, since pointers into its data
+// are baked into already-compiled functions. NULL if counting is not enabled.
+static SEXP stencil_exec_counts = NULL;
+
+// Allocate the per-opcode counter vector on first use (named, opcode order,
+// zeroed) and pin it. Idempotent; the data pointer is stable for the process
+// lifetime so plugin relocations into it stay valid.
+static void rcp_ensure_counts(void)
+{
+	if (stencil_exec_counts != NULL)
+		return;
+	SEXP v = PROTECT(Rf_allocVector(INTSXP, NUM_OPCODES));
+	memset(INTEGER0(v), 0, NUM_OPCODES * sizeof(int));
+	SEXP nms = PROTECT(Rf_allocVector(STRSXP, NUM_OPCODES));
+	for (int i = 0; i < NUM_OPCODES; i++)
+		SET_STRING_ELT(nms, i, Rf_mkChar(OPCODES_NAMES[i]));
+	Rf_setAttrib(v, R_NamesSymbol, nms);
+	R_PreserveObject(v);
+	stencil_exec_counts = v;
+	UNPROTECT(2); // v, nms
+}
 
 // #define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
@@ -1843,6 +1879,22 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 	}
 }
 
+// Runtime per-instruction counting (enabled via rcp_count_enable). Insert the
+// generic incrementer plugin before each instruction body, with its custom
+// argument pointing straight at this opcode's slot in the R counter vector
+// (INTEGER(stencil_exec_counts)[op]). Unlike the hard-coded PROFILE_STENCILS
+// timing, this is opt-in at runtime and adds no overhead to functions compiled
+// while counting is disabled.
+static void count_instructions(int bytecode[], int bytecode_size, PluginStencils *plugins)
+{
+	int *counts = INTEGER0(stencil_exec_counts);
+	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		int op = bytecode[i];
+		add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_COUNTER_ABS64, &counts[op]);
+	}
+}
+
 static void reset_type_trace(TypeTrace *trace)
 {
 	if (!trace)
@@ -2118,8 +2170,8 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 			value_ptr = INTEGER0(value_num);
 		}
 
-		// Point the stencil at this expression's value field
-		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COVERAGE, value_ptr);
+		// Point the 32-bit incrementer at this expression's (int) value field
+		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COUNTER_ABS64, value_ptr);
 	next_expr:
 	}
 
@@ -2270,6 +2322,9 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
 	// add_plugin_stencil_instr(&plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_MYATEXIT, NULL);
+
+	if (stencil_exec_counts != NULL)
+		count_instructions(bytecode, bytecode_size, &plugins);
 
 	/******************************** */
 
@@ -2889,7 +2944,7 @@ SEXP C_rcp_jit_disable()
 SEXP C_rcp_get_profiling(void)
 {
 #ifdef PROFILE_STENCILS
-	const size_t num_opcodes = sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES);
+	const size_t num_opcodes = NUM_OPCODES;
 
 	// Create index array for sorting
 	size_t *sorted_indices = (size_t *)R_alloc(num_opcodes, sizeof(size_t));
@@ -2960,6 +3015,39 @@ SEXP C_rcp_get_profiling(void)
 			   "defined to enable profiling.");
 	return R_NilValue;
 #endif
+}
+
+// Runtime per-instruction counting (independent of PROFILE_STENCILS). Enabling
+// allocates the counter vector on first use, then makes subsequent rcp_cmpfun
+// compilations instrument each instruction with the per-opcode counter plugin;
+// already-compiled functions are unaffected.
+SEXP C_rcp_count_enable(void)
+{
+	rcp_ensure_counts();
+	return R_NilValue;
+}
+
+SEXP C_rcp_count_disable(void)
+{
+    R_ReleaseObject(stencil_exec_counts);
+    stencil_exec_counts = NULL;
+	return R_NilValue;
+}
+
+SEXP C_rcp_count_reset(void)
+{
+	if (stencil_exec_counts != NULL)
+		memset(INTEGER0(stencil_exec_counts), 0, NUM_OPCODES * sizeof(int));
+	return R_NilValue;
+}
+
+// Return the live counter vector as-is: a named integer vector, opcode name ->
+// execution count, in opcode order. No copy or sorting -- callers that want a
+// stable snapshot or a different order do that in R. NULL if counting was never
+// enabled.
+SEXP C_rcp_get_counts(void)
+{
+	return stencil_exec_counts != NULL ? stencil_exec_counts : R_NilValue;
 }
 
 SEXP C_rcp_s3_generics_deactivated(void)

@@ -80,23 +80,24 @@ extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
 	} while (0)
 
 #ifdef PROFILE_STENCILS
+#include "x86intrin.h"
+// Hard-coded per-stencil timing: every opcode stencil is bracketed with a
+// PROFILING_START/PROFILING_END pair (see RCP_OP_TEMPLATE_JUMP) that records its
+// call count and rdtsc cycle total into the global stencil_profile_info[] array
+// owned by compile.c. This is the original, compile-time profiling and is gated
+// behind PROFILE_STENCILS (off by default). Lighter-weight per-instruction
+// counting is available at runtime instead via the _RCP_CUSTOM_COUNTER plugins.
 struct StencilProfileInfo
 {
 	size_t call_count;
 	size_t total_cycles;
 };
 extern struct StencilProfileInfo stencil_profile_info[];
-static inline uint64_t rdtsc(void)
-{
-	uint32_t lo, hi;
-	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-	return ((uint64_t)hi << 32) | lo;
-}
-#define PROFILING_START(opcode) uint64_t _profiling_start_time = rdtsc();
+#define PROFILING_START(opcode) uint64_t _profiling_start_time = __rdtsc();
 #define PROFILING_END(opcode)                               \
 	do                                                      \
 	{                                                       \
-		uint64_t _profiling_end_time = rdtsc();             \
+		uint64_t _profiling_end_time = __rdtsc();           \
 		stencil_profile_info[opcode##_BCOP].call_count++;   \
 		stencil_profile_info[opcode##_BCOP].total_cycles += \
 			_profiling_end_time - _profiling_start_time;    \
@@ -215,9 +216,15 @@ extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
 extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
 #define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
 
-extern void *const _RCP_CUSTOM_DATA[];
-#define GETCUSTOM()	  (const void *)&_RCP_CUSTOM_DATA
-#define GETVARIANTS() (const void *)&_RCP_CUSTOM_DATA
+// Custom data for stencils. The two versions point to identical data,
+// but the REL version using more efficient encoding of the pointer,
+// and can be used when its guaranteed that the data is within
+// 2GB of the stencil code.
+extern void *const _RCP_CUSTOM_DATA_REL32;
+extern void *const _RCP_CUSTOM_DATA_ABS64[];
+#define GETCUSTOM_REL()	  (const void *)&_RCP_CUSTOM_DATA_REL32
+#define GETCUSTOM()	  (const void *)&_RCP_CUSTOM_DATA_ABS64
+#define GETVARIANTS() (const void *)&_RCP_CUSTOM_DATA_ABS64
 
 extern const void *const _RCP_LOOPCNTXT;
 #define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
@@ -258,11 +265,19 @@ static __attribute__((always_inline)) inline int rcp_binding_type(SEXP binding_c
 
 /**************************************************************************/
 
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COVERAGE)
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COUNTER_REL32)
 {
 	PROLOGUE;
-	int *coverage_counter = (int *)GETCUSTOM();
-	*coverage_counter += 1;
+	int *counter = (int *)GETCUSTOM();
+	*counter += 1;
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COUNTER_ABS64)
+{
+	PROLOGUE;
+	int *counter = (int *)GETCUSTOM();
+	*counter += 1;
 	NEXT;
 }
 

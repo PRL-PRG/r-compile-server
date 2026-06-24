@@ -21,6 +21,15 @@ endif
 RCP_COMPILE_PROMISES ?= 0
 
 PKG_CFLAGS += -DRCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES)
+
+# Per-stencil profiling (see common.mk). common.mk's `CFLAGS += -DPROFILE_STENCILS'
+# reaches the stencils/shared-lib (plain make) but NOT this package compile of
+# compile.c, which holds the stencil_profile_info[] storage and C_rcp_get_profiling.
+PROFILE_STENCILS ?= 0
+ifneq ($(PROFILE_STENCILS),0)
+  PKG_CFLAGS += -DPROFILE_STENCILS
+endif
+
 PKG_CFLAGS += $(DEFINE_FLAGS)
 PKG_CFLAGS += -I$(RSH_HOME)/src/bc2c
 PKG_CFLAGS += -DALIGNMENT_LABELS=$(ALIGNMENT_LABELS)
@@ -57,6 +66,7 @@ $(info R_HOME=$(R_HOME))
 $(info RCP_GIT_COMMIT=$(RCP_GIT_COMMIT))
 $(info OPENMP=$(OPENMP))
 $(info ASSUME_VALID_BC=$(ASSUME_VALID_BC))
+$(info PROFILE_STENCILS=$(PROFILE_STENCILS))
 $(info RCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES))
 $(info ALIGNMENT_LABELS=$(ALIGNMENT_LABELS))
 $(info ALIGNMENT_JUMPS=$(ALIGNMENT_JUMPS))

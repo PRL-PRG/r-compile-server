@@ -68,7 +68,7 @@ docker-rcp: docker-rcp-rsh
 # Local development targets
 # --------------------------------------------------------------------------- #
 
-.PHONY: setup test benchmark clean install
+.PHONY: setup test benchmark profile clean install
 .PHONY: check-toolchain
 check-toolchain:
 	@command -v $(CC) >/dev/null 2>&1 || { echo "Error: C compiler '$(CC)' not found. Set CC= (RCP needs GCC >= 14, e.g. 'make ... CC=gcc-14' or CC=gcc)."; exit 1; }
@@ -95,6 +95,12 @@ test: check-toolchain
 
 benchmark: check-toolchain
 	$(MAKE) -C rcp benchmark CC="$(CC)" CXX="$(CXX)"
+
+# Build RCP with PROFILE_STENCILS and export per-stencil execution counts and
+# cycle totals for the whole benchmark suite as CSV (profile-results/ by
+# default). See rcp/Makefile for RUNS / FILTER / PROFILE_OUT_DIR.
+profile: check-toolchain
+	$(MAKE) -C rcp profile CC="$(CC)" CXX="$(CXX)"
 
 clean install:
 	$(MAKE) -C rcp $@ CC="$(CC)" CXX="$(CXX)"
