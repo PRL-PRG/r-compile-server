@@ -28,6 +28,7 @@ import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
 import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
+import org.prlprg.sexp.RegSymSXP;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPType;
 import org.prlprg.sexp.SEXPs;
@@ -230,6 +231,10 @@ public final class Builtins {
 
     // c
     registerC(interpreter);
+
+    // Reflective environment access
+    registerSubstitute(interpreter);
+    registerSysFrame(interpreter);
 
     // Intrinsics
     interpreter.registerExternal(
@@ -2522,6 +2527,77 @@ public final class Builtins {
       }
       default -> throw interpreter.failUnsupported("Mock `c` unknown target type");
     };
+  }
+
+  // endregion
+
+  // region reflective environment access
+
+  /// `substitute(expr, env = ...)`, only supporting `substitute(symbol)` (no explicit `env`).
+  ///
+  /// Substituting happens in the current environment, which is marked
+  /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs].
+  private static void registerSubstitute(InternalInterpreter interpreter) {
+    // (dots) -+> V. *Not* `strict`, because `substitute`'s argument is unevaluated.
+    interpreter.registerExternal(
+        "substitute",
+        sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.DOTS),
+        (runtime, _, args, _) -> {
+          if (args.size() != 1
+              || !(args.getFirst() instanceof Value.Sexp(var sexp)
+                  && sexp instanceof DotsListSXP dots)) {
+            throw interpreter.fail("`substitute` requires a `...` argument");
+          }
+          if (dots.size() != 1) {
+            throw interpreter.failUnsupported(
+                "Mock `substitute` only supports `substitute(symbol)` (one argument)");
+          }
+          if (!(dots.get(0).value() instanceof RegSymSXP symbol)) {
+            throw interpreter.failUnsupported("Mock `substitute` only supports a symbol argument");
+          }
+
+          // Substituting reads the current environment reflectively.
+          var env = runtime.currentEnvironment();
+          runtime.recordReflectiveEnv(env);
+
+          // Substitute the symbol with its binding (if any); otherwise return the symbol itself.
+          var bound = env.getLocal(symbol.name()).orElse(null);
+          return new Value.Sexp(bound != null ? bound : symbol);
+        });
+  }
+
+  /// `sys.frame(which)`, only supporting non-positive `which` (`-1` = caller's frame).
+  ///
+  /// The returned frame's environment is marked
+  /// [reflective][org.prlprg.fir.feedback.AbstractionFeedback#reflectiveEnvs].
+  private static void registerSysFrame(InternalInterpreter interpreter) {
+    // (*) -+> V, which matches the builtin's variadic `(dots)` version (used by direct calls) and
+    // the base `(which:*)` version (used by dynamic calls).
+    interpreter.registerExternal(
+        "sys.frame",
+        SIG_GENERIC_1,
+        ExternalVersion.strict(
+            (runtime, _, args, _) -> {
+              if (args.size() != 1) {
+                throw interpreter.fail("`sys.frame` takes 1 argument");
+              }
+              // The builtin is variadic, so its single argument may be wrapped in a `...`.
+              SEXP whichSexp;
+              if (args.getFirst() instanceof Value.Sexp(var s) && s instanceof DotsListSXP dots) {
+                if (dots.size() != 1) {
+                  throw interpreter.failUnsupported(
+                      "Mock `sys.frame` only supports a single `which` argument");
+                }
+                whichSexp = dots.get(0).value();
+              } else {
+                whichSexp = args.getFirst().box();
+              }
+              var which = sexpToInt(whichSexp, interpreter, "sys.frame");
+
+              var env = runtime.relativeFrameEnvironment(which);
+              runtime.recordReflectiveEnv(env);
+              return new Value.Sexp(env);
+            }));
   }
 
   // endregion

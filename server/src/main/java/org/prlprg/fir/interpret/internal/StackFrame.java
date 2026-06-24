@@ -12,7 +12,9 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -31,12 +33,17 @@ final class StackFrame {
   /// If there are multiple, that's because we're in a promise being forced.
   private final List<SubFrame> subFrames = new ArrayList<>();
   private final Map<Register, Value> registers = new LinkedHashMap<>();
+  /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` that created
+  /// them. [#mkEnv()] adds to it; [#put(Variable, Value)] reads it to reject stores to elided
+  /// environments.
+  private final Map<EnvSXP, CfgPosition> userEnvPositions;
   private EnvSXP environment;
   private int numEnvsPushed = 0;
 
-  StackFrame(Function function, EnvSXP parentEnv) {
+  StackFrame(Function function, EnvSXP parentEnv, Map<EnvSXP, CfgPosition> userEnvPositions) {
     this.function = function;
     environment = parentEnv;
+    this.userEnvPositions = userEnvPositions;
   }
 
   Function function() {
@@ -114,6 +121,11 @@ final class StackFrame {
           throw new IllegalArgumentException(
               "Can't store non-SEXP (" + value + ") under named variable (" + nv + ")");
         }
+        var position = userEnvPositions.get(environment);
+        if (position != null && InternalInterpreter.mkEnvTypeOf(position) == MkEnvType.ELIDED) {
+          throw new IllegalStateException(
+              "Local store to an elided environment: " + nv + " at:\n" + position);
+        }
         environment.set(nv.name(), sexp);
       }
     }
@@ -121,7 +133,15 @@ final class StackFrame {
 
   public void mkEnv() {
     environment = new UserEnvSXP(environment);
+    userEnvPositions.put(environment, currentPosition());
     numEnvsPushed++;
+  }
+
+  /// The [CfgPosition] of the instruction the current sub-frame's cursor is at (e.g. the `mkenv`
+  /// being executed).
+  private CfgPosition currentPosition() {
+    var cursor = subFrames.getLast().position;
+    return new CfgPosition(cursor.bb(), cursor.instructionIndex());
   }
 
   public void popEnv() {

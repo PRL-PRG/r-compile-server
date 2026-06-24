@@ -44,6 +44,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -66,6 +67,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -132,6 +134,14 @@ public final class InternalInterpreter implements Interpreter {
   private final Map<SEXP, PromiseCode> promises = new HashMap<>();
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
+  /// Maps each user-created environment (from [MkEnv]) to the [CfgPosition] of the `mkenv` that
+  /// created it.
+  ///
+  /// Used to mark environments [reflective][AbstractionFeedback#reflectiveEnvs] in their closure
+  /// version's feedback, and to detect reflective access or local stores to environments the
+  /// compiler assumed weren't reflectively accessed ([MkEnvType#NON_REFLECTIVE]) or were
+  /// [elided][MkEnvType#ELIDED].
+  private final Map<EnvSXP, CfgPosition> userEnvPositions = new HashMap<>();
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
   private final MockModuleFeedback feedback = new MockModuleFeedback();
@@ -413,7 +423,7 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   private StackFrame mkFrame(Function function, EnvSXP parentEnv) {
-    return new StackFrame(function, parentEnv);
+    return new StackFrame(function, parentEnv, userEnvPositions);
   }
 
   /// Interprets the control flow graph starting from the entry block.
@@ -762,6 +772,7 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't reflective load in non-promise: " + promValue);
         }
         var env = promise.env();
+        recordReflectiveEnv(env);
 
         yield env.getLocal(variable.name())
             .map(Value.Sexp::new)
@@ -779,6 +790,7 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't reflective store non-SEXP value: " + valueValue);
         }
         var env = promise.env();
+        recordReflectiveEnv(env);
 
         env.set(variable.name(), valueSexp);
         yield null;
@@ -1521,6 +1533,57 @@ public final class InternalInterpreter implements Interpreter {
       throw new IllegalStateException("stack is empty");
     }
     return stack.getLast();
+  }
+
+  /// The environment of the current (innermost) call frame, e.g. where a reflective builtin like
+  /// `substitute` is being evaluated (builtins don't push their own frame).
+  EnvSXP currentEnvironment() {
+    return topFrame().environment();
+  }
+
+  /// The environment of the call frame `which` frames relative to the current one, for
+  /// `sys.frame(which)` where `which <= 0` (`0` = current frame, `-1` = caller, ...).
+  ///
+  /// @throws InterpretException If `which > 0` (unsupported), or there's no such frame.
+  EnvSXP relativeFrameEnvironment(int which) {
+    if (which > 0) {
+      throw failUnsupported("`sys.frame` with a positive frame number: " + which);
+    }
+    var index = stack.size() - 1 + which;
+    if (index < 0 || index >= stack.size()) {
+      throw fail("`sys.frame(" + which + ")`: no such frame");
+    }
+    return stack.get(index).environment();
+  }
+
+  /// Records that `env` was reflectively accessed: if it's a tracked user environment (created by
+  /// an [MkEnv]), marks its `mkenv` [reflective][AbstractionFeedback#reflectiveEnvs] in its closure
+  /// version's feedback.
+  ///
+  /// @throws InterpretException If `env`'s `mkenv` isn't [MkEnvType#REGULAR], i.e. the compiler
+  /// assumed it wouldn't be reflectively accessed but it was.
+  public void recordReflectiveEnv(EnvSXP env) {
+    var position = userEnvPositions.get(env);
+    if (position == null) {
+      // Not a tracked user environment (e.g. the global or base environment): nothing to record.
+      return;
+    }
+
+    if (mkEnvTypeOf(position) != MkEnvType.REGULAR) {
+      throw fail(
+          "Reflective access to a non-regular ("
+              + mkEnvTypeOf(position)
+              + ") environment created at:\n"
+              + position);
+    }
+
+    feedback().get(position.cfg().scope()).reflectiveEnvs.add(position);
+  }
+
+  /// The [type][MkEnvType] of the [MkEnv] at `position` (which must be an `mkenv`).
+  static MkEnvType mkEnvTypeOf(CfgPosition position) {
+    var statement = (Statement) Objects.requireNonNull(position.instruction());
+    return ((MkEnv) statement.expression()).type();
   }
 
   private @Nullable AssumeLoadFunLookup loadFunctionForAssume(String name, EnvSXP env) {

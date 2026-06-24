@@ -2,6 +2,7 @@ package org.prlprg.fir.interpret;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
 import java.util.Objects;
@@ -238,6 +239,216 @@ class InternalInterpretTest {
 
     assertEquals(new Value.Sexp(SEXPs.integer(1)), result);
   }
+
+  // region reflective environment tracking
+
+  @Test
+  void substituteSubstitutesSymbolAndMarksEnvironmentReflective() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun f() {
+              () -+> V { reg vargs:dots, reg r:V, var x:* |
+                mkenv;
+                st x = <int 42>;
+                vargs = dots[<sym x>];
+                r = substitute%< dots -+> V >(vargs);
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    var result = interpreter.call("f");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(42)), result);
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "f"));
+  }
+
+  @Test
+  void sysFrameMarksCallerEnvironmentReflective() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun main() {
+              () -+> V { reg r:V |
+                mkenv;
+                r = inner< -+> V >();
+                popenv;
+                return r;
+              }
+            }
+
+            fun inner() {
+              () -+> V { reg vargs:dots, reg r:V |
+                vargs = dots[<int -1>];
+                r = `sys.frame`%< dots -+> V >(vargs);
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    interpreter.call("main");
+
+    // `sys.frame(-1)` from `inner` accesses `main`'s frame, so it's `main`'s `mkenv` that's marked.
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "main"));
+    assertEquals(0, reflectiveEnvCount(interpreter, module, "inner"));
+  }
+
+  @Test
+  void reflectiveLoadMarksEnvironmentReflective() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun f() {
+              () -+> V { reg p:p(V +), reg r:V, var x:* |
+                mkenv;
+                st x = <int 5>;
+                p = prom<V +>{ return <int 0>; };
+                r = p$x;
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    var result = interpreter.call("f");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(5)), result);
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "f"));
+  }
+
+  @Test
+  void reflectiveStoreMarksEnvironmentReflective() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun f() {
+              () -+> V { reg p:p(V +), reg r:V, var x:* |
+                mkenv;
+                st x = <int 5>;
+                p = prom<V +>{ return <int 0>; };
+                p$x = <int 9>;
+                r = ld x;
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    var result = interpreter.call("f");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(9)), result);
+    assertEquals(1, reflectiveEnvCount(interpreter, module, "f"));
+  }
+
+  @Test
+  void reflectiveLoadOnNonReflectiveEnvironmentCrashes() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun f() {
+              () -+> V { reg p:p(V +), reg r:V, var x:* |
+                mkenv~;
+                st x = <int 5>;
+                p = prom<V +>{ return <int 0>; };
+                r = p$x;
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertThrows(InterpretException.class, () -> interpreter.call("f"));
+  }
+
+  @Test
+  void substituteOnNonReflectiveEnvironmentCrashes() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun f() {
+              () -+> V { reg vargs:dots, reg r:V, var x:* |
+                mkenv~;
+                st x = <int 42>;
+                vargs = dots[<sym x>];
+                r = substitute%< dots -+> V >(vargs);
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertThrows(InterpretException.class, () -> interpreter.call("f"));
+  }
+
+  @Test
+  void elidedEnvironmentLocalStoreCrashes() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun f() {
+              () -+> V { var x:* |
+                mkenv-;
+                st x = <int 1>;
+                popenv;
+                return <int 0>;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+
+    assertThrows(InterpretException.class, () -> interpreter.call("f"));
+  }
+
+  @Test
+  void elidedEnvironmentLoadPassesThrough() {
+    var module =
+        ParseUtil.parseModule(
+            """
+            fun f() {
+              () -+> V { reg r:V, var x:* |
+                mkenv-;
+                r = ld x;
+                popenv;
+                return r;
+              }
+            }
+            """);
+    var interpreter = new InternalInterpreter(module);
+    registerBuiltins(interpreter);
+    // `x` is only bound in the (parent) global environment, so the load passes through the elided
+    // environment as if it were empty.
+    interpreter.globalEnv().set("x", SEXPs.integer(7));
+
+    var result = interpreter.call("f");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(7)), result);
+  }
+
+  /// Number of `mkenv`s recorded reflective in `functionName`'s baseline feedback.
+  private static int reflectiveEnvCount(
+      InternalInterpreter interpreter,
+      org.prlprg.fir.ir.module.Module module,
+      String functionName) {
+    var function = Objects.requireNonNull(module.localFunction(Variable.named(functionName)));
+    return interpreter.feedback().get(function.baseline()).reflectiveEnvs.size();
+  }
+
+  // endregion
 
   private static org.prlprg.sexp.CloSXP staticTarget(
       InternalInterpreter interpreter, EnvSXP cloEnv) {
