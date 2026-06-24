@@ -43,6 +43,11 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
     return Collections.unmodifiableCollection(allEnvs.values());
   }
 
+  /// Returns the environment range created by the [MkEnv] at `mk`, or `null` if there's none.
+  public @Nullable EnvRange rangeAt(CfgPosition mk) {
+    return allEnvs.get(mk);
+  }
+
   public @UnmodifiableView Set<EnvRange> envsAt(BB bb, int instructionIndex) {
     return Collections.unmodifiableSet(at(bb, instructionIndex).envs);
   }

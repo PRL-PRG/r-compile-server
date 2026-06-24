@@ -7,6 +7,7 @@ import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideBuiltinClosure;
 import org.prlprg.fir.opt.specialize.ElideCheckMissing;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
+import org.prlprg.fir.opt.specialize.ElideEnv;
 import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoad;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
@@ -15,6 +16,7 @@ import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
+import org.prlprg.fir.opt.specialize.SpecializeNonReflectiveEnv;
 import org.prlprg.fir.opt.specialize.StaticClosure;
 
 public class Optimizations {
@@ -50,6 +52,8 @@ public class Optimizations {
                         new ElideRedundantAssumeLoad(),
                         new ElideTrivialCast(),
                         new ElideUseSubscriptWrite(),
+                        new SpecializeNonReflectiveEnv(),
+                        new ElideEnv(),
                         new StaticClosure(),
                         new OptimizeCallee(threshold),
                         new ResolveDynamicCallee(),
@@ -60,7 +64,6 @@ public class Optimizations {
                     new UnboxPhi(),
                     new ElideRedundantBoxUnbox(),
                     new SchedulePure(),
-                    new ElideEnv(),
                     new Inline(1000),
                     new DeferIntoPromise(),
                     new StrictifyPromise(),
