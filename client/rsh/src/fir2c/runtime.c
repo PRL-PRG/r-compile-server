@@ -5,7 +5,8 @@
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
 
-#define ASSERT(x, msg, ...) if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
+#define ASSERT(x, msg, ...) \
+  if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
 
 Fir_Kind Fir_kind_any_value = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
@@ -33,6 +34,14 @@ static Fir_Kind const PRIMITIVE_VECTOR1_KINDS[4] = {
   {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
   {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
+
+/// Scalar string of a serialized `MockModuleFeedback` containing feedback for every
+/// compiled closure stored in the constant pool and (recursively) every found closure's
+/// constant pool.
+SEXP Fir_serialized_feedback(SEXP pool) {
+  // TODO(llm) but only after the copy-and-patch JIT is merged
+  return R_NilValue;
+}
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_SCALAR_KINDS[primitive_kind];

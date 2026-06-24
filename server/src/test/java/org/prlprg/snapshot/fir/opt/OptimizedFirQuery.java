@@ -11,9 +11,9 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
-import org.prlprg.snapshot.fir.interpret.InterpretQuery;
 import org.prlprg.snapshot.fir.ir.FirQuery;
 import org.prlprg.snapshot.fir.ir.GenFirQuery;
+import org.prlprg.snapshot.gen2c.EvalQuery;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
@@ -49,11 +49,11 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
     MockModuleFeedback feedback;
     try {
-      var interpreterOutput = store.load(example, InterpretQuery.MAIN);
-      if (interpreterOutput.result() instanceof Error(var message, _)) {
+      var evalOutput = store.load(example, EvalQuery.FIR_ORACLE);
+      if (evalOutput.result() instanceof Error(var message, _)) {
         System.err.println("WARNING: interpreter crashed:\n" + message);
       }
-      feedback = interpreterOutput.feedback();
+      feedback = evalOutput.feedback();
       System.err.println("Using INTERPRETER feedback");
     } catch (SkipQueryException e) {
       System.err.println("Interpreter crashed: " + e.getMessage());
