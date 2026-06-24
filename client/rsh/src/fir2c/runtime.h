@@ -111,6 +111,11 @@ extern Fir_Kind Fir_kind_dots;
 extern Fir_Kind Fir_kind_missing;
 extern Fir_Kind Fir_kind_boolean;
 
+/// Scalar string of a serialized `MockModuleFeedback` containing feedback for every
+/// compiled closure stored in the constant pool and (recursively) every found closure's
+/// constant pool.
+SEXP Fir_serialized_feedback(SEXP pool);
+
 void Fir_print_signature(Fir_Signature signature);
 void Fir_print_type(Fir_Type type);
 void Fir_print_kind(Fir_Kind kind);
@@ -126,7 +131,8 @@ Fir_Effects Fir_effects_union(Fir_Effects a, Fir_Effects b);
 Fir_Effects Fir_effects_intersect(Fir_Effects a, Fir_Effects b);
 
 bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
-bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data);
+bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data,
+                             Fir_PromiseLocalData **local_data);
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
 Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
