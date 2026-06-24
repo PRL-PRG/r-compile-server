@@ -164,7 +164,7 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(module);
     // Both args should be unboxed
-    var unboxCount = countUnboxOccurrences(printed);
+    var unboxCount = ParseUtil.countOccurrences(printed, "unbox<");
     assertTrue(
         unboxCount >= 2,
         "should insert at least 2 unbox instructions; got " + unboxCount + " in:\n" + printed);
@@ -195,14 +195,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
     var printedAfterFirst = Printer.toString(module);
     assertEquals(
         1,
-        countUnboxOccurrences(printedAfterFirst),
+        ParseUtil.countOccurrences(printedAfterFirst, "unbox<"),
         "first run should insert exactly 1 unbox; got:\n" + printedAfterFirst);
 
     assertFalse(run(module), "second run should report no change");
     var printedAfterSecond = Printer.toString(module);
     assertEquals(
         1,
-        countUnboxOccurrences(printedAfterSecond),
+        ParseUtil.countOccurrences(printedAfterSecond, "unbox<"),
         "second run should not insert another unbox; got:\n" + printedAfterSecond);
   }
 
@@ -238,7 +238,7 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
         "should create version with unbox before return; got:\n" + printed);
     // Call site should have box after call (boxing scalar return back to v1)
     // Note: original callee already has 1 box; copied version has 1 box; call site adds 1 box
-    var boxCount = countOccurrences(printed, "box<");
+    var boxCount = ParseUtil.countOccurrences(printed, "box<");
     assertTrue(
         boxCount >= 3,
         "should have box at call site and in callee versions; got "
@@ -328,19 +328,5 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """);
 
     assertFalse(run(module), "optimization should report no change for non-v1 return");
-  }
-
-  private static int countUnboxOccurrences(String text) {
-    return countOccurrences(text, "unbox<");
-  }
-
-  private static int countOccurrences(String text, String needle) {
-    int count = 0;
-    int idx = 0;
-    while ((idx = text.indexOf(needle, idx)) != -1) {
-      count++;
-      idx += needle.length();
-    }
-    return count;
   }
 }

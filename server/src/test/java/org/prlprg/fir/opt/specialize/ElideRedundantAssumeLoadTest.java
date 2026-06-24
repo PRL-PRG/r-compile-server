@@ -52,7 +52,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         1,
-        countLdfTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ldf target ?- target"),
         "second AssumeLoadFun should be elided; printed:\n" + printed);
   }
 
@@ -94,7 +94,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countLdfTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ldf target ?- target"),
         "store invalidates: both AssumeLoadFun should remain; printed:\n" + printed);
   }
 
@@ -136,7 +136,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countLdfTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ldf target ?- target"),
         "reflective invalidates: both AssumeLoadFun should remain; printed:\n" + printed);
   }
 
@@ -231,7 +231,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         1,
-        countLdfTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ldf target ?- target"),
         "second AssumeLoadFun should be elided after branch merge; printed:\n" + printed);
   }
 
@@ -279,7 +279,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countLdfTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ldf target ?- target"),
         "one branch invalidated: both AssumeLoadFun should remain; printed:\n" + printed);
   }
 
@@ -314,7 +314,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         1,
-        countLdTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ld target ?= <int 7>"),
         "second AssumeLoadVar should be elided; printed:\n" + printed);
   }
 
@@ -350,7 +350,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countLdTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ld target ?= <int 7>"),
         "store invalidates: both AssumeLoadVar should remain; printed:\n" + printed);
   }
 
@@ -386,7 +386,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         2,
-        countLdTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ld target ?= <int 7>"),
         "reflective invalidates: both AssumeLoadVar should remain; printed:\n" + printed);
   }
 
@@ -464,25 +464,7 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
     var printed = Printer.toString(module);
     assertEquals(
         1,
-        countLdTargetOccurrences(printed),
+        ParseUtil.countOccurrences(printed, "ld target ?= <int 7>"),
         "second AssumeLoadVar should be elided after branch merge; printed:\n" + printed);
-  }
-
-  private static int countLdfTargetOccurrences(String text) {
-    return countOccurrences(text, "ldf target ?- target");
-  }
-
-  private static int countLdTargetOccurrences(String text) {
-    return countOccurrences(text, "ld target ?= <int 7>");
-  }
-
-  private static int countOccurrences(String text, String needle) {
-    int count = 0;
-    int idx = 0;
-    while ((idx = text.indexOf(needle, idx)) != -1) {
-      count++;
-      idx += needle.length();
-    }
-    return count;
   }
 }

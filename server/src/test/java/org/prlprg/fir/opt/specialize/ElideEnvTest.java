@@ -122,7 +122,9 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     assertTrue(printed.contains("popenv"), "popenv should remain; printed:\n" + printed);
     // The deopt branch should not get an extra mkenv: there's only the (elided) original.
     assertEquals(
-        1, countMkenvOccurrences(printed), "no mkenv should be added; printed:\n" + printed);
+        1,
+        ParseUtil.countOccurrences(printed, "mkenv"),
+        "no mkenv should be added; printed:\n" + printed);
   }
 
   @Test
@@ -149,7 +151,9 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     assertTrue(printed.contains("mkenv-"), "mkenv should be elided; printed:\n" + printed);
     assertTrue(printed.contains("popenv"), "popenv should remain; printed:\n" + printed);
     assertEquals(
-        1, countMkenvOccurrences(printed), "no mkenv should be added; printed:\n" + printed);
+        1,
+        ParseUtil.countOccurrences(printed, "mkenv"),
+        "no mkenv should be added; printed:\n" + printed);
   }
 
   @Test
@@ -181,16 +185,8 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     assertTrue(printed.contains("D2"), "D2 should still exist; printed:\n" + printed);
     // No mkenv should be added to the deopt branches: only the (elided) original remains.
     assertEquals(
-        1, countMkenvOccurrences(printed), "no mkenv should be added; printed:\n" + printed);
-  }
-
-  private static int countMkenvOccurrences(String text) {
-    int count = 0;
-    int idx = 0;
-    while ((idx = text.indexOf("mkenv", idx)) != -1) {
-      count++;
-      idx += "mkenv".length();
-    }
-    return count;
+        1,
+        ParseUtil.countOccurrences(printed, "mkenv"),
+        "no mkenv should be added; printed:\n" + printed);
   }
 }

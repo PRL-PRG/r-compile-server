@@ -76,10 +76,10 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     assertTrue(printed.contains("L3("), "first merge should have a phi:\n" + printed);
     assertTrue(printed.contains("L6("), "second merge should have a phi:\n" + printed);
     assertTrue(
-        countOccurrences(printed, "goto L3(") >= 2,
+        ParseUtil.countOccurrences(printed, "goto L3(") >= 2,
         "both predecessors should pass values into the first phi:\n" + printed);
     assertTrue(
-        countOccurrences(printed, "goto L6(") >= 2,
+        ParseUtil.countOccurrences(printed, "goto L6(") >= 2,
         "both predecessors should pass values into the second phi:\n" + printed);
   }
 
@@ -142,15 +142,5 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
   private static void assertNoVariableTraffic(String printed, String variable) {
     assertFalse(printed.contains("st " + variable + " ="), "store should be removed:\n" + printed);
     assertFalse(printed.contains("ld " + variable), "load should be removed:\n" + printed);
-  }
-
-  private static int countOccurrences(String haystack, String needle) {
-    var count = 0;
-    var index = 0;
-    while ((index = haystack.indexOf(needle, index)) != -1) {
-      count++;
-      index += needle.length();
-    }
-    return count;
   }
 }

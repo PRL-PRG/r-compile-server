@@ -42,7 +42,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
 
     var printed = Printer.toString(module);
     // Only one checkpoint should remain
-    var checkCount = countCheckOccurrences(printed);
+    var checkCount = ParseUtil.countOccurrences(printed, "check ");
     assertEquals(1, checkCount, "should have exactly one checkpoint, got:\n" + printed);
     // The assumption should still be present
     assertTrue(printed.contains("r9 = r3 ?: v1(R)"), "assumption should be preserved");
@@ -139,7 +139,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
     assertTrue(run(module), "non-assume statements with no conflict: should merge");
 
     var printed = Printer.toString(module);
-    var checkCount = countCheckOccurrences(printed);
+    var checkCount = ParseUtil.countOccurrences(printed, "check ");
     assertEquals(1, checkCount, "should have exactly one checkpoint, got:\n" + printed);
     assertTrue(printed.contains("r9 = r3 ?: v1(R)"), "assumption should be preserved");
     assertTrue(
@@ -210,7 +210,7 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
     assertTrue(run(module), "same deopt branch statements: should merge");
 
     var printed = Printer.toString(module);
-    var checkCount = countCheckOccurrences(printed);
+    var checkCount = ParseUtil.countOccurrences(printed, "check ");
     assertEquals(1, checkCount, "should have exactly one checkpoint, got:\n" + printed);
   }
 
@@ -299,21 +299,11 @@ class MergeConsecutiveCheckpointsTest implements OptimizationUnitTest {
     assertTrue(run(module), "optimization should report a change");
 
     var printed = Printer.toString(module);
-    var checkCount = countCheckOccurrences(printed);
+    var checkCount = ParseUtil.countOccurrences(printed, "check ");
     assertEquals(1, checkCount, "should have exactly one checkpoint, got:\n" + printed);
     // Both assumptions should be present in the merged success BB
     assertTrue(printed.contains("r9 = r3 ?: v1(R)"), "first assumption should be preserved");
     assertTrue(printed.contains("r10 = r9 ?: v1(I)"), "second assumption should be preserved");
     assertTrue(printed.contains("return r10"), "return should be preserved");
-  }
-
-  private static int countCheckOccurrences(String text) {
-    int count = 0;
-    int index = 0;
-    while ((index = text.indexOf("check ", index)) != -1) {
-      count++;
-      index += "check ".length();
-    }
-    return count;
   }
 }

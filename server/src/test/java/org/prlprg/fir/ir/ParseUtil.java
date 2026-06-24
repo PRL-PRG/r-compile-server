@@ -66,6 +66,16 @@ public class ParseUtil {
     }
   }
 
+  public static int countOccurrences(String text, String needle) {
+    int count = 0;
+    int idx = 0;
+    while ((idx = text.indexOf(needle, idx)) != -1) {
+      count++;
+      idx += needle.length();
+    }
+    return count;
+  }
+
   private ParseUtil() {}
 
   /// The number of lines printed around the error line in [#region(String,long,long)].
