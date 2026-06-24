@@ -2,11 +2,14 @@ package org.prlprg.fir.feedback;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -50,6 +53,8 @@ public class AbstractionFeedback {
   ///
   /// Registers are ordered by when feedback was first recorded for them.
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
+  /// `mkenv` instructions whose environments were reflectively accessed.
+  public final Set<CfgPosition> reflectiveEnvs = new LinkedHashSet<>();
 
   public AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
@@ -147,6 +152,7 @@ public class AbstractionFeedback {
     copy.constants.putAll(this.constants);
     copy.forceCount.putAll(this.forceCount);
     copy.allRecorded.putAll(this.allRecorded);
+    copy.reflectiveEnvs.addAll(this.reflectiveEnvs);
     return copy;
   }
 
@@ -171,9 +177,15 @@ public class AbstractionFeedback {
     s.assertAndSkip('[');
 
     while (!s.trySkip(']')) {
-      s.assertAndSkip("reg ");
-      var register = p.parse(Register.class);
-      parse(register, p, ctx);
+      if (s.trySkip("reg ")) {
+        var register = p.parse(Register.class);
+        parse(register, p, ctx);
+      } else if (s.trySkip("env ")) {
+        var pos = p.parse(CfgPosition.class);
+        reflectiveEnvs.add(pos);
+      } else {
+        throw s.fail("\"reg\" or \"env\"", s.readIdentifierOrKeyword());
+      }
     }
   }
 
@@ -253,6 +265,11 @@ public class AbstractionFeedback {
             w.write("reg ");
             p.print(register);
             print(register, p, ctx);
+          }
+
+          for (var env : reflectiveEnvs) {
+            w.write("env ");
+            p.print(env);
           }
         });
     w.write("\n]");

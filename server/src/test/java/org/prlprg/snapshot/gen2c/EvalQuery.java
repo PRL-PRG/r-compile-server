@@ -9,9 +9,14 @@ import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
+import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SkipQueryException;
@@ -46,17 +51,26 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       var rawOutput =
           R.capturingEval("path <- '%s'\n%s".formatted(modulePath.toAbsolutePath(), EVAL_DRIVER));
 
-      if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 2) {
+      if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 3) {
         throw new IllegalArgumentException(
-            "Value first item must be a vector of size 2, got: " + rawOutput.first());
+            "Value first item must be a vector of size 3, got: " + rawOutput.first());
       }
       var res = v.get(0);
       var pc = PerformanceCounters.from(v.get(1));
-
+      var feedback =
+          switch (v.get(2)) {
+            case NilSXP _ -> new MockModuleFeedback();
+            case StrSXP s when s.isSimpleScalar() ->
+                Parser.fromString(s.get(0), MockModuleFeedback.class);
+            default ->
+                throw new IllegalArgumentException(
+                    "Value third item must be NULL or serialized `MockModuleFeedback`");
+          };
       var outputLog = rawOutput.second();
-      return new EvalOutput(new Ok(res), outputLog, pc);
+      return new EvalOutput(new Ok(res), outputLog, feedback, pc);
     } catch (EvalException e) {
-      return new EvalOutput(new Error(e, false), e.outputLog(), PerformanceCounters.EMPTY);
+      return new EvalOutput(
+          new Error(e, false), e.outputLog(), new MockModuleFeedback(), PerformanceCounters.EMPTY);
     }
   }
 
@@ -73,6 +87,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
       assertEquals(expected.behaviorOutputLog(), actual.behaviorOutputLog(), "Output changed");
+      assertEquals(expected.feedback(), actual.feedback(), "Feedback changed");
     }
   }
 
@@ -161,20 +176,24 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     var R = GNUR.instance();
 
     var outputLogPath = path.resolve("output.log");
+    var feedbackPath = path.resolve("feedback.txt");
 
     var result = SexpResult.read(path, R);
     var outputLog = Files.readString(outputLogPath);
+    var feedback = Parser.fromFile(feedbackPath.toFile(), MockModuleFeedback.class);
 
-    return new EvalOutput(result, outputLog, PerformanceCounters.EMPTY);
+    return new EvalOutput(result, outputLog, feedback, PerformanceCounters.EMPTY);
   }
 
   @Override
   public void serialize(EvalOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
     var outputLogPath = path.resolve("output.log");
+    var feedbackPath = path.resolve("feedback.txt");
 
     Files.createDirectories(path);
     data.result().write(path);
     Files.writeString(outputLogPath, data.outputLog());
+    Printer.toFile(feedbackPath.toFile(), data.feedback());
   }
 }
