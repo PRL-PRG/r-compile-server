@@ -1,15 +1,17 @@
 package org.prlprg.fir.opt.specialize;
 
+import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.CfgReachability;
 import org.prlprg.fir.analyze.cfg.Loads;
+import org.prlprg.fir.analyze.resolve.TopEnvironmentLiveness;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Store;
@@ -24,22 +26,8 @@ import org.prlprg.fir.ir.variable.Register;
 public record ElideDeadStore() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes(Loads.class, CfgReachability.class);
-  }
-
-  @Override
-  public boolean shouldRun(Abstraction scope, Analyses analyses) {
-    // TODO: Fix by associating `mkenv` instruction with its scope
-    return !scope.effects().reflect()
-        || (scope.cfg() != null
-            && !scope.cfg().entry().statements().isEmpty()
-            && scope
-                .cfg()
-                .entry()
-                .statements()
-                .getFirst()
-                .expression()
-                .equals(new MkEnv(MkEnvType.NON_REFLECTIVE)));
+    return new AnalysisTypes(
+        CfgHierarchy.class, CfgReachability.class, Loads.class, TopEnvironmentLiveness.class);
   }
 
   @Override
@@ -63,21 +51,37 @@ public record ElideDeadStore() implements SpecializeOptimization {
       return expression;
     }
 
+    // Don't elide in reflective env
+    // (If env is elided, don't elide because the CFG is invalid because this store exists)
+    var topEnv = analyses.get(TopEnvironmentLiveness.class).topEnvAt(bb, index);
+    if (topEnv == null || topEnv.type() != MkEnvType.NON_REFLECTIVE) {
+      return expression;
+    }
+
+    // Don't elide if a load is reachable
     var cfg = bb.owner();
     var loads = analyses.get(Loads.class);
-    var reachability = analyses.get(cfg, CfgReachability.class);
     if (loads.get(variable).stream()
         .anyMatch(
-            scopePos -> {
-              var cfgPos = scopePos.inCfg(cfg);
-              return cfgPos != null
-                  && reachability.isReachable(bb, index, cfgPos.bb(), cfgPos.instructionIndex());
+            loadScopePos -> {
+              var commonCfg =
+                  Objects.requireNonNull(
+                      analyses
+                          .get(CfgHierarchy.class)
+                          .commonAncestor(cfg, loadScopePos.innermostCfg()),
+                      "both are in the same scope, so at worst their ancestor is the scope's CFG");
+              var storePos =
+                  Objects.requireNonNull(
+                      analyses.get(CfgHierarchy.class).scopePos(bb, index).inCfg(commonCfg));
+              var loadPos = Objects.requireNonNull(loadScopePos.inCfg(commonCfg));
+
+              return analyses.get(commonCfg, CfgReachability.class).isReachable(storePos, loadPos);
             })) {
       return expression;
     }
 
     // Put the store in reachable deopt branches
-    for (var reachableBb : reachability.maySucceed(bb)) {
+    for (var reachableBb : analyses.get(cfg, CfgReachability.class).maySucceed(bb)) {
       if (!(reachableBb.jump() instanceof Deopt)) {
         continue;
       }

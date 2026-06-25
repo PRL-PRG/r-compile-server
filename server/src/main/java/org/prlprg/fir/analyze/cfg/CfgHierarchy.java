@@ -17,9 +17,11 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.util.Streams;
 
 /// Computes [CFG] parent-child relationships. A [CFG] is another's child if the [CFG] is a
@@ -112,6 +114,14 @@ public final class CfgHierarchy implements Analysis {
 
     return Collector.of(
         Result::new, Result::add, Result::merge, Result::get, Characteristics.CONCURRENT);
+  }
+
+  public ScopePosition scopePos(BB bb, int instructionIndex) {
+    return scopePos(new CfgPosition(bb, instructionIndex));
+  }
+
+  public ScopePosition scopePos(CfgPosition cfgPos) {
+    return new ScopePosition(streamAncestors(cfgPos.cfg())::iterator, cfgPos);
   }
 
   private void run(ArrayList<CfgPosition> parents, CFG cfg) {

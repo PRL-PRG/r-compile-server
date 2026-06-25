@@ -35,6 +35,7 @@ import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Hoists and defers specific pure instructions.
@@ -206,7 +207,7 @@ public final class SchedulePure implements AbstractionOptimization {
           argRegs.stream()
               .map(defUses::definition)
               .filter(Objects::nonNull)
-              .map(pos -> pos.inInnermostCfg().cfg())
+              .map(ScopePosition::innermostCfg)
               .collect(Collectors.toSet());
       while (!innermostCfgs.contains(targetCfg)) {
         var parent = hierarchy.parent(targetCfg);
@@ -269,7 +270,7 @@ public final class SchedulePure implements AbstractionOptimization {
 
       var targetCfg =
           uses.stream()
-              .map(pos -> pos.inInnermostCfg().cfg())
+              .map(ScopePosition::innermostCfg)
               .collect(hierarchy.commonAncestor())
               .orElse(null);
       if (targetCfg == null) {

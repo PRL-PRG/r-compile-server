@@ -117,6 +117,12 @@ public final class CfgDominatorTree implements CfgAnalysis {
     return Comparator.comparingInt(bb -> depth.getOrDefault(bb, Integer.MAX_VALUE));
   }
 
+  /// [#comparator()] for [BB]s, breaks ties via instruction index
+  public Comparator<CfgPosition> positionComparator() {
+    return Comparator.comparing(CfgPosition::bb, comparator())
+        .thenComparing(CfgPosition::instructionIndex);
+  }
+
   private void run() {
     var bbs = cfg.bbs();
     var entry = cfg.entry();

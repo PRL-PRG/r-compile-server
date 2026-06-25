@@ -31,6 +31,11 @@ public final class DominatorTree implements Analysis {
     this.hierarchy = hierarchy;
   }
 
+  /// CFG-specific dominator tree
+  public CfgDominatorTree cfg(CFG cfg) {
+    return cfgs.get(cfg);
+  }
+
   /// Check if `dominator` dominates `dominee`.
   public boolean dominates(CfgPosition dominator, CfgPosition dominee) {
     return dominates(

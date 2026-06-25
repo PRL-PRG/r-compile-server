@@ -590,7 +590,7 @@ public final class Fir2CCompiler {
                       return;
                     }
 
-                    defCfg = def.inInnermostCfg().cfg();
+                    defCfg = def.innermostCfg();
                   }
 
                   if (!(binding instanceof Parameter)) {
@@ -598,7 +598,7 @@ public final class Fir2CCompiler {
                   }
 
                   for (var use : defUses.uses(register)) {
-                    var useCfg = use.inInnermostCfg().cfg();
+                    var useCfg = use.innermostCfg();
 
                     if (useCfg != defCfg) {
                       captures.get(useCfg).add(register);

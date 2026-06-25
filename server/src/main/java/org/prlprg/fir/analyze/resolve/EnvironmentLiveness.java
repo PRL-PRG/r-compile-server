@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -15,6 +16,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -151,6 +153,10 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
 
     public CfgPosition mk() {
       return mk;
+    }
+
+    public MkEnvType type() {
+      return ((MkEnv) Objects.requireNonNull((Statement) mk.instruction()).expression()).type();
     }
 
     public @UnmodifiableView Set<CfgPosition> pops() {

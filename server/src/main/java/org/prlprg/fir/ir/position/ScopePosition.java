@@ -31,6 +31,10 @@ public class ScopePosition implements Comparable<ScopePosition> {
     return inInnermostCfg;
   }
 
+  public CFG innermostCfg() {
+    return inInnermostCfg.cfg();
+  }
+
   @Override
   public int compareTo(ScopePosition o) {
     // `inCfgs` entirely depends on `inInnermostCfg`.
