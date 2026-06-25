@@ -55,14 +55,20 @@ public record ElideEnv() implements SpecializeOptimization {
       return expression;
     }
 
-    if (!canElide(range, analyses.get(InferEffects.class))) {
+    // A non-reflective environment is guaranteed (by feedback, via [SpecializeNonReflectiveEnv]) to
+    // never be reflectively accessed, so reflective instructions in its range provably don't touch
+    // it and don't prevent eliding it. A regular environment may still be reflectively accessed.
+    var ignoreReflection = type == MkEnvType.NON_REFLECTIVE;
+
+    if (!canElide(range, analyses.get(InferEffects.class), ignoreReflection)) {
       return expression;
     }
 
     return new MkEnv(MkEnvType.ELIDED);
   }
 
-  private static boolean canElide(EnvRange range, InferEffects inferEffects) {
+  private static boolean canElide(
+      EnvRange range, InferEffects inferEffects, boolean ignoreReflection) {
     var mkPos = range.mk();
     var popPoss = range.pops();
 
@@ -89,7 +95,7 @@ public record ElideEnv() implements SpecializeOptimization {
 
       // Check if this instruction requires a materialized environment.
       if (instruction instanceof Statement(var _, var _, var expr)
-          && (expr instanceof Store || inferEffects.of(expr).reflect())) {
+          && (expr instanceof Store || (!ignoreReflection && inferEffects.of(expr).reflect()))) {
         return false;
       }
     }
