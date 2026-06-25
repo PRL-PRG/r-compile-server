@@ -9,6 +9,8 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.Store.StoreType;
@@ -27,7 +29,17 @@ public record ElideDeadStore() implements SpecializeOptimization {
 
   @Override
   public boolean shouldRun(Abstraction scope, Analyses analyses) {
-    return !scope.effects().reflect();
+    // TODO: Fix by associating `mkenv` instruction with its scope
+    return !scope.effects().reflect()
+        || (scope.cfg() != null
+            && !scope.cfg().entry().statements().isEmpty()
+            && scope
+                .cfg()
+                .entry()
+                .statements()
+                .getFirst()
+                .expression()
+                .equals(new MkEnv(MkEnvType.NON_REFLECTIVE)));
   }
 
   @Override

@@ -99,6 +99,30 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void reflectivePresentButEnvNonReflective_elided() {
+    // The env is non-reflective (`mkenv~`), so it provably isn't reflectively accessed: a
+    // reflective
+    // instruction in its range touches some other environment and doesn't prevent eliding it.
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            () -+> I { reg r:I, reg g:V |
+              mkenv~;
+              r = 0;
+              g = ldf g;
+              popenv;
+              return r;
+            }
+            """);
+
+    assertTrue(run(abstraction), "optimization should report a change");
+
+    var printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("mkenv-"), "mkenv should be elided; printed:\n" + printed);
+    assertTrue(printed.contains("popenv"), "popenv should remain; printed:\n" + printed);
+  }
+
+  @Test
   void checkpointWithDeopt_elidedAndPopenvKept() {
     var abstraction =
         ParseUtil.parseAbstraction(
