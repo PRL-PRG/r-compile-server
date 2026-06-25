@@ -69,18 +69,26 @@ class OptimizationBehaviorTest {
 
     // Re-interpret the optimized function
     var afterTrace = interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("main"));
-    assertEquals(before[0], after[0], "optimization changed the output");
-    assertEquals(beforeTrace, afterTrace, "optimization changed the checkpoint trace");
-    speculateConditions.accept(Printer.toString(module));
+
+    // Check
+    var printed = Printer.toString(module);
+    assertEquals(before[0], after[0], "optimization changed the output; printed:\n" + printed);
+    assertEquals(
+        beforeTrace, afterTrace, "optimization changed the checkpoint trace; printed:\n" + printed);
+    speculateConditions.accept(printed);
 
     // Second optimizations (new feedback doesn't matter)
     ELIDE.run(main, feedback, baseline);
 
     // Re-interpret again
     afterTrace = interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("main"));
-    assertEquals(before[0], after[0], "optimization changed the output");
-    assertEquals(beforeTrace, afterTrace, "optimization changed the checkpoint trace");
-    elideConditions.accept(Printer.toString(module));
+
+    // Check again
+    printed = Printer.toString(module);
+    assertEquals(before[0], after[0], "optimization changed the output; printed:\n" + printed);
+    assertEquals(
+        beforeTrace, afterTrace, "optimization changed the checkpoint trace; printed:\n" + printed);
+    elideConditions.accept(printed);
   }
 
   /// `main` stores to and loads from its environment, and passes a promise (capturing that
@@ -90,6 +98,7 @@ class OptimizationBehaviorTest {
   /// environment may be reflectively accessed.
   @Test
   void nonReflectiveCalleeMarksEnvNonReflectiveAndResolvesLoads() {
+    // TODO(llm): why is env not elided?
     assertOptimizationBehavior(
         """
         fun main() {
@@ -129,6 +138,7 @@ class OptimizationBehaviorTest {
   /// the binding).
   @Test
   void reflectiveCalleeKeepsEnvReflectiveAndLeavesLoads() {
+    // TODO(llm): fix origin analysis to not elide in reflective environments
     assertOptimizationBehavior(
         """
         fun main() {
@@ -223,6 +233,10 @@ class OptimizationBehaviorTest {
   /// promise is strict, so the second load can be resolved.
   @Test
   void nonReflectiveCalleeMarksEnvNonReflectiveAndResolvesDefinitelyStoredLoad() {
+    // TODO(llm): improve origin analysis so a promise only used in a struct function has its
+    //  sub-analysis run immediately before the function, and entirely replaces the outer state
+    //  instead of merging (because the promise always runs;
+    //  multiple promise arguments are run in the order they're passed)
     assertOptimizationBehavior(
         """
         fun main() {
