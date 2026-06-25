@@ -36,7 +36,12 @@ public final class DominatorTree implements Analysis {
     this.hierarchy = hierarchy;
   }
 
-  /// Check if `dominator` dominates `dominee`, across promise scopes.
+  /// CFG-specific dominator tree
+  public CfgDominatorTree cfg(CFG cfg) {
+    return cfgs.get(cfg);
+  }
+
+  /// Check if `dominator` dominates `dominee`.
   public boolean dominates(Instruction dominator, Instruction dominee) {
     return dominates(
         Objects.requireNonNull(dominator.parentBB()),
