@@ -125,7 +125,7 @@ static void rcp_ensure_counts(void)
 // so this holds; a size of 0 or >8 would shift by >=64 (undefined behavior).
 static inline int fits_in(int64_t value, int size)
 {
-    assert(__builtin_popcount(size) == 1); // size is a power of two
+	assert(__builtin_popcount(size) == 1); // size is a power of two
 	int shift = 64 - (size << 3);
 	return ((int64_t)((uint64_t)value << shift) >> shift) == value;
 }
@@ -228,7 +228,7 @@ static void init_near_memory_ptr(void)
 			continue; // slot taken: draw a new random anchor
 		if ((uintptr_t)m != cand)
 		{
-		    warning("Old kernel (pred 4.17), using memory search fall-back. Update your system for better performance.");
+			warning("Old kernel (pred 4.17), using memory search fall-back. Update your system for better performance.");
 			munmap(m, page); // pre-4.17 kernel relocated; reject
 			continue;
 		}
@@ -267,7 +267,7 @@ static void *mmap_near(size_t size)
 					   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
 		if (m == MAP_FAILED)
 		{
-		error("Memory occupied, iterating...");
+			error("Memory occupied, iterating...");
 			continue;
 		}
 		if ((uintptr_t)m != cand)
@@ -2179,6 +2179,92 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 	vmaxset(vmax);
 }
 
+static Rboolean get_option_or_default(const char *option_name, Rboolean default_value)
+{
+	SEXP option = Rf_GetOption1(Rf_install(option_name));
+	if (TYPEOF(option) == LGLSXP && XLENGTH(option) == 1)
+		return LOGICAL(option)[0] == TRUE;
+	else
+		return default_value;
+}
+
+static Rboolean is_option_true(const char *option_name)
+{
+	return get_option_or_default(option_name, FALSE);
+}
+
+// Read the tri-state `rcp.cmpfun.bc_recomp` option: TRUE / FALSE / NA (default).
+static int get_bc_recomp(void)
+{
+	SEXP opt = Rf_GetOption1(Rf_install("rcp.cmpfun.bc_recomp"));
+	if (TYPEOF(opt) == LGLSXP && XLENGTH(opt) >= 1)
+		return LOGICAL(opt)[0];
+	return NA_LOGICAL;
+}
+
+// Decide what to do with a function/closure given the `rcp.cmpfun.bc_recomp`
+// tri-state policy (independent of coverage):
+//   bc_recomp = TRUE  -> recompile everything
+//   bc_recomp = NA     -> (default) compile only what is not already bytecode
+//   bc_recomp = FALSE -> never compile; skip anything not already bytecode
+// Returns 1 = (re)compile, 0 = use existing bytecode as-is, -1 = skip entirely.
+static int rcp_recomp_action(int already_bc)
+{
+	int v = get_bc_recomp();
+	if (v == TRUE)
+		return 1;
+	if (v == FALSE)
+		return already_bc ? 0 : -1;
+	/* NA / unset (default) */
+	return already_bc ? 0 : 1;
+}
+
+// Return a copy of compiler `options` (may be R_NilValue) with `optimize` set to
+// `level` (overriding it if present, else appending it). Returns an UNPROTECTED
+// value -- the caller is responsible for protecting it.
+static SEXP options_with_optimize(SEXP options, int level)
+{
+	int base = (options == R_NilValue) ? 0 : (int)XLENGTH(options);
+	SEXP names = (base > 0) ? Rf_getAttrib(options, R_NamesSymbol) : R_NilValue;
+	int has_names = (TYPEOF(names) == STRSXP);
+	int opt_idx = -1;
+	for (int i = 0; has_names && i < base && i < (int)XLENGTH(names); i++)
+	{
+		if (strcmp(CHAR(STRING_ELT(names, i)), "optimize") == 0)
+		{
+			opt_idx = i;
+			break;
+		}
+	}
+	int n = base + (opt_idx >= 0 ? 0 : 1);
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, n));
+	SEXP out_names = PROTECT(Rf_allocVector(STRSXP, n));
+	for (int i = 0; i < base; i++)
+	{
+		SET_VECTOR_ELT(out, i, VECTOR_ELT(options, i));
+		SET_STRING_ELT(out_names, i,
+					   (has_names && i < (int)XLENGTH(names)) ? STRING_ELT(names, i) : R_BlankString);
+	}
+	int idx = (opt_idx >= 0) ? opt_idx : base;
+	SET_VECTOR_ELT(out, idx, Rf_ScalarInteger(level));
+	SET_STRING_ELT(out_names, idx, Rf_mkChar("optimize"));
+	Rf_setAttrib(out, R_NamesSymbol, out_names);
+	UNPROTECT(2); /* out, out_names -- returned value is unprotected by design */
+	return out;
+}
+
+static Rboolean set_option(const char *option_name, SEXP value)
+{
+	SEXP call;
+	PROTECT(call = LCONS(install("options"),
+						 CONS(value, R_NilValue)));
+	SET_TAG(CDR(call), install(option_name));
+
+	Rf_eval(call, R_GlobalEnv);
+
+	UNPROTECT(1);
+}
+
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 						  const char *name, SEXP coverage_registry, SEXP hooks_registry,
 						  SEXP formals)
@@ -2294,6 +2380,73 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					}
 				}
 			}
+		}
+
+		// The instruction scan above only reaches closures referenced by
+		// MAKECLOSURE / MAKEPROM. Closures loaded as plain constants via LDCONST
+		// are missed -- notably the inner `.local` closure the methods package
+		// wraps S4 methods in, whose body therefore went uncompiled.
+		// Make a second pass over the constant pool for those closure
+		// constants specifically. (MAKECLOSURE stores list(formals, body) and
+		// MAKEPROM stores a bytecode body, neither of which is a CLOSXP, so this
+		// pass does not overlap with the scan above.)
+		for (int ci = 0; ci < consts_size; ci++)
+		{
+			SEXP c = consts[ci];
+			if (LIKELY(TYPEOF(c) != CLOSXP))
+				continue;
+
+			int cov_on = (coverage_registry != R_NilValue);
+			int action = rcp_recomp_action(TYPEOF(BODY(c)) == BCODESXP);
+			if (action < 0)
+				continue; /* bc_recomp = FALSE: skip a not-already-compiled closure constant */
+
+			SEXP body = BODY(c);
+			int np = 0;
+			if (action == 1)
+			{
+				// (Re)compile the closure constant, reusing the BC compiler (which
+				// also records the srcrefs coverage needs). When coverage is on,
+				// compile at optimize = 1 so srcref-bearing instructions are not
+				// folded away.
+				SEXP copts = R_NilValue;
+				if (cov_on)
+				{
+					copts = PROTECT(options_with_optimize(R_NilValue, 1));
+					np++;
+				}
+				SEXP compiled_clo = PROTECT(compile_to_bc(c, copts));
+				np++;
+				if (TYPEOF(BODY(compiled_clo)) == BCODESXP)
+					body = BODY(compiled_clo);
+				else
+				{
+					if (np)
+						UNPROTECT(np);
+					continue;
+				}
+			}
+
+			DEBUG_PRINT("**********\nCompiling closure constant\n");
+			closure_counter++;
+			char closure_name_buf[256];
+			const char *base_name = name ? name : "closure";
+			snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_cloconst_%d",
+					 base_name, closure_counter);
+			SEXP res = PROTECT(copy_patch_bc(body, recursive, stats, closure_name_buf,
+											 coverage_registry, inner_hooks, FORMALS(c)));
+			// Replace the constant with a patched copy rather than mutating in
+			// place, since the constant closure may be shared.
+			SEXP new_clo = PROTECT(Rf_duplicate(c));
+			SET_BODY(new_clo, res);
+			SET_VECTOR_ELT(bcode_consts, ci, new_clo);
+			UNPROTECT_SAFE(new_clo);
+			DEBUG_PRINT("**********\nClosure constant compiled\n");
+
+			UNPROTECT_SAFE(res);
+
+			if (np)
+				UNPROTECT(np);
 		}
 	}
 
@@ -2441,20 +2594,6 @@ static const char *guess_closure_name(SEXP f)
 	return result;
 }
 
-static Rboolean get_option_or_default(const char *option_name, Rboolean default_value)
-{
-	SEXP option = Rf_GetOption1(Rf_install(option_name));
-	if (TYPEOF(option) == LGLSXP && XLENGTH(option) == 1)
-		return LOGICAL(option)[0] == TRUE;
-	else
-		return default_value;
-}
-
-static Rboolean is_option_true(const char *option_name)
-{
-	return get_option_or_default(option_name, FALSE);
-}
-
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
 	DEBUG_PRINT("Starting to JIT a function...\n");
@@ -2466,6 +2605,10 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	if (is_option_true("rcp.cmpfun.coverage"))
 	{
+		SEXP old_option = Rf_GetOption1(Rf_install("keep.source"));
+		PROTECT(old_option);
+		set_option("keep.source", ScalarLogical(TRUE));
+
 		compile_promises = get_option_or_default("rcp.cmpfun.compile_promises", TRUE);
 		if (!compile_promises)
 		{
@@ -2478,6 +2621,9 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		coverage_registry = eval(counters_promise, covr_ns); // In case it's a promise
 		UNPROTECT_SAFE(counters_promise);
 		UNPROTECT_SAFE(covr_ns);
+
+		set_option("keep.source", old_option);
+		UNPROTECT_SAFE(old_option);
 
 		if (coverage_registry == R_UnboundValue || coverage_registry == R_NilValue)
 		{
@@ -2548,29 +2694,53 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	SEXP compiled;
-	if (TYPEOF(BODY(f)) != BCODESXP || is_option_true("rcp.cmpfun.force_bc_recomp"))
-	{
-#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
-		if (options == R_NilValue)
-		{
-			// Create the options list with optimize = 3
-			options = PROTECT(Rf_allocVector(VECSXP, 1));
-			SEXP optimize_value = Rf_ScalarInteger(BC_DEFAULT_OPTIMIZE_LEVEL);
-			SET_VECTOR_ELT(options, 0, optimize_value);
+	int cov_on = (coverage_registry != R_NilValue);
 
-			// Set the names for the options list
-			SEXP options_names = PROTECT(Rf_allocVector(STRSXP, 1));
-			SET_STRING_ELT(options_names, 0, Rf_mkChar("optimize"));
-			Rf_setAttrib(options, R_NamesSymbol, options_names);
-			UNPROTECT_SAFE(options_names);
+	// Coverage needs (re)compilation at optimize=1 to keep srcref-bearing
+	// instructions. If recompilation is forced off, that cannot happen, so warn.
+	if (cov_on && get_bc_recomp() == FALSE)
+	{
+		static int warned_recomp_off_coverage = 0;
+		if (!warned_recomp_off_coverage)
+		{
+			warned_recomp_off_coverage = 1;
+			Rf_warning("rcp.cmpfun.bc_recomp = FALSE with coverage enabled: "
+					   "functions that are not already byte-compiled are skipped, "
+					   "and already-compiled ones are not recompiled at optimize=1, "
+					   "so coverage may be incomplete or inaccurate.");
 		}
-		else
-			PROTECT(options); // To balance PROTECT/UNPROTECT
-#endif
-		compiled = compile_to_bc(f, options);
+	}
+
+	int action = rcp_recomp_action(TYPEOF(BODY(f)) == BCODESXP);
+	if (action < 0)
+	{
+		// rcp.cmpfun.bc_recomp = FALSE and f is not already bytecode: leave it.
+		DEBUG_PRINT("rcp.cmpfun.bc_recomp = FALSE: skipping non-compiled function.\n");
+		return f;
+	}
+	if (action == 1)
+	{
+		// When coverage is on, any compilation that happens uses optimize = 1 so
+		// the compiler keeps the srcref-bearing instructions coverage relies on
+		// (no inlining / constant-folding away of branches). Otherwise compile
+		// with the caller's options unchanged.
+		SEXP comp_options = options;
+		int prot = 0;
+		if (cov_on)
+		{
+			comp_options = PROTECT(options_with_optimize(options, 1));
+			prot = 1;
+		}
 #ifdef BC_DEFAULT_OPTIMIZE_LEVEL
-		UNPROTECT_SAFE(options);
+		else if (options == R_NilValue)
+		{
+			comp_options = PROTECT(options_with_optimize(R_NilValue, BC_DEFAULT_OPTIMIZE_LEVEL));
+			prot = 1;
+		}
 #endif
+		compiled = compile_to_bc(f, comp_options);
+		if (prot)
+			UNPROTECT(prot);
 		if (TYPEOF(BODY(compiled)) != BCODESXP)
 		{
 			DEBUG_PRINT("The BC compiler could not compile this function. Returning original function.\n");
