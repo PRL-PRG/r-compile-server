@@ -1,6 +1,6 @@
 include ../../common.mk
 
-TESTS = $(wildcard *.R)
+TESTS = $(filter-out helpers.R,$(sort $(wildcard *.R)))
 
 .PHONY: all test clean
 

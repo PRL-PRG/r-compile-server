@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stencils.h>
 #include <sys/mman.h>
+#include <sys/random.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -36,27 +37,66 @@ static const Stencil NOP_STENCIL = {
 
 static int rcp_gdb_jit_enabled = 0;
 static int rcp_perf_jit_enabled = 0;
+static int compile_promises = RCP_COMPILE_PROMISES;
+
+// BC_ERROR marks a code path that is unreachable for a valid bytecode object.
+// By default it raises a recoverable R error, so corrupt input is reported
+// gracefully. When the caller guarantees validity by defining ASSUME_VALID_BC,
+// it becomes ASSUME(0): in debug builds (NDEBUG not defined) a hard-aborting
+// check that catches violations loudly, and in release builds the compiler
+// "assume" attribute that lets the dead check be optimized away entirely.
+#ifdef ASSUME_VALID_BC
+#define BC_ERROR(...) UNREACHABLE()
+#else
+#define BC_ERROR Rf_error
+#endif
 
 #ifdef PROFILE_STENCILS
+// Hard-coded per-stencil timing counters (call count + rdtsc cycles), written
+// directly by the PROFILING_START/END pairs baked into every opcode stencil
+// (stencils.c) and read by C_rcp_get_profiling. Gated behind PROFILE_STENCILS.
+// OPCODES_NAMES is only an incomplete extern array here (defined in
+// shared/opcodes.c) so sizeof() does not work; size by the NUM_OPCODES sentinel.
+// Must have external linkage (not static): the stencils reference it as an
+// external symbol resolved against this definition (see extract_stencils.cpp).
 struct StencilProfileInfo
 {
 	size_t call_count;
 	size_t total_cycles;
 };
-static struct StencilProfileInfo
-	stencil_profile_info[sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES)];
+struct StencilProfileInfo stencil_profile_info[NUM_OPCODES];
 #endif
 
-#define UNPROTECT_SAFE(ptr)                         \
-	do                                              \
-	{                                               \
-		assert(R_PPStack[R_PPStackTop - 1] == ptr); \
-		UNPROTECT(1);                               \
-	} while (0)
+// Per-opcode execution counts gathered by the runtime-toggled plugin counting
+// (rcp_count_enable). Independent of PROFILE_STENCILS.
+//
+// The counters live directly in an R integer vector (named by opcode, in opcode
+// order) so C_rcp_get_counts can hand it back with zero copying or post-
+// processing: the _RCP_CUSTOM_COUNTER_ABS64 plugin that count_instructions()
+// inserts before each instruction increments INTEGER(stencil_exec_counts)[op]
+// in place. Allocated lazily on the first rcp_count_enable() and kept alive with
+// R_PreserveObject -- it must never be reallocated, since pointers into its data
+// are baked into already-compiled functions. NULL if counting is not enabled.
+static SEXP stencil_exec_counts = NULL;
 
-// Used as a hint where to map address space close to R internals to allow
-// relative addressing
-#define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
+// Allocate the per-opcode counter vector on first use (named, opcode order,
+// zeroed) and pin it. Idempotent; the data pointer is stable for the process
+// lifetime so plugin relocations into it stay valid.
+static void rcp_ensure_counts(void)
+{
+	if (stencil_exec_counts != NULL)
+		return;
+	SEXP v = PROTECT(Rf_allocVector(INTSXP, NUM_OPCODES));
+	memset(INTEGER0(v), 0, NUM_OPCODES * sizeof(int));
+	SEXP nms = PROTECT(Rf_allocVector(STRSXP, NUM_OPCODES));
+	for (int i = 0; i < NUM_OPCODES; i++)
+		SET_STRING_ELT(nms, i, Rf_mkChar(OPCODES_NAMES[i]));
+	Rf_setAttrib(v, R_NamesSymbol, nms);
+	R_PreserveObject(v);
+	stencil_exec_counts = v;
+	UNPROTECT(2); // v, nms
+}
+
 // #define BC_DEFAULT_OPTIMIZE_LEVEL 2
 
 #ifndef ALIGNMENT_LABELS
@@ -75,21 +115,19 @@ static struct StencilProfileInfo
 #define ALIGNMENT_LOOPS_UNLIKELY 1
 #endif
 
-static int fits_in(int64_t value, int size)
+// Does the signed `value` fit losslessly in a `size`-byte field? Branchless:
+// sign-extend `value` from its low size*8 bits and check the round-trip is
+// lossless. The left shift is done in the unsigned domain (well-defined wrap);
+// the right shift on int64_t is an arithmetic shift, which re-broadcasts the
+// sign bit. Compiles to roughly shl/sar/cmp/sete -- no branches, no tables.
+//
+// Precondition: size in 1..8. The only sizes the extractor emits are 1/2/4/8,
+// so this holds; a size of 0 or >8 would shift by >=64 (undefined behavior).
+static inline int fits_in(int64_t value, int size)
 {
-	switch (size)
-	{
-		case 1:
-			return value >= INT8_MIN && value <= INT8_MAX;
-		case 2:
-			return value >= INT16_MIN && value <= INT16_MAX;
-		case 4:
-			return value >= INT32_MIN && value <= INT32_MAX;
-		case 8:
-			return value >= INT64_MIN && value <= INT64_MAX;
-		default:
-			return 0;
-	}
+	assert(__builtin_popcount(size) == 1); // size is a power of two
+	int shift = 64 - (size << 3);
+	return ((int64_t)((uint64_t)value << shift) >> shift) == value;
 }
 
 static size_t align_to_higher(size_t size, size_t alignment)
@@ -101,72 +139,157 @@ static size_t align_to_higher(size_t size, size_t alignment)
 	return (size + alignment - 1) & ~(alignment - 1);
 }
 
-static void *find_free_space_near(void *target_ptr, size_t size)
-{
-	uintptr_t target = (uintptr_t)target_ptr;
-	FILE *maps = fopen("/proc/self/maps", "r");
-	if (!maps)
-	{
-		perror("fopen");
-		return NULL;
-	}
+/********************* MEMORY ALLOCATION ********************************************/
 
-	uintptr_t prev_start = 0, prev_end = 0;
-	ptrdiff_t best_diff = PTRDIFF_MAX;
-	uintptr_t best_addr = 0;
+// Glibc only exposes this under __USE_MISC; define it in case the build is in a
+// stricter mode. Value is stable in the kernel ABI (since Linux 4.17).
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
 
-	char line[256];
-	while (fgets(line, sizeof(line), maps))
-	{
-		uintptr_t start, end;
-		if (sscanf(line, "%lx-%lx", &start, &end) != 2)
-			continue;
+// Used as a hint where to map address space close to R internals to allow
+// relative addressing
+#define R_INTERNALS_ADDRESS (&Rf_ScalarInteger)
 
-		// Check for gap between previous and current region
-		if (prev_end && (start > prev_end))
-		{
-			size_t gap = start - prev_end;
-			if (gap >= size)
-			{
-				uintptr_t candidate = prev_end;
-				ptrdiff_t diff =
-					(candidate > target) ? (candidate - target) : (target - candidate);
-				if (diff < best_diff)
-				{
-					best_diff = diff;
-					best_addr = candidate;
-				}
-			}
-		}
+// Slack left below the hard signed-32-bit limit when sizing the arena window.
+// It absorbs relocation addends / instruction-pointer offsets and lets the
+// runtime symbols spread somewhat outside the arena window itself. Tune up if
+// relocations still overflow.
+#define R_INTERNALS_ADDRESS_HEADROOM (1 << 28) // 256 MB
 
-		prev_start = start;
-		prev_end = end;
-	}
+// HALF-width of the arena window on each side of the target. The CRITICAL
+// constraint is not just code->symbol reach but that the *entire* arena fits
+// inside a single signed rel32 span: generated code references the shared
+// GOT/rodata block (RELOC_RUNTIME_SYMBOL_GOT) which lives in this same arena, so
+// any two points in it (code <-> shared block, code <-> code) must be within
+// INT32_MAX of each other. The full window is therefore 2*NEAR_REACH =
+// INT32_MAX - HEADROOM wide -- strictly less than INT32_MAX -- and centered on
+// the target so code also stays within rel32 of the runtime symbols.
+#define NEAR_REACH (((uintptr_t)INT32_MAX - R_INTERNALS_ADDRESS_HEADROOM) / 2)
 
-	fclose(maps);
-
-	return (void *)best_addr;
-}
-
+// Bump pointer for the "near" arena: the address at which the next JIT-ed
+// program will try to map, i.e. right after the previously mapped program.
 static void *near_memory_start = NULL;
 
+// How many random anchor candidates to try at init before falling back to the
+// bottom of the window.
+#define NEAR_RANDOM_ATTEMPTS 128
+
+#define MEM_INIT_HEADROOM (1 << 28) // 256 MB
+
+// Reset the arena to the bottom of the rel32-reachable window -- "rotate the
+// pool" and restart the sequential walk from the beginning. Used during jitting
+// when mmap_near reports the window exhausted.
 static void refresh_near_memory_ptr(size_t size)
 {
 #ifdef MCMODEL_SMALL
-	near_memory_start = find_free_space_near(R_INTERNALS_ADDRESS, size);
+	(void)size;
+	size_t page = getpagesize();
+	uintptr_t target = (uintptr_t)R_INTERNALS_ADDRESS;
+	uintptr_t lo =
+		(target > NEAR_REACH) ? align_to_higher(target - NEAR_REACH, page) : page;
+	DEBUG_PRINT("Refresh near memory: target %p, reach %p, lo %p\n", (void *)target,
+				(void *)NEAR_REACH, (void *)lo);
+	near_memory_start = (void *)lo;
 #endif
 }
 
-static void *get_near_memory(size_t size)
+// Pick the arena's *initial* anchor at package init: a random page-aligned
+// address within the reachable window, probed with MAP_FIXED_NOREPLACE and
+// unmapped again (the real mapping happens later in mmap_near). R_INTERNALS_ADDRESS
+// sits inside the always-occupied R VM mapping, and the window extends NEAR_REACH
+// on each side of it. The randomness keeps two parallel R processes from
+// anchoring at the same place and fighting over the same slots; after this,
+// mmap_near() just walks upward sequentially from the anchor. The draw uses
+// per-process entropy (getrandom, with a pid/time fallback) so distinct
+// processes diverge. Falls back to the bottom of the window if no free spot is
+// drawn.
+static void init_near_memory_ptr(void)
 {
 #ifdef MCMODEL_SMALL
-	void *res = near_memory_start;
-	near_memory_start += align_to_higher(size, getpagesize());
-	return res;
-#else
-	return NULL;
+	size_t page = getpagesize();
+	uintptr_t target = (uintptr_t)R_INTERNALS_ADDRESS;
+	uintptr_t lo =
+		(target > NEAR_REACH) ? align_to_higher(target - NEAR_REACH, page) : page;
+	uintptr_t hi = target + NEAR_REACH;
+	uintptr_t span_pages = (hi > lo) ? (hi - lo) / page : 0;
+
+	for (int attempt = 0; span_pages && attempt < NEAR_RANDOM_ATTEMPTS; attempt++)
+	{
+		uint64_t r = 0;
+		if (getrandom(&r, sizeof(r), GRND_NONBLOCK) != (ssize_t)sizeof(r))
+			r = ((uint64_t)getpid() << 32) ^ (uint64_t)time(NULL) ^
+				((uint64_t)attempt * 0x9E3779B97F4A7C15ull);
+
+		uintptr_t cand = lo + (uintptr_t)(r % span_pages) * page;
+		void *m = mmap((void *)cand, MEM_INIT_HEADROOM, PROT_NONE,
+					   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+		if (m == MAP_FAILED)
+			continue; // slot taken: draw a new random anchor
+		if ((uintptr_t)m != cand)
+		{
+			warning("Old kernel (pred 4.17), using memory search fall-back. Update your system for better performance.");
+			munmap(m, page); // pre-4.17 kernel relocated; reject
+			continue;
+		}
+		munmap(m, MEM_INIT_HEADROOM); // free; the real mapping happens later in mmap_near
+		DEBUG_PRINT("Init near memory: random anchor %p (attempt %d)\n",
+					(void *)cand, attempt);
+		near_memory_start = (void *)cand;
+		return;
+	}
+
+	// No free random anchor drawn (window very full); fall back to the bottom.
+	refresh_near_memory_ptr(0);
 #endif
 }
+
+// Map `size` bytes within rel32 reach of the runtime, packed right after the
+// previous program. Tries the exact next slot (near_memory_start) first; on
+// collision it steps forward a slot at a time until it finds a free one --
+// including stepping over the R VM mapping to the space above target if the
+// space below it fills up. MAP_FIXED_NOREPLACE means the kernel never relocates
+// us out of range: it returns the exact address or fails (EEXIST), so one
+// syscall per slot tells us whether it is free. Advances near_memory_start past
+// the new region. Returns NULL if the whole reachable window is exhausted.
+static void *mmap_near(size_t size)
+{
+#ifdef MCMODEL_SMALL
+	size_t aligned = align_to_higher(size, getpagesize());
+	uintptr_t target = (uintptr_t)R_INTERNALS_ADDRESS;
+	// Top of the reachable window, leaving room for the allocation itself.
+	uintptr_t hi = target + NEAR_REACH;
+	hi = (hi > aligned) ? hi - aligned : 0;
+
+	for (uintptr_t cand = (uintptr_t)near_memory_start; cand <= hi; cand += aligned)
+	{
+		void *m = mmap((void *)cand, size, PROT_READ | PROT_WRITE,
+					   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+		if (m == MAP_FAILED)
+		{
+			error("Memory occupied, iterating...");
+			continue;
+		}
+		if ((uintptr_t)m != cand)
+		{
+			warning("Old kernel (pred 4.17), using memory search fall-back. Update your system for better performance.");
+			// Pre-4.17 kernel ignored the flag and relocated; reject and retry.
+			munmap(m, size);
+			continue;
+		}
+		near_memory_start = (void *)(cand + aligned); // pack next program after this
+		return m;
+	}
+
+	return NULL; // reachable window exhausted
+#else
+	void *m = mmap(NULL, size, PROT_READ | PROT_WRITE,
+				   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	return (m == MAP_FAILED) ? NULL : m; // normalize failure to NULL
+#endif
+}
+
+/************************************************************************************/
 
 static const void **prepare_got_table(size_t *got_size)
 {
@@ -334,6 +457,23 @@ static rcp_sharedmem_ptrs *mem_shared;
 static SEXP mem_shared_sexp;
 static const uint8_t *notinlined_executable;
 
+// Shared, preserved length-0 INTSXP used as a placeholder in SWITCH constpool
+// slots. Allocated once at package load instead of on every compilation, and
+// safe to share because these slots are only ever read (INTEGER0/LENGTH_0),
+// never mutated.
+static SEXP empty_intsxp = NULL;
+
+// Shared, immutable names vector c("value", "srcref", "functions") attached to
+// every coverage registry entry. Identical for every compilation, so it is
+// built once at package init rather than per call to srcref_coverage.
+static SEXP coverage_entry_names = NULL;
+
+// Interned symbols used by srcref_coverage, resolved once at package init.
+// Symbols returned by install() are permanently rooted in R's symbol table, so
+// they need no preservation.
+static SEXP coverage_srcfile_sym = NULL;
+static SEXP coverage_filename_sym = NULL;
+
 static void prepare_shared_memory()
 {
 	void *vmax = vmaxget();
@@ -346,11 +486,9 @@ static void prepare_shared_memory()
 	mem_shared_data *mem_shared_near = NULL;
 	mem_shared_data *mem_shared_low = NULL;
 
-	mem_shared_near =
-		mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (mem_shared_near == MAP_FAILED)
-		exit(1);
+	mem_shared_near = mmap_near(total_size);
+	if (mem_shared_near == NULL)
+		error("Cannot allocate memory");
 
 	memcpy(mem_shared_near->rodata, rodata, sizeof(rodata));
 	mem_shared_near->got_table_size = got_table_size;
@@ -389,7 +527,8 @@ static void prepare_shared_memory()
 		PROTECT(R_MakeExternalPtr(mem_shared, R_NilValue, R_NilValue));
 	R_PreserveObject(mem_shared_sexp);
 	UNPROTECT(1); // mem_shared_sexp
-	R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, TRUE);
+	// We do not free structures if R is shutting down, there will be memory leaks.
+	R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, FALSE);
 }
 
 #ifdef STEPFOR_SPECIALIZE
@@ -667,27 +806,25 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 			SEXP coffsets = r_constpool[imms[2]];
 			SEXP ioffsets = r_constpool[imms[3]];
 
-			Rboolean is_names_null = names == R_NilValue;
-			int names_length = LENGTH(names);
-			int ioffsets_length = LENGTH(ioffsets);
+			Rboolean is_names_null = names == R_NilValue || LENGTH_0(names) == 0;
+			assert(!ALTREP(names));
+			assert(!ALTREP(ioffsets));
+			int names_length = LENGTH_0(names);
+			int ioffsets_length = LENGTH_0(ioffsets);
 			DEBUG_PRINT("SWITCH_OP specialization: is_names_null=%d names_length=%d, "
 						"ioffsets_length=%d\n",
 						is_names_null, names_length, ioffsets_length);
 
 			if (!is_names_null && names_length != 1 && ioffsets_length != 1)
 				return &stencil_set[0]; //&_RCP_SWITCH_000_OP;
-			else if (!is_names_null && names_length != 1 && ioffsets_length == 1)
-				return &stencil_set[1]; //&_RCP_SWITCH_001_OP;
 			else if (!is_names_null && names_length == 1 && ioffsets_length != 1)
-				return &stencil_set[2]; //&_RCP_SWITCH_010_OP;
-			else if (!is_names_null && names_length == 1 && ioffsets_length == 1)
-				return &stencil_set[3]; //&_RCP_SWITCH_011_OP;
+				return &stencil_set[1]; //&_RCP_SWITCH_010_OP;
 			else if (is_names_null && ioffsets_length != 1)
-				return &stencil_set[4]; //&_RCP_SWITCH_100_OP;
+				return &stencil_set[2]; //&_RCP_SWITCH_100_OP;
 			else if (is_names_null && ioffsets_length == 1)
-				return &stencil_set[5]; //&_RCP_SWITCH_101_OP;
+				return &stencil_set[3]; //&_RCP_SWITCH_101_OP;
 			else
-				error("Invalid SWITCH_OP immediate values\n");
+				BC_ERROR("Invalid SWITCH_OP immediate values\n");
 		}
 		break;
 #endif
@@ -767,6 +904,7 @@ static int can_fallthrough_from_opcode(RCP_BC_OPCODES opcode)
 	switch (opcode)
 	{
 		case (RETURN_BCOP):
+		case (RETURNJMP_BCOP):
 		case (GOTO_BCOP):
 		case (STARTFOR_BCOP):
 		case (SWITCH_BCOP):
@@ -874,10 +1012,10 @@ static void link_basic_block(int bytecode[], int bytecode_size, BasicBlock *bb,
 		SEXP coffsets_sexp = constpool[imms[2]];
 		SEXP ioffsets_sexp = constpool[imms[3]];
 
-		int ioffsets_size = (ioffsets_sexp != R_NilValue) ? LENGTH(ioffsets_sexp) : 0;
-		int coffsets_size = (coffsets_sexp != R_NilValue) ? LENGTH(coffsets_sexp) : 0;
-		int *ioffsets = ioffsets_size ? INTEGER(ioffsets_sexp) : NULL;
-		int *coffsets = coffsets_size ? INTEGER(coffsets_sexp) : NULL;
+		int ioffsets_size = (ioffsets_sexp != R_NilValue) ? LENGTH_0(ioffsets_sexp) : 0;
+		int coffsets_size = (coffsets_sexp != R_NilValue) ? LENGTH_0(coffsets_sexp) : 0;
+		int *ioffsets = ioffsets_size ? INTEGER0(ioffsets_sexp) : NULL;
+		int *coffsets = coffsets_size ? INTEGER0(coffsets_sexp) : NULL;
 
 		bb->next_blocks = (BasicBlock **)S_alloc(ioffsets_size + coffsets_size,
 												 sizeof(BasicBlock *));
@@ -943,13 +1081,13 @@ static BasicBlock *build_basic_blocks(int bytecode[], int bytecode_size,
 			const SEXP ioffsets = constpool[imms[3]];
 
 			if (ioffsets != R_NilValue)
-				for (int i = 0, size = LENGTH(ioffsets); i < size; i++)
-					block_lookup[INTEGER(ioffsets)[i] - 1].next_blocks = NULL;
+				for (int i = 0, size = LENGTH_0(ioffsets); i < size; i++)
+					block_lookup[INTEGER0(ioffsets)[i] - 1].next_blocks = NULL;
 
 			if (coffsets != R_NilValue && coffsets != ioffsets)
 			{
-				for (int i = 0, size = LENGTH(coffsets); i < size; i++)
-					block_lookup[INTEGER(coffsets)[i] - 1].next_blocks = NULL;
+				for (int i = 0, size = LENGTH_0(coffsets); i < size; i++)
+					block_lookup[INTEGER0(coffsets)[i] - 1].next_blocks = NULL;
 			}
 		}
 		else
@@ -1075,6 +1213,19 @@ static void peephole_goto(int bytecode[], int bytecode_size, SEXP *constpool)
 	}
 }
 
+static void dump_compiled_binary(const char *dump_dir, const char *name, const uint8_t *executable, size_t size)
+{
+	char dump_path[512];
+	snprintf(dump_path, sizeof(dump_path), "%s/%s.o", dump_dir, name);
+	FILE *fp = fopen(dump_path, "wb");
+	if (fp)
+	{
+		fwrite(executable, 1, size, fp);
+		fclose(fp);
+		fprintf(stderr, "RCP: wrote binary to %s (%zu bytes)\n", dump_path, size);
+	}
+}
+
 typedef struct PluginStencil
 {
 	int pos;
@@ -1087,6 +1238,7 @@ typedef struct PluginStencils
 	size_t sparse_stencils_count;
 	size_t sparse_stencils_capacity;
 	PluginStencil *sparse_stencils;
+	int needs_sort; // set when a position is inserted out of (non-decreasing) order
 } PluginStencils;
 
 static int plugin_stencil_pos_cmp(const void *a, const void *b)
@@ -1280,22 +1432,19 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 						+ (for_count * sizeof(StepFor_specialized))
 #endif
 		;
-	uint8_t *memory =
-		mmap(get_near_memory(total_size), total_size, PROT_READ | PROT_WRITE,
-			 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	uint8_t *memory = mmap_near(total_size);
 
-	if (memory == MAP_FAILED)
+	if (memory == NULL)
 	{
 #ifdef MCMODEL_SMALL
-		fprintf(stderr, "mmap failed, trying to refresh near memory pointer...\n");
+		// Reachable window exhausted; reset the arena to the bottom and retry
+		// (regions from earlier compilations may have been freed since).
+		DEBUG_PRINT("near memory exhausted, resetting arena and retrying...\n");
 		refresh_near_memory_ptr(total_size);
-		memory = mmap(get_near_memory(total_size), total_size,
-					  PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-		if (memory == MAP_FAILED)
-			exit(1);
-#else
-		exit(1);
+		memory = mmap_near(total_size);
+		if (memory == NULL)
 #endif
+			error("Out of memory.");
 	}
 
 	res.memory_private = memory;
@@ -1414,24 +1563,40 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #endif
 			case SWITCH_BCOP:
 			{
+				SEXP names = constpool[opargs[1]];
 				SEXP coffsets_sexp = constpool[opargs[2]];
 				SEXP ioffsets_sexp = constpool[opargs[3]];
 
 				if (ioffsets_sexp != R_NilValue)
 				{
-					int *ioffsets = INTEGER(ioffsets_sexp);
-					int ioffsets_size = LENGTH(ioffsets_sexp);
+					int *ioffsets = INTEGER0(ioffsets_sexp);
+					int ioffsets_size = LENGTH_0(ioffsets_sexp);
 					for (int i = 0; i < ioffsets_size; i++)
 						ioffsets[i] = inst_start[ioffsets[i] - 1] - executable;
 				}
-
-				if (coffsets_sexp != R_NilValue &&
-					coffsets_sexp != ioffsets_sexp) // Avoid double patching if they point to the same memory
+				else
 				{
-					int *coffsets = INTEGER(coffsets_sexp);
-					int coffsets_size = LENGTH(coffsets_sexp);
-					for (int i = 0; i < coffsets_size; i++)
-						coffsets[i] = inst_start[coffsets[i] - 1] - executable;
+					constpool[opargs[3]] = empty_intsxp;
+				}
+
+				if (coffsets_sexp != R_NilValue)
+				{
+					if (coffsets_sexp != ioffsets_sexp) // Avoid double patching if they point to the same memory
+					{
+						int *coffsets = INTEGER0(coffsets_sexp);
+						int coffsets_size = LENGTH_0(coffsets_sexp);
+						for (int i = 0; i < coffsets_size; i++)
+							coffsets[i] = inst_start[coffsets[i] - 1] - executable;
+					}
+				}
+				else
+				{
+					constpool[opargs[2]] = empty_intsxp;
+				}
+
+				if (names == R_NilValue)
+				{
+					constpool[opargs[1]] = empty_intsxp;
 				}
 			}
 			break;
@@ -1507,11 +1672,20 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		res.eh_frame_data = eh_frame_data;
 
 		if (rcp_gdb_jit_enabled)
+		{
 			res.jit_entry = gdb_jit_register(name, executable, insts_size,
 											 inst_addrs_packed, count_opcodes,
 											 instruction_stencils);
+		}
 		else
+		{
 			res.jit_entry = NULL;
+			const char *dump_dir = getenv("RCP_DUMP_DIR");
+			if (dump_dir)
+			{
+				dump_compiled_binary(dump_dir, name, executable, insts_size);
+			}
+		}
 
 		if (rcp_perf_jit_enabled)
 		{
@@ -1673,6 +1847,13 @@ SEXP get_attribute(SEXP list, const char *attr_name)
 
 static PluginStencil *add_plugin_stencil_pos(PluginStencils *stencils, int pos, const Stencil *stencil, void *data)
 {
+	// Mark the array dirty if this position breaks the non-decreasing order, so
+	// the final sort can be skipped entirely when nothing was inserted out of
+	// order (e.g. coverage-only compilation).
+	if (stencils->sparse_stencils_count > 0 &&
+		pos < stencils->sparse_stencils[stencils->sparse_stencils_count - 1].pos)
+		stencils->needs_sort = 1;
+
 	if (stencils->sparse_stencils_count >= stencils->sparse_stencils_capacity)
 	{
 		if (stencils->sparse_stencils_capacity == 0)
@@ -1695,6 +1876,22 @@ static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], i
 	{
 		if (bytecode[i] == instr)
 			add_plugin_stencil_pos(stencils, i, stencil, data);
+	}
+}
+
+// Runtime per-instruction counting (enabled via rcp_count_enable). Insert the
+// generic incrementer plugin before each instruction body, with its custom
+// argument pointing straight at this opcode's slot in the R counter vector
+// (INTEGER(stencil_exec_counts)[op]). Unlike the hard-coded PROFILE_STENCILS
+// timing, this is opt-in at runtime and adds no overhead to functions compiled
+// while counting is disabled.
+static void count_instructions(int bytecode[], int bytecode_size, PluginStencils *plugins)
+{
+	int *counts = INTEGER0(stencil_exec_counts);
+	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		int op = bytecode[i];
+		add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_COUNTER_ABS64, &counts[op]);
 	}
 }
 
@@ -1803,99 +2000,149 @@ static void types_of_function(int bytecode[], int bytecode_size, PluginStencils 
 	add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURNJMP_BCOP, &_RCP_EXIT_HOOK, trace);
 }
 
-static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, const char *func_name)
+// Appends the decimal representation of a non-negative int v to p (bounded by
+// end) and returns the new write pointer. Faster than snprintf's generic %d.
+static inline char *append_decimal(char *p, char *const end, unsigned int u)
+{
+	char tmp[11]; // enough for the 10 digits of UINT_MAX
+	int n = 0;
+	do
+	{
+		tmp[n++] = (char)('0' + (u % 10u));
+		u /= 10u;
+	} while (u != 0);
+	while (n > 0 && p < end)
+		*p++ = tmp[--n];
+	return p;
+}
+
+static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugins, SEXP coverage_registry, SEXP func_name_char)
 {
 	SEXP srcrefs_index_sexp = get_attribute(constpool, "srcrefsIndex");
 	if (TYPEOF(srcrefs_index_sexp) != INTSXP)
-		error("srcrefsIndex attribute in constpool is missing or is not an integer vector.");
-	int *srcrefs_index = INTEGER(srcrefs_index_sexp);
-	const int len = LENGTH(bytecode);
+	{
+		warning("srcrefsIndex attribute in constpool is missing or is not an integer vector. Source reference coverage will not be registered.");
+		return;
+	}
 
-	if (func_name == NULL)
-		func_name = "";
+	int *srcrefs_index = INTEGER0(srcrefs_index_sexp);
+	const R_xlen_t len = XLENGTH_0(bytecode);
+
+	// All srcrefs in one function share the same "srcfile" environment object,
+	// so cache the resolved filename keyed by that object's pointer. This avoids
+	// R_GetSrcFilename's per-srcref getAttrib + install("filename") + env lookup.
+	SEXP cached_srcfile = NULL;
+	const char *cached_filename = "<text>";
+	size_t cached_filename_len = strlen(cached_filename); // set on each cache miss
 
 	void *vmax = vmaxget();
-	int *used_srcrefs = (int *)R_alloc(len, sizeof(int));
-	int used_srcrefs_count = 0;
 
 	const SEXP *consts = (SEXP *)DATAPTR(constpool);
+	const R_xlen_t n_consts = XLENGTH_0(constpool);
+
+	// expr_id is always a valid index into the constant pool, so we can use a
+	// direct-indexed "seen" bitmap for O(1) deduplication instead of a linear
+	// scan over the previously discovered ids.
+	char *seen_srcref = (char *)S_alloc(n_consts, sizeof(char));
+	R_xlen_t used_srcrefs_count = 0;
 
 	// First pass: discover unique expressions and record stencil positions
-	for (int i = 1; i < len; i++)
+	for (R_xlen_t i = 1; i < len; i++)
 	{
 		int expr_id = srcrefs_index[i];
 
-		for (int j = used_srcrefs_count - 1; j >= 0; j--)
-		{
-			if (used_srcrefs[j] == expr_id)
-				goto next_expr;
-		}
+		if (seen_srcref[expr_id])
+			goto next_expr;
+
 		DEBUG_PRINT("Sourceref %d used first at bytecode %d\n", expr_id, i);
-		used_srcrefs[used_srcrefs_count] = expr_id;
+		seen_srcref[expr_id] = 1;
 		used_srcrefs_count++;
 
 		SEXP srcref = consts[expr_id];
 
-		if (TYPEOF(srcref) != INTSXP || LENGTH(srcref) < 8)
-			error("Invalid srcref data for expression with id %d", expr_id);
+		if (TYPEOF(srcref) != INTSXP || XLENGTH_0(srcref) < 8)
+			BC_ERROR("Invalid srcref data for expression with id %d", expr_id);
 
 		// Extract srcref data
-		int *srcref_data = INTEGER(srcref);
+		int *srcref_data = INTEGER0(srcref);
 
-		// Get the filename from srcfile attribute
-		SEXP filename_sexp = R_GetSrcFilename(srcref);
-		const char *filename = "<text>";
-		if (TYPEOF(filename_sexp) == STRSXP && LENGTH(filename_sexp) > 0)
+		// Get the filename from srcfile attribute (cached per srcfile object)
+		SEXP srcfile = Rf_getAttrib(srcref, coverage_srcfile_sym);
+		const char *filename;
+		if (srcfile == cached_srcfile)
 		{
-			const char *filename_char = CHAR(STRING_ELT(filename_sexp, 0));
-			if (strlen(filename_char) > 0) // To protect from empty filenames
+			filename = cached_filename;
+		}
+		else
+		{
+			// Inline of R_GetSrcFilename: we already hold the srcfile env from the
+			// getAttrib above, and the "filename" symbol is a shared singleton, so
+			// this avoids a second getAttrib, a per-call install, and an allocation.
+			filename = "<text>";
+			if (TYPEOF(srcfile) == ENVSXP)
 			{
-				filename = filename_char;
+				SEXP filename_sexp = Rf_findVarInFrame(srcfile, coverage_filename_sym);
+				if (TYPEOF(filename_sexp) != STRSXP || XLENGTH_0(filename_sexp) < 1)
+					BC_ERROR("Invalid 'filename' in srcfile environment for expression with id %d", expr_id);
+				const char *fn = CHAR(STRING_ELT_0(filename_sexp, 0));
+				if (fn[0] != '\0') // Non-empty filename
+					filename = fn;
 			}
+			cached_srcfile = srcfile;
+			cached_filename = filename;
+			cached_filename_len = strlen(filename);
 		}
 
-		// Build the key string: "filename:l1:c1:l2:c2:b1:b2:l3:c3"
-		char key[1024];
-		snprintf(key, sizeof(key), "%s:%d:%d:%d:%d:%d:%d:%d:%d",
-				 filename,
-				 srcref_data[0], srcref_data[1], srcref_data[2], srcref_data[3],
-				 srcref_data[4], srcref_data[5], srcref_data[6], srcref_data[7]);
+		// Build the key string "filename:l1:c1:l2:c2:b1:b2:l3:c3" directly.
+		// snprintf would re-parse the format and run its generic %s/%d machinery
+		// on every unique srcref; here the filename length is cached and the 8
+		// integers are converted inline. Bounded writes keep it overflow-safe.
+		char key[512];
+		char *p = key;
+		char *const end = key + sizeof(key) - 1; // reserve room for terminator
+		size_t fnlen = cached_filename_len;
+		if (fnlen > (size_t)(end - p))
+			fnlen = (size_t)(end - p);
+		memcpy(p, filename, fnlen);
+		p += fnlen;
+		for (int k = 0; k < 8; k++)
+		{
+			if (srcref_data[k] < 0)
+				BC_ERROR("Negative srcref component (%d) for expression with id %d", srcref_data[k], expr_id);
+			if (p < end)
+				*p++ = ':';
+			p = append_decimal(p, end, (unsigned)srcref_data[k]);
+		}
+		*p = '\0';
 
 		DEBUG_PRINT("Registering coverage for expression with key: %s\n", key);
-		SEXP key_symbol = PROTECT(Rf_install(key));
+		SEXP key_symbol = Rf_install(key);
 
 		// Check if this key already exists in the registry
 		SEXP existing = Rf_findVarInFrame(coverage_registry, key_symbol);
 
 		int *value_ptr;
 
-		if (existing == R_UnboundValue)
+		if (LIKELY(existing == R_UnboundValue))
 		{
 			// Create a new list with: value, srcref, functions
 			SEXP entry = PROTECT(Rf_allocVector(VECSXP, 3));
-			SEXP entry_names = PROTECT(Rf_allocVector(STRSXP, 3));
-
-			// Set names: value, srcref, functions
-			SET_STRING_ELT(entry_names, 0, Rf_mkChar("value"));
-			SET_STRING_ELT(entry_names, 1, Rf_mkChar("srcref"));
-			SET_STRING_ELT(entry_names, 2, Rf_mkChar("functions"));
-			Rf_setAttrib(entry, R_NamesSymbol, entry_names);
-			UNPROTECT_SAFE(entry_names);
 
 			// Create an integer value that the stencil will increment directly
-			SEXP value_num = PROTECT(Rf_ScalarInteger(0));
+			SEXP value_num = Rf_ScalarInteger(0);
 			SET_VECTOR_ELT(entry, 0, value_num);
-			value_ptr = INTEGER(value_num);
-			UNPROTECT_SAFE(value_num);
+			value_ptr = INTEGER0(value_num);
 
 			// Add the srcref object
 			SET_VECTOR_ELT(entry, 1, srcref);
 
 			// Add the function name as a character vector
-			SEXP func_vec = PROTECT(Rf_allocVector(STRSXP, 1));
-			SET_STRING_ELT(func_vec, 0, Rf_mkChar(func_name));
+			SEXP func_vec = Rf_allocVector(STRSXP, 1);
+			SET_STRING_ELT(func_vec, 0, func_name_char);
 			SET_VECTOR_ELT(entry, 2, func_vec);
-			UNPROTECT_SAFE(func_vec);
+
+			// Set names (process-wide shared singleton): value, srcref, functions
+			Rf_setAttrib(entry, R_NamesSymbol, coverage_entry_names);
 
 			// Define in coverage_registry
 			Rf_defineVar(key_symbol, entry, coverage_registry);
@@ -1906,30 +2153,116 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 		{
 			SEXP entry = existing;
 			// Entry exists - append this function to the functions list
-			SEXP funcs = VECTOR_ELT(entry, 2);
-			int n_funcs = LENGTH(funcs);
-			SEXP new_funcs = PROTECT(Rf_allocVector(STRSXP, n_funcs + 1));
-			for (int j = 0; j < n_funcs; j++)
+			SEXP funcs = VECTOR_ELT_0(entry, 2);
+			R_xlen_t n_funcs = XLENGTH_0(funcs);
+			// No PROTECT: nothing allocates between the alloc and the SET_VECTOR_ELT
+			// that roots new_funcs via the (registry-reachable) entry.
+			SEXP new_funcs = Rf_allocVector(STRSXP, n_funcs + 1);
+			for (R_xlen_t j = 0; j < n_funcs; j++)
 			{
-				SET_STRING_ELT(new_funcs, j, STRING_ELT(funcs, j));
+				SET_STRING_ELT(new_funcs, j, STRING_ELT_0(funcs, j));
 			}
-			SET_STRING_ELT(new_funcs, n_funcs, Rf_mkChar(func_name));
+			SET_STRING_ELT(new_funcs, n_funcs, func_name_char);
 			SET_VECTOR_ELT(entry, 2, new_funcs);
-			UNPROTECT_SAFE(new_funcs);
 
 			// Get pointer to the existing value
-			SEXP value_num = VECTOR_ELT(entry, 0);
-			value_ptr = INTEGER(value_num);
+			SEXP value_num = VECTOR_ELT_0(entry, 0);
+			value_ptr = INTEGER0(value_num);
 		}
-		UNPROTECT_SAFE(key_symbol);
 
-		// Point the stencil at this expression's value field
-		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COVERAGE, value_ptr);
+		// Point the 32-bit incrementer at this expression's (int) value field
+		add_plugin_stencil_pos(plugins, i - 1, &_RCP_CUSTOM_COUNTER_ABS64, value_ptr);
 	next_expr:
 	}
 
 	DEBUG_PRINT("Total unique sourcerefs: %d\n", used_srcrefs_count);
 	vmaxset(vmax);
+}
+
+static Rboolean get_option_or_default(const char *option_name, Rboolean default_value)
+{
+	SEXP option = Rf_GetOption1(Rf_install(option_name));
+	if (TYPEOF(option) == LGLSXP && XLENGTH(option) == 1)
+		return LOGICAL(option)[0] == TRUE;
+	else
+		return default_value;
+}
+
+static Rboolean is_option_true(const char *option_name)
+{
+	return get_option_or_default(option_name, FALSE);
+}
+
+// Read the tri-state `rcp.cmpfun.bc_recomp` option: TRUE / FALSE / NA (default).
+static int get_bc_recomp(void)
+{
+	SEXP opt = Rf_GetOption1(Rf_install("rcp.cmpfun.bc_recomp"));
+	if (TYPEOF(opt) == LGLSXP && XLENGTH(opt) >= 1)
+		return LOGICAL(opt)[0];
+	return NA_LOGICAL;
+}
+
+// Decide what to do with a function/closure given the `rcp.cmpfun.bc_recomp`
+// tri-state policy (independent of coverage):
+//   bc_recomp = TRUE  -> recompile everything
+//   bc_recomp = NA     -> (default) compile only what is not already bytecode
+//   bc_recomp = FALSE -> never compile; skip anything not already bytecode
+// Returns 1 = (re)compile, 0 = use existing bytecode as-is, -1 = skip entirely.
+static int rcp_recomp_action(int already_bc)
+{
+	int v = get_bc_recomp();
+	if (v == TRUE)
+		return 1;
+	if (v == FALSE)
+		return already_bc ? 0 : -1;
+	/* NA / unset (default) */
+	return already_bc ? 0 : 1;
+}
+
+// Return a copy of compiler `options` (may be R_NilValue) with `optimize` set to
+// `level` (overriding it if present, else appending it). Returns an UNPROTECTED
+// value -- the caller is responsible for protecting it.
+static SEXP options_with_optimize(SEXP options, int level)
+{
+	int base = (options == R_NilValue) ? 0 : (int)XLENGTH(options);
+	SEXP names = (base > 0) ? Rf_getAttrib(options, R_NamesSymbol) : R_NilValue;
+	int has_names = (TYPEOF(names) == STRSXP);
+	int opt_idx = -1;
+	for (int i = 0; has_names && i < base && i < (int)XLENGTH(names); i++)
+	{
+		if (strcmp(CHAR(STRING_ELT(names, i)), "optimize") == 0)
+		{
+			opt_idx = i;
+			break;
+		}
+	}
+	int n = base + (opt_idx >= 0 ? 0 : 1);
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, n));
+	SEXP out_names = PROTECT(Rf_allocVector(STRSXP, n));
+	for (int i = 0; i < base; i++)
+	{
+		SET_VECTOR_ELT(out, i, VECTOR_ELT(options, i));
+		SET_STRING_ELT(out_names, i,
+					   (has_names && i < (int)XLENGTH(names)) ? STRING_ELT(names, i) : R_BlankString);
+	}
+	int idx = (opt_idx >= 0) ? opt_idx : base;
+	SET_VECTOR_ELT(out, idx, Rf_ScalarInteger(level));
+	SET_STRING_ELT(out_names, idx, Rf_mkChar("optimize"));
+	Rf_setAttrib(out, R_NamesSymbol, out_names);
+	UNPROTECT(2); /* out, out_names -- returned value is unprotected by design */
+	return out;
+}
+
+static Rboolean set_option(const char *option_name, SEXP value)
+{
+	SEXP call;
+	PROTECT(call = LCONS(install("options"),
+						 CONS(value, R_NilValue)));
+	SET_TAG(CDR(call), install(option_name));
+
+	Rf_eval(call, R_GlobalEnv);
+
+	UNPROTECT(1);
 }
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
@@ -1941,18 +2274,18 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 
 	SEXP code = PROTECT(R_bcDecode(bcode_code));
 
-	int *bytecode = INTEGER(code);
-	int bytecode_size = LENGTH(code);
+	int *bytecode = INTEGER0(code);
+	int bytecode_size = LENGTH_0(code);
 
 	if (bytecode_size == 0)
-		error("Cannot compile empty bytecode.\n");
+		BC_ERROR("Cannot compile empty bytecode.\n");
 
 	// Skip the first member in the array, it is the version number
 	bytecode += 1;
 	bytecode_size -= 1;
 
-	SEXP *consts = DATAPTR(bcode_consts);
-	int consts_size = LENGTH(bcode_consts);
+	SEXP *consts = STDVEC_DATAPTR(bcode_consts);
+	int consts_size = LENGTH_0(bcode_consts);
 
 	if (recursive)
 	{
@@ -1972,8 +2305,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			if (opcode == MAKECLOSURE_BCOP)
 			{
 				SEXP fb = consts[opargs[0]];
-				SEXP closure_formals = VECTOR_ELT(fb, 0);
-				SEXP body = VECTOR_ELT(fb, 1);
+				SEXP closure_formals = VECTOR_ELT_0(fb, 0);
+				SEXP body = VECTOR_ELT_0(fb, 1);
 
 				if (TYPEOF(body) == BCODESXP)
 				{
@@ -1994,41 +2327,126 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				else
 				{
-					error("Invalid closure type: %d\n", TYPEOF(body));
+					BC_ERROR("Invalid closure type: %d\n", TYPEOF(body));
 				}
 				DEBUG_PRINT("**********\nClosure compiled\n");
 			}
-#ifdef RCP_COMPILE_PROMISES
-			else if (opcode == MAKEPROM_BCOP)
+			else if (opcode == MAKEPROM_BCOP && compile_promises)
 			{
 				SEXP body = consts[opargs[0]];
 
-				if (TYPEOF(body) == BCODESXP)
+				switch (TYPEOF(body))
 				{
-					DEBUG_PRINT("**********\nCompiling promise\n");
-					// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
-					// Should not be needed, constpool is ours
-					closure_counter++;
-					char closure_name_buf[256];
-					const char *base_name = name ? name : "promise";
-					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
-							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
-					// consts[opargs[0]] does not seem to work
-					// it seems that it does not propely handle GC
-					SET_VECTOR_ELT(bcode_consts, opargs[0], res);
+					case BCODESXP:
+					{
+						DEBUG_PRINT("**********\nCompiling promise\n");
+						// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
+						// Should not be needed, constpool is ours
+						closure_counter++;
+						char closure_name_buf[256];
+						const char *base_name = name ? name : "promise";
+						snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
+								 base_name, closure_counter);
+						SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
+						// consts[opargs[0]] does not seem to work
+						// it seems that it does not propely handle GC
+						SET_VECTOR_ELT(bcode_consts, opargs[0], res);
+						DEBUG_PRINT("**********\nPromise compiled\n");
+						break;
+					}
+					case LANGSXP:
+					case SYMSXP:
+					{
+						/* Promise body is an unevaluated AST expression (LANGSXP call
+						   or SYMSXP symbol) -- occurs in NSE contexts where the R
+						   bytecode compiler stores the original expression directly
+						   instead of compiling it to bytecode. Skip JIT compilation;
+						   it will be evaluated by the standard AST interpreter. */
+						DEBUG_PRINT("Skipping NSE promise (LANGSXP/SYMSXP body)\n");
+						break;
+					}
+					case EXTPTRSXP:
+					{
+						if (RSH_IS_CLOSURE_BODY(body))
+						{
+							DEBUG_PRINT("Using precompiled promise\n");
+							break;
+						}
+					}
+					default:
+					{
+						BC_ERROR("Invalid promise type: %d\n", TYPEOF(body));
+						break;
+					}
 				}
-				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
+			}
+		}
+
+		// The instruction scan above only reaches closures referenced by
+		// MAKECLOSURE / MAKEPROM. Closures loaded as plain constants via LDCONST
+		// are missed -- notably the inner `.local` closure the methods package
+		// wraps S4 methods in, whose body therefore went uncompiled.
+		// Make a second pass over the constant pool for those closure
+		// constants specifically. (MAKECLOSURE stores list(formals, body) and
+		// MAKEPROM stores a bytecode body, neither of which is a CLOSXP, so this
+		// pass does not overlap with the scan above.)
+		for (int ci = 0; ci < consts_size; ci++)
+		{
+			SEXP c = consts[ci];
+			if (LIKELY(TYPEOF(c) != CLOSXP))
+				continue;
+
+			int cov_on = (coverage_registry != R_NilValue);
+			int action = rcp_recomp_action(TYPEOF(BODY(c)) == BCODESXP);
+			if (action < 0)
+				continue; /* bc_recomp = FALSE: skip a not-already-compiled closure constant */
+
+			SEXP body = BODY(c);
+			int np = 0;
+			if (action == 1)
+			{
+				// (Re)compile the closure constant, reusing the BC compiler (which
+				// also records the srcrefs coverage needs). When coverage is on,
+				// compile at optimize = 1 so srcref-bearing instructions are not
+				// folded away.
+				SEXP copts = R_NilValue;
+				if (cov_on)
 				{
-					DEBUG_PRINT("Using precompiled promise\n");
+					copts = PROTECT(options_with_optimize(R_NilValue, 1));
+					np++;
 				}
+				SEXP compiled_clo = PROTECT(compile_to_bc(c, copts));
+				np++;
+				if (TYPEOF(BODY(compiled_clo)) == BCODESXP)
+					body = BODY(compiled_clo);
 				else
 				{
-					error("Invalid promise type: %d\n", TYPEOF(body));
+					if (np)
+						UNPROTECT(np);
+					continue;
 				}
-				DEBUG_PRINT("**********\nPromise compiled\n");
 			}
-#endif
+
+			DEBUG_PRINT("**********\nCompiling closure constant\n");
+			closure_counter++;
+			char closure_name_buf[256];
+			const char *base_name = name ? name : "closure";
+			snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_cloconst_%d",
+					 base_name, closure_counter);
+			SEXP res = PROTECT(copy_patch_bc(body, recursive, stats, closure_name_buf,
+											 coverage_registry, inner_hooks, FORMALS(c)));
+			// Replace the constant with a patched copy rather than mutating in
+			// place, since the constant closure may be shared.
+			SEXP new_clo = PROTECT(Rf_duplicate(c));
+			SET_BODY(new_clo, res);
+			SET_VECTOR_ELT(bcode_consts, ci, new_clo);
+			UNPROTECT_SAFE(new_clo);
+			DEBUG_PRINT("**********\nClosure constant compiled\n");
+
+			UNPROTECT_SAFE(res);
+
+			if (np)
+				UNPROTECT(np);
 		}
 	}
 
@@ -2043,7 +2461,13 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	/* ALL PLUGINS MUST BE ADDED HERE */
 
 	if (coverage_registry != R_NilValue)
-		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, name);
+	{
+		// Caller protects the argument SEXP for the duration of the call, like the
+		// other SEXP arguments srcref_coverage receives.
+		SEXP func_name_char = PROTECT(Rf_mkChar(name ? name : ""));
+		srcref_coverage(code, bcode_consts, &plugins, coverage_registry, func_name_char);
+		UNPROTECT_SAFE(func_name_char);
+	}
 
 	if (hooks_registry != R_NilValue)
 		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
@@ -2052,9 +2476,16 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
 	// add_plugin_stencil_instr(&plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_MYATEXIT, NULL);
 
+	if (stencil_exec_counts != NULL)
+		count_instructions(bytecode, bytecode_size, &plugins);
+
 	/******************************** */
 
-	qsort((void *)plugins.sparse_stencils, plugins.sparse_stencils_count, sizeof(PluginStencil), plugin_stencil_pos_cmp);
+	// qsort does no work-saving on already-sorted input, so only sort when an
+	// out-of-order insert was flagged while building the array (e.g. coverage-only
+	// compilation emits strictly increasing positions and skips the sort).
+	if (plugins.needs_sort)
+		qsort((void *)plugins.sparse_stencils, plugins.sparse_stencils_count, sizeof(PluginStencil), plugin_stencil_pos_cmp);
 
 	rcp_exec_ptrs res = copy_patch_internal(bytecode, bytecode_size, consts, consts_size, plugins.sparse_stencils, plugins.sparse_stencils_count, bbs, stats, name);
 	UNPROTECT_SAFE(code);
@@ -2072,7 +2503,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
 	UNPROTECT_SAFE(prot); // prot
 	PROTECT(ptr);
-	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, TRUE);
+	// We do not free structures if R is shutting down, there will be memory leaks.
+	R_RegisterCFinalizerEx(ptr, &rcp_finalizer, FALSE);
 	UNPROTECT_SAFE(ptr); // ptr
 	return ptr;
 }
@@ -2104,6 +2536,64 @@ SEXP C_rcp_is_compiled(SEXP closure)
 	return Rf_ScalarLogical(TRUE);
 }
 
+static const char *guess_closure_name(SEXP f)
+{
+	SEXP env = CLOENV(f);
+	if (env == R_EmptyEnv || env == R_NilValue)
+		return NULL;
+
+	SEXP names = PROTECT(R_lsInternal3(env, TRUE, FALSE));
+	int n = LENGTH(names);
+	const char *sym_name = NULL;
+
+	for (int i = 0; i < n; i++)
+	{
+		const char *s = CHAR(STRING_ELT(names, i));
+		SEXP val = Rf_findVarInFrame(env, Rf_install(s));
+		if (val == f)
+		{
+			sym_name = s;
+			break;
+		}
+	}
+	UNPROTECT(1); // names
+
+	if (sym_name == NULL)
+		return NULL;
+
+	const char *prefix = NULL;
+	int prefix_len = 0;
+	char env_buf[32];
+
+	if (R_IsNamespaceEnv(env))
+	{
+		prefix = CHAR(STRING_ELT(R_NamespaceEnvSpec(env), 0));
+		prefix_len = strlen(prefix) + 2; // "pkg::"
+	}
+	else if (env == R_GlobalEnv)
+	{
+		prefix = NULL;
+		prefix_len = 0;
+	}
+	else
+	{
+		snprintf(env_buf, sizeof(env_buf), "__%p", (void *)env);
+		prefix = env_buf;
+		prefix_len = strlen(env_buf) + 2; // "__0x...::sym"
+	}
+
+	int sym_len = strlen(sym_name);
+	int total = (prefix ? prefix_len : 0) + sym_len + 1;
+	char *result = R_alloc(total, 1);
+
+	if (prefix && env != R_GlobalEnv)
+		snprintf(result, total, "%s::%s", prefix, sym_name);
+	else
+		snprintf(result, total, "%s", sym_name);
+
+	return result;
+}
+
 SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 {
 	DEBUG_PRINT("Starting to JIT a function...\n");
@@ -2113,10 +2603,17 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	SEXP coverage_registry = R_NilValue;
 
-	SEXP coverage_option = Rf_GetOption1(Rf_install("rcp.cmpfun.coverage"));
-	int attach_coverage = (TYPEOF(coverage_option) == LGLSXP && LOGICAL(coverage_option)[0] == TRUE);
-	if (attach_coverage)
+	if (is_option_true("rcp.cmpfun.coverage"))
 	{
+		SEXP old_option = Rf_GetOption1(Rf_install("keep.source"));
+		PROTECT(old_option);
+		set_option("keep.source", ScalarLogical(TRUE));
+
+		compile_promises = get_option_or_default("rcp.cmpfun.compile_promises", TRUE);
+		if (!compile_promises)
+		{
+			warning("Coverage recording requested, but promise compilation is forced disabled. Results will not be accurate.");
+		}
 		// Get the covr namespace environment
 		SEXP covr_ns = PROTECT(R_FindNamespace(Rf_mkString("covr")));
 		// Get the .counters variable from covr namespace
@@ -2125,17 +2622,22 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		UNPROTECT_SAFE(counters_promise);
 		UNPROTECT_SAFE(covr_ns);
 
+		set_option("keep.source", old_option);
+		UNPROTECT_SAFE(old_option);
+
 		if (coverage_registry == R_UnboundValue || coverage_registry == R_NilValue)
 		{
-			error("covr package not found or .counters variable not found. Coverage data will not be attached.\n");
+			error("Cannot find covr:::.counters. Install covr package if you wish to record coverage.\n");
 		}
+	}
+	else
+	{
+		compile_promises = get_option_or_default("rcp.cmpfun.compile_promises", RCP_COMPILE_PROMISES);
 	}
 
 	// R option "rcp.entry_exit_hooks"
 	SEXP hooks_registry = R_NilValue;
-	SEXP entry_exit_hooks = Rf_GetOption1(Rf_install("rcp.cmpfun.entry_exit_hooks"));
-	int attach_entry_exit_hooks = (TYPEOF(entry_exit_hooks) == LGLSXP && LOGICAL(entry_exit_hooks)[0] == TRUE);
-	if (attach_entry_exit_hooks)
+	if (is_option_true("rcp.cmpfun.entry_exit_hooks"))
 	{
 		// Reuse existing .rcp_hooks environment if already present, otherwise create it
 		SEXP existing_hooks = Rf_findVarInFrame(R_GlobalEnv, Rf_install(".rcp_hooks"));
@@ -2156,101 +2658,118 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 		}
 	}
 
-#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
-	if (options == R_NilValue)
-	{
-		// Create the options list with optimize = 3
-		options = PROTECT(Rf_allocVector(VECSXP, 1));
-		SEXP optimize_value = PROTECT(Rf_ScalarInteger(BC_DEFAULT_OPTIMIZE_LEVEL));
-		SET_VECTOR_ELT(options, 0, optimize_value);
-		UNPROTECT(1); // optimize_value
-
-		// Set the names for the options list
-		SEXP options_names = PROTECT(Rf_allocVector(STRSXP, 1));
-		SET_STRING_ELT(options_names, 0, Rf_mkChar("optimize"));
-		Rf_setAttrib(options, R_NamesSymbol, options_names);
-		UNPROTECT(1); // options_names
-	}
-	else
-		PROTECT(options); // To balance PROTECT/UNPROTECT
-#endif
-
-	struct timespec start, mid, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
-	CompilationStats stats = {0, 0};
 	const char *name = "<unknown>";
 
-	if (options != R_NilValue)
+	SEXP name_element = Rf_getAttrib(options, R_NamesSymbol);
+	if (TYPEOF(name_element) == STRSXP)
 	{
-		if (TYPEOF(options) == VECSXP)
+		for (int i = 0; i < LENGTH(name_element); i++)
 		{
-			SEXP name_element = Rf_getAttrib(options, R_NamesSymbol);
-			if (name_element != R_NilValue && TYPEOF(name_element) == STRSXP)
+			if (strcmp(CHAR(STRING_ELT(name_element, i)), "name") == 0)
 			{
-				int name_index = -1;
-				for (int i = 0; i < LENGTH(name_element); i++)
+				SEXP name_sexp = VECTOR_ELT(options, i);
+				if (TYPEOF(name_sexp) == STRSXP && LENGTH(name_sexp) == 1)
 				{
-					if (strcmp(CHAR(STRING_ELT(name_element, i)), "name") == 0)
-					{
-						SEXP name_sexp = VECTOR_ELT(options, i);
-						if (TYPEOF(name_sexp) == STRSXP && LENGTH(name_sexp) == 1)
-						{
-							name = CHAR(STRING_ELT(name_sexp, 0));
-						}
-						break;
-					}
+					name = CHAR(STRING_ELT(name_sexp, 0));
+					DEBUG_PRINT("Using function name from options: %s\n", name);
 				}
+				break;
 			}
 		}
-		else
+	}
+
+	if (strcmp(name, "<unknown>") == 0)
+	{
+		const char *guessed = guess_closure_name(f);
+		if (guessed != NULL)
 		{
-			Rf_error("options must be either NULL or a list");
+			name = guessed;
 		}
 	}
 
 	DEBUG_PRINT("Compiling %s to bytecode...\n", name);
 
+	struct timespec start, end;
+	double elapsed_time_mid, elapsed_time;
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
 	SEXP compiled;
-	if (TYPEOF(BODY(f)) == BCODESXP)
+	int cov_on = (coverage_registry != R_NilValue);
+
+	// Coverage needs (re)compilation at optimize=1 to keep srcref-bearing
+	// instructions. If recompilation is forced off, that cannot happen, so warn.
+	if (cov_on && get_bc_recomp() == FALSE)
 	{
-		DEBUG_PRINT("Function is already bytecode, skipping compilation.\n");
-		compiled = f;
+		static int warned_recomp_off_coverage = 0;
+		if (!warned_recomp_off_coverage)
+		{
+			warned_recomp_off_coverage = 1;
+			Rf_warning("rcp.cmpfun.bc_recomp = FALSE with coverage enabled: "
+					   "functions that are not already byte-compiled are skipped, "
+					   "and already-compiled ones are not recompiled at optimize=1, "
+					   "so coverage may be incomplete or inaccurate.");
+		}
+	}
+
+	int action = rcp_recomp_action(TYPEOF(BODY(f)) == BCODESXP);
+	if (action < 0)
+	{
+		// rcp.cmpfun.bc_recomp = FALSE and f is not already bytecode: leave it.
+		DEBUG_PRINT("rcp.cmpfun.bc_recomp = FALSE: skipping non-compiled function.\n");
+		return f;
+	}
+	if (action == 1)
+	{
+		// When coverage is on, any compilation that happens uses optimize = 1 so
+		// the compiler keeps the srcref-bearing instructions coverage relies on
+		// (no inlining / constant-folding away of branches). Otherwise compile
+		// with the caller's options unchanged.
+		SEXP comp_options = options;
+		int prot = 0;
+		if (cov_on)
+		{
+			comp_options = PROTECT(options_with_optimize(options, 1));
+			prot = 1;
+		}
+#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
+		else if (options == R_NilValue)
+		{
+			comp_options = PROTECT(options_with_optimize(R_NilValue, BC_DEFAULT_OPTIMIZE_LEVEL));
+			prot = 1;
+		}
+#endif
+		compiled = compile_to_bc(f, comp_options);
+		if (prot)
+			UNPROTECT(prot);
+		if (TYPEOF(BODY(compiled)) != BCODESXP)
+		{
+			DEBUG_PRINT("The BC compiler could not compile this function. Returning original function.\n");
+			return f;
+		}
+
+		struct timespec mid;
+		clock_gettime(CLOCK_MONOTONIC, &mid);
+		elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 +
+						   (mid.tv_nsec - start.tv_nsec) / 1000000.0;
+		DEBUG_PRINT("Bytecode compilation finished.\n");
 	}
 	else
 	{
-		compiled = compile_to_bc(f, options);
+		DEBUG_PRINT("Function is already bytecode compiled, skipping compilation.\n");
+		compiled = f;
+		elapsed_time_mid = 0;
 	}
-#ifdef BC_DEFAULT_OPTIMIZE_LEVEL
-	UNPROTECT(1); // options
-#endif
-
-	if (TYPEOF(BODY(compiled)) != BCODESXP)
-	{
-		DEBUG_PRINT("The BC compiler could not compile this function.");
-		return f;
-	}
-
-	DEBUG_PRINT("Bytecode compilation finished.\n");
 
 	PROTECT(compiled);
-
-	clock_gettime(CLOCK_MONOTONIC, &mid);
+	CompilationStats stats = {0, 0};
 	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled));
 	SET_BODY(compiled, ptr);
+
 	clock_gettime(CLOCK_MONOTONIC, &end);
-	UNPROTECT(1); // compiled
+	elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 +
+				   (end.tv_nsec - start.tv_nsec) / 1000000.0;
 
-	double elapsed_time = (end.tv_sec - start.tv_sec) * 1000.0 +
-						  (end.tv_nsec - start.tv_nsec) / 1000000.0;
-	double elapsed_time_mid = (mid.tv_sec - start.tv_sec) * 1000.0 +
-							  (mid.tv_nsec - start.tv_nsec) / 1000000.0;
-
-	// Check if R option "rcp.cmpfun.stats" is set to TRUE
-	SEXP stats_option = Rf_GetOption1(Rf_install("rcp.cmpfun.stats"));
-	int attach_stats =
-		(stats_option != R_NilValue && LOGICAL(stats_option)[0] == TRUE);
-
-	if (attach_stats)
+	if (is_option_true("rcp.cmpfun.stats"))
 	{
 		stats_values[0] = (double)stats.total_size;
 		stats_values[1] = (double)stats.executable_size;
@@ -2289,6 +2808,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 					elapsed_time - elapsed_time_mid);
 	}
 
+	UNPROTECT_SAFE(compiled);
 	return compiled;
 }
 
@@ -2594,7 +3114,7 @@ SEXP C_rcp_jit_disable()
 SEXP C_rcp_get_profiling(void)
 {
 #ifdef PROFILE_STENCILS
-	const size_t num_opcodes = sizeof(OPCODES_NAMES) / sizeof(*OPCODES_NAMES);
+	const size_t num_opcodes = NUM_OPCODES;
 
 	// Create index array for sorting
 	size_t *sorted_indices = (size_t *)R_alloc(num_opcodes, sizeof(size_t));
@@ -2667,6 +3187,39 @@ SEXP C_rcp_get_profiling(void)
 #endif
 }
 
+// Runtime per-instruction counting (independent of PROFILE_STENCILS). Enabling
+// allocates the counter vector on first use, then makes subsequent rcp_cmpfun
+// compilations instrument each instruction with the per-opcode counter plugin;
+// already-compiled functions are unaffected.
+SEXP C_rcp_count_enable(void)
+{
+	rcp_ensure_counts();
+	return R_NilValue;
+}
+
+SEXP C_rcp_count_disable(void)
+{
+    R_ReleaseObject(stencil_exec_counts);
+    stencil_exec_counts = NULL;
+	return R_NilValue;
+}
+
+SEXP C_rcp_count_reset(void)
+{
+	if (stencil_exec_counts != NULL)
+		memset(INTEGER0(stencil_exec_counts), 0, NUM_OPCODES * sizeof(int));
+	return R_NilValue;
+}
+
+// Return the live counter vector as-is: a named integer vector, opcode name ->
+// execution count, in opcode order. No copy or sorting -- callers that want a
+// stable snapshot or a different order do that in R. NULL if counting was never
+// enabled.
+SEXP C_rcp_get_counts(void)
+{
+	return stencil_exec_counts != NULL ? stencil_exec_counts : R_NilValue;
+}
+
 SEXP C_rcp_s3_generics_deactivated(void)
 {
 #ifdef DEACTIVATE_S3_GENERICS
@@ -2725,13 +3278,13 @@ SEXP C_rcp_get_types(void)
 			SEXP args_names = PROTECT(Rf_allocVector(STRSXP, rec->count + rec->dots_count));
 			for (size_t k = 0; k < rec->count; k++)
 			{
-				INTEGER(args_vec)
+				INTEGER0(args_vec)
 				[k] = rec->arguments[k];
 				if (k < trace->argument_count && trace->argument_names && trace->argument_names[k] != R_NilValue && TYPEOF(trace->argument_names[k]) == SYMSXP)
 					SET_STRING_ELT(args_names, k, PRINTNAME(trace->argument_names[k]));
 				else
 				{
-					char name_buf[16];
+					char name_buf[32];
 					snprintf(name_buf, sizeof(name_buf), "arg%zu", k + 1);
 					SET_STRING_ELT(args_names, k, Rf_mkChar(name_buf));
 				}
@@ -2739,7 +3292,7 @@ SEXP C_rcp_get_types(void)
 			for (size_t k = 0; k < rec->dots_count; k++)
 			{
 				size_t idx = rec->count + k;
-				INTEGER(args_vec)
+				INTEGER0(args_vec)
 				[idx] = rec->dots_types[k];
 				if (rec->dots_names[k] != R_NilValue && TYPEOF(rec->dots_names[k]) == SYMSXP)
 				{
@@ -2911,7 +3464,7 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 		}
 		else
 		{
-			char name_buf[16];
+			char name_buf[32];
 			snprintf(name_buf, sizeof(name_buf), "arg%zu", c + 1);
 			SET_STRING_ELT(col_names, c, Rf_mkChar(name_buf));
 		}
@@ -2958,7 +3511,7 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 	// dots_count column
 	SEXP dots_count_col = PROTECT(Rf_allocVector(INTSXP, nrows));
 	for (size_t r = 0; r < nrows; r++)
-		INTEGER(dots_count_col)
+		INTEGER0(dots_count_col)
 	[r] = (int)trace->types[r].dots_count;
 	SET_VECTOR_ELT(df, ncols - 2, dots_count_col);
 	UNPROTECT(1); // dots_count_col
@@ -2977,9 +3530,9 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 
 	// Set row.names: 1:nrows
 	SEXP row_names = PROTECT(Rf_allocVector(INTSXP, 2));
-	INTEGER(row_names)
+	INTEGER0(row_names)
 	[0] = NA_INTEGER;
-	INTEGER(row_names)
+	INTEGER0(row_names)
 	[1] = -(int)nrows;
 	Rf_setAttrib(df, R_RowNamesSymbol, row_names);
 	UNPROTECT(1); // row_names
@@ -3045,23 +3598,35 @@ void __attribute__((used)) rcp_print_stack_val(void *p)
 			break;
 		case ISQSXP:
 		{
-			int *seqinfo = INTEGER(v.u.sxpval);
-			Rprintf("ISQ: %d,%d\n", seqinfo[0], seqinfo[1]);
+			Rsh_isqinfo_t seqinfo = v.u.isqval;
+			Rprintf("ISQ: %d,%d\n", seqinfo.n1, seqinfo.n2);
 			break;
 		}
+		case 0:
+			Rf_PrintValue(v.u.sxpval);
+			break;
 		default:
-			// Assume boxed SEXP
-			// Rprintf("Tag %d: ", v.tag); // Debugging
-			if (v.u.sxpval)
-				Rf_PrintValue(v.u.sxpval);
-			else
-				Rprintf("NULL SEXP\n");
+			Rprintf("Unknown tag %d\n", v.tag);
+			break;
 	}
+}
+
+void __attribute__((used)) rcp_print_stack_val_unbox(void *p)
+{
+	if (!p)
+	{
+		Rprintf("Stack value is NULL\n");
+		return;
+	}
+	R_bcstack_t v = *(R_bcstack_t *)p;
+	val_unbox_inplace(&v, 1, 1, 1, 1);
+
+	rcp_print_stack_val(&v);
 }
 
 SEXP rcp_init(void)
 {
-	refresh_near_memory_ptr(0);
+	init_near_memory_ptr();
 
 	rcp_gdb_jit_enabled = (getenv("RCP_GDB_JIT") != NULL);
 	rcp_perf_jit_enabled = (getenv("RCP_PERF_JIT") != NULL);
@@ -3069,6 +3634,24 @@ SEXP rcp_init(void)
 		perf_jit_init();
 
 	prepare_shared_memory();
+
+	// Preserve a single shared length-0 INTSXP reused across all compilations
+	empty_intsxp = allocVector(INTSXP, 0);
+	R_PreserveObject(empty_intsxp);
+
+	// Preserve the shared coverage entry names vector built once for all calls.
+	// Protect during construction since mkChar may trigger a GC.
+	coverage_entry_names = PROTECT(allocVector(STRSXP, 3));
+	SET_STRING_ELT(coverage_entry_names, 0, mkChar("value"));
+	SET_STRING_ELT(coverage_entry_names, 1, mkChar("srcref"));
+	SET_STRING_ELT(coverage_entry_names, 2, mkChar("functions"));
+	R_PreserveObject(coverage_entry_names);
+	MARK_NOT_MUTABLE(coverage_entry_names); // shared across all entries; never modify
+	UNPROTECT(1);
+
+	// Resolve the symbols srcref_coverage needs (permanently rooted, no preserve).
+	coverage_srcfile_sym = install("srcfile");
+	coverage_filename_sym = install("filename");
 
 	prepare_active_holes();
 
@@ -3090,6 +3673,19 @@ SEXP rcp_init(void)
 	return R_NilValue;
 }
 
+#ifndef RCP_GIT_COMMIT
+#define RCP_GIT_COMMIT "NA"
+#endif
+
+SEXP C_rcp_build_info(void)
+{
+	const char *names[] = {"git_commit", ""};
+	SEXP info = PROTECT(Rf_mkNamed(VECSXP, names));
+	SET_VECTOR_ELT(info, 0, mkString(RCP_GIT_COMMIT));
+	UNPROTECT_SAFE(info);
+	return info;
+}
+
 void rcp_destr(void)
 {
 	if (rcp_perf_jit_enabled)
@@ -3099,6 +3695,18 @@ void rcp_destr(void)
 	{
 		R_ReleaseObject(mem_shared_sexp);
 		mem_shared_sexp = NULL;
+	}
+
+	if (empty_intsxp != NULL)
+	{
+		R_ReleaseObject(empty_intsxp);
+		empty_intsxp = NULL;
+	}
+
+	if (coverage_entry_names != NULL)
+	{
+		R_ReleaseObject(coverage_entry_names);
+		coverage_entry_names = NULL;
 	}
 
 	if (original_cmpfun != NULL)

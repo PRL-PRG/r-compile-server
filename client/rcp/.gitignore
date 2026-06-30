@@ -5,8 +5,11 @@
 .Rhistory
 .vscode/
 perf.data
-/rcp/benchmark-results
+# All local measurement output (benchmark timings, profiling counts, ...).
+/rcp/measurements/
 /rcp/src/stencils/.stencils_flags
 /rcp/tests/perf/*.old
 /rcp/tests/perf/*.data
 /rcp/tests/perf/profile.json.gz
+/rcp/.install-stamp
+/rcp/.install-stamp.cfg

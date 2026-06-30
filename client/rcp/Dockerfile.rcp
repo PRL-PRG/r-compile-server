@@ -10,3 +10,7 @@ RUN git clone https://github.com/PRL-PRG/rcp.git /rcp && \
 WORKDIR /rcp/rcp
 
 RUN make
+
+# The CRAN package benchmarks (packages + generated cran/ group) are provisioned
+# and cached in the rcp-rsh base image; `make benchmark` here runs them
+# alongside the synthetic suites with no further setup.

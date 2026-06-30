@@ -205,7 +205,7 @@ export_body(std::ostream &file, const StencilExport &stencil,
 			const char *opcode_name,
 			const std::vector<StencilExport> &functions_not_inlined)
 {
-	file << std::format("Hole _{}_HOLES[] = {{\n", opcode_name);
+	file << std::format("Hole _{}_HOLES[{}] = {{\n", opcode_name, stencil.holes.size());
 	for (const auto &hole : stencil.holes)
 	{
 		file << std::format("{{ .offset = 0x{:x}, .addend = {}, .size = {}, .kind "
@@ -254,7 +254,7 @@ export_body(std::ostream &file, const StencilExport &stencil,
 
 	file << "};\n\n";
 
-	file << std::format("uint8_t _{}_BODY[] = {{\n", opcode_name);
+	file << std::format("uint8_t _{}_BODY[{}] = {{\n", opcode_name, stencil.body.size());
 	print_byte_array(file, stencil.body.data(), stencil.body.size());
 	file << "\n};\n\n";
 }
@@ -562,7 +562,8 @@ static void export_opcode_stencil_bodies(std::ostream &c_file,
 	{
 		if (!current.stencils.empty())
 		{
-			h_file << current.extra_string << "\n";
+			if (!current.extra_string.empty())
+				h_file << current.extra_string << "\n";
 
 			for (const auto &stencil : current.stencils)
 			{
@@ -870,6 +871,8 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#include \"runtime_internals.h\"\n";
 	c_file << "#define RSH_EXTERN_HELPERS\n";
 	c_file << "#include <runtime.h>\n";
+	c_file << "#undef NDEBUG\n"; // Ensure assert() is available if used in generated code
+	c_file << "#include <assert.h>\n";
 	c_file << "#undef RSH_EXTERN_HELPERS\n";
 	// runtime.h redefines R_NaInt etc. as macros; undo so &R_NaInt remains an lvalue
 	c_file << "#undef R_NaInt\n";
@@ -877,6 +880,14 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#undef R_PosInf\n";
 	c_file << "#undef R_NegInf\n";
 	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n\n";
+	// Under PROFILE_STENCILS the opcode stencils reference the global
+	// stencil_profile_info[] counter array (defined in compile.c) via the
+	// hard-coded PROFILING_START/END timing. Declare it so the generated
+	// relocation table resolves; guarded so non-profiling builds are unaffected.
+	c_file << "#ifdef PROFILE_STENCILS\n";
+	c_file << "struct StencilProfileInfo { size_t call_count; size_t total_cycles; };\n";
+	c_file << "extern struct StencilProfileInfo stencil_profile_info[];\n";
+	c_file << "#endif\n\n";
 
 	// Export stencil bodies (machine code + holes + FDEs)
 	export_opcode_stencil_bodies(c_file, h_file, stencils);
@@ -1096,7 +1107,7 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 			hole.kind = RELOC_RCP_EXEC_IMM;
 			hole.val.imm_pos = atoi(descr_imm);
 		}
-		else if (strcmp(descr, "CUSTOM_DATA") == 0)
+		else if (strcmp(descr, "CUSTOM_DATA_REL32") == 0 || strcmp(descr, "CUSTOM_DATA_ABS64") == 0)
 		{
 			hole.kind = RELOC_RCP_CUSTOM;
 		}
@@ -1479,15 +1490,16 @@ static void print_sizes(const Stencils &stencils)
 	size_t count = 0;
 	for (const auto &current : stencils.stencils_opcodes)
 	{
-		size_t size_specific = 0;
-		for (const auto &current : current.stencils)
-		{
-			size_specific += current.body.size();
-		}
-
 		if (!current.stencils.empty())
 		{
-			total_size += size_specific / current.stencils.size();
+			size_t size_specific = 0;
+			for (const auto &current : current.stencils)
+			{
+				size_specific += current.body.size();
+			}
+			size_specific /= current.stencils.size(); // Average size per stencil in this set
+
+			total_size += size_specific;
 			count++;
 		}
 	}

@@ -9,7 +9,6 @@
 // RELOC_RUNTIME_SYMBOL / RELOC_RUNTIME_SYMBOL_GOT infrastructure.
 
 #define RSH_INLINE // INLINE = always_inline (so helpers inline runtime.h internals)
-#define RCP
 
 #define RSH
 #ifndef USE_RINTERNALS

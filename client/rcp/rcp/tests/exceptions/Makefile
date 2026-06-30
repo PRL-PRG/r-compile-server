@@ -6,7 +6,7 @@ all: test
 
 test:
 	@echo "Running exception unwinding test..."
-	@$(R) --vanilla --quiet < test.R || exit 1
+	@$(RSCRIPT) --vanilla test.R || exit 1
 
 clean:
 	@rm -f *.Rout .RData

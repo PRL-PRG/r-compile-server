@@ -1,5 +1,21 @@
+.rcp_banner <- function() {
+  info <- .Call("C_rcp_build_info")
+  ver <- utils::packageVersion("rcp")
+  flags <- c(
+    if (nzchar(Sys.getenv("RCP_DUMP_DIR"))) paste0("dump:", Sys.getenv("RCP_DUMP_DIR")),
+    if (nzchar(Sys.getenv("RCP_GDB_JIT"))) "gdb",
+    if (nzchar(Sys.getenv("RCP_PERF_JIT"))) "perf"
+  )
+  flag_str <- if (length(flags)) paste0(" [", paste(flags, collapse = ", "), "]") else ""
+  packageStartupMessage(sprintf("rcp %s (%s)%s", ver, info$git_commit, flag_str))
+}
+
 .onLoad <- function(libname, pkgname) {
-  .Call("rcp_init");
+  .Call("rcp_init")
+}
+
+.onAttach <- function(libname, pkgname) {
+  .rcp_banner()
 }
 
 #' Compile a function
@@ -46,10 +62,54 @@ rcp_jit_disable <- function() {
 #' @return A list with counts of successfully compiled and failed functions
 #' @export
 rcp_cmppkg <- function(package) {
-  .Call(C_rcp_cmppkg, package)
+  invisible(.Call(C_rcp_cmppkg, package))
 }
 
-#' Get profiling data from RCP
+#' Enable runtime per-instruction counting
+#'
+#' Instruments functions compiled by [rcp_cmpfun()] *after* this call so each
+#' executed instruction increments a per-opcode counter, readable with
+#' [rcp_get_counts()]. Functions already compiled are unaffected. This is the
+#' lightweight, always-available counterpart to the cycle-level
+#' [rcp_get_profiling()] (which requires building RCP with the PROFILE_STENCILS
+#' macro).
+#'
+#' @export
+rcp_count_enable <- function() {
+  invisible(.Call(C_rcp_count_enable))
+}
+
+#' Disable runtime per-instruction counting
+#'
+#' @export
+rcp_count_disable <- function() {
+  invisible(.Call(C_rcp_count_disable))
+}
+
+#' Reset the runtime per-instruction counters to zero
+#'
+#' @export
+rcp_count_reset <- function() {
+  invisible(.Call(C_rcp_count_reset))
+}
+
+#' Get runtime per-instruction execution counts
+#'
+#' @return The live named integer vector mapping opcode name to execution count,
+#'   in opcode order (unsorted). Counts accumulate across all functions compiled
+#'   while counting was enabled; use [rcp_count_reset()] to clear them. Returns
+#'   `NULL` if counting was never enabled. The result aliases RCP's internal
+#'   buffer, so copy it (e.g. `c(rcp_get_counts())`) if you need a stable
+#'   snapshot across further execution.
+#' @export
+rcp_get_counts <- function() {
+  .Call(C_rcp_get_counts)
+}
+
+#' Get cycle-level profiling data from RCP
+#'
+#' Requires RCP built with the PROFILE_STENCILS macro; otherwise warns and
+#' returns NULL. For lightweight, always-available counting see [rcp_get_counts()].
 #'
 #' @export
 rcp_get_profiling <- function() {

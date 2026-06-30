@@ -1,5 +1,16 @@
 include ../common.mk
 
+# Select the copy-and-patch (RCP) variant of the R headers (rcp_exec_ptrs,
+# rcp_sharedmem_ptrs, rcpEval_locals, R_RcpFree, ...). This MUST go through
+# PKG_CPPFLAGS, not the `CFLAGS += -DRCP` in common.mk: `R CMD INSTALL` sets
+# CFLAGS itself and ignores a Makevars-level `CFLAGS +=`, so common.mk's define
+# reaches the stencils/shared libs (plain `make`) but NOT the package compile.
+# PKG_CPPFLAGS is applied to both C and C++ (rcp_exceptions.cpp) sources.
+PKG_CPPFLAGS += -DRCP
+
+RCP_GIT_COMMIT := $(shell git -C $(ROOT_DIR) rev-parse --short HEAD 2>/dev/null || echo NA)
+PKG_CFLAGS += -DRCP_GIT_COMMIT=\"$(RCP_GIT_COMMIT)\"
+
 OPENMP ?= 0
 
 ifneq ($(OPENMP),0)
@@ -7,8 +18,16 @@ ifneq ($(OPENMP),0)
   PKG_LIBS += -fopenmp
 endif
 
-ifneq ($(RCP_COMPILE_PROMISES),0)
-  PKG_CFLAGS += -DRCP_COMPILE_PROMISES
+RCP_COMPILE_PROMISES ?= 0
+
+PKG_CFLAGS += -DRCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES)
+
+# Per-stencil profiling (see common.mk). common.mk's `CFLAGS += -DPROFILE_STENCILS'
+# reaches the stencils/shared-lib (plain make) but NOT this package compile of
+# compile.c, which holds the stencil_profile_info[] storage and C_rcp_get_profiling.
+PROFILE_STENCILS ?= 0
+ifneq ($(PROFILE_STENCILS),0)
+  PKG_CFLAGS += -DPROFILE_STENCILS
 endif
 
 PKG_CFLAGS += $(DEFINE_FLAGS)
@@ -33,10 +52,29 @@ ifneq ($(SPECIALIZE_MAKEPROM),0)
   PKG_CFLAGS += -DMAKEPROM_SPECIALIZE
 endif
 
+# Assume the bytecode object is always valid: turns BC_ERROR checks into ASSUME
+# (hard-aborting in debug, optimized away in release). Off by default since it
+# removes the graceful error path for corrupt/unexpected bytecode.
+ASSUME_VALID_BC ?= 1
+ifneq ($(ASSUME_VALID_BC),0)
+  PKG_CFLAGS += -DASSUME_VALID_BC
+endif
+
 $(info --- CONFIG ---)
 $(info RSH_HOME=$(RSH_HOME))
 $(info R_HOME=$(R_HOME))
+$(info RCP_GIT_COMMIT=$(RCP_GIT_COMMIT))
+$(info OPENMP=$(OPENMP))
+$(info ASSUME_VALID_BC=$(ASSUME_VALID_BC))
+$(info PROFILE_STENCILS=$(PROFILE_STENCILS))
 $(info RCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES))
+$(info ALIGNMENT_LABELS=$(ALIGNMENT_LABELS))
+$(info ALIGNMENT_JUMPS=$(ALIGNMENT_JUMPS))
+$(info ALIGNMENT_LOOPS=$(ALIGNMENT_LOOPS))
+$(info MCMODEL=$(MCMODEL))
+$(info SPECIALIZE_STEPFOR=$(SPECIALIZE_STEPFOR))
+$(info SPECIALIZE_SWITCH=$(SPECIALIZE_SWITCH))
+$(info SPECIALIZE_MAKEPROM=$(SPECIALIZE_MAKEPROM))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build
@@ -51,9 +89,9 @@ OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o rcp_exceptions.
 # Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
 stencils-runtime.o: PKG_CFLAGS += -fno-omit-frame-pointer
 
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 ## targets
-## ------------------------------------------------------------------------ 
+## ------------------------------------------------------------------------
 
 .PHONY: force_check
 
@@ -63,11 +101,18 @@ $(SHLIB): $(SHARED_LIB)
 
 $(OBJECTS): $(STENCILS_H)
 
-$(STENCILS_H): $(EXTRACTOR) $(STENCILS_OBJ)
+$(STENCILS_H): $(EXTRACTOR) $(STENCILS_OBJ) $(STENCIL_DIFF)
+	@if [ -f $(STENCILS_BUILD_DIR)/stencils_data.c ]; then \
+		mv $(STENCILS_BUILD_DIR)/stencils_data.c $(STENCILS_BUILD_DIR)/stencils_data.c.old; \
+	fi
 	$(EXTRACTOR) $(STENCILS_OBJ) $(STENCILS_BUILD_DIR)
+	@$(STENCIL_DIFF) $(STENCILS_BUILD_DIR)/stencils_data.c.old $(STENCILS_BUILD_DIR)/stencils_data.c || true
 
 $(EXTRACTOR): force_check
 	$(MAKE) -C $(EXTRACTOR_DIR)
+
+$(STENCIL_DIFF): force_check
+	$(MAKE) -C $(STENCIL_DIFF_DIR)
 
 $(STENCILS_OBJ): force_check
 	$(MAKE) -C $(STENCILS_DIR)
@@ -78,6 +123,7 @@ $(SHARED_LIB):
 .PHONY: clean
 clean:
 	$(MAKE) -C $(EXTRACTOR_DIR) clean
+	$(MAKE) -C $(STENCIL_DIFF_DIR) clean
 	$(MAKE) -C $(STENCILS_DIR) clean
 	$(MAKE) -C $(SHARED_LIB_DIR) clean
 	rm -f *.o *.so

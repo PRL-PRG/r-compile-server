@@ -18,6 +18,13 @@ test_dotcall_str <- rcp::rcp_cmpfun(
 stopifnot(isTRUE(test_dotcall_str(test_dotcall)))
 stopifnot(isFALSE(test_dotcall_str(function() 1)))
 
+# Test .Call with string and no PACKAGE (fallback path via do_dotcall)
+test_dotcall_no_pkg <- rcp::rcp_cmpfun(
+    function(x) .Call("rcp_is_compiled", x),
+    list(name="test_dotcall_no_pkg"))
+stopifnot(isTRUE(test_dotcall_no_pkg(test_dotcall)))
+stopifnot(isFALSE(test_dotcall_no_pkg(function() 1)))
+
 # Test DOTCALL with 0 args
 test_dotcall_0 <- rcp::rcp_cmpfun(
     function() .Call(rcp:::C_rcp_dwarf_support),

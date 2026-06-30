@@ -239,8 +239,10 @@ extern "C"
 #define DW_FORM_ref4		 0x13
 
 // DWARF Expression Operations (location descriptions)
-#define DW_OP_reg4 0x54 // RSI
-#define DW_OP_reg5 0x55 // RDI
+#define DW_OP_reg3	0x53 // RBX
+#define DW_OP_reg4	0x54 // RSI
+#define DW_OP_reg5	0x55 // RDI
+#define DW_OP_reg14 0x5E // R14
 
 // Line Number Standard Opcodes
 #define DW_LNS_copy			1
