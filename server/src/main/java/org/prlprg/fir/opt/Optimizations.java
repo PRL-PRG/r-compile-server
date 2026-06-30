@@ -52,13 +52,15 @@ public class Optimizations {
                         new ElideRedundantAssumeLoad(),
                         new ElideTrivialCast(),
                         new ElideUseSubscriptWrite(),
-                        new SpecializeNonReflectiveEnv(),
-                        new ElideEnv(),
                         new StaticClosure(),
                         new OptimizeCallee(threshold),
                         new ResolveDynamicCallee(),
                         new ResolveLoad(),
                         new ImproveSignatures()),
+                    new Specialize(
+                        "specializeEnv",
+                        new SpecializeNonReflectiveEnv(),
+                        new ElideEnv()), // must be in a pass after `ElideDeadStore`
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),
                     new UnboxPhi(),
