@@ -13,7 +13,7 @@ import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Variable;
-import org.prlprg.fir.opt.AbstractionOptimization;
+import org.prlprg.fir.opt.Optimization;
 import org.prlprg.fir.opt.Specialize;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideEnv;
@@ -30,10 +30,10 @@ import org.prlprg.parseprint.Printer;
 /// accesses it reflectively at runtime (recorded as feedback), not on the static annotation.
 class OptimizationBehaviorTest {
   /// Speculate envs with the collected feedback and resolve loads
-  private static final AbstractionOptimization SPECULATE_AND_RESOLVE =
+  private static final Optimization SPECULATE_AND_RESOLVE =
       new Specialize("envOpts", new SpecializeNonReflectiveEnv(), new ResolveLoad());
-  /// Remove dead stores and elide unused environments
-  private static final AbstractionOptimization ELIDE =
+  /// Remove dead stores, then elide unused environments
+  private static final Optimization ELIDE =
       new Specialize("envOpts", new ElideDeadStore(), new ElideEnv());
 
   /// Common test logic
@@ -53,7 +53,7 @@ class OptimizationBehaviorTest {
     registerBuiltins(interpreter);
 
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main")));
-    var baseline = main.baseline();
+    var feedback = interpreter.feedback();
 
     var before = new Value[1];
     var after = new Value[1];
@@ -64,8 +64,7 @@ class OptimizationBehaviorTest {
         interpreter.checkpointTrace().track(() -> before[0] = interpreter.call("main"));
 
     // First optimizations
-    var feedback = interpreter.feedback().get(baseline);
-    SPECULATE_AND_RESOLVE.run(main, feedback, baseline);
+    SPECULATE_AND_RESOLVE.run(feedback, main);
 
     // Re-interpret the optimized function
     var afterTrace = interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("main"));
@@ -78,7 +77,7 @@ class OptimizationBehaviorTest {
     speculateConditions.accept(printed);
 
     // Second optimizations (new feedback doesn't matter)
-    ELIDE.run(main, feedback, baseline);
+    ELIDE.run(feedback, main);
 
     // Re-interpret again
     afterTrace = interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("main"));
@@ -98,7 +97,6 @@ class OptimizationBehaviorTest {
   /// environment may be reflectively accessed.
   @Test
   void nonReflectiveCalleeMarksEnvNonReflectiveAndResolvesLoads() {
-    // TODO(llm): why is env not elided?
     assertOptimizationBehavior(
         """
         fun main() {
@@ -138,7 +136,6 @@ class OptimizationBehaviorTest {
   /// the binding).
   @Test
   void reflectiveCalleeKeepsEnvReflectiveAndLeavesLoads() {
-    // TODO(llm): fix origin analysis to not elide in reflective environments
     assertOptimizationBehavior(
         """
         fun main() {
@@ -233,10 +230,6 @@ class OptimizationBehaviorTest {
   /// promise is strict, so the second load can be resolved.
   @Test
   void nonReflectiveCalleeMarksEnvNonReflectiveAndResolvesDefinitelyStoredLoad() {
-    // TODO(llm): improve origin analysis so a promise only used in a struct function has its
-    //  sub-analysis run immediately before the function, and entirely replaces the outer state
-    //  instead of merging (because the promise always runs;
-    //  multiple promise arguments are run in the order they're passed)
     assertOptimizationBehavior(
         """
         fun main() {
@@ -263,9 +256,10 @@ class OptimizationBehaviorTest {
           assertFalse(
               printed.contains("t = ld x"),
               "first load should be resolved after definite store; printed:\n" + printed);
-          assertTrue(
+          assertFalse(
               printed.contains("r = ld x"),
-              "second load should not be resolved after definite store; printed:\n" + printed);
+              "second load should be resolved after the strict promise's definite store; printed:\n"
+                  + printed);
         },
         printed -> {
           assertFalse(printed.contains("st x"), "stores should be elided; printed:\n" + printed);
