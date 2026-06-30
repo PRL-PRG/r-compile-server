@@ -5,6 +5,15 @@
 #include <stdint.h>
 #include <Rinternals.h>
 
+/* Sentinel stored in TypeRecord.arguments[i] / dots_types[i] when a formal (or
+   a ... element) is a missing argument (R_MissingArg: no default, not
+   supplied). The value equals R's NA_INTEGER (INT_MIN), so when it is written
+   into an integer vector it surfaces in R as NA -- matching injectr, which
+   records missing arguments as NA. This avoids mis-recording them as `symbol`.
+   We use the integer literal rather than the R_NaInt runtime global because the
+   JIT stencils cannot link ordinary R globals. */
+#define RCP_ARG_MISSING (-2147483647 - 1)
+
 typedef struct {
     int* arguments;
     SEXP* dots_names;

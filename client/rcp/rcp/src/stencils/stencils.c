@@ -297,7 +297,7 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 					SEXP dtag = TAG(d);
 					SEXP dval = CAR(d);
 					rec->dots_names[di] = dtag;
-					rec->dots_types[di] = rcp_value_type(dval);
+					rec->dots_types[di] = (dval == R_MissingArg) ? RCP_ARG_MISSING : rcp_value_type(dval);
 				}
 			}
 			continue;
@@ -306,7 +306,11 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 		if (i >= nargs)
 			continue;
 
-		rec->arguments[i] = rcp_binding_type(f);
+		// A missing argument (no default, not supplied) appears as R_MissingArg
+		// in the frame. Record RCP_ARG_MISSING (== NA_INTEGER) so it serialises
+		// to NA, matching injectr, instead of being mis-recorded as `symbol`.
+		SEXP argval = rcp_binding_value(f);
+		rec->arguments[i] = (argval == R_MissingArg) ? RCP_ARG_MISSING : rcp_binding_type(f);
 
 		#ifdef RCP_TRACE
 			if (tag != R_NilValue && TYPEOF(tag) == SYMSXP) {

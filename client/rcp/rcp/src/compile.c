@@ -2897,7 +2897,7 @@ SEXP C_rcp_get_types_df(SEXP func_name_sexp)
 		for (size_t r = 0; r < nrows; r++)
 		{
 			TypeRecord *rec = &trace->types[r];
-			if (c < rec->count)
+			if (c < rec->count && rec->arguments[c] != RCP_ARG_MISSING)
 				SET_STRING_ELT(col, r, Rf_mkChar(Rf_type2char(rec->arguments[c])));
 			else
 				SET_STRING_ELT(col, r, NA_STRING);
