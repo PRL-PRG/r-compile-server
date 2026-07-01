@@ -580,7 +580,7 @@ typedef struct
 } PatchContext;
 
 static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
-				  const Hole *hole, int hole_id, int *imms, int nextop,
+				  const Hole *hole, int hole_id, int *imms, void *continue_to,
 				  void *custom_ptr, const PatchContext *ctx)
 {
 	ptrdiff_t ptr;
@@ -632,7 +632,7 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 		break;
 		case RELOC_RCP_EXEC_NEXT:
 		{
-			ptr = (ptrdiff_t)ctx->executable_lookup[nextop];
+			ptr = (ptrdiff_t)continue_to;
 			assert(ptr != 0);
 		}
 		break;
@@ -1551,7 +1551,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 						patch(stepfor_mem->src[a], stepfor_mem->dst, bc_pos,
 							  &STEPFOR_OP_stencils[a], &STEPFOR_OP_stencils[a].holes[j], j,
 							  &bytecode[stepfor_bc + 1],
-							  stepfor_bc + RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1, NULL,
+							  ctx.executable_lookup[stepfor_bc + RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1], NULL,
 							  &ctx);
 
 				smc_variants = stepfor_mem;
@@ -1624,7 +1624,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 			memcpy(pos, plugin_stencil->body, plugin_stencil->body_size);
 			for (size_t k = 0; k < plugin_stencil->holes_size; ++k)
-				patch(pos, pos, bc_pos, plugin_stencil, &plugin_stencil->holes[k], k, opargs, bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, plugin->data, &ctx);
+				patch(pos, pos, bc_pos, plugin_stencil, &plugin_stencil->holes[k], k, opargs, pos + plugin_stencil->body_size, plugin->data, &ctx);
 			pos += plugin_stencil->body_size;
 		}
 
@@ -1634,7 +1634,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 		// Patch the holes
 		for (size_t j = 0; j < stencil->holes_size; ++j)
-			patch(pos, pos, bc_pos, stencil, &stencil->holes[j], j, opargs, bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1, smc_variants, &ctx);
+			patch(pos, pos, bc_pos, stencil, &stencil->holes[j], j, opargs, ctx.executable_lookup[bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1], smc_variants, &ctx);
 
 		pos += stencil->body_size;
 	}
