@@ -126,4 +126,19 @@ public class MockModuleFeedback implements ModuleFeedback {
   public String toString() {
     return Printer.toString(this);
   }
+
+  /// Two feedbacks are equal iff they record the same feedback for the same functions.
+  ///
+  /// Compared via the printed representation, which is keyed by function name and signature rather
+  /// than [Abstraction] identity, so it's stable across separately-built modules (e.g. comparing an
+  /// optimized module's eval feedback against the unoptimized oracle's).
+  @Override
+  public boolean equals(Object o) {
+    return o instanceof MockModuleFeedback other && toString().equals(other.toString());
+  }
+
+  @Override
+  public int hashCode() {
+    return toString().hashCode();
+  }
 }
