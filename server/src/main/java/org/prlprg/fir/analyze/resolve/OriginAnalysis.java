@@ -110,7 +110,6 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   private final InferType inferType;
   private final InferEffects inferEffects;
   private final Map<Register, Argument> registerOrigins = new HashMap<>();
-  static long DBG_RUN_PROMISE = 0;
 
   /// Creates and runs the analysis.
   public OriginAnalysis(Abstraction scope) {
@@ -518,8 +517,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     /// Maybe-forces `po`: it may or may not run here, so its body's effects are *merged*.
     private void maybeForce(PromiseOrigin po) {
-      if (po.forced == Maybe.YES) {
-        // Already definitely forced (now a value): forcing again does nothing.
+      if (po.forced != Maybe.NO) {
+        // Already (maybe-)forced: its body's effects were already merged into this state. Running
+        // it again would only repeat the same merge, and since promise bodies can (via a force of
+        // an unknown value) trigger `maybeForceLeaked`, which maybe-forces sibling leaked promises,
+        // re-running maybe-forced promises would mutually re-trigger each other and never
+        // terminate. The outer CFG worklist re-runs from a fresh state when bindings actually
+        // change, so we don't lose soundness by not re-running here.
         return;
       }
       runPromiseBody(po.promise, false);
@@ -530,9 +534,6 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// environment bindings with the result (the body definitely ran) or merges them (it may have).
     /// Returns the body's return origin.
     private @Nullable Argument runPromiseBody(Promise promise, boolean replace) {
-      if (++DBG_RUN_PROMISE > 500000) {
-        throw new RuntimeException("DBG cap reached: runPromiseBody=" + DBG_RUN_PROMISE);
-      }
       var subAnalysis = (OnCfg) onCfg(promise.code());
       if (subAnalysis.isRunning()) {
         // The promise's body is already being analyzed higher on the stack, so forcing it here is a
