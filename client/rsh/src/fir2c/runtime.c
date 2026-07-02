@@ -280,6 +280,11 @@ SEXP Fir_dup(SEXP value) { return Rf_duplicate(value); }
 SEXP Fir_load(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load");
+
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+
   SEXP value = Rf_findVar(symbol, env);
 
   if (value == R_UnboundValue) {
@@ -293,8 +298,24 @@ SEXP Fir_load(SEXP symbol, SEXP env) {
   return value;
 }
 
+SEXP Fir_load_fun(SEXP symbol, SEXP env) {
+  Fir_assert_symbol(symbol, "load-fun");
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load-fun");
+
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+
+  return Rf_findFun(symbol, env);
+}
+
 SEXP Fir_load_dots(int index, SEXP env) {
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load_dots");
+
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+
   // `ddfind` handles non-positive indices, missing `...`, and out-of-range
   // accesses by raising R errors, matching the behavior of `..N` lookups.
   return ddfind(index, env);
@@ -330,6 +351,9 @@ void Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
     type == FIR_MKENV_ELIDED
       ? Rsh_ElidedEnv
       : Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
+  if (type == FIR_MKENV_ELIDED && *env_ptr != Rsh_ElidedEnv) {
+    SET_ENCLOS(Rsh_ElidedEnv, *env_ptr);
+  }
   if (type == FIR_MKENV_NON_REFLECTIVE) {
     Rf_defineVar(Rsh_ReflectivelyAccessed, R_LogicalNAValue, new_env);
   }
@@ -804,6 +828,9 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   // `Rf_findFun`,
   // but returns `NULL` when it encounters a promise (instead of forcing
   // or on lookup fail (instead of `Rf_error`)
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
   while (env != R_EmptyEnv) {
     SEXP vl = R_findVarInFrame(env, symbol);
     if (vl != R_UnboundValue) {

@@ -11,6 +11,7 @@ import org.prlprg.fir.analyze.resolve.TopEnvironmentLiveness;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Noop;
@@ -28,6 +29,20 @@ public record ElideDeadStore() implements SpecializeOptimization {
   public AnalysisTypes analyses() {
     return new AnalysisTypes(
         CfgHierarchy.class, CfgReachability.class, Loads.class, TopEnvironmentLiveness.class);
+  }
+
+  @Override
+  public boolean shouldRun(Abstraction scope, Analyses analyses) {
+    // Don't run if there's a non-static closure, because it may capture any store
+    // TODO: improve analysis so we can elide dead stores that can never be loaded by the
+    //  non-static nested closure: specifically, we can't elide a store of any variable loaded
+    //  anywhere in the non-static nested closure or one of its own non-static nested closures,
+    //  and (if there is any nested closure) we can't elide any store in a reflective environment
+    return scope
+        .streamCfgs()
+        .flatMap(cfg -> cfg.bbs().stream())
+        .flatMap(bb -> bb.statements().stream())
+        .noneMatch(stmt -> stmt.expression() instanceof Closure(var isStatic, _) && !isStatic);
   }
 
   @Override

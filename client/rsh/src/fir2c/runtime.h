@@ -157,6 +157,7 @@ SEXP Fir_force(SEXP promise);
 SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_safe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
+SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);
 void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
