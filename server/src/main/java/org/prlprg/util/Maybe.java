@@ -4,5 +4,9 @@ package org.prlprg.util;
 public enum Maybe {
   YES,
   NO,
-  MAYBE
+  MAYBE;
+
+  public Maybe union(Maybe o) {
+    return this == o ? this : MAYBE;
+  }
 }

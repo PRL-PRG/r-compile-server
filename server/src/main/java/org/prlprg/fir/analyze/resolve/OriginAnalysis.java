@@ -68,6 +68,7 @@ import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
@@ -281,8 +282,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         case Load(var loadType, var variable) -> {
           var po =
               switch (loadType) {
-                case LOCAL_VAR -> state().loadPromise(variable, state().envs.size() - 1);
-                case SUPER_VAR -> state().loadPromise(variable, state().envs.size() - 2);
+                case LOCAL_VAR -> state().loadPromiseFrom(variable, state().envs.size() - 1);
+                case SUPER_VAR -> state().loadPromiseFrom(variable, state().envs.size() - 2);
                 case LOCAL_FUN, GLOBAL_FUN, BASE_FUN -> null;
               };
           if (po == null) {
@@ -392,11 +393,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           var po = promiseOf(value);
           if (po != null) {
             // Forcing a known promise: run its body and apply its effects (see `force`).
-            if (isMaybe) {
-              maybeForce(po);
-              yield null;
-            }
-            yield force(po);
+            // Even a "maybe force" does a full force when it encounters a promise;
+            // "maybe" means something different in both contexts:
+            // - `isMaybe` means `value` may or may not be a promise
+            // - `maybeForce` means the argument (which must be a promise according to Java
+            //   types) may or may not be forced
+            force(po);
+            yield po.value;
           }
 
           var forceeOrigin = resolve(value);
@@ -423,7 +426,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
           // Promise arguments. A *strict* parameter is definitely forced in the callee before
           // reflection. A *non-strict* promise argument may escape and be forced at an unknown
-          // point (including after any call, including this call)
+          // point (maybe forced in this call, but it's superseded because it may be force in
+          // *any* future call)
           var strictnesses =
               callee instanceof StaticFnCallee(_, _, _, var signature)
                   ? signature.parameterStrictnesses()
@@ -436,6 +440,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             if (strictnesses != null && i < strictnesses.length() && strictnesses.get(i)) {
               force(po);
             } else {
+              // We'll maybe-force leaked promises after the loop
               state().leakedPromises.add(po);
             }
           }
@@ -489,11 +494,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     /// The promise an argument holds, or `null` if it isn't a known promise register.
     private @Nullable PromiseOrigin promiseOf(Argument arg) {
-      return switch (arg) {
-        case Read(var r) -> state().registerPromises.get(r);
-        case Consume(var r) -> state().registerPromises.get(r);
-        case Constant _ -> null;
-      };
+      return arg.variable() != null ? state().registerPromises.get(arg.variable()) : null;
     }
 
     /// Maybe-forces every leaked promise (they may be forced at an unknown point).
@@ -507,12 +508,13 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     ///
     /// If `po` was definitely not yet forced, its body runs for the first time here, so its stores
     /// are definite and *replace* the current bindings. Otherwise it may have already run, so we
-    /// *merge* (its earlier effect must be kept). Returns the forced value's origin.
-    private @Nullable Argument force(PromiseOrigin po) {
-      var replace = po.forced == Maybe.NO;
-      var returnOrigin = runPromiseBody(po.promise, replace);
-      po.forced = Maybe.YES;
-      return returnOrigin;
+    /// *merge* (its earlier effect must be kept).
+    private void force(PromiseOrigin po) {
+      if (po.forced != Maybe.YES) {
+        var replace = po.forced == Maybe.NO;
+        runPromiseBody(po, replace);
+        po.forced = Maybe.YES;
+      }
     }
 
     /// Maybe-forces `po`: it may or may not run here, so its body's effects are *merged*.
@@ -526,32 +528,36 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         // change, so we don't lose soundness by not re-running here.
         return;
       }
-      runPromiseBody(po.promise, false);
+      runPromiseBody(po, false);
       po.forced = Maybe.MAYBE;
     }
 
-    /// Runs `promise`'s body sub-analysis with the current state, then either replaces the current
+    /// Runs `po.promise`'s body sub-analysis with the current state, then either replaces the
+    // current
     /// environment bindings with the result (the body definitely ran) or merges them (it may have).
-    /// Returns the body's return origin.
-    private @Nullable Argument runPromiseBody(Promise promise, boolean replace) {
-      var subAnalysis = (OnCfg) onCfg(promise.code());
+    /// Sets `po.value` to the return origin.
+    private void runPromiseBody(PromiseOrigin po, boolean replace) {
+      var subAnalysis = (OnCfg) onCfg(po.promise.code());
+
       if (subAnalysis.isRunning()) {
         // The promise's body is already being analyzed higher on the stack, so forcing it here is a
         // recursive force (a "promise already under evaluation" runtime error). Re-entering would
         // corrupt the in-progress analysis (the shared `OnCfg` reuses its state/cursor and nulls
         // its state on exit), so bail out and conservatively treat the forced value as unknown.
-        return null;
+        return;
       }
+
       subAnalysis.run(state());
+
       var returnState = subAnalysis.returnState();
       if (returnState != null) {
         if (replace) {
-          state().replaceEnvsWith(returnState);
+          state().replaceWith(returnState);
         } else {
           state().merge(returnState);
         }
       }
-      return subAnalysis.returnOrigin();
+      po.value = subAnalysis.returnOrigin();
     }
 
     private @Nullable Argument tryConstantFold(Callee callee, List<Argument> arguments) {
@@ -926,7 +932,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// The stack of local environments; the last entry is the topmost (innermost).
     private final List<EnvFrame> envs = new ArrayList<>();
     /// Registers known to hold a specific promise (assigned a [Promise], or copied/loaded from
-    // one).
+    /// one).
     private final Map<Register, PromiseOrigin> registerPromises = new LinkedHashMap<>();
     /// Promises that may have escaped into an unknown register or variable (passed non-strictly to
     /// a call, super-/reflectively-stored, captured, ...). They're maybe-forced within any call and
@@ -1078,29 +1084,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       // Fell through to the global env (not tracked).
     }
 
-    /// Records (or, if `po` is `null`, clears) the promise a local store wrote to `variable`.
-    ///
-    /// Mirrors [#store]: writes the topmost frame.
-    private void storePromise(NamedVariable variable, @Nullable PromiseOrigin po) {
-      if (envs.isEmpty()) {
-        // Stored in the untracked static env; if it's a promise, it escaped.
-        if (po != null) {
-          leakedPromises.add(po);
-        }
-        return;
-      }
-      if (po == null) {
-        envs.getLast().variablePromises.remove(variable);
-      } else {
-        envs.getLast().variablePromises.put(variable, po);
-      }
-    }
-
     /// The promise `variable` definitely holds, walking the env stack from `frameIdx` like
     /// [#loadFrom], or `null` if it isn't a uniquely-known promise. Any promise the variable
     /// *might* (but not definitely uniquely) hold is leaked, since the loaded register can't track
     /// it.
-    private @Nullable PromiseOrigin loadPromise(NamedVariable variable, int frameIdx) {
+    private @Nullable PromiseOrigin loadPromiseFrom(NamedVariable variable, int frameIdx) {
       var ambiguous = false;
       var maybe = new ArrayList<PromiseOrigin>();
       for (; frameIdx >= 0; frameIdx--) {
@@ -1135,23 +1123,29 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return null;
     }
 
+    /// Records (or, if `po` is `null`, clears) the promise a local store wrote to `variable`.
+    ///
+    /// Mirrors [#store]: writes the topmost frame.
+    private void storePromise(NamedVariable variable, @Nullable PromiseOrigin po) {
+      if (envs.isEmpty()) {
+        // Stored in the untracked static env; if it's a promise, it escaped.
+        if (po != null) {
+          leakedPromises.add(po);
+        }
+        return;
+      }
+      if (po == null) {
+        envs.getLast().variablePromises.remove(variable);
+      } else {
+        envs.getLast().variablePromises.put(variable, po);
+      }
+    }
+
     private void taintViaReflection() {
       for (var env : envs) {
         if (env.reflectivelyAccessible) {
           env.taint();
         }
-      }
-    }
-
-    /// Replaces the local environment stack with a copy of `other`'s.
-    ///
-    /// Used when a promise is definitely forced for the first time: its body's stores definitely
-    /// happened, so they replace (rather than merge into) the current environment bindings.
-    private void replaceEnvsWith(State other) {
-      var poMap = new IdentityHashMap<PromiseOrigin, PromiseOrigin>();
-      envs.clear();
-      for (var env : other.envs) {
-        envs.add(env.copy(poMap));
       }
     }
 
@@ -1182,18 +1176,21 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return copy;
     }
 
-    /// Builds a `promise -> origin` map of this state's promises, used to canonicalize promises
-    /// incorporated from another state during [#merge] (keeping one [PromiseOrigin] per promise).
-    private Map<Promise, PromiseOrigin> canonicalPromises() {
-      // Keyed by promise *identity* (structural equality of a promise recurses through its entire
-      // body CFG, which is expensive and can overflow the stack; see `PromiseOrigin#equals`).
-      var canonical = new IdentityHashMap<Promise, PromiseOrigin>();
-      registerPromises.values().forEach(po -> canonical.putIfAbsent(po.promise, po));
-      leakedPromises.forEach(po -> canonical.putIfAbsent(po.promise, po));
-      for (var env : envs) {
-        env.variablePromises.values().forEach(po -> canonical.putIfAbsent(po.promise, po));
+    /// Replaces the state with `other`
+    private void replaceWith(State other) {
+      registerOrigins.clear();
+      registerOrigins.putAll(other.registerOrigins);
+
+      var poMap = new IdentityHashMap<PromiseOrigin, PromiseOrigin>();
+      envs.clear();
+      for (var env : other.envs) {
+        envs.add(env.copy(poMap));
       }
-      return canonical;
+
+      registerPromises.clear();
+      registerPromises.putAll(other.registerPromises);
+
+      leakedPromises.clear();
     }
 
     @Override
@@ -1215,26 +1212,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
       var canonical = canonicalPromises();
 
-      // Merge register promises: a register holds a known promise only if both states agree it
-      // holds the *same* promise (then merge how-forced). Otherwise it's ambiguous, so any promise
-      // it might hold leaks and we stop tracking it.
-      var registers = new LinkedHashSet<>(registerPromises.keySet());
-      registers.addAll(other.registerPromises.keySet());
-      for (var r : registers) {
-        var a = registerPromises.get(r);
-        var b = other.registerPromises.get(r);
-        if (a != null && b != null && a.promise == b.promise) {
-          a.forced = mergeForced(a.forced, b.forced);
-        } else {
-          if (a != null) {
-            leakedPromises.add(a);
-          }
-          if (b != null) {
-            leakedPromises.add(incorporate(b, canonical));
-          }
-          registerPromises.remove(r);
-        }
-      }
+      mergeVariablePromises(registerPromises, other.registerPromises, leakedPromises, canonical);
 
       // A promise leaked on either path is leaked.
       for (var po : other.leakedPromises) {
@@ -1262,6 +1240,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
     }
 
+    /// Builds a `promise -> origin` map of this state's promises, used to canonicalize promises
+    /// incorporated from another state during [#merge] (keeping one [PromiseOrigin] per promise).
+    private Map<Promise, PromiseOrigin> canonicalPromises() {
+      // Keyed by promise *identity* (structural equality of a promise recurses through its entire
+      // body CFG, which is expensive and can overflow the stack; see `PromiseOrigin#equals`).
+      var canonical = new IdentityHashMap<Promise, PromiseOrigin>();
+      registerPromises.values().forEach(po -> canonical.putIfAbsent(po.promise, po));
+      leakedPromises.forEach(po -> canonical.putIfAbsent(po.promise, po));
+      for (var env : envs) {
+        env.variablePromises.values().forEach(po -> canonical.putIfAbsent(po.promise, po));
+      }
+      return canonical;
+    }
+
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
@@ -1279,9 +1271,33 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
   }
 
-  /// Merges two how-forced statuses: equal stays, otherwise it becomes [Maybe#MAYBE].
-  private static Maybe mergeForced(Maybe a, Maybe b) {
-    return a == b ? a : Maybe.MAYBE;
+  /// Merge register or named variable promises
+  ///
+  /// A variable register holds a known promise only if both states agree it holds the *same*
+  /// promise (then merge how-forced). Otherwise it's ambiguous, so any promise it might hold
+  /// leaks and we stop tracking it.
+  private static <Var extends Variable> void mergeVariablePromises(
+      Map<Var, PromiseOrigin> variablePromises,
+      Map<Var, PromiseOrigin> otherVariablePromises,
+      Set<PromiseOrigin> leakedPromises,
+      Map<Promise, PromiseOrigin> canonical) {
+    var registers = new LinkedHashSet<>(variablePromises.keySet());
+    registers.addAll(otherVariablePromises.keySet());
+    for (var r : registers) {
+      var a = variablePromises.get(r);
+      var b = otherVariablePromises.get(r);
+      if (a != null && b != null && a.promise == b.promise) {
+        a.forced = a.forced.union(b.forced);
+      } else {
+        if (a != null) {
+          leakedPromises.add(a);
+        }
+        if (b != null) {
+          leakedPromises.add(incorporate(b, canonical));
+        }
+        variablePromises.remove(r);
+      }
+    }
   }
 
   /// Returns the canonical [PromiseOrigin] for `other`'s promise in `canonical` (merging the
@@ -1291,10 +1307,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       PromiseOrigin other, Map<Promise, PromiseOrigin> canonical) {
     var existing = canonical.get(other.promise);
     if (existing != null) {
-      existing.forced = mergeForced(existing.forced, other.forced);
+      existing.forced = existing.forced.union(other.forced);
       return existing;
     }
-    var fresh = new PromiseOrigin(other.promise, other.forced);
+    var fresh = other.copy();
     canonical.put(other.promise, fresh);
     return fresh;
   }
@@ -1362,26 +1378,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           info.merge(e.getValue());
         }
       }
-      // Merge variable promises: a variable holds a known promise only if both frames agree it's
-      // the *same* promise (then merge how-forced). Otherwise it's ambiguous: any promise it might
-      // hold leaks and we stop tracking it.
-      var vars = new LinkedHashSet<>(variablePromises.keySet());
-      vars.addAll(other.variablePromises.keySet());
-      for (var v : vars) {
-        var a = variablePromises.get(v);
-        var b = other.variablePromises.get(v);
-        if (a != null && b != null && a.promise == b.promise) {
-          a.forced = mergeForced(a.forced, b.forced);
-        } else {
-          if (a != null) {
-            leakedPromises.add(a);
-          }
-          if (b != null) {
-            leakedPromises.add(incorporate(b, canonical));
-          }
-          variablePromises.remove(v);
-        }
-      }
+      mergeVariablePromises(variablePromises, other.variablePromises, leakedPromises, canonical);
     }
 
     @Override
@@ -1452,19 +1449,26 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   static final class PromiseOrigin {
     final Promise promise;
     Maybe forced;
+    /// Forced value, or `null` if pending
+    @Nullable Argument value;
 
     PromiseOrigin(Promise promise) {
-      this(promise, Maybe.NO);
+      this(promise, Maybe.NO, null);
     }
 
-    PromiseOrigin(Promise promise, Maybe forced) {
+    PromiseOrigin(Promise promise, Maybe forced, @Nullable Argument value) {
       this.promise = promise;
       this.forced = forced;
+      this.value = value;
+    }
+
+    PromiseOrigin copy() {
+      return new PromiseOrigin(promise, forced, value);
     }
 
     /// Copies via `poMap`, so references shared within a state stay shared in the copy.
     PromiseOrigin copyVia(IdentityHashMap<PromiseOrigin, PromiseOrigin> poMap) {
-      return poMap.computeIfAbsent(this, po -> new PromiseOrigin(po.promise, po.forced));
+      return poMap.computeIfAbsent(this, PromiseOrigin::copy);
     }
 
     // A promise is identified by *identity*: one [Promise] expression in the IR corresponds to one
@@ -1475,12 +1479,12 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     public boolean equals(Object o) {
       if (this == o) return true;
       if (!(o instanceof PromiseOrigin other)) return false;
-      return forced == other.forced && promise == other.promise;
+      return promise == other.promise && forced == other.forced && value == other.value;
     }
 
     @Override
     public int hashCode() {
-      return System.identityHashCode(promise) * 31 + forced.hashCode();
+      return System.identityHashCode(promise) * 31 + Objects.hash(forced, value);
     }
   }
 }
