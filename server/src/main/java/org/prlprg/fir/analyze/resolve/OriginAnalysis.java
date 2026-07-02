@@ -112,6 +112,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   private final InferType inferType;
   private final InferEffects inferEffects;
   private final Map<Register, Argument> registerOrigins = new HashMap<>();
+  static long DBG_RUN_PROMISE = 0;
 
   /// Creates and runs the analysis.
   public OriginAnalysis(Abstraction scope) {
@@ -531,7 +532,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// environment bindings with the result (the body definitely ran) or merges them (it may have).
     /// Returns the body's return origin.
     private @Nullable Argument runPromiseBody(Promise promise, boolean replace) {
+      if (++DBG_RUN_PROMISE > 500000) {
+        throw new RuntimeException("DBG cap reached: runPromiseBody=" + DBG_RUN_PROMISE);
+      }
       var subAnalysis = (OnCfg) onCfg(promise.code());
+      if (subAnalysis.isRunning()) {
+        // The promise's body is already being analyzed higher on the stack, so forcing it here is a
+        // recursive force (a "promise already under evaluation" runtime error). Re-entering would
+        // corrupt the in-progress analysis (the shared `OnCfg` reuses its state/cursor and nulls
+        // its state on exit), so bail out and conservatively treat the forced value as unknown.
+        return null;
+      }
       subAnalysis.run(state());
       var returnState = subAnalysis.returnState();
       if (returnState != null) {
@@ -1172,7 +1183,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// Builds a `promise -> origin` map of this state's promises, used to canonicalize promises
     /// incorporated from another state during [#merge] (keeping one [PromiseOrigin] per promise).
     private Map<Promise, PromiseOrigin> canonicalPromises() {
-      var canonical = new HashMap<Promise, PromiseOrigin>();
+      // Keyed by promise *identity* (structural equality of a promise recurses through its entire
+      // body CFG, which is expensive and can overflow the stack; see `PromiseOrigin#equals`).
+      var canonical = new IdentityHashMap<Promise, PromiseOrigin>();
       registerPromises.values().forEach(po -> canonical.putIfAbsent(po.promise, po));
       leakedPromises.forEach(po -> canonical.putIfAbsent(po.promise, po));
       for (var env : envs) {
@@ -1208,7 +1221,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       for (var r : registers) {
         var a = registerPromises.get(r);
         var b = other.registerPromises.get(r);
-        if (a != null && b != null && a.promise.equals(b.promise)) {
+        if (a != null && b != null && a.promise == b.promise) {
           a.forced = mergeForced(a.forced, b.forced);
         } else {
           if (a != null) {
@@ -1355,7 +1368,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       for (var v : vars) {
         var a = variablePromises.get(v);
         var b = other.variablePromises.get(v);
-        if (a != null && b != null && a.promise.equals(b.promise)) {
+        if (a != null && b != null && a.promise == b.promise) {
           a.forced = mergeForced(a.forced, b.forced);
         } else {
           if (a != null) {
@@ -1452,16 +1465,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return poMap.computeIfAbsent(this, po -> new PromiseOrigin(po.promise, po.forced));
     }
 
+    // A promise is identified by *identity*: one [Promise] expression in the IR corresponds to one
+    // logical promise, and copies of a [PromiseOrigin] keep the same [#promise] reference (see
+    // [#copyVia]). Structural equality would recurse through the whole body CFG, which is expensive
+    // and can overflow the stack (e.g. deeply nested promises), so we never use it here.
     @Override
     public boolean equals(Object o) {
       if (this == o) return true;
       if (!(o instanceof PromiseOrigin other)) return false;
-      return forced == other.forced && promise.equals(other.promise);
+      return forced == other.forced && promise == other.promise;
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(promise, forced);
+      return System.identityHashCode(promise) * 31 + forced.hashCode();
     }
   }
 }
