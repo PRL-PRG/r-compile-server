@@ -11,6 +11,7 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
+import org.prlprg.snapshot.fir.interpret.InterpretQuery;
 import org.prlprg.snapshot.fir.ir.FirQuery;
 import org.prlprg.snapshot.fir.ir.GenFirQuery;
 import org.prlprg.snapshot.gen2c.EvalQuery;
@@ -49,12 +50,23 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
     MockModuleFeedback feedback;
     try {
-      var evalOutput = store.load(example, EvalQuery.FIR_ORACLE);
-      if (evalOutput.result() instanceof Error(var message, _)) {
-        System.err.println("WARNING: interpreter crashed:\n" + message);
+      class TryEvalException extends RuntimeException {}
+
+      try {
+        var interpretOutput = store.load(example, InterpretQuery.MAIN);
+        if (interpretOutput.result() instanceof Error) {
+          throw new TryEvalException();
+        }
+        feedback = interpretOutput.feedback();
+        System.err.println("Using INTERPRETER feedback");
+      } catch (SkipQueryException | TryEvalException e) {
+        var evalOutput = store.load(example, EvalQuery.FIR_ORACLE);
+        if (evalOutput.result() instanceof Error(var message, _)) {
+          System.err.println("WARNING: eval crashed:\n" + message);
+        }
+        feedback = evalOutput.feedback();
+        System.err.println("Using EVAL feedback");
       }
-      feedback = evalOutput.feedback();
-      System.err.println("Using INTERPRETER feedback");
     } catch (SkipQueryException e) {
       System.err.println("Interpreter crashed: " + e.getMessage());
       //noinspection CallToPrintStackTrace

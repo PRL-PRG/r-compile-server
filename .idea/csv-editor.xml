@@ -45,6 +45,55 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/server/src/test/snapshots/R/snapshot/bench/bench_ai_awf_fibonacci.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/R/snapshot/bench/bench_ai_awf_permute.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/R/snapshot/bench/bench_ai_awf_queens.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/R/snapshot/bench/bench_ai_awf_sieve.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/R/snapshot/bench/bench_ai_awf_towers.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/R/snapshot/bench/bench_awf_bounce.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/server/src/test/snapshots/R/snapshot/bench/bench_awf_bounce_nonames.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>
