@@ -100,7 +100,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ t = ld x; return t; };
@@ -139,7 +139,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ t = ld x; return t; };
@@ -188,7 +188,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ st x = <int 2>; t = ld x; return t; };
@@ -233,7 +233,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ st x = <int 2>; t = ld x; return t; };
