@@ -315,7 +315,8 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
   Fir_env_push_suppressed = push_suppressed;
 }
 
-static SEXP Fir_old_sysparent = NULL;
+// ???: GNU-R expose methods to update R_GlobalContext->sysparent,
+// if necessary (it may only when the env is pushed from R, `Fir_env_push_suppressed`)
 
 void Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
@@ -346,7 +347,6 @@ void Fir_pop_env(SEXP *env_ptr) {
 
   UNPROTECT(1);
   SEXP parent = ENCLOS(*env_ptr);
-  R_GlobalContext->sysparent = Fir_old_sysparent;
   ASSERT(parent && parent != R_NilValue, "pop_env called on environment without parent");
   *env_ptr = parent;
 }
