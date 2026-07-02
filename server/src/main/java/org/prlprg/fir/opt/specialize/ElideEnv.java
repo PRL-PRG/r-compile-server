@@ -13,6 +13,7 @@ import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.iterator.InstructionDfs;
@@ -95,7 +96,8 @@ public record ElideEnv() implements SpecializeOptimization {
 
       // Check if this instruction requires a materialized environment.
       if (instruction instanceof Statement(var _, var _, var expr)
-          && (expr instanceof Store || (!ignoreReflection && inferEffects.of(expr).reflect()))) {
+          && ((expr instanceof Store(var storeType, _, _) && storeType == StoreType.LOCAL_VAR)
+              || (!ignoreReflection && inferEffects.of(expr).reflect()))) {
         return false;
       }
     }

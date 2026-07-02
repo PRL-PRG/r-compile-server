@@ -1032,7 +1032,7 @@ public final class Fir2CCompiler {
                     case SUPER_VAR ->
                         "Fir_super_load(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
                     case LOCAL_FUN ->
-                        "Rf_findFun(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
+                        "Fir_load_fun(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
                     case GLOBAL_FUN ->
                         "Rf_findFun(%s, R_GlobalEnv)".formatted(nvSymbolRef(pool, variable));
                     case BASE_FUN ->
@@ -1040,6 +1040,7 @@ public final class Fir2CCompiler {
                   };
               case MkEnv(var type) -> {
                 cCode.stmt("Fir_push_env(&%s, %s);", VAR_ENV, emitMkEnvType(type));
+                debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
                 yield null;
               }
               case MkVector(var kind, var elementNames) -> {
@@ -1295,17 +1296,6 @@ public final class Fir2CCompiler {
                 cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
               }
             }
-          }
-
-          private List<Assumption> assumptionsFor(Target target) {
-            var assumptions = new ArrayList<Assumption>();
-            for (var statement : target.bb().statements()) {
-              if (!(statement.expression() instanceof Assume(var assumption))) {
-                break;
-              }
-              assumptions.add(assumption);
-            }
-            return assumptions;
           }
 
           private String emitAssumptionCondition(
