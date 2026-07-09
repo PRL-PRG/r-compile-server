@@ -27,7 +27,8 @@ public record ElideUnforcedPromise(int threshold) implements AbstractionOptimiza
       for (int i = 0; i < bb.statements().size(); i++) {
         var stmt = bb.statements().get(i);
         var assignee = stmt.assignee();
-        if (!(stmt.expression() instanceof Promise(var valueType, var effects, var code))) {
+        if (!(stmt.expression()
+            instanceof Promise(var valueType, var effects, var code, var local))) {
           continue;
         }
 

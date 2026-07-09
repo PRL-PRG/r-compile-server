@@ -55,6 +55,9 @@ public class AbstractionFeedback {
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
   /// `mkenv` instructions whose environments were reflectively accessed.
   public final Set<CfgPosition> reflectiveEnvs = new LinkedHashSet<>();
+  /// `prom` instructions whose promises were recorded to escape (outlive the stack frame they were
+  /// created in, then get forced afterwards).
+  public final Set<CfgPosition> escapingPromises = new LinkedHashSet<>();
 
   public AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
@@ -153,6 +156,7 @@ public class AbstractionFeedback {
     copy.forceCount.putAll(this.forceCount);
     copy.allRecorded.putAll(this.allRecorded);
     copy.reflectiveEnvs.addAll(this.reflectiveEnvs);
+    copy.escapingPromises.addAll(this.escapingPromises);
     return copy;
   }
 
@@ -183,8 +187,11 @@ public class AbstractionFeedback {
       } else if (s.trySkip("env ")) {
         var pos = p.parse(CfgPosition.class);
         reflectiveEnvs.add(pos);
+      } else if (s.trySkip("prom ")) {
+        var pos = p.parse(CfgPosition.class);
+        escapingPromises.add(pos);
       } else {
-        throw s.fail("\"reg\" or \"env\"", s.readIdentifierOrKeyword());
+        throw s.fail("\"reg\", \"env\", or \"prom\"", s.readIdentifierOrKeyword());
       }
     }
   }
@@ -270,6 +277,11 @@ public class AbstractionFeedback {
           for (var env : reflectiveEnvs) {
             w.write("env ");
             p.print(env);
+          }
+
+          for (var prom : escapingPromises) {
+            w.write("prom ");
+            p.print(prom);
           }
         });
     w.write("\n]");

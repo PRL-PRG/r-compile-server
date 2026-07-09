@@ -30,8 +30,8 @@ public record ImproveSignatures() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(statement.expression() instanceof Promise(var oldType, _, var code))) {
-      return Result.UNCHANGED;
+    if (!(expression instanceof Promise(var oldType, _, var code))) {
+      return expression;
     }
 
     var newType = analyses.get(InferType.class).of(code);
