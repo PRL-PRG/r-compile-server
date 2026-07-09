@@ -140,6 +140,12 @@ public final class InternalInterpreter implements Interpreter {
   /// [elided][MkEnvType#ELIDED].
   private final Map<EnvSXP, CfgPosition> userEnvPositions = new HashMap<>();
 
+  /// Whether the most-recently-returned [#run(StackFrame, CFG, CFG)] deopt-restored at some
+  /// point. Set right before `run` returns and consumed (reset) by [#call]; used to check the
+  /// result against the deopt-restore CFG's return type instead of the version's, since a
+  /// version's return type only describes its normal returns.
+  private boolean lastRunDeopted = false;
+
   // Feedback (part of state but not depended on by [Interpreter], only updated).
   private final MockModuleFeedback feedback = new MockModuleFeedback();
   private final CheckpointTrace checkpointTrace = new CheckpointTrace(this);
@@ -398,8 +404,52 @@ public final class InternalInterpreter implements Interpreter {
     // Execute CFG
     var result = run(frame, cfg, deoptRestoreCfg);
 
-    checkType(result, abstraction.returnType(), "return");
+    if (lastRunDeopted) {
+      lastRunDeopted = false;
+      // The result comes from the deopt-restore CFG (the baseline), so it may not match this
+      // version's return type, which only describes normal returns. Check against the
+      // baseline's, then adapt the representation to the version's, since the caller relies on
+      // the version's (possibly without a checkpoint).
+      checkType(result, function.baseline().returnType(), "return (after deopt)");
+      result = adaptDeoptResult(result, abstraction.returnType());
+    } else {
+      checkType(result, abstraction.returnType(), "return");
+    }
     return result;
+  }
+
+  /// Adapt a deopt-restored result to the version's declared return type: unbox if the declared
+  /// type is an unboxed scalar and the result is a corresponding boxed scalar.
+  ///
+  /// @throws InternalInterpretException if the result can't be adapted; the caller may rely on
+  ///   the declared type without a checkpoint, and cascading the deopt to the caller is
+  ///   unimplemented.
+  private Value adaptDeoptResult(Value result, Type returnType) {
+    var actual = inferType(result, returnType.ownership());
+    if (actual.isSubtypeOf(returnType)) {
+      return result;
+    }
+
+    if (returnType.kind() instanceof Kind.PrimitiveScalar(var primitive)
+        && result instanceof Value.Sexp(var sexp)) {
+      var adapted =
+          switch (primitive) {
+            case LOGICAL -> sexp.asScalarLogical().<Value>map(Value.Lgl::new);
+            case INTEGER -> sexp.asScalarInteger().<Value>map(Value.Int::new);
+            case REAL -> sexp.asScalarReal().<Value>map(Value.Real::new);
+            case STRING -> sexp.asScalarString().<Value>map(Value.Str::new);
+          };
+      if (adapted.isPresent()) {
+        return adapted.get();
+      }
+    }
+
+    throw fail(
+        "Deopt result can't be adapted to the version's return type (cascading the deopt to the"
+            + " caller is unimplemented): "
+            + result
+            + " isn't a(n) "
+            + returnType);
   }
 
   private Value callExternal(
@@ -433,6 +483,7 @@ public final class InternalInterpreter implements Interpreter {
     frame.enter(cursor, feedback);
     stack.push(frame);
 
+    var deopted = false;
     while (true) {
       var nextControl = cursor.iterateCurrentBb1(this::run, this::run);
 
@@ -445,6 +496,9 @@ public final class InternalInterpreter implements Interpreter {
           var f = stack.pop();
           assert f == frame : "stack imbalance";
           frame.exit();
+          // Set right before returning, because nested `run`s (from calls in statements)
+          // overwrite it (and consume it before we iterate any further instruction).
+          lastRunDeopted = deopted;
           return value;
         }
         case ControlFlow.Deopt(var pc, var deoptStack) -> {
@@ -455,6 +509,7 @@ public final class InternalInterpreter implements Interpreter {
           cursor = restoreDeopt(pc, deoptStack, deoptRestoreCfg);
           frame.exit();
           frame.enter(cursor, feedback);
+          deopted = true;
           System.out.println("DEOPT");
         }
       }
