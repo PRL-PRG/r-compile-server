@@ -720,6 +720,8 @@ public final class Fir2CCompiler {
 
         private void emitFromR() {
           var cCode = fromRCFunction.add();
+          // If the promise escaped its creating frame, record the escape or crash (if local).
+          cCode.stmt("Fir_check_promise_escaped(%s);", VAR_DATA);
           cCode.stmt(
               "void **captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
               VAR_DATA);

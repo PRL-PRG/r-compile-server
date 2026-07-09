@@ -288,6 +288,31 @@ void Fir_mark_promises_escaped(SEXP tracked_list) {
   }
 }
 
+/// If the promise escaped its creating frame, either record the escape (as `ESCAPED` global
+/// feedback) or, if it was speculated local, crash. No-op if it hasn't escaped.
+static void Fir_handle_escape(Fir_PromiseGlobalData *global_data, Fir_PromiseLocalData *local_data) {
+  if (!local_data->escaped) {
+    return;
+  }
+  switch (global_data->escaped) {
+  case FIR_GLOBALLY_ESCAPED_DEFAULT:
+    global_data->escaped = FIR_GLOBALLY_ESCAPED_ESCAPED;
+    break;
+  case FIR_GLOBALLY_ESCAPED_ESCAPED:
+    break;
+  case FIR_GLOBALLY_ESCAPED_LOCAL:
+    Rf_error("forced a speculated-local promise after it escaped");
+    break;
+  }
+}
+
+void Fir_check_promise_escaped(SEXP data) {
+  Fir_PromiseGlobalData *global_data =
+      (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(CAR0(data), 0));
+  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(data));
+  Fir_handle_escape(global_data, local_data);
+}
+
 SEXP Fir_cast(SEXP value, Fir_Type type) {
   ASSERT(Fir_value_matches(value, type), "Cast failed");
   return value;
@@ -490,20 +515,8 @@ SEXP Fir_force(SEXP promise) {
     Fir_PromiseGlobalData *global_data;
     Fir_PromiseLocalData *local_data;
     if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
-      // If this promise escaped its creating frame, either record the escape or, if it was
-      // speculated local, crash (the speculation was wrong).
-      if (local_data->escaped) {
-        switch (global_data->escaped) {
-        case FIR_GLOBALLY_ESCAPED_DEFAULT:
-          global_data->escaped = FIR_GLOBALLY_ESCAPED_ESCAPED;
-          break;
-        case FIR_GLOBALLY_ESCAPED_ESCAPED:
-          break;
-        case FIR_GLOBALLY_ESCAPED_LOCAL:
-          Rf_error("forced a speculated-local promise after it escaped");
-          break;
-        }
-      }
+      // If this promise escaped its creating frame, record the escape or crash (see the helper).
+      Fir_handle_escape(global_data, local_data);
       SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
       SET_PRVALUE(promise, forced);
       SET_PRENV(promise, R_NilValue);
