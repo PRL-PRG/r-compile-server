@@ -130,7 +130,7 @@ public final class Fir2CCompiler {
         // (and before referenced functions encountered before).
         var initCode = mainEmitter.initCFunction.addFirst();
         var nextInitCName = functionInitCName(next);
-        initCode.stmt("%s(%s);", nextInitCName, constantRef(mainEmitter.fnPool, nextCpSxp));
+        initCode.stmt("%s(%s);", nextInitCName, nestedPoolRef(mainEmitter.fnPool, nextCpSxp));
       }
     } else {
       emitReferencedExternalDeclarations();
@@ -516,7 +516,7 @@ public final class Fir2CCompiler {
           VersionEmitter.forwardDeclareStub(cUnit, function, version);
         } else {
           var cpSxp = new VersionEmitter(version).run();
-          var cp = constantRef(fnPool, cpSxp);
+          var cp = nestedPoolRef(fnPool, cpSxp);
 
           var versionInitCName = versionInitCName(function, version);
           initCCode.stmt("%s(%s);", versionInitCName, cp);
@@ -930,7 +930,7 @@ public final class Fir2CCompiler {
                   // Compile function and add declarations
                   var cpSxp = new FunctionEmitter(function).run();
                   // Store the constant pool inline
-                  cp = constantRef(pool, cpSxp);
+                  cp = nestedPoolRef(pool, cpSxp);
 
                   // Call the function's initializer with the stored constant pool
                   var initCCode = initCFunction.add();
@@ -984,7 +984,7 @@ public final class Fir2CCompiler {
                             promiseFromRCFunction,
                             promiseEvalCFunction)
                         .run();
-                var cp = constantRef(pool, cpSxp);
+                var cp = nestedPoolRef(pool, cpSxp);
 
                 var initCCode = initCFunction.add();
                 debugComment(
@@ -1916,6 +1916,12 @@ public final class Fir2CCompiler {
 
   private static String constantRef(ConstantPool pool, SEXP sexp) {
     return "Fir_const(%s, %d)".formatted(VAR_POOL, pool.intern(sexp));
+  }
+
+  /// Like [#constantRef(ConstantPool, SEXP)] but in an always-unique slot; required for nested
+  /// constant pools, which are mutated at runtime (see [ConstantPool#internUnique(SEXP)]).
+  private static String nestedPoolRef(ConstantPool pool, SEXP sexp) {
+    return "Fir_const(%s, %d)".formatted(VAR_POOL, pool.internUnique(sexp));
   }
 
   // endregion constants
