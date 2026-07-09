@@ -13,8 +13,9 @@ import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Variable;
-import org.prlprg.fir.opt.Optimization;
+import org.prlprg.fir.opt.AbstractionOptimization;
 import org.prlprg.fir.opt.Specialize;
+import org.prlprg.fir.opt.sequence.AbstractionFixpointSequence;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
 import org.prlprg.fir.opt.specialize.ElideEnv;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
@@ -30,11 +31,16 @@ import org.prlprg.parseprint.Printer;
 /// accesses it reflectively at runtime (recorded as feedback), not on the static annotation.
 class OptimizationBehaviorTest {
   /// Speculate envs with the collected feedback and resolve loads
-  private static final Optimization SPECULATE_AND_RESOLVE =
+  private static final AbstractionOptimization SPECULATE_AND_RESOLVE =
       new Specialize("envOpts", new SpecializeNonReflectiveEnv(), new ResolveLoad());
-  /// Remove dead stores, then elide unused environments
-  private static final Optimization ELIDE =
-      new Specialize("envOpts", new ElideDeadStore(), new ElideEnv());
+  /// Remove dead stores, then elide unused environments. `ElideEnv` must run in a *later* pass than
+  /// `ElideDeadStore` (see [org.prlprg.fir.opt.Optimizations]): otherwise it examines the `mkenv`
+  /// while the now-dead stores are still present and conservatively keeps the environment.
+  private static final AbstractionOptimization ELIDE =
+      new AbstractionFixpointSequence(
+          "elide",
+          new Specialize("elideDeadStore", new ElideDeadStore()),
+          new Specialize("elideEnv", new ElideEnv()));
 
   /// Common test logic
   ///
@@ -53,7 +59,11 @@ class OptimizationBehaviorTest {
     registerBuiltins(interpreter);
 
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main")));
-    var feedback = interpreter.feedback();
+    // Optimize `main`'s baseline in place: it's the only version, and the module-level entry point
+    // deliberately skips baselines (they're the deopt fallback), so we drive the abstraction-level
+    // optimization directly, like the other env-optimization unit tests.
+    var baseline = main.baseline();
+    var feedback = interpreter.feedback().get(baseline);
 
     var before = new Value[1];
     var after = new Value[1];
@@ -64,7 +74,7 @@ class OptimizationBehaviorTest {
         interpreter.checkpointTrace().track(() -> before[0] = interpreter.call("main"));
 
     // First optimizations
-    SPECULATE_AND_RESOLVE.run(feedback, main);
+    SPECULATE_AND_RESOLVE.run(main, feedback, baseline);
 
     // Re-interpret the optimized function
     var afterTrace = interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("main"));
@@ -77,7 +87,7 @@ class OptimizationBehaviorTest {
     speculateConditions.accept(printed);
 
     // Second optimizations (new feedback doesn't matter)
-    ELIDE.run(feedback, main);
+    ELIDE.run(main, feedback, baseline);
 
     // Re-interpret again
     afterTrace = interpreter.checkpointTrace().track(() -> after[0] = interpreter.call("main"));
@@ -100,7 +110,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ t = ld x; return t; };
@@ -139,7 +149,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ t = ld x; return t; };
@@ -188,7 +198,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ st x = <int 2>; t = ld x; return t; };
@@ -233,7 +243,7 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V? |
+          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
             mkenv;
             st x = <int 1>;
             p = prom<V +>{ st x = <int 2>; t = ld x; return t; };
