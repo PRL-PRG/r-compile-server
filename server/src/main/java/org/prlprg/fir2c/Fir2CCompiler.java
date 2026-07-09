@@ -89,6 +89,8 @@ public final class Fir2CCompiler {
   private static final String VAR_CAPTURES = "captures";
   private static final String VAR_POOL = "pool";
   private static final String VAR_SIGNATURE = "signature";
+  private static final String VAR_LOCAL_PROMISES = "fir_local_promises";
+  private static final String VAR_LOCAL_PROMISES_IDX = "fir_local_promises_idx";
 
   // Input
   private final Module module;
@@ -709,9 +711,11 @@ public final class Fir2CCompiler {
           var evalCName = promiseEvalCName(promise);
           var valueType = emitType(promise.valueType());
           var reflect = emitEffects(promise.effects());
+          var escaped =
+              promise.local() ? "FIR_GLOBALLY_ESCAPED_LOCAL" : "FIR_GLOBALLY_ESCAPED_DEFAULT";
           cCode.stmt(
-              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s};",
-              evalCName, valueType, reflect);
+              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s, .escaped = %s};",
+              evalCName, valueType, reflect, escaped);
         }
 
         private void emitFromR() {
@@ -758,6 +762,10 @@ public final class Fir2CCompiler {
         private final Set<Register> locals;
         private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
 
+        /// Whether this CFG (frame) directly creates any promises, so we must track them and mark
+        /// them escaped when the frame exits.
+        private final boolean createsPromises;
+
         CfgEmitter(
             CFG cfg,
             Type returnType,
@@ -774,6 +782,10 @@ public final class Fir2CCompiler {
 
           liveness = new Liveness(cfg);
           locals = Objects.requireNonNull(VersionEmitter.this.locals.get(cfg));
+          createsPromises =
+              cfg.bbs().stream()
+                  .flatMap(bb -> bb.statements().stream())
+                  .anyMatch(s -> s.expression() instanceof Promise);
         }
 
         VecSXP run() {
@@ -785,6 +797,8 @@ public final class Fir2CCompiler {
 
           emitLocalDeclarations();
 
+          emitPromiseTrackingSetup();
+
           for (var bb : cfg.bbs()) {
             new BBEmitter(bb, cFunction.add()).run();
           }
@@ -792,6 +806,21 @@ public final class Fir2CCompiler {
           endEmitInit();
 
           return pool.toSexp();
+        }
+
+        /// Declares and protects the per-frame list of created promises (see [#createsPromises]).
+        /// The list is prepended to as promises are created and iterated to mark them escaped when
+        /// the frame returns.
+        private void emitPromiseTrackingSetup() {
+          if (!createsPromises) {
+            return;
+          }
+
+          var sec = cFunction.add();
+          debugComment(sec, "# Track promises created in this frame (to mark escaped on exit)");
+          sec.stmt("SEXP %s = R_NilValue;", VAR_LOCAL_PROMISES);
+          sec.stmt("PROTECT_INDEX %s;", VAR_LOCAL_PROMISES_IDX);
+          sec.stmt("PROTECT_WITH_INDEX(%s, &%s);", VAR_LOCAL_PROMISES, VAR_LOCAL_PROMISES_IDX);
         }
 
         private void emitConstants() {
@@ -1008,7 +1037,15 @@ public final class Fir2CCompiler {
                         captureSet.stream().map(reg -> "(void *)&" + registerPlace(reg)).toList());
                 var captures = captureArray.pointer();
 
-                yield "Fir_mk_promise(%s, %s, %s, %s)".formatted(fromRCName, cp, captures, VAR_ENV);
+                // Track the created promise so it's marked escaped when this frame exits.
+                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, %s), &%s, %s)"
+                    .formatted(
+                        fromRCName,
+                        cp,
+                        captures,
+                        VAR_ENV,
+                        VAR_LOCAL_PROMISES,
+                        VAR_LOCAL_PROMISES_IDX);
               }
               case Assume(var assumption) ->
                   emitAssumptionValue(assignee, assumption, args.isEmpty() ? null : args.get(0));
@@ -1253,7 +1290,16 @@ public final class Fir2CCompiler {
             debugInstr(cCode, jump);
 
             switch (jump.expression()) {
-              case Return _ -> cCode.stmt("return %s;", emitArgument(jump.arg(0)));
+              case Return _ -> {
+                var returnValue = emitArgument(value);
+                // The frame is exiting: mark all promises it created as escaped, and release the
+                // tracking list (its `PROTECT_WITH_INDEX` from `emitPromiseTrackingSetup`).
+                if (createsPromises) {
+                  cCode.stmt("Fir_mark_promises_escaped(%s);", VAR_LOCAL_PROMISES);
+                  cCode.stmt("UNPROTECT(1);");
+                }
+                cCode.stmt("return %s;", returnValue);
+              }
               case Goto _ -> emitJumpTo(1, jump.targets().get(0));
               case Raise _ -> {
                 cCode.stmt("Rf_error(\"%%s\", %s);", emitArgument(jump.arg(0)));

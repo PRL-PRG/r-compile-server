@@ -139,8 +139,8 @@ final class StackFrame {
   }
 
   /// The [CfgPosition] of the instruction the current sub-frame's cursor is at (e.g. the `mkenv`
-  /// being executed).
-  private CfgPosition currentPosition() {
+  /// or `prom` being executed).
+  CfgPosition currentPosition() {
     var cursor = subFrames.getLast().position;
     return new CfgPosition(cursor.bb(), cursor.instructionIndex());
   }

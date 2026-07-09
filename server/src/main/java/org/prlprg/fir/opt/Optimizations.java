@@ -16,6 +16,7 @@ import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
+import org.prlprg.fir.opt.specialize.SpecializeLocalPromise;
 import org.prlprg.fir.opt.specialize.SpecializeNonReflectiveEnv;
 import org.prlprg.fir.opt.specialize.StaticClosure;
 
@@ -60,6 +61,7 @@ public class Optimizations {
                     new Specialize(
                         "specializeEnv",
                         new SpecializeNonReflectiveEnv(),
+                        new SpecializeLocalPromise(),
                         new ElideEnv()), // must be in a pass after `ElideDeadStore`
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),

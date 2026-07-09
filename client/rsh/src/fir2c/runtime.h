@@ -20,6 +20,18 @@ typedef enum {
   FIR_MKENV_ELIDED,
 } Fir_MkEnvType;
 
+/// Whether a promise (all instances created by a given `prom` instruction) has been observed to
+/// escape (be forced after outliving the stack frame it was created in).
+///
+/// - `DEFAULT`: not speculated local, no escape observed yet.
+/// - `ESCAPED`: not speculated local, an escape has been observed (recorded as feedback).
+/// - `LOCAL`: speculated local; if it escapes, forcing it afterwards is a runtime error.
+typedef enum {
+  FIR_GLOBALLY_ESCAPED_DEFAULT = 0,
+  FIR_GLOBALLY_ESCAPED_ESCAPED = 1,
+  FIR_GLOBALLY_ESCAPED_LOCAL = 2,
+} Fir_GloballyEscaped;
+
 typedef enum {
   FIR_PRIMITIVE_LOGICAL = 0,
   FIR_PRIMITIVE_INTEGER = 1,
@@ -99,10 +111,16 @@ typedef struct Fir_PromiseGlobalData {
   Fir_PromiseFn eval;
   Fir_Type value_type;
   Fir_Effects effects;
+  /// Whether promises created by this `prom` instruction have been observed to escape. Shared by
+  /// all instances (it lives in the constant pool).
+  Fir_GloballyEscaped escaped;
 } Fir_PromiseGlobalData;
 
 typedef struct Fir_PromiseLocalData {
   void **captures;
+  /// Whether this specific promise instance has escaped, i.e. the stack frame that created it has
+  /// exited. Set to `false` when created, then `true` when the creating frame exits.
+  bool escaped;
 } Fir_PromiseLocalData;
 
 extern Fir_Kind Fir_kind_any_value;
@@ -150,6 +168,12 @@ Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type cons
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env);
+/// Prepend `promise` to `tracked_list` (a pairlist of promises created in the current frame),
+/// re-protecting it at `idx`, and return `promise`. Used to remember which promises to mark
+/// escaped when the frame exits.
+SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx);
+/// Mark every promise in `tracked_list` as escaped (its creating frame has exited).
+void Fir_mark_promises_escaped(SEXP tracked_list);
 
 SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
