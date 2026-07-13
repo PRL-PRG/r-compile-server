@@ -6,7 +6,6 @@ import static org.prlprg.fir.ir.cfg.iterator.BbDfs.bbDfs;
 import static org.prlprg.sexp.ArgumentMatcher.matchArguments;
 
 import com.google.common.collect.ImmutableList;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -130,9 +129,6 @@ public final class InternalInterpreter implements Interpreter {
   ///
   /// Here, it's easier to create stub [SEXP]s and map them with this.
   private final Map<SEXP, PromiseCode> promises = new HashMap<>();
-  /// Promises created in each still-live stack frame, so that when the frame exits (in [#call])
-  /// they can all be marked [escaped][PromiseCode#escaped]. Keyed by frame identity.
-  private final Map<StackFrame, List<PromiseCode>> framePromises = new HashMap<>();
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
   /// Maps each user-created environment (from [MkEnv]) to the [CfgPosition] of the `mkenv` that
@@ -410,7 +406,7 @@ public final class InternalInterpreter implements Interpreter {
 
     // The frame has exited: any promise it created has now escaped (outlived its frame). Forcing
     // one afterwards is detected in `force`.
-    markFramePromisesEscaped(frame);
+    frame.markPromisesEscaped();
 
     if (lastRunDeopted) {
       lastRunDeopted = false;
@@ -1196,18 +1192,10 @@ public final class InternalInterpreter implements Interpreter {
 
     var promExpr = promCode.expression;
 
-    // Record evaluation (before in case it crashes).
-    // Normally the promise is forced while its creating frame is still live, so use that frame's
-    // current scope feedback. If it escaped (the frame exited), that's unavailable, so use the
-    // scope of the `prom` instruction that created it instead.
+    // Record evaluation (before in case it crashes) in the feedback of the scope whose `prom`
+    // instruction created this promise (whether or not it escaped its creating frame).
     if (promCode.assignee != null) {
-      var scopeFeedback =
-          promCode.escaped
-              ? (promCode.position == null ? null : feedback().get(promCode.position.cfg().scope()))
-              : promCode.frame.scopeFeedback();
-      if (scopeFeedback != null) {
-        scopeFeedback.recordForce(promCode.assignee);
-      }
+      feedback().get(promCode.scope).recordForce(promCode.assignee);
     }
 
     // Evaluate the promise
@@ -1732,21 +1720,11 @@ public final class InternalInterpreter implements Interpreter {
             SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
     var frame = topFrame();
     var sexp = SEXPs.promise(codeStub, frame.environment());
-    var promCode = new PromiseCode(promExpr, frame, assignee, frame.currentPosition());
+    var promCode =
+        new PromiseCode(promExpr, frame, assignee, frame.scope(), frame.currentPosition());
     promises.put(sexp, promCode);
-    framePromises.computeIfAbsent(frame, _ -> new ArrayList<>()).add(promCode);
+    frame.addPromise(promCode);
     return sexp;
-  }
-
-  /// Marks every promise created in `frame` as [escaped][PromiseCode#escaped] (its creating frame
-  /// has exited). Called when the frame returns.
-  private void markFramePromisesEscaped(StackFrame frame) {
-    var created = framePromises.remove(frame);
-    if (created != null) {
-      for (var promCode : created) {
-        promCode.escaped = true;
-      }
-    }
   }
 
   /// Records that the promise created at `promCode`'s position escaped, in its version's feedback
@@ -1798,29 +1776,5 @@ public final class InternalInterpreter implements Interpreter {
     record Return(Value value) implements ControlFlow {}
 
     record Deopt(int pc, List<SEXP> stack) implements ControlFlow {}
-  }
-
-  /// Interpreter-side data for a promise stub (see [#promises]).
-  ///
-  /// Mutable [#escaped] is set when the creating [#frame] exits (see [#markFramePromisesEscaped]).
-  private static final class PromiseCode {
-    final Promise expression;
-    final StackFrame frame;
-    final @Nullable Register assignee;
-    /// Position of the `prom` instruction that created this promise (for escape feedback).
-    final @Nullable CfgPosition position;
-    /// Whether the creating [#frame] has exited (so forcing this promise now is an escape).
-    boolean escaped = false;
-
-    PromiseCode(
-        Promise expression,
-        StackFrame frame,
-        @Nullable Register assignee,
-        @Nullable CfgPosition position) {
-      this.expression = expression;
-      this.frame = frame;
-      this.assignee = assignee;
-      this.position = position;
-    }
   }
 }

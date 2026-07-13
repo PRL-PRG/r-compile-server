@@ -32,6 +32,10 @@ final class StackFrame {
   /// If there are multiple, that's because we're in a promise being forced.
   private final List<SubFrame> subFrames = new ArrayList<>();
   private final Map<Register, Value> registers = new LinkedHashMap<>();
+  /// Promises created while this frame was live, so that when the frame exits (in [
+  /// InternalInterpreter#call][InternalInterpreter]) they can all be marked
+  /// [escaped][PromiseCode#escaped].
+  private final List<PromiseCode> createdPromises = new ArrayList<>();
   /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` that created
   /// them. [#mkEnv()] adds to it; [#put(Variable, Value)] reads it to reject stores to elided
   /// environments.
@@ -130,6 +134,20 @@ final class StackFrame {
           "Local store to an elided environment: " + nv + " at:\n" + position);
     }
     environment.set(nv.name(), sexp);
+  }
+
+  /// Records a promise created while this frame is live (see [#createdPromises]).
+  public void addPromise(PromiseCode promise) {
+    createdPromises.add(promise);
+  }
+
+  /// Marks every promise created while this frame was live as [escaped][PromiseCode#escaped] (this
+  /// frame has exited, so forcing one now reads a gone stack frame). Called when the frame returns.
+  public void markPromisesEscaped() {
+    for (var promise : createdPromises) {
+      promise.escaped = true;
+    }
+    createdPromises.clear();
   }
 
   public void mkEnv() {

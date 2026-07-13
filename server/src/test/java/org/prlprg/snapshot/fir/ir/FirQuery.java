@@ -102,7 +102,10 @@ public class FirQuery implements GenFirQuery {
                 })
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
-    var checkers = checkers();
+    // This is the freshly-compiled, pre-optimization module: capturing promises are still
+    // legitimately non-local (they're marked local later by `SpecializeLocalPromise`), so exclude
+    // the capture check here (it runs on the optimized module in `OptimizedFirQuery`).
+    var checkers = checkers(Checker.Exclude.CAPTURE);
 
     for (var checker : checkers) {
       checker.run(data);
