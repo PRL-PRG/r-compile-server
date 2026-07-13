@@ -8,20 +8,20 @@ import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Verifies that only [local][Promise#local] promises read *captures*: registers that are read
-/// inside the promise but defined outside it (i.e. in an enclosing stack frame).
+/// Verifies that only local promises read *captures*: registers that are read inside the
+/// promise but defined outside it (i.e. in an enclosing stack frame).
 ///
 /// A non-local promise may outlive the frame that created it; if it then reads a register whose
 /// storage lives in that (now-gone) frame, it reads freed memory. Marking such a promise local
 /// asserts it won't escape (and makes escaping-then-forcing a runtime error).
 ///
-/// This is not part of the default [Checker#checkers] set: before [
-/// org.prlprg.fir.opt.specialize.SpecializeLocalPromise] runs, capturing promises are legitimately
-/// non-local.
-public class LocalPromiseChecker extends Checker {
+/// This is part of the default [Checker#checkers] set, but excluded via [Checker.Exclude#CAPTURE]
+/// before [org.prlprg.fir.opt.specialize.SpecializeLocalPromise] runs (mid-optimization and right
+/// after `bc2fir`), where capturing promises are legitimately non-local.
+public class CaptureChecker extends Checker {
   @Override
   public String name() {
-    return "localPromise";
+    return "capture";
   }
 
   @Override

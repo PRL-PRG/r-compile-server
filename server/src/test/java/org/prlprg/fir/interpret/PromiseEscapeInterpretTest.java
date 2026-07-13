@@ -53,6 +53,22 @@ class PromiseEscapeInterpretTest {
   }
 
   @Test
+  void escapedPromiseForce_recordedInCreatingScope() {
+    var module = ParseUtil.parseModule(MODULE_TEMPLATE.formatted(""));
+    var interpreter = new InternalInterpreter(module);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main")));
+
+    var promise = callAndGetPromise(interpreter);
+    interpreter.force(promise);
+
+    // The force is recorded in the scope whose `prom` instruction created the promise (main's
+    // baseline), even though the promise was forced after that frame had exited.
+    var forceCount = interpreter.feedback().get(main.baseline()).forceCount;
+    assertEquals(1, forceCount.size(), "the escaped promise's force should be recorded once");
+    assertEquals(1, forceCount.values().iterator().next().intValue());
+  }
+
+  @Test
   void localPromiseEscape_throws() {
     var module = ParseUtil.parseModule(MODULE_TEMPLATE.formatted("-"));
     var interpreter = new InternalInterpreter(module);

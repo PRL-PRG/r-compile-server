@@ -44,7 +44,7 @@ public class Sequence implements Optimization {
 
           @Override
           public boolean check(Module module) {
-            return checkAll(module, Exclude.STRICT_CFG);
+            return checkAll(module, Exclude.STRICT_CFG, Exclude.CAPTURE);
           }
         });
   }
@@ -62,7 +62,7 @@ public class Sequence implements Optimization {
 
           @Override
           public boolean check(Function function) {
-            return checkAll(function, Exclude.STRICT_CFG);
+            return checkAll(function, Exclude.STRICT_CFG, Exclude.CAPTURE);
           }
         });
   }

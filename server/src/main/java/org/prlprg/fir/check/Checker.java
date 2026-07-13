@@ -79,7 +79,8 @@ public abstract class Checker {
         new DispatchReturnTypeChecker(),
         exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new ProvenanceChecker(),
         exclusionsSet.contains(Exclude.PROVENANCE) ? NULL : new StrictnessChecker(),
-        new EnvironmentChecker());
+        new EnvironmentChecker(),
+        exclusionsSet.contains(Exclude.CAPTURE) ? NULL : new CaptureChecker());
   }
 
   private @Nullable Function function = null;
@@ -182,5 +183,9 @@ public abstract class Checker {
   public enum Exclude {
     STRICT_CFG,
     PROVENANCE,
+    /// Excludes [CaptureChecker]. Before [org.prlprg.fir.opt.specialize.SpecializeLocalPromise]
+    /// runs (i.e. mid-optimization and right after `bc2fir`), capturing promises are legitimately
+    /// non-local, so the capture check would report spurious errors.
+    CAPTURE,
   }
 }

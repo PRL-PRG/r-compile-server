@@ -89,8 +89,8 @@ public final class Fir2CCompiler {
   private static final String VAR_CAPTURES = "captures";
   private static final String VAR_POOL = "pool";
   private static final String VAR_SIGNATURE = "signature";
-  private static final String VAR_LOCAL_PROMISES = "fir_local_promises";
-  private static final String VAR_LOCAL_PROMISES_IDX = "fir_local_promises_idx";
+  private static final String VAR_LOCAL_PROMISES = "local_promises";
+  private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
 
   // Input
   private final Module module;
