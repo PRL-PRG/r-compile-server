@@ -55,6 +55,16 @@ public class AbstractionFeedback {
   ///
   /// Registers are ordered by when feedback was first recorded for them.
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
+  // TODO(llm): make these `ScopePosition`s, add parse and print capability to `ScopePosition`
+  //  that prints a list of the `CfgPosition`'s compact form, then if `!printCompact`, prints
+  //  what it does now except not redundantly re-printing the compact form `BB:index`
+  //  (`---...\n<cfg position w/o compact>\n---...\n<cfg position w/o compact>`) by changing
+  //  `bool printCompact` into `CfgPosition.PrintStyle style` where `enum PrintStyle { COMPACT,
+  //  DETAILS, BOTH }` (and make `ScopePosition` use `CfgPosition.PrintContext`).
+  //  `ScopePosition`'s parse method must use a new class `ScopePosition.ParseContext`, which
+  //  takes `Abstraction scope` instead of `CfgPosition.ParseContext`'s `CFG`.
+  //  This fixes a latent bug where `AbstractionFeedback` can't be parsed if there are
+  //  reflective env or escaping promises in any CFG outside `scope().cfg()`.
   /// `mkenv` instructions whose environments were reflectively accessed.
   public final Set<CfgPosition> reflectiveEnvs = new LinkedHashSet<>();
   /// `prom` instructions whose promises were recorded to escape (outlive the stack frame they were
