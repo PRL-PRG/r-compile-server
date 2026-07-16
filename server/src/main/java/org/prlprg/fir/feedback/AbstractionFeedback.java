@@ -208,7 +208,8 @@ public class AbstractionFeedback {
     }
 
     if (s.trySkip('-')) {
-      if (s.trySkip('_')) {
+      if (s.nextCharsAre("_ ") || s.nextCharsAre("_(")) {
+        s.assertAndSkip('_');
         callees.put(register, Optional.empty());
       } else {
         var calleeName = p2.parse(NamedVariable.class);
@@ -221,7 +222,8 @@ public class AbstractionFeedback {
     }
 
     if (s.trySkip('=')) {
-      if (s.trySkip('_')) {
+      if (s.nextCharsAre("_ ") || s.nextCharsAre("_(")) {
+        s.assertAndSkip('_');
         constants.put(register, Optional.empty());
       } else {
         var value = p2.parse(Value.class);
