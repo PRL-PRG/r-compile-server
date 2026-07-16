@@ -61,7 +61,6 @@ public class MockModuleFeedback implements ModuleFeedback {
     var s = p.scanner();
     var module = ctx.module();
     var forSexps = new SEXPParseContext();
-    var p2 = p.withContext(new AbstractionFeedback.ParseContext(this, module, forSexps));
 
     s.assertAndSkip("feedback");
     s.assertAndSkip('{');
@@ -82,7 +81,9 @@ public class MockModuleFeedback implements ModuleFeedback {
 
       s.assertAndSkip('=');
 
-      var feedback = p2.parse(AbstractionFeedback.class);
+      var feedback =
+          p.withContext(new AbstractionFeedback.ParseContext(this, module, forSexps, version))
+              .parse(AbstractionFeedback.class);
 
       feedbacks.put(version, feedback);
     }
