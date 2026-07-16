@@ -60,8 +60,8 @@ public class Optimizations {
                         new ImproveSignatures()),
                     new Specialize(
                         "specializeEnv",
-                        new SpecializeNonReflectiveEnv(),
-                        new SpecializeLocalPromise(),
+                        new SpecializeNonReflectiveEnv(threshold),
+                        new SpecializeLocalPromise(threshold),
                         new ElideEnv()), // must be in a pass after `ElideDeadStore`
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),

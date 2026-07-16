@@ -14,7 +14,11 @@ import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that marks [MkEnv]s as [MkEnvType#NON_REFLECTIVE] when feedback indicates their
 /// environments were never reflectively accessed.
-public record SpecializeNonReflectiveEnv() implements SpecializeOptimization {
+///
+/// `threshold` is the minimum number of recorded calls for the absence of a reflective access to
+/// be trusted: this speculation isn't guarded by a checkpoint (a wrong speculation crashes at
+/// runtime instead of deoptimizing), so we only speculate on versions that were profiled enough.
+public record SpecializeNonReflectiveEnv(int threshold) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
     return new AnalysisTypes();
@@ -36,8 +40,9 @@ public record SpecializeNonReflectiveEnv() implements SpecializeOptimization {
     }
 
     // Only specialize if we have feedback that specifies this env wasn't reflectively accessed.
-    // Without any recorded calls, the absence of a reflective access means nothing.
-    if (feedback.numCalls() == 0 || feedback.reflectiveEnvs.contains(new CfgPosition(bb, index))) {
+    // Without enough recorded calls, the absence of a reflective access isn't reliable.
+    if (feedback.numCalls() < threshold
+        || feedback.reflectiveEnvs.contains(new CfgPosition(bb, index))) {
       return expression;
     }
 

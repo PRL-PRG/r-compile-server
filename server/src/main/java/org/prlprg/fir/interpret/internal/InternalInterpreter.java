@@ -1647,7 +1647,7 @@ public final class InternalInterpreter implements Interpreter {
 
     if (mkEnvTypeOf(position) != MkEnvType.REGULAR) {
       throw fail(
-          "Reflective access to a non-regular ("
+          "Reflective access to a speculated-non-reflective ("
               + mkEnvTypeOf(position)
               + ") environment created at:\n"
               + position);

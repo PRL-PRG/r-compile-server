@@ -14,7 +14,7 @@ import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
 class SpecializeLocalPromiseTest {
-  private final Specialize optimization = new Specialize(new SpecializeLocalPromise());
+  private final Specialize optimization = new Specialize(new SpecializeLocalPromise(1));
 
   private static final String SOURCE =
       """

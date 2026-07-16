@@ -14,7 +14,7 @@ import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
 class SpecializeNonReflectiveEnvTest {
-  private final Specialize optimization = new Specialize(new SpecializeNonReflectiveEnv());
+  private final Specialize optimization = new Specialize(new SpecializeNonReflectiveEnv(1));
 
   @Test
   void notReflectiveInFeedback_marked() {
@@ -58,6 +58,39 @@ class SpecializeNonReflectiveEnvTest {
 
     var printed = Printer.toString(abstraction);
     assertFalse(printed.contains("mkenv~"), "mkenv should remain regular; printed:\n" + printed);
+  }
+
+  @Test
+  void belowThreshold_notMarked() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            () --> I { reg r:I |
+              mkenv;
+              r = 0;
+              popenv;
+              return r;
+            }
+            """);
+    var thresholdOptimization = new Specialize(new SpecializeNonReflectiveEnv(2));
+    var feedback = recordedFeedback(abstraction);
+
+    assertFalse(
+        thresholdOptimization.run(null, feedback, abstraction),
+        "below the threshold, the env should not be marked");
+
+    var printed = Printer.toString(abstraction);
+    assertFalse(printed.contains("mkenv~"), "mkenv should remain regular; printed:\n" + printed);
+
+    // A second recorded call reaches the threshold.
+    feedback.recordCall();
+
+    assertTrue(
+        thresholdOptimization.run(null, feedback, abstraction),
+        "at the threshold, the optimization should report a change");
+
+    printed = Printer.toString(abstraction);
+    assertTrue(printed.contains("mkenv~"), "mkenv should be non-reflective; printed:\n" + printed);
   }
 
   @Test
