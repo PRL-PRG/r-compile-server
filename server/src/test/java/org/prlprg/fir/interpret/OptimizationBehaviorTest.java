@@ -32,7 +32,7 @@ import org.prlprg.parseprint.Printer;
 class OptimizationBehaviorTest {
   /// Speculate envs with the collected feedback and resolve loads
   private static final AbstractionOptimization SPECULATE_AND_RESOLVE =
-      new Specialize("envOpts", new SpecializeNonReflectiveEnv(), new ResolveLoad());
+      new Specialize("envOpts", new SpecializeNonReflectiveEnv(1), new ResolveLoad());
   /// Remove dead stores, then elide unused environments. `ElideEnv` must run in a *later* pass than
   /// `ElideDeadStore` (see [org.prlprg.fir.opt.Optimizations]): otherwise it examines the `mkenv`
   /// while the now-dead stores are still present and conservatively keeps the environment.

@@ -6,6 +6,7 @@ import static org.prlprg.fir.check.Checker.checkAll;
 import java.util.Objects;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
+import org.prlprg.examples.SexpResult.Ok;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimization;
@@ -14,7 +15,6 @@ import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.interpret.InterpretQuery;
 import org.prlprg.snapshot.fir.ir.FirQuery;
 import org.prlprg.snapshot.fir.ir.GenFirQuery;
-import org.prlprg.snapshot.gen2c.EvalQuery;
 import org.prlprg.util.Files;
 import org.prlprg.util.Paths;
 
@@ -49,26 +49,20 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     var original = store.load(example, FirQuery.INSTANCE);
 
     MockModuleFeedback feedback;
+    // Get feedback from interpreter because feedback from eval is unimplemented.
+    // When it's implemented, switch to eval.
     try {
-      class TryEvalException extends RuntimeException {}
-
-      try {
-        var interpretOutput = store.load(example, InterpretQuery.MAIN);
-        if (interpretOutput.result() instanceof Error) {
-          throw new TryEvalException();
-        }
-        feedback = interpretOutput.feedback();
-        System.err.println("Using INTERPRETER feedback");
-      } catch (SkipQueryException | TryEvalException e) {
-        var evalOutput = store.load(example, EvalQuery.FIR_ORACLE);
-        if (evalOutput.result() instanceof Error(var message, _)) {
-          System.err.println("WARNING: eval crashed:\n" + message);
-        }
-        feedback = evalOutput.feedback();
-        System.err.println("Using EVAL feedback");
+      var interpretOutput = store.load(example, InterpretQuery.MAIN);
+      feedback = interpretOutput.feedback();
+      switch (interpretOutput.result()) {
+        case Ok _ -> System.err.println("Using INTERPRETER feedback");
+        case Error(var message, _) ->
+            System.err.println(
+                "Using PARTIAL INTERPRETER feedback (from crashed but successful run):\n"
+                    + message);
       }
     } catch (SkipQueryException e) {
-      System.err.println("Interpreter crashed: " + e.getMessage());
+      System.err.println("Interpreter crashed with exception: " + e.getMessage());
       //noinspection CallToPrintStackTrace
       e.printStackTrace();
 

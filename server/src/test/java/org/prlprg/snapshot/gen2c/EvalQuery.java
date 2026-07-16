@@ -84,6 +84,15 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   @Override
   public void verifyEqual(
       EvalOutput expected, EvalOutput actual, Example example, SnapshotStore store) {
+    // If a crash is expected in this query but not the oracle's (e.g.
+    // `#? [opt.fir2c.opt.eval]crashes`, for optimized code that crashes instead of deoptimizing),
+    // the outputs deliberately differ; `verifyExtra` asserts the crash and `verifyNoRegression`
+    // asserts its message doesn't change.
+    var oracleName = new EvalQuery(moduleQuery.evalOracle()).name();
+    if (example.hasOption(name(), "crashes") != example.hasOption(oracleName, "crashes")) {
+      return;
+    }
+
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
       assertEquals(expected.behaviorOutputLog(), actual.behaviorOutputLog(), "Output changed");
@@ -105,7 +114,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
   @Override
   public void verifyExtra(EvalOutput data, Example example, SnapshotStore store) {
-    data.result().check(example);
+    data.result().check(example, name());
 
     if (moduleQuery.runtime() == RuntimeVariant.DIRECT_BC2C) {
       if (example.hasOption(name(), "fastArith")) {

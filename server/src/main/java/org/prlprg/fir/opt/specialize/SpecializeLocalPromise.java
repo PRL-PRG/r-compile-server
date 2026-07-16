@@ -18,7 +18,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// A local promise reads its captures directly from the (still-alive) stack frame; if the
 /// speculation is wrong and it does escape, forcing it after the frame exited crashes at runtime
 /// (see the runtime's `Fir_GloballyEscaped` and the interpreter's escape tracking).
-public record SpecializeLocalPromise() implements SpecializeOptimization {
+public record SpecializeLocalPromise(int threshold) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
     return new AnalysisTypes();
@@ -40,8 +40,8 @@ public record SpecializeLocalPromise() implements SpecializeOptimization {
     }
 
     // Only specialize if we have feedback that specifies this promise didn't escape.
-    // Without any recorded calls, the absence of a recorded escape means nothing.
-    if (feedback.numCalls() == 0
+    // Without enough recorded calls, the absence of a recorded escape isn't reliable.
+    if (feedback.numCalls() < threshold
         || feedback.escapingPromises.contains(new CfgPosition(bb, index))) {
       return expression;
     }
