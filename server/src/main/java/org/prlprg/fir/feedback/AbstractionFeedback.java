@@ -4,9 +4,11 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.position.CfgPosition;
@@ -166,7 +168,7 @@ public class AbstractionFeedback {
   }
 
   public record ParseContext(
-      ModuleFeedback moduleFeedback, Module module, SEXPParseContext forSexps) {}
+      ModuleFeedback moduleFeedback, Module module, SEXPParseContext forSexps, Abstraction scope) {}
 
   public record PrintContext(SEXPPrintContext forSexps) {}
 
@@ -174,6 +176,7 @@ public class AbstractionFeedback {
   private AbstractionFeedback(Parser p, ParseContext ctx) {
     var s = p.scanner();
     module = ctx.moduleFeedback;
+    var p2 = p.withContext(new CfgPosition.ParseContext(Objects.requireNonNull(ctx.scope.cfg())));
 
     numCalls = s.readUInt();
     s.assertAndSkip("x");
@@ -185,11 +188,9 @@ public class AbstractionFeedback {
         var register = p.parse(Register.class);
         parse(register, p, ctx);
       } else if (s.trySkip("env ")) {
-        var pos = p.parse(CfgPosition.class);
-        reflectiveEnvs.add(pos);
+        reflectiveEnvs.add(p2.parse(CfgPosition.class));
       } else if (s.trySkip("prom ")) {
-        var pos = p.parse(CfgPosition.class);
-        escapingPromises.add(pos);
+        escapingPromises.add(p2.parse(CfgPosition.class));
       } else {
         throw s.fail("\"reg\", \"env\", or \"prom\"", s.readIdentifierOrKeyword());
       }
@@ -278,12 +279,12 @@ public class AbstractionFeedback {
 
           for (var env : reflectiveEnvs) {
             w.write("env ");
-            p.print(env);
+            p.withContext(new CfgPosition.PrintContext(true)).print(env);
           }
 
           for (var prom : escapingPromises) {
             w.write("prom ");
-            p.print(prom);
+            p.withContext(new CfgPosition.PrintContext(true)).print(prom);
           }
         });
     w.write("\n]");
