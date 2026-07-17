@@ -118,6 +118,7 @@ jobs:
       packages: read
     env:
       TEST_DOCKER_CONTAINER: test-${{ matrix.test }}
+      HARVEST_CRAN: 0
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -155,6 +156,7 @@ jobs:
       # note: github workflow does not support variable expansion
       BENCH_OUT_DIR: /rcp/rcp/benchmark-results/${{ matrix.bench_type }}
       BENCH_ITER: 15
+      HARVEST_CRAN: 0
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3

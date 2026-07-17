@@ -404,19 +404,19 @@ static void build_debug_info(Buffer *dbg_info, const char *func_name,
 	// args, but `info locals` will show both `stack` and `locals`. To switch:
 	// To switch, simply change abbrev 3 -> abbrev 6 below.
 
-	// Parameter: stack (R_bcstack_t*) in RDI
+	// Parameter: stack (R_bcstack_t*) in RBX -- see RSH_RCP_REGISTER_STACK
 	buf_write_uleb128(dbg_info, 3);						   // Abbrev 3 (formal_parameter)
 	buf_write_string(dbg_info, "stack");				   // DW_AT_name
 	buf_write_u32(dbg_info, (uint32_t)bcstack_ptr_offset); // DW_AT_type
 	buf_write_u8(dbg_info, 1);							   // Block len
-	buf_write_u8(dbg_info, DW_OP_reg5);					   // DW_AT_location: RDI
+	buf_write_u8(dbg_info, DW_OP_reg3);					   // DW_AT_location: RBX
 
-	// Parameter: locals (rcpEval_locals*) in RSI
+	// Parameter: locals (rcpEval_locals*) in R14 -- see RSH_RCP_REGISTER_LOCALS
 	buf_write_uleb128(dbg_info, 3);						  // Abbrev 3 (formal_parameter)
 	buf_write_string(dbg_info, "locals");				  // DW_AT_name
 	buf_write_u32(dbg_info, (uint32_t)locals_ptr_offset); // DW_AT_type
 	buf_write_u8(dbg_info, 1);							  // Block len
-	buf_write_u8(dbg_info, DW_OP_reg4);					  // DW_AT_location: RSI
+	buf_write_u8(dbg_info, DW_OP_reg14);				  // DW_AT_location: R14
 
 	buf_write_u8(dbg_info, 0); // End of Subprogram children
 	buf_write_u8(dbg_info, 0); // End of CU children

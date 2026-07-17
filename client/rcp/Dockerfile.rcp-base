@@ -11,6 +11,7 @@ RUN apt-get update -y \
   binutils-dev \
   build-essential \
   ca-certificates \
+  gawk \
   gdb \
   gcc-14 \
   g++-14 \
@@ -30,6 +31,7 @@ RUN apt-get update -y \
   libstdc++-14-dev \
   libssl-dev \
   libtiff5-dev \
+  libuv1-dev \
   libx11-dev \
   libxt-dev \
   libxxhash-dev \

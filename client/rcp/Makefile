@@ -18,6 +18,9 @@ endif
 CFLAGS ?= -std=gnu17
 CXXFLAGS ?= -std=gnu++20
 
+# The bundled GNU-R sources that `make setup` builds.
+GNUR_DIR := external/rsh/external/R
+
 RSH_COMMIT ?= $(shell git -C external/rsh rev-parse HEAD)
 RCP_COMMIT ?= $(shell git rev-parse HEAD)
 
@@ -65,20 +68,39 @@ docker-rcp: docker-rcp-rsh
 # Local development targets
 # --------------------------------------------------------------------------- #
 
-.PHONY: setup test benchmark clean install
+.PHONY: setup test benchmark profile clean install
 .PHONY: check-toolchain
 check-toolchain:
-	$(MAKE) -C rcp check-toolchain CC="$(CC)" CXX="$(CXX)"
+	@command -v $(CC) >/dev/null 2>&1 || { echo "Error: C compiler '$(CC)' not found. Set CC= (RCP needs GCC >= 14, e.g. 'make ... CC=gcc-14' or CC=gcc)."; exit 1; }
+	@command -v $(CXX) >/dev/null 2>&1 || { echo "Error: C++ compiler '$(CXX)' not found. Set CXX= (e.g. CXX=g++-14 or CXX=g++)."; exit 1; }
 
+# `setup` builds the bundled GNU-R with the copy-and-patch (RCP) variant enabled
+# and then installs the rcp package against it. RCP=1 tells build-gnur.sh to add
+# -DRCP to CPPFLAGS itself; passing CPPFLAGS directly would be clobbered because
+# build-gnur.sh resets CFLAGS/CPPFLAGS internally. R keeps its own -O2.
+#
+# build-gnur.sh only runs ./configure when there is no Makefile, and R bakes the
+# flag into etc/Makeconf at configure time. So if R was previously configured
+# WITHOUT -DRCP, force a reconfigure first; otherwise it would be ignored.
 setup: check-toolchain
-	CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" external/rsh/tools/build-gnur.sh external/rsh/external/R
-	$(MAKE) -C rcp setup CC="$(CC)" CXX="$(CXX)"
+	@if [ -f $(GNUR_DIR)/etc/Makeconf ] && ! grep -q -- '-DRCP' $(GNUR_DIR)/etc/Makeconf; then \
+		echo ">> $(GNUR_DIR) is configured without -DRCP; running 'make distclean' to force a clean RCP reconfigure"; \
+		$(MAKE) -C $(GNUR_DIR) distclean >/dev/null 2>&1 || true; \
+	fi
+	CC="$(CC)" CXX="$(CXX)" RCP=1 external/rsh/tools/build-gnur.sh $(GNUR_DIR)
+	$(MAKE) -C rcp CC="$(CC)" CXX="$(CXX)"
 
 test: check-toolchain
 	$(MAKE) -C rcp test CC="$(CC)" CXX="$(CXX)"
 
 benchmark: check-toolchain
 	$(MAKE) -C rcp benchmark CC="$(CC)" CXX="$(CXX)"
+
+# Build RCP with PROFILE_STENCILS and export per-stencil execution counts and
+# cycle totals for the whole benchmark suite as CSV (profile-results/ by
+# default). See rcp/Makefile for RUNS / FILTER / PROFILE_OUT_DIR.
+profile: check-toolchain
+	$(MAKE) -C rcp profile CC="$(CC)" CXX="$(CXX)"
 
 clean install:
 	$(MAKE) -C rcp $@ CC="$(CC)" CXX="$(CXX)"
