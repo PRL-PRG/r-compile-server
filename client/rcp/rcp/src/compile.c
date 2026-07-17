@@ -2331,52 +2331,74 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 				}
 				DEBUG_PRINT("**********\nClosure compiled\n");
 			}
-			else if (opcode == MAKEPROM_BCOP && compile_promises)
+			else if (opcode == MAKEPROM_BCOP)
 			{
+				int is_trivial_promise = 0;
 				SEXP body = consts[opargs[0]];
-
-				switch (TYPEOF(body))
+#ifdef DECOMPILE_TRIVIAL_PROMISES
+				if (TYPEOF(body) == BCODESXP)
 				{
-					case BCODESXP:
+					SEXP prom_bcode = BCODE_CODE(body);
+					SEXP *prom_consts = STDVEC_DATAPTR(BCODE_CONSTS(body));
+
+					SEXP code = R_bcDecode(prom_bcode);
+					int *decoded = INTEGER0(code) + 1;
+					int decoded_size = LENGTH_0(code) - 1;
+
+					if (decoded_size == 3 && decoded[0] == GETVAR_BCOP && decoded[2] == RETURN_BCOP)
 					{
-						DEBUG_PRINT("**********\nCompiling promise\n");
-						// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]); //
-						// Should not be needed, constpool is ours
-						closure_counter++;
-						char closure_name_buf[256];
-						const char *base_name = name ? name : "promise";
-						snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
-								 base_name, closure_counter);
-						SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
-						// consts[opargs[0]] does not seem to work
-						// it seems that it does not propely handle GC
-						SET_VECTOR_ELT(bcode_consts, opargs[0], res);
-						DEBUG_PRINT("**********\nPromise compiled\n");
-						break;
+						int symbol_idx = decoded[1];
+						SET_VECTOR_ELT(bcode_consts, opargs[0], prom_consts[symbol_idx]);
+						is_trivial_promise = 1;
+						DEBUG_PRINT("Found a trivial promise, skipping compilation.\n");
 					}
-					case LANGSXP:
-					case SYMSXP:
+				}
+#endif
+				if (!is_trivial_promise && compile_promises)
+				{
+					switch (TYPEOF(body))
 					{
-						/* Promise body is an unevaluated AST expression (LANGSXP call
-						   or SYMSXP symbol) -- occurs in NSE contexts where the R
-						   bytecode compiler stores the original expression directly
-						   instead of compiling it to bytecode. Skip JIT compilation;
-						   it will be evaluated by the standard AST interpreter. */
-						DEBUG_PRINT("Skipping NSE promise (LANGSXP/SYMSXP body)\n");
-						break;
-					}
-					case EXTPTRSXP:
-					{
-						if (RSH_IS_CLOSURE_BODY(body))
+						case BCODESXP:
 						{
-							DEBUG_PRINT("Using precompiled promise\n");
+							DEBUG_PRINT("**********\nCompiling promise\n");
+							// constpool[opargs[0]] = Rf_duplicate(constpool[opargs[0]]);
+							// Should not be needed, constpool is ours
+							closure_counter++;
+							char closure_name_buf[256];
+							const char *base_name = name ? name : "promise";
+							snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
+									 base_name, closure_counter);
+							SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
+							// consts[opargs[0]] does not seem to work
+							// it seems that it does not propely handle GC
+							SET_VECTOR_ELT(bcode_consts, opargs[0], res);
+							DEBUG_PRINT("**********\nPromise compiled\n");
 							break;
 						}
-					}
-					default:
-					{
-						BC_ERROR("Invalid promise type: %d\n", TYPEOF(body));
-						break;
+						case LANGSXP:
+						case SYMSXP:
+						{
+							/* Promise body is an unevaluated AST expression (LANGSXP call
+							   or SYMSXP symbol) -- occurs in NSE contexts where the R
+							   bytecode compiler stores the original expression directly
+							   instead of compiling it to bytecode. Skip JIT compilation;
+							   it will be evaluated by the standard AST interpreter. */
+							DEBUG_PRINT("Skipping NSE promise (LANGSXP/SYMSXP body)\n");
+							break;
+						}
+						case EXTPTRSXP:
+						{
+							if (RSH_IS_CLOSURE_BODY(body))
+							{
+								DEBUG_PRINT("Using precompiled promise\n");
+								break;
+							}
+						}
+						default:
+						{
+							BC_ERROR("Invalid promise type: %d\n", TYPEOF(body));
+							break;
+						}
 					}
 				}
 			}
