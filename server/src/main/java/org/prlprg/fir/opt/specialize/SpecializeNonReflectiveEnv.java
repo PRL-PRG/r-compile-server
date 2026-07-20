@@ -3,6 +3,7 @@ package org.prlprg.fir.opt.specialize;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
@@ -21,7 +22,7 @@ import org.prlprg.fir.ir.variable.Register;
 public record SpecializeNonReflectiveEnv(int threshold) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes();
+    return new AnalysisTypes(CfgHierarchy.class);
   }
 
   @Override
@@ -39,10 +40,11 @@ public record SpecializeNonReflectiveEnv(int threshold) implements SpecializeOpt
       return expression;
     }
 
+    var pos = analyses.get(CfgHierarchy.class).scopePos(new CfgPosition(bb, index));
+
     // Only specialize if we have feedback that specifies this env wasn't reflectively accessed.
     // Without enough recorded calls, the absence of a reflective access isn't reliable.
-    if (feedback.numCalls() < threshold
-        || feedback.reflectiveEnvs.contains(new CfgPosition(bb, index))) {
+    if (feedback.numCalls() < threshold || feedback.reflectiveEnvs.contains(pos)) {
       return expression;
     }
 

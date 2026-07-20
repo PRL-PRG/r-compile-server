@@ -21,10 +21,11 @@ import org.prlprg.sexp.PromSXP;
 ///
 /// [reflectiveEnvs][AbstractionFeedback#reflectiveEnvs] and
 /// [escapingPromises][AbstractionFeedback#escapingPromises] are stored as
-/// [CfgPosition][org.prlprg.fir.ir.position.CfgPosition]s. A `CfgPosition` prints its whole CFG by
-/// default, so the feedback prints them *compactly* (`bb:index`) and parses them back against the
-/// abstraction's CFG. These tests guard that round-trip: before it was fixed, a recorded
-/// escape/reflective-env made the deep copy fail to parse.
+/// [ScopePosition][org.prlprg.fir.ir.position.ScopePosition]s. A `ScopePosition` prints its whole
+/// CFG by default, so the feedback prints them *compactly* (`bb:index`, or `outer/.../innermost`
+/// through enclosing promises) and parses them back against the abstraction. These tests guard
+/// that round-trip: before it was fixed, a recorded escape/reflective-env made the deep copy fail
+/// to parse.
 ///
 /// The feedback is produced by the interpreter (not hand-built) so it's realistic: the scope also
 /// has register feedback, which the compact positions are printed alongside.

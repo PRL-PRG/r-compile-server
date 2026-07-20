@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
@@ -12,6 +11,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -55,21 +55,11 @@ public class AbstractionFeedback {
   ///
   /// Registers are ordered by when feedback was first recorded for them.
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
-  // TODO(llm): make these `ScopePosition`s, add parse and print capability to `ScopePosition`
-  //  that prints a list of the `CfgPosition`'s compact form, then if `!printCompact`, prints
-  //  what it does now except not redundantly re-printing the compact form `BB:index`
-  //  (`---...\n<cfg position w/o compact>\n---...\n<cfg position w/o compact>`) by changing
-  //  `bool printCompact` into `CfgPosition.PrintStyle style` where `enum PrintStyle { COMPACT,
-  //  DETAILS, BOTH }` (and make `ScopePosition` use `CfgPosition.PrintContext`).
-  //  `ScopePosition`'s parse method must use a new class `ScopePosition.ParseContext`, which
-  //  takes `Abstraction scope` instead of `CfgPosition.ParseContext`'s `CFG`.
-  //  This fixes a latent bug where `AbstractionFeedback` can't be parsed if there are
-  //  reflective env or escaping promises in any CFG outside `scope().cfg()`.
   /// `mkenv` instructions whose environments were reflectively accessed.
-  public final Set<CfgPosition> reflectiveEnvs = new LinkedHashSet<>();
+  public final Set<ScopePosition> reflectiveEnvs = new LinkedHashSet<>();
   /// `prom` instructions whose promises were recorded to escape (outlive the stack frame they were
   /// created in, then get forced afterwards).
-  public final Set<CfgPosition> escapingPromises = new LinkedHashSet<>();
+  public final Set<ScopePosition> escapingPromises = new LinkedHashSet<>();
 
   public AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
@@ -186,7 +176,7 @@ public class AbstractionFeedback {
   private AbstractionFeedback(Parser p, ParseContext ctx) {
     var s = p.scanner();
     module = ctx.moduleFeedback;
-    var p2 = p.withContext(new CfgPosition.ParseContext(Objects.requireNonNull(ctx.scope.cfg())));
+    var p2 = p.withContext(new ScopePosition.ParseContext(ctx.scope));
 
     numCalls = s.readUInt();
     s.assertAndSkip("x");
@@ -198,9 +188,9 @@ public class AbstractionFeedback {
         var register = p.parse(Register.class);
         parse(register, p, ctx);
       } else if (s.trySkip("env ")) {
-        reflectiveEnvs.add(p2.parse(CfgPosition.class));
+        reflectiveEnvs.add(p2.parse(ScopePosition.class));
       } else if (s.trySkip("prom ")) {
-        escapingPromises.add(p2.parse(CfgPosition.class));
+        escapingPromises.add(p2.parse(ScopePosition.class));
       } else {
         throw s.fail("\"reg\", \"env\", or \"prom\"", s.readIdentifierOrKeyword());
       }
@@ -287,14 +277,28 @@ public class AbstractionFeedback {
             print(register, p, ctx);
           }
 
+          var compact = new CfgPosition.PrintContext(CfgPosition.PrintStyle.COMPACT);
+
           for (var env : reflectiveEnvs) {
+            if (wroteAny) {
+              w.write('\n');
+            } else {
+              wroteAny = true;
+            }
+
             w.write("env ");
-            p.withContext(new CfgPosition.PrintContext(true)).print(env);
+            p.withContext(compact).print(env);
           }
 
           for (var prom : escapingPromises) {
+            if (wroteAny) {
+              w.write('\n');
+            } else {
+              wroteAny = true;
+            }
+
             w.write("prom ");
-            p.withContext(new CfgPosition.PrintContext(true)).print(prom);
+            p.withContext(compact).print(prom);
           }
         });
     w.write("\n]");
