@@ -15,6 +15,7 @@ import java.util.Stack;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
@@ -65,6 +66,7 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -1653,7 +1655,14 @@ public final class InternalInterpreter implements Interpreter {
               + position);
     }
 
-    feedback().get(position.cfg().scope()).reflectiveEnvs.add(position);
+    feedback().get(position.cfg().scope()).reflectiveEnvs.add(scopePositionOf(position));
+  }
+
+  /// Builds the [ScopePosition] of a [CfgPosition], resolving its enclosing promises from the CFG
+  /// hierarchy so it round-trips when the feedback is serialized (even if `position` is in a
+  /// nested promise CFG).
+  private static ScopePosition scopePositionOf(CfgPosition position) {
+    return new CfgHierarchy(position.cfg().scope()).scopePos(position);
   }
 
   /// The [type][MkEnvType] of the [MkEnv] at `position` (which must be an `mkenv`).
@@ -1734,7 +1743,7 @@ public final class InternalInterpreter implements Interpreter {
     if (position == null) {
       return;
     }
-    feedback().get(position.cfg().scope()).escapingPromises.add(position);
+    feedback().get(position.cfg().scope()).escapingPromises.add(scopePositionOf(position));
   }
 
   private record AssumeLoadFunLookup(EnvSXP environment, CloSXP closure) {}

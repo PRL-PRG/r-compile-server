@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
@@ -122,13 +124,13 @@ class SpecializeNonReflectiveEnvTest {
     return feedback;
   }
 
-  private static CfgPosition mkEnvPosition(Abstraction abstraction) {
+  private static ScopePosition mkEnvPosition(Abstraction abstraction) {
     var cfg = Objects.requireNonNull(abstraction.cfg());
     for (var bb : cfg.bbs()) {
       var statements = bb.statements();
       for (var i = 0; i < statements.size(); i++) {
         if (statements.get(i).expression() instanceof MkEnv) {
-          return new CfgPosition(bb, i);
+          return new CfgHierarchy(abstraction).scopePos(new CfgPosition(bb, i));
         }
       }
     }

@@ -3,6 +3,7 @@ package org.prlprg.fir.opt.specialize;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
@@ -21,7 +22,7 @@ import org.prlprg.fir.ir.variable.Register;
 public record SpecializeLocalPromise(int threshold) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes();
+    return new AnalysisTypes(CfgHierarchy.class);
   }
 
   @Override
@@ -35,17 +36,19 @@ public record SpecializeLocalPromise(int threshold) implements SpecializeOptimiz
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Promise promise) || promise.local()) {
+    if (!(expression instanceof Promise(var valueType, var effects, var code, boolean local))
+        || local) {
       return expression;
     }
+
+    var pos = analyses.get(CfgHierarchy.class).scopePos(new CfgPosition(bb, index));
 
     // Only specialize if we have feedback that specifies this promise didn't escape.
     // Without enough recorded calls, the absence of a recorded escape isn't reliable.
-    if (feedback.numCalls() < threshold
-        || feedback.escapingPromises.contains(new CfgPosition(bb, index))) {
+    if (feedback.numCalls() < threshold || feedback.escapingPromises.contains(pos)) {
       return expression;
     }
 
-    return new Promise(promise.valueType(), promise.effects(), promise.code(), true);
+    return new Promise(valueType, effects, code, true);
   }
 }
