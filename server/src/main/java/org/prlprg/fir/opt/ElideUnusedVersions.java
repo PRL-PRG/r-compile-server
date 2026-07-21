@@ -52,7 +52,7 @@ public record ElideUnusedVersions(int threshold) implements Optimization {
             .flatMap(bb -> bb.statements().stream())
             .anyMatch(
                 stmt ->
-                    stmt.expression() instanceof Call(StaticFnCallee callee, _)
+                    stmt.expression() instanceof Call(StaticFnCallee callee)
                         && callee.minVersion() == version);
   }
 }

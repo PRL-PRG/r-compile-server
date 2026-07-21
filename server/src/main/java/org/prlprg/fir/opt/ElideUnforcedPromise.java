@@ -7,7 +7,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Deopt;
-import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 
@@ -37,15 +37,17 @@ public record ElideUnforcedPromise(int threshold) implements AbstractionOptimiza
           if (effects == Effects.NONE
               && code.bbs().size() == 1
               && code.entry().statements().isEmpty()
-              && code.entry().jump().equals(new Deopt(0, List.of()))) {
+              && code.entry().jump().expression() instanceof Deopt(var pc)
+              && pc == 0
+              && code.entry().jump().args().isEmpty()) {
             // It's already elided
             continue;
           }
 
           var newCode = new CFG(scope);
-          newCode.entry().setJump(new Deopt(0, List.of()));
+          newCode.entry().setJump(new Jump(new Deopt(0), List.of()));
           var newPromise = new Promise(valueType, Effects.NONE, newCode);
-          bb.replaceStatementAt(i, new Statement(stmt.comments(), stmt.assignee(), newPromise));
+          stmt.setExpression(newPromise);
           changed = true;
           continue;
         }

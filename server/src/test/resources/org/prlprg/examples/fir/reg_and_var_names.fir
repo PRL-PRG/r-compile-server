@@ -1,11 +1,10 @@
 fun main() {
-  () -~> v1(I) { reg x:I, var r:v1(I)?, reg xb:v1(I), reg xu:v1(I) |
-    x = 0;
+  () -~> v1(I) {
     mkenv;
-    xb = box<I --> v1(I)>(x);
+    xb: v1(I) = box< I --> v1(I) >(0);
     st r = xb;
     popenv;
-    xu = box< I --> v1(I) >(x);
+    xu: v1(I) = box< I --> v1(I) >(0);
     return xu;
   }
 }

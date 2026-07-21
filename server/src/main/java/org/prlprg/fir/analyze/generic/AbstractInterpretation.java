@@ -133,7 +133,7 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
         state = run(bb);
 
         // Update return state if needed
-        if (bb.jump() instanceof Return) {
+        if (bb.jump().expression() instanceof Return) {
           if (returnState == null) {
             returnState = state.copy();
           } else {

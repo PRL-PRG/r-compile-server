@@ -1,6 +1,7 @@
 package org.prlprg.fir.opt;
 
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.resolve.EnvironmentLiveness;
@@ -16,7 +17,6 @@ import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.iterator.InstructionDfs;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.position.CfgPosition;
 
 /// Removes unnecessary environments: those whose range contains no [Store] (nor super-store)
 /// nor reflective instructions (ignoring deopt branches).
@@ -34,7 +34,7 @@ public record ElideEnv() implements AbstractionOptimization {
     var changed = false;
 
     for (var range : liveness.allEnvs()) {
-      if (range.mk().bb().jump() instanceof Deopt) {
+      if (Objects.requireNonNull(range.mk().parentBB()).jump().expression() instanceof Deopt) {
         continue;
       }
       var result = analyze(range, inferEffects);
@@ -51,36 +51,35 @@ public record ElideEnv() implements AbstractionOptimization {
   private record AnalysisResult(boolean canElide, Set<BB> deoptBBs) {}
 
   private AnalysisResult analyze(EnvRange range, InferEffects inferEffects) {
-    var mkPos = range.mk();
-    var popPoss = range.pops();
+    var mk = range.mk();
+    var popStatements = range.pops();
     var deoptBBs = new LinkedHashSet<BB>();
 
-    var dfs = new InstructionDfs(mkPos.bb(), mkPos.instructionIndex());
+    var dfs = new InstructionDfs(Objects.requireNonNull(mk.parentBB()), mk.indexInBB());
 
     while (dfs.hasNext()) {
       var instruction = dfs.next();
       var bb = dfs.bb();
-      var idx = dfs.instructionIndex();
 
       // Check if we entered a deopt branch.
       // If so, remember and prune (don't iterate past it)
       // (prune means we won't iterate another instruction in the branch,
       //  so checking that we're *in* a deopt branch is equivalent)
-      if (bb.jump() instanceof Deopt) {
+      if (bb.jump().expression() instanceof Deopt) {
         deoptBBs.add(bb);
         dfs.prune();
         continue;
       }
 
       // If this is a pop position, prune (don't iterate past it)
-      if (popPoss.contains(new CfgPosition(bb, idx))) {
+      if (popStatements.contains(instruction)) {
         dfs.prune();
         continue;
       }
 
       // Check if this instruction requires an environment
-      if (instruction instanceof Statement(var _, var _, var expr)
-          && (expr instanceof Store || inferEffects.of(expr).reflect())) {
+      if (instruction instanceof Statement s
+          && (s.expression() instanceof Store || inferEffects.of(s).reflect())) {
         return new AnalysisResult(false, Set.of());
       }
     }
@@ -90,14 +89,14 @@ public record ElideEnv() implements AbstractionOptimization {
 
   private static void elide(EnvRange range, Set<BB> deoptBBs) {
     // Replace mk and pops with NOOP
-    range.mk().replaceWith(new Noop());
+    range.mk().setExpression(new Noop());
     for (var pop : range.pops()) {
-      pop.replaceWith(new Noop());
+      pop.setExpression(new Noop());
     }
 
     // Prepend MkEnv to deopt branches
     for (var bb : deoptBBs) {
-      bb.insertStatement(0, new Statement(new MkEnv()));
+      bb.prependStatement(new Statement(new MkEnv()));
     }
   }
 }

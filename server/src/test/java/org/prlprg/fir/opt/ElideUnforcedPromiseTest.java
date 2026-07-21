@@ -23,8 +23,8 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R { reg p:p(R +), var p:* |
-              p = prom<R ~>{
+            (reg x:R) -~> R {
+              p: p(R +) = prom<R ~>{
                 mkenv;
                 popenv;
                 return x;
@@ -51,14 +51,14 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R { reg p:p(R ~), var p:*, reg r:R |
-              p = prom<R ~>{
+            (reg x:R) -~> R {
+              p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
                 return x;
               };
               st p = p;
-              r = force p;
+              r: R = force p;
               return r;
             }
             """);
@@ -79,8 +79,8 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R { reg p:p(R ~), var p:* |
-              p = prom<R ~>{
+            (reg x:R) -~> R {
+              p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
                 return x;
@@ -101,8 +101,8 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R { reg p:p(R ~), var p:* |
-              p = prom<R ~>{
+            (reg x:R) -~> R {
+              p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
                 return x;
@@ -122,8 +122,8 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R { reg p:p(R ~), var p:* |
-              p = prom<R ~>{
+            (reg x:R) -~> R {
+              p: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
                 return x;
@@ -145,20 +145,20 @@ class ElideUnforcedPromiseTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:R) -~> R { reg p1:p(R ~), var p1:*, reg p2:p(R ~), var p2:*, reg r:R |
-              p1 = prom<R ~>{
+            (reg x:R) -~> R {
+              p1: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
                 return x;
               };
               st p1 = p1;
-              p2 = prom<R ~>{
+              p2: p(R ~) = prom<R ~>{
                 mkenv;
                 popenv;
                 return x;
               };
               st p2 = p2;
-              r = force p2;
+              r: R = force p2;
               return r;
             }
             """);

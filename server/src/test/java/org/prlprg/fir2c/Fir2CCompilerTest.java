@@ -14,7 +14,7 @@ class Fir2CCompilerTest {
   private static final String ASSUME_LOAD_VAR_MODULE =
       """
       fun main() {
-        () --> V { var target:* |
+        () --> V {
           check BBopt() else BBfail();
         BBopt():
           ld target ?= <int 1>;

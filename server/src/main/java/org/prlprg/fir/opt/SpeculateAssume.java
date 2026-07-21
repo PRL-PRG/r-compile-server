@@ -1,12 +1,9 @@
 package org.prlprg.fir.opt;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Objects;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
@@ -29,8 +26,6 @@ import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.util.Lists;
-import org.prlprg.util.Pair;
 
 /// Insert assumptions that feedback suggests will always pass.
 ///
@@ -78,17 +73,15 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
         scope
             .streamCfgs()
             .flatMap(cfg -> cfg.bbs().stream())
-            .filter(bb -> bb.jump() instanceof Checkpoint)
+            .filter(bb -> bb.jump().expression() instanceof Checkpoint)
             .toList();
-    var defUses = new DefUses(scope);
     var domTree = new DominatorTree(scope);
 
-    // Find assumptions
-    var assumptionsToInsert = new LinkedHashMap<BB, List<Assumption>>();
-    for (var local : scope.locals()) {
-      if (!(local.variable() instanceof Register register)) {
-        continue;
-      }
+    // Find assumptions. Each speculation pairs an assumption with the register it targets (the
+    // target is the assume statement's argument, no longer part of the assumption).
+    record Spec(Assumption assumption, Register target) {}
+    var assumptionsToInsert = new LinkedHashMap<BB, List<Spec>>();
+    for (var register : scope.streamRegisters().filter(r -> !scope.isParameter(r)).toList()) {
       if (feedback.times(register) < threshold) {
         continue;
       }
@@ -96,11 +89,10 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       // Skip if we've assumed anything for this register, anywhere:
       // that means we already ran this optimization,
       // and our assumptions never become more precise, only less
-      if (defUses.uses(register).stream()
+      if (register.uses().stream()
           .anyMatch(
               use ->
-                  use.inInnermostCfg().instruction() instanceof Statement s
-                      && s.expression() instanceof Assume)) {
+                  use.instruction() instanceof Statement s && s.expression() instanceof Assume)) {
         continue;
       }
 
@@ -124,21 +116,21 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       }
 
       // Skip if assumptions won't increase knowledge.
-      if (calleeFeedback == null && constantFeedback == null && typeFeedback.equals(local.type())) {
+      if (calleeFeedback == null
+          && constantFeedback == null
+          && typeFeedback.equals(register.type())) {
         continue;
       }
 
-      // Skip malformed where register isn't defined or is defined multiple times.
-      var def = defUses.definition(register);
-      if (def == null) {
+      // Skip malformed where the register's definition isn't attached to a block.
+      var defBb = register.definingBB();
+      if (defBb == null) {
         continue;
       }
 
       // Get possible checkpoints where after we can insert assumptions for the register
       var availableCheckpointBbs =
-          checkpointBbs.stream()
-              .filter(bb -> domTree.dominates(def.inInnermostCfg().bb(), bb))
-              .toList();
+          checkpointBbs.stream().filter(bb -> domTree.dominates(defBb, bb)).toList();
       if (availableCheckpointBbs.isEmpty()) {
         continue;
       }
@@ -155,21 +147,22 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       assert !immediateCheckpointBbs.isEmpty();
 
       for (var cpBb : immediateCheckpointBbs) {
-        var successBb = ((Checkpoint) cpBb.jump()).success().bb();
+        var successBb = ((Checkpoint) cpBb.jump().expression()).success().get();
 
         // Use `else if` because each assumption is strictly better,
         // and we can't substitute multiple times.
         if (calleeFeedback != null) {
-          var assumeCallee = new AssumeFunction(new Read(register), calleeFeedback);
-          assumptionsToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeCallee);
-        } else if (constantFeedback != null) {
-          var assumeConstant = new AssumeConstant(new Read(register), constantFeedback);
           assumptionsToInsert
               .computeIfAbsent(successBb, _ -> new ArrayList<>())
-              .add(assumeConstant);
-        } else if (!typeFeedback.equals(local.type())) {
-          var assumeType = new AssumeType(new Read(register), typeFeedback);
-          assumptionsToInsert.computeIfAbsent(successBb, _ -> new ArrayList<>()).add(assumeType);
+              .add(new Spec(new AssumeFunction(calleeFeedback), register));
+        } else if (constantFeedback != null) {
+          assumptionsToInsert
+              .computeIfAbsent(successBb, _ -> new ArrayList<>())
+              .add(new Spec(new AssumeConstant(constantFeedback), register));
+        } else if (!typeFeedback.equals(register.type())) {
+          assumptionsToInsert
+              .computeIfAbsent(successBb, _ -> new ArrayList<>())
+              .add(new Spec(new AssumeType(typeFeedback), register));
         }
       }
     }
@@ -179,51 +172,47 @@ public record SpeculateAssume(int threshold, boolean onBaseline)
       return false;
     }
 
-    // Substitute assumed registers
+    // Build the assume statements (so their assignees exist as substitution targets) and stage
+    // substitutions of each assumed register to its refined result.
     var assumptionSubsts = new DomineeSubstituter(domTree, scope);
-    var assumptionDsts = new HashMap<Pair<Assumption, BB>, Register>();
+    var stmtsByBb = new LinkedHashMap<BB, List<Statement>>();
     for (var entry : assumptionsToInsert.entrySet()) {
       var successBb = entry.getKey();
-      var assumptions = entry.getValue();
+      var stmts = new ArrayList<Statement>();
 
-      for (var assumption : assumptions) {
-        var target = Objects.requireNonNull((Read) assumption.target()).variable();
-        switch (assumption) {
-          case AssumeType(_, var type) -> {
-            var assumptionDst = scope.addLocal(target.name(), type);
-            assumptionSubsts.stage(target, new Read(assumptionDst), successBb);
-            assumptionDsts.put(Pair.of(assumption, successBb), assumptionDst);
+      for (var spec : entry.getValue()) {
+        var target = spec.target();
+        var assumeStmt = new Statement(new Assume(spec.assumption()), List.of(new Read(target)));
+        switch (spec.assumption()) {
+          case AssumeType(var type) -> {
+            var dst = assumeStmt.setAssignee(scope.freshName(target.name()), type);
+            assumptionSubsts.stage(target, new Read(dst), successBb);
           }
-          case AssumeFunction(_, _) -> {
-            var assumptionDst = scope.addLocal(target.name(), Type.CLOSURE);
-            assumptionSubsts.stage(target, new Read(assumptionDst), successBb);
-            assumptionDsts.put(Pair.of(assumption, successBb), assumptionDst);
+          case AssumeFunction _ -> {
+            var dst = assumeStmt.setAssignee(scope.freshName(target.name()), Type.CLOSURE);
+            assumptionSubsts.stage(target, new Read(dst), successBb);
             // After we insert `f1 = f ?- f_static`,
             // [ResolveDynamicCallee] will substitute `dyn f1` with `f_static@f1`
           }
-          case AssumeConstant(_, var constant) ->
+          case AssumeConstant(var constant) ->
               assumptionSubsts.stage(target, new Constant(constant), successBb);
           case AssumeLoadFun _, AssumeLoadVar _ ->
               throw new IllegalStateException(
                   "SpeculateAssume never creates load-based assumptions");
         }
+        stmts.add(assumeStmt);
       }
+      stmtsByBb.put(successBb, stmts);
     }
     assumptionSubsts.commit();
 
-    for (var entry : assumptionsToInsert.entrySet()) {
+    // Insert the assume statements at the start of their blocks, preserving order.
+    for (var entry : stmtsByBb.entrySet()) {
       var successBb = entry.getKey();
-      var assumptions = entry.getValue();
-
-      var assumptionStmts =
-          Lists.mapLazy(
-              assumptions,
-              assumption -> {
-                var dst = assumptionDsts.get(Pair.of(assumption, successBb));
-                return new Statement(dst, new Assume(assumption));
-              });
-
-      successBb.insertStatements(0, assumptionStmts);
+      var stmts = entry.getValue();
+      for (var i = stmts.size() - 1; i >= 0; i--) {
+        successBb.prependStatement(stmts.get(i));
+      }
     }
 
     return true;

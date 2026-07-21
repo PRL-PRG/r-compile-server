@@ -19,18 +19,18 @@ class InternalInterpretTest {
   private static final String ASSUME_LOAD_FUN_GLOBAL_MODULE =
       """
       fun main() {
-        () -+> V { |
+        () -+> V {
           check BBopt() else BBfail();
+        BBfail():
+          return <int 0>;
         BBopt():
           ldf target ?- static_target;
           return <int 1>;
-        BBfail():
-          return <int 0>;
         }
       }
 
       fun static_target() {
-        () --> v1(I) { |
+        () --> v1(I) {
           return <int 7>;
         }
       }
@@ -39,22 +39,22 @@ class InternalInterpretTest {
   private static final String ASSUME_LOAD_FUN_LOCAL_MODULE =
       """
       fun main(x) {
-        (reg x:*) -+> V { var target:* |
+        (reg x:*) -+> V {
           mkenv;
           st target = x;
           check BBopt() else BBfail();
+        BBfail():
+          popenv;
+          return <int 0>;
         BBopt():
           ldf target ?- static_target;
           popenv;
           return <int 1>;
-        BBfail():
-          popenv;
-          return <int 0>;
         }
       }
 
       fun static_target() {
-        () --> v1(I) { |
+        () --> v1(I) {
           return <int 7>;
         }
       }
@@ -63,13 +63,13 @@ class InternalInterpretTest {
   private static final String ASSUME_LOAD_GLOBAL_VAR_MODULE =
       """
       fun main() {
-        () --> V { var target:* |
+        () --> V {
           check BBopt() else BBfail();
+        BBfail():
+          return <int 0>;
         BBopt():
           ld target ?= <int 1>;
           return <int 1>;
-        BBfail():
-          return <int 0>;
         }
       }
       """;
@@ -77,17 +77,17 @@ class InternalInterpretTest {
   private static final String ASSUME_LOAD_GLOBAL_VAR_LOCAL_MODULE =
       """
       fun main() {
-        () --> V { var target:* |
+        () --> V {
           mkenv;
           st target = <int 1>;
           check BBopt() else BBfail();
+        BBfail():
+          popenv;
+          return <int 0>;
         BBopt():
           ld target ?= <int 1>;
           popenv;
           return <int 1>;
-        BBfail():
-          popenv;
-          return <int 0>;
         }
       }
       """;
@@ -98,31 +98,31 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
-              (reg x:v1(I)) --> v1(I) { reg xi:I, reg result:v1(I) |
-                xi = unbox< v1(I) --> I >(x);
-                result = f< I --> v1(I) >(xi);
+              (reg x:v1(I)) --> v1(I) {
+                xi: I = unbox< v1(I) --> I >(x);
+                result: v1(I) = f< I --> v1(I) >(xi);
                 return result;
               }
             }
 
             fun f(x) {
-              (reg x:v1(I)) --> v1(I) { reg checked:v1(I), reg i:I, reg roundTrip:v1(I) |
+              (reg x:v1(I)) --> v1(I) {
                 check Ok() else Deopt();
               Ok():
-                checked = x ?: v1(I);
+                checked: v1(I) = x ?: v1(I);
                 return checked;
               Deopt():
-                i = unbox< v1(I) --> I >(x);
-                roundTrip = box< I --> v1(I) >(i);
+                i: I = unbox< v1(I) --> I >(x);
+                roundTrip: v1(I) = box< I --> v1(I) >(i);
                 deopt 0 [roundTrip];
               }
-              (reg x:I) --> v1(I) { reg checked:v1(I), reg roundTrip:v1(I) |
+              (reg x:I) --> v1(I) {
                 check Ok() else Deopt();
               Ok():
-                checked = x ?: v1(I);
+                checked: v1(I) = x ?: v1(I);
                 return checked;
               Deopt():
-                roundTrip = box< I --> v1(I) >(x);
+                roundTrip: v1(I) = box< I --> v1(I) >(x);
                 deopt 0 [roundTrip];
               }
             }
@@ -141,14 +141,14 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun main(x) {
-              (reg x:I) --> v1(I) { reg boxed:v1(I), var y:v1(I) |
+              (reg x:I) --> v1(I) {
                 check Ok() else Deopt();
               Ok():
-                boxed = box< I --> v1(I) >(x);
+                boxed: v1(I) = box< I --> v1(I) >(x);
                 return boxed;
               Deopt():
                 mkenv;
-                boxed = box< I --> v1(I) >(x);
+                boxed: v1(I) = box< I --> v1(I) >(x);
                 st y = boxed;
                 deopt 0 [];
               }

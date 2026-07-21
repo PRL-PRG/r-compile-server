@@ -8,8 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
-import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
-import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -26,12 +25,14 @@ import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
-import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.ir.variable.BlockParameter;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Cleanup optimizations:
@@ -136,25 +137,29 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     void constantFoldBranches(BB bb) {
-      if (bb.jump() instanceof If(var comments, var cond, var ifTrue, var ifFalse)) {
+      if (bb.jump().expression() instanceof If) {
+        var cond = bb.jump().arg(0);
+        var targets = bb.jump().targets();
         if (cond instanceof Constant(var c) && c instanceof Value.Bool(var b)) {
-          var target = b ? ifTrue : ifFalse;
-          bb.setJump(new Goto(comments, target));
+          var target = b ? targets.get(0) : targets.get(1);
+          bb.setJump(new Jump(bb.jump().comments(), new Goto(target.bbRef()), target.phiArgs()));
           changed = true;
         }
       }
     }
 
     void removeNoEffectIfJumps(BB bb) {
-      if (!(bb.jump() instanceof If(var comments, _, var ifTrue, var ifFalse))) {
+      if (!(bb.jump().expression() instanceof If)) {
         return;
       }
+      var comments = bb.jump().comments();
+      var targets = bb.jump().targets();
 
-      var collapsedIfTrue = collapseTransparentTarget(ifTrue);
+      var collapsedIfTrue = collapseTransparentTarget(targets.get(0));
       if (collapsedIfTrue == null) {
         return;
       }
-      var collapsedIfFalse = collapseTransparentTarget(ifFalse);
+      var collapsedIfFalse = collapseTransparentTarget(targets.get(1));
       if (collapsedIfFalse == null) {
         return;
       }
@@ -163,7 +168,7 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
         return;
       }
 
-      bb.setJump(new Goto(comments, collapsedIfTrue));
+      bb.setJump(new Jump(comments, new Goto(collapsedIfTrue.bbRef()), collapsedIfTrue.phiArgs()));
       changed = true;
     }
 
@@ -199,7 +204,8 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     boolean isTransparentBranchBypass(BB bb) {
-      return bb.statements().isEmpty() && (bb.jump() instanceof Goto || bb.jump() instanceof If);
+      return bb.statements().isEmpty()
+          && (bb.jump().expression() instanceof Goto || bb.jump().expression() instanceof If);
     }
 
     @Nullable ImmutableList<Target> instantiatedTargets(Target incoming) {
@@ -222,7 +228,7 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     @Nullable Target instantiateTarget(
-        Target target, List<Register> phiParameters, List<Argument> phiArgs) {
+        Target target, List<? extends Register> phiParameters, List<Argument> phiArgs) {
       var instantiatedArgs =
           ImmutableList.<Argument>builderWithExpectedSize(target.phiArgs().size());
       for (var argument : target.phiArgs()) {
@@ -236,7 +242,7 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     @Nullable Argument instantiateArgument(
-        Argument argument, List<Register> phiParameters, List<Argument> phiArgs) {
+        Argument argument, List<? extends Register> phiParameters, List<Argument> phiArgs) {
       var variable = argument.variable();
       if (variable == null) {
         return argument;
@@ -307,7 +313,7 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
 
       // Remove phi parameter definitions and arguments.
       bb.clearPhiParameters();
-      predecessor.setJump(removingAllJumpArguments(predecessor.jump(), bb));
+      removingAllJumpArguments(predecessor.jump(), bb);
 
       changed = true;
     }
@@ -324,9 +330,10 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
       // Can merge if:
 
       // 1. Block has exactly one successor ([Goto])
-      if (!(bb.jump() instanceof Goto(_, var target))) {
+      if (!(bb.jump().expression() instanceof Goto)) {
         return false;
       }
+      var target = bb.jump().targets().getFirst();
       var successor = target.bb();
 
       // 2. That successor has exactly one predecessor (this block)
@@ -345,7 +352,7 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
 
     void mergeWithSuccessor(BB first) {
       var cfg = first.owner();
-      var target = ((Goto) first.jump()).target();
+      var target = first.jump().targets().getFirst();
       var second = target.bb();
 
       // Substitute phi parameters with arguments
@@ -356,9 +363,15 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
         substituter.stage(phi, arg);
       }
 
-      // Add statements and replace jump
-      first.appendStatements(second.statements());
-      first.setJump(second.jump());
+      // Move the successor's statements to the end of this block and adopt a copy of its jump.
+      for (var s : List.copyOf(second.statements())) {
+        s.moveBefore(first.jump());
+      }
+      first.setJump(
+          new Jump(
+              second.jump().comments(),
+              second.jump().expression(),
+              List.copyOf(second.jump().args())));
 
       // Remove second block
       cfg.removeBB(second);
@@ -367,9 +380,8 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     }
 
     void substituteWithOrigins() {
-      var analyses =
-          new Analyses(scope, OriginAnalysis.class, DefUses.class, CfgDominatorTree.class);
-      var defUseAnalysis = analyses.get(DefUses.class);
+      var analyses = new Analyses(scope, OriginAnalysis.class, DominatorTree.class);
+      var domTree = analyses.get(DominatorTree.class);
       var originAnalysis = analyses.get(OriginAnalysis.class);
 
       for (var entry : originAnalysis.registerOrigins().entrySet()) {
@@ -382,7 +394,7 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
         }
 
         // Can't substitute with `consume`, unless there's exactly one other occurrence.
-        if (origin instanceof Consume(var used) && defUseAnalysis.uses(used).size() > 2) {
+        if (origin instanceof Consume(var used) && used.useCount() > 2) {
           continue;
         }
 
@@ -394,15 +406,11 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
         // that it won't cause UB (assuming no other bugs), it just isn't "valid" according to
         // our underapproximate but simpler criteria (promises can never be guaranteed forced).
         if (origin.variable() != null) {
-          var originDef = defUseAnalysis.definition(origin.variable());
-          if (originDef == null
-              || defUseAnalysis.uses(register).stream()
+          var originVar = origin.variable();
+          if (originVar.definingBB() == null
+              || register.uses().stream()
                   .anyMatch(
-                      registerUse ->
-                          !CfgDominatorTree.dominates(
-                              cfg -> analyses.get(cfg, CfgDominatorTree.class),
-                              originDef,
-                              registerUse))) {
+                      registerUse -> !domTree.dominates(originVar, registerUse.instruction()))) {
             continue;
           }
         }
@@ -417,75 +425,65 @@ public record Cleanup(boolean reportChanges) implements AbstractionOptimization 
     void removeUnusedLocals() {
       // ???: Do we need to repeat this for long phi/jump-argument chains, since we remove jump
       //  arguments? Or we may need to do something equivalent to repeating but more optimal.
-      var defUses = new DefUses(scope);
-
-      var iterator = scope.mutablyIterateLocals();
-      while (iterator.hasNext()) {
-        var local = iterator.next();
-
-        if (!(local.variable() instanceof Register localReg && defUses.uses(localReg).isEmpty())) {
+      for (var localReg : scope.streamRegisters().toList()) {
+        // A register exists only by virtue of its definition; "removing" an unused non-parameter
+        // register means removing its phi parameter or clearing its assigning statement's assignee.
+        if (scope.isParameter(localReg) || localReg.isUsed()) {
           continue;
         }
 
-        // Remove the local from definitions
-        for (var definition : defUses.definitions(localReg)) {
-          var localDef = definition.inInnermostCfg();
-          var defBb = localDef.bb();
-          var defStmt = (Statement) localDef.instruction();
-
-          if (defStmt == null) {
+        switch (localReg) {
+          case BlockParameter phi -> {
             // Remove unused phi
-            var phiIndex = defBb.phiParameters().indexOf(localReg);
+            var defBb = phi.owner();
+            if (defBb == null) {
+              break;
+            }
+            var phiIndex = defBb.phiParameters().indexOf(phi);
             assert phiIndex != -1
-                : "def-use analysis reported a def in phis, but there is no phi: "
-                    + localReg
-                    + " in\n"
-                    + defBb;
+                : "phi's owner block doesn't contain it: " + phi + " in\n" + defBb;
             defBb.removeParameterAt(phiIndex);
             for (var pred : defBb.predecessors()) {
-              pred.setJump(removingJumpArgument(pred.jump(), defBb, phiIndex));
+              removingJumpArgument(pred.jump(), defBb, phiIndex);
             }
-          } else {
-            // Convert assignment to void statement
-            localDef.replaceWith(new Statement(defStmt.comments(), defStmt.expression()));
           }
+          // Convert assignment to void statement
+          case AssigneeOf a -> a.statement().clearAssignee();
+          // Parameters are excluded above.
+          case FunctionParameter _ -> {}
         }
 
-        // Remove the local from the scope
-        iterator.remove();
         changed = true;
       }
     }
 
     void removeEffectiveNoOps(CFG cfg) {
-      var defUses = new DefUses(scope);
-
       for (var bb : cfg.bbs()) {
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
-          if ((stmt.assignee() != null && !defUses.uses(stmt.assignee()).isEmpty())
+          if ((stmt.assignee() != null && stmt.assignee().isUsed())
               || stmt.expression() instanceof Assume
-              || inferEffects.of(stmt.expression()) != Effects.NONE) {
+              || inferEffects.of(stmt) != Effects.NONE) {
             i++;
             continue;
           }
 
-          // No-op, remove
-          bb.removeStatementAt(i);
+          // No-op, remove (the next statement shifts into index `i`).
+          stmt.remove();
           changed = true;
         }
       }
     }
   }
 
-  /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
-  public static Jump removingJumpArgument(Jump jump, BB targetBb, int index) {
-    return jump.mapTargets(t -> removingJumpArgument(t, targetBb, index));
+  /// Removes (in place) the phi argument at `index` in `jump`'s target(s) pointing to `targetBb`.
+  public static void removingJumpArgument(Jump jump, BB targetBb, int index) {
+    jump.mapTargets(t -> removingJumpArgument(t, targetBb, index));
   }
 
-  /// Returns the jump removing all phi arguments for the given target BB
-  private static Jump removingAllJumpArguments(Jump jump, BB targetBb) {
-    return jump.mapTargets(t -> removingAllJumpArguments(t, targetBb));
+  /// Removes (in place) all phi arguments in `jump`'s target(s) pointing to `targetBb`.
+  private static void removingAllJumpArguments(Jump jump, BB targetBb) {
+    jump.mapTargets(t -> removingAllJumpArguments(t, targetBb));
   }
 
   /// If this points to `targetBb`, returns removing the phi argument at the given index.

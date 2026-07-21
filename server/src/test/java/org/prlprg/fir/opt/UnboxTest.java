@@ -19,8 +19,8 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(L)) --> B { reg r:B |
-              r = naToFalse< v1(L) --> B >(x);
+            (reg x:v1(L)) --> B {
+              r: B = naToFalse< v1(L) --> B >(x);
               return r;
             }
             """);
@@ -39,8 +39,8 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(I)) --> I { reg r:I |
-              r = unbox< v1(I) --> I >(x);
+            (reg x:v1(I)) --> I {
+              r: I = unbox< v1(I) --> I >(x);
               return r;
             }
             """);
@@ -57,13 +57,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:v1(I)) --> V { ... }
-              (reg x:v1(I)) --> V { reg r:V |
-                r = f< v1(I) --> V >(x);
+              (reg x:v1(I)) --> V {
+                r: V = f< v1(I) --> V >(x);
                 return r;
               }
             }
+
             fun f(a) {
-              (reg a:v1(I)) --> V { |
+              (reg a:v1(I)) --> V {
                 return a;
               }
             }
@@ -87,13 +88,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:v(I)) --> V { ... }
-              (reg x:v(I)) --> V { reg r:V |
-                r = f< v(I) --> V >(x);
+              (reg x:v(I)) --> V {
+                r: V = f< v(I) --> V >(x);
                 return r;
               }
             }
+
             fun f(a) {
-              (reg a:v(I)) --> V { |
+              (reg a:v(I)) --> V {
                 return a;
               }
             }
@@ -110,13 +112,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:I) --> V { ... }
-              (reg x:I) --> V { reg r:V |
-                r = f< I --> V >(x);
+              (reg x:I) --> V {
+                r: V = f< I --> V >(x);
                 return r;
               }
             }
+
             fun f(a) {
-              (reg a:I) --> V { |
+              (reg a:I) --> V {
                 return a;
               }
             }
@@ -131,8 +134,8 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(I), reg callee:cls) --> V { reg r:V |
-              r = dyn callee(x);
+            (reg x:v1(I), reg callee:cls) --> V {
+              r: V = dyn callee(x);
               return r;
             }
             """);
@@ -148,13 +151,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x, y) {
               (reg x:v1(I), reg y:v1(I)) --> V { ... }
-              (reg x:v1(I), reg y:v1(I)) --> V { reg r:V |
-                r = f< v1(I),v1(I) --> V >(x, y);
+              (reg x:v1(I), reg y:v1(I)) --> V {
+                r: V = f< v1(I),v1(I) --> V >(x, y);
                 return r;
               }
             }
+
             fun f(a, b) {
-              (reg a:v1(I), reg b:v1(I)) --> V { |
+              (reg a:v1(I), reg b:v1(I)) --> V {
                 return a;
               }
             }
@@ -179,13 +183,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:v1(I)) --> V { ... }
-              (reg x:v1(I)) --> V { reg r:V |
-                r = f< v1(I) --> V >(x);
+              (reg x:v1(I)) --> V {
+                r: V = f< v1(I) --> V >(x);
                 return r;
               }
             }
+
             fun f(a) {
-              (reg a:v1(I)) --> V { |
+              (reg a:v1(I)) --> V {
                 return a;
               }
             }
@@ -216,14 +221,15 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:I) --> V { ... }
-              (reg x:I) --> V { reg r:V |
-                r = f< I --> v1(I) >(x);
+              (reg x:I) --> V {
+                r: V = f< I --> v1(I) >(x);
                 return r;
               }
             }
+
             fun f(a) {
-              (reg a:I) --> v1(I) { reg b:v1(I) |
-                b = box< I --> v1(I) >(a);
+              (reg a:I) --> v1(I) {
+                b: v1(I) = box< I --> v1(I) >(a);
                 return b;
               }
             }
@@ -255,13 +261,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:v1(I)) --> V { ... }
-              (reg x:v1(I)) --> V { reg r:V |
-                r = f< v1(I) --> v1(I) >(x);
+              (reg x:v1(I)) --> V {
+                r: V = f< v1(I) --> v1(I) >(x);
                 return r;
               }
             }
+
             fun f(a) {
-              (reg a:v1(I)) --> v1(I) { |
+              (reg a:v1(I)) --> v1(I) {
                 return a;
               }
             }
@@ -285,14 +292,15 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:I) --> V { ... }
-              (reg x:I) --> V { |
+              (reg x:I) --> V {
                 f< I --> v1(I) >(x);
                 return x;
               }
             }
+
             fun f(a) {
-              (reg a:I) --> v1(I) { reg b:v1(I) |
-                b = box< I --> v1(I) >(a);
+              (reg a:I) --> v1(I) {
+                b: v1(I) = box< I --> v1(I) >(a);
                 return b;
               }
             }
@@ -315,13 +323,14 @@ class UnboxTest implements AbstractionOptimizationUnitTest {
             """
             fun main(x) {
               (reg x:V) --> V { ... }
-              (reg x:V) --> V { reg r:V |
-                r = f< V --> V >(x);
+              (reg x:V) --> V {
+                r: V = f< V --> V >(x);
                 return r;
               }
             }
+
             fun f(a) {
-              (reg a:V) --> V { |
+              (reg a:V) --> V {
                 return a;
               }
             }

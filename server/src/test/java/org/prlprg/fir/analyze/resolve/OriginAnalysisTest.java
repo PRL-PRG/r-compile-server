@@ -6,37 +6,23 @@ import static org.prlprg.fir.ir.ParseUtil.parseModule;
 import java.util.Objects;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
 
 class OriginAnalysisTest {
-  @Test
-  void testBasicRegisterTracking() {
-    var firText =
-        """
-      fun main() {
-        () --> I { reg r0:I, reg r1:I |
-          mkenv;
-          r0 = 42;
-          r1 = r0;
-          return r1;
-        }
-      }
-      """;
-
-    var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
-
-    var analysis = new OriginAnalysis(main);
-
-    var r0Origin = analysis.get(Variable.register("r0"));
-    assertEquals(new Constant(new Value.Int(42)), r0Origin);
-
-    var r1Origin = analysis.get(Variable.register("r1"));
-    assertEquals(r0Origin, r1Origin);
+  /// The register named `name` defined in `version` (registers are identity-based, so tests look
+  /// them up by name rather than reconstructing them).
+  private static Register reg(Abstraction version, String name) {
+    return version
+        .streamRegisters()
+        .filter(r -> r.name().equals(name))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no register named '" + name + "'"));
   }
 
   @Test
@@ -44,11 +30,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> v1(I)? { var x:v1(I)?, reg r0:v1(I), reg r1:v1(I)? |
+        () --> v1(I)? {
           mkenv;
-          r0 = <int 42>;
-          st x = r0;
-          r1 = ld x;
+          st x = <int 42>;
+          r1: v1(I)? = ld x;
           return r1;
         }
       }
@@ -67,7 +52,7 @@ class OriginAnalysisTest {
     assertEquals(new Constant(SEXPs.integer(42)), xOrigin);
 
     // After load statement, r1 should have x's origin (the constant)
-    var r1Origin = analysis.get(Variable.register("r1"));
+    var r1Origin = analysis.get(reg(main, "r1"));
     assertEquals(xOrigin, r1Origin);
   }
 
@@ -76,18 +61,15 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        (reg r0:I) --> V { reg r1:I, reg r2:I, reg r3:I, reg r4:I, reg r5:I |
+        (reg r0:I) --> V {
           mkenv;
-          r1 = 42;
           if r0 then BB1() else BB2();
-        BB1():
-          r2 = r1;
-          goto BB3(100, r2);
-        BB2():
-          r3 = r1;
-          goto BB3(200, r3);
-        BB3(r4, r5):
+        BB3(r4: I, r5: I):
           return r4;
+        BB1():
+          goto BB3(100, 42);
+        BB2():
+          goto BB3(200, 42);
         }
       }
       """;
@@ -97,9 +79,9 @@ class OriginAnalysisTest {
 
     var analysis = new OriginAnalysis(main);
     // In bb3, r4 should have itself as origin due to conflicting inputs
-    var r4Origin = analysis.get(Variable.register("r4"));
-    var r5Origin = analysis.get(Variable.register("r5"));
-    assertEquals(new Read(Variable.register("r4")), r4Origin);
+    var r4Origin = analysis.get(reg(main, "r4"));
+    var r5Origin = analysis.get(reg(main, "r5"));
+    assertEquals(new Read(reg(main, "r4")), r4Origin);
     assertEquals(new Constant(new Value.Int(42)), r5Origin);
   }
 
@@ -108,19 +90,19 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main(cond) {
-        (reg cond:B) --> v1(I) { var x:v1(I)?, reg x1:v1(I)?, reg x2:v1(I) |
+        (reg cond:B) --> v1(I) {
           mkenv;
           if cond then BB1() else BB2();
+        BB3():
+          x1: v1(I)? = ld x;
+          x2: v1(I) = x1 as v1(I);
+          return x2;
         BB1():
           st x = <int 1>;
           goto BB3();
         BB2():
           st x = <int 2>;
           goto BB3();
-        BB3():
-          x1 = ld x;
-          x2 = x1 as v1(I);
-          return x2;
         }
       }
       """;
@@ -142,7 +124,7 @@ class OriginAnalysisTest {
     var firText =
         """
            fun main() {
-             () -~> I { var x:v1(I)?, var y:v1(I)? |
+             () -~> I {
                mkenv;
                st x = <int 1>;
                st y = <int 2>;
@@ -194,18 +176,18 @@ class OriginAnalysisTest {
     var firText =
         """
            fun main() {
-             (reg r:B) -~> I { var x:v1(I)? |
+             (reg r:B) -~> I {
                mkenv;
                st x = <int 1>;
                mkenv;
-               if b then BB1() else BB2();
-             BB1():
-               st x = <int 2>;
-               goto BB2();
+               if r then BB1() else BB2();
              BB2():
                popenv;
                popenv;
                return 42;
+             BB1():
+               st x = <int 2>;
+               goto BB2();
              }
            }
            """;
@@ -228,10 +210,10 @@ class OriginAnalysisTest {
     var firText =
         """
         fun main() {
-          () -~> V { reg f:cls, var x:v1(I)? |
+          () -~> V {
             mkenv;
             st x = <int 1>;
-            f = clos f;
+            f: cls = clos f;
             f@f< -~> V >();
             popenv;
             return <nil>;
@@ -259,10 +241,10 @@ class OriginAnalysisTest {
     var firText =
         """
         fun main() {
-          () -~> V { reg f:cls, var x:v1(I)? |
+          () -~> V {
             mkenv;
             st x = <int 1>;
-            f = clos f;
+            f: cls = clos f;
             f< -~> V >();
             popenv;
             return <nil>;
@@ -292,10 +274,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> V { reg vargs:dots, reg result:V |
+        () --> V {
           mkenv;
-          vargs = dots[<int 1>, <int 2>, <int 3>];
-          result = c< dots --> V >(vargs);
+          vargs: dots = dots[<int 1>, <int 2>, <int 3>];
+          result: V = c< dots --> V >(vargs);
           return result;
         }
       }
@@ -305,7 +287,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(SEXPs.integer(1, 2, 3)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.integer(1, 2, 3)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -313,10 +295,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> I { reg vec:v1(I), reg result:I |
+        () --> I {
           mkenv;
-          vec = box< I --> v1(I) >(42);
-          result = `[`< v(I),I,miss,miss --> I >(vec, 2, <missing>, <missing>);
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: I = `[`< v(I),I,miss,miss --> I >(vec, 2, <missing>, <missing>);
           return result;
         }
       }
@@ -327,7 +309,7 @@ class OriginAnalysisTest {
     var analysis = new OriginAnalysis(main);
 
     // box(<int 42>) = v1(I)[42], then [2] on a size-1 vector is out of bounds → no fold
-    assertNotEquals(new Constant(new Value.Int(42)), analysis.get(Variable.register("result")));
+    assertNotEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -335,10 +317,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> I { reg vec:v1(I), reg result:I |
+        () --> I {
           mkenv;
-          vec = box< I --> v1(I) >(42);
-          result = `[`< v(I),I,miss,miss --> I >(vec, 1, <missing>, <missing>);
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: I = `[`< v(I),I,miss,miss --> I >(vec, 1, <missing>, <missing>);
           return result;
         }
       }
@@ -348,7 +330,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(new Value.Int(42)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -356,10 +338,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> I { reg vec:v1(I), reg result:I |
+        () --> I {
           mkenv;
-          vec = box< I --> v1(I) >(42);
-          result = `[[`< v(I),I,miss,miss --> I >(vec, 1, <missing>, <missing>);
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: I = `[[`< v(I),I,miss,miss --> I >(vec, 1, <missing>, <missing>);
           return result;
         }
       }
@@ -369,7 +351,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(new Value.Int(42)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -377,10 +359,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> v(I) { reg vec:v1(I), reg result:v(I) |
+        () --> v(I) {
           mkenv;
-          vec = box< I --> v1(I) >(42);
-          result = `[<-`< v(I),I,I,miss --> v(I) >(vec, 1, 99, <missing>);
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: v(I) = `[<-`< v(I),I,I,miss --> v(I) >(vec, 1, 99, <missing>);
           return result;
         }
       }
@@ -390,7 +372,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -398,10 +380,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> v(I) { reg vec:v1(I), reg result:v(I) |
+        () --> v(I) {
           mkenv;
-          vec = box< I --> v1(I) >(42);
-          result = `[[<-`< v(I),I,I --> v(I) >(vec, 1, 99);
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: v(I) = `[[<-`< v(I),I,I --> v(I) >(vec, 1, 99);
           return result;
         }
       }
@@ -411,7 +393,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -420,11 +402,11 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> v(I) { reg vargs:dots, reg vec:V, reg result:v(I) |
+        () --> v(I) {
           mkenv;
-          vargs = dots[<int 10>, <int 20>, <int 30>];
-          vec = c< dots --> V >(vargs);
-          result = `[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
+          vargs: dots = dots[<int 10>, <int 20>, <int 30>];
+          vec: V = c< dots --> V >(vargs);
+          result: v(I) = `[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
           return result;
         }
       }
@@ -434,7 +416,6 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(
-        new Constant(SEXPs.integer(10, 99, 30)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.integer(10, 99, 30)), analysis.get(reg(main, "result")));
   }
 }

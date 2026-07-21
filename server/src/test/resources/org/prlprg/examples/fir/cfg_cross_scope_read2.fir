@@ -1,25 +1,21 @@
 fun main() {
-  () --> v1(I) { reg x:I, reg y:I, reg z:I, reg xb:v1(I), reg yb:v1(I), reg zb:v1(I), reg xu:v1(I) |
-    x = 42;
-    xb = box<I --> v1(I)>(x);
+  () --> v1(I) {
+    x: v1(I) = box< I --> v1(I) >(42);
     prom<v1(I) ->{
+      # y is a real register defined inside this promise...
       # cfg-error: Local register y assigned after use(s)
-      y = 42;
-      return xb;
+      y: v1(I) = box< I --> v1(I) >(42);
+      return x;
     };
     prom<v1(I) ->{
-      z = 42;
-      prom<v1(I) ->{ return xb; };
       prom<v1(I) ->{
-        zb = box<I --> v1(I)>(z);
-        return zb;
+        return x;
       };
+      # ...so it doesn't dominate this use in a sibling promise.
       # cfg-error: Local register y used before assignment
       # prov-error: Read before write: y
-      yb = box<I --> v1(I)>(y);
-      return yb;
+      return y;
     };
-    xu = box< I --> v1(I) >(x);
-    return xu;
+    return x;
   }
 }

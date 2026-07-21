@@ -1,6 +1,6 @@
 fun main() {
-  () -+> V { reg r:B |
-    r = blackBox< B --> B >(TRUE);
+  () -+> V {
+    r: B = blackBox< B --> B >(TRUE);
     check L1() else L2();
   L1():
     r ?= TRUE;

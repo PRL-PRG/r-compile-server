@@ -17,8 +17,8 @@ import org.prlprg.examples.Example;
 import org.prlprg.fir.check.Checker;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.sexp.UserEnvSXP;
@@ -76,14 +76,14 @@ public class FirQuery implements GenFirQuery {
             .<ExpectedError>mapMulti(
                 (cfg, add) -> {
                   if (!cfg.isPromise()) {
-                    var entryPos = new CfgPosition(cfg.entry(), -1, null);
+                    var entryPos = new Loc(cfg.entry(), -1);
                     for (var expectedError : expectedErrors(entryPos, cfg.scope().comments())) {
                       add.accept(expectedError);
                     }
                   }
 
                   for (var bb : cfg.bbs()) {
-                    var bbEntryPos = new CfgPosition(bb, -1, null);
+                    var bbEntryPos = new Loc(bb, -1);
                     for (var expectedError : expectedErrors(bbEntryPos, bb.comments())) {
                       add.accept(expectedError);
                     }
@@ -93,7 +93,7 @@ public class FirQuery implements GenFirQuery {
                         instructionIndex++) {
                       var instr = bb.instructions().get(instructionIndex);
 
-                      var pos = new CfgPosition(bb, instructionIndex, instr);
+                      var pos = new Loc(bb, instructionIndex);
                       for (var expectedError : expectedErrors(pos, instr.comments())) {
                         add.accept(expectedError);
                       }
@@ -114,7 +114,7 @@ public class FirQuery implements GenFirQuery {
               e.position() != null
                   && expectedErrors.remove(
                       new ExpectedError(
-                          new CfgPosition(e.position().bb(), e.position().instructionIndex()),
+                          new Loc(e.position().bb(), e.position().instructionIndex()),
                           checker.name(),
                           e.mainMessage().split("\n")[0].trim())));
     }
@@ -139,7 +139,7 @@ public class FirQuery implements GenFirQuery {
     }
   }
 
-  private static List<ExpectedError> expectedErrors(CfgPosition pos, Comments comments) {
+  private static List<ExpectedError> expectedErrors(Loc pos, Comments comments) {
     var regex = Pattern.compile("\\s*([\\w-]+)-error:(.*)");
     var errors = new ArrayList<ExpectedError>();
     for (var line : comments) {
@@ -151,7 +151,15 @@ public class FirQuery implements GenFirQuery {
     return errors;
   }
 
-  private record ExpectedError(CfgPosition pos, String checkerName, String message) {
+  /// The location of an expected/actual error: a `(bb, index)` position, matched by equality.
+  private record Loc(BB bb, int index) {
+    @Override
+    public String toString() {
+      return bb.label() + ":" + index + " ";
+    }
+  }
+
+  private record ExpectedError(Loc pos, String checkerName, String message) {
     @Override
     public String toString() {
       return String.format("at %s%s-error: %s", pos, checkerName, message);

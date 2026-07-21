@@ -6,13 +6,11 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
@@ -39,7 +37,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Effects;
 
-/// Infer the effects of [CFG]s, [Instruction]s, and [Expression]s.
+/// Infer the effects of [CFG]s, [Instruction]s, and [Statement]s.
 ///
 /// This analysis is **on-demand**: it only infers when called the type of the argument, and
 /// remains accurate if the code changes (except previous return values are invalidated when
@@ -79,23 +77,23 @@ public final class InferEffects implements Analysis {
 
   public Effects of(Instruction instruction) {
     return switch (instruction) {
-      case Statement(_, _, var expression) -> of(expression);
+      case Statement s -> of(s);
       case Jump jump -> of(jump);
     };
   }
 
-  public Effects of(Expression expression) {
-    return switch (expression) {
-      case Aea _, Assume _ -> Effects.NONE;
+  public Effects of(Statement statement) {
+    return switch (statement.expression()) {
+      case Assume _ -> Effects.NONE;
       case Call call ->
           switch (call.callee()) {
-            case StaticFnCallee(_, _, _, var signature) -> signature.effects();
+            case StaticFnCallee(_, _, var signature) -> signature.effects();
             case DynamicCallee _ -> Effects.REFLECT;
           };
       case Cast _ -> Effects.IMPURE;
       case Closure _, Dup _ -> Effects.NONE;
-      case Force(_, var value) -> {
-        var type = inferType.of(value);
+      case Force(var isMaybe) -> {
+        var type = inferType.of(statement.arg(0));
         yield type == null
             ? Effects.NONE
             : type.concreteness() == Concreteness.MAYBE
@@ -117,7 +115,7 @@ public final class InferEffects implements Analysis {
   }
 
   public Effects of(Jump jump) {
-    return switch (jump) {
+    return switch (jump.expression()) {
       case Checkpoint _, Goto _, If _, Return _, Unreachable _ -> Effects.NONE;
       case Raise _ -> Effects.IMPURE;
       case Deopt _ -> Effects.REFLECT;

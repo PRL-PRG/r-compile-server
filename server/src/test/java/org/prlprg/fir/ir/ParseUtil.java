@@ -38,7 +38,7 @@ public class ParseUtil {
               firText,
               Abstraction.class,
               new Abstraction.ParseContext(
-                  module, new FunctionRef.ParseContext(deferredFunctions), null));
+                  module, new FunctionRef.ParseContext(deferredFunctions)));
 
       for (var entry : deferredFunctions.entrySet()) {
         var name = entry.getKey();

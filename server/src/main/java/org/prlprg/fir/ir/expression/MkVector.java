@@ -1,39 +1,19 @@
 package org.prlprg.fir.ir.expression;
 
-import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 import org.jetbrains.annotations.Unmodifiable;
-import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.argument.NamedArgument;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.type.Kind;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
-import org.prlprg.util.Lists;
+import org.prlprg.fir.ir.variable.NamedVariable;
 
-public record MkVector(Kind kind, ImmutableList<NamedArgument> elements) implements Expression {
-  @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return Lists.mapLazy(elements, NamedArgument::argument);
-  }
-
-  @Override
-  public Expression mapArguments(Function<Argument, Argument> transformer) {
-    return new MkVector(
-        kind,
-        elements.stream()
-            .map(ne -> ne.transformArgument(transformer))
-            .collect(ImmutableList.toImmutableList()));
-  }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.print(kind);
-    p.printAsList("[", "]", elements);
+/// Create a vector (or `...`/dots). The owning statement's arguments are the elements, in order,
+/// and [#elementNames] is the parallel list of their (optional) names.
+public record MkVector(Kind kind, @Unmodifiable List<@Nullable NamedVariable> elementNames)
+    implements Expression {
+  public MkVector {
+    // Defensive, null-permitting unmodifiable copy (ImmutableList disallows nulls).
+    elementNames = Collections.unmodifiableList(new ArrayList<>(elementNames));
   }
 }

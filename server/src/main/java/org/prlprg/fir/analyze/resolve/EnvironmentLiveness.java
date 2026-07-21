@@ -18,14 +18,13 @@ import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 /// Tracks the environments that exist at each instruction
 public final class EnvironmentLiveness extends AbstractInterpretation<EnvironmentLiveness.State>
     implements Analysis {
-  private final Map<CfgPosition, EnvRange> allEnvs = new LinkedHashMap<>();
+  private final Map<Statement, EnvRange> allEnvs = new LinkedHashMap<>();
 
   @AnalysisConstructor
   public EnvironmentLiveness(Abstraction scope) {
@@ -59,14 +58,13 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
 
     @Override
     protected void run(Statement statement) {
-      var pos = new CfgPosition(bb(), instructionIndex(), statement);
       switch (statement.expression()) {
         case Promise(var _, var _, var code) -> runSubAnalysis(code, state()::merge);
         case MkEnv _ -> {
-          var range = allEnvs.computeIfAbsent(pos, EnvRange::new);
+          var range = allEnvs.computeIfAbsent(statement, EnvRange::new);
           state().push(range);
         }
-        case PopEnv _ -> state().pop(pos);
+        case PopEnv _ -> state().pop(statement);
         default -> {}
       }
     }
@@ -80,13 +78,13 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
       envs.add(range);
     }
 
-    private void pop(CfgPosition pos) {
+    private void pop(Statement pop) {
       if (envs.isEmpty()) {
         return;
       }
 
       var range = envs.removeLast();
-      range.addPop(pos);
+      range.addPop(pop);
     }
 
     @Override
@@ -135,24 +133,24 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
     }
   }
 
-  /// The positions of a [MkEnv] and its corresponding [PopEnv]s.
+  /// The [MkEnv] statement and its corresponding [PopEnv] statements.
   public static final class EnvRange {
-    private final CfgPosition mk;
-    private final Set<CfgPosition> pops = new LinkedHashSet<>();
+    private final Statement mk;
+    private final Set<Statement> pops = new LinkedHashSet<>();
 
-    private EnvRange(CfgPosition mk) {
+    private EnvRange(Statement mk) {
       this.mk = mk;
     }
 
-    public CfgPosition mk() {
+    public Statement mk() {
       return mk;
     }
 
-    public @UnmodifiableView Set<CfgPosition> pops() {
+    public @UnmodifiableView Set<Statement> pops() {
       return Collections.unmodifiableSet(pops);
     }
 
-    private void addPop(CfgPosition pop) {
+    private void addPop(Statement pop) {
       pops.add(pop);
     }
 

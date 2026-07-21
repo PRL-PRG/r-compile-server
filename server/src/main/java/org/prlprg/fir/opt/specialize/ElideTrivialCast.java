@@ -1,16 +1,13 @@
 package org.prlprg.fir.opt.specialize;
 
-import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Cast;
-import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.instruction.Statement;
 
 /// Optimization that removes [Cast]s that statically succeed.
 public record ElideTrivialCast() implements SpecializeOptimization {
@@ -20,25 +17,25 @@ public record ElideTrivialCast() implements SpecializeOptimization {
   }
 
   @Override
-  public Expression run(
+  public Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Cast(var value, var type))) {
-      return expression;
+    if (!(statement.expression() instanceof Cast(var type))) {
+      return Result.UNCHANGED;
     }
 
+    var value = statement.arg(0);
     var valueType = analyses.get(InferType.class).of(value);
     if (valueType == null || !valueType.isSubtypeOf(type)) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
-    return new Aea(value);
+    return new Result.ForwardResult(value);
   }
 }

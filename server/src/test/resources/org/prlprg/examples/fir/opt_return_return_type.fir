@@ -1,5 +1,5 @@
 fun main() {
-  () --> V { |
+  () --> V {
     return <int 42>;
   }
 }

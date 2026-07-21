@@ -2,6 +2,7 @@ package org.prlprg.fir.ir.argument;
 
 import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.instruction.FirParseContext;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -85,8 +86,10 @@ public record NamedArgument(@Nullable NamedVariable name, Argument argument) {
         return new NamedArgument(new Consume(register));
       }
 
-      // read
-      return new NamedArgument(new Read(Variable.register(nameOrArgumentPart)));
+      // read: resolve the already-consumed name to its argument via the parse context (a register
+      // read, or a legacy `r = <arg>` forwarding binding inlined to its argument).
+      var ctx = (FirParseContext) p.context();
+      return new NamedArgument(ctx.resolveUse(nameOrArgumentPart, s));
     } else if (s.nextCharIs('`')) {
       // Definitely named
       var name = p.parse(NamedVariable.class);
