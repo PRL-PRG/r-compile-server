@@ -1,8 +1,8 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.opt.Unbox.boxCall;
+import static org.prlprg.fir.opt.Unbox.boxStatement;
 import static org.prlprg.fir.opt.Unbox.canUnbox;
-import static org.prlprg.fir.opt.Unbox.unboxCall;
+import static org.prlprg.fir.opt.Unbox.unboxStatement;
 import static org.prlprg.fir.opt.Unbox.unboxed;
 
 import com.google.common.collect.ImmutableList;
@@ -15,9 +15,9 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Unboxes phi parameters of type `v1(X)` into scalar `X` phis.
@@ -55,13 +55,17 @@ public final class UnboxPhi implements AbstractionOptimization {
       }
 
       var unboxedType = unboxed(phiType);
-      var scalar = scope.addLocal(phi.name(), unboxedType);
+      var scalar = new BlockParameter(scope.freshName(phi.name()), unboxedType);
 
       // Replace the phi parameter in the block with the new scalar register.
       bb.replaceParameterAt(phiIndex, scalar);
 
-      // Re-box at the entry of the block so `phi` (still typed `v1(X)`) has the original value.
-      bb.insertStatement(0, new Statement(phi, boxCall(new Read(scalar), phiType)));
+      // Re-box at the entry of the block, then forward `phi`'s users to the re-boxed value (so
+      // they still see the original `v1(X)` value).
+      var boxStmt = boxStatement(new Read(scalar), phiType);
+      var boxReg = boxStmt.setAssignee(scope.freshName(phi.name()), phiType);
+      bb.prependStatement(boxStmt);
+      phi.substUsesWith(new Read(boxReg));
 
       // Rewrite each predecessor: unbox the incoming phi argument before its jump.
       for (var pred : List.copyOf(bb.predecessors())) {
@@ -76,10 +80,9 @@ public final class UnboxPhi implements AbstractionOptimization {
 
   private void rewritePredecessor(Abstraction scope, BB targetBb, BB pred, int phiIndex) {
     var argToUnboxReg = new LinkedHashMap<Argument, Register>();
-    var oldJump = pred.jump();
 
-    var newJump =
-        oldJump.mapTargets(
+    pred.jump()
+        .mapTargets(
             target -> {
               if (target.bb() != targetBb) {
                 return target;
@@ -93,16 +96,14 @@ public final class UnboxPhi implements AbstractionOptimization {
                       a -> {
                         var name =
                             a.variable() == null ? Register.DEFAULT_NAME : a.variable().name();
-                        var reg = scope.addLocal(name, unboxed(argType));
-                        pred.insertStatement(
-                            pred.statements().size(), new Statement(reg, unboxCall(a, argType)));
+                        var unboxStmt = unboxStatement(a, argType);
+                        var reg = unboxStmt.setAssignee(scope.freshName(name), unboxed(argType));
+                        pred.appendStatement(unboxStmt);
                         return reg;
                       });
               var newArgs = new ArrayList<>(target.phiArgs());
               newArgs.set(phiIndex, new Read(unboxedReg));
               return new Target(target.bb(), ImmutableList.copyOf(newArgs));
             });
-
-    pred.setJump(newJump);
   }
 }

@@ -25,8 +25,12 @@ class ElideUnusedVersionsTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun f(x) {
-              (reg x:*) --> * { | return x; }
-              (reg x:I) --> I { | return x; }
+              (reg x:*) --> * {
+                return x;
+              }
+              (reg x:I) --> I {
+                return x;
+              }
             }
             """);
 
@@ -52,8 +56,12 @@ class ElideUnusedVersionsTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun f(x) {
-              (reg x:*) --> * { | return x; }
-              (reg x:I) --> I { | return x; }
+              (reg x:*) --> * {
+                return x;
+              }
+              (reg x:I) --> I {
+                return x;
+              }
             }
             """);
 
@@ -79,8 +87,12 @@ class ElideUnusedVersionsTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun f(x) {
-              (reg x:*) --> * { | return x; }
-              (reg x:I) --> I { | return x; }
+              (reg x:*) --> * {
+                return x;
+              }
+              (reg x:I) --> I {
+                return x;
+              }
             }
             """);
 
@@ -106,8 +118,12 @@ class ElideUnusedVersionsTest implements OptimizationUnitTest {
         ParseUtil.parseModule(
             """
             fun f(x) {
-              (reg x:*) --> * { | return x; }
-              (reg x:I) --> I { | return x; }
+              (reg x:*) --> * {
+                return x;
+              }
+              (reg x:I) --> I {
+                return x;
+              }
             }
             """);
 

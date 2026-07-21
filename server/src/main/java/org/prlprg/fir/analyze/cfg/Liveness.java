@@ -3,18 +3,20 @@ package org.prlprg.fir.analyze.cfg;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.iterator.BbReverseDfs;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Instruction;
-import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Computes liveness information for a control-flow graph.
@@ -26,7 +28,6 @@ public final class Liveness implements CfgAnalysis {
   private final CFG cfg;
   private final Map<BB, Set<Register>> liveIn = new HashMap<>();
   private final Map<BB, Set<Register>> liveOut = new HashMap<>();
-  private final Map<CfgPosition, Set<Register>> kills = new HashMap<>();
   private final Map<Instruction, Set<Register>> killsByInstruction = new HashMap<>();
 
   @AnalysisConstructor
@@ -35,26 +36,22 @@ public final class Liveness implements CfgAnalysis {
     run();
   }
 
-  /// Get the registers killed (have their last use) at the given position.
-  public @Unmodifiable Set<Register> kills(CfgPosition position) {
-    if (position.bb().owner() != cfg) {
+  /// Get the registers killed (have their last use) at the instruction at `(bb, instructionIndex)`
+  /// (the terminator jump is index `bb.statements().size()`).
+  public @Unmodifiable Set<Register> kills(BB bb, int instructionIndex) {
+    if (bb.owner() != cfg) {
       throw new IllegalArgumentException("Position not in CFG");
     }
-    if (!kills.containsKey(position)) {
-      throw new IllegalArgumentException("Position not in CFG (removed)");
-    }
-
-    return Collections.unmodifiableSet(Objects.requireNonNull(kills.get(position)));
+    var instruction =
+        instructionIndex == bb.statements().size()
+            ? bb.jump()
+            : bb.statements().get(instructionIndex);
+    return deadAfter(instruction);
   }
 
-  /// Get the registers killed (have their last use) at the given instruction.
-  public @Unmodifiable Set<Register> kills(BB bb, int instructionIndex) {
-    return kills(new CfgPosition(bb, instructionIndex));
-  }
-
-  /// Check if a register is killed at the given position.
-  public boolean isKilled(Register register, CfgPosition position) {
-    return kills(position).contains(register);
+  /// Check if a register is killed at the instruction at `(bb, instructionIndex)`.
+  public boolean isKilled(Register register, BB bb, int instructionIndex) {
+    return kills(bb, instructionIndex).contains(register);
   }
 
   /// Get the registers that are dead after (have their last use at) the given instruction.
@@ -122,7 +119,7 @@ public final class Liveness implements CfgAnalysis {
         var newLiveIn = new HashSet<>(newLiveOut);
 
         // + uses(B.jump)
-        for (var arg : bb.jump().arguments()) {
+        for (var arg : bb.jump().args()) {
           if (arg.variable() != null) {
             newLiveIn.add(arg.variable());
           }
@@ -136,7 +133,7 @@ public final class Liveness implements CfgAnalysis {
 
           // + uses(B.stmts[i])
           var args =
-              stmt.expression() instanceof Promise p ? p.argumentsInCode() : stmt.arguments();
+              stmt.expression() instanceof Promise p ? argumentsInPromiseCode(p) : stmt.args();
           for (var arg : args) {
             if (arg.variable() != null) {
               newLiveIn.add(arg.variable());
@@ -166,12 +163,11 @@ public final class Liveness implements CfgAnalysis {
       // Process jump first (it's the last instruction)
       // Add jump args to liveAfter if they're not already live
       var jumpKills = new HashSet<Register>();
-      for (var arg : bb.jump().arguments()) {
+      for (var arg : bb.jump().args()) {
         if (arg.variable() != null && liveAfter.add(arg.variable())) {
           jumpKills.add(arg.variable());
         }
       }
-      kills.put(new CfgPosition(bb, i), jumpKills);
       killsByInstruction.put(bb.jump(), jumpKills);
 
       // For statements, start from liveOut (which includes phi args needed by jump)
@@ -188,15 +184,29 @@ public final class Liveness implements CfgAnalysis {
         // Find kills: used by this instruction and not live after
         // Also add uses to liveAfter for the next iteration
         var stmtKills = new HashSet<Register>();
-        var args = stmt.expression() instanceof Promise p ? p.argumentsInCode() : stmt.arguments();
+        var args = stmt.expression() instanceof Promise p ? argumentsInPromiseCode(p) : stmt.args();
         for (var arg : args) {
           if (arg.variable() != null && liveAfter.add(arg.variable())) {
             stmtKills.add(arg.variable());
           }
         }
-        kills.put(new CfgPosition(bb, i), stmtKills);
         killsByInstruction.put(stmt, stmtKills);
       }
     }
+  }
+
+  /// All arguments used by instructions inside a promise's code (recursing into nested promises).
+  ///
+  /// A [Promise] statement contributes no arguments at its own level; the values it captures are
+  /// the arguments of the instructions in its nested CFG, which keep their registers live.
+  private static List<Argument> argumentsInPromiseCode(Promise promise) {
+    return promise.code().bbs().stream()
+        .flatMap(bb -> bb.instructions().stream())
+        .flatMap(
+            i ->
+                i instanceof Statement s && s.expression() instanceof Promise p
+                    ? argumentsInPromiseCode(p).stream()
+                    : i.args().stream())
+        .toList();
   }
 }

@@ -1,6 +1,5 @@
 package org.prlprg.fir.check;
 
-import com.google.common.collect.Iterables;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.analyze.type.InferType;
@@ -15,18 +14,15 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
-import org.prlprg.fir.ir.binding.Binding;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
@@ -58,6 +54,7 @@ import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.Strings;
 
 /// Checks type and effect soundness.
@@ -130,8 +127,8 @@ public final class TypeAndEffectChecker extends Checker {
   public static boolean assumeCanSucceed(Assumption assumption, Type argType) {
     var requiredType =
         switch (assumption) {
-          case AssumeType(_, var type) -> type;
-          case AssumeConstant(_, var constant) -> constant.type();
+          case AssumeType(var type) -> type;
+          case AssumeConstant(var constant) -> constant.type();
           case AssumeFunction _ -> Type.CLOSURE;
           case AssumeLoadFun _, AssumeLoadVar _ ->
               throw new IllegalArgumentException("Assumption has no target, so this isn't called");
@@ -161,10 +158,9 @@ public final class TypeAndEffectChecker extends Checker {
 
       var onCfg = new OnCfg(cfg);
 
-      // Check parameters and locals well-formedness
-      for (var binding : Iterables.concat(scope.parameters(), scope.locals())) {
-        onCfg.checkWellFormed(binding);
-      }
+      // Check register and named-variable type well-formedness
+      scope.streamRegisters().forEach(onCfg::checkWellFormedRegister);
+      scope.namedVariableTypes().forEach(onCfg::checkWellFormedNamed);
 
       // Check return type well-formedness
       onCfg.checkWellFormed(scope.returnType());
@@ -197,41 +193,41 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void run(Statement statement) {
-        if (statement.equals(Statement.NOOP)) {
+        if (statement.expression() instanceof Noop && statement.assignee() == null) {
           return;
         }
 
-        var expr = statement.expression();
         var assignee = statement.assignee();
 
-        run(expr);
+        check(statement);
 
-        var type = inferType.of(expr);
+        var type = inferType.of(statement);
         if (assignee != null) {
           if (type == null) {
-            report("Can't assign this, it doesn't output a value: " + expr);
+            report("Can't assign this, it doesn't output a value: " + statement.expression());
           }
 
           var assigneeType = scope.typeOf(assignee);
-          if (assigneeType == null) {
-            report("Undeclared register: " + assignee);
-          } else {
-            checkAssignment(type, assigneeType, "Can't assign it to " + assignee);
-          }
+          checkAssignment(type, assigneeType, "Can't assign it to " + assignee);
         }
       }
 
-      void run(Expression expression) {
+      void check(Statement statement) {
+        var expression = statement.expression();
+        var args = statement.args();
         if (!(expression instanceof Promise)) {
-          for (var argument : expression.arguments()) {
+          for (var argument : args) {
             run(argument);
           }
         }
 
         switch (expression) {
-          case Aea _ -> {}
           case Assume(var assumption) -> {
-            var target = assumption.target();
+            Argument target =
+                switch (assumption) {
+                  case AssumeType _, AssumeConstant _, AssumeFunction _ -> args.get(0);
+                  case AssumeLoadVar _, AssumeLoadFun _ -> null;
+                };
             if (target == null) {
               break;
             }
@@ -256,15 +252,13 @@ public final class TypeAndEffectChecker extends Checker {
               report("Assume non-dispatchable function:\n" + function);
             }
           }
-          case Call(var callee, var callArguments) -> {
+          case Call(var callee) -> {
+            var closureOrCalleeArg = args.get(0);
+            var callArguments = args.subList(1, args.size());
             var argumentTypes = callArguments.stream().map(inferType::of).toList();
 
             switch (callee) {
-              case StaticFnCallee(
-                      var functionRef,
-                      var isDispatch,
-                      var closureWithEnv,
-                      var signature) -> {
+              case StaticFnCallee(var functionRef, var isDispatch, var signature) -> {
                 var function = functionRef.get();
                 var version = function.guess(signature);
 
@@ -285,7 +279,7 @@ public final class TypeAndEffectChecker extends Checker {
                   }
                 }
 
-                var closureWithEnvType = scope.typeOf(closureWithEnv);
+                var closureWithEnvType = scope.typeOf(closureOrCalleeArg);
                 checkSubtype(
                     closureWithEnvType, Type.CLOSURE, "Environment provider must be a closure");
 
@@ -306,12 +300,12 @@ public final class TypeAndEffectChecker extends Checker {
                       argType, paramType, "Type mismatch in argument " + i + " (for signature)");
                 }
               }
-              case DynamicCallee(var actualCallee, var argumentNames) -> {
-                var calleeType = scope.typeOf(actualCallee);
+              case DynamicCallee(var argumentNames) -> {
+                var calleeType = scope.typeOf(closureOrCalleeArg);
                 if (calleeType != null && !calleeType.isSubtypeOf(Type.CLOSURE)) {
                   report(
                       "Dynamic callee must be a closure, got "
-                          + actualCallee
+                          + closureOrCalleeArg
                           + " {:"
                           + calleeType
                           + "}");
@@ -336,7 +330,8 @@ public final class TypeAndEffectChecker extends Checker {
               report("Closure of non-dispatchable function:\n" + function);
             }
           }
-          case Dup(var value) -> {
+          case Dup _ -> {
+            var value = args.get(0);
             var type = scope.typeOf(value);
             if (type == null) {
               break;
@@ -346,11 +341,12 @@ public final class TypeAndEffectChecker extends Checker {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
             }
           }
-          case Force(var isMaybe, var value) -> {
+          case Force(var isMaybe) -> {
             if (isMaybe) {
               break;
             }
 
+            var value = args.get(0);
             var type = scope.typeOf(value);
             if (type == null) {
               break;
@@ -361,7 +357,7 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case Load _ -> {}
-          case MkVector(var kind, var elements) -> {
+          case MkVector(var kind, var elementNames) -> {
             switch (kind) {
               case PrimitiveVector(var isScalar, var primitiveKind) -> {
                 if (isScalar) {
@@ -370,14 +366,12 @@ public final class TypeAndEffectChecker extends Checker {
 
                 var elementType = Type.primitiveScalar(primitiveKind);
 
-                for (var i = 0; i < elements.size(); i++) {
-                  var element = elements.get(i);
-
-                  if (element.name() != null) {
+                for (var i = 0; i < args.size(); i++) {
+                  if (elementNames.get(i) != null) {
                     report("Element of primitive vector can't be named: at " + i);
                   }
 
-                  var type = scope.typeOf(element.argument());
+                  var type = scope.typeOf(args.get(i));
                   checkSubtype(type, elementType, "Type mismatch in element " + i);
                 }
               }
@@ -421,7 +415,8 @@ public final class TypeAndEffectChecker extends Checker {
             checkAssignment(actualInnerType, expectedInnerType, "Promise inner type mismatch");
             checkSubEffects(actualEffects, expectedEffects, "Promise effects mismatch");
           }
-          case ReflectiveLoad(var promise, _) -> {
+          case ReflectiveLoad _ -> {
+            var promise = args.get(0);
             var promiseType = scope.typeOf(promise);
             if (promiseType != null && !promiseType.isPromise()) {
               report(
@@ -432,7 +427,8 @@ public final class TypeAndEffectChecker extends Checker {
                       + "}");
             }
           }
-          case ReflectiveStore(var promise, _, _) -> {
+          case ReflectiveStore _ -> {
+            var promise = args.get(0);
             var promiseType = scope.typeOf(promise);
             if (promiseType != null && !promiseType.isPromise()) {
               report(
@@ -443,11 +439,12 @@ public final class TypeAndEffectChecker extends Checker {
                       + "}");
             }
           }
-          case Store(var storeType, var variable, var value) -> {
+          case Store(var storeType, var variable) -> {
             if (storeType == StoreType.SUPER_VAR) {
               break;
             }
 
+            var value = args.get(0);
             var type = scope.typeOf(variable);
             var valueType = scope.typeOf(value);
 
@@ -458,7 +455,9 @@ public final class TypeAndEffectChecker extends Checker {
                   "Never store a `consume` because the load can't be optimized. Instead, assign it to a register and store that.");
             }
           }
-          case SubscriptRead(var target, var index) -> {
+          case SubscriptRead _ -> {
+            var target = args.get(0);
+            var index = args.get(1);
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
 
@@ -477,7 +476,10 @@ public final class TypeAndEffectChecker extends Checker {
                 Type.INTEGER,
                 "Subscript index must be an integer, got " + index + " {:" + indexType + "}");
           }
-          case SubscriptWrite(var target, var index, var value) -> {
+          case SubscriptWrite _ -> {
+            var target = args.get(0);
+            var index = args.get(1);
+            var value = args.get(2);
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
             var valueType = scope.typeOf(value);
@@ -544,34 +546,38 @@ public final class TypeAndEffectChecker extends Checker {
       }
 
       void run(Jump jump) {
-        switch (jump) {
+        switch (jump.expression()) {
           case Checkpoint _, Deopt _, Goto _, Return _, Unreachable _ -> {}
-          case If(_, var condition, _, _) -> {
-            var condType = scope.typeOf(condition);
+          case If _ -> {
+            var condType = scope.typeOf(jump.arg(0));
             checkSubtype(condType, Type.BOOLEAN, "Type mismatch in condition");
           }
-          case Raise(_, var value) -> {
-            var valueType = scope.typeOf(value);
+          case Raise _ -> {
+            var valueType = scope.typeOf(jump.arg(0));
             checkSubtype(valueType, Type.STRING, "Type mismatch in raise");
           }
         }
       }
 
-      void checkWellFormed(Binding binding) {
-        var isNamed = binding.variable() instanceof NamedVariable;
-        var type = binding.type();
-
+      void checkWellFormedRegister(Register register) {
+        var type = register.type();
         if (!type.isWellFormed()) {
-          report("Binding type is not well-formed: " + binding);
+          report("Register type is not well-formed: " + register + ":" + type);
         }
-        if (!isNamed && type.ownership() == Ownership.FRESH) {
-          report("Registers can't be fresh: " + binding);
+        if (type.ownership() == Ownership.FRESH) {
+          report("Registers can't be fresh: " + register + ":" + type);
         }
-        if (isNamed && type.ownership() != Ownership.SHARED) {
-          report("Named variables must be shared: " + binding);
+      }
+
+      void checkWellFormedNamed(NamedVariable variable, Type type) {
+        if (!type.isWellFormed()) {
+          report("Named variable type is not well-formed: " + variable + ":" + type);
         }
-        if (isNamed && type.concreteness() == Concreteness.DEFINITE) {
-          report("Named variables can't have definite types: " + binding);
+        if (type.ownership() != Ownership.SHARED) {
+          report("Named variables must be shared: " + variable + ":" + type);
+        }
+        if (type.concreteness() == Concreteness.DEFINITE) {
+          report("Named variables can't have definite types: " + variable + ":" + type);
         }
       }
 

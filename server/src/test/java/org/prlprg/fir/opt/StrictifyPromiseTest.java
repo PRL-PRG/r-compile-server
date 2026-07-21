@@ -19,19 +19,20 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg rx:p(v(I) -), reg ry:v(I), reg rz:v(I) |
-                rx = prom<v(I) ->{
-                  ry = v(I)[1];
+              () --> I {
+                rx: p(v(I) -) = prom<v(I) ->{
+                  ry: v(I) = v(I)[1];
                   return ry;
                 };
-                rz = f< p(v(I) -)@! --> v(I) >(rx);
+                rz: v(I) = f< p(v(I) -)@! --> v(I) >(rx);
                 return rz;
               }
             }
+
             fun f(r) {
               (reg r:*@!) -+> V { ... }
               (reg r:p(v(I) -)@!) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) { |
+              (reg r:v(I)) --> v(I) {
                 return r;
               }
             }
@@ -48,7 +49,7 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
     // A suitable non-promise version is used
     assertTrue(
         printed.contains("< v(I) --> v(I) >(rx)"), "call should use the integer-taking version");
-    assertTrue(printed.contains("ry = v(I)[1]"), "promise body should appear in outer scope");
+    assertTrue(printed.contains("ry: v(I) = v(I)[1]"), "promise body should appear in outer scope");
   }
 
   @Test
@@ -58,19 +59,20 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg rx:p(v(I) +), reg ry:v(I), reg rz:v(I) |
-                rx = prom<v(I) +>{
-                  ry = v(I)[42];
+              () --> I {
+                rx: p(v(I) +) = prom<v(I) +>{
+                  ry: v(I) = v(I)[42];
                   return ry;
                 };
-                rz = f< p(v(I) +)@! --> v(I) >(rx);
+                rz: v(I) = f< p(v(I) +)@! --> v(I) >(rx);
                 return rz;
               }
             }
+
             fun f(r) {
               (reg r:*@!) -+> V { ... }
               (reg r:p(v(I) +)@!) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) { |
+              (reg r:v(I)) --> v(I) {
                 return r;
               }
             }
@@ -86,21 +88,22 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg ra:v(I), reg rb:v(I), reg rc:v(I), reg rx:p(v(I) -), reg ry:p(v(I) +), reg rs:v(I), reg rz:v(I) |
-                ra = v(I)[1];
-                rb = v(I)[2];
-                rx = prom<v(I) ->{
-                  rc = `+`< v(I),v(I) --> v(I) >(ra, rb);
+              () --> I {
+                ra: v(I) = v(I)[1];
+                rb: v(I) = v(I)[2];
+                rx: p(v(I) -) = prom<v(I) ->{
+                  rc: v(I) = `+`< v(I),v(I) --> v(I) >(ra, rb);
                   return rc;
                 };
-                ry = prom<v(I) +>{
-                  rs = v(I)[5];
+                ry: p(v(I) +) = prom<v(I) +>{
+                  rs: v(I) = v(I)[5];
                   return rs;
                 };
-                rz = f< p(v(I) -)@!,p(v(I) +)@! --> v(I) >(rx, ry);
+                rz: v(I) = f< p(v(I) -)@!,p(v(I) +)@! --> v(I) >(rx, ry);
                 return rz;
               }
             }
+
             fun f(r1, r2) {
               (reg r1:*@!, reg r2:*@!) -+> V { ... }
               (reg r1:p(v(I) -)@!, reg r2:p(v(I) +)@!) --> v(I) { ... }
@@ -119,7 +122,7 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
         printed.contains("< v(I),p(v(I) +)@! --> v(I) >"),
         "dispatch signature should reflect inlined param type");
     assertTrue(
-        printed.contains("rc = `+`< v(I),v(I) --> v(I) >(ra, rb)"),
+        printed.contains("rc: v(I) = `+`< v(I),v(I) --> v(I) >(ra, rb)"),
         "promise body should be inlined");
   }
 
@@ -132,20 +135,21 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg rx:p(v(I) -), reg ry:v(I), reg rz:v(I), reg rw:v(I) |
-                rx = prom<v(I) ->{
-                  ry = v(I)[1];
+              () --> I {
+                rx: p(v(I) -) = prom<v(I) ->{
+                  ry: v(I) = v(I)[1];
                   return ry;
                 };
-                rz = f< p(v(I) -)@! --> v(I) >(rx);
-                rw = force rx;
+                rz: v(I) = f< p(v(I) -)@! --> v(I) >(rx);
+                rw: v(I) = force rx;
                 return rz;
               }
             }
+
             fun f(r) {
               (reg r:*@!) -+> V { ... }
               (reg r:p(v(I) -)@!) --> v(I) { ... }
-              (reg r:v(I)) --> v(I) { |
+              (reg r:v(I)) --> v(I) {
                 return r;
               }
             }

@@ -7,19 +7,8 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Strings;
 
 @Immutable
-public sealed interface Variable permits NamedVariable, Register {
+public sealed interface Variable permits NamedVariable {
   String name();
-
-  static Register register(String name) {
-    if (name.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Illegal variable name (variables must not be empty): " + name);
-    }
-
-    synchronized (InternedVariables.registers) {
-      return InternedVariables.registers.computeIfAbsent(name, Register::new);
-    }
-  }
 
   static NamedVariable named(String name) {
     if (name.isEmpty()) {
@@ -45,7 +34,6 @@ public sealed interface Variable permits NamedVariable, Register {
 }
 
 class InternedVariables {
-  static final HashMap<String, Register> registers = new HashMap<>();
   static final HashMap<String, NamedVariable> named = new HashMap<>();
 
   static {

@@ -28,18 +28,15 @@ import org.prlprg.fir.ir.assumption.AssumeFunction;
 import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
-import org.prlprg.fir.ir.assumption.Assumption;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
@@ -379,14 +376,13 @@ public final class InternalInterpreter implements Interpreter {
     for (int i = 0; i < params.size(); i++) {
       var param = params.get(i);
       var arg = arguments.get(i);
-      checkType(
-          arg, param.type(), "argument " + i + " (parameter " + param.variable().name() + ")");
+      checkType(arg, param.type(), "argument " + i + " (parameter " + param.name() + ")");
 
-      frame.put(param.variable(), arg);
+      frame.put(param, arg);
 
-      feedback.recordConstant(param.variable(), arg);
-      recordTypeFeedback(feedback, param.variable(), arg);
-      feedback.recordAssign(param.variable());
+      feedback.recordConstant(param, arg);
+      recordTypeFeedback(feedback, param, arg);
+      feedback.recordAssign(param);
     }
 
     // Execute CFG
@@ -467,7 +463,7 @@ public final class InternalInterpreter implements Interpreter {
   /// Executes a statement instruction.
   private void run(Statement statement) {
     var assignee = statement.assignee();
-    var value = run(assignee, statement.expression());
+    var value = evalExpression(statement);
 
     if (assignee != null) {
       if (value == null) {
@@ -484,9 +480,10 @@ public final class InternalInterpreter implements Interpreter {
 
   /// Executes a jump instruction and returns the next control-flow action.
   private ControlFlow run(Jump jump) {
-    return switch (jump) {
-      case Goto(_, var next) -> new ControlFlow.Goto(next);
-      case If(_, var condition, var ifTrue, var ifFalse) -> {
+    return switch (jump.expression()) {
+      case Goto _ -> new ControlFlow.Goto(jump.targets().getFirst());
+      case If _ -> {
+        var condition = jump.arg(0);
         var condValue = run(condition);
         if (!(condValue instanceof Value.Bool(var condBool))) {
           throw fail("Condition is not a boolean: " + condValue);
@@ -496,23 +493,27 @@ public final class InternalInterpreter implements Interpreter {
           topFrame().scopeFeedback().recordConstant(conditionReg, condValue);
         }
 
-        yield new ControlFlow.Goto(condBool ? ifTrue : ifFalse);
+        var targets = jump.targets();
+        yield new ControlFlow.Goto(condBool ? targets.get(0) : targets.get(1));
       }
-      case Return(_, var ret) -> new ControlFlow.Return(run(ret));
-      case Raise(_, var value) -> {
-        var valueResult = run(value);
+      case Return _ -> new ControlFlow.Return(run(jump.arg(0)));
+      case Raise _ -> {
+        var valueResult = run(jump.arg(0));
         if (!(valueResult instanceof Value.Str(var message))) {
           throw fail("raise value is not a string: " + valueResult);
         }
         throw fail(message);
       }
-      case Checkpoint(_, var ok, var deopt) -> {
+      case Checkpoint _ -> {
+        var targets = jump.targets();
+        var ok = targets.get(0);
+        var deopt = targets.get(1);
         checkpointTrace.record(() -> snapshotAtCheckpoint(deopt));
         yield new ControlFlow.Goto(check(ok) ? ok : deopt);
       }
-      case Deopt(_, var pc, var argStack) -> {
+      case Deopt(var pc) -> {
         var valueStack =
-            argStack.stream()
+            jump.args().stream()
                 .map(this::run)
                 .map(
                     value -> {
@@ -524,7 +525,7 @@ public final class InternalInterpreter implements Interpreter {
                 .collect(ImmutableList.toImmutableList());
         yield new ControlFlow.Deopt(pc, valueStack);
       }
-      case Unreachable(_) -> throw fail("Reached unimplemented or \"unreachable\" code");
+      case Unreachable _ -> throw fail("Reached unimplemented or \"unreachable\" code");
     };
   }
 
@@ -552,29 +553,29 @@ public final class InternalInterpreter implements Interpreter {
     }
   }
 
-  /// Evaluates an expression and returns its value.
+  /// Evaluates a statement's expression (reading its arguments) and returns its value.
   ///
   /// @throws IllegalStateException If called outside of evaluation.
-  public @Nullable Value run(@Nullable Register assignee, Expression expression) {
+  public @Nullable Value evalExpression(Statement statement) {
     checkEvaluation();
+    var expression = statement.expression();
     return switch (expression) {
-      case Aea(var value) -> run(value);
       case Assume(var assumption) ->
           switch (assumption) {
-            case AssumeType(var target, var type) -> {
-              var value = run(target);
+            case AssumeType(var type) -> {
+              var value = run(statement.arg(0));
               checkType(value, type, "assume-type");
               yield value;
             }
-            case AssumeConstant(var target, var constant) -> {
-              var value = run(target);
+            case AssumeConstant(var constant) -> {
+              var value = run(statement.arg(0));
               if (!value.equals(constant)) {
                 throw fail("assume-constant actually interpreted and failed");
               }
               yield null;
             }
-            case AssumeFunction(var target, var functionRef) -> {
-              var value = run(target);
+            case AssumeFunction(var functionRef) -> {
+              var value = run(statement.arg(0));
               if (!(value instanceof Value.Sexp(CloSXP sexp)
                   && Objects.equals(extractClosure(sexp), functionRef.get()))) {
                 throw fail("assume-function actually interpreted and failed");
@@ -597,100 +598,19 @@ public final class InternalInterpreter implements Interpreter {
               yield null;
             }
           };
-      case Call call -> {
-        var callee = call.callee();
-        var arguments = call.callArguments().stream().map(this::run).toList();
-
-        yield switch (callee) {
-          case StaticFnCallee(
-                  var functionRef,
-                  var isDispatch,
-                  var closureWithEnv,
-                  var signature) -> {
-            var function = functionRef.get();
-
-            var closureWithEnvValue = run(closureWithEnv);
-            if (!(closureWithEnvValue instanceof Value.Sexp(CloSXP closureWithEnvSxp))) {
-              throw fail("Environment provider isn't a closure: " + closureWithEnvValue);
-            }
-            var closureEnv = closureWithEnvSxp.env();
-
-            if (isDispatch) {
-              // Dispatch call
-              yield call(function, signature, closureEnv, arguments);
-            }
-
-            // Static call
-            var exactVersion = function.guess(signature);
-            if (exactVersion == null) {
-              throw fail("No versions of " + function.name() + " match signature: " + signature);
-            }
-            yield call(
-                function,
-                Objects.requireNonNull(exactVersion),
-                closureEnv,
-                arguments,
-                function.baseline().cfg());
-          }
-          case DynamicCallee(var actualCallee, var argumentNames) -> {
-            var calleeValue = run(actualCallee);
-            if (!(calleeValue instanceof Value.Sexp(var calleeSexp)
-                && calleeSexp instanceof CloSXP cloSXP)) {
-              throw fail("Not a function: " + calleeValue);
-            }
-
-            var function = extractClosure(cloSXP);
-            if (function == null) {
-              throw fail("Can't call function not in this interpreter: " + cloSXP);
-            }
-
-            var argumentSexps =
-                arguments.stream()
-                    .map(
-                        argValue -> {
-                          if (!(argValue instanceof Value.Sexp(var argSexp))) {
-                            throw fail("Dynamic function argument not SEXP: " + argValue);
-                          }
-                          return argSexp;
-                        });
-
-            List<SEXP> matchedArgumentSexps;
-            try {
-              var namedArguments =
-                  Streams.zip(
-                          Stream.concat(
-                              argumentNames.stream(),
-                              Stream.generate(OptionalNamedVariable::empty)),
-                          argumentSexps,
-                          OptionalNamedVariable::taggedElem)
-                      .collect(SEXPs.toList());
-              matchedArgumentSexps = matchArguments(cloSXP.parameters(), namedArguments);
-            } catch (MatchException e) {
-              throw fail(e.getMessage());
-            }
-            List<Value> matchedArguments = Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new);
-
-            var result = call(function, null, cloSXP.env(), matchedArguments);
-
-            // Only record after the call, in case the function is an unregistered stub
-            if (actualCallee instanceof Read(var calleeReg)) {
-              topFrame().scopeFeedback().recordCallee(calleeReg, function);
-            }
-
-            yield result;
-          }
-        };
-      }
-      case Cast(var target, var type) -> {
-        var value = run(target);
+      case Call call ->
+          evalCall(
+              call.callee(), statement.arg(0), statement.args().subList(1, statement.argCount()));
+      case Cast(var type) -> {
+        var value = run(statement.arg(0));
         checkType(value, type, "cast");
         yield value;
       }
       case Closure(var isStatic, var codeRef) ->
           new Value.Sexp(
               closureStub(codeRef.get(), isStatic ? globalEnv : topFrame().environment()));
-      case Dup(var arg) -> {
-        var value = run(arg);
+      case Dup _ -> {
+        var value = run(statement.arg(0));
 
         if (!(value instanceof Value.Sexp(var sexp) && sexp instanceof ListOrVectorSXP<?> s)) {
           throw fail("Can't duplicate: " + value);
@@ -698,8 +618,8 @@ public final class InternalInterpreter implements Interpreter {
 
         yield new Value.Sexp(s.copy());
       }
-      case Force(var isMaybe, var arg) -> {
-        var value = run(arg);
+      case Force(var isMaybe) -> {
+        var value = run(statement.arg(0));
         if (!(value instanceof Value.Sexp(var sexp) && sexp instanceof PromSXP promise)) {
           if (!isMaybe) {
             throw fail("Can't force non-promise: " + value);
@@ -733,12 +653,12 @@ public final class InternalInterpreter implements Interpreter {
         }
         yield new Value.Sexp(valueSxp);
       }
-      case MkVector(var kind, var elements) ->
+      case MkVector(var kind, var elementNames) ->
           new Value.Sexp(
               mkVector(
                   kind,
-                  Lists.mapLazy(elements, e -> OptionalNamedVariable.ofNullable(e.name())),
-                  Lists.mapLazy(elements, e -> run(e.argument()))));
+                  Lists.mapLazy(elementNames, OptionalNamedVariable::ofNullable),
+                  statement.args().stream().map(this::run).toList()));
       case MkEnv() -> {
         topFrame().mkEnv();
         yield null;
@@ -753,9 +673,9 @@ public final class InternalInterpreter implements Interpreter {
         }
         yield null;
       }
-      case Promise promise -> new Value.Sexp(promiseStub(assignee, promise));
-      case ReflectiveLoad(var promArg, var variable) -> {
-        var promValue = run(promArg);
+      case Promise promise -> new Value.Sexp(promiseStub(statement.assignee(), promise));
+      case ReflectiveLoad(var variable) -> {
+        var promValue = run(statement.arg(0));
 
         if (!(promValue instanceof Value.Sexp(var promSexp)
             && promSexp instanceof PromSXP promise)) {
@@ -767,9 +687,9 @@ public final class InternalInterpreter implements Interpreter {
             .map(Value.Sexp::new)
             .orElseThrow(() -> fail("Unbound variable in promise environment: " + variable.name()));
       }
-      case ReflectiveStore(var promArg, var variable, var valueArg) -> {
-        var promValue = run(promArg);
-        var valueValue = run(valueArg);
+      case ReflectiveStore(var variable) -> {
+        var promValue = run(statement.arg(0));
+        var valueValue = run(statement.arg(1));
 
         if (!(promValue instanceof Value.Sexp(var promSexp)
             && promSexp instanceof PromSXP promise)) {
@@ -783,16 +703,16 @@ public final class InternalInterpreter implements Interpreter {
         env.set(variable.name(), valueSexp);
         yield null;
       }
-      case Store(var storeType, var variable, var arg) ->
+      case Store(var storeType, var variable) ->
           switch (storeType) {
             case LOCAL_VAR -> {
-              var value = run(arg);
+              var value = run(statement.arg(0));
               topFrame().put(variable, value);
               yield null;
             }
             case SUPER_VAR -> {
               var parentEnv = topFrame().environment().parent();
-              var value = run(arg);
+              var value = run(statement.arg(0));
 
               if (!(value instanceof Value.Sexp(var valueSexp))) {
                 throw fail("Can't super-store non-SEXP: " + value);
@@ -811,9 +731,9 @@ public final class InternalInterpreter implements Interpreter {
               yield null;
             }
           };
-      case SubscriptRead(var vectorArg, var indexArg) -> {
-        var vectorValue = run(vectorArg);
-        var indexValue = run(indexArg);
+      case SubscriptRead _ -> {
+        var vectorValue = run(statement.arg(0));
+        var indexValue = run(statement.arg(1));
 
         if (!(vectorValue instanceof Value.Sexp(var vectorSexp)
             && vectorSexp instanceof ListOrVectorSXP<?> vector)) {
@@ -825,10 +745,10 @@ public final class InternalInterpreter implements Interpreter {
 
         yield subscriptLoad(vector, index);
       }
-      case SubscriptWrite(var vectorArg, var indexArg, var valueArg) -> {
-        var vectorValue = run(vectorArg);
-        var indexValue = run(indexArg);
-        var valueValue = run(valueArg);
+      case SubscriptWrite _ -> {
+        var vectorValue = run(statement.arg(0));
+        var indexValue = run(statement.arg(1));
+        var valueValue = run(statement.arg(2));
 
         if (!(vectorValue instanceof Value.Sexp(var vectorSexp)
             && vectorSexp instanceof ListOrVectorSXP<?> vector)) {
@@ -840,6 +760,89 @@ public final class InternalInterpreter implements Interpreter {
 
         subscriptStore(vector, index, valueValue);
         yield null;
+      }
+    };
+  }
+
+  /// Evaluates a call given its callee metadata, the callee's own argument (index 0: the
+  /// closure-with-env for a [StaticFnCallee], or the actual callee for a [DynamicCallee]), and the
+  /// call arguments.
+  private Value evalCall(
+      org.prlprg.fir.ir.callee.Callee callee, Argument calleeArg, List<Argument> callArgs) {
+    var arguments = callArgs.stream().map(this::run).toList();
+
+    return switch (callee) {
+      case StaticFnCallee(var functionRef, var isDispatch, var signature) -> {
+        var function = functionRef.get();
+
+        var closureWithEnvValue = run(calleeArg);
+        if (!(closureWithEnvValue instanceof Value.Sexp(CloSXP closureWithEnvSxp))) {
+          throw fail("Environment provider isn't a closure: " + closureWithEnvValue);
+        }
+        var closureEnv = closureWithEnvSxp.env();
+
+        if (isDispatch) {
+          // Dispatch call
+          yield call(function, signature, closureEnv, arguments);
+        }
+
+        // Static call
+        var exactVersion = function.guess(signature);
+        if (exactVersion == null) {
+          throw fail("No versions of " + function.name() + " match signature: " + signature);
+        }
+        yield call(
+            function,
+            Objects.requireNonNull(exactVersion),
+            closureEnv,
+            arguments,
+            function.baseline().cfg());
+      }
+      case DynamicCallee(var argumentNames) -> {
+        var calleeValue = run(calleeArg);
+        if (!(calleeValue instanceof Value.Sexp(var calleeSexp)
+            && calleeSexp instanceof CloSXP cloSXP)) {
+          throw fail("Not a function: " + calleeValue);
+        }
+
+        var function = extractClosure(cloSXP);
+        if (function == null) {
+          throw fail("Can't call function not in this interpreter: " + cloSXP);
+        }
+
+        var argumentSexps =
+            arguments.stream()
+                .map(
+                    argValue -> {
+                      if (!(argValue instanceof Value.Sexp(var argSexp))) {
+                        throw fail("Dynamic function argument not SEXP: " + argValue);
+                      }
+                      return argSexp;
+                    });
+
+        List<SEXP> matchedArgumentSexps;
+        try {
+          var namedArguments =
+              Streams.zip(
+                      Stream.concat(
+                          argumentNames.stream(), Stream.generate(OptionalNamedVariable::empty)),
+                      argumentSexps,
+                      OptionalNamedVariable::taggedElem)
+                  .collect(SEXPs.toList());
+          matchedArgumentSexps = matchArguments(cloSXP.parameters(), namedArguments);
+        } catch (MatchException e) {
+          throw fail(e.getMessage());
+        }
+        List<Value> matchedArguments = Lists.mapLazy(matchedArgumentSexps, Value.Sexp::new);
+
+        var result = call(function, null, cloSXP.env(), matchedArguments);
+
+        // Only record after the call, in case the function is an unregistered stub
+        if (calleeArg instanceof Read(var calleeReg)) {
+          topFrame().scopeFeedback().recordCallee(calleeReg, function);
+        }
+
+        yield result;
       }
     };
   }
@@ -1165,31 +1168,32 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     for (var stmt : target.bb().statements()) {
-      if (!(stmt.expression() instanceof Assume(var assumption))) {
+      if (!(stmt.expression() instanceof Assume)) {
         break;
       }
-      if (!check(assumption)) {
+      if (!checkAssumption(stmt)) {
         return false;
       }
     }
     return true;
   }
 
-  private boolean check(Assumption assumption) {
+  private boolean checkAssumption(Statement statement) {
+    var assumption = ((Assume) statement.expression()).assumption();
     switch (assumption) {
-      case AssumeType(var arg, var type) -> {
-        var value = run(arg);
+      case AssumeType(var type) -> {
+        var value = run(statement.arg(0));
         var actualType = inferType(value, type.ownership());
         return actualType.isSubtypeOf(type);
       }
-      case AssumeConstant(var arg, var constant) -> {
-        var value = run(arg);
+      case AssumeConstant(var constant) -> {
+        var value = run(statement.arg(0));
         return Objects.equals(value, constant);
       }
-      case AssumeFunction(var arg, var functionRef) -> {
+      case AssumeFunction(var functionRef) -> {
         var function = functionRef.get();
 
-        var value = run(arg);
+        var value = run(statement.arg(0));
         if (!(value instanceof Value.Sexp(var valueSexp) && valueSexp instanceof CloSXP valueCls)) {
           return false;
         }
@@ -1224,7 +1228,7 @@ public final class InternalInterpreter implements Interpreter {
     // bytecode, but may not be here).
     var deoptBc =
         com.google.common.collect.Streams.stream(bbDfs(deoptRestoreCfg))
-            .filter(bb -> bb.jump() instanceof Deopt(_, var pc1, _) && pc == pc1)
+            .filter(bb -> bb.jump().expression() instanceof Deopt(var pc1) && pc == pc1)
             .findFirst()
             .orElseThrow(
                 () ->
@@ -1233,14 +1237,15 @@ public final class InternalInterpreter implements Interpreter {
                             + pc
                             + "\n"
                             + deoptRestoreCfg));
-    if (!(deoptBc.jump() instanceof Deopt(_, _, var argStack))) {
+    if (!(deoptBc.jump().expression() instanceof Deopt)) {
       throw new UnreachableError();
     }
+    var argStack = deoptBc.jump().args();
     var checkBc =
         deoptBc.predecessors().stream()
             .findAny()
             .orElseThrow(() -> fail("deopt branch has no predecessors?\n" + deoptRestoreCfg));
-    if (!(checkBc.jump() instanceof Checkpoint)) {
+    if (!(checkBc.jump().expression() instanceof Checkpoint)) {
       throw fail("deopt branch predecessor is not a checkpoint?\n" + deoptRestoreCfg);
     }
     if (argStack.size() != deoptStack.size()) {
@@ -1287,44 +1292,40 @@ public final class InternalInterpreter implements Interpreter {
             throw fail(e.getMessage());
           }
         }
-        case Store(var storeType, _, _) when storeType == StoreType.LOCAL_VAR -> {}
-        case Call call when stmt.assignee() != null && isReversiblePureFun(call) -> {
+        case Store(var storeType, _) when storeType == StoreType.LOCAL_VAR -> {}
+        case Call call when stmt.assignee() != null && isReversiblePureFun(stmt) -> {
           var assigneeValue = topFrame().get(stmt.assignee());
           if (assigneeValue == null) {
             throw fail("deopt box/unbox assignee is uninitialized: " + stmt.assignee());
           }
 
-          var inverseCall =
-              switch (call.callee()) {
-                case StaticFnCallee(
-                        var functionRef,
-                        var isDispatch,
-                        var closureWithEnv,
-                        var signature)
-                    when !isDispatch
-                        && closureWithEnv.equals(Constant.ELIDED_CLOSURE)
-                        && (functionRef.get() == BOX_FUN || functionRef.get() == UNBOX_FUN) ->
-                    new Call(
-                        new StaticFnCallee(
-                            functionRef.get() == BOX_FUN ? UNBOX_FUN : BOX_FUN,
-                            false,
-                            new Signature(
-                                ImmutableList.of(signature.returnType()),
-                                signature.parameterTypes().getFirst(),
-                                signature.effects())),
-                        ImmutableList.of(new Constant(assigneeValue)));
-                default -> throw new UnreachableError();
-              };
+          // The single call argument (after the elided-closure callee arg at index 0).
+          var callArg = stmt.args().get(1);
           var argumentRegister =
-              switch (call.callArguments().getFirst()) {
+              switch (callArg) {
                 case Read(var register) -> register;
                 case Consume(var register) -> register;
                 default ->
-                    throw fail(
-                        "deopt box/unbox argument must be a register, got: "
-                            + call.callArguments().getFirst());
+                    throw fail("deopt box/unbox argument must be a register, got: " + callArg);
               };
-          var argumentValue = Objects.requireNonNull(run(null, inverseCall));
+
+          // Run the inverse (box <-> unbox) of the pure call to recover the argument's value.
+          var staticCallee = (StaticFnCallee) call.callee();
+          var signature = staticCallee.signature();
+          var inverseCallee =
+              new StaticFnCallee(
+                  staticCallee.functionRef().get() == BOX_FUN ? UNBOX_FUN : BOX_FUN,
+                  false,
+                  new Signature(
+                      ImmutableList.of(signature.returnType()),
+                      signature.parameterTypes().getFirst(),
+                      signature.effects()));
+          var argumentValue =
+              Objects.requireNonNull(
+                  evalCall(
+                      inverseCallee,
+                      Constant.ELIDED_CLOSURE,
+                      List.of(new Constant(assigneeValue))));
           topFrame().put(argumentRegister, argumentValue);
           recordTypeFeedback(topFrame().scopeFeedback(), argumentRegister, argumentValue);
         }
@@ -1356,23 +1357,27 @@ public final class InternalInterpreter implements Interpreter {
       var stmt = deopt.bb().statements().get(i);
       switch (stmt.expression()) {
         case MkEnv() -> env = new UserEnvSXP(env);
-        case Call call when stmt.assignee() != null && isReversiblePureFun(call) ->
-            localRegs.put(
-                stmt.assignee(),
-                Objects.requireNonNull(
-                    run(
-                        null,
-                        call.mapArguments(
-                            arg ->
-                                switch (arg) {
-                                  case Read(var register) when localRegs.containsKey(register) ->
-                                      new Constant(localRegs.get(register));
-                                  case Consume(var register) when localRegs.containsKey(register) ->
-                                      new Constant(localRegs.get(register));
-                                  default -> arg;
-                                }))));
-        case Store(var storeType, var variable, var arg) when storeType == StoreType.LOCAL_VAR -> {
-          var value = runInSnapshotDeopt(arg, localRegs);
+        case Call call when stmt.assignee() != null && isReversiblePureFun(stmt) -> {
+          // Substitute already-snapshotted registers with their constant values, then evaluate the
+          // (pure box/unbox) call. The callee arg at index 0 is the elided closure.
+          var callArgs =
+              stmt.args().subList(1, stmt.argCount()).stream()
+                  .map(
+                      arg ->
+                          switch (arg) {
+                            case Read(var register) when localRegs.containsKey(register) ->
+                                (Argument) new Constant(localRegs.get(register));
+                            case Consume(var register) when localRegs.containsKey(register) ->
+                                (Argument) new Constant(localRegs.get(register));
+                            default -> arg;
+                          })
+                  .toList();
+          localRegs.put(
+              stmt.assignee(),
+              Objects.requireNonNull(evalCall(call.callee(), stmt.arg(0), callArgs)));
+        }
+        case Store(var storeType, var variable) when storeType == StoreType.LOCAL_VAR -> {
+          var value = runInSnapshotDeopt(stmt.arg(0), localRegs);
           if (!(value instanceof Value.Sexp(var valueSexp))) {
             throw fail("Can't store non-SEXP in environment: " + value);
           }
@@ -1384,10 +1389,10 @@ public final class InternalInterpreter implements Interpreter {
       }
     }
 
-    var deoptJump = (Deopt) deopt.bb().jump();
-    var pc = deoptJump.pc();
+    var deoptJump = deopt.bb().jump();
+    var pc = ((Deopt) deoptJump.expression()).pc();
     var bcStack =
-        deoptJump.stack().stream()
+        deoptJump.args().stream()
             .map(arg -> runInSnapshotDeopt(arg, localRegs))
             .map(
                 value -> {
@@ -1409,12 +1414,13 @@ public final class InternalInterpreter implements Interpreter {
     };
   }
 
-  private boolean isReversiblePureFun(Call call) {
-    return call.callee()
-            instanceof StaticFnCallee(var functionRef, var isDispatch, var closureWithEnv, _)
+  private boolean isReversiblePureFun(Statement statement) {
+    return statement.expression() instanceof Call call
+        && call.callee() instanceof StaticFnCallee(var functionRef, var isDispatch, _)
         && !isDispatch
-        && closureWithEnv.equals(Constant.ELIDED_CLOSURE)
-        && call.callArguments().size() == 1
+        // args = [elided-closure callee arg, single call arg]
+        && statement.argCount() == 2
+        && statement.arg(0).equals(Constant.ELIDED_CLOSURE)
         && (functionRef.get() == BOX_FUN || functionRef.get() == UNBOX_FUN);
   }
 

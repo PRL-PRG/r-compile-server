@@ -17,9 +17,9 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { reg r1:v1(I), reg r2:I |
-              r1 = box< I --> v1(I) >(x);
-              r2 = unbox< v1(I) --> I >(r1);
+            (reg x:I) --> I {
+              r1: v1(I) = box< I --> v1(I) >(x);
+              r2: I = unbox< v1(I) --> I >(r1);
               return r2;
             }
             """);
@@ -37,9 +37,9 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> v1(I) { reg r1:v1(I), reg r2:v1(I) |
-              r1 = box< I --> v1(I) >(x);
-              r2 = box< I --> v1(I) >(x);
+            (reg x:I) --> v1(I) {
+              r1: v1(I) = box< I --> v1(I) >(x);
+              r2: v1(I) = box< I --> v1(I) >(x);
               return r2;
             }
             """);
@@ -57,10 +57,10 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> v1(I) { reg r1:v1(I), reg r2:I, reg r3:v1(I) |
-              r1 = box< I --> v1(I) >(x);
-              r2 = unbox< v1(I) --> I >(r1);
-              r3 = box< I --> v1(I) >(r2);
+            (reg x:I) --> v1(I) {
+              r1: v1(I) = box< I --> v1(I) >(x);
+              r2: I = unbox< v1(I) --> I >(r1);
+              r3: v1(I) = box< I --> v1(I) >(r2);
               return r3;
             }
             """);
@@ -79,10 +79,10 @@ class ElideRedundantBoxUnboxTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { reg boxed:v1(I), reg r1:I, reg r2:I |
-              boxed = box< I --> v1(I) >(x);
-              r1 = unbox< v1(I) --> I >(boxed);
-              r2 = unbox< v1(I) --> I >(boxed);
+            (reg x:I) --> I {
+              boxed: v1(I) = box< I --> v1(I) >(x);
+              r1: I = unbox< v1(I) --> I >(boxed);
+              r2: I = unbox< v1(I) --> I >(boxed);
               return r2;
             }
             """);

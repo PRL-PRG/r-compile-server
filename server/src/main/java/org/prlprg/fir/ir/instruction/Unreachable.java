@@ -2,53 +2,27 @@ package org.prlprg.fir.ir.instruction;
 
 import java.util.List;
 import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 
-public record Unreachable(Comments comments) implements Jump {
-  public Unreachable() {
-    this(new Comments());
-  }
-
+/// Marks unreachable code; the default terminator of a fresh [BB][org.prlprg.fir.ir.cfg.BB].
+public record Unreachable() implements JumpExpression {
   @Override
-  public @UnmodifiableView List<Target> targets() {
+  @UnmodifiableView
+  public List<BBRef> targetRefs() {
     return List.of();
   }
 
   @Override
-  public @UnmodifiableView List<BB> targetBBs() {
+  @UnmodifiableView
+  public List<Target> targets(List<Argument> args) {
     return List.of();
   }
 
   @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return List.of();
-  }
-
-  @Override
-  public Jump mapArguments(Function<Argument, Argument> transformer) {
-    return this;
-  }
-
-  @Override
-  public Jump mapTargets(Function<Target, Target> transformer) {
-    return this;
-  }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.print(comments);
-    p.writer().write("unreachable");
+  public Mapped mapTargets(Function<Target, Target> transformer, List<Argument> args) {
+    return new Mapped(this, args);
   }
 }

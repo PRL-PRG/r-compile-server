@@ -14,12 +14,11 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.binding.Local;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
-import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
@@ -29,6 +28,7 @@ import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.ImmutableBoolArray;
 
@@ -57,45 +57,57 @@ public class Unbox implements AbstractionOptimization {
     var cfgs = abstraction.streamCfgs().toList();
     for (var cfg : cfgs) {
       for (var bb : cfg.bbs()) {
-        for (var i = 0; i < bb.statements().size(); i++) {
-          var stmt = bb.statements().get(i);
+        // Snapshot statements so inserted box/unbox statements aren't re-processed.
+        for (var stmt : List.copyOf(bb.statements())) {
           var assignee = stmt.assignee();
 
-          if (!(stmt.expression() instanceof Call(StaticFnCallee callee, var callArguments))) {
+          if (!(stmt.expression() instanceof Call(StaticFnCallee callee))) {
             continue;
           }
 
           var specialization = planSpecialization(feedback, callee);
           if (specialization == null) continue;
 
-          // Insert unbox instructions before the call
-          var newArgs = new ArrayList<>(callArguments);
+          // Insert unbox instructions before the call, and rewrite the unboxed arguments.
+          // Call arguments follow the callee's own argument (index 0).
+          var callArguments = List.copyOf(stmt.args().subList(1, stmt.argCount()));
           for (var j = 0; j < callArguments.size(); j++) {
             if (!specialization.parameterUnboxings().get(j)) continue;
-            var unboxedReg = insertUnbox(callArguments.get(j), abstraction, bb, i++);
-            newArgs.set(j, new Read(unboxedReg));
+            var unboxedReg = insertUnbox(callArguments.get(j), abstraction, stmt);
+            stmt.setArg(j + 1, new Read(unboxedReg));
           }
 
-          // Replace the call (at shifted position)
-          var newCallExpr =
-              new Call(
-                  new StaticFnCallee(
-                      callee.function(),
-                      // Can't dispatch if the return isn't `SEXP`
-                      callee.isDispatch() && !specialization.returnUnboxing(),
-                      callee.closureWithEnv(),
-                      specialization.rewriteSignature(callee.signature())),
-                  ImmutableList.copyOf(newArgs));
+          var newCallee =
+              new StaticFnCallee(
+                  callee.function(),
+                  // Can't dispatch if the return isn't `SEXP`
+                  callee.isDispatch() && !specialization.returnUnboxing(),
+                  specialization.rewriteSignature(callee.signature()));
 
           if (assignee != null && specialization.returnUnboxing()) {
-            // Change assignee to a new scalar register, insert box after
+            // The call now returns the unboxed scalar; re-box for the original result's users.
             var calleeReturnType = callee.signature().returnType();
-            var scalar = abstraction.addLocal(assignee.name(), unboxed(calleeReturnType));
-            bb.replaceStatementAt(i++, new Statement(scalar, newCallExpr));
-            bb.insertStatement(
-                i, new Statement(assignee, boxCall(new Read(scalar), calleeReturnType)));
+
+            // A fresh statement holds the (now scalar) call result, on its own use-set.
+            var newCallStmt =
+                new Statement(stmt.comments(), new Call(newCallee), List.copyOf(stmt.args()));
+            var scalar =
+                newCallStmt.setAssignee(
+                    abstraction.freshName(assignee.name()), unboxed(calleeReturnType));
+
+            // Box the scalar back to the original (boxed) type for the original users.
+            var boxStmt = boxStatement(new Read(scalar), calleeReturnType);
+            var boxedAssignee =
+                boxStmt.setAssignee(abstraction.freshName(assignee.name()), calleeReturnType);
+
+            // Forward the original result's users to the re-boxed value (before replacing the
+            // call statement, so the old assignee's uses are still attached).
+            assignee.substUsesWith(new Read(boxedAssignee));
+            stmt.replaceWith(newCallStmt);
+            boxStmt.insertAfter(newCallStmt);
           } else {
-            bb.replaceStatementAt(i, new Statement(stmt.comments(), assignee, newCallExpr));
+            // Only the callee signature changed; keep the statement's arguments and assignee.
+            stmt.setExpression(new Call(newCallee));
           }
 
           changed = true;
@@ -232,43 +244,33 @@ public class Unbox implements AbstractionOptimization {
     var oldParams = boxedVersion.parameters();
     var numParams = oldParams.size();
 
-    // Specialize parameters
+    // Specialize parameters (the new version takes unboxed scalars where applicable).
     var newParams = new ArrayList<>(oldParams);
     for (var i = 0; i < numParams; i++) {
       if (!specialization.parameterUnboxings().get(i)) continue;
-
-      var oldParam = newParams.get(i);
+      var oldParam = oldParams.get(i);
       var sigParamType = signature.parameterTypes().get(i);
-      // Temporarily add local to disambiguate further param names
-      var newParamName = boxedVersion.addLocal(oldParam.variable().name(), unboxed(sigParamType));
-      var newParam = new Parameter(newParamName, unboxed(sigParamType), false);
-
-      newParams.set(i, newParam);
-    }
-    for (var i = 0; i < numParams; i++) {
-      if (!specialization.parameterUnboxings().get(i)) continue;
-
-      var newParam = newParams.get(i);
-      boxedVersion.removeLocal(newParam.variable());
+      newParams.set(i, new FunctionParameter(oldParam.name(), unboxed(sigParamType), false));
     }
 
     var newVersion = copy2(feedback.module(), function, boxedVersion, newParams);
     var newCfg = Objects.requireNonNull(newVersion.cfg());
-
-    // Add parameter boxes
     var newEntry = newCfg.entry();
-    var j = 0;
+
+    // Re-box each unboxed parameter at the entry so the copied body still sees the boxed value.
     for (var i = 0; i < numParams; i++) {
       if (!specialization.parameterUnboxings().get(i)) continue;
 
-      var oldParam = oldParams.get(i);
+      var scalarParam = newVersion.parameters().get(i);
       var sigParamType = signature.parameterTypes().get(i);
-      newVersion.addLocal(new Local(oldParam.variable(), sigParamType));
-      newEntry.insertStatement(
-          j,
-          new Statement(
-              oldParam.variable(), boxCall(new Read(newParams.get(i).variable()), sigParamType)));
-      j++;
+
+      // Build `boxReg = box(<placeholder>)` with a constant placeholder, redirect the body's uses
+      // of the scalar parameter to `boxReg`, then wire the box to read the scalar parameter.
+      var boxStmt = boxStatement(Constant.ELIDED_CLOSURE, sigParamType);
+      var boxReg = boxStmt.setAssignee(newVersion.freshName(scalarParam.name()), sigParamType);
+      newEntry.prependStatement(boxStmt);
+      scalarParam.substUsesWith(new Read(boxReg));
+      boxStmt.setArg(1, new Read(scalarParam));
     }
 
     // Add return unbox
@@ -278,27 +280,32 @@ public class Unbox implements AbstractionOptimization {
     var newReturnType = unboxed(oldReturnType);
     newVersion.setReturnType(newReturnType);
     for (var newExit : List.copyOf(newCfg.exits())) {
-      if (!(newExit.jump() instanceof Return(var comments, var value))) continue;
+      if (!(newExit.jump().expression() instanceof Return)) continue;
+      var value = newExit.jump().arg(0);
 
+      var unboxStmt = unboxStatement(value, oldReturnType);
       var unboxedReg =
-          newVersion.addLocal(
-              value.variable() == null ? Register.DEFAULT_NAME : value.variable().name(),
+          unboxStmt.setAssignee(
+              newVersion.freshName(
+                  value.variable() == null ? Register.DEFAULT_NAME : value.variable().name()),
               newReturnType);
-      newExit.appendStatement(new Statement(unboxedReg, unboxCall(value, oldReturnType)));
-      newExit.setJump(new Return(comments, new Read(unboxedReg)));
+      newExit.appendStatement(unboxStmt);
+      newExit.setJump(
+          new Jump(newExit.jump().comments(), new Return(), List.of(new Read(unboxedReg))));
     }
   }
 
-  /// Insert `unbox<v1(X) --> X>(original)` at `insertIndex` in `bb`.
-  private Register insertUnbox(Argument original, Abstraction scope, BB bb, int insertIndex) {
+  /// Insert `unbox<v1(X) --> X>(original)` immediately before `point`, and return its register.
+  private Register insertUnbox(Argument original, Abstraction scope, Statement point) {
     var argumentType = scope.typeOf(original);
     assert argumentType != null && canUnbox(argumentType);
+    var unboxStmt = unboxStatement(original, argumentType);
     var unboxedReg =
-        scope.addLocal(
-            original.variable() == null ? Register.DEFAULT_NAME : original.variable().name(),
+        unboxStmt.setAssignee(
+            scope.freshName(
+                original.variable() == null ? Register.DEFAULT_NAME : original.variable().name()),
             unboxed(argumentType));
-
-    bb.insertStatement(insertIndex, new Statement(unboxedReg, unboxCall(original, argumentType)));
+    unboxStmt.insertBefore(point);
     return unboxedReg;
   }
 
@@ -315,14 +322,19 @@ public class Unbox implements AbstractionOptimization {
     return Type.primitiveScalar(((Kind.PrimitiveVector) type.kind()).primitive());
   }
 
-  static Call boxCall(Argument scalarArgument, Type boxedType) {
+  /// A standalone `box<X --> v1(X)>(scalarArgument)` statement (no assignee).
+  static Statement boxStatement(Argument scalarArgument, Type boxedType) {
     var boxSig = new Signature(ImmutableList.of(unboxed(boxedType)), boxedType, Effects.NONE);
-    return new Call(new StaticFnCallee(BOX_FUN, false, boxSig), ImmutableList.of(scalarArgument));
+    return new Statement(
+        new Call(new StaticFnCallee(BOX_FUN, false, boxSig)),
+        List.of(Constant.ELIDED_CLOSURE, scalarArgument));
   }
 
-  static Call unboxCall(Argument boxedArgument, Type boxedType) {
+  /// A standalone `unbox<v1(X) --> X>(boxedArgument)` statement (no assignee).
+  static Statement unboxStatement(Argument boxedArgument, Type boxedType) {
     var unboxSig = new Signature(ImmutableList.of(boxedType), unboxed(boxedType), Effects.NONE);
-    return new Call(
-        new StaticFnCallee(UNBOX_FUN, false, unboxSig), ImmutableList.of(boxedArgument));
+    return new Statement(
+        new Call(new StaticFnCallee(UNBOX_FUN, false, unboxSig)),
+        List.of(Constant.ELIDED_CLOSURE, boxedArgument));
   }
 }

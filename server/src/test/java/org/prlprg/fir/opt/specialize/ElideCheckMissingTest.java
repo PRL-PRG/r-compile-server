@@ -20,7 +20,7 @@ class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> I { |
+            (reg x:I) -~> I {
               checkMissing< V -~> V >(x);
               return x;
             }
@@ -39,7 +39,7 @@ class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:V) -~> V { |
+            (reg x:V) -~> V {
               checkMissing< V -~> V >(x);
               return x;
             }
@@ -58,7 +58,7 @@ class ElideCheckMissingTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:miss) -~> V { |
+            (reg x:miss) -~> V {
               checkMissing< V -~> V >(x);
               return x;
             }

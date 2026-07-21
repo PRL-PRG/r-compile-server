@@ -1,38 +1,4 @@
 package org.prlprg.fir.ir.expression;
 
-import java.util.List;
-import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
-import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
-
-public record SubscriptWrite(Argument target, Argument index, Argument value)
-    implements Expression {
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    var w = p.writer();
-
-    p.print(target);
-    w.write("[");
-    p.print(index);
-    w.write("] = ");
-    p.print(value);
-  }
-
-  @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return List.of(target, index, value);
-  }
-
-  @Override
-  public Expression mapArguments(Function<Argument, Argument> transformer) {
-    return new SubscriptWrite(
-        transformer.apply(target), transformer.apply(index), transformer.apply(value));
-  }
-}
+/// Write an element into a vector. Arguments are `[target, index, value]`.
+public record SubscriptWrite() implements Expression {}

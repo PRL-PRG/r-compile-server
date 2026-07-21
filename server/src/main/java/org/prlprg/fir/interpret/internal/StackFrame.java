@@ -16,7 +16,6 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
@@ -91,12 +90,14 @@ final class StackFrame {
     return subFrames.getLast().scopeFeedback;
   }
 
-  /// Lookup register or named variable.
-  public @Nullable Value get(Variable variable) {
-    return switch (variable) {
-      case Register r -> registers.get(r);
-      case NamedVariable nv -> environment.get(nv.name()).map(Value.Sexp::new).orElse(null);
-    };
+  /// Lookup a register's value.
+  public @Nullable Value get(Register register) {
+    return registers.get(register);
+  }
+
+  /// Lookup a named variable's value in the environment.
+  public @Nullable Value get(NamedVariable nv) {
+    return environment.get(nv.name()).map(Value.Sexp::new).orElse(null);
   }
 
   /// Function lookup named variable.
@@ -105,18 +106,18 @@ final class StackFrame {
     return environment.getFunction(variable.name(), forcer).orElse(null);
   }
 
-  /// Set local register or store named variable.
-  public void put(Variable variable, Value value) {
-    switch (variable) {
-      case Register r -> registers.put(r, value);
-      case NamedVariable nv -> {
-        if (!(value instanceof Value.Sexp(var sexp))) {
-          throw new IllegalArgumentException(
-              "Can't store non-SEXP (" + value + ") under named variable (" + nv + ")");
-        }
-        environment.set(nv.name(), sexp);
-      }
+  /// Set a local register's value.
+  public void put(Register register, Value value) {
+    registers.put(register, value);
+  }
+
+  /// Store a named variable's value in the environment.
+  public void put(NamedVariable nv, Value value) {
+    if (!(value instanceof Value.Sexp(var sexp))) {
+      throw new IllegalArgumentException(
+          "Can't store non-SEXP (" + value + ") under named variable (" + nv + ")");
     }
+    environment.set(nv.name(), sexp);
   }
 
   public void mkEnv() {

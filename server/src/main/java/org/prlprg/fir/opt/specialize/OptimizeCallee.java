@@ -1,12 +1,14 @@
 package org.prlprg.fir.opt.specialize;
 
 import com.google.common.collect.ImmutableList;
+import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
@@ -15,13 +17,12 @@ import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
-import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.util.ImmutableBoolArray;
 import org.prlprg.util.Streams;
 
@@ -41,36 +42,38 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
   }
 
   @Override
-  public Expression run(
+  public Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Call call)) {
-      return expression;
+    if (!(statement.expression() instanceof Call call)) {
+      return Result.UNCHANGED;
     }
 
-    var newCallee = run(scope, feedback, call);
+    // Call arguments follow the callee's own argument (index 0).
+    var callArgs = statement.args().subList(1, statement.argCount());
+    var newCallee = run(scope, feedback, call.callee(), callArgs);
     if (newCallee == null) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
-    return new Call(newCallee, call.callArguments());
+    return new Result.SetExpression(new Call(newCallee));
   }
 
-  @Nullable Callee run(Abstraction scope, AbstractionFeedback feedback, Call call) {
-    if (!(call.callee() instanceof StaticFnCallee callee)) {
+  @Nullable Callee run(
+      Abstraction scope, AbstractionFeedback feedback, Callee calleeRaw, List<Argument> callArgs) {
+    if (!(calleeRaw instanceof StaticFnCallee callee)) {
       // We can't optimize dynamic calls
       return null;
     }
     var calleeFun = callee.function();
     var argumentTypes =
-        call.callArguments().stream().map(scope::typeOf).collect(ImmutableList.toImmutableList());
+        callArgs.stream().map(scope::typeOf).collect(ImmutableList.toImmutableList());
     if (argumentTypes.contains(null)) {
       // Invalid, null type
       return null;
@@ -114,7 +117,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                       return betterSignature.hasNarrowerParameters(bestSignature)
                           && Streams.zip(
                                   betterSignature.parameterTypes().stream(),
-                                  call.callArguments().stream(),
+                                  callArgs.stream(),
                                   (parameterType, argument) ->
                                       switch (argument) {
                                         case Constant(var constant) ->
@@ -133,8 +136,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
                     });
 
     // ...if so (`!isBestAtRuntime`), dispatch
-    return new StaticFnCallee(
-        calleeFun, !isBestAtRuntime, callee.closureWithEnv(), newBestSignature);
+    return new StaticFnCallee(calleeFun, !isBestAtRuntime, newBestSignature);
   }
 
   /// Returns the callee's signature with the types replaced by `argumentTypes`, i.e. the best
@@ -142,7 +144,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
   public static Signature bestSignature(Callee callee, ImmutableList<Type> argumentTypes) {
     var oldSignature =
         switch (callee) {
-          case StaticFnCallee(_, _, _, var signature) -> signature;
+          case StaticFnCallee(_, _, var signature) -> signature;
           case DynamicCallee _ -> null;
         };
     return new Signature(

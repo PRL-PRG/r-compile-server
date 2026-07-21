@@ -6,13 +6,16 @@ import com.google.common.collect.ImmutableList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.FunctionParameter;
+import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 
 class CreateBestVersionTest {
@@ -37,23 +40,23 @@ class CreateBestVersionTest {
     // Create callee with a version that has BOXED_INTEGER parameters
     var calleeFun =
         module.addFunction(Variable.named("callee"), List.of(Variable.named("x")), true);
-    var intParams = List.of(new Parameter(Variable.register("x"), Type.BOXED_INTEGER));
+    var intParams = List.of(new FunctionParameter("x", Type.BOXED_INTEGER));
     calleeFun.addVersion(intParams, false);
 
     // Create caller that calls callee with an BOXED_INTEGER argument
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), false);
     // Override baseline to have BOXED_INTEGER parameter type so typeOf(a) returns BOXED_INTEGER
-    var callerVersion =
-        callerFun.addVersion(
-            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
+    var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
+    var callerVersion = callerFun.addVersion(List.of(paramA), false);
     assert callerVersion.cfg() != null;
 
-    var call =
-        new Call(
-            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
-            ImmutableList.of(new Read(Variable.register("a"))));
-    callerVersion.cfg().entry().appendStatement(new Statement(call));
+    var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
+    callerVersion
+        .cfg()
+        .entry()
+        .appendStatement(
+            new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
     var feedback = new MockModuleFeedback();
     var opt = new CreateBestVersion(10);
@@ -75,16 +78,16 @@ class CreateBestVersionTest {
     // Create caller with a BOXED_INTEGER parameter calling the callee
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
-    var callerVersion =
-        callerFun.addVersion(
-            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
+    var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
+    var callerVersion = callerFun.addVersion(List.of(paramA), false);
     assert callerVersion.cfg() != null;
 
-    var call =
-        new Call(
-            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
-            ImmutableList.of(new Read(Variable.register("a"))));
-    callerVersion.cfg().entry().appendStatement(new Statement(call));
+    var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
+    callerVersion
+        .cfg()
+        .entry()
+        .appendStatement(
+            new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
     var feedback = new MockModuleFeedback();
     var opt = new CreateBestVersion(10);
@@ -109,16 +112,16 @@ class CreateBestVersionTest {
     // Create caller with BOXED_INTEGER parameter
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
-    var callerVersion =
-        callerFun.addVersion(
-            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
+    var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
+    var callerVersion = callerFun.addVersion(List.of(paramA), false);
     assert callerVersion.cfg() != null;
 
-    var call =
-        new Call(
-            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
-            ImmutableList.of(new Read(Variable.register("a"))));
-    callerVersion.cfg().entry().appendStatement(new Statement(call));
+    var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
+    callerVersion
+        .cfg()
+        .entry()
+        .appendStatement(
+            new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
     var feedback = new MockModuleFeedback();
     // Set version limit to 1 — callee already has 1 version (baseline)
@@ -141,16 +144,16 @@ class CreateBestVersionTest {
     // Create caller with BOXED_INTEGER parameter
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
-    var callerVersion =
-        callerFun.addVersion(
-            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
+    var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
+    var callerVersion = callerFun.addVersion(List.of(paramA), false);
     assert callerVersion.cfg() != null;
 
-    var call =
-        new Call(
-            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
-            ImmutableList.of(new Read(Variable.register("a"))));
-    callerVersion.cfg().entry().appendStatement(new Statement(call));
+    var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
+    callerVersion
+        .cfg()
+        .entry()
+        .appendStatement(
+            new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
     var feedback = new MockModuleFeedback();
     var opt = new CreateBestVersion(10);
@@ -167,17 +170,17 @@ class CreateBestVersionTest {
 
     var callerFun =
         module.addFunction(Variable.named("caller"), List.of(Variable.named("a")), true);
-    var callerVersion =
-        callerFun.addVersion(
-            List.of(new Parameter(Variable.register("a"), Type.BOXED_INTEGER)), false);
+    var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
+    var callerVersion = callerFun.addVersion(List.of(paramA), false);
     assert callerVersion.cfg() != null;
 
-    // Use a DynamicCallee which returns null for function()
-    var call =
-        new Call(
-            new org.prlprg.fir.ir.callee.DynamicCallee(new Read(Variable.register("a"))),
-            ImmutableList.of(new Read(Variable.register("a"))));
-    callerVersion.cfg().entry().appendStatement(new Statement(call));
+    // Use a DynamicCallee which returns null for function(). Its args are
+    // `[actualCallee, ...callArgs]`, so the callee is `args[0]`.
+    var call = new Call(new DynamicCallee(ImmutableList.of(OptionalNamedVariable.empty())));
+    callerVersion
+        .cfg()
+        .entry()
+        .appendStatement(new Statement(call, ImmutableList.of(new Read(paramA), new Read(paramA))));
 
     var feedback = new MockModuleFeedback();
     var opt = new CreateBestVersion(10);
@@ -200,19 +203,19 @@ class CreateBestVersionTest {
     var callerFun =
         module.addFunction(
             Variable.named("caller"), List.of(Variable.named("a"), Variable.named("b")), true);
-    var callerVersion =
-        callerFun.addVersion(
-            List.of(
-                new Parameter(Variable.register("a"), Type.BOXED_INTEGER),
-                new Parameter(Variable.register("b"), Type.BOXED_REAL)),
-            false);
+    var paramA = new FunctionParameter("a", Type.BOXED_INTEGER);
+    var paramB = new FunctionParameter("b", Type.BOXED_REAL);
+    var callerVersion = callerFun.addVersion(List.of(paramA, paramB), false);
     assert callerVersion.cfg() != null;
 
-    var call =
-        new Call(
-            new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()),
-            ImmutableList.of(new Read(Variable.register("a")), new Read(Variable.register("b"))));
-    callerVersion.cfg().entry().appendStatement(new Statement(call));
+    var call = new Call(new StaticFnCallee(calleeFun, true, calleeFun.baseline().signature()));
+    callerVersion
+        .cfg()
+        .entry()
+        .appendStatement(
+            new Statement(
+                call,
+                ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA), new Read(paramB))));
 
     var feedback = new MockModuleFeedback();
     var opt = new CreateBestVersion(10);

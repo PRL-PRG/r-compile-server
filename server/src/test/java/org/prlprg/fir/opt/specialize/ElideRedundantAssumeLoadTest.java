@@ -22,11 +22,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg c:*, var target:* |
+              () --> I {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ldf target ?- target;
                 check BB2() else BBdeopt2();
@@ -34,14 +36,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ldf target ?- target;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
@@ -63,11 +64,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg c:*, var target:* |
+              () --> I {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ldf target ?- target;
                 st target = c;
@@ -76,14 +79,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ldf target ?- target;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
@@ -105,27 +107,28 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () -+> I { reg c:*, reg g:V, var target:* |
+              () -+> I {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ldf target ?- target;
-                g = ldf g;
+                g: V = ldf g;
                 check BB2() else BBdeopt2();
               BB2():
                 ldf target ?- target;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
@@ -147,11 +150,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg c:*, var target:* |
+              () --> I {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ldf target ?- target;
                 check BB2() else BBdeopt2();
@@ -159,19 +164,19 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ldf target ?- other;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
+
             fun other() {
-              () --> I { |
+              () --> I {
                 return 8;
               }
             }
@@ -195,11 +200,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main(cond) {
               (reg cond:L) --> I { ... }
-              (reg cond:L) --> I { reg c:*, var target:* |
+              (reg cond:L) --> I {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ldf target ?- target;
                 if cond then L1() else L2();
@@ -213,14 +220,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ldf target ?- target;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
@@ -242,11 +248,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main(cond) {
               (reg cond:L) --> I { ... }
-              (reg cond:L) --> I { reg c:*, var target:* |
+              (reg cond:L) --> I {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ldf target ?- target;
                 if cond then L1() else L2();
@@ -261,14 +269,13 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ldf target ?- target;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
@@ -290,10 +297,12 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { var target:* |
+              () --> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ld target ?= <int 7>;
                 check BB2() else BBdeopt2();
@@ -301,8 +310,6 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ld target ?= <int 7>;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
@@ -325,10 +332,12 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { var target:* |
+              () --> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ld target ?= <int 7>;
                 st target = <int 7>;
@@ -337,8 +346,6 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ld target ?= <int 7>;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
@@ -361,20 +368,20 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () -+> I { reg g:V, var target:* |
+              () -+> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ld target ?= <int 7>;
-                g = ldf g;
+                g: V = ldf g;
                 check BB2() else BBdeopt2();
               BB2():
                 ld target ?= <int 7>;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
@@ -397,10 +404,12 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { var target:* |
+              () --> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ld target ?= <int 7>;
                 check BB2() else BBdeopt2();
@@ -408,8 +417,6 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ld target ?= <int 8>;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
@@ -434,10 +441,12 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
             """
             fun main(cond) {
               (reg cond:L) --> I { ... }
-              (reg cond:L) --> I { var target:* |
+              (reg cond:L) --> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
                 ld target ?= <int 7>;
                 if cond then L1() else L2();
@@ -451,8 +460,6 @@ class ElideRedundantAssumeLoadTest implements AbstractionOptimizationUnitTest {
                 ld target ?= <int 7>;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }

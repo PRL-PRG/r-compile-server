@@ -1,5 +1,6 @@
 package org.prlprg.fir.opt;
 
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -16,6 +17,7 @@ import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -45,13 +47,13 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
         .forEach(
             bb -> {
               // Find `checkpoint1`...
-              if (!(bb.jump() instanceof Checkpoint checkpoint1)) {
+              if (!(bb.jump().expression() instanceof Checkpoint checkpoint1)) {
                 return;
               }
 
               // ...followed by zero-or-more assumptions, then `Load(LOCAL_FUN)` or
               // `Load(LOCAL_VAR)`...
-              var bb1 = checkpoint1.success().bb();
+              var bb1 = checkpoint1.success().get();
               int loadIndex = -1;
               Register loadAssignee = null;
               NamedVariable loadVariable = null;
@@ -75,61 +77,70 @@ public record MergeAssumeLoadVar() implements AbstractionOptimization {
               }
 
               // ...followed by a checkpoint...
-              if (loadAssignee == null || !(bb1.jump() instanceof Checkpoint checkpoint2)) {
+              if (loadAssignee == null
+                  || !(bb1.jump().expression() instanceof Checkpoint checkpoint2)) {
                 return;
               }
-              var bb2 = checkpoint2.success().bb();
+              var bb2 = checkpoint2.success().get();
 
               // ...followed by zero-or-more assumptions, then `AssumeFunction`/`AssumeConstant`
               // targeting `Load`'s register (only `AssumeFunction` for `LOCAL_FUN`, only
-              // `AssumeConstant` for `LOCAL_VAR`)
-              int assumeIndex = -1;
+              // `AssumeConstant` for `LOCAL_VAR`). The target is the assume statement's argument.
+              Statement matchedAssume = null;
               Assumption mergedAssumption = null;
-              Argument loadReplacement = null;
-              for (int i = 0; i < bb2.statements().size(); i++) {
-                var assumeStmt = bb2.statements().get(i);
+              for (var assumeStmt : bb2.statements()) {
                 if (!(assumeStmt.expression() instanceof Assume(var assumption))) {
                   continue;
                 }
                 if (loadType == LoadType.LOCAL_FUN
-                    && assumption instanceof AssumeFunction(var target, var functionRef)
-                    && target instanceof Read(var assumeTarget)
+                    && assumption instanceof AssumeFunction(var functionRef)
+                    && assumeStmt.arg(0) instanceof Read(var assumeTarget)
                     && assumeTarget.equals(loadAssignee)) {
-                  assumeIndex = i;
+                  matchedAssume = assumeStmt;
                   mergedAssumption = new AssumeLoadFun(loadVariable, functionRef);
-                  loadReplacement =
-                      assumeStmt.assignee() == null
-                          ? Constant.ELIDED_CLOSURE
-                          : new Read(assumeStmt.assignee());
                   break;
                 }
                 if (loadType == LoadType.LOCAL_VAR
-                    && assumption instanceof AssumeConstant(var target, var constant)
-                    && target instanceof Read(var assumeTarget)
+                    && assumption instanceof AssumeConstant(var constant)
+                    && assumeStmt.arg(0) instanceof Read(var assumeTarget)
                     && assumeTarget.equals(loadAssignee)) {
-                  assumeIndex = i;
+                  matchedAssume = assumeStmt;
                   mergedAssumption = new AssumeLoadVar(loadVariable, constant);
-                  loadReplacement = new Constant(constant);
                   break;
                 }
               }
-              if (assumeIndex == -1) {
+              if (matchedAssume == null) {
                 return;
               }
 
-              // Delete `AssumeFunction`/`AssumeConstant` from second success BB
-              var oldAssumeStmt = bb2.removeStatementAt(assumeIndex);
+              // Build the merged assume (no target argument: load-based assumptions read by name).
+              var mergedStmt = new Statement(new Assume(mergedAssumption), List.of());
+              Argument loadReplacement;
+              if (loadType == LoadType.LOCAL_FUN) {
+                // `AssumeLoadFun` produces the loaded function; carry over the old assume's result.
+                if (matchedAssume.assignee() != null) {
+                  var mergedAssignee =
+                      mergedStmt.setAssignee(
+                          matchedAssume.assignee().name(), matchedAssume.assignee().type());
+                  matchedAssume.assignee().substUsesWith(new Read(mergedAssignee));
+                  loadReplacement = new Read(mergedAssignee);
+                } else {
+                  loadReplacement = Constant.ELIDED_CLOSURE;
+                }
+              } else {
+                // `AssumeLoadVar` produces no value; the load resolves to the constant.
+                loadReplacement = new Constant(((AssumeLoadVar) mergedAssumption).constant());
+              }
 
-              // Effectively insert the merged assume after `checkpoint1` and delete `Load`,
-              // by replacing `Load` (first non-assume) with the merged assume (last assume)
-              bb1.replaceStatementAt(
-                  loadIndex, oldAssumeStmt.withExpression(new Assume(mergedAssumption)));
-
-              // Substitute load assignee with assumed value
+              // Substitute load uses with the assumed value (stage while the `Load` is still in the
+              // CFG so the substituter accepts its register).
               substs.stage(loadAssignee, loadReplacement);
 
-              // We don't need to recompute `DefUses` or otherwise change iteration, because
-              // none of the above modifications affect how we use `DefUses` or our other operations
+              // Delete the old `AssumeFunction`/`AssumeConstant`, then replace the `Load` with the
+              // merged assume (effectively moving it after `checkpoint1`).
+              matchedAssume.remove();
+              bb1.statements().get(loadIndex).replaceWith(mergedStmt);
+
               changed[0] = true;
             });
 

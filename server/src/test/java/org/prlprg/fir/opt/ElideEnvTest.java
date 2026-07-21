@@ -17,11 +17,10 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I |
+            () --> I {
               mkenv;
-              r = 0;
               popenv;
-              return r;
+              return 0;
             }
             """);
 
@@ -37,12 +36,11 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I, var x:I? |
+            () --> I {
               mkenv;
-              r = 0;
-              st x = r;
+              st x = 0;
               popenv;
-              return r;
+              return 0;
             }
             """);
 
@@ -58,12 +56,11 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I, var x:I? |
+            () --> I {
               mkenv;
-              r = 0;
-              st-super x = r;
+              st-super x = 0;
               popenv;
-              return r;
+              return 0;
             }
             """);
 
@@ -79,12 +76,11 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () -+> I { reg r:I, reg g:V |
+            () -+> I {
               mkenv;
-              r = 0;
-              g = ldf g;
+              g: V = ldf g;
               popenv;
-              return r;
+              return 0;
             }
             """);
 
@@ -100,13 +96,12 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I |
+            () --> I {
               mkenv;
-              r = 0;
               check L1() else L2();
             L1():
               popenv;
-              return r;
+              return 0;
             L2():
               deopt 5 [];
             }
@@ -125,15 +120,14 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I, var x:I? |
+            () --> I {
               mkenv;
-              r = 0;
               check L1() else L2();
             L1():
               popenv;
-              return r;
+              return 0;
             L2():
-              st x = r;
+              st x = 0;
               deopt 5 [];
             }
             """);
@@ -150,15 +144,14 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I |
+            () --> I {
               mkenv;
-              r = 0;
               check L1() else D1();
             L1():
               check L2() else D2();
             L2():
               popenv;
-              return r;
+              return 0;
             D1():
               deopt 5 [];
             D2():

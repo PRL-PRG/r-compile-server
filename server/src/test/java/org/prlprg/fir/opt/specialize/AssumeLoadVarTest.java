@@ -22,19 +22,19 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg x:*, var target:* |
+              () --> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
-                x = ld target;
+                x: * = ld target;
                 check BB2() else BBdeopt2();
               BB2():
                 x ?= <int 7>;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
@@ -59,26 +59,27 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> cls { ... }
-              () --> cls { reg c:*, reg x:*, var target:*, reg target:cls |
+              () --> cls {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
-              BB1():
-                x = ldf target;
-                check BB2() else BBdeopt2();
-              BB2():
-                target = x ?- target;
-                popenv;
-                return target;
               BBdeopt1():
                 deopt 0 [];
+              BB1():
+                x: * = ldf target;
+                check BB2() else BBdeopt2();
+              BB2():
+                target: cls = x ?- target;
+                popenv;
+                return target;
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
@@ -91,7 +92,7 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
         printed.contains("ldf target ?- target"),
         "Load + AssumeFunction should be merged into AssumeLoadFun; printed:\n" + printed);
     assertFalse(
-        printed.contains("x = ldf target"),
+        printed.contains("x: * = ldf target"),
         "the original Load should be removed; printed:\n" + printed);
   }
 
@@ -102,26 +103,27 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg c:*, reg x:*, var target:* |
+              () --> I {
                 mkenv;
-                c = clos target;
+                c: * = clos target;
                 st target = c;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
-                x = ldf target;
+                x: * = ldf target;
                 check BB2() else BBdeopt2();
               BB2():
                 x ?= <int 7>;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }
@@ -142,25 +144,26 @@ class AssumeLoadVarTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg x:*, var target:* |
+              () --> I {
                 mkenv;
                 st target = <int 7>;
                 check BB1() else BBdeopt1();
+              BBdeopt1():
+                deopt 0 [];
               BB1():
-                x = ld target;
+                x: * = ld target;
                 check BB2() else BBdeopt2();
               BB2():
                 x ?- target;
                 popenv;
                 return 7;
-              BBdeopt1():
-                deopt 0 [];
               BBdeopt2():
                 deopt 0 [];
               }
             }
+
             fun target() {
-              () --> v1(I) { |
+              () --> v1(I) {
                 return <int 7>;
               }
             }

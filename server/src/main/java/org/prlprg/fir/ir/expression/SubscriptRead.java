@@ -1,33 +1,4 @@
 package org.prlprg.fir.ir.expression;
 
-import java.util.List;
-import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
-import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
-
-public record SubscriptRead(Argument target, Argument index) implements Expression {
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.print(target);
-    p.writer().write("[");
-    p.print(index);
-    p.writer().write("]");
-  }
-
-  @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return List.of(target, index);
-  }
-
-  @Override
-  public Expression mapArguments(Function<Argument, Argument> transformer) {
-    return new SubscriptRead(transformer.apply(target), transformer.apply(index));
-  }
-}
+/// Read an element from a vector. Arguments are `[target, index]`.
+public record SubscriptRead() implements Expression {}

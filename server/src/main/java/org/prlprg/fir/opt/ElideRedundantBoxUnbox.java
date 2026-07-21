@@ -8,18 +8,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
-import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.position.CfgPosition;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.variable.Register;
 
@@ -40,13 +37,11 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
   private static final class OnAbstraction {
     private final Abstraction scope;
     private final DominatorTree domTree;
-    private final DefUses defUses;
     private final Substituter substs;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
       domTree = new DominatorTree(scope);
-      defUses = new DefUses(scope);
       substs = new Substituter(scope);
     }
 
@@ -81,9 +76,8 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
           .forEach(
               cfg -> {
                 for (var bb : cfg.bbs()) {
-                  for (var i = 0; i < bb.statements().size(); i++) {
-                    var statement = bb.statements().get(i);
-                    var conversion = conversionAt(bb, i, statement);
+                  for (var statement : bb.statements()) {
+                    var conversion = conversionAt(statement);
                     if (conversion != null) {
                       conversions.add(conversion);
                     }
@@ -93,12 +87,13 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
       return conversions;
     }
 
-    private static @Nullable Conversion conversionAt(BB bb, int index, Statement statement) {
+    private static @Nullable Conversion conversionAt(Statement statement) {
       var assignee = statement.assignee();
+      // The call's single argument follows the callee's own argument (index 0).
       if (!(assignee != null
-          && statement.expression() instanceof Call(StaticFnCallee callee, var arguments)
-          && arguments.size() == 1
-          && arguments.getFirst().variable() != null)) {
+          && statement.expression() instanceof Call(StaticFnCallee callee)
+          && statement.argCount() == 2
+          && statement.arg(1).variable() != null)) {
         return null;
       }
 
@@ -108,11 +103,7 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
       }
 
       return new Conversion(
-          assignee,
-          Objects.requireNonNull(arguments.getFirst().variable()),
-          kind,
-          callee.signature(),
-          new CfgPosition(bb, index, statement));
+          assignee, Objects.requireNonNull(statement.arg(1).variable()), kind, callee.signature());
     }
 
     private @Nullable Register replacementFor(
@@ -137,15 +128,12 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
     }
 
     private boolean canSubstitute(Register original, Register replacement) {
-      var replacementDefinition = defUses.definition(replacement);
-      if (replacementDefinition == null) {
+      if (replacement.definingBB() == null) {
         return false;
       }
 
-      return defUses.uses(original).stream()
-          .allMatch(
-              use ->
-                  domTree.dominates(replacementDefinition.inInnermostCfg(), use.inInnermostCfg()));
+      return original.uses().stream()
+          .allMatch(use -> domTree.dominates(replacement, use.instruction()));
     }
   }
 
@@ -166,11 +154,7 @@ public final class ElideRedundantBoxUnbox implements AbstractionOptimization {
   }
 
   private record Conversion(
-      Register assignee,
-      Register source,
-      ConversionKind kind,
-      Signature signature,
-      CfgPosition definition) {
+      Register assignee, Register source, ConversionKind kind, Signature signature) {
     ConversionKey key() {
       return new ConversionKey(kind, source, signature);
     }

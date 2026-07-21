@@ -17,9 +17,9 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(I)) --> v1(I) { reg y:v1(I) |
+            (reg x:v1(I)) --> v1(I) {
               goto L0(x);
-            L0(y):
+            L0(y: v1(I)):
               return y;
             }
             """);
@@ -37,9 +37,9 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { reg y:I |
+            (reg x:I) --> I {
               goto L0(x);
-            L0(y):
+            L0(y: I):
               return y;
             }
             """);
@@ -53,9 +53,9 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I)) --> v(I) { reg y:v(I) |
+            (reg x:v(I)) --> v(I) {
               goto L0(x);
-            L0(y):
+            L0(y: v(I)):
               return y;
             }
             """);
@@ -68,9 +68,9 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v1(I), reg z:v1(I)) --> v1(I) { reg y:v1(I) |
+            (reg c:B, reg x:v1(I), reg z:v1(I)) --> v1(I) {
               if c then L0(x) else L0(z);
-            L0(y):
+            L0(y: v1(I)):
               return y;
             }
             """);
@@ -88,9 +88,9 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v1(I)) --> v1(I) { reg y:v1(I) |
+            (reg x:v1(I)) --> v1(I) {
               goto L0(x);
-            L0(y):
+            L0(y: v1(I)):
               return y;
             }
             """);
@@ -107,9 +107,9 @@ class UnboxPhiTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg c:B, reg x:v1(I)) --> v1(I) { reg y:v1(I) |
+            (reg c:B, reg x:v1(I)) --> v1(I) {
               if c then L0(x) else L0(x);
-            L0(y):
+            L0(y: v1(I)):
               return y;
             }
             """);

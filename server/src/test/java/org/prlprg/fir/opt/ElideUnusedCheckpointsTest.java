@@ -17,7 +17,7 @@ class ElideUnusedCheckpointsTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg r:I) --> I { |
+            (reg r:I) --> I {
               check L1() else L2();
             L1():
               return r;
@@ -43,8 +43,8 @@ class ElideUnusedCheckpointsTest implements AbstractionOptimizationUnitTest {
             """
             fun main() {
               () --> I { ... }
-              () --> I { reg r:B |
-                r = blackBox< B -~> B >(TRUE);
+              () --> I {
+                r: B = blackBox< B -~> B >(TRUE);
                 check L1() else L2();
               L1():
                 r ?= TRUE;
@@ -54,6 +54,7 @@ class ElideUnusedCheckpointsTest implements AbstractionOptimizationUnitTest {
                 deopt 5 [];
               }
             }
+
             fun blackBox(x) {
               (reg x:B) -~> B { ... }
             }
@@ -70,10 +71,10 @@ class ElideUnusedCheckpointsTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg r:I) --> I { reg s:I |
+            (reg r:I) --> I {
               check L1() else L2();
             L1():
-              s = `+`< I,I --> I >(r, r);
+              s: I = `+`< I,I --> I >(r, r);
               return s;
             L2():
               mkenv;

@@ -22,12 +22,10 @@ public class StrictnessChecker extends Checker {
     var params = version.parameters();
 
     for (var param : params) {
-      if (param.strict() && !strictParams.contains(param.variable())) {
+      if (param.strict() && !strictParams.contains(param)) {
         report(
             version,
-            "Parameter '"
-                + param.variable().name()
-                + "' is marked strict but is not forced on all paths");
+            "Parameter '" + param.name() + "' is marked strict but is not forced on all paths");
       }
     }
   }

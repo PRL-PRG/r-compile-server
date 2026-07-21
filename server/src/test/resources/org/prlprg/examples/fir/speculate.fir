@@ -1,12 +1,11 @@
 #? noEval
 fun main() {
-  () -+> v1(I) { reg r1:V, reg r2:V, reg r3:V, reg r4:V, reg r5:V |
-    r1 = blackBox< V --> V >(<int 1>);
-    r2 = blackBox< V --> V >(<int 2>);
-    r3 = blackBox< V --> V >(<real 3.0>);
-    r4 = blackBox< V --> V >(<real 4.0>);
-    r5 = blackBox< V --> V >(<int 5>);
-
+  () -+> v1(I) {
+    r1: V = blackBox< V --> V >(<int 1>);
+    r2: V = blackBox< V --> V >(<int 2>);
+    r3: V = blackBox< V --> V >(<real 3.0>);
+    r4: V = blackBox< V --> V >(<real 4.0>);
+    r5: V = blackBox< V --> V >(<int 5>);
     # Optimized
     g< V,I -+> V >(r1, 1);
     # Baseline
@@ -17,7 +16,6 @@ fun main() {
     g< V,V -+> V >(r4, <real 4.0>);
     # Optimized
     g< V,I -+> V >(r5, 5);
-
     require< V --> V >(<int 1>);
     require< V --> V >(<str "bar">);
     require< V --> V >(<int 2>);
@@ -28,37 +26,34 @@ fun main() {
     require< V --> V >(<str "foo">);
     require< V --> V >(<int 5>);
     require< V --> V >(<str "bar">);
-
     return <int 49>;
   }
 }
 
 fun g(n, a) {
-  (reg n:V, reg a:V) -+> V { reg r:V, var x:* |
+  (reg n:V, reg a:V) -+> V {
     mkenv;
     provide< V --> V >(n);
-    r = <int 14>;
     check BB1() else BB2();
   BB1():
-    r ?= <int 14>;
+    <int 14> ?= <int 14>;
     provide< V --> V >(<str "foo">);
     popenv;
     return <int 42>;
   BB2():
-    st x = r;
-    deopt 5 [r, n];
+    st x = <int 14>;
+    deopt 5 [<int 14>, n];
   }
-  (reg n:V, reg a:I) -+> V { reg r:v1(I), reg r1:V, var x:* |
+  (reg n:V, reg a:I) -+> V {
     provide< V --> V >(n);
-    r1 = n;
     check BB1() else BB2();
   BB1():
-    r = n ?: v1(I);
+    r: v1(I) = n ?: v1(I);
     provide< V --> V >(<str "bar">);
     return <int 24>;
   BB2():
     mkenv;
-    deopt 5 [<int 14>, r1];
+    deopt 5 [<int 14>, n];
   }
 }
 

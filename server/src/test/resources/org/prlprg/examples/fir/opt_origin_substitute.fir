@@ -1,5 +1,5 @@
 fun main() {
-  () -+> v1(I) { |
+  () -+> v1(I) {
     mkenv;
     f< I --> I >(42);
     popenv;
@@ -8,9 +8,7 @@ fun main() {
 }
 
 fun f(r0) {
-  (reg r0:I) --> I { reg r1:I, reg r2:I |
-    r1 = r0;
-    r2 = r1;
-    return r2;
+  (reg r0:I) --> I {
+    return r0;
   }
 }

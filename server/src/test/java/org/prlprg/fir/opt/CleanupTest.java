@@ -28,7 +28,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { |
+              (reg x:I) --> I {
                 return x;
               Unreachable():
                 return x;
@@ -47,7 +47,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { |
+              (reg x:I) --> I {
                 goto L0();
               L0():
                 return x;
@@ -66,7 +66,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { |
+              (reg x:I) --> I {
                 goto Reachable();
               Reachable():
                 return x;
@@ -93,7 +93,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { |
+              (reg x:I) --> I {
                 if TRUE then L1() else L2();
               L1():
                 return x;
@@ -113,7 +113,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { |
+              (reg x:I) --> I {
                 if FALSE then L1() else L2();
               L1():
                 return x;
@@ -133,7 +133,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I, reg c:B) --> I { |
+              (reg x:I, reg c:B) --> I {
                 if c then L1() else L1();
               L1():
                 return x;
@@ -152,7 +152,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I, reg c:B) --> I { |
+              (reg x:I, reg c:B) --> I {
                 if c then L1() else L2();
               L1():
                 return x;
@@ -183,25 +183,26 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
               """
               fun main() {
                 () --> I { ... }
-                () --> I { reg keep:B, reg cond:B, reg side:B |
-                  keep = blackBox< B --> B >(TRUE);
-                  cond = blackBox< B --> B >(TRUE);
-                  side = blackBox< B --> B >(TRUE);
+                () --> I {
+                  keep: B = blackBox< B --> B >(TRUE);
+                  cond: B = blackBox< B --> B >(TRUE);
+                  side: B = blackBox< B --> B >(TRUE);
                   if keep then L1() else L8();
-                L1():
-                  if cond then L2() else L3();
-                L2():
-                  goto L4();
-                L3():
-                  goto L4();
                 L4():
                   return 0;
+                L1():
+                  if cond then L2() else L3();
                 L8():
                   if side then L4() else L9();
                 L9():
                   return 1;
+                L2():
+                  goto L4();
+                L3():
+                  goto L4();
                 }
               }
+
               fun blackBox(x) {
                 (reg x:B) --> B { ... }
               }
@@ -210,8 +211,8 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       assertTrue(cleanup(module), "should remove no-effect if jump");
 
       var l1 = Objects.requireNonNull(cfg(module).bb("L1"));
-      var l1Jump = assertInstanceOf(Goto.class, l1.jump());
-      assertEquals("L4()", l1Jump.target().toString());
+      var l1Jump = assertInstanceOf(Goto.class, l1.jump().expression());
+      assertEquals("L4", l1Jump.target().toString());
       assertNull(cfg(module).bb("L2"), "true branch should become unreachable");
       assertNull(cfg(module).bb("L3"), "false branch should become unreachable");
     }
@@ -223,24 +224,24 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
               """
               fun main() {
                 () --> I { ... }
-                () --> I { reg keep:B, reg cond:B, reg cond2:B, reg cond3:B, reg side:B, reg x2:I, reg x4:I, reg x5:I, reg x6:I |
-                  keep = blackBox< B --> B >(TRUE);
-                  cond = blackBox< B --> B >(TRUE);
-                  cond2 = blackBox< B --> B >(TRUE);
-                  cond3 = blackBox< B --> B >(TRUE);
-                  side = blackBox< B --> B >(TRUE);
+                () --> I {
+                  keep: B = blackBox< B --> B >(TRUE);
+                  cond: B = blackBox< B --> B >(TRUE);
+                  cond2: B = blackBox< B --> B >(TRUE);
+                  cond3: B = blackBox< B --> B >(TRUE);
+                  side: B = blackBox< B --> B >(TRUE);
                   if keep then L1() else L8();
                 L1():
                   if cond then L2(24) else L3();
-                L2(x2):
+                L2(x2: I):
                   if cond2 then L4(x2) else L5(x2);
                 L3():
                   goto L5(24);
-                L4(x4):
+                L4(x4: I):
                   goto L6(x4);
-                L5(x5):
+                L5(x5: I):
                   if cond3 then L6(x5) else L2(24);
-                L6(x6):
+                L6(x6: I):
                   return x6;
                 L8():
                   if side then L6(24) else L9();
@@ -256,8 +257,8 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       assertTrue(cleanup(module), "should remove nested no-effect if jump");
 
       var l1 = Objects.requireNonNull(cfg(module).bb("L1"));
-      var l1Jump = assertInstanceOf(Goto.class, l1.jump());
-      assertEquals("L6()", l1Jump.target().toString());
+      var l1Jump = assertInstanceOf(Goto.class, l1.jump().expression());
+      assertEquals("L6", l1Jump.target().toString());
       assertNull(cfg(module).bb("L2"), "cycle entry should become unreachable");
       assertNull(cfg(module).bb("L3"), "alternate branch should become unreachable");
       assertNull(cfg(module).bb("L4"), "intermediate goto should become unreachable");
@@ -276,9 +277,9 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { reg y:I |
+              (reg x:I) --> I {
                 goto L0(x);
-              L0(y):
+              L0(y: I):
                 return y;
               }
               """);
@@ -302,7 +303,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { |
+              (reg x:I) --> I {
                 goto L0();
               L0():
                 goto L1();
@@ -324,7 +325,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I, reg c:B) --> I { |
+              (reg x:I, reg c:B) --> I {
                 if c then L1() else L2();
               L1():
                 return x;
@@ -345,7 +346,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I, reg c:B) --> I { |
+              (reg x:I, reg c:B) --> I {
                 if c then L1() else L2();
               L1():
                 goto L2();
@@ -366,6 +367,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
 
   // region Substitute with origins
 
+  /* This set of tests is made irrelevant by the new auto-forwarding parser
   @Nested
   class SubstituteWithOrigins {
     @Test
@@ -423,6 +425,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
           "z should be transitively substituted with x; got:\n" + printed);
     }
   }
+  */
 
   // endregion
 
@@ -435,8 +438,8 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { reg y:v1(I) |
-                y = box< I --> v1(I) >(x);
+              (reg x:I) --> I {
+                y: v1(I) = box< I --> v1(I) >(x);
                 return x;
               }
               """);
@@ -455,8 +458,8 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { reg y:v1(I) |
-                y = box< I --> v1(I) >(x);
+              (reg x:I) --> I {
+                y: v1(I) = box< I --> v1(I) >(x);
                 return y;
               }
               """);
@@ -479,7 +482,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) --> I { |
+              (reg x:I) --> I {
                 noop;
                 return x;
               }
@@ -496,7 +499,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:v1(I)) --> v1(I) { |
+              (reg x:v1(I)) --> v1(I) {
                 dup x;
                 return x;
               }
@@ -513,7 +516,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:I) -+> I { |
+              (reg x:I) -+> I {
                 mkenv;
                 popenv;
                 return x;
@@ -531,13 +534,13 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
       var abstraction =
           ParseUtil.parseAbstraction(
               """
-              (reg x:V) -~> V { |
+              (reg x:V) -~> V {
                 x ?: v1(I);
                 check L0() else D0();
-              D0():
-                deopt 0 [];
               L0():
                 return x;
+              D0():
+                deopt 0 [];
               }
               """);
 
@@ -559,12 +562,11 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { reg y:I |
-              y = x;
+            (reg x:I) --> I {
               noop;
               goto L0();
             L0():
-              return y;
+              return x;
             }
             """);
 
@@ -582,12 +584,11 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { reg y:I |
+            (reg x:I) --> I {
               noop;
-              y = x;
               goto L0();
             L0():
-              return y;
+              return x;
             Dead():
               return x;
             }
@@ -608,7 +609,7 @@ class CleanupTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { |
+            (reg x:I) --> I {
               if TRUE then L1() else L2();
             L1():
               return x;

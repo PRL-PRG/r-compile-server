@@ -13,9 +13,9 @@ class EnvironmentLivenessTest {
     var firText =
         """
       fun main() {
-        () --> I { reg r0:I |
+        () --> I {
           mkenv;
-          r0 = 0;
+          r0: I = dup 0;
           popenv;
           return r0;
         }
@@ -39,7 +39,7 @@ class EnvironmentLivenessTest {
     var firText =
         """
       fun main() {
-        (reg cond:I) --> I { reg r0:I, reg r1:I |
+        (reg cond:I) --> I {
           mkenv;
           r0 = 0;
           if cond then BB1() else BB2();
@@ -49,7 +49,7 @@ class EnvironmentLivenessTest {
         BB2():
           r1 = 1;
           goto BB3(r1);
-        BB3(r2):
+        BB3(r2: I):
           popenv;
           return r2;
         }

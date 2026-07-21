@@ -4,6 +4,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Repr;
 
@@ -30,7 +31,7 @@ public class DispatchReturnTypeChecker extends Checker {
   }
 
   private void checkStatement(CFGCursor cursor, Statement statement) {
-    if (statement.equals(Statement.NOOP)) {
+    if (statement.expression() instanceof Noop) {
       return;
     }
     if (!(statement.expression() instanceof Call call)) {

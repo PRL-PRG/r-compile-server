@@ -20,7 +20,6 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -32,9 +31,11 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Noop;
+import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Hoists and defers specific pure instructions.
@@ -62,7 +63,7 @@ public final class SchedulePure implements AbstractionOptimization {
 
   private static Predicate<Statement> matchRule(Function function) {
     return statement ->
-        statement.expression() instanceof Call(StaticFnCallee callee, _)
+        statement.expression() instanceof Call(StaticFnCallee callee)
             && callee.function() == function;
   }
 
@@ -77,10 +78,41 @@ public final class SchedulePure implements AbstractionOptimization {
     return new Run(scope).changed;
   }
 
+  /// A statement position `(bb, index)` within the abstraction. The captured [#statement] (if any)
+  /// is a stable reference that survives code motion (the position's index may go stale, but the
+  /// statement object doesn't). `index == -1` (with a `null` statement) is the "before all
+  /// statements" boundary of a block.
+  ///
+  /// All [Pos] comparisons happen before any code motion is applied, where the statement at a
+  /// position is fully determined by `(bb, index)` — so the record's structural equality on all
+  /// three components matches identity on `(bb, index)`.
+  private record Pos(BB bb, int index, @Nullable Statement statement) {
+    Pos(BB bb, int index) {
+      this(
+          bb,
+          index,
+          index >= 0 && index < bb.statements().size() ? bb.statements().get(index) : null);
+    }
+
+    static Pos of(Instruction instruction) {
+      var bb = Objects.requireNonNull(instruction.parentBB());
+      return new Pos(bb, instruction.indexInBB(), instruction instanceof Statement s ? s : null);
+    }
+
+    CFG cfg() {
+      return bb.owner();
+    }
+  }
+
   private static final class MotionsTo {
-    final Map<CfgPosition, Motion> motions = new LinkedHashMap<>();
+    final Map<Pos, Motion> motions = new LinkedHashMap<>();
     int hoistIndex;
     int deferIndex;
+    // Instruction objects resolved from the indices before any move (so moves don't invalidate
+    // them): hoisted statements go *after* `hoistAnchor`, deferred statements *before*
+    // `deferAnchor`.
+    @Nullable Instruction hoistAnchor;
+    @Nullable Instruction deferAnchor;
 
     MotionsTo(int index) {
       hoistIndex = index;
@@ -93,24 +125,17 @@ public final class SchedulePure implements AbstractionOptimization {
 
     private final Abstraction scope;
     private final Analyses analyses;
-    private final DefUses defUses;
     private final CfgHierarchy hierarchy;
     private final DominatorTree domTree;
 
     private final Map<BB, TreeMap<Integer, MotionsTo>> targetToOrigin = new LinkedHashMap<>();
-    private final Map<CfgPosition, Set<CfgPosition>> originToTarget = new LinkedHashMap<>();
+    private final Map<Pos, Set<Pos>> originToTarget = new LinkedHashMap<>();
 
     Run(Abstraction scope) {
       // Setup
       this.scope = scope;
       analyses =
-          new Analyses(
-              scope,
-              DefUses.class,
-              CfgHierarchy.class,
-              DominatorTree.class,
-              CfgDominatorTree.class);
-      defUses = analyses.get(DefUses.class);
+          new Analyses(scope, CfgHierarchy.class, DominatorTree.class, CfgDominatorTree.class);
       hierarchy = analyses.get(CfgHierarchy.class);
       domTree = analyses.get(DominatorTree.class);
 
@@ -132,7 +157,7 @@ public final class SchedulePure implements AbstractionOptimization {
                 for (var bb : cfg.bbs()) {
                   for (var i = 0; i < bb.statements().size(); i++) {
                     var statement = bb.statements().get(i);
-                    var origin = new CfgPosition(bb, i, statement);
+                    var origin = new Pos(bb, i, statement);
 
                     for (var rule : HOIST_RULES) {
                       if (!rule.test(statement)) {
@@ -162,7 +187,7 @@ public final class SchedulePure implements AbstractionOptimization {
               });
     }
 
-    private void addMotion(Motion motion, CfgPosition origin, CfgPosition target) {
+    private void addMotion(Motion motion, Pos origin, Pos target) {
       if (origin.equals(target)) {
         return;
       }
@@ -177,14 +202,14 @@ public final class SchedulePure implements AbstractionOptimization {
         var thisTargetToOrigin =
             targetToOrigin
                 .computeIfAbsent(target.bb(), _ -> new TreeMap<>())
-                .computeIfAbsent(target.instructionIndex(), MotionsTo::new);
+                .computeIfAbsent(target.index(), MotionsTo::new);
         thisTargetToOrigin.motions.put(origin, motion);
         originToTarget.computeIfAbsent(origin, _ -> new LinkedHashSet<>()).add(target);
 
         // Convert A → origin to A → target
         if (targetToOrigin.containsKey(origin.bb())
-            && targetToOrigin.get(origin.bb()).containsKey(origin.instructionIndex())) {
-          var nextOrigins = targetToOrigin.get(origin.bb()).remove(origin.instructionIndex());
+            && targetToOrigin.get(origin.bb()).containsKey(origin.index())) {
+          var nextOrigins = targetToOrigin.get(origin.bb()).remove(origin.index());
           thisTargetToOrigin.motions.putAll(nextOrigins.motions);
           for (var nextOrigin : nextOrigins.motions.keySet()) {
             var nextOriginTo = Objects.requireNonNull(originToTarget.get(nextOrigin));
@@ -195,81 +220,86 @@ public final class SchedulePure implements AbstractionOptimization {
       }
     }
 
-    private @Nullable CfgPosition hoistTarget(CfgPosition origin) {
-      var statement = (Statement) Objects.requireNonNull(origin.instruction());
+    private @Nullable Pos hoistTarget(Pos origin) {
+      var statement = Objects.requireNonNull(origin.statement());
       var argRegs =
-          statement.arguments().stream().map(Argument::variable).filter(Objects::nonNull).toList();
+          statement.args().stream().map(Argument::variable).filter(Objects::nonNull).toList();
 
       var boundary = origin;
       var targetCfg = origin.cfg();
       var innermostCfgs =
           argRegs.stream()
-              .map(defUses::definition)
+              .map(Register::definingCfg)
               .filter(Objects::nonNull)
-              .map(pos -> pos.inInnermostCfg().cfg())
               .collect(Collectors.toSet());
       while (!innermostCfgs.contains(targetCfg)) {
-        var parent = hierarchy.parent(targetCfg);
+        var parent = hierarchy.parentPromise(targetCfg);
         if (parent == null) {
           return null;
         }
 
-        boundary = parent;
-        targetCfg = parent.cfg();
+        boundary = Pos.of(parent);
+        targetCfg = Objects.requireNonNull(parent.parentBB()).owner();
       }
 
       return latestDefinitionInCfg(argRegs, targetCfg, boundary);
     }
 
-    private @Nullable CfgPosition latestDefinitionInCfg(
-        List<Register> argRegs, CFG cfg, CfgPosition boundary) {
-      CfgPosition latest = null;
+    private @Nullable Pos latestDefinitionInCfg(List<Register> argRegs, CFG cfg, Pos boundary) {
+      Pos latest = null;
 
       for (var argReg : argRegs) {
-        var definition = defUses.definition(argReg);
-        if (definition == null) {
+        var defBb = argReg.definingBB();
+        if (defBb == null) {
           return null;
         }
-
-        var innermostDefinition = definition.inInnermostCfg();
-        if (innermostDefinition.cfg() != cfg) {
+        if (defBb.owner() != cfg) {
           continue;
         }
-        if (!domTree(cfg).dominates(innermostDefinition, boundary)) {
+
+        var defPos = definitionPos(argReg, defBb);
+        if (!domTree(cfg).dominates(defPos.bb(), defPos.index(), boundary.bb(), boundary.index())) {
           return null;
         }
 
-        latest = laterOf(latest, innermostDefinition, domTree(cfg));
+        latest = laterOf(latest, defPos, domTree(cfg));
         if (latest == null) {
           return null;
         }
       }
 
-      return latest != null ? latest : new CfgPosition(cfg.entry(), -1, null);
+      return latest != null ? latest : new Pos(cfg.entry(), -1, null);
     }
 
-    private @Nullable CfgPosition laterOf(
-        @Nullable CfgPosition left, CfgPosition right, CfgDominatorTree domTree) {
+    /// The position of `reg`'s definition (whose block is known to be `defBb`): an [AssigneeOf]'s
+    /// statement, or the block entry (`-1`) for a phi/parameter.
+    private static Pos definitionPos(Register reg, BB defBb) {
+      return reg instanceof AssigneeOf a
+          ? new Pos(defBb, a.statement().indexInBB(), a.statement())
+          : new Pos(defBb, -1, null);
+    }
+
+    private @Nullable Pos laterOf(@Nullable Pos left, Pos right, CfgDominatorTree domTree) {
       return left == null || domTree.dominates(left.bb(), right.bb())
           ? right
           : domTree.dominates(right.bb(), left.bb()) ? left : null;
     }
 
-    private List<CfgPosition> deferTarget(CfgPosition origin) {
-      var statement = (Statement) Objects.requireNonNull(origin.instruction());
+    private List<Pos> deferTarget(Pos origin) {
+      var statement = Objects.requireNonNull(origin.statement());
       var assignee = statement.assignee();
       if (assignee == null) {
         return List.of();
       }
 
-      var uses = defUses.uses(assignee);
+      var uses = assignee.uses();
       if (uses.isEmpty()) {
         return List.of();
       }
 
       var targetCfg =
           uses.stream()
-              .map(pos -> pos.inInnermostCfg().cfg())
+              .map(use -> Objects.requireNonNull(use.instruction().parentBB()).owner())
               .collect(hierarchy.commonAncestor())
               .orElse(null);
       if (targetCfg == null) {
@@ -278,18 +308,27 @@ public final class SchedulePure implements AbstractionOptimization {
 
       // Return all uses in `targetCfg` not dominated by other uses
       var domTree = domTree(targetCfg);
-      var usesInCfg = new ArrayList<CfgPosition>();
-      for (var nextUse : uses) {
-        var nextUseInCfg = Objects.requireNonNull(nextUse.inCfg(targetCfg));
+      var usesInCfg = new ArrayList<Pos>();
+      for (var use : uses) {
+        var nextUseInCfg =
+            Pos.of(Objects.requireNonNull(hierarchy.projectInto(targetCfg, use.instruction())));
 
         // Don't add if dominated by a previously-added use
         if (usesInCfg.stream()
-            .anyMatch(existingUse -> domTree.dominates(existingUse, nextUseInCfg))) {
+            .anyMatch(
+                existingUse ->
+                    domTree.dominates(
+                        existingUse.bb(), existingUse.index(),
+                        nextUseInCfg.bb(), nextUseInCfg.index()))) {
           continue;
         }
 
         // Remove all previously-added uses dominated by it before adding
-        usesInCfg.removeIf(existingUse -> domTree.dominates(nextUseInCfg, existingUse));
+        usesInCfg.removeIf(
+            existingUse ->
+                domTree.dominates(
+                    nextUseInCfg.bb(), nextUseInCfg.index(),
+                    existingUse.bb(), existingUse.index()));
 
         usesInCfg.add(nextUseInCfg);
       }
@@ -310,16 +349,17 @@ public final class SchedulePure implements AbstractionOptimization {
           // before the redundant motions.
           while (motionsToIndex.hoistIndex + 1 < bb.statements().size()
               && (motionsToIndex.motions.remove(
-                      new CfgPosition(bb, motionsToIndex.hoistIndex + 1), Motion.HOIST)
-                  || bb.statements().get(motionsToIndex.hoistIndex + 1).equals(Statement.NOOP)
+                      new Pos(bb, motionsToIndex.hoistIndex + 1), Motion.HOIST)
+                  || bb.statements().get(motionsToIndex.hoistIndex + 1).expression() instanceof Noop
                   || bb.statements().get(motionsToIndex.hoistIndex + 1).expression()
                       instanceof Assume)) {
             motionsToIndex.hoistIndex++;
           }
           while (motionsToIndex.deferIndex - 1 >= 0
               && (motionsToIndex.motions.remove(
-                      new CfgPosition(bb, motionsToIndex.deferIndex - 1), Motion.DEFER)
-                  || bb.statements().get(motionsToIndex.deferIndex - 1).equals(Statement.NOOP))) {
+                      new Pos(bb, motionsToIndex.deferIndex - 1), Motion.DEFER)
+                  || bb.statements().get(motionsToIndex.deferIndex - 1).expression()
+                      instanceof Noop)) {
             motionsToIndex.deferIndex--;
           }
         }
@@ -327,82 +367,66 @@ public final class SchedulePure implements AbstractionOptimization {
     }
 
     private void applyMotions() {
-      for (var motionsToBb : targetToOrigin.values()) {
-        for (var motionsToIndex : motionsToBb.values()) {
-          for (var motion : motionsToIndex.motions.keySet()) {
-            // Takes advantage of the fact that [CfgPosition]'s statement remains unchanged:
-            // inserts it later
-            motion.replaceWith(Statement.NOOP);
-          }
+      var insertedAssignees = new HashSet<Register>();
+      var substs = new DomineeSubstituter(domTree, scope);
+
+      // Resolve target anchor instructions to objects before any move, since moves are by
+      // instruction reference (not index) and so don't invalidate these.
+      for (var bbEntry : targetToOrigin.entrySet()) {
+        var bb = bbEntry.getKey();
+        for (var motionsToIndex : bbEntry.getValue().values()) {
+          motionsToIndex.hoistAnchor = instrAt(bb, motionsToIndex.hoistIndex);
+          motionsToIndex.deferAnchor = instrAt(bb, motionsToIndex.deferIndex);
         }
       }
 
-      var insertedAssignees = new HashSet<>();
-      var substs = new DomineeSubstituter(domTree, scope);
-
       for (var bbEntry : targetToOrigin.entrySet()) {
         var bb = bbEntry.getKey();
-        // Iterate backwards because earlier insertions offset later ones
-        for (var motionsToIndex : bbEntry.getValue().sequencedValues().reversed()) {
-          var hoistsToIndex =
-              motionsToIndex.motions.entrySet().stream()
-                  .filter(e -> e.getValue() == Motion.HOIST)
-                  .map(Entry::getKey);
-          var defersToIndex =
-              motionsToIndex.motions.entrySet().stream()
-                  .filter(e -> e.getValue() == Motion.DEFER)
-                  .map(Entry::getKey);
+        for (var motionsToIndex : bbEntry.getValue().values()) {
+          // Hoisted statements move to just after `hoistAnchor` (i.e. before its successor).
+          var hoistPoint = Objects.requireNonNull(motionsToIndex.hoistAnchor).next();
+          motionsToIndex.motions.entrySet().stream()
+              .filter(e -> e.getValue() == Motion.HOIST)
+              .map(Entry::getKey)
+              .forEach(
+                  hoist -> {
+                    var statement = Objects.requireNonNull(hoist.statement());
+                    statement.moveBefore(hoistPoint);
+                    changed = true;
+                  });
 
-          hoistsToIndex.forEach(
-              hoist -> {
-                var statement = (Statement) Objects.requireNonNull(hoist.instruction());
+          var deferPoint = Objects.requireNonNull(motionsToIndex.deferAnchor);
+          motionsToIndex.motions.entrySet().stream()
+              .filter(e -> e.getValue() == Motion.DEFER)
+              .map(Entry::getKey)
+              .forEach(
+                  defer -> {
+                    var statement = Objects.requireNonNull(defer.statement());
 
-                // Insert after the target for hoist (before for defer)
-                motionsToIndex.hoistIndex++;
-                bb.insertStatement(motionsToIndex.hoistIndex, statement);
+                    // We can defer the same instruction into multiple positions if none dominate
+                    // each other. This means we copy the instruction; since we use SSA, the copy
+                    // gets a fresh assignee, and we substitute it in at the defer position.
+                    var assignee = statement.assignee();
+                    if (assignee != null && !insertedAssignees.add(assignee)) {
+                      var copy = statement.copy((idx, a) -> a);
+                      var newAssignee = Objects.requireNonNull(copy.assignee());
+                      substs.stage(assignee, new Read(newAssignee), bb, motionsToIndex.deferIndex);
+                      copy.insertBefore(deferPoint);
+                    } else {
+                      statement.moveBefore(deferPoint);
+                    }
 
-                changed = true;
-              });
-
-          defersToIndex.forEach(
-              defer -> {
-                var statement = (Statement) Objects.requireNonNull(defer.instruction());
-
-                // We can defer the same instruction into multiple positions,
-                // if none dominate each other.
-                // This means we copy the instruction,
-                // but since we use SSA,
-                // we must rename the non-first assignees.
-                var assignee = statement.assignee();
-                if (assignee != null && !insertedAssignees.add(assignee)) {
-                  // Deferring a non-first time
-                  var assigneeType = scope.typeOf(assignee);
-                  // assigneeType is only `null` if the CFG is invalid
-                  if (assigneeType == null) {
-                    return;
-                  }
-
-                  var newAssignee = scope.addLocal(assignee.name(), assigneeType);
-                  substs.stage(
-                      assignee,
-                      new Read(newAssignee),
-                      new CfgPosition(bb, motionsToIndex.deferIndex));
-
-                  // Insert with substituted assignee
-                  var newStatement =
-                      new Statement(statement.comments(), newAssignee, statement.expression());
-                  bb.insertStatement(motionsToIndex.deferIndex, newStatement);
-                } else {
-                  // Regular insertion
-                  bb.insertStatement(motionsToIndex.deferIndex, statement);
-                }
-
-                changed = true;
-              });
+                    changed = true;
+                  });
         }
       }
 
       substs.commit();
+    }
+
+    private static Instruction instrAt(BB bb, int index) {
+      var statements = bb.statements();
+      return index < statements.size() ? statements.get(index) : bb.jump();
     }
   }
 }

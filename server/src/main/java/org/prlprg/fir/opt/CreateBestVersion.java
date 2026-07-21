@@ -20,21 +20,21 @@ import org.prlprg.util.Lists;
 public record CreateBestVersion(int versionLimit) implements AbstractionOptimization {
   public boolean runWithoutRecording(
       @Nullable Function function, AbstractionFeedback feedback, Abstraction version) {
-    var calls =
+    var callStatements =
         version
             .streamCfgs()
             .flatMap(cfg -> cfg.bbs().stream())
             .flatMap(bb -> bb.statements().stream())
-            .map(Statement::expression)
-            .filter(e -> e instanceof Call)
-            .map(Call.class::cast);
+            .filter(s -> s.expression() instanceof Call)
+            .toList();
     boolean[] changed = {false};
-    calls.forEach(call -> changed[0] |= run(feedback, version, call));
+    callStatements.forEach(stmt -> changed[0] |= run(feedback, version, stmt));
     return changed[0];
   }
 
-  private boolean run(AbstractionFeedback feedback, Abstraction scope, Call call) {
-    if (!(call.callee() instanceof StaticFnCallee callee)) {
+  private boolean run(AbstractionFeedback feedback, Abstraction scope, Statement statement) {
+    if (!(statement.expression() instanceof Call call)
+        || !(call.callee() instanceof StaticFnCallee callee)) {
       // We can't optimize dynamic calls
       return false;
     }
@@ -44,7 +44,8 @@ public record CreateBestVersion(int versionLimit) implements AbstractionOptimiza
       return false;
     }
 
-    var callArguments = call.callArguments();
+    // Call arguments follow the callee's own argument (index 0).
+    var callArguments = statement.args().subList(1, statement.argCount());
     if (callArguments.stream().anyMatch(a -> scope.typeOf(a) == null)) {
       // Invalid, null type
       return false;

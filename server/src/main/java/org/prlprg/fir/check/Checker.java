@@ -11,10 +11,9 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
 
 public abstract class Checker {
   /// Never reports errors.
@@ -162,12 +161,18 @@ public abstract class Checker {
             message));
   }
 
-  protected final void report(ScopePosition position, String message) {
-    report(position.inInnermostCfg(), message);
+  /// Report an error at `instruction`'s location.
+  protected final void report(Instruction instruction, String message) {
+    var bb = instruction.parentBB();
+    if (bb == null) {
+      report(message);
+      return;
+    }
+    report(bb, instruction.indexInBB(), message);
   }
 
-  protected final void report(CfgPosition position, String message) {
-    report(position.bb(), position.instructionIndex(), message);
+  private void report(String message) {
+    errors.add(new CheckException(function(), null, message));
   }
 
   protected final void report(BB bb, int instructionIndex, String message) {
