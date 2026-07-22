@@ -9,13 +9,11 @@ import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
-import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.assumption.AssumeConstant;
 import org.prlprg.fir.ir.assumption.AssumeFunction;
@@ -23,18 +21,15 @@ import org.prlprg.fir.ir.assumption.AssumeLoadFun;
 import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.assumption.Assumption;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
@@ -571,34 +566,42 @@ public final class Fir2CCompiler {
         // Compute local and captured registers
         version.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
         version.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
-        var defUses = new DefUses(version);
         version
-            .streamRegisterBindings()
+            .streamRegisters()
             .forEach(
-                binding -> {
-                  var register = (Register) binding.variable();
-                  registerTypes.put(register, binding.type());
+                register -> {
+                  registerTypes.put(register, register.type());
 
                   CFG defCfg;
-                  if (binding instanceof Parameter) {
-                    defCfg = version.cfg();
-                  } else {
-                    var def = defUses.definition(register);
-                    if (def == null) {
-                      // Malformed CFG
-                      return;
+                  switch (register) {
+                    case FunctionParameter _ -> defCfg = version.cfg();
+                    case AssigneeOf ao -> {
+                      var defBb = ao.statement().parentBB();
+                      if (defBb == null) {
+                        // Malformed CFG
+                        return;
+                      }
+                      defCfg = defBb.owner();
                     }
-
-                    defCfg = def.inInnermostCfg().cfg();
+                    case BlockParameter bp -> {
+                      if (bp.owner() == null) {
+                        // Malformed CFG
+                        return;
+                      }
+                      defCfg = bp.owner().owner();
+                    }
                   }
 
-                  if (!(binding instanceof Parameter)) {
+                  if (!(register instanceof FunctionParameter)) {
                     locals.get(defCfg).add(register);
                   }
 
-                  for (var use : defUses.uses(register)) {
-                    var useCfg = use.inInnermostCfg().cfg();
-
+                  for (var use : register.uses()) {
+                    var useBb = use.instruction().parentBB();
+                    if (useBb == null) {
+                      continue;
+                    }
+                    var useCfg = useBb.owner();
                     if (useCfg != defCfg) {
                       captures.get(useCfg).add(register);
                     }
@@ -631,11 +634,7 @@ public final class Fir2CCompiler {
           // Debug-print SEXP parameters
           if (options.contains(Option.EMIT_DEBUG_PRINTS)) {
             for (var param : version.parameters()) {
-              debugValue(
-                  cCode,
-                  param.variable().name(),
-                  registerCName(param.variable()),
-                  param.type().kind().repr());
+              debugValue(cCode, param.name(), registerCName(param), param.type().kind().repr());
             }
           }
         }
@@ -865,11 +864,11 @@ public final class Fir2CCompiler {
           private void emitStatement(Statement statement) {
             debugInstr(cCode, statement);
 
-            if (statement.equals(Statement.NOOP)) {
+            if (statement.expression() instanceof Noop) {
               return;
             }
 
-            var expr = emitExpression(statement.assignee(), statement.expression());
+            var expr = emitExpression(statement);
             if (expr == null) {
               return;
             }
@@ -890,9 +889,10 @@ public final class Fir2CCompiler {
             }
           }
 
-          private @Nullable String emitExpression(
-              @Nullable Register assignee, Expression expression) {
-            return switch (expression) {
+          private @Nullable String emitExpression(Statement statement) {
+            var assignee = statement.assignee();
+            var args = statement.args();
+            return switch (statement.expression()) {
               case Closure(var isStatic, var codeRef) -> {
                 // Compile the closure or protect its constant pool
 
@@ -1009,15 +1009,15 @@ public final class Fir2CCompiler {
 
                 yield "Fir_mk_promise(%s, %s, %s, %s)".formatted(fromRCName, cp, captures, VAR_ENV);
               }
-              case Aea(var arg) -> emitArgument(arg);
-              case Assume(var assumption) -> emitAssumptionValue(assignee, assumption);
-              case Call call -> emitCall(call);
-              case Cast(var target, var type) ->
-                  "Fir_cast(%s, %s)".formatted(emitArgument(target), emitType(type));
-              case Dup(var value) -> "Fir_dup(%s)".formatted(emitArgument(value));
-              case Force(var isMaybe, var value) ->
+              case Assume(var assumption) ->
+                  emitAssumptionValue(assignee, assumption, args.isEmpty() ? null : args.get(0));
+              case Call _ -> emitCall(statement);
+              case Cast(var type) ->
+                  "Fir_cast(%s, %s)".formatted(emitArgument(args.get(0)), emitType(type));
+              case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.get(0)));
+              case Force(var isMaybe) ->
                   (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
-                      .formatted(emitArgument(value));
+                      .formatted(emitArgument(args.get(0)));
               // This is an R special case.
               // There's no equivalent for `Store`, `LoadFun`, etc.
               // their behavior is inconsistent.
@@ -1041,7 +1041,7 @@ public final class Fir2CCompiler {
                 cCode.stmt("Fir_push_env(&%s);", VAR_ENV);
                 yield null;
               }
-              case MkVector(var kind, var elements) -> {
+              case MkVector(var kind, var elementNames) -> {
                 var scalarRepr =
                     switch (kind) {
                       case Kind.PrimitiveVector(_, var primitive) -> primitive.repr();
@@ -1050,7 +1050,7 @@ public final class Fir2CCompiler {
                           throw new IllegalArgumentException(
                               "Vector kind must be primitive or dots: " + kind);
                     };
-                var namedArrays = emitNamedArgumentArrays(scalarRepr, elements);
+                var namedArrays = emitNamedArgumentArrays(scalarRepr, args, elementNames);
                 yield "Fir_mk_vector(%s, %d, %s, %s)"
                     .formatted(
                         emitKind(kind),
@@ -1063,17 +1063,19 @@ public final class Fir2CCompiler {
                 cCode.stmt("Fir_pop_env(&%s);", VAR_ENV);
                 yield null;
               }
-              case ReflectiveLoad(var promArg, var variable) ->
+              case ReflectiveLoad(var variable) ->
                   "Fir_reflective_load(%s, %s)"
-                      .formatted(emitArgument(promArg), nvSymbolRef(pool, variable));
-              case ReflectiveStore(var promArg, var variable, var value) -> {
+                      .formatted(emitArgument(args.get(0)), nvSymbolRef(pool, variable));
+              case ReflectiveStore(var variable) -> {
                 cCode.stmt(
                     "Fir_reflective_store(%s, %s, %s);",
-                    emitArgument(promArg), nvSymbolRef(pool, variable), emitArgument(value));
+                    emitArgument(args.get(0)),
+                    nvSymbolRef(pool, variable),
+                    emitArgument(args.get(1)));
                 yield null;
               }
-              case Store(var storeType, var variable, var value) -> {
-                var arg = emitArgument(value);
+              case Store(var storeType, var variable) -> {
+                var arg = emitArgument(args.get(0));
                 switch (storeType) {
                   case LOCAL_VAR ->
                       cCode.stmt(
@@ -1085,7 +1087,9 @@ public final class Fir2CCompiler {
                 }
                 yield null;
               }
-              case SubscriptRead(var vector, var index) -> {
+              case SubscriptRead _ -> {
+                var vector = args.get(0);
+                var index = args.get(1);
                 if (!(argumentType(vector).kind()
                     instanceof Kind.PrimitiveVector(_, var primitiveKind))) {
                   throw new IllegalArgumentException(
@@ -1096,7 +1100,10 @@ public final class Fir2CCompiler {
                 yield "Fir_subscript_read_%s(%s, %s)"
                     .formatted(suffix, emitArgument(vector), emitArgument(index));
               }
-              case SubscriptWrite(var vector, var index, var value) -> {
+              case SubscriptWrite _ -> {
+                var vector = args.get(0);
+                var index = args.get(1);
+                var value = args.get(2);
                 if (!(argumentType(vector).kind()
                     instanceof Kind.PrimitiveVector(_, var primitiveKind))) {
                   throw new IllegalArgumentException(
@@ -1112,30 +1119,29 @@ public final class Fir2CCompiler {
             };
           }
 
-          private String emitCall(Call call) {
+          private String emitCall(Statement statement) {
+            var call = (Call) statement.expression();
+            var closureOrCalleeArg = statement.arg(0);
+            var callArgs = statement.args().subList(1, statement.args().size());
             return switch (call.callee()) {
-              case StaticFnCallee(
-                      var calleeFunRef,
-                      var isDispatch,
-                      var closureWithEnv,
-                      var signature) -> {
+              case StaticFnCallee(var calleeFunRef, var isDispatch, var signature) -> {
                 var calleeFun = calleeFunRef.get();
                 var calleeModule = calleeFun.owner();
                 var closureEnv =
-                    closureWithEnv.equals(Constant.ELIDED_CLOSURE)
+                    closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)
                         ? "R_EmptyEnv"
-                        : "CLOENV(%s)".formatted(emitArgument(closureWithEnv));
+                        : "CLOENV(%s)".formatted(emitArgument(closureOrCalleeArg));
 
                 if (calleeModule == INTRINSICS && isDispatch) {
                   throw new IllegalArgumentException(
                       "Intrinsic should never be dispatched: " + call);
                 } else if ((calleeModule == BUILTINS || calleeModule == INTRINSICS)
-                    && !closureWithEnv.equals(Constant.ELIDED_CLOSURE)) {
+                    && !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)) {
                   throw new IllegalArgumentException(
                       "Builtin with closure environment is unimplemented");
                 } else if (calleeModule == BUILTINS
                     && calleeFun.guessWorst(signature) == calleeFun.baseline()) {
-                  yield emitBuiltinCall(call, calleeFun);
+                  yield emitBuiltinCall(callArgs, calleeFun);
                 }
 
                 if (isDispatch) {
@@ -1167,7 +1173,7 @@ public final class Fir2CCompiler {
 
                   var cName = functionDispatchCName(calleeFun);
                   var cSignature = emitSignature(signature);
-                  var arguments = emitArgumentSplice(call.callArguments());
+                  var arguments = emitArgumentSplice(callArgs);
                   yield "%s(%s, %s%s)".formatted(cName, closureEnv, cSignature, arguments);
                 } else {
                   var calleeVersion =
@@ -1202,16 +1208,16 @@ public final class Fir2CCompiler {
                   }
 
                   var cName = versionCallCName(calleeFun, calleeVersion);
-                  var arguments = emitArgumentSplice(call.callArguments());
+                  var arguments = emitArgumentSplice(callArgs);
                   yield "%s(%s%s)".formatted(cName, closureEnv, arguments);
                 }
               }
-              case DynamicCallee(var actualCallee, var argumentNames) -> {
-                var arguments = emitArgumentArray("args", Repr.SEXP, call.callArguments());
+              case DynamicCallee(var argumentNames) -> {
+                var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
                 var names = emitOptionalNameArray("arg_names", argumentNames, arguments.size());
                 yield "Fir_call_dynamic(%s, %s, %d, %s, %s)"
                     .formatted(
-                        emitArgument(actualCallee),
+                        emitArgument(closureOrCalleeArg),
                         VAR_ENV,
                         arguments.size(),
                         arguments.pointer(),
@@ -1220,11 +1226,11 @@ public final class Fir2CCompiler {
             };
           }
 
-          private String emitBuiltinCall(Call call, Function calleeFun) {
+          private String emitBuiltinCall(List<Argument> callArgs, Function calleeFun) {
             var builtinIndex =
                 Objects.requireNonNull(rSession.RFunTab().get(calleeFun.name().name())).index();
 
-            var arguments = emitArgumentArray("args", Repr.SEXP, call.callArguments());
+            var arguments = emitArgumentArray("args", Repr.SEXP, callArgs);
             var names =
                 emitArray(
                     "arg_names",
@@ -1232,9 +1238,7 @@ public final class Fir2CCompiler {
                     Lists.mapLazy(calleeFun.parameterNames(), nv -> nvSymbolRef(pool, nv)));
             if (arguments.size() != names.size()) {
               throw new IllegalStateException(
-                  "Dispatched builtin has different number of arguments than it's signature:\nCall = "
-                      + call
-                      + "\nFull definition = "
+                  "Dispatched builtin has different number of arguments than its signature:\nFull definition = "
                       + calleeFun);
             }
 
@@ -1246,39 +1250,44 @@ public final class Fir2CCompiler {
           private void emitJump(Jump jump) {
             debugInstr(cCode, jump);
 
-            switch (jump) {
-              case Return(_, var value) -> cCode.stmt("return %s;", emitArgument(value));
-              case Goto(_, var target) -> emitJumpTo(1, target);
-              case Raise(_, var value) -> {
-                cCode.stmt("Rf_error(\"%%s\", %s);", emitArgument(value));
+            switch (jump.expression()) {
+              case Return _ -> cCode.stmt("return %s;", emitArgument(jump.arg(0)));
+              case Goto _ -> emitJumpTo(1, jump.targets().get(0));
+              case Raise _ -> {
+                cCode.stmt("Rf_error(\"%%s\", %s);", emitArgument(jump.arg(0)));
                 cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
               }
-              case Unreachable(_) -> {
+              case Unreachable _ -> {
                 cCode.stmt("Rf_error(\"FIŘ unreachable reached\");");
                 cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
               }
-              case If(_, var condition, var ifTrue, var ifFalse) -> {
-                cCode.stmt("if (%s) {", emitArgument(condition));
-                emitJumpTo(2, ifTrue);
+              case If _ -> {
+                var targets = jump.targets();
+                cCode.stmt("if (%s) {", emitArgument(jump.arg(0)));
+                emitJumpTo(2, targets.get(0));
                 cCode.stmt("} else {");
-                emitJumpTo(2, ifFalse);
+                emitJumpTo(2, targets.get(1));
                 cCode.stmt("}");
               }
-              case Checkpoint(_, var success, var deopt) -> {
+              case Checkpoint _ -> {
+                var targets = jump.targets();
+                var success = targets.get(0);
+                var deopt = targets.get(1);
                 for (var statement : success.bb().statements()) {
                   if (!(statement.expression() instanceof Assume(var assumption))) {
                     break;
                   }
 
-                  var condition = emitAssumptionCondition(statement.assignee(), assumption);
+                  var target = statement.args().isEmpty() ? null : statement.arg(0);
+                  var condition = emitAssumptionCondition(statement.assignee(), assumption, target);
                   cCode.stmt("if (!(%s)) {", condition);
                   emitJumpTo(2, deopt);
                   cCode.stmt("}");
                 }
                 emitJumpTo(1, success);
               }
-              case Deopt(_, var pc, var stack) -> {
-                var stackArgs = emitArgumentArray("deopt_stack", Repr.SEXP, stack);
+              case Deopt(var pc) -> {
+                var stackArgs = emitArgumentArray("deopt_stack", Repr.SEXP, jump.args());
                 cCode.stmt(
                     "Fir_deopt(%d, %d, %s, %s);",
                     pc, stackArgs.size(), stackArgs.pointer(), VAR_ENV);
@@ -1299,22 +1308,22 @@ public final class Fir2CCompiler {
           }
 
           private String emitAssumptionCondition(
-              @Nullable Register assignee, Assumption assumption) {
+              @Nullable Register assignee, Assumption assumption, @Nullable Argument target) {
             debugComment(cCode, "? %s", assumption);
-            debugArgs(cCode, assumption.arguments());
+            debugArgs(cCode, target == null ? List.<Argument>of() : List.of(target));
 
             var refAssigneePlace =
                 assignee == null ? "NULL" : "&%s".formatted(registerPlace(assignee));
 
             return switch (assumption) {
-              case AssumeConstant(var target, var constant) ->
+              case AssumeConstant(var constant) ->
                   "%s == %s".formatted(emitArgument(target), constantRef(pool, constant));
               case AssumeFunction a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =
                     Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
                         .index();
                 yield "Fir_assume_builtin_function(%s, %d)"
-                    .formatted(emitArgument(a.target()), builtinIndex);
+                    .formatted(emitArgument(target), builtinIndex);
               }
               case AssumeFunction a when a.function().owner() == INTRINSICS ->
                   throw new IllegalArgumentException(
@@ -1325,7 +1334,7 @@ public final class Fir2CCompiler {
                 referencedFunctions.add(a.function());
 
                 yield "Fir_assume_function(%s, &%s)"
-                    .formatted(emitArgument(a.target()), functionDispatchCName(a.function()));
+                    .formatted(emitArgument(target), functionDispatchCName(a.function()));
               }
               case AssumeLoadFun a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =
@@ -1354,15 +1363,15 @@ public final class Fir2CCompiler {
                   "Fir_assume_load_var(%s, %s, %s)"
                       .formatted(
                           nvSymbolRef(pool, variable), VAR_ENV, constantRef(pool, constant.box()));
-              case AssumeType(var target, var type) ->
+              case AssumeType(var type) ->
                   "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
             };
           }
 
           private @Nullable String emitAssumptionValue(
-              @Nullable Register assignee, Assumption assumption) {
+              @Nullable Register assignee, Assumption assumption, @Nullable Argument target) {
             return switch (assumption) {
-              case AssumeType _, AssumeFunction _ -> emitArgument(assumption.target());
+              case AssumeType _, AssumeFunction _ -> emitArgument(target);
               // `assignee` is assigned by-reference in `emitAssumptionCondition`
               case AssumeLoadFun _ -> assignee == null ? null : registerPlace(assignee);
               case AssumeConstant _, AssumeLoadVar _ -> null;
@@ -1466,14 +1475,12 @@ public final class Fir2CCompiler {
           }
 
           private ArrayAndNames emitNamedArgumentArrays(
-              Repr repr, List<NamedArgument> namedArguments) {
-            var values = new ArrayList<Argument>(namedArguments.size());
-            var names = new ArrayList<OptionalNamedVariable>(namedArguments.size());
+              Repr repr, List<Argument> values, List<@Nullable NamedVariable> elementNames) {
+            var names = new ArrayList<OptionalNamedVariable>(elementNames.size());
             var hasNames = false;
-            for (var element : namedArguments) {
-              values.add(element.argument());
-              names.add(OptionalNamedVariable.ofNullable(element.name()));
-              if (element.name() != null) {
+            for (var name : elementNames) {
+              names.add(OptionalNamedVariable.ofNullable(name));
+              if (name != null) {
                 hasNames = true;
               }
             }
@@ -1532,7 +1539,7 @@ public final class Fir2CCompiler {
           private void debugInstr(CCode cCode, Instruction instr) {
             debugComment(cCode, "> %s", instr.toString().replace("\n", "\n+ "));
             if (!(instr instanceof Statement s && s.expression() instanceof Promise)) {
-              debugArgs(cCode, instr.arguments());
+              debugArgs(cCode, instr.args());
             }
           }
 
@@ -1842,11 +1849,7 @@ public final class Fir2CCompiler {
     return Stream.concat(
             Stream.of("SEXP %s".formatted(VAR_ENV)),
             version.parameters().stream()
-                .map(
-                    p ->
-                        "%s %s"
-                            .formatted(
-                                reprCType(p.type().kind().repr()), registerCName(p.variable()))))
+                .map(p -> "%s %s".formatted(reprCType(p.type().kind().repr()), registerCName(p))))
         .toList();
   }
 

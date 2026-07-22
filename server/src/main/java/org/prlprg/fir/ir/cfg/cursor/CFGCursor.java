@@ -232,7 +232,7 @@ public final class CFGCursor {
       throw new IndexOutOfBoundsException("can't insert a statement at the end of the block");
     }
 
-    bb.insertStatement(instructionIndex + 1, statement);
+    statement.insertBefore(instrAt(instructionIndex + 1));
     instructionIndex++;
   }
 
@@ -248,7 +248,10 @@ public final class CFGCursor {
       throw new IndexOutOfBoundsException("can't insert statements at the end of the block");
     }
 
-    bb.insertStatements(instructionIndex + 1, statements);
+    var anchor = instrAt(instructionIndex + 1);
+    for (var statement : statements) {
+      statement.insertBefore(anchor);
+    }
     instructionIndex += statements.size();
   }
 
@@ -285,7 +288,9 @@ public final class CFGCursor {
       throw new IndexOutOfBoundsException("can't remove the jump instruction");
     }
 
-    return bb.removeStatementAt(instructionIndex);
+    var removed = (Statement) bb.statements().get(instructionIndex);
+    removed.detach();
+    return removed;
   }
 
   // endregion remove
@@ -314,7 +319,9 @@ public final class CFGCursor {
       bb.setJump(r);
       return old;
     } else if (replacement instanceof Statement r) {
-      return bb.replaceStatementAt(instructionIndex, r);
+      var old = (Statement) bb.statements().get(instructionIndex);
+      old.replaceWith(r);
+      return old;
     } else {
       throw new IllegalStateException("can't replace statement with jump");
     }
@@ -365,6 +372,12 @@ public final class CFGCursor {
     return instructionIndex == bb.statements().size();
   }
 
+  /** The instruction at the given position (statements then the jump). */
+  private Instruction instrAt(int index) {
+    var statements = bb.statements();
+    return index < statements.size() ? statements.get(index) : bb.jump();
+  }
+
   // endregion access
 
   public CFGCursor copy() {
@@ -393,8 +406,19 @@ public final class CFGCursor {
     w.write("> ");
     p.print(scope.returnType());
     w.write(", ");
-    p.printSeparated(", ", scope.locals());
-    if (!scope.locals().isEmpty()) {
+    var named = scope.namedVariableTypes();
+    var firstNamed = true;
+    for (var e : named.entrySet()) {
+      if (!firstNamed) {
+        w.write(", ");
+      }
+      firstNamed = false;
+      w.write("var ");
+      p.print(e.getKey());
+      w.write(":");
+      p.print(e.getValue());
+    }
+    if (!named.isEmpty()) {
       w.write(' ');
     }
     w.write("|\n");

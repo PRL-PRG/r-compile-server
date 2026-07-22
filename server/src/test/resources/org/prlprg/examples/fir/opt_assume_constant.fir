@@ -1,23 +1,21 @@
 fun main() {
-  () -+> V{ reg out:V|
-    out = constant< -+> V>();
+  () -+> V {
+    out: V = constant< -+> V >();
     return out;
   }
 }
 
 fun constant() {
-  () -+> V { reg cond:B, reg zero:V |
-    cond = TRUE;
-    zero = <int 0>;
+  () -+> V {
     check BBopt() else BBdeopt();
-  BBopt():
-    if cond then BBtrue() else BBfalse();
-  BBtrue():
-    return zero;
-  BBfalse():
-    return zero;
   BBdeopt():
     mkenv;
     deopt 0 [];
+  BBopt():
+    if TRUE then BBtrue() else BBfalse();
+  BBfalse():
+    return <int 0>;
+  BBtrue():
+    return <int 0>;
   }
 }

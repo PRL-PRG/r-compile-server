@@ -20,7 +20,8 @@ public final class BbReverseDfs extends Abstract<List<BB>> {
   /// An [Iterable] that yields [BbReverseDfs], starting with all non-deopt exits.
   public static Iterable<BB> bbReverseDfsNoDeopts(CFG cfg) {
     return () ->
-        new BbReverseDfs(cfg.exits().stream().filter(bb -> !(bb.jump() instanceof Deopt)).toList());
+        new BbReverseDfs(
+            cfg.exits().stream().filter(bb -> !(bb.jump().expression() instanceof Deopt)).toList());
   }
 
   /// An [Iterable] that yields [BbReverseDfs].

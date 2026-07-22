@@ -1,7 +1,6 @@
 package org.prlprg.fir.opt.specialize;
 
 import java.util.LinkedHashSet;
-import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
@@ -9,7 +8,6 @@ import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Closure;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Store;
@@ -17,7 +15,6 @@ import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.NamedVariable;
-import org.prlprg.fir.ir.variable.Register;
 
 /// Converts non-static closures to static closures when the closure cannot observe or mutate its
 /// captured local environment hierarchy.
@@ -28,31 +25,30 @@ public record StaticClosure() implements SpecializeOptimization {
   }
 
   @Override
-  public Expression run(
+  public Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Closure(var isStatic, var codeRef)) || isStatic) {
-      return expression;
+    if (!(statement.expression() instanceof Closure(var isStatic, var codeRef)) || isStatic) {
+      return Result.UNCHANGED;
     }
 
     var function = codeRef.get();
     if (function.versions().stream().anyMatch(version -> version.effects().reflect())) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
     var referencedVariables = localEnvReferencedVariables(function);
     if (analyses.get(OriginAnalysis.class).anyMayBeLocal(bb, index, referencedVariables)) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
-    return new Closure(true, codeRef);
+    return new Result.SetExpression(new Closure(true, codeRef));
   }
 
   private static LinkedHashSet<NamedVariable> localEnvReferencedVariables(Function function) {
@@ -69,8 +65,7 @@ public record StaticClosure() implements SpecializeOptimization {
                   case Load(var loadType, var variable)
                       when loadType != LoadType.GLOBAL_FUN && loadType != LoadType.BASE_FUN ->
                       variables.add(variable);
-                  case Store(var storeType, var variable, _)
-                      when storeType == StoreType.SUPER_VAR ->
+                  case Store(var storeType, var variable) when storeType == StoreType.SUPER_VAR ->
                       variables.add(variable);
                   default -> {}
                 }

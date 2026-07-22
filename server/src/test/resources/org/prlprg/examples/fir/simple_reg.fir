@@ -1,7 +1,6 @@
 fun main() {
-  () --> v1(I) { reg r:I, reg ru:v1(I) |
-    r = 0;
-    ru = box< I --> v1(I) >(r);
+  () --> v1(I) {
+    ru: v1(I) = box< I --> v1(I) >(0);
     return ru;
   }
 }

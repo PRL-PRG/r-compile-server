@@ -1,5 +1,5 @@
 fun main() {
-  () -+> v1(I) { |
+  () -+> v1(I) {
     mkenv;
     f< I --> I >(42);
     popenv;
@@ -8,11 +8,13 @@ fun main() {
 }
 
 fun f(r0) {
-  (reg r0:I) --> I { reg r0b:v1(I), reg r1:p(v1(I) -), reg r2:v1(I), reg r2u:I |
-    r0b = box<I --> v1(I)>(r0);
-    r1 = prom<v1(I) ->{ return r0b; };
-    r2 = force r1;
-    r2u = unbox<v1(I) --> I>(r2);
+  (reg r0:I) --> I {
+    r0b: v1(I) = box< I --> v1(I) >(r0);
+    r1: p(v1(I) -) = prom<v1(I) ->{
+      return r0b;
+    };
+    r2: v1(I) = force r1;
+    r2u: I = unbox< v1(I) --> I >(r2);
     return r2u;
   }
 }

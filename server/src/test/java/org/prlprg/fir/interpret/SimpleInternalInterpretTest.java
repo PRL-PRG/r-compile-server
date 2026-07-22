@@ -11,11 +11,15 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.binding.Parameter;
+import org.prlprg.fir.ir.expression.Noop;
+import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
+import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
 
@@ -43,8 +47,7 @@ class SimpleInternalInterpretTest {
     var entry = cfg.entry();
 
     // Add return instruction: return 42
-    var returnInstr = new Return(new Constant(new Value.Int(42)));
-    entry.setJump(returnInstr);
+    entry.setJump(new Jump(new Return(), List.of(new Constant(new Value.Int(42)))));
 
     // Interpret the function
     var result = interpreter.call("test");
@@ -57,7 +60,7 @@ class SimpleInternalInterpretTest {
   void testParameterAccess() {
     // Create a function that returns its parameter
     // fun test(r) { (reg r:I) --> I { | return r; } }
-    var param = new Parameter(Variable.register("r"), Type.INTEGER);
+    var param = new FunctionParameter("r", Type.INTEGER);
     var function =
         module.addFunction(
             Variable.named("test"), List.of(Variable.named("r")), List.of(param), false);
@@ -68,8 +71,7 @@ class SimpleInternalInterpretTest {
     var entry = cfg.entry();
 
     // Add return instruction: return r
-    var returnInstr = new Return(new Read(param.variable()));
-    entry.setJump(returnInstr);
+    entry.setJump(new Jump(new Return(), List.of(new Read(param))));
 
     // Interpret the function with argument 123
     var result = interpreter.call("test", new Value.Int(123));
@@ -87,7 +89,7 @@ class SimpleInternalInterpretTest {
 
     var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();
-    entry.setJump(new Return(new Constant(SEXPs.integer(0))));
+    entry.setJump(new Jump(new Return(), List.of(new Constant(SEXPs.integer(0)))));
 
     // Try to call with wrong number of arguments
     assertThrows(InterpretException.class, () -> interpreter.call("test"));
@@ -106,10 +108,15 @@ class SimpleInternalInterpretTest {
     var cfg = Objects.requireNonNull(version.cfg());
     var entry = cfg.entry();
 
-    // Try to return uninitialized register
-    var uninitializedReg = Variable.register("uninitialized");
-    var returnInstr = new Return(new Read(uninitializedReg));
-    entry.setJump(returnInstr);
+    // Define a register in an unreachable block, then return it from the entry: at runtime its
+    // defining statement never executes, so reading it fails (an "uninitialized" register).
+    var dead = cfg.addBB();
+    var deadStmt = new Statement(new Noop());
+    var uninitializedReg = deadStmt.setAssignee("uninitialized", Type.ANY_VALUE_SEXP);
+    dead.appendStatement(deadStmt);
+    dead.setJump(new Jump(new Unreachable()));
+
+    entry.setJump(new Jump(new Return(), List.of(new Read(uninitializedReg))));
 
     // Should throw exception
     assertThrows(InterpretException.class, () -> interpreter.call("test"));

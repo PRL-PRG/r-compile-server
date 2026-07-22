@@ -5,6 +5,7 @@ import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
@@ -24,7 +25,6 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.Noop;
@@ -37,8 +37,8 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
-import org.prlprg.fir.ir.variable.Register;
 
 /// Promotes local named variables into registers when every direct load is statically known.
 ///
@@ -101,7 +101,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
     private boolean hasReflectiveEffects() {
       for (var bb : cfg.bbs()) {
         for (var statement : bb.statements()) {
-          if (inferEffects.of(statement.expression()).reflect()) {
+          if (inferEffects.of(statement).reflect()) {
             return true;
           }
         }
@@ -116,17 +116,17 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       for (var someCfg : scope.streamCfgs().toList()) {
         for (var bb : someCfg.bbs()) {
           for (var i = 0; i < bb.statements().size(); i++) {
-            var expression = bb.statements().get(i).expression();
+            var statement = bb.statements().get(i);
+            var expression = statement.expression();
 
             switch (expression) {
-              case Store(var storeType, var variable, var value)
-                  when storeType == StoreType.LOCAL_VAR -> {
+              case Store(var storeType, var variable) when storeType == StoreType.LOCAL_VAR -> {
                 if (someCfg != cfg) {
                   forbidden.add(variable);
                   continue;
                 }
 
-                var resolved = originAnalysis.resolve(value);
+                var resolved = originAnalysis.resolve(statement.arg(0));
                 if (!isPromotableOrigin(resolved)) {
                   forbidden.add(variable);
                   continue;
@@ -152,8 +152,8 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
 
                 candidates.computeIfAbsent(variable, Candidate::new).addLoad();
               }
-              case ReflectiveLoad(var _, var variable) -> forbidden.add(variable);
-              case ReflectiveStore(var _, var variable, var _) -> forbidden.add(variable);
+              case ReflectiveLoad(var variable) -> forbidden.add(variable);
+              case ReflectiveStore(var variable) -> forbidden.add(variable);
               case org.prlprg.fir.ir.expression.Assume(var assumption) -> {
                 switch (assumption) {
                   case AssumeLoadFun(var variable, var _) -> forbidden.add(variable);
@@ -192,7 +192,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       var phiBlocks = phiBlocks(candidate, originAnalysis, dominanceFrontier);
       var phis = appendPhis(variable, phiBlocks, originAnalysis);
       rename(cfg.entry(), variable, null, phis, originAnalysis, dominatorTree);
-      scope.setLocalType(variable, Type.ANY_SEXP);
+      scope.setNamedVariableType(variable, Type.ANY_SEXP);
     }
 
     private Set<BB> phiBlocks(
@@ -217,9 +217,9 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       return result;
     }
 
-    private Map<BB, Register> appendPhis(
+    private Map<BB, BlockParameter> appendPhis(
         NamedVariable variable, Set<BB> phiBlocks, OriginAnalysis originAnalysis) {
-      var phis = new LinkedHashMap<BB, Register>();
+      var phis = new LinkedHashMap<BB, BlockParameter>();
 
       for (var bb : cfg.bbs()) {
         if (!phiBlocks.contains(bb)) {
@@ -232,7 +232,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
                 .reduce(
                     Type.ANY_SEXP,
                     (left, right) -> Type.union(left, right == null ? Type.ANY_SEXP : right));
-        var phi = scope.addLocal(variable.name(), phiType);
+        var phi = new BlockParameter(scope.freshName(variable.name()), phiType);
         bb.appendPhiParameter(phi);
         phis.put(bb, phi);
       }
@@ -244,7 +244,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
         BB bb,
         NamedVariable variable,
         @Nullable Argument current,
-        Map<BB, Register> phis,
+        Map<BB, BlockParameter> phis,
         OriginAnalysis originAnalysis,
         CfgDominatorTree dominatorTree) {
       if (phis.containsKey(bb)) {
@@ -257,10 +257,7 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
       }
 
       if (!phis.isEmpty()) {
-        var jump = appendPhiArguments(bb.jump(), current, phis);
-        if (!jump.equals(bb.jump())) {
-          bb.setJump(jump);
-        }
+        appendPhiArguments(bb.jump(), current, phis);
       }
 
       for (var child :
@@ -286,25 +283,30 @@ public final class PromoteStaticallyKnownVariables implements AbstractionOptimiz
             throw new IllegalStateException(
                 "Missing promoted value for " + variable + " in " + bb.label());
           }
-          bb.replaceStatementAt(index, statement.withExpression(new Aea(current)));
+          // Forward the load's result to the promoted value, then drop the load.
+          if (statement.assignee() != null) {
+            statement.assignee().substUsesWith(current);
+          }
+          statement.replaceWith(new Statement(statement.comments(), new Noop(), List.of()));
           yield current;
         }
-        case Store(var storeType, var stored, var value)
+        case Store(var storeType, var stored)
             when storeType == StoreType.LOCAL_VAR && stored.equals(variable) -> {
-          var resolved = originAnalysis.resolve(value);
+          var resolved = originAnalysis.resolve(statement.arg(0));
           if (!isPromotableOrigin(resolved)) {
             throw new IllegalStateException(
                 "Unexpected non-promotable origin while promoting " + variable + ": " + resolved);
           }
-          bb.replaceStatementAt(index, new Statement(statement.comments(), new Noop()));
+          statement.replaceWith(new Statement(statement.comments(), new Noop(), List.of()));
           yield resolved;
         }
         default -> current;
       };
     }
 
-    private Jump appendPhiArguments(Jump jump, @Nullable Argument current, Map<BB, Register> phis) {
-      return jump.mapTargets(
+    private void appendPhiArguments(
+        Jump jump, @Nullable Argument current, Map<BB, BlockParameter> phis) {
+      jump.mapTargets(
           target -> {
             var phi = phis.get(target.bb());
             if (phi == null) {

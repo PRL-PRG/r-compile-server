@@ -15,17 +15,14 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.Lists;
 
 /// Compute which registers are read, written, `consume`d, or captured at any point in a [CFG].
 ///
@@ -50,7 +47,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
     // Parameters are initially written to.
     var entryFlow = new ActionSet();
-    entryFlow.write.addAll(Lists.mapLazy(scope.parameters(), Parameter::variable));
+    entryFlow.write.addAll(scope.parameters());
 
     run(entryFlow);
   }
@@ -78,10 +75,15 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
     @Override
     protected void run(Statement statement) {
-      var expr = statement.expression();
       var assignee = statement.assignee();
 
-      run(expr);
+      if (statement.expression() instanceof Promise(_, _, var code)) {
+        runSubAnalysis(code, state()::mergePromise);
+      } else {
+        for (var argument : statement.args()) {
+          run(argument);
+        }
+      }
 
       if (assignee != null) {
         // Check and update flow state
@@ -89,16 +91,6 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
           report("Write after consume: ", assignee);
         }
         state().write.add(assignee);
-      }
-    }
-
-    void run(Expression expression) {
-      if (expression instanceof Promise(_, _, var code)) {
-        runSubAnalysis(code, state()::mergePromise);
-      } else {
-        for (var argument : expression.arguments()) {
-          run(argument);
-        }
       }
     }
 
@@ -134,7 +126,7 @@ public final class Provenance extends AbstractInterpretation<ActionSet> implemen
 
     @Override
     protected void run(Jump jump) {
-      for (var argument : jump.arguments()) {
+      for (var argument : jump.args()) {
         run(argument);
       }
     }

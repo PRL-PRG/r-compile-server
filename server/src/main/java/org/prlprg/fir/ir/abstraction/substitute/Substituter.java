@@ -11,7 +11,7 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Batch substitutions so they run in `O(#arguments)` instead of `O(#substs * #arguments))`.
@@ -89,9 +89,9 @@ public class Substituter extends AbstractSubstituter {
 
   @Override
   protected void commitAffectLocals() {
-    for (var local : locals.keySet()) {
-      scope.removeLocal(local);
-    }
+    // No-op: in the def-use model a register exists only by virtue of its definition. Substituted
+    // registers are removed when their defining statement's assignee is cleared (and phis when the
+    // phi parameter is dropped) during `run`.
   }
 
   @Override
@@ -101,17 +101,17 @@ public class Substituter extends AbstractSubstituter {
   }
 
   @Override
-  protected @Nullable Register substitutePhi(BB bb, Register phi) {
+  protected @Nullable BlockParameter substitutePhi(BB bb, BlockParameter phi) {
     return locals.containsKey(phi) ? null : phi;
   }
 
   @Override
-  protected @Nullable Register substituteAssignee(CfgPosition pos, @Nullable Register assignee) {
+  protected @Nullable Register substituteAssignee(BB bb, int index, @Nullable Register assignee) {
     return assignee != null && locals.containsKey(assignee) ? null : assignee;
   }
 
   @Override
-  protected Argument substitute(CfgPosition pos, Argument argument) {
+  protected Argument substitute(BB bb, int index, Argument argument) {
     return switch (argument) {
       case Read(var r) when locals.containsKey(r) -> locals.get(r);
       // Preserve `consume`-ness of substituted

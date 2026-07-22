@@ -1,20 +1,19 @@
 package org.prlprg.fir.opt.specialize;
 
-import org.jspecify.annotations.Nullable;
+import java.util.List;
+import java.util.Objects;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.CfgReachability;
 import org.prlprg.fir.analyze.cfg.Loads;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.variable.Register;
 
 /// Optimization that removes [Store]s in non-reflective contexts which are never loaded after.
 ///
@@ -22,7 +21,7 @@ import org.prlprg.fir.ir.variable.Register;
 public record ElideDeadStore() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes(Loads.class, CfgReachability.class);
+    return new AnalysisTypes(Loads.class, CfgHierarchy.class, CfgReachability.class);
   }
 
   @Override
@@ -31,47 +30,55 @@ public record ElideDeadStore() implements SpecializeOptimization {
   }
 
   @Override
-  public Expression run(
+  public Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Store(var storeType, var variable, _))
+    if (!(statement.expression() instanceof Store(var storeType, var variable))
         || storeType != StoreType.LOCAL_VAR) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
     // Don't elide in deopt branch
-    if (bb.jump() instanceof Deopt) {
-      return expression;
+    if (bb.jump().expression() instanceof Deopt) {
+      return Result.UNCHANGED;
     }
 
     var cfg = bb.owner();
     var loads = analyses.get(Loads.class);
+    var hierarchy = analyses.get(CfgHierarchy.class);
     var reachability = analyses.get(cfg, CfgReachability.class);
     if (loads.get(variable).stream()
         .anyMatch(
-            scopePos -> {
-              var cfgPos = scopePos.inCfg(cfg);
-              return cfgPos != null
-                  && reachability.isReachable(bb, index, cfgPos.bb(), cfgPos.instructionIndex());
+            loadStmt -> {
+              // Project the load into this store's CFG (its enclosing promise statement if the load
+              // is in a nested promise); the store isn't dead if a load is reachable after it.
+              var projected = hierarchy.projectInto(cfg, loadStmt);
+              return projected != null
+                  && reachability.isReachable(
+                      bb,
+                      index,
+                      Objects.requireNonNull(projected.parentBB()),
+                      projected.indexInBB());
             })) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
     // Put the store in reachable deopt branches
+    var storeExpr = statement.expression();
+    var storeValue = statement.arg(0);
     for (var reachableBb : reachability.maySucceed(bb)) {
-      if (!(reachableBb.jump() instanceof Deopt)) {
+      if (!(reachableBb.jump().expression() instanceof Deopt)) {
         continue;
       }
-      defer.stage(() -> reachableBb.appendStatement(new Statement(expression)));
+      defer.stage(() -> reachableBb.appendStatement(new Statement(storeExpr, List.of(storeValue))));
     }
 
-    return new Noop();
+    return Result.REMOVE;
   }
 }

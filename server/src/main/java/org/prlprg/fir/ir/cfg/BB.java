@@ -1,6 +1,5 @@
 package org.prlprg.fir.ir.cfg;
 
-import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -8,26 +7,23 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
-import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Collections2;
-import org.prlprg.util.Lists;
 import org.prlprg.util.SmallBinarySet;
 import org.prlprg.util.Strings;
 
+/// A basic block. Its instructions form an intrusive circular doubly-linked list anchored at its
+/// terminator [#jump]: iterating from `jump.next()` back to `jump` visits the statements in order.
 public final class BB implements Comparable<BB> {
   /// Blocks can't jump to the entry, and it must be ordered first, so it starts with `$` to make
   /// it unparseable and ordered before anything parsable.
@@ -40,9 +36,9 @@ public final class BB implements Comparable<BB> {
   // Data
   private final Comments comments;
   private final String label;
-  private final List<Register> parameters = new ArrayList<>();
-  private final List<Statement> statements = new ArrayList<>();
-  private Jump jump = new Unreachable();
+  private final List<BlockParameter> parameters = new ArrayList<>();
+  // The terminator and anchor of the instruction list. Always present.
+  private Jump jump;
 
   // Cached
   private final Set<BB> predecessors =
@@ -57,6 +53,9 @@ public final class BB implements Comparable<BB> {
     this.owner = owner;
     this.comments = new Comments();
     this.label = label;
+
+    jump = new Jump(new Unreachable());
+    jump.installAsAnchor(this);
 
     // Since the jump is `Unreachable`, this is an exit.
     owner.exits.add(this);
@@ -86,21 +85,145 @@ public final class BB implements Comparable<BB> {
     return successors().isEmpty();
   }
 
-  public @UnmodifiableView List<Register> phiParameters() {
+  // --- Phi parameters -------------------------------------------------------------------------
+
+  public @UnmodifiableView List<BlockParameter> phiParameters() {
     return Collections.unmodifiableList(parameters);
   }
 
-  public @UnmodifiableView List<Statement> statements() {
-    return Collections.unmodifiableList(statements);
+  public void appendPhiParameter(BlockParameter parameter) {
+    if (parameters.contains(parameter)) {
+      throw new IllegalArgumentException(
+          "Phi parameter is already present in BB '" + label + "': " + parameter);
+    }
+    parameter.setOwner(this);
+    parameters.add(parameter);
   }
+
+  public void appendPhiParameters(List<BlockParameter> parameters) {
+    for (var parameter : parameters) {
+      appendPhiParameter(parameter);
+    }
+  }
+
+  public void removeParameterAt(int index) {
+    if (index < 0 || index >= parameters.size()) {
+      throw new IndexOutOfBoundsException(
+          "Index " + index + " is out of bounds for parameters of BB '" + label + "'.");
+    }
+    parameters.remove(index).setOwner(null);
+  }
+
+  public void replaceParameterAt(int index, BlockParameter parameter) {
+    if (index < 0 || index >= parameters.size()) {
+      throw new IndexOutOfBoundsException(
+          "Index " + index + " is out of bounds for parameters of BB '" + label + "'.");
+    }
+    if (parameters.contains(parameter) && parameters.get(index) != parameter) {
+      throw new IllegalArgumentException(
+          "Phi parameter is already present in BB '" + label + "': " + parameter);
+    }
+    parameters.get(index).setOwner(null);
+    parameter.setOwner(this);
+    parameters.set(index, parameter);
+  }
+
+  public void clearPhiParameters() {
+    for (var parameter : parameters) {
+      parameter.setOwner(null);
+    }
+    parameters.clear();
+  }
+
+  // --- Instructions ---------------------------------------------------------------------------
 
   public Jump jump() {
     return jump;
   }
 
-  public @UnmodifiableView List<Instruction> instructions() {
-    return Lists.concatLazy(statements, List.of(jump));
+  /// The statements, in order (materialized from the intrusive list).
+  public @UnmodifiableView List<Statement> statements() {
+    var result = new ArrayList<Statement>();
+    for (var i = jump.next(); i != jump; i = i.next()) {
+      result.add((Statement) i);
+    }
+    return Collections.unmodifiableList(result);
   }
+
+  /// The statements followed by the [#jump], in order.
+  public @UnmodifiableView List<Instruction> instructions() {
+    var result = new ArrayList<Instruction>();
+    for (var i = jump.next(); i != jump; i = i.next()) {
+      result.add(i);
+    }
+    result.add(jump);
+    return Collections.unmodifiableList(result);
+  }
+
+  /// The first statement, or `null` if the block has no statements.
+  public Statement firstStatement() {
+    return jump.next() == jump ? null : (Statement) jump.next();
+  }
+
+  /// The last statement, or `null` if the block has no statements.
+  public Statement lastStatement() {
+    return jump.prev() == jump ? null : (Statement) jump.prev();
+  }
+
+  /// Append a statement to the end of the block (just before the [#jump]).
+  public void appendStatement(Statement statement) {
+    statement.insertBefore(jump);
+  }
+
+  public void appendStatements(List<Statement> statements) {
+    for (var statement : statements) {
+      appendStatement(statement);
+    }
+  }
+
+  /// Prepend a statement to the start of the block.
+  public void prependStatement(Statement statement) {
+    statement.insertAfter(jump);
+  }
+
+  /// Remove all statements (dropping their argument uses). The caller is responsible for ensuring
+  /// the removed statements' results are not used elsewhere.
+  public void clearStatements() {
+    for (var i = jump.next(); i != jump; ) {
+      var next = i.next();
+      i.detach();
+      i = next;
+    }
+  }
+
+  /// Replace the terminator, updating predecessors and exits.
+  public void setJump(Jump newJump) {
+    for (var targetBb : jump.targetBBs()) {
+      var removed = targetBb.predecessors.remove(this);
+      assert removed : "BB " + label + " was not a predecessor of target '" + targetBb.label + "'.";
+    }
+    if (jump.targetBBs().isEmpty()) {
+      var removed = owner.exits.remove(this);
+      assert removed : "BB " + label + " was not an exit of the CFG.";
+    }
+
+    newJump.setParentBB(this);
+    jump.replaceWith(newJump);
+    jump.setParentBB(null);
+    jump = newJump;
+
+    for (var targetBb : jump.targetBBs()) {
+      var added = targetBb.predecessors.add(this);
+      assert added
+          : "BB " + label + " was already a predecessor of target '" + targetBb.label + "'.";
+    }
+    if (jump.targetBBs().isEmpty()) {
+      var added = owner.exits.add(this);
+      assert added : "BB " + label + " was already an exit of the CFG.";
+    }
+  }
+
+  // --- Edges ----------------------------------------------------------------------------------
 
   public @UnmodifiableView Collection<BB> successors() {
     return jump.targetBBs();
@@ -108,6 +231,11 @@ public final class BB implements Comparable<BB> {
 
   public @UnmodifiableView Collection<BB> predecessors() {
     return Collections.unmodifiableCollection(predecessors);
+  }
+
+  // Package-private: maintained by the parser/CFG when wiring jumps.
+  Set<BB> predecessorsMutable() {
+    return predecessors;
   }
 
   /// [Target]s in predecessors to this [BB].
@@ -122,11 +250,6 @@ public final class BB implements Comparable<BB> {
 
   /// Arguments from predecessor jumps to the parameter at the index.
   ///
-  /// Each element in the outermost collection contains the argument in all targets in a [BB]
-  /// that point to this one. There is guaranteed at least one, but may be multiple, e.g. if the
-  /// predecessor's jump is an [`If`][org.prlprg.fir.ir.instruction.If] and each target has
-  /// different phi arguments.
-  ///
   /// @throws IndexOutOfBoundsException If the index is out of bounds.
   public Collection<Collection<Argument>> phiArguments(int parameterIndex) {
     if (parameterIndex < 0 || parameterIndex >= parameters.size()) {
@@ -138,259 +261,28 @@ public final class BB implements Comparable<BB> {
         targets -> Collections2.mapLazy(targets, target -> target.phiArgs().get(parameterIndex)));
   }
 
-  public void appendPhiParameter(Register parameter) {
-    module()
-        .record(
-            "BB#appendPhiParameter",
-            List.of(this, parameter),
-            () -> {
-              if (parameters.contains(parameter)) {
-                throw new IllegalArgumentException(
-                    "Phi parameter '"
-                        + parameter
-                        + "' is already present in BB '"
-                        + label
-                        + "': "
-                        + parameter);
-              }
-              parameters.add(parameter);
-            });
-  }
-
-  public void appendPhiParameters(List<Register> parameters) {
-    module()
-        .record(
-            "BB#appendPhiParameters",
-            List.of(this, parameters),
-            () -> {
-              if (parameters.stream().anyMatch(this.parameters::contains)) {
-                throw new IllegalArgumentException(
-                    "Some parameters are already present in BB '"
-                        + label
-                        + "': "
-                        + parameters.stream().filter(this.parameters::contains).toList());
-              }
-              this.parameters.addAll(parameters);
-            });
-  }
-
-  public void removeParameterAt(int index) {
-    module()
-        .record(
-            "BB#removeParameterAt",
-            List.of(this, index),
-            () -> {
-              if (index < 0 || index >= parameters.size()) {
-                throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for parameters of BB '" + label + "'.");
-              }
-              parameters.remove(index);
-            });
-  }
-
-  public void replaceParameterAt(int index, Register parameter) {
-    module()
-        .record(
-            "BB#replaceParameterAt",
-            List.of(this, index, parameter),
-            () -> {
-              if (index < 0 || index >= parameters.size()) {
-                throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for parameters of BB '" + label + "'.");
-              }
-              if (parameters.contains(parameter) && parameters.get(index) != parameter) {
-                throw new IllegalArgumentException(
-                    "Phi parameter '"
-                        + parameter
-                        + "' is already present in BB '"
-                        + label
-                        + "': "
-                        + parameter);
-              }
-              parameters.set(index, parameter);
-            });
-  }
-
-  public void clearPhiParameters() {
-    module().record("BB#clearPhiParameters", List.of(this), parameters::clear);
-  }
-
-  public void appendStatement(Statement statement) {
-    module()
-        .record(
-            "BB#appendStatement",
-            List.of(this, statement),
-            () -> {
-              statements.add(statement);
-            });
-  }
-
-  public void appendStatements(List<Statement> statements) {
-    module()
-        .record(
-            "BB#appendStatements",
-            List.of(this, statements),
-            () -> {
-              this.statements.addAll(statements);
-            });
-  }
-
-  public void insertStatement(int index, Statement statement) {
-    module()
-        .record(
-            "BB#insertStatement",
-            List.of(this, index, statement),
-            () -> {
-              if (index < 0 || index > statements.size()) {
-                throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
-              }
-              statements.add(index, statement);
-            });
-  }
-
-  public void insertStatements(int index, List<Statement> statements) {
-    module()
-        .record(
-            "BB#insertStatements",
-            List.of(this, index, statements),
-            () -> {
-              if (index < 0 || index > this.statements.size()) {
-                throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
-              }
-              this.statements.addAll(index, statements);
-            });
-  }
-
-  public Statement removeStatementAt(int index) {
-    return module()
-        .record(
-            "BB#removeStatementAt",
-            List.of(this, index),
-            () -> {
-              if (index < 0 || index >= statements.size()) {
-                throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
-              }
-              return statements.remove(index);
-            });
-  }
-
-  public ImmutableList<Statement> removeStatementsAt(int index, int count) {
-    return module()
-        .record(
-            "BB#removeStatementsAt",
-            List.of(this, index, count),
-            () -> {
-              if (index < 0 || index + count > statements.size()) {
-                throw new IndexOutOfBoundsException(
-                    "End index "
-                        + (index + count)
-                        + " is out of bounds for statements of BB '"
-                        + label
-                        + "'.");
-              }
-              var subList = statements.subList(index, index + count);
-              var removed = ImmutableList.copyOf(subList);
-              subList.clear();
-              return removed;
-            });
-  }
-
-  public ImmutableList<Statement> clearStatements() {
-    return module()
-        .record(
-            "BB#clearStatements",
-            List.of(this),
-            () -> {
-              var removed = ImmutableList.copyOf(statements);
-              statements.clear();
-              return removed;
-            });
-  }
-
-  public Statement replaceStatementAt(int index, Statement statement) {
-    return module()
-        .record(
-            "BB#replaceStatementAt",
-            List.of(this, index, statement),
-            () -> {
-              if (index < 0 || index >= statements.size()) {
-                throw new IndexOutOfBoundsException(
-                    "Index " + index + " is out of bounds for statements of BB '" + label + "'.");
-              }
-              var old = statements.get(index);
-              statements.set(index, statement);
-              return old;
-            });
-  }
-
-  public void setJump(Jump jump) {
-    module()
-        .record(
-            "BB#setJump",
-            List.of(this, jump),
-            () -> {
-              for (var targetBb : this.jump.targetBBs()) {
-                var removed = targetBb.predecessors.remove(this);
-                assert removed
-                    : "BB " + label + " was not a predecessor of target '" + targetBb.label + "'.";
-              }
-              if (this.jump.targetBBs().isEmpty()) {
-                var removed = owner.exits.remove(this);
-                assert removed : "BB " + label + " was not an exit of the CFG.";
-              }
-              this.jump = jump;
-              for (var targetBb : this.jump.targetBBs()) {
-                var added = targetBb.predecessors.add(this);
-                assert added
-                    : "BB "
-                        + label
-                        + " was already a predecessor of target '"
-                        + targetBb.label
-                        + "'.";
-              }
-              if (this.jump.targetBBs().isEmpty()) {
-                var added = owner.exits.add(this);
-                assert added : "BB " + label + " was already an exit of the CFG.";
-              }
-            });
-  }
-
   /// Basic blocks are ordered by label.
   ///
   /// @throws IllegalArgumentException Comparing blocks in different [CFG]s, or non-equal blocks
-  ///   with the same print
+  ///   with the same label.
   @Override
   public int compareTo(BB o) {
     if (this == o) {
       return 0;
     }
-
     if (owner != o.owner) {
       throw new IllegalArgumentException("Can't compare BBs in different CFGs");
     }
-
     var cmp = label.compareTo(o.label);
     if (cmp != 0) {
       return cmp;
     }
-
-    // Tiebreaker: compare by print to have a deterministic order, but this is only used for
-    // non-equal blocks with the same label, which should be very rare and not rely on any
-    // particular order, so it's fine if it's not super efficient.
-    cmp = toString().compareTo(o.toString());
-    if (cmp != 0) {
-      return cmp;
-    }
-
-    throw new IllegalArgumentException("Can't compare non-equal BBs with the same print: " + this);
+    throw new IllegalArgumentException("Can't compare non-equal BBs with the same label: " + label);
   }
 
   @Override
   public String toString() {
-    return Printer.toString(this);
+    return label;
   }
 
   @PrintMethod
@@ -399,9 +291,21 @@ public final class BB implements Comparable<BB> {
 
     p.print(comments);
 
-    if (!label.equals(ENTRY_LABEL)) {
+    if (!isEntry()) {
       w.write(label);
-      p.printAsList("(", ")", parameters);
+      // Phi parameters carry their type inline at the definition site, e.g. `L1(r2: I, r3: v1(I))`.
+      w.write('(');
+      var firstParam = true;
+      for (var parameter : parameters) {
+        if (!firstParam) {
+          w.write(", ");
+        }
+        firstParam = false;
+        p.print(parameter);
+        w.write(": ");
+        p.print(parameter.type());
+      }
+      w.write(')');
       w.write(":");
     } else {
       w.write("  ");
@@ -409,71 +313,16 @@ public final class BB implements Comparable<BB> {
 
     w.runIndented(
         () -> {
-          if (!label.equals(ENTRY_LABEL)) {
+          if (!isEntry()) {
             w.write('\n');
           }
 
-          for (var statement : statements) {
+          for (var statement : statements()) {
             p.print(statement);
             w.write(";\n");
           }
           p.print(jump);
           w.write(";");
         });
-  }
-
-  public record ParseContext(
-      boolean isEntry,
-      CFG owner,
-      BBRef.ParseContext forRef,
-      FunctionRef.ParseContext forFunctionRef,
-      @Nullable Object inner) {}
-
-  @ParseMethod
-  private BB(Parser p1, ParseContext ctx) {
-    owner = ctx.owner;
-    var p = p1.withContext(ctx.inner);
-
-    var s = p.scanner();
-
-    if (ctx.isEntry) {
-      comments = new Comments();
-      label = ENTRY_LABEL;
-    } else {
-      comments = p.parse(Comments.class);
-      label = s.readIdentifierOrKeyword();
-      var params = p.parseList("(", ")", Register.class);
-      parameters.addAll(params);
-      s.assertAndSkip(':');
-    }
-
-    var p3 =
-        p.withContext(
-            new Instruction.ParseContext(owner, ctx.forRef, ctx.forFunctionRef, p.context()));
-    Instruction instr;
-    do {
-      instr = p3.parse(Instruction.class);
-      switch (instr) {
-        case Statement expr -> statements.add(expr);
-        case Jump jmp -> jump = jmp;
-      }
-      s.assertAndSkip(';');
-    } while (!(instr instanceof Jump));
-
-    // Need target's `postCfg` to run before `target.bb()` is called.
-    ctx.forRef
-        .fixPredecessors()
-        .add(
-            () -> {
-              for (var targetBb : jump.targetBBs()) {
-                var added = targetBb.predecessors.add(this);
-                assert added
-                    : "BB " + label + " was already a predecessor of target '" + targetBb + "'.";
-              }
-              if (jump.targetBBs().isEmpty()) {
-                var added = owner.exits.add(this);
-                assert added : "BB " + label + " was already an exit of the CFG.";
-              }
-            });
   }
 }

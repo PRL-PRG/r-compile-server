@@ -10,15 +10,13 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
+import org.prlprg.fir.ir.instruction.Instruction;
 
 /// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
 /// dominator of its children.
@@ -27,23 +25,6 @@ public final class CfgDominatorTree implements CfgAnalysis {
   private final Map<BB, BB> immediateDominators = new HashMap<>();
   private final Map<BB, Set<BB>> immediateDominees = new HashMap<>();
   private final Map<BB, Set<BB>> dominators = new HashMap<>();
-
-  /// Determine whether a [ScopePosition] dominates another using [CfgDominatorTree] instead of
-  /// [DominatorTree].
-  public static boolean dominates(
-      Function<CFG, CfgDominatorTree> getDomTree, ScopePosition dominator, ScopePosition dominee) {
-    var localDominator = dominator.inInnermostCfg();
-    var localDominee = dominee.inCfg(localDominator.cfg());
-
-    if (localDominee == null) {
-      // Use is in a sibling or outer promise
-      return false;
-    }
-
-    var dominatorTree = getDomTree.apply(localDominator.cfg());
-
-    return dominatorTree.dominates(localDominator, localDominee);
-  }
 
   @AnalysisConstructor
   public CfgDominatorTree(CFG cfg) {
@@ -77,10 +58,13 @@ public final class CfgDominatorTree implements CfgAnalysis {
     return Collections.unmodifiableSet(Objects.requireNonNull(dominators.get(bb)));
   }
 
-  /// Check if `dominator` dominates `dominee`.
-  public boolean dominates(CfgPosition dominator, CfgPosition dominee) {
+  /// Check if `dominator` dominates `dominee`. Both must be in this [CFG].
+  public boolean dominates(Instruction dominator, Instruction dominee) {
     return dominates(
-        dominator.bb(), dominator.instructionIndex(), dominee.bb(), dominee.instructionIndex());
+        Objects.requireNonNull(dominator.parentBB()),
+        dominator.indexInBB(),
+        Objects.requireNonNull(dominee.parentBB()),
+        dominee.indexInBB());
   }
 
   /// Check if `dominatorBb`/`dominatorIndex` dominates `domineeBb`/`domineeIndex`.

@@ -26,8 +26,7 @@ import org.prlprg.fir.ir.variable.Register;
 /// operation (whichever comes first). Parameters that are definitely values are excluded (they
 /// can't be promises, so strictness is meaningless).
 ///
-/// Used by both {@link org.prlprg.fir.check.StrictnessChecker} and
-/// {@link StrictifySignature}.
+/// Used by {@link org.prlprg.fir.check.StrictnessChecker}
 public final class StrictnessAnalysis implements CfgAnalysis {
   private final Set<Register> strictParameters;
 
@@ -52,7 +51,7 @@ public final class StrictnessAnalysis implements CfgAnalysis {
     var candidates = new HashSet<Register>();
     for (var param : params) {
       if (!param.type().isValue()) {
-        candidates.add(param.variable());
+        candidates.add(param);
       }
     }
     if (candidates.isEmpty()) {
@@ -110,13 +109,13 @@ public final class StrictnessAnalysis implements CfgAnalysis {
         addForcedParam(stmt, scope, mustForced);
 
         // Check if this expression is reflective
-        if (inferEffects.of(stmt.expression()).reflect()) {
+        if (inferEffects.of(stmt).reflect()) {
           strictCandidates.retainAll(mustForced);
         }
       }
 
       // Check the jump
-      if (bb.jump() instanceof Return) {
+      if (bb.jump().expression() instanceof Return) {
         strictCandidates.retainAll(mustForced);
       }
       // Deopt exits are ignored — they don't constrain strictness.
@@ -126,7 +125,7 @@ public final class StrictnessAnalysis implements CfgAnalysis {
   }
 
   private static void addForcedParam(Statement stmt, Abstraction scope, Set<Register> mustForced) {
-    var arg = stmt.expression() instanceof Force(_, var value) ? value : null;
+    var arg = stmt.expression() instanceof Force _ ? stmt.arg(0) : null;
     if (arg instanceof Read(var reg) && scope.isParameter(reg)) {
       mustForced.add(reg);
     }

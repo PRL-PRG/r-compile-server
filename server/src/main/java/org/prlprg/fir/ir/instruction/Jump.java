@@ -1,72 +1,125 @@
 package org.prlprg.fir.ir.instruction;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.PrintMethod;
+import org.prlprg.parseprint.Printer;
 
-public sealed interface Jump extends Instruction
-    permits Checkpoint, Deopt, Goto, If, Raise, Return, Unreachable {
-  @UnmodifiableView
-  List<Target> targets();
+/// The [Instruction] that terminates a [BB]: wraps a [JumpExpression] and holds the
+/// condition/phi/stack arguments. A jump is the anchor of its block's intrusive instruction list.
+public final class Jump extends Instruction {
+  private JumpExpression expression;
+  // Backlink, set when this becomes a BB's terminator.
+  private @Nullable BB parentBB;
 
-  @UnmodifiableView
-  List<BB> targetBBs();
+  public Jump(Comments comments, JumpExpression expression, List<Argument> args) {
+    super(comments, args);
+    this.expression = expression;
+  }
+
+  public Jump(JumpExpression expression, List<Argument> args) {
+    this(new Comments(), expression, args);
+  }
+
+  public Jump(JumpExpression expression) {
+    this(new Comments(), expression, List.of());
+  }
+
+  public JumpExpression expression() {
+    return expression;
+  }
+
+  /// Replace the terminator operation while keeping the arguments. The new expression must use the
+  /// same argument layout (caller's responsibility).
+  public void setExpression(JumpExpression expression) {
+    this.expression = expression;
+  }
 
   @Override
-  Jump mapArguments(Function<Argument, Argument> transformer);
+  public @Nullable BB parentBB() {
+    return parentBB;
+  }
 
-  Jump mapTargets(Function<Target, Target> transformer);
+  /// Managed by [BB] when this jump becomes (or stops being) its terminator.
+  public void setParentBB(@Nullable BB parentBB) {
+    this.parentBB = parentBB;
+  }
 
-  @ParseMethod
-  private static Jump parse(Parser p1, Instruction.ParseContext ctx) {
-    var p = p1.withContext(ctx.inner());
-    var p2 = p.withContext(new Target.ParseContext(ctx.forBbRef(), ctx));
+  /// Install this standalone jump as the sole anchor of `bb`'s (initially empty) instruction list:
+  /// it becomes the terminator and circularly links to itself.
+  public void installAsAnchor(BB bb) {
+    if (!isStandalone()) {
+      throw new IllegalStateException("Jump is already in a CFG");
+    }
+    setParentBB(bb);
+    setNext(this);
+    setPrev(this);
+  }
 
-    var s = p.scanner();
+  /// Jumps are replaced via [BB#setJump], not removed.
+  @Override
+  public void remove() {
+    throw new UnsupportedOperationException("A Jump is replaced via BB#setJump, not removed");
+  }
 
-    var comments = ctx.comments() != null ? ctx.comments() : p.parse(Comments.class);
+  /// Jumps are replaced via [BB#setJump], not detached.
+  @Override
+  public void detach() {
+    throw new UnsupportedOperationException("A Jump is replaced via BB#setJump, not detached");
+  }
 
-    var k = s.readIdentifierOrKeyword();
-    return switch (k) {
-      case "check" -> {
-        var success = p2.parse(Target.class);
-        s.assertAndSkip("else");
-        var failure = p2.parse(Target.class);
-        yield new Checkpoint(comments, success, failure);
-      }
-      case "deopt" -> {
-        var pc = s.readInt();
-        var stack = p.parseList("[", "]", Argument.class);
-        yield new Deopt(comments, pc, stack);
-      }
-      case "if" -> {
-        var cond = p.parse(Argument.class);
-        s.assertAndSkip("then");
-        var ifTrue = p2.parse(Target.class);
-        s.assertAndSkip("else");
-        var ifFalse = p2.parse(Target.class);
-        yield new If(comments, cond, ifTrue, ifFalse);
-      }
-      case "goto" -> {
-        var target = p2.parse(Target.class);
-        yield new Goto(comments, target);
-      }
-      case "raise" -> {
-        var arg = p.parse(Argument.class);
-        yield new Raise(comments, arg);
-      }
-      case "return" -> {
-        var ret = p.parse(Argument.class);
-        yield new Return(comments, ret);
-      }
-      case "unreachable" -> new Unreachable(comments);
-      default -> throw s.fail("'check', 'deopt', 'if', 'goto', 'return' or 'unreachable'", k);
-    };
+  @UnmodifiableView
+  public List<Target> targets() {
+    return expression.targets(args());
+  }
+
+  @UnmodifiableView
+  public List<BB> targetBBs() {
+    return expression.targetBBs();
+  }
+
+  /// Apply `transformer` to each [Target], updating both the target block refs and their phi
+  /// arguments (and the corresponding def-use links).
+  public void mapTargets(Function<Target, Target> transformer) {
+    // Snapshot args: `resetArgs` clears the backing list before reading the new one.
+    var mapped = expression.mapTargets(transformer, List.copyOf(args()));
+    expression = mapped.expression();
+    resetArgs(mapped.args());
+  }
+
+  /// A standalone copy with arguments mapped through `copyArguments` (index, oldArg) -> newArg.
+  public Jump copy(BiFunction<Integer, Argument, Argument> copyArguments) {
+    var newArgs = new ArrayList<Argument>(argCount());
+    for (var i = 0; i < argCount(); i++) {
+      newArgs.add(copyArguments.apply(i, arg(i)));
+    }
+    return new Jump(comments(), expression, newArgs);
+  }
+
+  @Override
+  public void replaceWith(Instruction newInst) {
+    if (!(newInst instanceof Jump)) {
+      throw new IllegalArgumentException("A Jump can only be replaced with a Jump");
+    }
+    super.replaceWith(newInst);
+  }
+
+  @Override
+  public String toString() {
+    return Printer.toString(this);
+  }
+
+  @PrintMethod
+  private void print(Printer p) {
+    p.print(comments());
+    IrText.printJump(p, this);
   }
 }

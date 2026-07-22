@@ -288,7 +288,7 @@ BB(r1, r2, ...):
   - If the return type is fresh, return values must be fresh
   - If the return type is shared, return values must be fresh or shared
   - Return types cannot be borrowed or owned
-- **"Use" invariant**: A register `r` cannot be read or used in any instruction reachable from a `use r` argument, including again in the expression containing the argument
+- **"Use" invariant**: A register `r` cannot be read or used in any instruction reachable from a `consume r` argument, including again in the expression containing the argument
 - **Effects**: A non-effectful version or promise cannot contain an effectful expression:
   - A call to an effectful or unknown function
   - A force of an effectful or unknown promise
@@ -357,7 +357,7 @@ fun main() {
     r3 = force r1;
     r4 = force r2;
     r = v(I)[r3, r4, 300];
-    return use r;
+    return consume r;
   }
 }
 ```

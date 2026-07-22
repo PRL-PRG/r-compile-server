@@ -1,10 +1,10 @@
 fun main() {
-  () -+> V { reg p:p(V +), reg r:V |
+  () -+> V {
     mkenv;
-    p = prom<V +>{
+    p: p(V +) = prom<V +>{
       return <int 42>;
     };
-    r = force p;
+    r: V = force p;
     popenv;
     return r;
   }

@@ -15,7 +15,7 @@ import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.instruction.Instruction;
 
 /// Computes reachable blocks in a control-flow graph.
 /// Similar to [CfgDominatorTree], except it computes reachable blocks instead of dominator blocks.
@@ -46,10 +46,13 @@ public final class CfgReachability implements CfgAnalysis {
     return Collections.unmodifiableSet(Objects.requireNonNull(maySucceed.get(reached)));
   }
 
-  /// Check if a trace that reaches `source` may reach `target` after.
-  public boolean isReachable(CfgPosition source, CfgPosition target) {
+  /// Check if a trace that reaches `source` may reach `target` after. Both must be in this [CFG].
+  public boolean isReachable(Instruction source, Instruction target) {
     return isReachable(
-        source.bb(), source.instructionIndex(), target.bb(), target.instructionIndex());
+        Objects.requireNonNull(source.parentBB()),
+        source.indexInBB(),
+        Objects.requireNonNull(target.parentBB()),
+        target.indexInBB());
   }
 
   /// Check if a trace that reaches `source` may reach `target` after.

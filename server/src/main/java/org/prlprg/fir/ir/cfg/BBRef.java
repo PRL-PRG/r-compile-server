@@ -24,4 +24,9 @@ public final class BBRef extends ForwardRef<BB> {
     var label = p.scanner().readIdentifierOrKeyword();
     return ctx.deferred.computeIfAbsent(label, _ -> new BBRef());
   }
+
+  @Override
+  public String toString() {
+    return this.get().toString();
+  }
 }

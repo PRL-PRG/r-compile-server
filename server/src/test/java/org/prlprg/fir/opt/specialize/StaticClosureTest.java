@@ -22,17 +22,17 @@ class StaticClosureTest implements OptimizationUnitTest {
             """
             fun main() {
               () --> cls { ... }
-              () --> cls { reg c:cls |
+              () --> cls {
                 mkenv;
-                c = clos target;
+                c: cls = clos target;
                 popenv;
                 return c;
               }
             }
 
             fun target() {
-              () --> I { reg loaded:* |
-                loaded = ld free;
+              () --> I {
+                loaded: * = ld free;
                 return 1;
               }
             }
@@ -41,7 +41,8 @@ class StaticClosureTest implements OptimizationUnitTest {
     assertTrue(run(module), "closure should become static");
 
     var printed = Printer.toString(module);
-    assertTrue(printed.contains("c = clos-static target"), "closure should be static:\n" + printed);
+    assertTrue(
+        printed.contains("c: cls = clos-static target"), "closure should be static:\n" + printed);
   }
 
   @Test
@@ -51,24 +52,24 @@ class StaticClosureTest implements OptimizationUnitTest {
             """
             fun main(cond) {
               (reg cond:B) --> cls { ... }
-              (reg cond:B) --> cls { reg c:cls, var free:* |
+              (reg cond:B) --> cls {
                 mkenv;
                 if cond then Defines() else Empty();
+              Join():
+                c: cls = clos target;
+                popenv;
+                return c;
+              Empty():
+                goto Join();
               Defines():
                 st free = 1;
                 goto Join();
-              Empty():
-                goto Join();
-              Join():
-                c = clos target;
-                popenv;
-                return c;
               }
             }
 
             fun target() {
-              () --> I { reg loaded:* |
-                loaded = ld free;
+              () --> I {
+                loaded: * = ld free;
                 return 1;
               }
             }
@@ -77,7 +78,8 @@ class StaticClosureTest implements OptimizationUnitTest {
     assertFalse(run(module), "maybe-defined captured variable should block conversion");
 
     var printed = Printer.toString(module);
-    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertTrue(
+        printed.contains("c: cls = clos target"), "closure should remain dynamic:\n" + printed);
     assertFalse(
         printed.contains("clos-static target"), "closure should not be static:\n" + printed);
   }
@@ -89,19 +91,21 @@ class StaticClosureTest implements OptimizationUnitTest {
             """
             fun main() {
               () -+> cls { ... }
-              () -+> cls { reg c:cls, reg p:p(V +), reg g:* |
+              () -+> cls {
                 mkenv;
-                p = prom<V +>{ return 1; };
-                g = p$free;
-                c = clos target;
+                p: p(V +) = prom<V +>{
+                  return 1;
+                };
+                g: * = p$free;
+                c: cls = clos target;
                 popenv;
                 return c;
               }
             }
 
             fun target() {
-              () --> I { reg loaded:* |
-                loaded = ld free;
+              () --> I {
+                loaded: * = ld free;
                 return 1;
               }
             }
@@ -110,7 +114,8 @@ class StaticClosureTest implements OptimizationUnitTest {
     assertFalse(run(module), "tainted local env should block conversion");
 
     var printed = Printer.toString(module);
-    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertTrue(
+        printed.contains("c: cls = clos target"), "closure should remain dynamic:\n" + printed);
     assertFalse(
         printed.contains("clos-static target"), "closure should not be static:\n" + printed);
   }
@@ -122,17 +127,17 @@ class StaticClosureTest implements OptimizationUnitTest {
             """
             fun main() {
               () --> cls { ... }
-              () --> cls { reg c:cls |
+              () --> cls {
                 mkenv;
-                c = clos target;
+                c: cls = clos target;
                 popenv;
                 return c;
               }
             }
 
             fun target() {
-              () -+> I { reg g:* |
-                g = ldf g;
+              () -+> I {
+                g: * = ldf g;
                 return 1;
               }
             }
@@ -141,7 +146,8 @@ class StaticClosureTest implements OptimizationUnitTest {
     assertFalse(run(module), "reflective closure function should block conversion");
 
     var printed = Printer.toString(module);
-    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertTrue(
+        printed.contains("c: cls = clos target"), "closure should remain dynamic:\n" + printed);
     assertFalse(
         printed.contains("clos-static target"), "closure should not be static:\n" + printed);
   }
@@ -153,17 +159,17 @@ class StaticClosureTest implements OptimizationUnitTest {
             """
             fun main() {
               () --> cls { ... }
-              () --> cls { reg c:cls, var free:* |
+              () --> cls {
                 mkenv;
                 st free = 1;
-                c = clos target;
+                c: cls = clos target;
                 popenv;
                 return c;
               }
             }
 
             fun target() {
-              () -~> I { |
+              () -~> I {
                 st-super free = 2;
                 return 1;
               }
@@ -173,7 +179,8 @@ class StaticClosureTest implements OptimizationUnitTest {
     assertFalse(run(module), "super-store to a local variable should block conversion");
 
     var printed = Printer.toString(module);
-    assertTrue(printed.contains("c = clos target"), "closure should remain dynamic:\n" + printed);
+    assertTrue(
+        printed.contains("c: cls = clos target"), "closure should remain dynamic:\n" + printed);
     assertFalse(
         printed.contains("clos-static target"), "closure should not be static:\n" + printed);
   }

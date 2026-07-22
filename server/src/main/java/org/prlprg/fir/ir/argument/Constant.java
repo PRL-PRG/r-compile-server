@@ -1,6 +1,7 @@
 package org.prlprg.fir.ir.argument;
 
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
@@ -22,6 +23,16 @@ public record Constant(Value value) implements Argument {
   @Override
   public @Nullable Register variable() {
     return null;
+  }
+
+  @Override
+  public void addUse(Use use) {
+    // A constant has no register, so it is never a use.
+  }
+
+  @Override
+  public void removeUse(Use use) {
+    // A constant has no register, so it is never a use.
   }
 
   @Override

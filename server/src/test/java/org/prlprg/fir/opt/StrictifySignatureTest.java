@@ -18,8 +18,8 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) --> I { reg r:I |
-              r = force x;
+            (reg x:p(I -)) --> I {
+              r: I = force x;
               return r;
             }
             """);
@@ -35,7 +35,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) --> I { |
+            (reg x:p(I -)) --> I {
               return 42;
             }
             """);
@@ -51,10 +51,10 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -), reg cond:L) --> I { reg r:I |
+            (reg x:p(I -), reg cond:L) --> I {
               if cond then L1() else L2();
             L1():
-              r = force x;
+              r: I = force x;
               return r;
             L2():
               return 0;
@@ -72,13 +72,13 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -), reg cond:L) --> I { reg r:I, reg r2:I |
+            (reg x:p(I -), reg cond:L) --> I {
               if cond then L1() else L2();
             L1():
-              r = force x;
+              r: I = force x;
               return r;
             L2():
-              r2 = force x;
+              r2: I = force x;
               return r2;
             }
             """);
@@ -94,7 +94,7 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { |
+            (reg x:I) --> I {
               return x;
             }
             """);
@@ -110,9 +110,9 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) -+> I { reg r:I, reg g:cls |
-              g = ldf g;
-              r = force x;
+            (reg x:p(I -)) -+> I {
+              g: cls = ldf g;
+              r: I = force x;
               return r;
             }
             """);
@@ -128,9 +128,9 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p(I -)) -+> I { reg r:I, reg g:V |
-              r = force x;
-              g = ldf g;
+            (reg x:p(I -)) -+> I {
+              r: I = force x;
+              g: V = ldf g;
               return r;
             }
             """);
@@ -146,8 +146,8 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:p?(I -)) --> I { reg r:I |
-              r = force? x;
+            (reg x:p?(I -)) --> I {
+              r: I = force? x;
               return r;
             }
             """);
@@ -165,18 +165,19 @@ class StrictifySignatureTest implements AbstractionOptimizationUnitTest {
             """
             fun f(x) {
               (reg x:p(I -)) --> I { ... }
-              (reg x:p(I -)) --> I { reg r:I, reg c:B |
-                c = blackBox< B --> B >(TRUE);
+              (reg x:p(I -)) --> I {
+                c: B = blackBox< B --> B >(TRUE);
                 check L1() else L2();
               L1():
                 c ?= TRUE;
-                r = force x;
+                r: I = force x;
                 return r;
               L2():
                 mkenv;
                 deopt 0 [];
               }
             }
+
             fun blackBox(x) {
               (reg x:B) --> B { ... }
             }
