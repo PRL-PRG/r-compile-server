@@ -28,6 +28,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -140,7 +141,14 @@ public final class IrText {
         }
         p.printAsList("[", "]", elements);
       }
-      case MkEnv _ -> w.write("mkenv");
+      case MkEnv(var type) -> {
+        w.write("mkenv");
+        switch (type) {
+          case REGULAR -> {}
+          case NON_REFLECTIVE -> w.write('~');
+          case ELIDED -> w.write('-');
+        }
+      }
       case PopEnv _ -> w.write("popenv");
       case Noop _ -> w.write("noop");
       case Dup _ -> {
@@ -173,8 +181,12 @@ public final class IrText {
         p.print(args.get(1));
       }
       case Assume(var assumption) -> printAssume(p, assumption, args);
-      case Promise(var valueType, var effects, var code) -> {
-        w.write("prom<");
+      case Promise(var valueType, var effects, var code, var local) -> {
+        w.write("prom");
+        if (local) {
+          w.write('-');
+        }
+        w.write('<');
         p.print(valueType);
         w.write(' ');
         p.print(effects);
@@ -486,11 +498,18 @@ public final class IrText {
             return new ParsedExpr(new Load(type, variable), List.of());
           }
         case "mkenv":
-          return new ParsedExpr(new MkEnv(), List.of());
+          {
+            var type =
+                s.trySkip('-')
+                    ? MkEnvType.ELIDED
+                    : s.trySkip('~') ? MkEnvType.NON_REFLECTIVE : MkEnvType.REGULAR;
+            return new ParsedExpr(new MkEnv(type), List.of());
+          }
         case "popenv":
           return new ParsedExpr(new PopEnv(), List.of());
         case "prom":
           {
+            var local = s.trySkip('-');
             s.assertAndSkip('<');
             var valueType = p.parse(Type.class);
             var effects = p.parse(Effects.class);
@@ -500,7 +519,7 @@ public final class IrText {
             var childCtx = ctx.withCfg(promiseCfg);
             promiseCfg.parseInto(p.withContext(childCtx), childCtx);
             s.assertAndSkip('}');
-            return new ParsedExpr(new Promise(valueType, effects, promiseCfg), List.of());
+            return new ParsedExpr(new Promise(valueType, effects, promiseCfg, local), List.of());
           }
         case "st":
           {
