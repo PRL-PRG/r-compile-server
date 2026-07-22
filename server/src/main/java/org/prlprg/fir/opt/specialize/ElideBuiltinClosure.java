@@ -3,17 +3,17 @@ package org.prlprg.fir.opt.specialize;
 import static org.prlprg.fir.GlobalModules.BUILTINS;
 import static org.prlprg.fir.GlobalModules.INTRINSICS;
 
-import org.jspecify.annotations.Nullable;
+import java.util.ArrayList;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.instruction.Statement;
 
 /// Removes the closure-with-environment argument from static calls to builtins and intrinsics,
 /// since those functions don't have a closure environment.
@@ -24,33 +24,30 @@ public record ElideBuiltinClosure() implements SpecializeOptimization {
   }
 
   @Override
-  public Expression run(
+  public Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Call(var callee, var callArguments)
+    if (!(statement.expression() instanceof Call(var callee)
         && callee instanceof StaticFnCallee staticCallee
-        && !staticCallee.closureWithEnv().equals(Constant.ELIDED_CLOSURE))) {
-      return expression;
+        // The closure-with-env is the call's argument at index 0.
+        && !statement.arg(0).equals(Constant.ELIDED_CLOSURE))) {
+      return Result.UNCHANGED;
     }
 
     var owner = staticCallee.function().owner();
     if (owner != BUILTINS && owner != INTRINSICS) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
-    return new Call(
-        new StaticFnCallee(
-            staticCallee.functionRef(),
-            staticCallee.isDispatch(),
-            Constant.ELIDED_CLOSURE,
-            staticCallee.signature()),
-        callArguments);
+    // Replace the closure-with-env argument (index 0) with the elided closure.
+    var newArgs = new ArrayList<Argument>(statement.args());
+    newArgs.set(0, Constant.ELIDED_CLOSURE);
+    return new Result.Replace(statement.expression(), newArgs);
   }
 }

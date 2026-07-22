@@ -1,27 +1,27 @@
 fun main() {
-  () -+> V { reg out:V |
-    out = call_f< -+> V >();
+  () -+> V {
+    out: V = call_f< -+> V >();
     return out;
   }
 }
 
 fun call_f() {
-  () -+> V { reg callee:cls, reg callee1:cls, reg lf:cls |
-    callee = clos target;
+  () -+> V {
+    callee: cls = clos target;
     check BB1() else BBdeopt1();
+  BBdeopt1():
+    mkenv;
+    deopt 0 [callee];
   BB1():
-    callee1 = callee ?- target;
+    callee1: cls = callee ?- target;
     mkenv;
     st-super target = callee1;
     popenv;
-    lf = ldf target;
+    lf: cls = ldf target;
     check BB2() else BBdeopt2();
   BB2():
     lf ?- target;
     return <int 7>;
-  BBdeopt1():
-    mkenv;
-    deopt 0 [callee];
   BBdeopt2():
     mkenv;
     deopt 0 [callee];
@@ -29,7 +29,7 @@ fun call_f() {
 }
 
 fun target() {
-  () --> v1(I) { |
+  () --> v1(I) {
     return <int 7>;
   }
 }

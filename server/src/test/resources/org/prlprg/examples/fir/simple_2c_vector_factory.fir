@@ -1,23 +1,23 @@
 fun main() {
-  () -~> v1(I) { reg vec:v(I)o, reg first:I, reg third:I, reg sum:I, reg sumu:v1(I) |
-    vec = build_vector< -~> v(I)f >();
-    first = vec[0];
-    third = vec[2];
-    sum = `+`< I,I --> I >(first, third);
-    sumu = box< I --> v1(I) >(sum);
+  () -~> v1(I) {
+    vec: v(I)o = build_vector< -~> v(I)f >();
+    first: I = vec[0];
+    third: I = vec[2];
+    sum: I = `+`< I,I --> I >(first, third);
+    sumu: v1(I) = box< I --> v1(I) >(sum);
     return sumu;
   }
 }
 
 fun build_vector() {
-  () -~> v(I)f { reg vec:v(I)o, reg middle:I, reg middle1:I, reg r0:I, reg r1:I, reg r2:I |
-    vec = v(I)[4, 8, 12];
-    middle = vec[1];
-    middle1 = `+`< I,I --> I >(middle, 5);
+  () -~> v(I)f {
+    vec: v(I)o = v(I)[4, 8, 12];
+    middle: I = vec[1];
+    middle1: I = `+`< I,I --> I >(middle, 5);
     vec[1] = middle1;
-    r0 = vec[2];
-    r1 = vec[1];
-    r2 = `+`< I,I --> I >(r0, r1);
+    r0: I = vec[2];
+    r1: I = vec[1];
+    r2: I = `+`< I,I --> I >(r0, r1);
     vec[2] = r2;
     return consume vec;
   }

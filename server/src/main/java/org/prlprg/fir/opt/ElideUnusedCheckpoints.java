@@ -2,11 +2,13 @@ package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.ir.cfg.iterator.BbReverseDfs.bbReverseDfsNoDeopts;
 
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.instruction.Checkpoint;
+import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.module.Function;
 
 /// Removes checkpoint jumps whose success BB has no [Assume] statements.
@@ -28,11 +30,11 @@ public record ElideUnusedCheckpoints() implements AbstractionOptimization {
             cfg -> {
               // Reverse DFS because we delete BBs and merge successors.
               for (var bb : bbReverseDfsNoDeopts(cfg)) {
-                if (!(bb.jump() instanceof Checkpoint checkpoint)) {
+                if (!(bb.jump().expression() instanceof Checkpoint checkpoint)) {
                   continue;
                 }
 
-                var successBb = checkpoint.success().bb();
+                var successBb = checkpoint.success().get();
 
                 // Check that the success BB has no assumptions.
                 boolean hasAssume =
@@ -47,15 +49,22 @@ public record ElideUnusedCheckpoints() implements AbstractionOptimization {
                   continue;
                 }
 
-                // Inline the success BB: append its statements and adopt its jump.
-                bb.appendStatements(successBb.statements());
-                bb.setJump(successBb.jump());
+                // Inline the success BB: move its statements before this block's terminator and
+                // adopt a copy of its jump.
+                for (var s : List.copyOf(successBb.statements())) {
+                  s.moveBefore(bb.jump());
+                }
+                bb.setJump(
+                    new Jump(
+                        successBb.jump().comments(),
+                        successBb.jump().expression(),
+                        List.copyOf(successBb.jump().args())));
 
                 // Remove the now-orphaned success BB.
                 cfg.removeBB(successBb);
 
                 // Remove the deopt BB if it has no remaining predecessors.
-                var deoptBb = checkpoint.deopt().bb();
+                var deoptBb = checkpoint.deopt().get();
                 if (deoptBb.predecessors().isEmpty()) {
                   cfg.removeBB(deoptBb);
                 }

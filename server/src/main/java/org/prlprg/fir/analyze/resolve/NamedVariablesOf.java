@@ -7,7 +7,6 @@ import org.jetbrains.annotations.Unmodifiable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -44,9 +43,8 @@ public class NamedVariablesOf implements Analysis {
             statement ->
                 switch (statement.expression()) {
                   case Load(_, var v) -> Stream.of(v);
-                  case Store(_, var v, _) -> Stream.of(v);
-                  case Aea _,
-                      Assume _,
+                  case Store(_, var v) -> Stream.of(v);
+                  case Assume _,
                       Call _,
                       Cast _,
                       Closure _,

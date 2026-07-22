@@ -1,6 +1,5 @@
 package org.prlprg.fir.opt;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +14,7 @@ import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.instruction.Checkpoint;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.variable.Register;
@@ -53,11 +53,11 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
 
   private static boolean tryMerge(BB bb) {
     // Find first checkpoint: `check successBb1() else deoptBb1()`
-    if (!(bb.jump() instanceof Checkpoint cp1)) {
+    if (!(bb.jump().expression() instanceof Checkpoint cp1)) {
       return false;
     }
 
-    var successBb1 = cp1.success().bb();
+    var successBb1 = cp1.success().get();
 
     // Success BB must have one predecessor and no phi parameters (general invariant).
     if (successBb1.predecessors().size() != 1 || !successBb1.phiParameters().isEmpty()) {
@@ -65,13 +65,13 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
     }
 
     // Success BB must end with a second checkpoint.
-    if (!(successBb1.jump() instanceof Checkpoint cp2)) {
+    if (!(successBb1.jump().expression() instanceof Checkpoint cp2)) {
       return false;
     }
 
-    var successBb2 = cp2.success().bb();
-    var deoptBb1 = cp1.deopt().bb();
-    var deoptBb2 = cp2.deopt().bb();
+    var successBb2 = cp2.success().get();
+    var deoptBb1 = cp1.deopt().get();
+    var deoptBb2 = cp2.deopt().get();
 
     // Second success BB must also have no phi parameters (general invariant).
     if (!successBb2.phiParameters().isEmpty()) {
@@ -79,7 +79,8 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
     }
 
     // Both deopt BBs must end with Deopt jumps (general invariant).
-    if (!(deoptBb1.jump() instanceof Deopt deopt1) || !(deoptBb2.jump() instanceof Deopt deopt2)) {
+    if (!(deoptBb1.jump().expression() instanceof Deopt deopt1)
+        || !(deoptBb2.jump().expression() instanceof Deopt deopt2)) {
       return false;
     }
 
@@ -116,7 +117,7 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
     // defined by non-assumption statements in the first success BB.
     if (!definedByNonAssumes1.isEmpty()) {
       for (var stmt : assumes2) {
-        for (var arg : stmt.arguments()) {
+        for (var arg : stmt.args()) {
           if (arg.variable() != null && definedByNonAssumes1.contains(arg.variable())) {
             return false;
           }
@@ -135,12 +136,14 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
       return false;
     }
 
-    // 2. Same deopt stack (looking through assumptions)
-    if (deopt1.stack().size() != deopt2.stack().size()) {
+    // 2. Same deopt stack (the deopt jumps' arguments), looking through assumptions
+    var deopt1Stack = deoptBb1.jump().args();
+    var deopt2Stack = deoptBb2.jump().args();
+    if (deopt1Stack.size() != deopt2Stack.size()) {
       return false;
     }
-    for (int i = 0; i < deopt1.stack().size(); i++) {
-      if (!argsEffectivelyEqual(deopt1.stack().get(i), deopt2.stack().get(i), assumeTargetMap)) {
+    for (int i = 0; i < deopt1Stack.size(); i++) {
+      if (!argsEffectivelyEqual(deopt1Stack.get(i), deopt2Stack.get(i), assumeTargetMap)) {
         return false;
       }
     }
@@ -157,22 +160,21 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
     }
 
     // --- Merge ---
-    // The merged success BB gets: assumes1, assumes2, nonAssumes1, nonAssumes2,
-    // and successBb2's jump.
-
-    var mergedStatements = new ArrayList<Statement>();
-    mergedStatements.addAll(assumes1);
-    mergedStatements.addAll(assumes2);
-    mergedStatements.addAll(nonAssumes1);
-    mergedStatements.addAll(nonAssumes2);
-
-    // Clear and repopulate successBb1.
-    int stmtCount1 = successBb1.statements().size();
-    if (stmtCount1 > 0) {
-      successBb1.removeStatementsAt(0, stmtCount1);
+    // The merged success BB gets: assumes1, assumes2, nonAssumes1, nonAssumes2, and successBb2's
+    // jump. `assumes1`/`nonAssumes1` are already in `successBb1` in order, so we only move
+    // `assumes2` (between them) and `nonAssumes2` (to the end), preserving def-use links.
+    var pointForAssumes2 = nonAssumes1.isEmpty() ? successBb1.jump() : nonAssumes1.getFirst();
+    for (var s : assumes2) {
+      s.moveBefore(pointForAssumes2);
     }
-    successBb1.appendStatements(mergedStatements);
-    successBb1.setJump(successBb2.jump());
+    for (var s : nonAssumes2) {
+      s.moveBefore(successBb1.jump());
+    }
+    successBb1.setJump(
+        new Jump(
+            successBb2.jump().comments(),
+            successBb2.jump().expression(),
+            List.copyOf(successBb2.jump().args())));
 
     // Remove successBb2 if it has no remaining predecessors.
     var cfg = successBb1.owner();
@@ -196,8 +198,8 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
       for (var stmt : stmts) {
         if (stmt.assignee() != null
             && stmt.expression() instanceof Assume(var assumption)
-            && assumption instanceof AssumeType(var target, _)
-            && target instanceof Read(var targetReg)) {
+            && assumption instanceof AssumeType
+            && stmt.arg(0) instanceof Read(var targetReg)) {
           map.put(stmt.assignee(), targetReg);
         }
       }
@@ -243,8 +245,8 @@ public record MergeConsecutiveCheckpoints() implements AbstractionOptimization {
       return false;
     }
     // Arguments must match (looking through assumptions)
-    var argsA = List.copyOf(a.arguments());
-    var argsB = List.copyOf(b.arguments());
+    var argsA = List.copyOf(a.args());
+    var argsB = List.copyOf(b.args());
     if (argsA.size() != argsB.size()) {
       return false;
     }

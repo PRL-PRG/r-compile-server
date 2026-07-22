@@ -13,13 +13,11 @@ import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.MkEnv;
@@ -34,6 +32,7 @@ import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Return;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Concreteness;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
@@ -42,7 +41,7 @@ import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Infer the [Type] of [CFG]s and [Expression]s.
+/// Infer the [Type] of [CFG]s and [Statement]s.
 ///
 /// This analysis is **on-demand**: it only infers when called the type of the argument, and
 /// remains accurate if the code changes (except previous return values are invalidated when
@@ -58,8 +57,9 @@ public final class InferType implements Analysis {
   public @Nullable Type of(CFG cfg) {
     Type result = null;
     for (var bb : cfg.bbs()) {
-      switch (bb.jump()) {
-        case Return(_, var value) -> result = Type.union(result, of(value));
+      var jump = bb.jump();
+      switch (jump.expression()) {
+        case Return _ -> result = Type.union(result, of(jump.arg(0)));
         case Deopt _ -> {
           return Type.ANY_VALUE_SEXP;
         }
@@ -69,28 +69,29 @@ public final class InferType implements Analysis {
     return result;
   }
 
-  public @Nullable Type of(Expression expression) {
-    return switch (expression) {
-      case Aea(var value) -> of(value);
+  /// The type of the value `statement` assigns (or would assign). Arg-dependent operations read
+  /// the statement's arguments.
+  public @Nullable Type of(Statement statement) {
+    return switch (statement.expression()) {
       case Assume(var assumption) ->
           switch (assumption) {
-            case AssumeType(_, var type) -> type;
+            case AssumeType(var type) -> type;
             case AssumeFunction _, AssumeLoadFun _ -> Type.CLOSURE;
             case AssumeConstant _, AssumeLoadVar _ -> null;
           };
       case Call call ->
           switch (call.callee()) {
-            case StaticFnCallee(_, _, _, var signature) -> signature.returnType();
+            case StaticFnCallee(_, _, var signature) -> signature.returnType();
             case DynamicCallee _ -> Type.ANY_VALUE_SEXP;
           };
-      case Cast(_, var castType) -> castType;
+      case Cast(var castType) -> castType;
       case Closure _ -> Type.CLOSURE;
-      case Dup(var value) -> {
-        var type = of(value);
+      case Dup _ -> {
+        var type = of(statement.arg(0));
         yield type == null ? null : type.withOwnership(Ownership.FRESH);
       }
-      case Force(var isMaybe, var value) -> {
-        var type = of(value);
+      case Force(var isMaybe) -> {
+        var type = of(statement.arg(0));
         yield type == null || (!isMaybe && !type.isPromise())
             ? null
             : type.concreteness() == Concreteness.MAYBE
@@ -113,8 +114,8 @@ public final class InferType implements Analysis {
       case Promise(var valueType, var effects, _) -> Type.promise(valueType, effects);
       case ReflectiveLoad _ -> Type.ANY_SEXP;
       case ReflectiveStore _, Store _ -> null;
-      case SubscriptRead(var target, _) -> {
-        var targetType = of(target);
+      case SubscriptRead _ -> {
+        var targetType = of(statement.arg(0));
         if (targetType == null || !(targetType.kind() instanceof PrimitiveVector(_, var kind))) {
           yield null;
         }

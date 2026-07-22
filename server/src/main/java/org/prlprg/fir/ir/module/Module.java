@@ -13,8 +13,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.observer.Observer;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
@@ -59,7 +59,7 @@ public final class Module {
   public Function addFunction(
       NamedVariable name,
       List<NamedVariable> parameterNames,
-      List<Parameter> baselineParameters,
+      List<FunctionParameter> baselineParameters,
       boolean baselineIsStub) {
     return this.record(
         "Module#addFunction",
@@ -143,32 +143,30 @@ public final class Module {
   }
 
   @ParseMethod
-  private static Module parse(org.prlprg.parseprint.Parser p) {
+  private static Module parse(Parser p) {
     var s = p.scanner();
     var module = new Module();
 
     var deferredFunctions = new LinkedHashMap<NamedVariable, FunctionRef>();
-    var p1 =
+    var functionParser =
         p.withContext(
-            new Function.ParseContext(
-                module, new FunctionRef.ParseContext(deferredFunctions), p.context()));
+            new Function.ParseContext(module, new FunctionRef.ParseContext(deferredFunctions)));
 
     while (!s.isAtEof() && !s.nextCharIs('}')) {
-      var function = p1.parse(Function.class);
+      var function = functionParser.parse(Function.class);
       if (module.functions.put(function.name(), function) != null) {
         throw new IllegalArgumentException(
             "Function with name '" + function.name() + "' already exists.");
       }
     }
 
+    // Resolve forward references to functions (e.g. recursive or mutually-recursive calls).
     for (var entry : deferredFunctions.entrySet()) {
-      var name = entry.getKey();
-      var deferred = entry.getValue();
-      var function = module.lookupFunction(name);
+      var function = module.lookupFunction(entry.getKey());
       if (function == null) {
-        throw s.fail("Function not found: " + name);
+        throw s.fail("function not found: " + entry.getKey());
       }
-      deferred.set(function);
+      entry.getValue().set(function);
     }
 
     return module;

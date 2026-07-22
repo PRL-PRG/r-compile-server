@@ -1,42 +1,13 @@
 package org.prlprg.fir.ir.callee;
 
 import com.google.common.collect.ImmutableList;
-import java.util.List;
-import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
-import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 
-public record DynamicCallee(
-    Argument actualCallee, ImmutableList<OptionalNamedVariable> callArgumentNames)
+/// A call to a dynamically-determined callee. The actual callee is the owning statement's argument
+/// at index 0, and [#callArgumentNames] names the call arguments that follow it.
+public record DynamicCallee(ImmutableList<OptionalNamedVariable> callArgumentNames)
     implements Callee {
-  public DynamicCallee(Argument actualCallee) {
-    this(actualCallee, ImmutableList.of());
-  }
-
-  @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return List.of(actualCallee);
-  }
-
-  @Override
-  public Callee mapArguments(Function<Argument, Argument> transformer) {
-    return new DynamicCallee(transformer.apply(actualCallee), callArgumentNames);
-  }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.writer().write("dyn ");
-    p.print(actualCallee);
-    if (callArgumentNames.stream().anyMatch(OptionalNamedVariable::isPresent)) {
-      p.printAsList("[", "]", callArgumentNames);
-    }
+  public DynamicCallee() {
+    this(ImmutableList.of());
   }
 }

@@ -1,15 +1,9 @@
 package org.prlprg.fir.ir.callee;
 
-import java.util.List;
-import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
-import org.jetbrains.annotations.Unmodifiable;
-import org.prlprg.fir.ir.argument.Argument;
 
+/// The metadata of a [Call][org.prlprg.fir.ir.expression.Call]. Argument-free: the callee's own
+/// argument (a [StaticFnCallee]'s closure-with-env, or a [DynamicCallee]'s actual callee) is the
+/// owning statement's argument at index 0, and the call arguments follow it.
 @Immutable
-public sealed interface Callee permits StaticFnCallee, DynamicCallee {
-  @Unmodifiable
-  List<Argument> arguments();
-
-  Callee mapArguments(Function<Argument, Argument> transformer);
-}
+public sealed interface Callee permits StaticFnCallee, DynamicCallee {}

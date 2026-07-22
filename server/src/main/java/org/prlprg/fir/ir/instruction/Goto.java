@@ -1,55 +1,30 @@
 package org.prlprg.fir.ir.instruction;
 
+import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 
-public record Goto(Comments comments, Target target) implements Jump {
-  public Goto(Target target) {
-    this(new Comments(), target);
-  }
-
+/// Unconditional jump to [#target]; the owning jump's arguments are the target's phi arguments.
+public record Goto(BBRef target) implements JumpExpression {
   @Override
-  public @UnmodifiableView List<Target> targets() {
+  @UnmodifiableView
+  public List<BBRef> targetRefs() {
     return List.of(target);
   }
 
   @Override
-  public @UnmodifiableView List<BB> targetBBs() {
-    return List.of(target.bb());
+  @UnmodifiableView
+  public List<Target> targets(List<Argument> args) {
+    return List.of(new Target(target, ImmutableList.copyOf(args)));
   }
 
   @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return target.phiArgs();
-  }
-
-  @Override
-  public Jump mapArguments(Function<Argument, Argument> transformer) {
-    return new Goto(comments, target.mapArguments(transformer));
-  }
-
-  @Override
-  public Jump mapTargets(Function<Target, Target> transformer) {
-    return new Goto(comments, transformer.apply(target));
-  }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.print(comments);
-    p.writer().write("goto ");
-    p.print(target);
+  public Mapped mapTargets(Function<Target, Target> transformer, List<Argument> args) {
+    var mapped = transformer.apply(new Target(target, ImmutableList.copyOf(args)));
+    return new Mapped(new Goto(mapped.bbRef()), mapped.phiArgs());
   }
 }

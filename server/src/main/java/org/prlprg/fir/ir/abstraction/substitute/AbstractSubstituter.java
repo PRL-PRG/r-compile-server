@@ -12,8 +12,7 @@ import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
@@ -94,7 +93,7 @@ abstract class AbstractSubstituter {
       var newPhi = substitutePhi(bb, oldPhi);
       if (newPhi == null) {
         for (var pred : bb.predecessors()) {
-          pred.setJump(removingJumpArgument(pred.jump(), bb, i));
+          removingJumpArgument(pred.jump(), bb, i);
         }
         bb.removeParameterAt(i);
         i--;
@@ -103,27 +102,34 @@ abstract class AbstractSubstituter {
       }
     }
 
-    for (var i = 0; i < bb.statements().size(); i++) {
-      var statement = bb.statements().get(i);
-      var pos = new CfgPosition(bb, i);
-      var newAssignee = substituteAssignee(pos, statement.assignee());
-      var newStatement =
-          statement.expression() instanceof Promise
-              ? statement
-              : statement.mapArguments(arg -> substitute(pos, arg));
-      bb.replaceStatementAt(
-          i, new Statement(newStatement.comments(), newAssignee, newStatement.expression()));
+    var statements = bb.statements();
+    for (var i = 0; i < statements.size(); i++) {
+      var statement = statements.get(i);
+      final var index = i;
+
+      // Substitute arguments in place (promises hold their arguments in the nested CFG, which is
+      // visited separately via `streamCfgs`).
+      if (!(statement.expression() instanceof Promise)) {
+        statement.mapArguments(arg -> substitute(bb, index, arg));
+      }
+
+      // A `null` new assignee means the result is no longer assigned anywhere (the register was
+      // substituted away); a register exists only by virtue of its assignee, so clearing it
+      // removes it from the scope.
+      if (substituteAssignee(bb, index, statement.assignee()) == null
+          && statement.assignee() != null) {
+        statement.clearAssignee();
+      }
     }
-    var jumpPos = new CfgPosition(bb, bb.statements().size());
-    bb.setJump(bb.jump().mapArguments(arg -> substitute(jumpPos, arg)));
+    bb.jump().mapArguments(arg -> substitute(bb, statements.size(), arg));
   }
 
-  protected abstract @Nullable Register substitutePhi(BB bb, Register phi);
+  protected abstract @Nullable BlockParameter substitutePhi(BB bb, BlockParameter phi);
 
   protected abstract @Nullable Register substituteAssignee(
-      CfgPosition pos, @Nullable Register assignee);
+      BB bb, int index, @Nullable Register assignee);
 
-  protected abstract Argument substitute(CfgPosition pos, Argument argument);
+  protected abstract Argument substitute(BB bb, int index, Argument argument);
 
   protected final Argument convertIntoConsume(Argument argument) {
     return switch (argument) {

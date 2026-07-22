@@ -119,17 +119,14 @@ import org.prlprg.fir.analyze.type.InferType;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
-import org.prlprg.fir.ir.argument.NamedArgument;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.binding.Local;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.callee.DynamicCallee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.cfg.cursor.JumpInsertion;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Expression;
@@ -159,6 +156,8 @@ import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.BlockParameter;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -193,7 +192,7 @@ public class BC2FirCFGCompiler {
   public static void compile(@Nullable RSession r, CFG cfg, Bc bc) {
     if (cfg.bbs().size() != 1
         || !cfg.entry().statements().isEmpty()
-        || !(cfg.entry().jump() instanceof Unreachable)) {
+        || !(cfg.entry().jump().expression() instanceof Unreachable)) {
       throw new IllegalArgumentException("CFG must be empty");
     }
 
@@ -251,18 +250,18 @@ public class BC2FirCFGCompiler {
   }
 
   private void compileParameter(
-      Parameter parameter, NamedVariable parameterName, SEXP parameterDefault) {
+      FunctionParameter parameter, NamedVariable parameterName, SEXP parameterDefault) {
     // Note: We don't use all `CFGCompiler` machinery,
     // e.g. we don't track phis because they're trivial.
 
-    // Add parameter local named variable (only for documentation unless type is DOTS)
+    // Declare parameter local named variable (only for documentation unless type is DOTS)
     var parameterVarType = parameter.type().withConcreteness(Concreteness.MAYBE);
-    scope().addLocal(new Local(parameterName, parameterVarType));
+    scope().setNamedVariableType(parameterName, parameterVarType);
 
     // Compile "compute default" if necessary, then "store parameter"
     if (parameterDefault == SEXPs.MISSING_ARG) {
       // The parameter never has a default, so just compile "store provided parameter"
-      insert(new Store(StoreType.LOCAL_VAR, parameterName, new Read(parameter.variable())));
+      insert(new Store(StoreType.LOCAL_VAR, parameterName), new Read(parameter));
     } else {
       // Compile "compute default if missing, otherwise store provided parameter"
 
@@ -273,42 +272,41 @@ public class BC2FirCFGCompiler {
       var defaultIsConstant =
           parameterDefault instanceof NilSXP || parameterDefault instanceof PrimVectorSXP<?>;
 
-      var parameterIsMissing = scope().addLocal(parameterName.name() + "_isMissing", Type.BOOLEAN);
-      var parameterPhi = scope().addLocal(parameterName.name() + "_orDefault", Type.ANY_SEXP);
-
       var computeDefaultBb = defaultIsConstant ? null : cfg.addBB();
       var afterBb = cfg.addBB();
+      var parameterPhi =
+          new BlockParameter(scope().freshName(parameterName.name() + "_orDefault"), Type.ANY_SEXP);
 
-      insert(
-          new Statement(
-              parameterIsMissing,
+      var parameterIsMissing =
+          insertAndReturn(
+              parameterName.name() + "_isMissing",
               builtin(
                   "missing",
                   new Signature(ImmutableList.of(Type.ANY_SEXP), Type.BOOLEAN, Effects.NONE),
-                  new Read(parameter.variable()))));
+                  new Read(parameter)));
       cursor.advance();
       if (defaultIsConstant) {
+        // Both targets are `afterBb`; the true target's phi is the default, the false target's is
+        // the provided parameter.
         cursor.replace(
-            new If(
-                new Read(parameterIsMissing),
-                new Target(afterBb, new Constant(parameterDefault)),
-                new Target(afterBb, new Read(parameter.variable()))));
+            new Jump(
+                new If(new BBRef(afterBb), new BBRef(afterBb), 1),
+                List.of(parameterIsMissing, new Constant(parameterDefault), new Read(parameter))));
       } else {
         cursor.replace(
-            new If(
-                new Read(parameterIsMissing),
-                new Target(computeDefaultBb),
-                new Target(afterBb, new Read(parameter.variable()))));
+            new Jump(
+                new If(new BBRef(computeDefaultBb), new BBRef(afterBb), 0),
+                List.of(parameterIsMissing, new Read(parameter))));
 
         cursor.moveToStart(computeDefaultBb);
         var defaultParameter = compilePromise(parameterDefault);
         cursor.advance();
-        cursor.replace(new Goto(new Target(afterBb, defaultParameter)));
+        cursor.replace(new Jump(new Goto(new BBRef(afterBb)), List.of(defaultParameter)));
       }
 
       cursor.moveToStart(afterBb);
       afterBb.appendPhiParameter(parameterPhi);
-      insert(new Store(StoreType.LOCAL_VAR, parameterName, new Read(parameterPhi)));
+      insert(new Store(StoreType.LOCAL_VAR, parameterName), new Read(parameterPhi));
     }
   }
 
@@ -427,7 +425,7 @@ public class BC2FirCFGCompiler {
         if (!cfg.isPromise()) {
           insert(new PopEnv());
         }
-        insert(_ -> new Return(retVal));
+        insert(_ -> new Jump(new Return(), List.of(retVal)));
       }
       case BcInstr.Goto(var label) -> {
         var bb = bbAt(label);
@@ -531,8 +529,8 @@ public class BC2FirCFGCompiler {
                     new Signature(
                         ImmutableList.of(Type.ANY_VALUE_SEXP), Type.BOXED_INTEGER, Effects.NONE),
                     seq));
-        var init = new Constant(SEXPs.integer(0));
-        var index = insertAndReturn("_idx", new Aea(init));
+        // The initial index is the constant 0; it flows directly into the step block's phi.
+        Argument index = new Constant(SEXPs.integer(0));
         // Must be pushed for deopt in body
         push(length);
         push(index);
@@ -595,7 +593,7 @@ public class BC2FirCFGCompiler {
                     new Constant(SEXPs.MISSING_ARG),
                     new Constant(SEXPs.MISSING_ARG)));
         // Store in the element variable
-        insert(new Store(StoreType.LOCAL_VAR, getVar(elemName), elem));
+        insert(new Store(StoreType.LOCAL_VAR, getVar(elemName)), elem);
         // Now we compile the rest of the body...
         // When we encounter `StepFor`, we know that the body is over. Note that we may no longer be
         // in `forBodyBb`: that is just the first BB in the for body, there may be more.
@@ -670,7 +668,7 @@ public class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false, preStack);
 
-        pushInsert(getStr(name), new Force(true, pop()));
+        pushInsert(getStr(name), new Force(true), pop());
         insert(intrinsic("checkMissing", top()));
         tryAddCheckpoint(true, stack);
       }
@@ -680,11 +678,11 @@ public class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, ddIndex));
         tryAddCheckpoint(false, preStack);
 
-        pushInsert(getStr(name), new Force(true, pop()));
+        pushInsert(getStr(name), new Force(true), pop());
         insert(intrinsic("checkMissing", top()));
         tryAddCheckpoint(true, stack);
       }
-      case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name), top()));
+      case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name)), top());
       case GetFun(var name) -> {
         var fun = insertAndReturn(getStr(name), new Load(LoadType.LOCAL_FUN, getVar(name)));
         pushCall(fun);
@@ -701,7 +699,7 @@ public class BC2FirCFGCompiler {
         var fun = pop();
         insert(checkFun(fun));
         var funName = fun.variable() == null ? Register.DEFAULT_NAME : fun.variable().name();
-        var castedFun = insertAndReturn(funName, new Cast(fun, Type.CLOSURE));
+        var castedFun = insertAndReturn(funName, new Cast(Type.CLOSURE), fun);
         pushCall(castedFun);
       }
       case MakeProm(var code) -> {
@@ -755,7 +753,10 @@ public class BC2FirCFGCompiler {
         // formal parameters of all specials, and some arguments may be `...`.
         var loadFun =
             insertAndReturn(builtinName, new Load(LoadType.BASE_FUN, Variable.named(builtinName)));
-        pushInsertThenCp(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun), args));
+        pushInsertThenCp(
+            new Built(
+                new org.prlprg.fir.ir.expression.Call(new DynamicCallee()),
+                prependArg(loadFun, args)));
       }
       case MakeClosure(var arg) -> {
         var fb = get(arg);
@@ -809,7 +810,7 @@ public class BC2FirCFGCompiler {
       }
       case EndAssign(var name) -> {
         var lhs = popComplexAssign(false, get(name));
-        insert(new Store(StoreType.LOCAL_VAR, getVar(name), lhs));
+        insert(new Store(StoreType.LOCAL_VAR, getVar(name)), lhs);
       }
       case Dollar(var _, var member) -> {
         var memberArg = new Constant(get(member));
@@ -902,7 +903,7 @@ public class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, getVar(name)));
         tryAddCheckpoint(false, preStack);
 
-        pushInsertThenCp(getStr(name), new Force(true, pop()));
+        pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case DdValMissOk(var name) -> {
         var preStack = ImmutableList.copyOf(stack);
@@ -910,10 +911,10 @@ public class BC2FirCFGCompiler {
         pushInsert(getStr(name), new Load(LoadType.LOCAL_VAR, NamedVariable.ddNum(ddIndex)));
         tryAddCheckpoint(false, preStack);
 
-        pushInsertThenCp(getStr(name), new Force(true, pop()));
+        pushInsertThenCp(getStr(name), new Force(true), pop());
       }
       case Visible() -> insert(intrinsic("setVisible"));
-      case SetVar2(var name) -> insert(new Store(StoreType.SUPER_VAR, getVar(name), top()));
+      case SetVar2(var name) -> insert(new Store(StoreType.SUPER_VAR, getVar(name)), top());
       case StartAssign2(var name) -> {
         // GNU-R has "cells" and stores the assign on the main stack.
         // But we don't have cells, and since we're compiling, we can store the assignment on its
@@ -924,7 +925,7 @@ public class BC2FirCFGCompiler {
       }
       case EndAssign2(var name) -> {
         var lhs = popComplexAssign(true, get(name));
-        insert(new Store(StoreType.SUPER_VAR, getVar(name), lhs));
+        insert(new Store(StoreType.SUPER_VAR, getVar(name)), lhs);
       }
       case SetterCall(var _, var _) -> {
         // GNU-R has to wrap these call args in evaluated promises depending on the call type,
@@ -978,7 +979,7 @@ public class BC2FirCFGCompiler {
 
         moveTo(isNotVectorBb);
         insert(stop("EXPR must be a length 1 vector"));
-        setJump(new Unreachable());
+        setJump(new Jump(new Unreachable()));
 
         moveTo(isVectorBb);
         var isFactor =
@@ -1020,26 +1021,26 @@ public class BC2FirCFGCompiler {
         if (names == null) {
           if (numLabels == null) {
             insert(stop("bad numeric 'switch' offsets"));
-            setJump(new Unreachable());
+            setJump(new Jump(new Unreachable()));
           } else if (numLabels.isScalar()) {
             insert(warning("'switch' with no alternatives"));
             setJump(goto_(new BcLabel(numLabels.get(0))));
           } else {
             insert(stop("numeric EXPR required for 'switch' without named alternatives"));
-            setJump(new Unreachable());
+            setJump(new Jump(new Unreachable()));
           }
         } else {
           if (chrLabels == null) {
             insert(stop("bad character 'switch' offsets"));
-            setJump(new Unreachable());
+            setJump(new Jump(new Unreachable()));
           } else if (names.size() != chrLabels.size()) {
             insert(stop("bad 'switch' names"));
-            setJump(new Unreachable());
+            setJump(new Jump(new Unreachable()));
           } else {
             for (var i = 0; i < chrLabels.size() - 1; i++) {
               var name = names.get(i);
               var ifMatch = bbAt(new BcLabel(chrLabels.get(i)));
-              var asString = insertAndReturn("_idx", new Cast(value, Type.BOXED_STRING));
+              var asString = insertAndReturn("_idx", new Cast(Type.BOXED_STRING), value);
               var asString1 =
                   insertAndReturn(
                       "_idx1",
@@ -1070,7 +1071,7 @@ public class BC2FirCFGCompiler {
         moveTo(asIntegerBb);
         if (numLabels == null) {
           insert(stop("bad numeric 'switch' offsets"));
-          setJump(new Unreachable());
+          setJump(new Jump(new Unreachable()));
         } else if (numLabels.isScalar()) {
           insert(warning("'switch' with no alternatives"));
           setJump(goto_(new BcLabel(numLabels.get(0))));
@@ -1119,14 +1120,17 @@ public class BC2FirCFGCompiler {
         }
         var funAndArgs = stack.subList(stack.size() - numArgs - 1, stack.size());
         var fun = funAndArgs.getFirst();
-        var args =
-            funAndArgs.subList(1, funAndArgs.size()).stream()
-                .map(NamedArgument::new)
-                .collect(ImmutableList.toImmutableList());
+        var argValues = ImmutableList.<Argument>copyOf(funAndArgs.subList(1, funAndArgs.size()));
         funAndArgs.clear();
 
-        // Insert dots list for arguments
-        var dots = insertAndReturn("_vargs", new MkVector(new Kind.Dots(), args));
+        // Insert dots list for arguments (the `.Call` arguments are unnamed).
+        var dots =
+            insertAndReturn(
+                "_vargs",
+                new Built(
+                    new MkVector(
+                        new Kind.Dots(), java.util.Collections.nCopies(argValues.size(), null)),
+                    argValues));
 
         pushInsertThenCp(builtin(".Call", fun, dots, new Constant(SEXPs.MISSING_ARG)));
       }
@@ -1166,7 +1170,10 @@ public class BC2FirCFGCompiler {
             expr.args().values().stream()
                 .map(v -> (Argument) new Constant(v))
                 .collect(ImmutableList.toImmutableList());
-        pushInsert(new org.prlprg.fir.ir.expression.Call(new DynamicCallee(base, argNames), args));
+        pushInsert(
+            new Built(
+                new org.prlprg.fir.ir.expression.Call(new DynamicCallee(argNames)),
+                prependArg(base, args)));
         setJump(goto_(afterBb));
 
         moveTo(safeBb);
@@ -1176,11 +1183,11 @@ public class BC2FirCFGCompiler {
     }
   }
 
-  private Expression mkUnop(String builtinName) {
+  private Built mkUnop(String builtinName) {
     return builtin(builtinName, pop());
   }
 
-  private Expression mkBinop(String builtinName) {
+  private Built mkBinop(String builtinName) {
     var rhs = pop();
     var lhs = pop();
     return builtin(builtinName, lhs, rhs);
@@ -1221,8 +1228,8 @@ public class BC2FirCFGCompiler {
             // so `loop.end` will only consist of a `Goto` to the "real" end BB. This is allowed,
             // and this long inverted AND-chain checks if it's the case.
             && !(loop.end.statements().isEmpty()
-                && loop.end.jump() instanceof Goto(var _, var loopEndGoto)
-                && loopEndGoto.bb() == cursor.bb()))
+                && loop.end.jump().expression() instanceof Goto(var loopEndTarget)
+                && loopEndTarget.get() == cursor.bb()))
         || cursor.instructionIndex() != -1) {
       throw fail("compileEndLoop: expected to be at start of end BB " + loop.end.label());
     }
@@ -1239,10 +1246,12 @@ public class BC2FirCFGCompiler {
             .map(OptionalNamedVariable::ofString)
             .collect(ImmutableList.toImmutableList());
     var args = call.args.stream().map(arg -> arg.node).collect(ImmutableList.toImmutableList());
-    var callInstr =
+    Built callInstr =
         switch (call.fun) {
           case Call.Fun.Dynamic(var fun) ->
-              new org.prlprg.fir.ir.expression.Call(new DynamicCallee(fun, names), args);
+              new Built(
+                  new org.prlprg.fir.ir.expression.Call(new DynamicCallee(names)),
+                  prependArg(fun, args));
           case Call.Fun.Builtin(var builtin) -> {
             var builtinFun = builtin.function();
             var parameterNames = Lists.mapLazy(builtinFun.parameterNames(), NamedVariable::name);
@@ -1254,26 +1263,30 @@ public class BC2FirCFGCompiler {
                       .map(
                           paramName -> {
                             if (paramName.equals("...")) {
-                              var dotsArgs =
+                              var dotsValues =
                                   matches.dddIndices().stream()
-                                      .map(
-                                          i ->
-                                              new NamedArgument(names.get(i).orNull(), args.get(i)))
-                                      .collect(ImmutableList.toImmutableList());
+                                      .map(args::get)
+                                      .collect(ImmutableList.<Argument>toImmutableList());
+                              var dotsNames =
+                                  matches.dddIndices().stream()
+                                      .map(i -> names.get(i).orNull())
+                                      .collect(java.util.stream.Collectors.toList());
                               return insertAndReturn(
-                                  "vargs", new MkVector(new Kind.Dots(), dotsArgs));
+                                  "vargs",
+                                  new Built(new MkVector(new Kind.Dots(), dotsNames), dotsValues));
                             }
 
                             var paramMatch = matches.arguments().get(paramName);
                             return paramMatch != null
                                 ? args.get(paramMatch)
-                                : new Constant(SEXPs.MISSING_ARG);
+                                : (Argument) new Constant(SEXPs.MISSING_ARG);
                           })
-                      .collect(ImmutableList.toImmutableList());
+                      .collect(ImmutableList.<Argument>toImmutableList());
 
-              yield new org.prlprg.fir.ir.expression.Call(
-                  new StaticFnCallee(builtinFun, true, builtinFun.baseline().signature()),
-                  arguments);
+              yield new Built(
+                  new org.prlprg.fir.ir.expression.Call(
+                      new StaticFnCallee(builtinFun, true, builtinFun.baseline().signature())),
+                  prependArg(Constant.ELIDED_CLOSURE, arguments));
             } catch (IllegalArgumentException | MatchException e) {
               // We can't statically match the arguments,
               // and FIR builtins require statically matched arguments,
@@ -1290,7 +1303,9 @@ public class BC2FirCFGCompiler {
               var loadFun =
                   insertAndReturn(
                       builtin.name, new Load(LoadType.BASE_FUN, Variable.named(builtin.name)));
-              yield new org.prlprg.fir.ir.expression.Call(new DynamicCallee(loadFun, names), args);
+              yield new Built(
+                  new org.prlprg.fir.ir.expression.Call(new DynamicCallee(names)),
+                  prependArg(loadFun, args));
             }
           }
         };
@@ -1300,13 +1315,18 @@ public class BC2FirCFGCompiler {
   // endregion compile instructions
 
   // region checkpoints
-  private void pushInsertThenCp(String name, Expression expression) {
-    pushInsert(name, expression);
+  private void pushInsertThenCp(Built built) {
+    pushInsert(built);
     tryAddCheckpoint(true, stack);
   }
 
-  private void pushInsertThenCp(Expression expression) {
-    pushInsert(expression);
+  private void pushInsertThenCp(Expression expression, Argument... args) {
+    pushInsert(expression, args);
+    tryAddCheckpoint(true, stack);
+  }
+
+  private void pushInsertThenCp(String name, Expression expression, Argument... args) {
+    pushInsert(name, expression, args);
     tryAddCheckpoint(true, stack);
   }
 
@@ -1320,12 +1340,14 @@ public class BC2FirCFGCompiler {
   private void tryAddCheckpoint(boolean afterBcInstr, List<Argument> stack) {
     var deoptBcPos = afterBcInstr ? bcPos + 1 : bcPos;
     var deopt = cfg.addBB("D" + numDeopts++);
-    deopt.setJump(new Deopt(deoptBcPos, stack));
+    deopt.setJump(new Jump(new Deopt(deoptBcPos), ImmutableList.copyOf(stack)));
 
     // Don't add phis because they're never necessary.
     // Don't use `insert` because it adds phis.
     var success = cfg.addBB();
-    cursor.bb().setJump(new Checkpoint(new Target(success), new Target(deopt)));
+    cursor
+        .bb()
+        .setJump(new Jump(new Checkpoint(new BBRef(success), new BBRef(deopt), 0), List.of()));
     cursor.moveToStart(success);
     bbsWithPhis.add(success);
   }
@@ -1390,7 +1412,7 @@ public class BC2FirCFGCompiler {
         assert type != null : "argument on stack is an undeclared register";
 
         var phiName = arg.variable() == null ? Register.DEFAULT_NAME : arg.variable().name();
-        var phi = scope().addLocal(phiName, type);
+        var phi = new BlockParameter(scope().freshName(phiName), type);
         bb.appendPhiParameter(phi);
       }
     } else {
@@ -1413,19 +1435,16 @@ public class BC2FirCFGCompiler {
         var phi = bb.phiParameters().get(i);
         var arg = stack.get(i);
 
-        var oldType = scope().typeOf(phi);
+        var oldType = phi.type();
         var argType = inferType.of(arg);
-        assert oldType != null : "phi is an undeclared register";
         assert argType != null : "argument on stack is an undeclared register";
 
-        scope()
-            .setLocalType(
-                phi,
-                oldType.union(
-                    argType,
-                    desc -> {
-                      throw new AssertionError(desc + " mismatch between phi arguments");
-                    }));
+        phi.setType(
+            oldType.union(
+                argType,
+                desc -> {
+                  throw new AssertionError(desc + " mismatch between phi arguments");
+                }));
       }
     }
   }
@@ -1433,23 +1452,42 @@ public class BC2FirCFGCompiler {
   // endregion `moveTo` and phis
 
   // region insertions
-  /// Insert a statement that executes the expression and discards the result.
-  private void insert(Expression expression) {
-    insert(new Statement(expression));
+  /// Insert a statement that executes a built operation (expression + arguments) and discards the
+  /// result.
+  private void insert(Built built) {
+    cursor.insert(new Statement(built.expression(), built.args()));
   }
 
-  /// Insert a statement that executes the expression and assigns its result to a fresh
-  /// register, and return that register.
-  private Argument insertAndReturn(String name, Expression expression) {
-    var exprType = inferType.of(expression);
-    var tempVar = cfg.scope().addLocal(name, exprType == null ? Type.ANY_SEXP : exprType);
-    insert(new Statement(tempVar, expression));
-    return new Read(tempVar);
+  /// Insert a statement that executes the expression with the given arguments and discards the
+  /// result.
+  private void insert(Expression expression, Argument... args) {
+    cursor.insert(new Statement(expression, List.of(args)));
   }
 
   /// Insert a statement.
   private void insert(Statement statement) {
     cursor.insert(statement);
+  }
+
+  /// Insert a statement that executes a built operation (expression + arguments), assigns its
+  /// result to a fresh register, and return a read of that register.
+  private Argument insertAndReturn(String name, Built built) {
+    return insertAndReturn(name, built.expression(), built.args());
+  }
+
+  /// Insert a statement that executes the expression with the given arguments, assigns its result
+  /// to a fresh register, and return a read of that register.
+  private Argument insertAndReturn(String name, Expression expression, Argument... args) {
+    return insertAndReturn(name, expression, List.of(args));
+  }
+
+  private Argument insertAndReturn(String name, Expression expression, List<Argument> args) {
+    var statement = new Statement(expression, args);
+    cursor.insert(statement);
+    var type = inferType.of(statement);
+    var assignee =
+        statement.setAssignee(scope().freshName(name), type == null ? Type.ANY_SEXP : type);
+    return new Read(assignee);
   }
 
   /// Insert a jump, then move to the next block (given to `computeJump`).
@@ -1540,19 +1578,33 @@ public class BC2FirCFGCompiler {
     };
   }
 
-  /// Insert a statement that executes the expression and assigns its result to a fresh
+  /// Insert a statement that executes a built operation and assigns its result to a fresh
   /// register, and push the register onto the stack.
-  private void pushInsert(Expression expression) {
-    pushInsert(inferDescriptiveName(Register.DEFAULT_NAME), expression);
+  private void pushInsert(Built built) {
+    pushInsert(inferDescriptiveName(Register.DEFAULT_NAME), built);
   }
 
-  /// [#pushInsert(Expression)] but with a different default name (`c`), for conditionals
-  private void pushInsertCond(Expression expression) {
-    pushInsert(inferDescriptiveName("_cond"), expression);
+  private void pushInsert(String name, Built built) {
+    push(insertAndReturn(name, built));
   }
 
-  private void pushInsert(String name, Expression expression) {
-    push(insertAndReturn(name, expression));
+  /// Insert a statement that executes the expression with the given arguments and assigns its
+  /// result to a fresh register, and push the register onto the stack.
+  private void pushInsert(Expression expression, Argument... args) {
+    pushInsert(inferDescriptiveName(Register.DEFAULT_NAME), expression, args);
+  }
+
+  private void pushInsert(String name, Expression expression, Argument... args) {
+    push(insertAndReturn(name, expression, args));
+  }
+
+  /// [#pushInsert(Built)] but with a different default name (`_cond`), for conditionals.
+  private void pushInsertCond(Built built) {
+    pushInsert(inferDescriptiveName("_cond"), built);
+  }
+
+  private void pushInsertCond(Expression expression, Argument... args) {
+    pushInsert(inferDescriptiveName("_cond"), expression, args);
   }
 
   /// Push a value onto the "virtual stack" so that the next call to [#pop()] or
@@ -1734,11 +1786,13 @@ public class BC2FirCFGCompiler {
   // endregion stacks
 
   // region expression constructors
-  private Expression builtin(String name, Argument... args) {
+  // - These build a `Built` (a [Call] expression plus its flat argument list). For static callees
+  //   (builtins/intrinsics), the argument at index 0 is the elided closure-with-env.
+  private Built builtin(String name, Argument... args) {
     return builtin(name, null, args);
   }
 
-  private Expression builtin(String name, @Nullable Signature staticSignature, Argument... args) {
+  private Built builtin(String name, @Nullable Signature staticSignature, Argument... args) {
     var function =
         Objects.requireNonNull(
             BUILTINS.localFunction(Variable.named(name)), "missing builtin " + name);
@@ -1746,14 +1800,16 @@ public class BC2FirCFGCompiler {
         staticSignature == null
             ? new StaticFnCallee(function, true, function.baseline().signature())
             : new StaticFnCallee(function, false, staticSignature);
-    return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
+    return new Built(
+        new org.prlprg.fir.ir.expression.Call(callee),
+        prependArg(Constant.ELIDED_CLOSURE, List.of(args)));
   }
 
-  private Expression intrinsic(String name, Argument... args) {
+  private Built intrinsic(String name, Argument... args) {
     return intrinsic(name, null, args);
   }
 
-  private Expression intrinsic(String name, @Nullable Signature staticSignature, Argument... args) {
+  private Built intrinsic(String name, @Nullable Signature staticSignature, Argument... args) {
     var function =
         Objects.requireNonNull(
             INTRINSICS.localFunction(Variable.named(name)), "missing intrinsic " + name);
@@ -1762,11 +1818,13 @@ public class BC2FirCFGCompiler {
             function,
             false,
             staticSignature == null ? function.baseline().signature() : staticSignature);
-    return new org.prlprg.fir.ir.expression.Call(callee, ImmutableList.copyOf(args));
+    return new Built(
+        new org.prlprg.fir.ir.expression.Call(callee),
+        prependArg(Constant.ELIDED_CLOSURE, List.of(args)));
   }
 
-  /// An expression that raises an error with the given message.
-  private Expression stop(String message) {
+  /// An operation that raises an error with the given message.
+  private Built stop(String message) {
     return builtin(
         "stop",
         new Constant(SEXPs.dots(SEXPs.string(message))),
@@ -1774,8 +1832,8 @@ public class BC2FirCFGCompiler {
         new Constant(SEXPs.NULL));
   }
 
-  /// An expression that raises a warning with the given message.
-  private Expression warning(String message) {
+  /// An operation that raises a warning with the given message.
+  private Built warning(String message) {
     return builtin(
         "warning",
         new Constant(SEXPs.dots(SEXPs.string(message))),
@@ -1787,15 +1845,21 @@ public class BC2FirCFGCompiler {
 
   /// Stub for function guard (TODO what does [BcInstr.CheckFun] do again?), which can fallback
   /// to an intrinsic but usually gets caught and turned into [DynamicCallee].
-  private Expression checkFun(Argument fun) {
+  private Built checkFun(Argument fun) {
     return intrinsic("checkFun", fun);
+  }
+
+  /// A flat argument list with `head` prepended to `tail`.
+  private static ImmutableList<Argument> prependArg(Argument head, List<? extends Argument> tail) {
+    return ImmutableList.<Argument>builder().add(head).addAll(tail).build();
   }
 
   // endregion expression constructors
 
   // region jump constructors
   private Jump goto_(BB bb) {
-    return new Goto(target(bb));
+    var t = target(bb);
+    return new Jump(new Goto(t.bbRef()), t.phiArgs());
   }
 
   private Jump goto_(BcLabel label) {
@@ -1803,7 +1867,15 @@ public class BC2FirCFGCompiler {
   }
 
   private Jump branch(Argument condition, BB trueBb, BB falseBb) {
-    return new If(condition, target(trueBb), target(falseBb));
+    var tt = target(trueBb);
+    var tf = target(falseBb);
+    var args =
+        ImmutableList.<Argument>builder()
+            .add(condition)
+            .addAll(tt.phiArgs())
+            .addAll(tf.phiArgs())
+            .build();
+    return new Jump(new If(tt.bbRef(), tf.bbRef(), tt.phiArgs().size()), args);
   }
 
   // endregion jump constructors
@@ -1905,6 +1977,10 @@ public class BC2FirCFGCompiler {
           BUILTINS.localFunction(Variable.named(name)), "missing builtin: " + name);
     }
   }
+
+  /// A built operation: an [Expression] together with its flat argument list, ready to be wrapped
+  /// in a [Statement].
+  private record Built(Expression expression, ImmutableList<Argument> args) {}
 
   // endregion compiler data types
 }

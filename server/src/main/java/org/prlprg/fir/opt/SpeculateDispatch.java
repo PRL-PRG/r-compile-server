@@ -6,12 +6,12 @@ import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.util.Lists;
 import org.prlprg.util.Streams;
 
@@ -42,10 +42,7 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
         version.parameters().stream()
             .map(
                 param ->
-                    feedback
-                        .type(param.variable())
-                        .streamHits(threshold, param.type())
-                        .limit(parameterLimit))
+                    feedback.type(param).streamHits(threshold, param.type()).limit(parameterLimit))
             .gather(Streams.cartesianShuffled())
             // If there are *many* versions even checking them all is too slow.
             // If there are many parameters we may get many versions.
@@ -57,7 +54,7 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
                       function.guess(
                           new Signature(parameterTypes, Type.ANY_VALUE_SEXP, Effects.REFLECT));
                   return existing == null
-                      || !Lists.mapLazy(existing.parameters(), Parameter::type)
+                      || !Lists.mapLazy(existing.parameters(), FunctionParameter::type)
                           .equals(parameterTypes);
                 })
             // Check the specialized types don't guarantee any speculations to fail.
@@ -69,19 +66,18 @@ public record SpeculateDispatch(int threshold, int parameterLimit, int versionLi
                         .flatMap(bb -> bb.statements().stream())
                         .noneMatch(
                             stmt -> {
+                              // The assume's target is its argument (assumptions without one, e.g.
+                              // load-based, have no arguments).
                               if (!(stmt.expression() instanceof Assume(var assumption))
-                                  || assumption.target() == null
-                                  || assumption.target().variable() == null) {
+                                  || stmt.argCount() == 0
+                                  || stmt.arg(0).variable() == null) {
                                 return false;
                               }
+                              var targetVariable = stmt.arg(0).variable();
 
                               Type argType = null;
                               for (int i = 0; i < version.parameters().size(); i++) {
-                                if (version
-                                    .parameters()
-                                    .get(i)
-                                    .variable()
-                                    .equals(assumption.target().variable())) {
+                                if (version.parameters().get(i).equals(targetVariable)) {
                                   argType = parameterTypes.get(i);
                                   break;
                                 }

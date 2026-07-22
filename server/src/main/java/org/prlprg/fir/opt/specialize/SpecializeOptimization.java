@@ -1,17 +1,17 @@
 package org.prlprg.fir.opt.specialize;
 
-import org.jspecify.annotations.Nullable;
+import java.util.List;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.util.Strings;
 
-/// An optimization that replaces individual expressions with those that are faster and/or have
+/// An optimization that replaces individual statements with those that are faster and/or have
 /// better types (see [org.prlprg.fir.opt.specialize]).
 public interface SpecializeOptimization {
   default String name() {
@@ -26,17 +26,16 @@ public interface SpecializeOptimization {
     return true;
   }
 
-  /// If unchanged, return `expression`.
+  /// Inspect `statement` (its operation via [Statement#expression()] and operands via
+  /// [Statement#arg(int)]) and return how to transform it (see [Result]).
   ///
-  /// This is not allowed to insert or remove instructions directly. Instead, insert
-  /// instructions in `defer` (which runs after all other specializations), and remove
-  /// instructions by replacing them with [Expression#NOOP] (either returning if it's this
-  /// instruction, or using `nonLocal` if it's another).
-  Expression run(
+  /// This is not allowed to insert or remove instructions directly. Instead, insert instructions
+  /// via `defer` (which runs after all other specializations), and remove/forward this statement
+  /// by returning the appropriate [Result].
+  Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
@@ -47,9 +46,34 @@ public interface SpecializeOptimization {
     return false;
   }
 
+  /// How a [#run] call transforms its statement.
+  sealed interface Result {
+    /// Leave the statement unchanged.
+    Result UNCHANGED = new Unchanged();
+
+    /// Remove the statement (its result, if any, must already be unused).
+    Result REMOVE = new Remove();
+
+    record Unchanged() implements Result {}
+
+    /// Swap the statement's operation, keeping its arguments and assignee. The new expression must
+    /// use the same argument layout.
+    record SetExpression(Expression expression) implements Result {}
+
+    /// Replace the statement's operation *and* arguments (a different argument layout), keeping its
+    /// assignee.
+    record Replace(Expression expression, List<Argument> args) implements Result {}
+
+    /// Forward the statement's result to `argument` (substitute every use of its assignee) and
+    /// remove it. Only valid for an assigning statement.
+    record ForwardResult(Argument argument) implements Result {}
+
+    record Remove() implements Result {}
+  }
+
   interface NonLocalSpecializations {
-    /// Replace the expression at `pos`.
-    void replace(CfgPosition pos, Expression newExpression);
+    /// Replace `statement`'s operation, keeping its arguments.
+    void replace(Statement statement, Expression newExpression);
   }
 
   interface DeferredInsertions {

@@ -17,13 +17,13 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I, reg c:B) --> v1(I) { reg boxed:v1(I), reg other:v1(I) |
-              boxed = box< I --> v1(I) >(x);
+            (reg x:I, reg c:B) --> v1(I) {
+              boxed: v1(I) = box< I --> v1(I) >(x);
               if c then L0() else L1();
             L0():
               return boxed;
             L1():
-              other = box< I --> v1(I) >(x);
+              other: v1(I) = box< I --> v1(I) >(x);
               return other;
             }
             """);
@@ -31,10 +31,10 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "box should move to the first use block");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(printed, "L0():", "boxed = box< I --> v1(I) >(x);");
-    assertOrder(printed, "boxed = box< I --> v1(I) >(x);", "return boxed;");
+    assertOrder(printed, "L0():", "boxed: v1(I) = box< I --> v1(I) >(x);");
+    assertOrder(printed, "boxed: v1(I) = box< I --> v1(I) >(x);", "return boxed;");
     assertFalse(
-        printed.contains("$ENTRY:\n  boxed = box< I --> v1(I) >(x);"),
+        printed.contains("$ENTRY:\n  boxed: v1(I) = box< I --> v1(I) >(x);"),
         "box should leave the entry block; got:\n" + printed);
   }
 
@@ -43,9 +43,9 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> p(v1(I) -) { reg boxed:v1(I), reg p:p(v1(I) -) |
-              boxed = box< I --> v1(I) >(x);
-              p = prom<v1(I) ->{
+            (reg x:I) -~> p(v1(I) -) {
+              boxed: v1(I) = box< I --> v1(I) >(x);
+              p: p(v1(I) -) = prom<v1(I) ->{
                 return boxed;
               };
               return p;
@@ -55,8 +55,8 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "box should be deferred into the promise");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(printed, "prom<v1(I) ->{", "boxed = box< I --> v1(I) >(x);");
-    assertOrder(printed, "boxed = box< I --> v1(I) >(x);", "return boxed;");
+    assertOrder(printed, "prom<v1(I) ->{", "boxed: v1(I) = box< I --> v1(I) >(x);");
+    assertOrder(printed, "boxed: v1(I) = box< I --> v1(I) >(x);", "return boxed;");
   }
 
   @Test
@@ -64,13 +64,13 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> v1(I) { reg boxed:v1(I), reg q:p(I -), var q:*, reg p:p(v1(I) -), var p:* |
-              boxed = box< I --> v1(I) >(x);
-              q = prom<I ->{
+            (reg x:I) -~> v1(I) {
+              boxed: v1(I) = box< I --> v1(I) >(x);
+              q: p(I -) = prom<I ->{
                 return x;
               };
               st q = q;
-              p = prom<v1(I) ->{
+              p: p(v1(I) -) = prom<v1(I) ->{
                 return boxed;
               };
               st p = p;
@@ -81,11 +81,11 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "box should move to the promise boundary, not into the promise");
 
     var printed = Printer.toString(abstraction);
-    var boxIndex = printed.indexOf("boxed = box< I --> v1(I) >(x);");
-    var qIndex = printed.indexOf("q = prom<I ->{");
+    var boxIndex = printed.indexOf("boxed: v1(I) = box< I --> v1(I) >(x);");
+    var qIndex = printed.indexOf("q: p(I -) = prom<I ->{");
     assertTrue(qIndex >= 0, "missing `q = prom<I ->{` in:\n" + printed);
     assertTrue(qIndex < boxIndex, "box should move after the earlier promise; got:\n" + printed);
-    assertOrder(printed, "boxed = box< I --> v1(I) >(x);", "p = prom<v1(I) ->{");
+    assertOrder(printed, "boxed: v1(I) = box< I --> v1(I) >(x);", "p: p(v1(I) -) = prom<v1(I) ->{");
   }
 
   @Test
@@ -93,11 +93,11 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I), reg c:B) --> I { reg boxed:v1(I), reg unboxed:I |
-              boxed = x as v1(I);
+            (reg x:v(I), reg c:B) --> I {
+              boxed: v1(I) = x as v1(I);
               if c then L0() else L1();
             L0():
-              unboxed = unbox< v1(I) --> I >(boxed);
+              unboxed: I = unbox< v1(I) --> I >(boxed);
               return unboxed;
             L1():
               return x;
@@ -107,8 +107,8 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "unbox should move to the boxed definition");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(printed, "boxed = x as v1(I);", "unboxed = unbox< v1(I) --> I >(boxed);");
-    assertOrder(printed, "unboxed = unbox< v1(I) --> I >(boxed);", "if c then L0() else L1();");
+    assertOrder(printed, "boxed: v1(I) = x as v1(I);", "unboxed: I = unbox< v1(I) --> I >(boxed);");
+    assertOrder(printed, "unboxed: I = unbox< v1(I) --> I >(boxed);", "if c then L0() else L1();");
   }
 
   @Test
@@ -116,11 +116,11 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I, reg c:B) --> I { reg boxed:v1(I), reg unboxed:I |
-              boxed = box< I --> v1(I) >(x);
+            (reg x:I, reg c:B) --> I {
+              boxed: v1(I) = box< I --> v1(I) >(x);
               if c then L0() else L1();
             L0():
-              unboxed = unbox< v1(I) --> I >(boxed);
+              unboxed: I = unbox< v1(I) --> I >(boxed);
               return unboxed;
             L1():
               return x;
@@ -131,7 +131,9 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(abstraction);
     assertOrder(
-        printed, "boxed = box< I --> v1(I) >(x);", "unboxed = unbox< v1(I) --> I >(boxed);");
+        printed,
+        "boxed: v1(I) = box< I --> v1(I) >(x);",
+        "unboxed: I = unbox< v1(I) --> I >(boxed);");
   }
 
   @Test
@@ -139,10 +141,10 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:v(I)) -~> p(I -) { reg boxed:v1(I), reg p:p(I -), reg unboxed:I |
-              boxed = x as v1(I);
-              p = prom<I ->{
-                unboxed = unbox< v1(I) --> I >(boxed);
+            (reg x:v(I)) -~> p(I -) {
+              boxed: v1(I) = x as v1(I);
+              p: p(I -) = prom<I ->{
+                unboxed: I = unbox< v1(I) --> I >(boxed);
                 return unboxed;
               };
               return p;
@@ -152,8 +154,8 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertTrue(run(abstraction), "unbox should hoist before the promise");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(printed, "boxed = x as v1(I);", "unboxed = unbox< v1(I) --> I >(boxed);");
-    assertOrder(printed, "unboxed = unbox< v1(I) --> I >(boxed);", "p = prom<I ->{");
+    assertOrder(printed, "boxed: v1(I) = x as v1(I);", "unboxed: I = unbox< v1(I) --> I >(boxed);");
+    assertOrder(printed, "unboxed: I = unbox< v1(I) --> I >(boxed);", "p: p(I -) = prom<I ->{");
   }
 
   @Test
@@ -161,10 +163,10 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> p(I -) { reg boxed:v1(I), reg p:p(I -), reg unboxed:I |
-              boxed = box< I --> v1(I) >(x);
-              p = prom<I ->{
-                unboxed = unbox< v1(I) --> I >(boxed);
+            (reg x:I) -~> p(I -) {
+              boxed: v1(I) = box< I --> v1(I) >(x);
+              p: p(I -) = prom<I ->{
+                unboxed: I = unbox< v1(I) --> I >(boxed);
                 return unboxed;
               };
               return p;
@@ -175,7 +177,9 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
 
     var printed = Printer.toString(abstraction);
     assertOrder(
-        printed, "boxed = box< I --> v1(I) >(x);", "unboxed = unbox< v1(I) --> I >(boxed);");
+        printed,
+        "boxed: v1(I) = box< I --> v1(I) >(x);",
+        "unboxed: I = unbox< v1(I) --> I >(boxed);");
   }
 
   @Test
@@ -183,10 +187,10 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) -~> p(I -) { reg p:p(I -), reg boxed:v1(I), reg unboxed:I |
-              p = prom<I ->{
-                boxed = box< I --> v1(I) >(x);
-                unboxed = unbox< v1(I) --> I >(boxed);
+            (reg x:I) -~> p(I -) {
+              p: p(I -) = prom<I ->{
+                boxed: v1(I) = box< I --> v1(I) >(x);
+                unboxed: I = unbox< v1(I) --> I >(boxed);
                 return unboxed;
               };
               return p;
@@ -201,12 +205,12 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I) --> I { reg boxed:v1(I), reg y:I, reg a:I, reg b:I, reg r:I |
-              boxed = box< I --> v1(I) >(x);
-              y = `+`< I,I --> I >(x, <int 1>);
-              b = unbox< v1(I) --> I >(boxed);
-              a = unbox< v1(I) --> I >(boxed);
-              r = `+`< I,I --> I >(a, b);
+            (reg x:I) --> I {
+              boxed: v1(I) = box< I --> v1(I) >(x);
+              y: I = `+`< I,I --> I >(x, <int 1>);
+              b: I = unbox< v1(I) --> I >(boxed);
+              a: I = unbox< v1(I) --> I >(boxed);
+              r: I = `+`< I,I --> I >(a, b);
               return r;
             }
             """);
@@ -215,8 +219,10 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     assertFalse(run(abstraction), "sibling unboxes with the same anchor should be stable");
 
     var printed = Printer.toString(abstraction);
-    assertOrder(printed, "boxed = box< I --> v1(I) >(x);", "b = unbox< v1(I) --> I >(boxed);");
-    assertOrder(printed, "b = unbox< v1(I) --> I >(boxed);", "a = unbox< v1(I) --> I >(boxed);");
+    assertOrder(
+        printed, "boxed: v1(I) = box< I --> v1(I) >(x);", "b: I = unbox< v1(I) --> I >(boxed);");
+    assertOrder(
+        printed, "b: I = unbox< v1(I) --> I >(boxed);", "a: I = unbox< v1(I) --> I >(boxed);");
   }
 
   @Test
@@ -224,11 +230,11 @@ class SchedulePureTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg x:I, reg c:B) --> I { reg boxed:v1(I), reg r:I |
-              boxed = box< I --> v1(I) >(x);
+            (reg x:I, reg c:B) --> I {
+              boxed: v1(I) = box< I --> v1(I) >(x);
               if c then L0() else L1();
             L0():
-              r = unbox< v1(I) --> I >(boxed);
+              r: I = unbox< v1(I) --> I >(boxed);
               return r;
             L1():
               return x;

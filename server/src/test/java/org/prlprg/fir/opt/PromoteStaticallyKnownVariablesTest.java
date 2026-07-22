@@ -17,7 +17,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond:B) --> I { var x:I, reg x1:I, reg x2:I |
+            (reg cond:B) --> I {
               mkenv;
               if cond then L1() else L2();
             L1():
@@ -27,7 +27,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
               st x = 2;
               goto L3();
             L3():
-              x1 = ld x;
+              x1: I = ld x;
               return x1;
             }
             """);
@@ -46,7 +46,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond1:B, reg cond2:B) --> I { var x:I, reg x1:I |
+            (reg cond1:B, reg cond2:B) --> I {
               mkenv;
               st x = 0;
               if cond1 then L1() else L2();
@@ -64,7 +64,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
             L5():
               goto L6();
             L6():
-              x1 = ld x;
+              x1: I = ld x;
               return x1;
             }
             """);
@@ -88,7 +88,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg cond1:B, reg cond2:B) --> I { var x:I, reg x1:I |
+            (reg cond1:B, reg cond2:B) --> I {
               mkenv;
               st x = 0;
               goto Loop();
@@ -100,7 +100,7 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
               st x = 1;
               if cond2 then Loop() else Exit();
             Exit():
-              x1 = ld x;
+              x1: I = ld x;
               return x1;
             Deopt():
               deopt 0 [];
@@ -122,11 +122,11 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () -+> I { reg g:V, var x:I, reg x1:I |
+            () -+> I {
               mkenv;
               st x = 0;
-              g = ldf g;
-              x1 = ld x;
+              g: V = ldf g;
+              x1: I = ld x;
               return x1;
             }
             """);
@@ -134,7 +134,9 @@ class PromoteStaticallyKnownVariablesTest implements AbstractionOptimizationUnit
     assertFalse(run(abstraction), "reflective CFG should not be promoted");
 
     var printed = Printer.toString(abstraction);
-    assertTrue(printed.contains("var x:I"), "named variable should remain:\n" + printed);
+    // (Named-variable declared types are no longer printed — the old `var x:I` check is gone. That
+    // the variable wasn't promoted is shown by its store surviving and no phi/Exit blocks
+    // appearing.)
     assertTrue(printed.contains("st x = 0"), "store should remain:\n" + printed);
     assertFalse(printed.contains("Exit("), "promotion should not insert phis:\n" + printed);
   }

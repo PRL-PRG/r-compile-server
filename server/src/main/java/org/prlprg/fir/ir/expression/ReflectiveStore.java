@@ -1,38 +1,7 @@
 package org.prlprg.fir.ir.expression;
 
-import java.util.List;
-import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
-import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.variable.NamedVariable;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 
-public record ReflectiveStore(Argument promise, NamedVariable variable, Argument value)
-    implements Expression {
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    var w = p.writer();
-
-    p.print(promise);
-    w.write("$");
-    p.print(variable);
-    w.write(" = ");
-    p.print(value);
-  }
-
-  @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return List.of(promise, value);
-  }
-
-  @Override
-  public Expression mapArguments(Function<Argument, Argument> transformer) {
-    return new ReflectiveStore(transformer.apply(promise), variable, transformer.apply(value));
-  }
-}
+/// Reflectively store the value argument into [#variable] of the promise argument's environment.
+/// Arguments are `[promise, value]`.
+public record ReflectiveStore(NamedVariable variable) implements Expression {}

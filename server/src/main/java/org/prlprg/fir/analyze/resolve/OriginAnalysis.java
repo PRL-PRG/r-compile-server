@@ -20,7 +20,6 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.generic.AbstractInterpretation;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis.State;
 import org.prlprg.fir.analyze.type.InferEffects;
@@ -39,7 +38,6 @@ import org.prlprg.fir.ir.callee.Callee;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
 import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
@@ -65,6 +63,7 @@ import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.primitive.Logical;
@@ -105,22 +104,19 @@ import org.prlprg.util.Streams;
 /// - A reflective instruction "taints" every environment; any lookup that reaches a tainted
 ///   environment is ambiguous. Static environments are always tainted.
 public final class OriginAnalysis extends AbstractInterpretation<State> implements Analysis {
-  private final DefUses defUses;
   private final InferType inferType;
   private final InferEffects inferEffects;
   private final Map<Register, Argument> registerOrigins = new HashMap<>();
 
   /// Creates and runs the analysis.
   public OriginAnalysis(Abstraction scope) {
-    this(scope, new DefUses(scope), new InferType(scope), new InferEffects(scope));
+    this(scope, new InferType(scope), new InferEffects(scope));
   }
 
   /// Creates and runs the analysis.
   @AnalysisConstructor
-  public OriginAnalysis(
-      Abstraction scope, DefUses defUses, InferType inferType, InferEffects inferEffects) {
+  public OriginAnalysis(Abstraction scope, InferType inferType, InferEffects inferEffects) {
     super(scope);
-    this.defUses = defUses;
     this.inferType = inferType;
     this.inferEffects = inferEffects;
 
@@ -177,16 +173,22 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// e.g. in `a = v(I)[1, 2, 3]; b = a`, `definitionExpression(a)` returns `v(I)[1, 2, 3]`, and
   /// `definitionExpression(b)` returns `a`.
   private @Nullable Expression definitionExpression(Argument origin) {
+    var statement = definitionStatement(origin);
+    return statement == null ? null : statement.expression();
+  }
+
+  /// Iff the argument is a [Read] or [Consume], looks up the [Statement] it's assigned to (whose
+  /// arguments are the operation's operands).
+  public @Nullable Statement resolveStatement(Argument arg) {
+    return definitionStatement(resolve(arg));
+  }
+
+  private @Nullable Statement definitionStatement(Argument origin) {
     if (!(origin instanceof Read(var originReg))) {
       return null;
     }
-
-    var def = defUses.definition(originReg);
-    if (def == null || !(def.inInnermostCfg().instruction() instanceof Statement(_, _, var expr))) {
-      return null;
-    }
-
-    return expr;
+    // A register's defining statement is intrinsic in the def-use model.
+    return originReg instanceof AssigneeOf ao ? ao.statement() : null;
   }
 
   /// Gets the origin of a named variable after a specific location.
@@ -250,20 +252,18 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     @Override
     protected void run(Statement statement) {
-      var expr = statement.expression();
       var assignee = statement.assignee();
-
-      var origin = run(expr);
-
+      var origin = computeOrigin(statement);
       if (assignee != null) {
         put(assignee, origin);
       }
     }
 
-    private @Nullable Argument run(Expression expr) {
-      return switch (expr) {
-        case Store(var storeType, var variable, var value) -> {
-          var o = resolve(value);
+    private @Nullable Argument computeOrigin(Statement statement) {
+      var args = statement.args();
+      return switch (statement.expression()) {
+        case Store(var storeType, var variable) -> {
+          var o = resolve(args.get(0));
           switch (storeType) {
             case LOCAL_VAR -> state().store(variable, o);
             case SUPER_VAR -> state().superStore(variable, o);
@@ -285,9 +285,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           }
           yield uniqueOrNull(origins);
         }
-        case Aea(var arg) -> resolve(arg);
-        case Cast(var value, var type) -> {
-          var valueOrigin = resolve(value);
+        case Cast(var type) -> {
+          var valueOrigin = resolve(args.get(0));
           // Only see through the cast if it's guaranteed to succeed.
           // Otherwise, we'll get a type error substituting,
           // and a runtime error iff the instruction gets rearranged before the cast
@@ -297,8 +296,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         }
         case Assume(var assumption) ->
             switch (assumption) {
-              case AssumeType(var value, var type) -> {
-                var valueOrigin = resolve(value);
+              case AssumeType(var type) -> {
+                var valueOrigin = resolve(args.get(0));
 
                 // Only see through the assumption if it's guaranteed to succeed.
                 // Otherwise, we'll get a type error substituting,
@@ -307,8 +306,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                 var valueType = inferType.of(valueOrigin);
                 yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
               }
-              case AssumeFunction(var target, var functionRef) -> {
-                var targetOrigin = resolve(target);
+              case AssumeFunction(var functionRef) -> {
+                var targetOrigin = resolve(args.get(0));
 
                 // Again, only see through the assumption if it's guaranteed to succeed
                 var targetOriginExpr = definitionExpression(targetOrigin);
@@ -334,8 +333,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
               }
               case AssumeConstant _, AssumeLoadVar _ -> null;
             };
-        case Force(var isMaybe, var value) -> {
-          var forceeOrigin = resolve(value);
+        case Force(var isMaybe) -> {
+          var forceeOrigin = resolve(args.get(0));
           var forceeType = inferType.of(forceeOrigin);
           if (definitionExpression(forceeOrigin) instanceof Promise(_, _, var code)) {
             // We're forcing this promise, so run it's sub-analysis and return the return.
@@ -359,15 +358,17 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           // The promise itself isn't a constant (nor `code`'s return origin)
           yield null;
         }
-        case Call(var callee, var arguments) -> {
-          var constantFolded = tryConstantFold(callee, arguments);
+        case Call(var callee) -> {
+          var closureOrCalleeArg = args.get(0);
+          var callArgs = args.subList(1, args.size());
+          var constantFolded = tryConstantFold(callee, closureOrCalleeArg, callArgs);
           if (constantFolded != null) {
             yield constantFolded;
           }
 
-          if (inferEffects.of(expr).reflect()
-              || (callee instanceof StaticFnCallee c
-                  && !c.closureWithEnv().equals(Constant.ELIDED_CLOSURE))) {
+          if (inferEffects.of(statement).reflect()
+              || (callee instanceof StaticFnCallee
+                  && !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE))) {
             state().taintEnvs();
           }
           yield null;
@@ -388,7 +389,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             ReflectiveStore _,
             SubscriptRead _,
             SubscriptWrite _ -> {
-          if (inferEffects.of(expr).reflect()) {
+          if (inferEffects.of(statement).reflect()) {
             state().taintEnvs();
           }
           yield null;
@@ -396,11 +397,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       };
     }
 
-    private @Nullable Argument tryConstantFold(Callee callee, List<Argument> arguments) {
-      if (!(callee
-              instanceof StaticFnCallee(var functionRef, var isDispatch, var closureWithEnv, _))
+    private @Nullable Argument tryConstantFold(
+        Callee callee, Argument closureOrCalleeArg, List<Argument> arguments) {
+      if (!(callee instanceof StaticFnCallee(var functionRef, var isDispatch, _))
           || isDispatch
-          || !closureWithEnv.equals(Constant.ELIDED_CLOSURE)) {
+          || !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)) {
         return null;
       }
       var function = functionRef.get();
@@ -478,17 +479,20 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         // TODO: test the following
         case "c" -> {
           if (arguments.size() != 1) yield null;
-          var dotsExpr = resolveExpression(arguments.getFirst());
-          if (!(dotsExpr instanceof MkVector(var dotsKind, var namedElements))) yield null;
+          var dotsStmt = resolveStatement(arguments.getFirst());
+          if (dotsStmt == null
+              || !(dotsStmt.expression() instanceof MkVector(var dotsKind, var elementNames)))
+            yield null;
           if (!(dotsKind instanceof Kind.Dots)) yield null;
 
-          if (namedElements.isEmpty()) yield new Constant(SEXPs.NULL);
+          if (elementNames.isEmpty()) yield new Constant(SEXPs.NULL);
 
-          // Only support unnamed primitive SEXP elements
-          var sexps = new ArrayList<SEXP>(namedElements.size());
-          for (var ne : namedElements) {
-            if (ne.name() != null) yield null;
-            var elemArg = resolve(ne.argument());
+          // Only support unnamed primitive SEXP elements. The element values are the MkVector
+          // statement's arguments, parallel to `elementNames`.
+          var sexps = new ArrayList<SEXP>(elementNames.size());
+          for (var i = 0; i < elementNames.size(); i++) {
+            if (elementNames.get(i) != null) yield null;
+            var elemArg = resolve(dotsStmt.arg(i));
             if (!(elemArg instanceof Constant(Value.Sexp(var elemSexp)))) yield null;
             if (!(elemSexp instanceof LglSXP
                 || elemSexp instanceof IntSXP
@@ -717,8 +721,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     @Override
     protected void run(Jump jump) {
-      if (jump instanceof Return(_, var value)) {
-        returnOrigin = new ReturnOrigin(value).merge(returnOrigin);
+      if (jump.expression() instanceof Return) {
+        returnOrigin = new ReturnOrigin(jump.arg(0)).merge(returnOrigin);
       }
 
       // Recompute BB phis from here, not `runEntry`,

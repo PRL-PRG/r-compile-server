@@ -1,25 +1,25 @@
 fun main() {
-  () -+> V { reg out:V |
-    out = call_closure< -+> V >();
+  () -+> V {
+    out: V = call_closure< -+> V >();
     return out;
   }
 }
 
 fun call_closure() {
-  () -+> V { reg callee:cls, reg result:V |
-    callee = clos target;
+  () -+> V {
+    callee: cls = clos target;
     check BBopt() else BBdeopt();
-  BBopt():
-    result = dyn callee();
-    return result;
   BBdeopt():
     mkenv;
     deopt 0 [callee];
+  BBopt():
+    result: V = dyn callee();
+    return result;
   }
 }
 
 fun target() {
-  () --> v1(I) { |
+  () --> v1(I) {
     return <int 7>;
   }
 }

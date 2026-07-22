@@ -1,61 +1,46 @@
 package org.prlprg.fir.ir.instruction;
 
+import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.function.Function;
-import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 
-/// Checks all assumptions in `success` and jumps to it if all pass, otherwise to `deopt`.
-public record Checkpoint(Comments comments, Target success, Target deopt) implements Jump {
-  public Checkpoint(Target success, Target deopt) {
-    this(new Comments(), success, deopt);
-  }
+/// Checks all assumptions in [#success] and jumps to it if all pass, otherwise to [#deopt].
+///
+/// The owning jump's arguments are `[...success phis, ...deopt phis]`, where the first
+/// [#successPhiCount] belong to [#success] and the rest to [#deopt].
+public record Checkpoint(BBRef success, BBRef deopt, int successPhiCount)
+    implements JumpExpression {
 
   @Override
-  public @UnmodifiableView List<Target> targets() {
+  @UnmodifiableView
+  public List<BBRef> targetRefs() {
     return List.of(success, deopt);
   }
 
   @Override
-  public @UnmodifiableView List<BB> targetBBs() {
-    return success.bb() == deopt.bb() ? List.of(success.bb()) : List.of(success.bb(), deopt.bb());
+  @UnmodifiableView
+  public List<Target> targets(List<Argument> args) {
+    return List.of(
+        new Target(success, ImmutableList.copyOf(args.subList(0, successPhiCount))),
+        new Target(deopt, ImmutableList.copyOf(args.subList(successPhiCount, args.size()))));
   }
 
   @Override
-  public @Unmodifiable List<Argument> arguments() {
-    return List.of();
-  }
+  public Mapped mapTargets(Function<Target, Target> transformer, List<Argument> args) {
+    var existing = targets(args);
+    var newSuccess = transformer.apply(existing.get(0));
+    var newDeopt = transformer.apply(existing.get(1));
 
-  @Override
-  public Jump mapArguments(Function<Argument, Argument> transformer) {
-    return new Checkpoint(
-        comments, success.mapArguments(transformer), deopt.mapArguments(transformer));
-  }
-
-  @Override
-  public Jump mapTargets(Function<Target, Target> transformer) {
-    return new Checkpoint(comments, transformer.apply(success), transformer.apply(deopt));
-  }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    var w = p.writer();
-
-    p.print(comments);
-    w.write("check ");
-    p.print(success);
-    w.write(" else ");
-    p.print(deopt);
+    var newArgs =
+        ImmutableList.<Argument>builder()
+            .addAll(newSuccess.phiArgs())
+            .addAll(newDeopt.phiArgs())
+            .build();
+    return new Mapped(
+        new Checkpoint(newSuccess.bbRef(), newDeopt.bbRef(), newSuccess.phiArgs().size()), newArgs);
   }
 }

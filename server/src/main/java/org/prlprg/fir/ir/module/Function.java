@@ -18,14 +18,13 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.binding.Parameter;
 import org.prlprg.fir.ir.properties.FunctionUserProperties;
 import org.prlprg.fir.ir.type.Repr;
 import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -58,7 +57,7 @@ public final class Function {
       Module owner,
       NamedVariable name,
       List<NamedVariable> parameterNames,
-      List<Parameter> baselineParameters,
+      List<FunctionParameter> baselineParameters,
       boolean baselineIsStub) {
     comments = new Comments();
     this.owner = owner;
@@ -69,31 +68,31 @@ public final class Function {
     addVersion(baselineParameters, baselineIsStub);
   }
 
-  static List<Parameter> computeBaselineParameters(List<NamedVariable> parameterNames) {
-    var baselineParamNames = new HashSet<Register>(parameterNames.size());
+  static List<FunctionParameter> computeBaselineParameters(List<NamedVariable> parameterNames) {
+    var baselineParamNames = new HashSet<String>(parameterNames.size());
     return parameterNames.stream()
         .map(
             paramName -> {
               var baselineParamName = resemblance(paramName, baselineParamNames);
               var paramType = paramName.equals(NamedVariable.DOTS) ? Type.DOTS : Type.ANY_SEXP;
               baselineParamNames.add(baselineParamName);
-              return new Parameter(baselineParamName, paramType);
+              return new FunctionParameter(baselineParamName, paramType);
             })
         .toList();
   }
 
-  /// Returns a [Register] which resembles `nv` but syntactically valid and not in `existing`.
-  private static Register resemblance(NamedVariable nv, Set<Register> existing) {
-    var base = Register.resemblance(nv.name()).name();
+  /// A register name which resembles `nv` but is syntactically valid and not in `existing`.
+  private static String resemblance(NamedVariable nv, Set<String> existing) {
+    var base = Register.resemblance(nv.name());
 
     var result = base;
     var disambiguator = 1;
-    while (existing.contains(Variable.register(result))) {
+    while (existing.contains(result)) {
       result = base + disambiguator;
       disambiguator++;
     }
 
-    return Variable.register(result);
+    return result;
   }
 
   public Module owner() {
@@ -213,7 +212,7 @@ public final class Function {
                     && other.signature().hasNarrowerPostconditions(version.signature()));
   }
 
-  public Abstraction addVersion(List<Parameter> params, boolean isStub) {
+  public Abstraction addVersion(List<FunctionParameter> params, boolean isStub) {
     return owner.record(
         "Function#addVersion",
         List.of(this, params),
@@ -282,18 +281,16 @@ public final class Function {
     w.write("\n}");
   }
 
-  public record ParseContext(
-      Module owner, FunctionRef.ParseContext forRef, @Nullable Object inner) {}
+  public record ParseContext(Module owner, FunctionRef.ParseContext forRef) {}
 
   @ParseMethod
-  private Function(Parser p1, ParseContext ctx) {
-    owner = ctx.owner;
-    var p = p1.withContext(ctx.inner);
-    var p2 = p.withContext(new Abstraction.ParseContext(owner, ctx.forRef, p.context()));
+  private Function(Parser p, ParseContext ctx) {
+    owner = ctx.owner();
+    comments = new Comments();
 
     var s = p.scanner();
 
-    comments = p.parse(Comments.class);
+    comments.addAll(p.parse(Comments.class));
 
     if (s.trySkip('@')) {
       switch (s.readIdentifierOrKeyword()) {
@@ -304,12 +301,13 @@ public final class Function {
 
     s.assertAndSkip("fun ");
     name = p.parse(NamedVariable.class);
+    parameterNames = List.copyOf(p.parseList("(", ")", NamedVariable.class));
 
-    parameterNames = p.parseList("(", ")", NamedVariable.class);
+    var abstractionParser = p.withContext(new Abstraction.ParseContext(owner, ctx.forRef()));
 
     s.assertAndSkip('{');
     for (; !s.nextCharIs('}'); nextVersionIndex++) {
-      // Skip removed version but increment the index (hence the weird `for` loop).
+      // A removed version: skip it but still advance the index (hence the unusual `for`).
       if (s.trySkip("<removed>")) {
         if (versions.isEmpty()) {
           throw s.fail("function's baseline can't be removed");
@@ -317,7 +315,7 @@ public final class Function {
         continue;
       }
 
-      var version = p2.parse(Abstraction.class);
+      var version = abstractionParser.parse(Abstraction.class);
       versions.put(nextVersionIndex, version);
       versionIndices.put(version, nextVersionIndex);
       versionsSorted.add(version);

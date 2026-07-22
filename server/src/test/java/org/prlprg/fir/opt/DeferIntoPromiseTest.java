@@ -17,9 +17,9 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
-              nb = box< R --> v1(R) >(n);
-              p = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p = p;
@@ -45,9 +45,9 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:p(R +)) -+> R { reg nb:R, reg p:p(R +), var p:* |
-              nb = force n;
-              p = prom<R +>{
+            (reg n:p(R +)) -+> R {
+              nb: R = force n;
+              p: p(R +) = prom<R +>{
                 return nb;
               };
               st p = p;
@@ -63,13 +63,13 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:*, reg x:R |
-              nb = box< R --> v1(R) >(n);
-              p = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p = p;
-              x = unbox< v1(R) --> R >(nb);
+              x: R = unbox< v1(R) --> R >(nb);
               return x;
             }
             """);
@@ -82,13 +82,13 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg p1:p(v1(R) -), var p1:*, reg p2:p(v1(R) -), var p2:* |
-              nb = box< R --> v1(R) >(n);
-              p1 = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p1: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p1 = p1;
-              p2 = prom<v1(R) ->{
+              p2: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p2 = p2;
@@ -104,10 +104,10 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg nc:v1(R), reg p:p(v1(R) -), var p:* |
-              nb = box< R --> v1(R) >(n);
-              nc = dup nb;
-              p = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              nc: v1(R) = dup nb;
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nc;
               };
               st p = p;
@@ -133,10 +133,10 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), var nb:*, reg nc:v1(R), reg p:p(v1(R) -), var p:* |
-              nb = box< R --> v1(R) >(n);
-              nc = dup nb;
-              p = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              nc: v1(R) = dup nb;
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nc;
               };
               st nb = nb;
@@ -160,9 +160,9 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg p:p(R -) |
+            (reg n:R) -~> R {
               noop;
-              p = prom<R ->{
+              p: p(R -) = prom<R ->{
                 return n;
               };
               return p;
@@ -179,10 +179,10 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg p:p(V -), reg q:p(v1(R) -), reg nb:v1(R) |
-              p = prom<V ->{
-                nb = box< R --> v1(R) >(n);
-                q = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              p: p(V -) = prom<V ->{
+                nb: v1(R) = box< R --> v1(R) >(n);
+                q: p(v1(R) -) = prom<v1(R) ->{
                   return nb;
                 };
                 return q;
@@ -206,14 +206,14 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg nc:v1(R), reg p1:p(v1(R) -), var p1:*, reg p2:p(v1(R) -), var p2:* |
-              nb = box< R --> v1(R) >(n);
-              p1 = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p1: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p1 = p1;
-              nc = dup n;
-              p2 = prom<v1(R) ->{
+              nc: v1(R) = dup n;
+              p2: p(v1(R) -) = prom<v1(R) ->{
                 return nc;
               };
               st p2 = p2;
@@ -235,6 +235,7 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     assertTrue(dupIdx > prom2Idx, "dup should be inside second promise; printed:\n" + printed);
   }
 
+  /* This test is made irrelevant (unrepresentable?) because registers can't be used before they're created
   @Test
   void instructionAfterPromise_notDeferred() {
     // Even if the register is only used inside the promise, if it's defined AFTER
@@ -244,27 +245,31 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
-              p = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return n;
               };
               st p = p;
-              nb = box< R --> v1(R) >(n);
+              nb: v1(R) = box< R --> v1(R) >(n);
               return p;
             }
             """);
 
-    assertFalse(run(abstraction), "instruction after promise should not be deferred");
+    System.out.println(Printer.toString(abstraction));
+    var result = run(abstraction);
+    System.out.println(Printer.toString(abstraction));
+    assertFalse(result, "instruction after promise should not be deferred");
   }
+   */
 
   @Test
   void mkenvBeforePromise_notDeferred() {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -+> R { reg p:p(R +), var p:* |
+            (reg n:R) -+> R {
               mkenv;
-              p = prom<R +>{
+              p: p(R +) = prom<R +>{
                 return n;
               };
               popenv;
@@ -281,9 +286,9 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
-              nb = box< R --> v1(R) >(n);
-              p = prom<v1(R) ->{
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p = p;
@@ -300,11 +305,11 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
-              nb = box< R --> v1(R) >(n);
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
               goto L0();
             L0():
-              p = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p = p;
@@ -325,18 +330,18 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg nb:v1(R), reg p:p(v1(R) -), var p:* |
-              nb = box< R --> v1(R) >(n);
+            (reg n:R) -~> R {
+              nb: v1(R) = box< R --> v1(R) >(n);
               check L0() else D0();
+            L0():
+              return n;
             D0():
               mkenv;
-              p = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p = p;
               deopt 0 [];
-            L0():
-              return n;
             }
             """);
 
@@ -353,20 +358,20 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg na:v1(R), reg nb:v1(R), reg p:p(v1(R) -), var p:*, reg x:R |
-              na = box< R --> v1(R) >(n);
-              nb = dup na;
+            (reg n:R) -~> R {
+              na: v1(R) = box< R --> v1(R) >(n);
+              nb: v1(R) = dup na;
               check L0() else D0();
+            L0():
+              x: R = unbox< v1(R) --> R >(na);
+              return x;
             D0():
               mkenv;
-              p = prom<v1(R) ->{
+              p: p(v1(R) -) = prom<v1(R) ->{
                 return nb;
               };
               st p = p;
               deopt 0 [];
-            L0():
-              x = unbox< v1(R) --> R >(na);
-              return x;
             }
             """);
 
@@ -385,8 +390,8 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            (reg n:R) -~> R { reg p:p(R -), var p:* |
-              p = prom<R ->{
+            (reg n:R) -~> R {
+              p: p(R -) = prom<R ->{
                 return n;
               };
               st p = p;

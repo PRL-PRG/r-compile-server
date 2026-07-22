@@ -13,8 +13,8 @@ import org.prlprg.fir.ir.assumption.AssumeLoadVar;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.NamedVariable;
 
 /// Forward must-dataflow analysis that computes which `AssumeLoadFun`/`AssumeLoadVar` assumptions
@@ -46,7 +46,7 @@ public final class ActiveAssumeLoadAnalysis implements CfgAnalysis {
     var active = new HashSet<>(bbEntryActive.getOrDefault(bb, Set.of()));
     // Replay transfer through statements [0, index) to get the active set just before `index`.
     for (var i = 0; i < index; i++) {
-      transfer(bb.statements().get(i).expression(), active);
+      transfer(bb.statements().get(i), active);
     }
     return active.contains(new Key(variable, value));
   }
@@ -64,7 +64,7 @@ public final class ActiveAssumeLoadAnalysis implements CfgAnalysis {
 
       // Transfer through all statements in the block.
       for (var stmt : bb.statements()) {
-        transfer(stmt.expression(), active);
+        transfer(stmt, active);
       }
 
       // Propagate to successors.
@@ -86,14 +86,14 @@ public final class ActiveAssumeLoadAnalysis implements CfgAnalysis {
     return bbEntry;
   }
 
-  private void transfer(Expression expression, Set<Key> active) {
+  private void transfer(Statement statement, Set<Key> active) {
     // Reflective expressions invalidate all assumptions.
-    if (inferEffects.of(expression).reflect()) {
+    if (inferEffects.of(statement).reflect()) {
       active.clear();
       return;
     }
 
-    switch (expression) {
+    switch (statement.expression()) {
       case Assume(var assumption) -> {
         switch (assumption) {
           case AssumeLoadFun(var variable, var functionRef) ->
@@ -102,7 +102,7 @@ public final class ActiveAssumeLoadAnalysis implements CfgAnalysis {
           default -> {}
         }
       }
-      case Store(_, var variable, var _) -> active.removeIf(k -> k.variable().equals(variable));
+      case Store(_, var variable) -> active.removeIf(k -> k.variable().equals(variable));
       default -> {}
     }
   }
