@@ -9,6 +9,7 @@ import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
@@ -109,15 +110,10 @@ public final class Statement extends Instruction {
     return Printer.toString(this);
   }
 
+  /// A statement can be printed without any surrounding information, so this forwards to
+  /// [IrPrintContext] and callers can just `p.print(statement)`.
   @PrintMethod
   private void print(Printer p) {
-    p.print(comments());
-    if (assignee != null) {
-      p.print(assignee);
-      p.writer().write(": ");
-      p.print(assignee.type());
-      p.writer().write(" = ");
-    }
-    IrText.printExpression(p, this);
+    p.withContext(new IrPrintContext()).print(this);
   }
 }

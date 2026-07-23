@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.parseprint.ModuleFeedbackPrintContext;
 import org.prlprg.parseprint.PrettyPrintWriter;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
@@ -143,6 +143,7 @@ final class PrintStack {
       w.runIndented(
           () -> {
             var feedback = frame.scopeFeedback();
+            var forFeedback = new ModuleFeedbackPrintContext(ctx.forSexp).forAbstraction();
 
             for (var entry : frame.registers().entrySet()) {
               var register = entry.getKey();
@@ -152,7 +153,7 @@ final class PrintStack {
               p.print(register);
               w.write(" = ");
               p2.print(value);
-              feedback.print(register, p, new AbstractionFeedback.PrintContext(ctx.forSexp));
+              forFeedback.printRegister(p, feedback, register);
             }
 
             for (var entry : frame.environment().bindings()) {

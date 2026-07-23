@@ -11,19 +11,15 @@ import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.instruction.FirParseContext;
 import org.prlprg.fir.ir.instruction.Use;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
 import org.prlprg.util.Strings;
 
 /// An SSA value definition. A register *is* its own definition site: the result of a
-// [org.prlprg.fir.ir.instruction.Statement]
+/// [org.prlprg.fir.ir.instruction.Statement]
 /// ([AssigneeOf]), a [BB][org.prlprg.fir.ir.cfg.BB] phi parameter ([BlockParameter]), or an
 /// [Abstraction][org.prlprg.fir.ir.abstraction.Abstraction] parameter ([FunctionParameter]).
 ///
@@ -99,15 +95,6 @@ public sealed interface Register permits AssigneeOf, BlockParameter, FunctionPar
   @PrintMethod
   private void print(Printer p) {
     p.writer().write(name());
-  }
-
-  /// Parse a name that must denote a register (e.g. the operand of `consume`). Definitions
-  /// (parameters, phi parameters, assignees) are created at their definition sites, not here.
-  @ParseMethod
-  private static Register parse(Parser p, FirParseContext ctx) {
-    var s = p.scanner();
-    var name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
-    return ctx.resolveRegister(name, s);
   }
 
   // --- Name helpers (registers must be syntactically valid identifiers) -----------------------
