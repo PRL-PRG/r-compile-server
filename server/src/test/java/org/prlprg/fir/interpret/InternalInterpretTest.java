@@ -248,11 +248,11 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun f() {
-              () -+> V { reg vargs:dots, reg r:V, var x:* |
+              () -+> V {
                 mkenv;
                 st x = <int 42>;
-                vargs = dots[<sym x>];
-                r = substitute%< dots -+> V >(vargs);
+                vargs: dots = dots[<sym x>];
+                r: V = substitute%< dots -+> V >(vargs);
                 popenv;
                 return r;
               }
@@ -273,18 +273,18 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun main() {
-              () -+> V { reg r:V |
+              () -+> V {
                 mkenv;
-                r = inner< -+> V >();
+                r: V = inner< -+> V >();
                 popenv;
                 return r;
               }
             }
 
             fun inner() {
-              () -+> V { reg vargs:dots, reg r:V |
-                vargs = dots[<int -1>];
-                r = `sys.frame`%< dots -+> V >(vargs);
+              () -+> V {
+                vargs: dots = dots[<int -1>];
+                r: V = `sys.frame`%< dots -+> V >(vargs);
                 return r;
               }
             }
@@ -305,11 +305,11 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun f() {
-              () -+> V { reg p:p(V +), reg r:V, var x:* |
+              () -+> V {
                 mkenv;
                 st x = <int 5>;
-                p = prom<V +>{ return <int 0>; };
-                r = p$x;
+                p: p(V +) = prom<V +>{ return <int 0>; };
+                r: V = p$x;
                 popenv;
                 return r;
               }
@@ -330,12 +330,12 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun f() {
-              () -+> V { reg p:p(V +), reg r:V, var x:* |
+              () -+> V {
                 mkenv;
                 st x = <int 5>;
-                p = prom<V +>{ return <int 0>; };
+                p: p(V +) = prom<V +>{ return <int 0>; };
                 p$x = <int 9>;
-                r = ld x;
+                r: V = ld x;
                 popenv;
                 return r;
               }
@@ -356,11 +356,11 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun f() {
-              () -+> V { reg p:p(V +), reg r:V, var x:* |
+              () -+> V {
                 mkenv~;
                 st x = <int 5>;
-                p = prom<V +>{ return <int 0>; };
-                r = p$x;
+                p: p(V +) = prom<V +>{ return <int 0>; };
+                r: V = p$x;
                 popenv;
                 return r;
               }
@@ -378,11 +378,11 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun f() {
-              () -+> V { reg vargs:dots, reg r:V, var x:* |
+              () -+> V {
                 mkenv~;
                 st x = <int 42>;
-                vargs = dots[<sym x>];
-                r = substitute%< dots -+> V >(vargs);
+                vargs: dots = dots[<sym x>];
+                r: V = substitute%< dots -+> V >(vargs);
                 popenv;
                 return r;
               }
@@ -400,7 +400,7 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun f() {
-              () -+> V { var x:* |
+              () -+> V {
                 mkenv-;
                 st x = <int 1>;
                 popenv;
@@ -420,9 +420,9 @@ class InternalInterpretTest {
         ParseUtil.parseModule(
             """
             fun f() {
-              () -+> V { reg r:V, var x:* |
+              () -+> V {
                 mkenv-;
-                r = ld x;
+                r: V = ld x;
                 popenv;
                 return r;
               }

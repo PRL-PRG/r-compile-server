@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
@@ -13,9 +14,8 @@ import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
@@ -37,14 +37,15 @@ final class StackFrame {
   /// InternalInterpreter#call][InternalInterpreter]) they can all be marked
   /// [escaped][PromiseCode#escaped].
   private final List<PromiseCode> createdPromises = new ArrayList<>();
-  /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` that created
-  /// them. [#mkEnv()] adds to it; [#put(Variable, Value)] reads it to reject stores to elided
-  /// environments.
-  private final Map<EnvSXP, ScopePosition> userEnvPositions;
+  /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` statement
+  // that
+  /// created them. [#mkEnv()] adds to it; [#put(Variable, Value)] reads it to reject stores to
+  /// elided environments.
+  private final Map<EnvSXP, Statement> userEnvPositions;
   private EnvSXP environment;
   private int numEnvsPushed = 0;
 
-  StackFrame(Function function, EnvSXP parentEnv, Map<EnvSXP, ScopePosition> userEnvPositions) {
+  StackFrame(Function function, EnvSXP parentEnv, Map<EnvSXP, Statement> userEnvPositions) {
     this.function = function;
     environment = parentEnv;
     this.userEnvPositions = userEnvPositions;
@@ -67,16 +68,10 @@ final class StackFrame {
   }
 
   /// Enters a sub-frame for `position`'s [`CFG`][org.prlprg.fir.ir.cfg.CFG].
-  ///
-  /// `enclosing` is the chain of enclosing `prom` positions (outermost first) leading to this CFG:
-  /// empty for a function body, and the creating promise's [ScopePosition]'s chain for a promise
-  /// body. It's tracked here (instead of recomputed from the [
-  /// hierarchy][org.prlprg.fir.analyze.cfg.CfgHierarchy]) so [#currentScopePosition()] knows the
-  /// enclosing promises even when the promise escaped its creating frame.
-  public void enter(CFGCursor position, List<CfgPosition> enclosing, ModuleFeedback feedback) {
+  public void enter(CFGCursor position, ModuleFeedback feedback) {
     var scope = position.cfg().scope();
     var scopeFeedback = feedback.get(scope);
-    subFrames.add(new SubFrame(position, enclosing, scopeFeedback));
+    subFrames.add(new SubFrame(position, scopeFeedback));
   }
 
   public void exit() {
@@ -160,21 +155,16 @@ final class StackFrame {
 
   public void mkEnv() {
     environment = new UserEnvSXP(environment);
-    userEnvPositions.put(environment, currentScopePosition());
+    userEnvPositions.put(environment, currentStatement());
     numEnvsPushed++;
   }
 
-  /// The [CfgPosition] of the instruction the current sub-frame's cursor is at (e.g. the `mkenv`
-  /// or `prom` being executed), within its own [CFG][org.prlprg.fir.ir.cfg.CFG].
-  private CfgPosition currentCfgPosition() {
+  /// The [Statement] the current sub-frame's cursor is at (e.g. the `mkenv` or `prom` being
+  /// executed). Its enclosing promises are derivable statically from the IR (see
+  /// [CfgHierarchy][org.prlprg.fir.analyze.cfg.CfgHierarchy]).
+  Statement currentStatement() {
     var cursor = subFrames.getLast().position;
-    return new CfgPosition(cursor.bb(), cursor.instructionIndex());
-  }
-
-  /// The [ScopePosition] of the instruction the current sub-frame's cursor is at (e.g. the `mkenv`
-  /// or `prom` being executed), including its enclosing promises (see [#enter]).
-  ScopePosition currentScopePosition() {
-    return new ScopePosition(subFrames.getLast().enclosing, currentCfgPosition());
+    return (Statement) Objects.requireNonNull(cursor.instruction());
   }
 
   public void popEnv() {
@@ -191,6 +181,5 @@ final class StackFrame {
     return Printer.use(p -> printFrame(this, p));
   }
 
-  private record SubFrame(
-      CFGCursor position, List<CfgPosition> enclosing, AbstractionFeedback scopeFeedback) {}
+  private record SubFrame(CFGCursor position, AbstractionFeedback scopeFeedback) {}
 }

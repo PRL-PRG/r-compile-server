@@ -12,14 +12,10 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
-import org.prlprg.util.Streams;
 
 /// Computes [CFG] parent-child relationships. A [CFG] is another's child if the [CFG] is a
 /// promise's body and the other [CFG] contains that promise instruction.
@@ -122,18 +118,10 @@ public final class CfgHierarchy implements Analysis {
         Result::new, Result::add, Result::merge, Result::get, Characteristics.CONCURRENT);
   }
 
-  public ScopePosition scopePos(BB bb, int instructionIndex) {
-    return scopePos(new CfgPosition(bb, instructionIndex));
-  }
-
-  public ScopePosition scopePos(CfgPosition cfgPos) {
-    return new ScopePosition(streamAncestors(cfgPos.cfg())::iterator, cfgPos);
-  }
-
-  private void run(ArrayList<CfgPosition> parents, CFG cfg) {
+  private void run(CFG cfg) {
     for (var bb : cfg.bbs()) {
       for (var stmt : bb.statements()) {
-        if (stmt.expression() instanceof Promise(_, _, var code)) {
+        if (stmt.expression() instanceof Promise(_, _, var code, _)) {
           parents.put(code, stmt);
           run(code);
         }

@@ -46,8 +46,8 @@ class LocalPromiseSpeculationInterpretTest {
   private static final String MODULE =
       """
       fun main() {
-        () -+> p(v1(I) -) { reg r:p(v1(I) -) |
-          r = prom<v1(I) ->{ return <int 42>; };
+        () -+> p(v1(I) -) {
+          r: p(v1(I) -) = prom<v1(I) ->{ return <int 42>; };
           return r;
         }
       }

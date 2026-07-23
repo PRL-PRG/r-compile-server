@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -45,7 +44,7 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
   }
 
   /// Returns the environment range created by the [MkEnv] at `mk`, or `null` if there's none.
-  public @Nullable EnvRange rangeAt(CfgPosition mk) {
+  public @Nullable EnvRange rangeAt(Statement mk) {
     return allEnvs.get(mk);
   }
 
@@ -154,7 +153,7 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
     }
 
     public MkEnvType type() {
-      return ((MkEnv) Objects.requireNonNull((Statement) mk.instruction()).expression()).type();
+      return ((MkEnv) mk.expression()).type();
     }
 
     public @UnmodifiableView Set<Statement> pops() {

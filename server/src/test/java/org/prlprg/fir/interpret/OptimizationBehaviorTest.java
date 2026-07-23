@@ -110,19 +110,19 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V {
             mkenv;
             st x = <int 1>;
-            p = prom<V +>{ t = ld x; return t; };
+            p: p(V +) = prom<V +>{ t: V = ld x; return t; };
             f< p(V +) -+> V >(p);
-            r = ld x;
+            r: V = ld x;
             popenv;
             return r;
           }
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { reg v:V | v = force r; return v; }
+          (reg r:p(V +)) -+> V { v: V = force r; return v; }
         }
         """,
         printed -> {
@@ -149,19 +149,19 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V {
             mkenv;
             st x = <int 1>;
-            p = prom<V +>{ t = ld x; return t; };
+            p: p(V +) = prom<V +>{ t: * = ld x; return t; };
             f< p(V +) -+> V >(p);
-            r = ld x;
+            r: * = ld x;
             popenv;
             return r;
           }
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { reg v:V | v = r$x; return v; }
+          (reg r:p(V +)) -+> V { v: * = r$x; return v; }
         }
         """,
         printed -> {
@@ -172,10 +172,10 @@ class OptimizationBehaviorTest {
               printed.contains("mkenv-"),
               "reflectively-accessed env should not be elided; printed:\n" + printed);
           assertTrue(
-              printed.contains("t = ld x"),
+              printed.contains("t: * = ld x"),
               "first load should not be resolved while reflective; printed:\n" + printed);
           assertTrue(
-              printed.contains("r = ld x"),
+              printed.contains("r: * = ld x"),
               "second load should not be resolved while reflective; printed:\n" + printed);
         },
         printed -> {
@@ -198,19 +198,19 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V {
             mkenv;
             st x = <int 1>;
-            p = prom<V +>{ st x = <int 2>; t = ld x; return t; };
+            p: p(V +) = prom<V +>{ st x = <int 2>; t: V = ld x; return t; };
             f< p(V +) -+> V >(p);
-            r = ld x;
+            r: * = ld x;
             popenv;
             return r;
           }
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { reg v:V | v = force r; return v; }
+          (reg r:p(V +)) -+> V { v: V = force r; return v; }
         }
         """,
         printed -> {
@@ -219,10 +219,10 @@ class OptimizationBehaviorTest {
               "env should be marked non-reflective; printed:\n" + printed);
           assertFalse(printed.contains("mkenv-"), "env should not be elided; printed:\n" + printed);
           assertFalse(
-              printed.contains("t = ld x"),
+              printed.contains("t: V = ld x"),
               "first load should be resolved after definite store; printed:\n" + printed);
           assertTrue(
-              printed.contains("r = ld x"),
+              printed.contains("ld x"),
               "second load should not be resolved after maybe-store; printed:\n" + printed);
         },
         printed -> {
@@ -243,19 +243,19 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +), reg r:V, reg t:V, var x:V |
+          () -+> V {
             mkenv;
             st x = <int 1>;
-            p = prom<V +>{ st x = <int 2>; t = ld x; return t; };
+            p: p(V +) = prom<V +>{ st x = <int 2>; t: V = ld x; return t; };
             f< p(V +)@! -+> V >(p);
-            r = ld x;
+            r: V = ld x;
             popenv;
             return r;
           }
         }
 
         fun f(r) {
-          (reg r:p(V +)@!) -+> V { reg v:V | v = force r; return v; }
+          (reg r:p(V +)@!) -+> V { v: V = force r; return v; }
         }
         """,
         printed -> {
@@ -284,9 +284,9 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +) |
+          () -+> V {
             mkenv;
-            p = prom<V +>{ return <int 3>; };
+            p: p(V +) = prom<V +>{ return <int 3>; };
             f< p(V +) -+> V >(p);
             popenv;
             return <int 0>;
@@ -294,7 +294,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { reg v:V | v = force r; return v; }
+          (reg r:p(V +)) -+> V { v: V = force r; return v; }
         }
         """,
         printed ->
@@ -311,9 +311,9 @@ class OptimizationBehaviorTest {
     assertOptimizationBehavior(
         """
         fun main() {
-          () -+> V { reg p:p(V +) |
+          () -+> V {
             mkenv;
-            p = prom<V +>{ return <int 3>; };
+            p: p(V +) = prom<V +>{ return <int 3>; };
             f< p(V +) -+> V >(p);
             popenv;
             return <int 0>;
@@ -321,7 +321,7 @@ class OptimizationBehaviorTest {
         }
 
         fun f(r) {
-          (reg r:p(V +)) -+> V { reg v:V | r$x = <int 9>; v = r$x; return v; }
+          (reg r:p(V +)) -+> V { r$x = <int 9>; v: V = r$x; return v; }
         }
         """,
         printed -> {

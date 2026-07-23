@@ -22,7 +22,8 @@ import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Names;
 import org.prlprg.util.Strings;
 
-/// An SSA value definition. A register *is* its own definition site: the result of a [org.prlprg.fir.ir.instruction.Statement]
+/// An SSA value definition. A register *is* its own definition site: the result of a
+// [org.prlprg.fir.ir.instruction.Statement]
 /// ([AssigneeOf]), a [BB][org.prlprg.fir.ir.cfg.BB] phi parameter ([BlockParameter]), or an
 /// [Abstraction][org.prlprg.fir.ir.abstraction.Abstraction] parameter ([FunctionParameter]).
 ///

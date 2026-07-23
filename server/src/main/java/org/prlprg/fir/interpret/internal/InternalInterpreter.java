@@ -64,8 +64,6 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.Dots;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
@@ -132,16 +130,15 @@ public final class InternalInterpreter implements Interpreter {
   private final Map<SEXP, PromiseCode> promises = new HashMap<>();
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
-  /// Maps each user-created environment (from [MkEnv]) to the [ScopePosition] of the `mkenv` that
-  /// created it.
+  /// Maps each user-created environment (from [MkEnv]) to the `mkenv` [Statement] that created it.
   ///
   /// Used to mark environments [reflective][AbstractionFeedback#reflectiveEnvs] in their closure
   /// version's feedback, and to detect reflective access or local stores to environments the
   /// compiler assumed weren't reflectively accessed ([MkEnvType#NON_REFLECTIVE]) or were
   /// [elided][MkEnvType#ELIDED].
-  private final Map<EnvSXP, ScopePosition> userEnvPositions = new HashMap<>();
+  private final Map<EnvSXP, Statement> userEnvPositions = new HashMap<>();
 
-  /// Whether the most-recently-returned [#run(StackFrame, CFG, CFG, List)] deopt-restored at
+  /// Whether the most-recently-returned [#run(StackFrame, CFG, CFG)] deopt-restored at
   /// some point. Set right before `run` returns and consumed (reset) by [#call]; used to check
   /// the result against the deopt-restore CFG's return type instead of the version's, since a
   /// version's return type only describes its normal returns.
@@ -403,7 +400,7 @@ public final class InternalInterpreter implements Interpreter {
     }
 
     // Execute CFG (a function body, so it has no enclosing promises)
-    var result = run(frame, cfg, deoptRestoreCfg, List.of());
+    var result = run(frame, cfg, deoptRestoreCfg);
 
     // The frame has exited: any promise it created has now escaped (outlived its frame). Forcing
     // one afterwards is detected in `force`.
@@ -481,12 +478,11 @@ public final class InternalInterpreter implements Interpreter {
   ///
   /// Also pushes/pops `frame`; every [CFG] runs at its own stack frame index (the frame itself
   /// is reused across all CFGs in the [Abstraction]).
-  private Value run(
-      StackFrame frame, CFG cfg, @Nullable CFG deoptRestoreCfg, List<CfgPosition> enclosing) {
+  private Value run(StackFrame frame, CFG cfg, @Nullable CFG deoptRestoreCfg) {
     checkStack();
 
     var cursor = new CFGCursor(cfg);
-    frame.enter(cursor, enclosing, feedback);
+    frame.enter(cursor, feedback);
     stack.push(frame);
 
     var deopted = false;
@@ -514,7 +510,7 @@ public final class InternalInterpreter implements Interpreter {
 
           cursor = restoreDeopt(pc, deoptStack, deoptRestoreCfg);
           frame.exit();
-          frame.enter(cursor, enclosing, feedback);
+          frame.enter(cursor, feedback);
           deopted = true;
           System.out.println("DEOPT");
         }
@@ -1202,11 +1198,7 @@ public final class InternalInterpreter implements Interpreter {
 
     // Evaluate the promise.
     // No restore CFG = can't deopt in promises, at least for now.
-    var enclosing =
-        promCode.position == null
-            ? List.<CfgPosition>of()
-            : promCode.position.outermostToInnermost();
-    var value = run(promCode.frame, promExpr.code(), null, enclosing);
+    var value = run(promCode.frame, promExpr.code(), null);
     if (!(value instanceof Value.Sexp(var valueSexp))) {
       throw fail("Not an SEXP (for promise eval): " + value);
     }
@@ -1659,14 +1651,15 @@ public final class InternalInterpreter implements Interpreter {
               + position);
     }
 
-    feedback().get(position.innermostCfg().scope()).reflectiveEnvs.add(position);
+    feedback()
+        .get(Objects.requireNonNull(position.parentBB()).owner().scope())
+        .reflectiveEnvs
+        .add(position);
   }
 
-  /// The [type][MkEnvType] of the [MkEnv] at `position` (whose innermost instruction must be an
-  /// `mkenv`).
-  static MkEnvType mkEnvTypeOf(ScopePosition position) {
-    var statement = (Statement) Objects.requireNonNull(position.inInnermostCfg().instruction());
-    return ((MkEnv) statement.expression()).type();
+  /// The [type][MkEnvType] of the [MkEnv] `mkenv` statement.
+  static MkEnvType mkEnvTypeOf(Statement mkenv) {
+    return ((MkEnv) mkenv.expression()).type();
   }
 
   private @Nullable AssumeLoadFunLookup loadFunctionForAssume(String name, EnvSXP env) {
@@ -1728,7 +1721,7 @@ public final class InternalInterpreter implements Interpreter {
     var frame = topFrame();
     var sexp = SEXPs.promise(codeStub, frame.environment());
     var promCode =
-        new PromiseCode(promExpr, frame, assignee, frame.scope(), frame.currentScopePosition());
+        new PromiseCode(promExpr, frame, assignee, frame.scope(), frame.currentStatement());
     promises.put(sexp, promCode);
     frame.addPromise(promCode);
     return sexp;
@@ -1741,7 +1734,10 @@ public final class InternalInterpreter implements Interpreter {
     if (position == null) {
       return;
     }
-    feedback().get(position.scope()).escapingPromises.add(position);
+    feedback()
+        .get(Objects.requireNonNull(position.parentBB()).owner().scope())
+        .escapingPromises
+        .add(position);
   }
 
   private record AssumeLoadFunLookup(EnvSXP environment, CloSXP closure) {}

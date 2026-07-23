@@ -14,10 +14,10 @@ class CaptureCheckerTest {
   @Language("FIR")
   private static final String CAPTURING_TEMPLATE =
       """
-      () -+> v1(I) { reg a:v1(I), reg p:p(v1(I) -), reg r:v1(I) |
-        a = <int 1>;
-        p = prom%s<v1(I) ->{ return a; };
-        r = force p;
+      () -+> v1(I) {
+        a: v1(I) = box< I --> v1(I) >(1);
+        p: p(v1(I) -) = prom%s<v1(I) ->{ return a; };
+        r: v1(I) = force p;
         return r;
       }
       """;
@@ -39,9 +39,9 @@ class CaptureCheckerTest {
     assertFalse(
         hasErrors(
             """
-            () -+> v1(I) { reg p:p(v1(I) -), reg r:v1(I) |
-              p = prom<v1(I) ->{ return <int 5>; };
-              r = force p;
+            () -+> v1(I) {
+              p: p(v1(I) -) = prom<v1(I) ->{ return <int 5>; };
+              r: v1(I) = force p;
               return r;
             }
             """),
@@ -54,9 +54,9 @@ class CaptureCheckerTest {
     assertFalse(
         hasErrors(
             """
-            () -+> v1(I) { reg p:p(v1(I) -), reg x:v1(I), reg r:v1(I) |
-              p = prom<v1(I) ->{ x = <int 2>; return x; };
-              r = force p;
+            () -+> v1(I) {
+              p: p(v1(I) -) = prom<v1(I) ->{ x: v1(I) = box< I --> v1(I) >(2); return x; };
+              r: v1(I) = force p;
               return r;
             }
             """),
@@ -71,14 +71,13 @@ class CaptureCheckerTest {
         hasErrors(
             """
             () -+> v1(I) {
-              reg a:v1(I), reg pout:p(v1(I) -), reg pin:p(v1(I) -), reg ri:v1(I), reg r:v1(I) |
-              a = <int 1>;
-              pout = prom<v1(I) ->{
-                pin = prom<v1(I) ->{ return a; };
-                ri = force pin;
+              a: v1(I) = box< I --> v1(I) >(1);
+              pout: p(v1(I) -) = prom<v1(I) ->{
+                pin: p(v1(I) -) = prom<v1(I) ->{ return a; };
+                ri: v1(I) = force pin;
                 return ri;
               };
-              r = force pout;
+              r: v1(I) = force pout;
               return r;
             }
             """),
@@ -93,14 +92,13 @@ class CaptureCheckerTest {
         hasErrors(
             """
             () -+> v1(I) {
-              reg a:v1(I), reg pout:p(v1(I) -), reg pin:p(v1(I) -), reg ri:v1(I), reg r:v1(I) |
-              a = <int 1>;
-              pout = prom<v1(I) ->{
-                pin = prom-<v1(I) ->{ return a; };
-                ri = force pin;
+              a: v1(I) = box< I --> v1(I) >(1);
+              pout: p(v1(I) -) = prom<v1(I) ->{
+                pin: p(v1(I) -) = prom-<v1(I) ->{ return a; };
+                ri: v1(I) = force pin;
                 return ri;
               };
-              r = force pout;
+              r: v1(I) = force pout;
               return r;
             }
             """),

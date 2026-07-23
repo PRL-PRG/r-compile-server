@@ -124,7 +124,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // `Promise` statement.
       if (!(promiseReg instanceof AssigneeOf promiseAssignee)
           || !(promiseAssignee.statement().expression()
-              instanceof Promise(var valueType, var effects, var code))
+              instanceof Promise(var valueType, var effects, var code, _))
           || effects.reflect()) {
         return;
       }

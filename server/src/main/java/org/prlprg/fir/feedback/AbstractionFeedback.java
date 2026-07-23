@@ -1,17 +1,22 @@
 package org.prlprg.fir.feedback;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.expression.Promise;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -20,6 +25,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Names;
 import org.prlprg.sexp.parseprint.SEXPParseContext;
 import org.prlprg.sexp.parseprint.SEXPPrintContext;
 import org.prlprg.sexp.parseprint.SEXPPrintOptions;
@@ -55,11 +61,11 @@ public class AbstractionFeedback {
   ///
   /// Registers are ordered by when feedback was first recorded for them.
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
-  /// `mkenv` instructions whose environments were reflectively accessed.
-  public final Set<ScopePosition> reflectiveEnvs = new LinkedHashSet<>();
-  /// `prom` instructions whose promises were recorded to escape (outlive the stack frame they were
+  /// `mkenv` statements whose environments were reflectively accessed.
+  public final Set<Statement> reflectiveEnvs = new LinkedHashSet<>();
+  /// `prom` statements whose promises were recorded to escape (outlive the stack frame they were
   /// created in, then get forced afterwards).
-  public final Set<ScopePosition> escapingPromises = new LinkedHashSet<>();
+  public final Set<Statement> escapingPromises = new LinkedHashSet<>();
 
   public AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
@@ -176,7 +182,6 @@ public class AbstractionFeedback {
   private AbstractionFeedback(Parser p, ParseContext ctx) {
     var s = p.scanner();
     module = ctx.moduleFeedback;
-    var p2 = p.withContext(new ScopePosition.ParseContext(ctx.scope));
 
     numCalls = s.readUInt();
     s.assertAndSkip("x");
@@ -185,16 +190,91 @@ public class AbstractionFeedback {
 
     while (!s.trySkip(']')) {
       if (s.trySkip("reg ")) {
-        var register = p.parse(Register.class);
+        var register = parseRegister(p, ctx.scope);
         parse(register, p, ctx);
       } else if (s.trySkip("env ")) {
-        reflectiveEnvs.add(p2.parse(ScopePosition.class));
+        reflectiveEnvs.add(parsePosition(p, ctx.scope));
       } else if (s.trySkip("prom ")) {
-        escapingPromises.add(p2.parse(ScopePosition.class));
+        escapingPromises.add(parsePosition(p, ctx.scope));
       } else {
         throw s.fail("\"reg\", \"env\", or \"prom\"", s.readIdentifierOrKeyword());
       }
     }
+  }
+
+  /// Parses a register reference by name (as printed by [Register]), resolving it to the (single)
+  /// register that defines that name in `scope`.
+  private static Register parseRegister(Parser p, Abstraction scope) {
+    var s = p.scanner();
+    var name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
+    return scope
+        .streamRegisters()
+        .filter(r -> r.name().equals(name))
+        .findFirst()
+        .orElseThrow(() -> s.fail("a register named '" + name + "' in the scope"));
+  }
+
+  /// Parses a statement position: a `bb:index` (or `outer/.../innermost` through enclosing promise
+  /// bodies) resolved against `scope`'s CFG. Inverse of [#printPosition].
+  private static Statement parsePosition(Parser p, Abstraction scope) {
+    var s = p.scanner();
+    var cfg = Objects.requireNonNull(scope.cfg(), "can't parse a position for a stub abstraction");
+
+    Statement statement;
+    while (true) {
+      // The entry block's label (`$ENTRY`) starts with `$`, which isn't an identifier char.
+      var label = (s.trySkip('$') ? "$" : "") + s.readIdentifierOrKeyword();
+      var bb = cfg.bb(label);
+      if (bb == null) {
+        throw s.fail("position not in CFG: no BB with label \"" + label + "\"");
+      }
+      s.assertAndSkip(':');
+      var index = s.readUInt();
+      statement = (Statement) bb.instructions().get(index);
+
+      if (!s.trySkip('/')) {
+        break;
+      }
+      // A `/` means there's a deeper position, so this one must be an enclosing promise.
+      if (!(statement.expression() instanceof Promise(_, _, var code, _))) {
+        throw s.fail("an enclosing scope position must be a promise, but got: " + statement);
+      }
+      cfg = code;
+    }
+
+    return statement;
+  }
+
+  /// Prints a statement's position: a `bb:index` (or `outer/.../innermost` through enclosing
+  // promise
+  /// bodies). Inverse of [#parsePosition].
+  private static void printPosition(Printer p, Statement statement) {
+    var w = p.writer();
+    var first = true;
+    for (var s : positionChain(statement)) {
+      if (first) {
+        first = false;
+      } else {
+        w.write('/');
+      }
+      w.write(Objects.requireNonNull(s.parentBB()).label());
+      w.write(':');
+      p.print(s.indexInBB());
+    }
+  }
+
+  /// The enclosing-promise statements followed by `statement`, ordered outermost (in the version's
+  /// [CFG][org.prlprg.fir.ir.cfg.CFG]) to innermost. Derived from the promise nesting via
+  /// [CfgHierarchy], so it round-trips through [#parsePosition].
+  private static List<Statement> positionChain(Statement statement) {
+    var scope = Objects.requireNonNull(statement.parentBB()).owner().scope();
+    var hierarchy = new CfgHierarchy(scope);
+    var chain = new ArrayList<Statement>();
+    for (var s = statement; s != null; s = hierarchy.parentPromise(s.parentBB().owner())) {
+      chain.add(s);
+    }
+    Collections.reverse(chain);
+    return chain;
   }
 
   /// Parse feedback and assign it to the register. Parses nothing if it has none.
@@ -277,8 +357,6 @@ public class AbstractionFeedback {
             print(register, p, ctx);
           }
 
-          var compact = new CfgPosition.PrintContext(CfgPosition.PrintStyle.COMPACT);
-
           for (var env : reflectiveEnvs) {
             if (wroteAny) {
               w.write('\n');
@@ -287,7 +365,7 @@ public class AbstractionFeedback {
             }
 
             w.write("env ");
-            p.withContext(compact).print(env);
+            printPosition(p, env);
           }
 
           for (var prom : escapingPromises) {
@@ -298,7 +376,7 @@ public class AbstractionFeedback {
             }
 
             w.write("prom ");
-            p.withContext(compact).print(prom);
+            printPosition(p, prom);
           }
         });
     w.write("\n]");

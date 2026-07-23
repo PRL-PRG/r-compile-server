@@ -1,6 +1,5 @@
 package org.prlprg.fir.opt.specialize;
 
-import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
 import org.prlprg.fir.analyze.resolve.EnvironmentLiveness;
@@ -9,15 +8,12 @@ import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.iterator.InstructionDfs;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.variable.Register;
 
 /// Marks unnecessary environments as [MkEnvType#ELIDED]: those whose range contains no [Store]
 /// (nor super-store) nor reflective instructions (ignoring deopt branches).
@@ -31,28 +27,27 @@ public record ElideEnv() implements SpecializeOptimization {
   }
 
   @Override
-  public Expression run(
+  public Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof MkEnv(var type)) || type == MkEnvType.ELIDED) {
-      return expression;
+    if (!(statement.expression() instanceof MkEnv(var type)) || type == MkEnvType.ELIDED) {
+      return Result.UNCHANGED;
     }
 
     // Can't elide an environment created right before a deopt.
-    if (bb.jump() instanceof Deopt) {
-      return expression;
+    if (bb.jump().expression() instanceof Deopt) {
+      return Result.UNCHANGED;
     }
 
-    var range = analyses.get(EnvironmentLiveness.class).rangeAt(new CfgPosition(bb, index));
+    var range = analyses.get(EnvironmentLiveness.class).rangeAt(statement);
     if (range == null) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
     // A non-reflective environment is guaranteed (by feedback, via [SpecializeNonReflectiveEnv]) to
@@ -61,10 +56,10 @@ public record ElideEnv() implements SpecializeOptimization {
     var ignoreReflection = type == MkEnvType.NON_REFLECTIVE;
 
     if (!canElide(range, analyses.get(InferEffects.class), ignoreReflection)) {
-      return expression;
+      return Result.UNCHANGED;
     }
 
-    return new MkEnv(MkEnvType.ELIDED);
+    return new Result.SetExpression(new MkEnv(MkEnvType.ELIDED));
   }
 
   private static boolean canElide(
@@ -72,23 +67,22 @@ public record ElideEnv() implements SpecializeOptimization {
     var mkPos = range.mk();
     var popPoss = range.pops();
 
-    var dfs = new InstructionDfs(mkPos.bb(), mkPos.instructionIndex());
+    var dfs = new InstructionDfs(mkPos.parentBB(), mkPos.indexInBB());
 
     while (dfs.hasNext()) {
       var instruction = dfs.next();
       var bb = dfs.bb();
-      var idx = dfs.instructionIndex();
 
       // Entered a deopt branch: the deopt re-creates the environment on demand, so prune and
       // ignore (prune means we won't iterate another instruction in the branch, so checking that
       // we're *in* a deopt branch is equivalent).
-      if (bb.jump() instanceof Deopt) {
+      if (bb.jump().expression() instanceof Deopt) {
         dfs.prune();
         continue;
       }
 
       // Reached the end of the environment's range, so prune (don't iterate past it).
-      if (popPoss.contains(new CfgPosition(bb, idx))) {
+      if (popPoss.contains(instruction)) {
         dfs.prune();
         continue;
       }
@@ -96,8 +90,9 @@ public record ElideEnv() implements SpecializeOptimization {
       // Check if this instruction requires a materialized environment. Any store (local or super)
       // needs it: a local store binds in the environment, and a super-store starts its search from
       // the environment's parent, so both observe whether the environment is materialized.
-      if (instruction instanceof Statement(var _, var _, var expr)
-          && (expr instanceof Store || (!ignoreReflection && inferEffects.of(expr).reflect()))) {
+      if (instruction instanceof Statement stmt
+          && (stmt.expression() instanceof Store
+              || (!ignoreReflection && inferEffects.of(stmt).reflect()))) {
         return false;
       }
     }

@@ -1293,7 +1293,7 @@ public final class Fir2CCompiler {
 
             switch (jump.expression()) {
               case Return _ -> {
-                var returnValue = emitArgument(value);
+                var returnValue = emitArgument(jump.arg(0));
                 // The frame is exiting: mark all promises it created as escaped, and release the
                 // tracking list (its `PROTECT_WITH_INDEX` from `emitPromiseTrackingSetup`).
                 if (createsPromises) {

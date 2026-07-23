@@ -95,7 +95,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
 
           // Must be a non-effectful Promise
           if (!(promiseDefStmt.expression()
-                  instanceof Promise(var valueType, var effects, var code))
+                  instanceof Promise(var valueType, var effects, var code, _))
               || effects.impure()) {
             continue;
           }
