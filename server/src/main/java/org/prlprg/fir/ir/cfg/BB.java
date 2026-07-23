@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.instruction.Instruction;
@@ -16,6 +17,7 @@ import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
 import org.prlprg.fir.ir.variable.BlockParameter;
+import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.Collections2;
@@ -161,12 +163,12 @@ public final class BB implements Comparable<BB> {
   }
 
   /// The first statement, or `null` if the block has no statements.
-  public Statement firstStatement() {
+  public @Nullable Statement firstStatement() {
     return jump.next() == jump ? null : (Statement) jump.next();
   }
 
   /// The last statement, or `null` if the block has no statements.
-  public Statement lastStatement() {
+  public @Nullable Statement lastStatement() {
     return jump.prev() == jump ? null : (Statement) jump.prev();
   }
 
@@ -233,11 +235,6 @@ public final class BB implements Comparable<BB> {
     return Collections.unmodifiableCollection(predecessors);
   }
 
-  // Package-private: maintained by the parser/CFG when wiring jumps.
-  Set<BB> predecessorsMutable() {
-    return predecessors;
-  }
-
   /// [Target]s in predecessors to this [BB].
   ///
   /// Each element in the outermost collection contains all targets in a [BB] that point to this
@@ -285,44 +282,10 @@ public final class BB implements Comparable<BB> {
     return label;
   }
 
+  /// A block can be printed without any surrounding information, so this forwards to
+  /// [IrPrintContext] and callers can just `p.print(bb)`.
   @PrintMethod
   private void print(Printer p) {
-    var w = p.writer();
-
-    p.print(comments);
-
-    if (!isEntry()) {
-      w.write(label);
-      // Phi parameters carry their type inline at the definition site, e.g. `L1(r2: I, r3: v1(I))`.
-      w.write('(');
-      var firstParam = true;
-      for (var parameter : parameters) {
-        if (!firstParam) {
-          w.write(", ");
-        }
-        firstParam = false;
-        p.print(parameter);
-        w.write(": ");
-        p.print(parameter.type());
-      }
-      w.write(')');
-      w.write(":");
-    } else {
-      w.write("  ");
-    }
-
-    w.runIndented(
-        () -> {
-          if (!isEntry()) {
-            w.write('\n');
-          }
-
-          for (var statement : statements()) {
-            p.print(statement);
-            w.write(";\n");
-          }
-          p.print(jump);
-          w.write(";");
-        });
+    p.withContext(new IrPrintContext()).print(this);
   }
 }

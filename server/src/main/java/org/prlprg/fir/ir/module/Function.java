@@ -25,8 +25,7 @@ import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
+import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
@@ -66,6 +65,49 @@ public final class Function {
 
     // Add baseline version
     addVersion(baselineParameters, baselineIsStub);
+  }
+
+  /// Create a function from already-constructed versions, e.g. ones that were just parsed.
+  ///
+  /// `versions` maps each version's index to the version. Indices may have gaps: those are removed
+  /// versions, whose indices aren't reused (see [#removeVersion]). `nextVersionIndex` is the index
+  /// the next [added][#addVersion] version gets, which is greater than every index in `versions`
+  /// (it's *not* simply the last index plus one, because the last version(s) may be removed).
+  ///
+  /// @throws IllegalArgumentException If `versions` is empty, doesn't start at index 0 (the
+  ///   baseline can't be removed), or has an index that isn't below `nextVersionIndex`.
+  public Function(
+      Module owner,
+      NamedVariable name,
+      List<NamedVariable> parameterNames,
+      SequencedMap<Integer, Abstraction> versions,
+      int nextVersionIndex) {
+    if (versions.isEmpty()) {
+      throw new IllegalArgumentException("Function must have at least one version (the baseline)");
+    }
+    if (versions.firstEntry().getKey() != 0) {
+      throw new IllegalArgumentException("Function's baseline can't be removed");
+    }
+    if (versions.lastEntry().getKey() >= nextVersionIndex) {
+      throw new IllegalArgumentException(
+          "Function's version indices must all be below "
+              + nextVersionIndex
+              + ", but one is "
+              + versions.lastEntry().getKey());
+    }
+
+    comments = new Comments();
+    this.owner = owner;
+    this.name = name;
+    this.parameterNames = List.copyOf(parameterNames);
+    this.nextVersionIndex = nextVersionIndex;
+
+    this.versions.putAll(versions);
+    for (var version : versions.entrySet()) {
+      versionIndices.put(version.getValue(), version.getKey());
+    }
+    // After `versions` is fully populated, so `versionsSorted`'s comparator sees the baseline.
+    versionsSorted.addAll(versions.values());
   }
 
   static List<FunctionParameter> computeBaselineParameters(List<NamedVariable> parameterNames) {
@@ -133,6 +175,12 @@ public final class Function {
   /// said version or later ones are referenced by index (e.g. in serialized code)
   public @UnmodifiableView SequencedCollection<Integer> versionIndices() {
     return Collections.unmodifiableSequencedCollection(versions.sequencedKeySet());
+  }
+
+  /// The index the next [added][#addVersion] version gets, which is one past the highest index
+  /// ever used (removed versions' indices aren't reused).
+  public int nextVersionIndex() {
+    return nextVersionIndex;
   }
 
   public Abstraction baseline() {
@@ -249,80 +297,10 @@ public final class Function {
     return Printer.toString(this);
   }
 
+  /// A function can be printed without any surrounding information, so this forwards to
+  /// [IrPrintContext] and callers can just `p.print(function)`.
   @PrintMethod
   private void print(Printer p) {
-    var w = p.writer();
-
-    p.print(comments);
-
-    if (userProperties.strict()) {
-      w.write("@strict\n");
-    }
-
-    w.write("fun ");
-    p.print(name);
-
-    p.printAsList("(", ")", parameterNames);
-
-    w.write(" {");
-    w.runIndented(
-        () -> {
-          for (int i = 0; i < nextVersionIndex; i++) {
-            w.write('\n');
-
-            var version = versions.get(i);
-            if (version == null) {
-              w.write("<removed>");
-            } else {
-              p.print(version);
-            }
-          }
-        });
-    w.write("\n}");
-  }
-
-  public record ParseContext(Module owner, FunctionRef.ParseContext forRef) {}
-
-  @ParseMethod
-  private Function(Parser p, ParseContext ctx) {
-    owner = ctx.owner();
-    comments = new Comments();
-
-    var s = p.scanner();
-
-    comments.addAll(p.parse(Comments.class));
-
-    if (s.trySkip('@')) {
-      switch (s.readIdentifierOrKeyword()) {
-        case "strict" -> userProperties.setStrict(true);
-        case String unknown -> throw s.fail("unknown user property: @" + unknown);
-      }
-    }
-
-    s.assertAndSkip("fun ");
-    name = p.parse(NamedVariable.class);
-    parameterNames = List.copyOf(p.parseList("(", ")", NamedVariable.class));
-
-    var abstractionParser = p.withContext(new Abstraction.ParseContext(owner, ctx.forRef()));
-
-    s.assertAndSkip('{');
-    for (; !s.nextCharIs('}'); nextVersionIndex++) {
-      // A removed version: skip it but still advance the index (hence the unusual `for`).
-      if (s.trySkip("<removed>")) {
-        if (versions.isEmpty()) {
-          throw s.fail("function's baseline can't be removed");
-        }
-        continue;
-      }
-
-      var version = abstractionParser.parse(Abstraction.class);
-      versions.put(nextVersionIndex, version);
-      versionIndices.put(version, nextVersionIndex);
-      versionsSorted.add(version);
-    }
-    if (versions.isEmpty()) {
-      throw s.fail("function must have at least one version (the baseline)");
-    }
-    s.assertAndSkip('}');
+    p.withContext(new IrPrintContext()).print(this);
   }
 }

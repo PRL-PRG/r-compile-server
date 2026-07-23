@@ -16,6 +16,8 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.observer.Observer;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.parseprint.IrPrintContext;
+import org.prlprg.fir.parseprint.ModuleParseContext;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -72,6 +74,27 @@ public final class Module {
               new Function(this, name, parameterNames, baselineParameters, baselineIsStub);
           functions.put(name, function);
           return function;
+        });
+  }
+
+  /// Add an already-constructed function, e.g. one that was just parsed.
+  ///
+  /// @throws IllegalArgumentException If the function isn't owned by this module, or this module
+  ///   already has a function with its name.
+  public void addFunction(Function function) {
+    this.record(
+        "Module#addFunction",
+        List.of(this, function),
+        () -> {
+          if (function.owner() != this) {
+            throw new IllegalArgumentException(
+                "Function '" + function.name() + "' belongs to a different module.");
+          }
+          if (functions.containsKey(function.name())) {
+            throw new IllegalArgumentException(
+                "Function with name '" + function.name() + "' already exists.");
+          }
+          functions.put(function.name(), function);
         });
   }
 
@@ -137,38 +160,17 @@ public final class Module {
     return Printer.toString(this);
   }
 
+  /// A module can be printed without any surrounding information, so this forwards to
+  /// [IrPrintContext] and callers can just `p.print(module)`.
   @PrintMethod
   private void print(Printer p) {
-    p.printSeparated("\n\n", functions.values());
+    p.withContext(new IrPrintContext()).print(this);
   }
 
+  /// A module can be parsed without any surrounding information, so this forwards to
+  /// [ModuleParseContext] and callers can just `p.parse(Module.class)`.
   @ParseMethod
   private static Module parse(Parser p) {
-    var s = p.scanner();
-    var module = new Module();
-
-    var deferredFunctions = new LinkedHashMap<NamedVariable, FunctionRef>();
-    var functionParser =
-        p.withContext(
-            new Function.ParseContext(module, new FunctionRef.ParseContext(deferredFunctions)));
-
-    while (!s.isAtEof() && !s.nextCharIs('}')) {
-      var function = functionParser.parse(Function.class);
-      if (module.functions.put(function.name(), function) != null) {
-        throw new IllegalArgumentException(
-            "Function with name '" + function.name() + "' already exists.");
-      }
-    }
-
-    // Resolve forward references to functions (e.g. recursive or mutually-recursive calls).
-    for (var entry : deferredFunctions.entrySet()) {
-      var function = module.lookupFunction(entry.getKey());
-      if (function == null) {
-        throw s.fail("function not found: " + entry.getKey());
-      }
-      entry.getValue().set(function);
-    }
-
-    return module;
+    return p.withContext(new ModuleParseContext()).parse(Module.class);
   }
 }

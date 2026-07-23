@@ -1,34 +1,22 @@
 package org.prlprg.fir.feedback;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
-import org.prlprg.fir.analyze.cfg.CfgHierarchy;
-import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
-import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
+import org.prlprg.fir.parseprint.ModuleFeedbackPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
-import org.prlprg.sexp.parseprint.SEXPParseContext;
-import org.prlprg.sexp.parseprint.SEXPPrintContext;
-import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
 /// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
 public class AbstractionFeedback {
@@ -149,6 +137,21 @@ public class AbstractionFeedback {
     return allRecorded.getOrDefault(register, 0);
   }
 
+  /// All registers we recorded any feedback for, ordered by when feedback was first recorded.
+  public @UnmodifiableView Set<Register> recordedRegisters() {
+    return Collections.unmodifiableSet(allRecorded.keySet());
+  }
+
+  /// Set how many times this abstraction was called (when re-reading recorded feedback).
+  public void setNumCalls(int numCalls) {
+    this.numCalls = numCalls;
+  }
+
+  /// Set how many times we recorded feedback for `register` (when re-reading recorded feedback).
+  public void setTimes(Register register, int times) {
+    allRecorded.put(register, times);
+  }
+
   /// Reset the call counter to 0.
   public void resetCalls() {
     numCalls = 0;
@@ -170,261 +173,17 @@ public class AbstractionFeedback {
 
   @Override
   public String toString() {
-    return Printer.toString(this);
+    return Printer.toString(this, forPrinting());
   }
 
-  public record ParseContext(
-      ModuleFeedback moduleFeedback, Module module, SEXPParseContext forSexps, Abstraction scope) {}
-
-  public record PrintContext(SEXPPrintContext forSexps) {}
-
-  @ParseMethod
-  private AbstractionFeedback(Parser p, ParseContext ctx) {
-    var s = p.scanner();
-    module = ctx.moduleFeedback;
-
-    numCalls = s.readUInt();
-    s.assertAndSkip("x");
-
-    s.assertAndSkip('[');
-
-    while (!s.trySkip(']')) {
-      if (s.trySkip("reg ")) {
-        var register = parseRegister(p, ctx.scope);
-        parse(register, p, ctx);
-      } else if (s.trySkip("env ")) {
-        reflectiveEnvs.add(parsePosition(p, ctx.scope));
-      } else if (s.trySkip("prom ")) {
-        escapingPromises.add(parsePosition(p, ctx.scope));
-      } else {
-        throw s.fail("\"reg\", \"env\", or \"prom\"", s.readIdentifierOrKeyword());
-      }
-    }
-  }
-
-  /// Parses a register reference by name (as printed by [Register]), resolving it to the (single)
-  /// register that defines that name in `scope`.
-  private static Register parseRegister(Parser p, Abstraction scope) {
-    var s = p.scanner();
-    var name = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
-    return scope
-        .streamRegisters()
-        .filter(r -> r.name().equals(name))
-        .findFirst()
-        .orElseThrow(() -> s.fail("a register named '" + name + "' in the scope"));
-  }
-
-  /// Parses a statement position: a `bb:index` (or `outer/.../innermost` through enclosing promise
-  /// bodies) resolved against `scope`'s CFG. Inverse of [#printPosition].
-  private static Statement parsePosition(Parser p, Abstraction scope) {
-    var s = p.scanner();
-    var cfg = Objects.requireNonNull(scope.cfg(), "can't parse a position for a stub abstraction");
-
-    Statement statement;
-    while (true) {
-      // The entry block's label (`$ENTRY`) starts with `$`, which isn't an identifier char.
-      var label = (s.trySkip('$') ? "$" : "") + s.readIdentifierOrKeyword();
-      var bb = cfg.bb(label);
-      if (bb == null) {
-        throw s.fail("position not in CFG: no BB with label \"" + label + "\"");
-      }
-      s.assertAndSkip(':');
-      var index = s.readUInt();
-      statement = (Statement) bb.instructions().get(index);
-
-      if (!s.trySkip('/')) {
-        break;
-      }
-      // A `/` means there's a deeper position, so this one must be an enclosing promise.
-      if (!(statement.expression() instanceof Promise(_, _, var code, _))) {
-        throw s.fail("an enclosing scope position must be a promise, but got: " + statement);
-      }
-      cfg = code;
-    }
-
-    return statement;
-  }
-
-  /// Prints a statement's position: a `bb:index` (or `outer/.../innermost` through enclosing
-  // promise
-  /// bodies). Inverse of [#parsePosition].
-  private static void printPosition(Printer p, Statement statement) {
-    var w = p.writer();
-    var first = true;
-    for (var s : positionChain(statement)) {
-      if (first) {
-        first = false;
-      } else {
-        w.write('/');
-      }
-      w.write(Objects.requireNonNull(s.parentBB()).label());
-      w.write(':');
-      p.print(s.indexInBB());
-    }
-  }
-
-  /// The enclosing-promise statements followed by `statement`, ordered outermost (in the version's
-  /// [CFG][org.prlprg.fir.ir.cfg.CFG]) to innermost. Derived from the promise nesting via
-  /// [CfgHierarchy], so it round-trips through [#parsePosition].
-  private static List<Statement> positionChain(Statement statement) {
-    var scope = Objects.requireNonNull(statement.parentBB()).owner().scope();
-    var hierarchy = new CfgHierarchy(scope);
-    var chain = new ArrayList<Statement>();
-    for (var s = statement; s != null; s = hierarchy.parentPromise(s.parentBB().owner())) {
-      chain.add(s);
-    }
-    Collections.reverse(chain);
-    return chain;
-  }
-
-  /// Parse feedback and assign it to the register. Parses nothing if it has none.
-  private void parse(Register register, Parser p, ParseContext ctx) {
-    var s = p.scanner();
-    var module = ctx.module;
-    var p2 = p.withContext(ctx.forSexps());
-
-    if (s.trySkip('!')) {
-      var assignedForceCount = s.readUInt();
-      forceCount.put(register, assignedForceCount);
-    }
-
-    if (s.trySkip('-')) {
-      if (s.nextCharsAre("_ ") || s.nextCharsAre("_(")) {
-        s.assertAndSkip('_');
-        callees.put(register, Optional.empty());
-      } else {
-        var calleeName = p2.parse(NamedVariable.class);
-        var callee = module.lookupFunction(calleeName);
-        if (callee == null) {
-          throw s.fail("No such function: " + calleeName);
-        }
-        callees.put(register, Optional.of(callee));
-      }
-    }
-
-    if (s.trySkip('=')) {
-      if (s.nextCharsAre("_ ") || s.nextCharsAre("_(")) {
-        s.assertAndSkip('_');
-        constants.put(register, Optional.empty());
-      } else {
-        var value = p2.parse(Value.class);
-        constants.put(register, Optional.of(value));
-      }
-    }
-
-    if (s.trySkip(':')) {
-      var type = p.parse(TypeFeedback.class);
-      types.put(register, type);
-    }
-
-    s.assertAndSkip("(");
-    var times = s.readUInt();
-    s.assertAndSkip("x)");
-    allRecorded.put(register, times);
-  }
-
+  /// Feedback can be printed without any surrounding information (constants are printed in full),
+  /// so this forwards to [ModuleFeedbackPrintContext] and callers can just `p.print(feedback)`.
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new PrintContext(new SEXPPrintContext(SEXPPrintOptions.FULL))).print(this);
+    p.withContext(forPrinting()).print(this);
   }
 
-  @PrintMethod
-  private void print(Printer p, PrintContext ctx) {
-    var w = p.writer();
-
-    p.print(numCalls);
-    w.write("x\n");
-
-    if (allRecorded.isEmpty()) {
-      w.write("[]");
-      return;
-    }
-
-    w.write("[ ");
-    w.runIndented(
-        () -> {
-          var wroteAny = false;
-
-          for (var register : allRecorded.keySet()) {
-            if (wroteAny) {
-              w.write('\n');
-            } else {
-              wroteAny = true;
-            }
-
-            w.write("reg ");
-            p.print(register);
-            print(register, p, ctx);
-          }
-
-          for (var env : reflectiveEnvs) {
-            if (wroteAny) {
-              w.write('\n');
-            } else {
-              wroteAny = true;
-            }
-
-            w.write("env ");
-            printPosition(p, env);
-          }
-
-          for (var prom : escapingPromises) {
-            if (wroteAny) {
-              w.write('\n');
-            } else {
-              wroteAny = true;
-            }
-
-            w.write("prom ");
-            printPosition(p, prom);
-          }
-        });
-    w.write("\n]");
-  }
-
-  /// Print the register's feedback. Prints nothing if it has none.
-  public void print(Register register, Printer p, PrintContext ctx) {
-    var w = p.writer();
-    var p2 = p.withContext(ctx.forSexps());
-
-    var type = types.get(register);
-    var callee = callees.get(register);
-    var constant = constants.get(register);
-    var assignedForceCount = forceCount.get(register);
-    var times = times(register);
-
-    if (times != 0) {
-      if (assignedForceCount != null) {
-        w.write(" !");
-        p.print(assignedForceCount);
-      }
-
-      if (callee != null) {
-        w.write(" -");
-        if (callee.isPresent()) {
-          p.print(callee.get().name());
-        } else {
-          w.write("_");
-        }
-      }
-
-      if (constant != null) {
-        w.write(" =");
-        if (constant.isPresent()) {
-          p2.print(constant.get());
-        } else {
-          w.write("_");
-        }
-      }
-
-      if (type != null) {
-        w.write(" :");
-        p.print(type);
-      }
-
-      w.write(" (");
-      p.print(times);
-      w.write("x)");
-    }
+  private static ModuleFeedbackPrintContext.AbstractionFeedbackPrintContext forPrinting() {
+    return new ModuleFeedbackPrintContext().forAbstraction();
   }
 }
