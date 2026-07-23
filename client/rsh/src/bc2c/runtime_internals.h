@@ -34,6 +34,12 @@ extern SEXP R_LogicalNAValue;
 extern SEXP R_FalseValue;
 #endif
 
+#define R_NaN (NAN)
+#define R_PosInf (INFINITY)
+#define R_NegInf (-INFINITY)
+// #define R_NaReal (R_ValueOfNA())
+#define R_NaInt (INT_MIN)
+
 #define ALWAYS_INLINE inline __attribute__((always_inline))
 #ifdef RSH_INLINE
 #define INLINE ALWAYS_INLINE
@@ -590,6 +596,38 @@ static INLINE SEXP try_assign_unwrap(SEXP value, SEXP sym, SEXP rho,
   }
 
   return value;
+}
+
+static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
+  switch (x) {
+  case NA_LOGICAL:
+    return R_LogicalNAValue;
+  case 0:
+    return R_FalseValue;
+  default:
+    return R_TrueValue;
+  }
+}
+
+static ALWAYS_INLINE SEXP STACKVAL_TO_SEXP(R_bcstack_t v) {
+  // Most likely we will have a SEXP already, so check for that first
+  if (v.tag == 0) {
+    return v.u.sxpval;
+  }
+  switch (v.tag) {
+  case REALSXP:
+    return Rf_ScalarReal(v.u.dval);
+  case INTSXP:
+    return Rf_ScalarInteger(v.u.ival);
+  case LGLSXP:
+    return Rsh_ScalarLogical(v.u.ival);
+  case RSH_ISQSXP: {
+    Rsh_isqinfo_t isqinfo = v.u.isqval;
+    return R_compact_intrange(isqinfo.n1, isqinfo.n2);
+  }
+  default:
+    UNREACHABLE();
+  }
 }
 
 ALWAYS_INLINE R_xlen_t XLENGTH_0(SEXP x) { return STDVEC_LENGTH(x); }

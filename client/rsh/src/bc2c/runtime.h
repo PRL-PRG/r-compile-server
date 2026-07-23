@@ -7,12 +7,6 @@
 #include <setjmp.h>
 #define RSH
 
-#define R_NaN (NAN)
-#define R_PosInf (INFINITY)
-#define R_NegInf (-INFINITY)
-// #define R_NaReal (R_ValueOfNA())
-#define R_NaInt (INT_MIN)
-
 // MAKE SURE Rinternals.h is not listed!
 #include "runtime_internals.h"
 #include <assert.h>
@@ -465,41 +459,11 @@ static INLINE Rsh_isqinfo_t VAL_ISQ(Value v) {
 
 #define VAL_TAG(v) ((v).tag)
 
-static ALWAYS_INLINE SEXP Rsh_ScalarLogical(int x) {
-  switch (x) {
-  case NA_LOGICAL:
-    return R_LogicalNAValue;
-  case 0:
-    return R_FalseValue;
-  default:
-    return R_TrueValue;
-  }
-}
-
 // Checked accessors
 
 // TODO: can we share this bcell expand?
 // TODO: rename
-static ALWAYS_INLINE SEXP val_as_sexp(Value v) {
-  // Most likely we will have a SEXP already, so check for that first
-  if (v.tag == 0) {
-    return v.u.sxpval;
-  }
-  switch (v.tag) {
-  case REALSXP:
-    return Rf_ScalarReal(VAL_DBL(v));
-  case INTSXP:
-    return Rf_ScalarInteger(VAL_INT(v));
-  case LGLSXP:
-    return Rsh_ScalarLogical(VAL_INT(v));
-  case ISQSXP: {
-    Rsh_isqinfo_t isqinfo = VAL_ISQ(v);
-    return R_compact_intrange(isqinfo.n1, isqinfo.n2);
-  }
-  default:
-    UNREACHABLE();
-  }
-}
+#define val_as_sexp STACKVAL_TO_SEXP
 
 #ifndef NO_STACK_OVERFLOW_CHECK
 #define CHECK_OVERFLOW(__n__)                                                  \
