@@ -289,6 +289,24 @@ static void *mmap_near(size_t size)
 #endif
 }
 
+static void *mmap_low(size_t size)
+{
+	if (size == 0)
+		return NULL;
+
+#ifdef MCMODEL_SMALL
+	void *m = mmap(NULL, size, PROT_READ | PROT_WRITE,
+				   MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+	uint8_t *pool = (m == MAP_FAILED) ? NULL : (uint8_t *)m;
+#else
+	uint8_t *pool = mmap_near(size);
+#endif
+	if (pool == NULL)
+		error("Out of memory (low pool).");
+
+	return pool;
+}
+
 /************************************************************************************/
 
 static const void **prepare_got_table(size_t *got_size)
@@ -531,33 +549,21 @@ static void prepare_shared_memory()
 	R_RegisterCFinalizerEx(mem_shared_sexp, &R_RcpSharedFree, FALSE);
 }
 
+// SmcVariant, SmcSiteHeader and the SmcGroupInfo per-group descriptor are
+// generated/declared in rcp_common.h. The extractor emits one rcp_smc_groups[]
+// entry and one SMC_GROUP_<NAME> macro per _RCP_SMC_<GROUP>, with site_size
+// already precomputed, so no group has to be hand-declared here.
+
 #ifdef STEPFOR_SPECIALIZE
 typedef struct
 {
-	int cached_type;
+	// SmcSiteHeader-compatible prefix:
 	uint8_t *dst;
-	uint8_t *src[stepfor_variant_count];
-	uint16_t sizes[stepfor_variant_count];
-	uint8_t data[stepfor_sum_size];
+	SmcVariant variants[stepfor_variant_count];
+	// STEPFOR-specific:
+	int cached_type;				// which variant is currently installed (-1 = none)
+	uint8_t data[stepfor_sum_size]; // pre-patched variant bodies
 } StepFor_specialized;
-
-StepFor_specialized stepfor_data;
-
-void prepare_stepfor()
-{
-	stepfor_data.cached_type = -1; // Initialize to an invalid type
-	stepfor_data.dst = NULL;
-	size_t pos = 0;
-
-	for (size_t a = 0; a < stepfor_variant_count; a++)
-	{
-		stepfor_data.sizes[a] = STEPFOR_OP_stencils[a].body_size;
-		*(ptrdiff_t *)&stepfor_data.src[a] = pos;
-		memcpy(&stepfor_data.data[pos], STEPFOR_OP_stencils[a].body,
-			   STEPFOR_OP_stencils[a].body_size);
-		pos += STEPFOR_OP_stencils[a].body_size;
-	}
-}
 #endif
 
 typedef struct
@@ -581,7 +587,8 @@ typedef struct
 
 static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 				  const Hole *hole, int hole_id, int *imms, void *continue_to,
-				  void *custom_ptr, const PatchContext *ctx)
+				  void *const *custom_ptr, const SmcSiteHeader *smc_site,
+				  const PatchContext *ctx)
 {
 	ptrdiff_t ptr;
 	const mem_shared_data *shared;
@@ -715,13 +722,33 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 		case RELOC_RCP_CUSTOM:
 		{
 			assert(custom_ptr != NULL);
-			ptr = (ptrdiff_t)custom_ptr;
+			ptr = (ptrdiff_t)custom_ptr[hole->val.imm_pos];
 		}
 		break;
 		case RELOC_RCP_EXECUTABLE_START:
 		{
 			assert(ctx->executable_start != NULL);
 			ptr = (ptrdiff_t)ctx->executable_start;
+		}
+		break;
+		case RELOC_RCP_SMC_SELF:
+		{
+			// Address of this variant's own live slot (the memcpy destination).
+			ptr = (ptrdiff_t)loc;
+		}
+		break;
+		case RELOC_RCP_SMC_VARIANT:
+		{
+			// Address of pre-patched successor variant n in this site's block.
+			assert(smc_site != NULL);
+			ptr = (ptrdiff_t)smc_site->variants[hole->val.imm_pos].ptr;
+		}
+		break;
+		case RELOC_RCP_SMC_VARIANT_SIZE:
+		{
+			// Body length (memcpy length) of successor variant n.
+			assert(smc_site != NULL);
+			ptr = (ptrdiff_t)smc_site->variants[hole->val.imm_pos].size;
 		}
 		break;
 		default:
@@ -749,6 +776,36 @@ static void patch(uint8_t *dst, uint8_t *loc, int pos, const Stencil *stencil,
 				hole->kind, stencil->name, hole_id);
 
 	memcpy(&dst[hole->offset], &ptr, hole->size);
+}
+
+// Populate a per-site SMC block: for every (already size-normalized) variant,
+// copy its body into the site's data blob, record src[k], and patch its holes
+// as if it were executing at `dst` (the reserved live slot). The site's own
+// address is passed to patch() so SMC_SELF / SMC_VARIANT / SMC_VARIANT_SIZE
+// holes inside the variants resolve against this block.
+static void build_smc_site(SmcSiteHeader *site, uint8_t *data,
+						   const Stencil *variants, size_t count, uint8_t *dst,
+						   void *const *custom_data, int pos, int *imms,
+						   void *continue_to, const PatchContext *ctx)
+{
+	site->dst = dst;
+
+	// Lay out and copy the raw variant bodies first, so variants[] is populated
+	// before any variant's SMC_VARIANT holes are resolved against it...
+	size_t off = 0;
+	for (size_t k = 0; k < count; k++)
+	{
+		site->variants[k].ptr = data + off;
+		site->variants[k].size = variants[k].body_size;
+		memcpy(site->variants[k].ptr, variants[k].body, variants[k].body_size);
+		off += variants[k].body_size;
+	}
+
+	// ...then patch each body in place as if it ran at `dst`.
+	for (size_t k = 0; k < count; k++)
+		for (size_t j = 0; j < variants[k].holes_size; j++)
+			patch(site->variants[k].ptr, dst, pos, &variants[k],
+				  &variants[k].holes[j], j, imms, continue_to, custom_data, site, ctx);
 }
 
 static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
@@ -1230,7 +1287,11 @@ typedef struct PluginStencil
 {
 	int pos;
 	const Stencil *stencil;
-	void *data;
+	void *data[4];
+	// When non-NULL, this plugin is the entry variant of a self-modifying SMC
+	// group: it reserves a max_size slot, gets a per-site block built for it,
+	// and its successors are installed in place at runtime.
+	const SmcGroupInfo *smc;
 } PluginStencil;
 
 typedef struct PluginStencils
@@ -1252,15 +1313,36 @@ static int plugin_stencil_pos_cmp(const void *a, const void *b)
 	return 0;
 }
 
+// Append one mmap'd region to a compiled body's munmap list, growing the
+// backing array as needed. The array is plain malloc/realloc'd (freed with
+// free() in R_RcpFree) so it is independent of R's transient allocators and
+// survives the by-value copy of `res` into the heap rcp_exec_ptrs.
+static void rcp_regions_push(rcp_exec_ptrs *res, void *ptr, size_t size)
+{
+	if (res->mmap_regions_count == res->mmap_regions_capacity)
+	{
+		size_t new_cap = res->mmap_regions_capacity ? res->mmap_regions_capacity * 2 : 4;
+		rcp_mmap_region *grown =
+			realloc(res->mmap_regions, new_cap * sizeof(rcp_mmap_region));
+		if (grown == NULL)
+			error("Out of memory (mmap region list).");
+		res->mmap_regions = grown;
+		res->mmap_regions_capacity = new_cap;
+	}
+	res->mmap_regions[res->mmap_regions_count++] =
+		(rcp_mmap_region){.ptr = ptr, .size = size};
+}
+
 static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 										 SEXP *constpool, int constpool_size,
 										 const PluginStencil *plugins, int plugin_size, BasicBlock *bbs,
 										 CompilationStats *stats,
 										 const char *name)
 {
-	rcp_exec_ptrs res;
+	rcp_exec_ptrs res = {0};
 	size_t insts_size = 0;
 	int for_count = 0;
+	size_t smc_storage_bytes = 0; // total bytes for self-modifying plugin site blocks
 
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
 								  // allocated by the following calls
@@ -1365,7 +1447,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			const PluginStencil *plugin = &plugins[p];
 			const Stencil *plugin_stencil = plugin->stencil;
 			size_t aligned_size = align_to_higher(insts_size, plugin_stencil->alignment);
-			insts_size = aligned_size + plugin_stencil->body_size;
+			// A self-modifying plugin reserves the group's max_size slot (any
+			// successor variant must fit), not just the entry variant's body.
+			insts_size = aligned_size + (plugin->smc ? plugin->smc->slot_size
+													 : plugin_stencil->body_size);
+			if (plugin->smc)
+				smc_storage_bytes += plugin->smc->site_size;
 		}
 
 		size_t aligned_size = align_to_higher(insts_size, stencil->alignment);
@@ -1427,11 +1514,12 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		insts_size, getpagesize()); // Align to page size to be able to map it as
 									// executable memory
 
-	size_t total_size = executable_size_aligned
 #ifdef STEPFOR_SPECIALIZE
-						+ (for_count * sizeof(StepFor_specialized))
+	size_t stepfor_pool_bytes = for_count * sizeof(StepFor_specialized);
 #endif
-		;
+
+	// Executable code, mapped within rel32 reach of the runtime.
+	size_t total_size = executable_size_aligned;
 	uint8_t *memory = mmap_near(total_size);
 
 	if (memory == NULL)
@@ -1447,15 +1535,25 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			error("Out of memory.");
 	}
 
-	res.memory_private = memory;
-	res.memory_private_size = total_size;
+	rcp_regions_push(&res, memory, total_size);
 
-	// Split memory into sections
 	uint8_t *executable = &memory[0];
+
+	// Each self-modifying-code kind gets its own data pool, allocated in the low
+	// 32-bit address space and registered for munmap on the region list (see
+	// alloc_smc_pool).
 #ifdef STEPFOR_SPECIALIZE
+	stepfor_pool_bytes = align_to_higher(stepfor_pool_bytes, getpagesize());
 	StepFor_specialized *stepfor_storage =
-		(StepFor_specialized *)&memory[executable_size_aligned];
+		(StepFor_specialized *)mmap_low(stepfor_pool_bytes);
+	rcp_regions_push(&res, stepfor_storage, stepfor_pool_bytes);
 #endif
+	// Self-modifying plugin site blocks, carved out (atomically) during the
+	// parallel copy-patch loop below.
+	smc_storage_bytes = align_to_higher(smc_storage_bytes, getpagesize());
+	uint8_t *smc_storage = mmap_low(smc_storage_bytes);
+	rcp_regions_push(&res, smc_storage, smc_storage_bytes);
+	size_t smc_storage_used = 0;
 
 	for (int j = 0; j < count_opcodes; j++)
 		inst_start[bytecode_lut[j]] += (ptrdiff_t)executable;
@@ -1513,8 +1611,6 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #pragma omp atomic capture // Get own memory for this startfor
 				stepfor_mem = stepfor_pool++;
 
-				*stepfor_mem = stepfor_data; // Copy the specialized StepFor data
-
 				int stepfor_bc = bytecode[bc_pos + 1 + 2] - 1;
 				DEBUG_PRINT("Looking for STEPFOR_BCOP at position %d\n", stepfor_bc);
 				while (bytecode[stepfor_bc] != STEPFOR_BCOP)
@@ -1532,27 +1628,17 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				}
 				DEBUG_PRINT("Found corresponding STEPFOR_BCOP at position %d\n", stepfor_bc);
 
+				// Copy destination is the (reserved) STEPFOR slot; the driver
+				// (this STARTFOR) picks a variant by loop type at runtime.
 				uint8_t *stepfor_code = inst_start[stepfor_bc];
 
-				// Set the destination pointer to point to where the stepfor code should
-				// be copied to
-				stepfor_mem->dst = stepfor_code;
-
-				// Set the source pointers to point to the specialized StepFor bodies
-				for (size_t i = 0; i < stepfor_variant_count; i++)
-					stepfor_mem->src[i] += (ptrdiff_t)stepfor_mem->data;
-
-				DEBUG_PRINT(
-					"PATCHING CORRESPONDING STEPFOR_OP at %d, ptr pointing to %p\n",
-					stepfor_bc, stepfor_code);
-
-				for (size_t a = 0; a < stepfor_variant_count; a++)
-					for (size_t j = 0; j < STEPFOR_OP_stencils[a].holes_size; ++j)
-						patch(stepfor_mem->src[a], stepfor_mem->dst, bc_pos,
-							  &STEPFOR_OP_stencils[a], &STEPFOR_OP_stencils[a].holes[j], j,
-							  &bytecode[stepfor_bc + 1],
-							  ctx.executable_lookup[stepfor_bc + RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1], NULL,
-							  &ctx);
+				stepfor_mem->cached_type = -1; // no variant installed yet
+				build_smc_site(
+					(SmcSiteHeader *)stepfor_mem, stepfor_mem->data,
+					STEPFOR_OP_stencils, stepfor_variant_count,
+					stepfor_code, NULL, bc_pos, &bytecode[stepfor_bc + 1],
+					ctx.executable_lookup[stepfor_bc + RCP_BC_ARG_CNT[bytecode[stepfor_bc]] + 1],
+					&ctx);
 
 				smc_variants = stepfor_mem;
 			}
@@ -1622,10 +1708,39 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 			pos = (uint8_t *)align_to_higher((uintptr_t)pos, plugin_stencil->alignment);
 
-			memcpy(pos, plugin_stencil->body, plugin_stencil->body_size);
-			for (size_t k = 0; k < plugin_stencil->holes_size; ++k)
-				patch(pos, pos, bc_pos, plugin_stencil, &plugin_stencil->holes[k], k, opargs, pos + plugin_stencil->body_size, plugin->data, &ctx);
-			pos += plugin_stencil->body_size;
+			if (plugin->smc)
+			{
+				// Self-modifying group entry: carve a per-site block, build all
+				// variants pre-patched as if running at this slot, then install
+				// the entry variant into the live slot. Successors are copied in
+				// place at runtime by rcp_smc_copy.
+				size_t off;
+#pragma omp atomic capture
+				{
+					off = smc_storage_used;
+					smc_storage_used += plugin->smc->site_size;
+				}
+				SmcSiteHeader *site = (SmcSiteHeader *)(smc_storage + off);
+				uint8_t *site_data = (uint8_t *)&site->variants[plugin->smc->count];
+
+				// Variants continue to the next instruction at pos + slot_size
+				// (the slot end), which is where prepare_variant_one padded them
+				// all to reach.
+				build_smc_site(site, site_data, plugin->smc->variants,
+							   plugin->smc->count, pos, plugin->data, bc_pos,
+							   opargs, pos + plugin->smc->slot_size, &ctx);
+
+				// Install the entry variant (index 0) into the live slot.
+				memcpy(pos, site->variants[0].ptr, site->variants[0].size);
+				pos += plugin->smc->slot_size;
+			}
+			else
+			{
+				memcpy(pos, plugin_stencil->body, plugin_stencil->body_size);
+				for (size_t k = 0; k < plugin_stencil->holes_size; ++k)
+					patch(pos, pos, bc_pos, plugin_stencil, &plugin_stencil->holes[k], k, opargs, pos + plugin_stencil->body_size, plugin->data, NULL, &ctx);
+				pos += plugin_stencil->body_size;
+			}
 		}
 
 		pos = (uint8_t *)align_to_higher((uintptr_t)pos, stencil->alignment);
@@ -1634,7 +1749,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 
 		// Patch the holes
 		for (size_t j = 0; j < stencil->holes_size; ++j)
-			patch(pos, pos, bc_pos, stencil, &stencil->holes[j], j, opargs, ctx.executable_lookup[bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1], smc_variants, &ctx);
+			patch(pos, pos, bc_pos, stencil, &stencil->holes[j], j, opargs, ctx.executable_lookup[bc_pos + RCP_BC_ARG_CNT[bytecode[bc_pos]] + 1], &smc_variants, NULL, &ctx);
 
 		pos += stencil->body_size;
 	}
@@ -1721,21 +1836,22 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 #ifdef STEPFOR_SPECIALIZE
 	prot |= PROT_WRITE;
 #endif
+	// Self-modifying plugin sites (e.g. recording lattice) rewrite the live code
+	// at runtime, so the executable pages must stay writable when any exist.
+	if (smc_storage_bytes > 0)
+		prot |= PROT_WRITE;
 
 	if (mprotect(executable, executable_size_aligned, prot) != 0)
 	{
 		perror("mprotect failed");
 		exit(1);
 	}
-	if (mprotect(executable + executable_size_aligned,
-				 total_size - executable_size_aligned,
-				 PROT_READ | PROT_WRITE) != 0)
-	{
-		perror("mprotect failed");
-		exit(1);
-	}
+	// The SMC pools are already mapped PROT_READ | PROT_WRITE (they are written
+	// during the copy-patch loop and, for STEPFOR, updated at runtime), so they
+	// need no mprotect here.
 
-	stats->total_size += total_size;
+	for (size_t i = 0; i < res.mmap_regions_count; i++)
+		stats->total_size += res.mmap_regions[i].size;
 	stats->executable_size += insts_size;
 
 	return res;
@@ -1845,7 +1961,7 @@ SEXP get_attribute(SEXP list, const char *attr_name)
 	return R_NilValue;
 }
 
-static PluginStencil *add_plugin_stencil_pos(PluginStencils *stencils, int pos, const Stencil *stencil, void *data)
+static PluginStencil *add_plugin_stencil_pos_ex(PluginStencils *stencils, int pos, const Stencil *stencil, void *data0, void *data1, void *data2, void *data3)
 {
 	// Mark the array dirty if this position breaks the non-decreasing order, so
 	// the final sort can be skipped entirely when nothing was inserted out of
@@ -1864,10 +1980,29 @@ static PluginStencil *add_plugin_stencil_pos(PluginStencils *stencils, int pos, 
 
 	stencils->sparse_stencils[stencils->sparse_stencils_count].pos = pos;
 	stencils->sparse_stencils[stencils->sparse_stencils_count].stencil = stencil;
-	stencils->sparse_stencils[stencils->sparse_stencils_count].data = data;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].data[0] = data0;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].data[1] = data1;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].data[2] = data2;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].data[3] = data3;
+	stencils->sparse_stencils[stencils->sparse_stencils_count].smc = NULL;
 	stencils->sparse_stencils_count++;
 
 	return &stencils->sparse_stencils[stencils->sparse_stencils_count - 1];
+}
+
+static PluginStencil *add_plugin_stencil_pos(PluginStencils *stencils, int pos, const Stencil *stencil, void *data)
+{
+	return add_plugin_stencil_pos_ex(stencils, pos, stencil, data, NULL, NULL, NULL);
+}
+
+// Attach the entry variant of a self-modifying SMC group at `pos`. `data` is the
+// per-site custom pointer handed to the variants' GETCUSTOM() hole (e.g. the
+// recording-constant cell); `smc` describes the variant group and per-site block.
+static PluginStencil *add_plugin_stencil_smc(PluginStencils *stencils, int pos, const SmcGroupInfo *smc, void *data0, void *data1, void *data2, void *data3)
+{
+	PluginStencil *p = add_plugin_stencil_pos_ex(stencils, pos, &smc->variants[0], data0, data1, data2, data3);
+	p->smc = smc;
+	return p;
 }
 
 static void add_plugin_stencil_instr(PluginStencils *stencils, int bytecode[], int bytecode_size, RCP_BC_OPCODES instr, const Stencil *stencil, void *data)
@@ -2179,6 +2314,16 @@ static void srcref_coverage(SEXP bytecode, SEXP constpool, PluginStencils *plugi
 	vmaxset(vmax);
 }
 
+static void munmap_finalizer(SEXP ptr)
+{
+	int *ptrs = (int *)R_ExternalPtrAddr(ptr);
+	if (ptrs)
+	{
+		munmap(ptrs, (size_t)ptrs[0]);
+		R_ClearExternalPtr(ptr);
+	}
+}
+
 static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins)
 {
 	int count = 0;
@@ -2193,42 +2338,168 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 				count++;
 		}
 	}
-	SEXP recording_bcids = PROTECT(Rf_allocVector(INTSXP, count));
-	SEXP recording_counters = PROTECT(Rf_allocVector(INTSXP, count));
-	SEXP recording_types = PROTECT(Rf_allocVector(INTSXP, count));
-	SEXP recording_consts = PROTECT(Rf_allocVector(VECSXP, count));
-	SEXP result = PROTECT(allocVector(VECSXP, 4));
-	SET_VECTOR_ELT(result, 0, recording_bcids);
-	SET_VECTOR_ELT(result, 1, recording_counters);
-	SET_VECTOR_ELT(result, 2, recording_types);
-	SET_VECTOR_ELT(result, 3, recording_consts);
 
-	for (int i = 0, j = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	SEXP result = PROTECT(allocVector(VECSXP, 4));
+
+	SEXP recording_bcids = Rf_allocVector(INTSXP, count);
+	SET_VECTOR_ELT(result, 0, recording_bcids);
+
+	if (count != 0)
 	{
-		int pos;
-		switch (bytecode[i])
+		int *recording_counters_raw = mmap_near(sizeof(int) * (count + 1));
+		recording_counters_raw[0] = sizeof(int) * (count + 1);
+		memset(recording_counters_raw + 1, 0, sizeof(int) * count);
+		SEXP recording_counters = R_MakeExternalPtr(recording_counters_raw, R_NilValue, R_NilValue);
+		SET_VECTOR_ELT(result, 1, recording_counters);
+		R_RegisterCFinalizerEx(recording_counters, &munmap_finalizer, FALSE);
+
+		int *recording_types_raw = mmap_near(sizeof(int) * (count + 1));
+		recording_types_raw[0] = sizeof(int) * (count + 1);
+		memset(recording_types_raw + 1, 0, sizeof(int) * count);
+		SEXP recording_types = R_MakeExternalPtr(recording_types_raw, R_NilValue, R_NilValue);
+		SET_VECTOR_ELT(result, 2, recording_types);
+		R_RegisterCFinalizerEx(recording_types, &munmap_finalizer, FALSE);
+
+		R_bcstack_t *recording_consts_raw = mmap_near(sizeof(R_bcstack_t) * (count + 1));
+		((int *)recording_consts_raw)[0] = sizeof(R_bcstack_t) * (count + 1);
+		memset(recording_consts_raw + 1, -1, sizeof(R_bcstack_t) * count);
+
+		SEXP recording_consts_prot = PROTECT(Rf_allocVector(VECSXP, count));
+		SEXP recording_consts = R_MakeExternalPtr(recording_consts_raw, R_NilValue, recording_consts_prot);
+		UNPROTECT_SAFE(recording_consts_prot);
+		SET_VECTOR_ELT(result, 3, recording_consts);
+		R_RegisterCFinalizerEx(recording_consts, &munmap_finalizer, FALSE);
+
+		for (int i = 0, j = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 		{
-			case BRIFNOT_BCOP:
-				pos = i;
-				break;
-			case GETVAR_BCOP:
-			case GETFUN_BCOP:
-			case CALL_BCOP:
-				pos = i + RCP_BC_ARG_CNT[bytecode[i]] + 1; // Record after
-				break;
-			default:
-				continue;
+			int pos;
+			switch (bytecode[i])
+			{
+				case BRIFNOT_BCOP:
+					pos = i;
+					break;
+				case GETVAR_BCOP:
+				case GETFUN_BCOP:
+				case CALL_BCOP:
+					pos = i + RCP_BC_ARG_CNT[bytecode[i]] + 1; // Record after
+					break;
+				default:
+					continue;
+			}
+			INTEGER0(recording_bcids)
+			[j] = i + 1; // +1 to adjust for version number at the start of bytecode
+			add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_COUNTER_REL32, &recording_counters_raw[j + 1]);
+			add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_BITMAP, &recording_types_raw[j + 1]);
+			add_plugin_stencil_smc(plugins, pos, SMC_GROUP_RECCONST, &recording_consts_raw[j + 1], &VECTOR_ELT_0(recording_consts_prot, j), recording_consts_prot, NULL);
+			j++;
 		}
-		INTEGER(recording_bcids)
-		[j] = i + 1; // +1 to adjust for version number at the start of bytecode
-		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_COUNTER, &INTEGER0(recording_counters)[j]);
-		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_BITMAP, &INTEGER0(recording_types)[j]);
-		add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE0, &INTEGER0(recording_consts)[j]);
-		j++;
+		assert(j == count);
 	}
 
-	UNPROTECT(5);
+	UNPROTECT_SAFE(result);
 	return result;
+}
+
+// Export the recording produced by type_recording() as a plain, readily
+// serializable R object.
+//
+// The recording's counters, type bitmaps and recorded constants live in mmap'd
+// raw buffers reachable only through external pointers, which cannot be
+// serialized. This copies each buffer into an ordinary R vector and resolves the
+// recorded constants back to SEXPs, returning a named list with four parallel
+// vectors (one entry per recorded program point):
+//
+//   bcids    INTSXP : bytecode offset of the recorded instruction
+//   counters INTSXP : execution count observed at that point
+//   types    INTSXP : bitmap of observed value representations (1u << type)
+//   consts   VECSXP : the single constant seen there, or R_UnboundValue when the
+//                     point observed more than one distinct value
+//
+// The result contains only ordinary R objects, so the caller can serialize or
+// saveRDS it directly.
+//
+// `x` may be the recording list itself, a compiled closure, or its (external
+// pointer) body -- in the latter two cases the recording is read from the
+// "recording" attribute that C_rcp_cmpfun attaches. Reading it here with
+// Rf_getAttrib avoids relying on R-level attr() of an external pointer.
+SEXP C_rcp_export_recording(SEXP x)
+{
+	SEXP recording = x;
+	if (TYPEOF(recording) == CLOSXP)
+		recording = BODY(recording);
+	if (TYPEOF(recording) == EXTPTRSXP)
+		recording = Rf_getAttrib(recording, Rf_install("recording"));
+
+	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 4)
+		Rf_error("no type recording found; compile with "
+				 "options(rcp.cmpfun.type_recording = TRUE)");
+
+	SEXP bcids_in = VECTOR_ELT_0(recording, 0);
+	SEXP counters_p = VECTOR_ELT_0(recording, 1);
+	SEXP types_p = VECTOR_ELT_0(recording, 2);
+	SEXP consts_p = VECTOR_ELT_0(recording, 3);
+
+	if (TYPEOF(bcids_in) != INTSXP)
+		Rf_error("malformed recording structure");
+
+	R_xlen_t count = XLENGTH(bcids_in);
+
+	const int *counters_raw = NULL;
+	const int *types_raw = NULL;
+	const R_bcstack_t *consts_raw = NULL;
+
+	if (count != 0)
+	{
+		if (TYPEOF(counters_p) != EXTPTRSXP || TYPEOF(types_p) != EXTPTRSXP || TYPEOF(consts_p) != EXTPTRSXP)
+			Rf_error("malformed recording structure");
+
+		counters_raw = (const int *)EXTPTR_PTR(counters_p);
+		types_raw = (const int *)EXTPTR_PTR(types_p);
+		consts_raw = (const R_bcstack_t *)EXTPTR_PTR(consts_p);
+		if (!counters_raw || !types_raw || !consts_raw)
+			Rf_error("recording buffers have already been released");
+	}
+
+	// Index 0 of each raw buffer is a byte-size header; payload is at [1..count].
+	SEXP counters = PROTECT(Rf_allocVector(INTSXP, count));
+	SEXP types = PROTECT(Rf_allocVector(INTSXP, count));
+	SEXP consts = PROTECT(Rf_allocVector(VECSXP, count));
+
+	memcpy(INTEGER0(counters), counters_raw + 1, count * sizeof(int));
+	memcpy(INTEGER0(types), types_raw + 1, count * sizeof(int));
+
+	for (R_xlen_t j = 0; j < count; j++)
+	{
+		R_bcstack_t v = consts_raw[j + 1];
+		SEXP c;
+		if (v.tag == -1)
+		{
+			c = R_UnboundValue;
+		}
+		else
+		{
+			c = STACKVAL_TO_SEXP(v);
+		}
+
+		SET_VECTOR_ELT(consts, j, c);
+	}
+
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+
+	SET_VECTOR_ELT(out, 0, bcids_in);
+	SET_VECTOR_ELT(out, 1, counters);
+	SET_VECTOR_ELT(out, 2, types);
+	SET_VECTOR_ELT(out, 3, consts);
+
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
+	SET_STRING_ELT(names, 0, Rf_mkChar("bcids"));
+	SET_STRING_ELT(names, 1, Rf_mkChar("counters"));
+	SET_STRING_ELT(names, 2, Rf_mkChar("types"));
+	SET_STRING_ELT(names, 3, Rf_mkChar("consts"));
+	Rf_setAttrib(out, R_NamesSymbol, names);
+
+	UNPROTECT(5); // counters, types, consts, out, names
+	return out;
 }
 
 static Rboolean get_option_or_default(const char *option_name, Rboolean default_value)
@@ -2546,9 +2817,8 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	if (hooks_registry != R_NilValue)
 		types_of_function(bytecode, bytecode_size, &plugins, hooks_registry, name, formals);
 
-	SEXP recording_option = Rf_GetOption1(Rf_install("rcp.cmpfun.type_recording"));
-	int attach_recording = (TYPEOF(recording_option) == LGLSXP && LOGICAL(recording_option)[0] == TRUE);
 	SEXP recording_results;
+	int attach_recording = is_option_true("rcp.cmpfun.type_recording");
 	if (attach_recording)
 		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins));
 
@@ -3286,8 +3556,8 @@ SEXP C_rcp_count_enable(void)
 
 SEXP C_rcp_count_disable(void)
 {
-    R_ReleaseObject(stencil_exec_counts);
-    stencil_exec_counts = NULL;
+	R_ReleaseObject(stencil_exec_counts);
+	stencil_exec_counts = NULL;
 	return R_NilValue;
 }
 
@@ -3743,10 +4013,6 @@ SEXP rcp_init(void)
 	prepare_active_holes();
 
 	notinlined_executable = prepare_notinlined_functions();
-
-#ifdef STEPFOR_SPECIALIZE
-	prepare_stepfor();
-#endif
 
 	save_original_cmpfun();
 

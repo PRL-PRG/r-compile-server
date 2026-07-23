@@ -5,6 +5,7 @@
 #define USE_RINTERNALS
 #endif
 #include <Rinternals.h>
+#include "x86intrin.h"
 #undef USE_RINTERNALS
 #undef RSH
 
@@ -80,7 +81,6 @@ extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
 	} while (0)
 
 #ifdef PROFILE_STENCILS
-#include "x86intrin.h"
 // Hard-coded per-stencil timing: every opcode stencil is bracketed with a
 // PROFILING_START/PROFILING_END pair (see RCP_OP_TEMPLATE_JUMP) that records its
 // call count and rdtsc cycle total into the global stencil_profile_info[] array
@@ -162,8 +162,9 @@ extern struct StencilProfileInfo stencil_profile_info[];
 #define RCP_OP(...)						 EXPAND(GET_MACRO(__VA_ARGS__, RCP_OP_TEMPLATE_JUMP, RCP_OP_TEMPLATE_CONTINUE)(__VA_ARGS__))
 
 /* PATCHING SYMBOLS */
+
+// Use only for calls, do not take address!
 extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT(void);
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT_FORCEJMP(void);
 #define NEXT                     \
 	do                           \
 	{                            \
@@ -171,17 +172,15 @@ extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT_FORCEJMP(void);
 		return _RCP_EXEC_NEXT(); \
 	} while (0)
 
-#define NEXT_FORCEJMP                     \
-	do                                    \
-	{                                     \
-		EPILOGUE;                         \
-		return _RCP_EXEC_NEXT_FORCEJMP(); \
-	} while (0)
+// The same as _RCP_EXEC_NEXT, when we need to take address (like &_RCP_EXEC_NEXT)
+extern const void *const _RCP_NEXT_PTR[];
+#define GET_NEXT_PTR() ((RET_T(STENCIL_ATTRIBUTES *)(void))(&_RCP_NEXT_PTR))
 
 extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM0(void);
 extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM1(void);
 extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM2(void);
 extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM3(void);
+// Use only for calls, do not take address!
 #define GOTO_IMM(i)                \
 	do                             \
 	{                              \
@@ -189,6 +188,12 @@ extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM3(void);
 		return _RCP_EXEC_IMM##i(); \
 	} while (0)
 
+extern const void *const _RCP_EXEC_PTR_IMM0[];
+extern const void *const _RCP_EXEC_PTR_IMM1[];
+extern const void *const _RCP_EXEC_PTR_IMM2[];
+extern const void *const _RCP_EXEC_PTR_IMM3[];
+// The same as _RCP_EXEC_IMM, when we need to take address (like &_RCP_EXEC_IMM0)
+#define GET_IMM_PTR(i) ((RET_T(STENCIL_ATTRIBUTES *)(void))(&_RCP_EXEC_PTR_IMM##i))
 //__attribute__((musttail))
 //[[gnu::musttail]]
 
@@ -227,15 +232,42 @@ extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
 // Custom data for stencils. The two versions point to identical data,
 // but the REL version using more efficient encoding of the pointer,
 // and can be used when its guaranteed that the data is within
-// 2GB of the stencil code.
-extern void *const _RCP_CUSTOM_DATA_REL32;
-extern void *const _RCP_CUSTOM_DATA_ABS64[];
-#define GETCUSTOM_REL()	  (const void *)&_RCP_CUSTOM_DATA_REL32
-#define GETCUSTOM()	  (const void *)&_RCP_CUSTOM_DATA_ABS64
-#define GETVARIANTS() (const void *)&_RCP_CUSTOM_DATA_ABS64
+// 2GB of the stencil code and/or in the lower 2GB.
+extern void *const _RCP_CUSTOM_DATA_REL32_0;
+extern void *const _RCP_CUSTOM_DATA_REL32_1;
+extern void *const _RCP_CUSTOM_DATA_REL32_2;
+extern void *const _RCP_CUSTOM_DATA_REL32_3;
+
+extern void *const _RCP_CUSTOM_DATA_ABS64_0[];
+extern void *const _RCP_CUSTOM_DATA_ABS64_1[];
+extern void *const _RCP_CUSTOM_DATA_ABS64_2[];
+extern void *const _RCP_CUSTOM_DATA_ABS64_3[];
+
+#define GETCUSTOM_REL(i) (const void *)&_RCP_CUSTOM_DATA_REL32_##i
+#define GETCUSTOM(i)	 (const void *)&_RCP_CUSTOM_DATA_ABS64_##i
+#define GETVARIANTS()	 GETCUSTOM(0)
 
 extern void *const _RCP_SMC_SELF[];
-#define GETSELFADDR()	  (const void *)&_RCP_SMC_SELF
+#define GETSELFADDR() ((void *)&_RCP_SMC_SELF) // memcpy destination (non-const)
+
+// Self-modifying-code framework holes. A self-modifying variant overwrites its
+// own live slot (GETSELFADDR) with a successor variant's pre-patched body
+// (GETSMCVARIANT(n), the address of variant n in this site's block) of length
+// GETSMCVARIANTSIZE(n) (variant n's exact body length).
+extern const void *const _RCP_SMC_VARIANT0;
+extern const void *const _RCP_SMC_VARIANT1;
+extern const void *const _RCP_SMC_VARIANT2;
+extern const void *const _RCP_SMC_VARIANT3;
+#define GETSMCVARIANT_(n) ((const void *)&_RCP_SMC_VARIANT##n)
+#define GETSMCVARIANT(n)  GETSMCVARIANT_(n) // extra layer so n is macro-expanded before ##
+
+// Body size of variant n (its exact memcpy length)
+extern const void *const _RCP_SMC_VARIANTSIZE0;
+extern const void *const _RCP_SMC_VARIANTSIZE1;
+extern const void *const _RCP_SMC_VARIANTSIZE2;
+extern const void *const _RCP_SMC_VARIANTSIZE3;
+#define GETSMCVARIANTSIZE_(n) ((size_t)(int)(int64_t)&_RCP_SMC_VARIANTSIZE##n)
+#define GETSMCVARIANTSIZE(n)  GETSMCVARIANTSIZE_(n)
 
 extern const void *const _RCP_LOOPCNTXT;
 #define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
@@ -243,12 +275,15 @@ extern const void *const _RCP_LOOPCNTXT;
 
 extern const void *const _RCP_EXECUTABLE[];
 #define GETEXECUTABLE() (const void *const)&_RCP_EXECUTABLE
-#define GOTO_VAL(i)                                                                                     \
-	{                                                                                                   \
-		STENCIL_ATTRIBUTES RET_T (*call)(void) = (const void *const)(((uint8_t *)GETEXECUTABLE()) + i); \
-		EPILOGUE;                                                                                       \
-		return call();                                                                                  \
+
+#define DIRECT_TAILJMP(ptr)                                                \
+	{                                                                      \
+		STENCIL_ATTRIBUTES RET_T (*call)(void) = (const void *const)(ptr); \
+		EPILOGUE;                                                          \
+		return call();                                                     \
 	}
+
+#define GOTO_VAL(i) DIRECT_TAILJMP(((uint8_t *)GETEXECUTABLE()) + i)
 
 static __attribute__((always_inline)) inline SEXP rcp_binding_value(SEXP binding_cell)
 {
@@ -279,7 +314,7 @@ static __attribute__((always_inline)) inline int rcp_binding_type(SEXP binding_c
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COUNTER_REL32)
 {
 	PROLOGUE;
-	int *counter = (int *)GETCUSTOM();
+	int *counter = (int *)GETCUSTOM_REL(0);
 	*counter += 1;
 	NEXT;
 }
@@ -287,7 +322,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COUNTER_REL32)
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COUNTER_ABS64)
 {
 	PROLOGUE;
-	int *counter = (int *)GETCUSTOM();
+	int *counter = (int *)GETCUSTOM(0);
 	*counter += 1;
 	NEXT;
 }
@@ -312,7 +347,7 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 #ifdef RCP_TRACE
 	Rprintf("Exit hook\n");
 #endif
-	TypeTrace *trace = (TypeTrace *)GETCUSTOM();
+	TypeTrace *trace = (TypeTrace *)GETCUSTOM(0);
 	SEXP rho = GET_RHO();
 
 	// Resize if needed
@@ -407,146 +442,44 @@ RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
 
 enum
 {
-	RSH_RECORDING_SCALAR = 0,
-	RSH_RECORDING_VECTOR = 1,
-	RSH_RECORDING_CALLTYPE = 2,
-	RSH_RECORDING_PROMISE = 3,
-	RSH_RECORDING_MISSING = 4,
-	RSH_RECORDING_OTHER = 5,
-};
-
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_2)
-{
-	PROLOGUE;
-	int *recording_types = (int *)GETCUSTOM();
-	int type;
-	if (VAL_IS_SXP(*GET_VAL(-1)))
-	{
-		SEXP val = VAL_SXP(*GET_VAL(-1));
-		switch (TYPEOF(val))
-		{
-			case CLOSXP:
-			case BUILTINSXP:
-			case SPECIALSXP:
-			{
-				type = RSH_RECORDING_CALLTYPE;
-				break;
-			}
-			case PROMSXP:
-			{
-				type = RSH_RECORDING_PROMISE;
-				break;
-			}
-			case SYMSXP:
-			{
-				static_assert(RSH_RECORDING_MISSING + 1 == RSH_RECORDING_OTHER);
-				type = RSH_RECORDING_MISSING;
-				type += (val == R_MissingArg);
-				break;
-			}
-			case LGLSXP:
-			case INTSXP:
-			case REALSXP:
-			case STRSXP:
-			{
-				if (ATTRIB(val) == R_NilValue && !ALTREP(val))
-				{
-					static_assert(RSH_RECORDING_SCALAR + 1 == RSH_RECORDING_VECTOR);
-					type = RSH_RECORDING_SCALAR;
-					assert(val->sxpinfo.scalar == 0 || val->sxpinfo.scalar == 1);
-					type += val->sxpinfo.scalar;
-					break;
-				}
-			}
-			default:
-				type = RSH_RECORDING_OTHER;
-				break;
-		}
-	}
-	else
-	{
-		if (GET_VAL(-1)->tag != ISQSXP)
-			type = RSH_RECORDING_SCALAR;
-		else
-			type = RSH_RECORDING_OTHER;
-	}
-	recording_types[type]++;
-	NEXT;
-}
-
-enum
-{
-	RSH_RECORDING_CUSTOM_VECTOR = 26,
-	RSH_RECORDING_CUSTOM_SCALAR = 27,
-	RSH_RECORDING_CUSTOM_MISSING = 28,
-};
-
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING)
-{
-	PROLOGUE;
-	int *recording_types = (int *)GETCUSTOM();
-	int type;
-	if (VAL_IS_SXP(*GET_VAL(-1)))
-	{
-		SEXP val = VAL_SXP(*GET_VAL(-1));
-
-		switch (TYPEOF(val))
-		{
-			case LGLSXP:
-			case INTSXP:
-			case REALSXP:
-			case STRSXP:
-			{
-				if (ATTRIB(val) == R_NilValue && !ALTREP(val))
-				{
-					static_assert(RSH_RECORDING_CUSTOM_VECTOR + 1 == RSH_RECORDING_CUSTOM_SCALAR);
-					type = RSH_RECORDING_CUSTOM_VECTOR;
-					assert(val->sxpinfo.scalar == 0 || val->sxpinfo.scalar == 1);
-					type += val->sxpinfo.scalar;
-					goto record;
-				}
-				break;
-			}
-			default:
-			{
-				assert(TYPEOF(val) < 26);
-				if (val == R_MissingArg)
-				{
-					type = RSH_RECORDING_CUSTOM_MISSING;
-					goto record;
-				}
-			}
-		}
-		type = TYPEOF(val);
-	}
-	else
-	{
-		if (GET_VAL(-1)->tag != ISQSXP)
-			type = GET_VAL(-1)->tag;
-		else
-			type = INTSXP;
-	}
-record:
-	recording_types[type]++;
-	NEXT;
-}
-
-enum
-{
-	RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_SCALAR = 10,
-	RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_VECTOR = 11,
-	RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_SCALAR = 26,
-	RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_VECTOR = 27,
-	RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_SCALAR = 28,
-	RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_VECTOR = 29,
-	RSH_RECORDING_CUSTOM_STRSXP_SIMPLE_SCALAR = 30,
-	RSH_RECORDING_CUSTOM_STRSXP_SIMPLE_VECTOR = 31,
+	RSH_RECORDING_NILSXP = 0,
+	RSH_RECORDING_SYMSXP = 1,
+	RSH_RECORDING_LISTSXP = 2,
+	RSH_RECORDING_CLOSXP = 3,
+	RSH_RECORDING_ENVSXP = 4,
+	RSH_RECORDING_PROMSXP = 5,
+	RSH_RECORDING_LANGSXP = 6,
+	RSH_RECORDING_SPECIALSXP = 7,
+	RSH_RECORDING_BUILTINSXP = 8,
+	RSH_RECORDING_CHARSXP = 9,
+	RSH_RECORDING_LGLSXP = 10,
+	RSH_RECORDING_LGLSXP_SIMPLE_SCALAR = 11,
+	RSH_RECORDING_LGLSXP_SIMPLE_VECTOR = 12,
+	RSH_RECORDING_INTSXP = 13,
+	RSH_RECORDING_REALSXP = 14,
+	RSH_RECORDING_CPLXSXP = 15,
+	RSH_RECORDING_STRSXP = 16,
+	RSH_RECORDING_DOTSXP = 17,
+	RSH_RECORDING_ANYSXP = 18,
+	RSH_RECORDING_VECSXP = 19,
+	RSH_RECORDING_EXPRSXP = 20,
+	RSH_RECORDING_BCODESXP = 21,
+	RSH_RECORDING_EXTPTRSXP = 22,
+	RSH_RECORDING_WEAKREFSXP = 23,
+	RSH_RECORDING_RAWSXP = 24,
+	RSH_RECORDING_OBJSXP = 25,
+	RSH_RECORDING_INTSXP_SIMPLE_SCALAR = 26,
+	RSH_RECORDING_INTSXP_SIMPLE_VECTOR = 27,
+	RSH_RECORDING_REALSXP_SIMPLE_SCALAR = 28,
+	RSH_RECORDING_REALSXP_SIMPLE_VECTOR = 29,
+	RSH_RECORDING_STRSXP_SIMPLE_SCALAR = 30,
+	RSH_RECORDING_STRSXP_SIMPLE_VECTOR = 31,
 };
 
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 {
 	PROLOGUE;
-	unsigned *recording_types = (unsigned *)GETCUSTOM();
+	unsigned *recording_types = (unsigned *)GETCUSTOM_REL(0);
 	char type;
 	Value val = *GET_VAL(-1);
 	if (VAL_IS_SXP(val))
@@ -565,17 +498,19 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 					switch (TYPEOF(sexp))
 					{
 						case LGLSXP:
-							type = RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_VECTOR;
+							type = RSH_RECORDING_LGLSXP_SIMPLE_VECTOR;
 							break;
 						case INTSXP:
-							type = RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_VECTOR;
+							type = RSH_RECORDING_INTSXP_SIMPLE_VECTOR;
 							break;
 						case REALSXP:
-							type = RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_VECTOR;
+							type = RSH_RECORDING_REALSXP_SIMPLE_VECTOR;
 							break;
 						case STRSXP:
-							type = RSH_RECORDING_CUSTOM_STRSXP_SIMPLE_VECTOR;
+							type = RSH_RECORDING_STRSXP_SIMPLE_VECTOR;
 							break;
+						default:
+							UNREACHABLE();
 					}
 					assert(sexp->sxpinfo.scalar == 0 || sexp->sxpinfo.scalar == 1);
 					type -= sexp->sxpinfo.scalar;
@@ -594,17 +529,17 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 		switch (val.tag)
 		{
 			case LGLSXP:
-				type = RSH_RECORDING_CUSTOM_LGLSXP_SIMPLE_SCALAR;
+				type = RSH_RECORDING_LGLSXP_SIMPLE_SCALAR;
 				break;
 			case INTSXP:
-				type = RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_SCALAR;
+				type = RSH_RECORDING_INTSXP_SIMPLE_SCALAR;
 				break;
 			case REALSXP:
-				type = RSH_RECORDING_CUSTOM_REALSXP_SIMPLE_SCALAR;
+				type = RSH_RECORDING_REALSXP_SIMPLE_SCALAR;
 				break;
 			case ISQSXP:
 				assert(TYPEOF(val_as_sexp(val)) == INTSXP);
-				type = RSH_RECORDING_CUSTOM_INTSXP_SIMPLE_SCALAR;
+				type = RSH_RECORDING_INTSXP;
 				break;
 			default:
 				UNREACHABLE();
@@ -615,130 +550,83 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 	NEXT;
 }
 
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_COUNTER)
+// Self-modifying-code copy primitive (declared extern in stencils.c and resolved
+// through RELOC_RUNTIME_SYMBOL_GOT -- it is never extracted as a not-inlined stencil).
+//
+// Overwrites `size` bytes of live JIT code at `dst` (the calling variant's own
+// slot) with the pre-patched successor variant at `src`, then jumps to `jmp`.
+//
+// It must run entirely OUTSIDE the slot it overwrites and never return into it
+// (the caller's code has just been replaced). The caller tail-jumps here
+// (`return rcp_smc_copy(...)`) and this function tail-jumps to `jmp`, so the JIT
+// chain keeps its single stack frame and `jmp` is entered exactly as a normal
+// stencil. stack/locals should not be touched.
+extern STENCIL_ATTRIBUTES RET_T rcp_smc_copy(void *dst, const void *src, void *jmp, size_t size);
+
+static ALWAYS_INLINE int eq_val(const Value a, const Value b)
+{
+	static_assert(sizeof(Value) == 16);
+	__m128i x = _mm_loadu_si128((const __m128i *)&a);
+	__m128i y = _mm_loadu_si128((const __m128i *)&b);
+	return _mm_movemask_epi8(_mm_cmpeq_epi8(x, y)) == 0xFFFF;
+}
+
+// Self-modifying constant-recording lattice (SMC group "RECCONST").
+//
+//   variant 0 = entry: record the value
+//   variant 1 = monomorphic
+//   variant 2 = ambiguous / inert   (no-op dispatch to the next instruction)
+//
+// Transitions are monotonic (0 -> 1 -> 2). Each transition rewrites the live
+// slot in place with the successor's pre-patched body via rcp_smc_copy and then
+// tail-continues, so the lower states' guards disappear from the instruction
+// stream and make the stencils smaller and faster.
+#define RECCONST_VARIANT_CHECK 1
+#define RECCONST_VARIANT_INERT 2
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_2) // ambiguous / inert
 {
 	PROLOGUE;
-	int *counter = (int *)GETCUSTOM();
-	(*counter)++;
 	NEXT;
 }
 
-#define RECORDING_CONSTANT_UNRECORDED R_NilValue
-#define RECORDING_CONSTANT_AMBIGUOUS  R_UnboundValue
-
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_DYNAMIC)
+// The recording_constant placeholder symbol is a scalar (its definition drives
+// the relocation encoding), but we deliberately reinterpret it as a larger
+// Value. Silence -Warray-bounds locally rather than globally
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_1) // monomorphic
 {
 	PROLOGUE;
-	SEXP *recording_constant = (SEXP *)GETCUSTOM();
-	if (*recording_constant != RECORDING_CONSTANT_AMBIGUOUS)
+	Value *recording_constant = (Value *)GETCUSTOM_REL(0);
+	if (!eq_val(*recording_constant, *GET_VAL(-1)))
 	{
-		if (VAL_IS_SXP(*GET_VAL(-1)))
-		{
-			if (*recording_constant != VAL_SXP(*GET_VAL(-1)))
-			{
-				if (*recording_constant == RECORDING_CONSTANT_UNRECORDED)
-				{
-					// This is the first time we see a constant, record it
-					*recording_constant = VAL_SXP(*GET_VAL(-1));
-					// TODO SETVECELT protection stuff necessary?
-				}
-				else
-				{
-					// We have seen a different constant before, stop recording
-					*recording_constant = RECORDING_CONSTANT_AMBIGUOUS;
-				}
-			}
-		}
-		else
-		{
-			if (*recording_constant == RECORDING_CONSTANT_UNRECORDED)
-			{
-				// This is the first time we see a constant, record it
-				*recording_constant = val_as_sexp(*GET_VAL(-1));
-				// TODO SETVECELT protection stuff necessary?
-			}
-			else
-			{
-				//  We can compare the memory even if the type is different
-				if (!IS_ANY_SIMPLE_SCALAR((*recording_constant)) || TYPEOF(*recording_constant) != GET_VAL(-1)->tag || SCALAR_DVAL(*recording_constant) != GET_VAL(-1)->u.dval)
-				{
-					// We have seen a different constant before, stop recording
-					*recording_constant = RECORDING_CONSTANT_AMBIGUOUS;
-				}
-			}
-		}
+		// Diverged (different pointer, or an unboxed value now): record ambiguity and
+		// install the inert variant.
+		recording_constant->tag = -1;
+		EPILOGUE;
+		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(RECCONST_VARIANT_INERT), GET_NEXT_PTR(), GETSMCVARIANTSIZE(RECCONST_VARIANT_INERT));
 	}
-
 	NEXT;
 }
 
-static __attribute__((noinline)) STENCIL_ATTRIBUTES RET_T rcp_smc_copy(Value *restrict stack, rcpEval_locals *restrict locals, size_t size, void *restrict dst, const void *restrict src)
+RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_0) // entry: record
 {
-    memcpy(dst, src, size);
-    NEXT;
-}
-
-static RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2)
-{
-    PROLOGUE;
-    NEXT_FORCEJMP;
-}
-
-static RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED)
-{
-    PROLOGUE;
-    SEXP *recording_constant = (SEXP *)GETCUSTOM();
+	PROLOGUE;
+	Value *recording_constant = (Value *)GETCUSTOM_REL(0);
+	*recording_constant = *GET_VAL(-1);
 	if (VAL_IS_SXP(*GET_VAL(-1)))
 	{
-		if (*recording_constant != VAL_SXP(*GET_VAL(-1)))
-		{
-			return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
-		}
+		SEXP *protect = (SEXP *)GETCUSTOM_REL(1);
+		// FIXME: this is inefficient. Find a better solution to protect SEXPs from the GC.
+		CHECK_OLD_TO_NEW((SEXP)GETCUSTOM(2), VAL_SXP(*GET_VAL(-1)));
+		*protect = VAL_SXP(*GET_VAL(-1));
+		MARK_NOT_MUTABLE(VAL_SXP(*GET_VAL(-1)));
 	}
-	else
-	{
-	    return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
-	}
-
-	NEXT;
+	EPILOGUE;
+	return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(RECCONST_VARIANT_CHECK), GET_NEXT_PTR(), GETSMCVARIANTSIZE(RECCONST_VARIANT_CHECK));
 }
-
-static RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED)
-{
-    PROLOGUE;
-    SEXP *recording_constant = (SEXP *)GETCUSTOM();
-	if (!VAL_IS_SXP(*GET_VAL(-1)))
-	{
-	    //  We can compare the memory even if the type is different
-		assert((uintptr_t)GET_VAL(-1)->u.sxpval == GET_VAL(-1)->u.ival);
-	    if (TYPEOF(*recording_constant) != GET_VAL(-1)->tag || *(uintptr_t*)STDVEC_DATAPTR(*recording_constant) != (uintptr_t)GET_VAL(-1)->u.sxpval)
-	    {
-			// We have seen a different constant before, stop recording
-			return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
-		}
-	}
-	else
-	{
-	    return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2 - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE2);
-	}
-
-	NEXT;
-}
-
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_CONSTANT_PHASE0)
-{
-	PROLOGUE;
-	SEXP *recording_constant = (SEXP *)GETCUSTOM();
-	*recording_constant = val_as_sexp(*GET_VAL(-1));
-	if(VAL_IS_SXP(*GET_VAL(-1)))
-	{
-        return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE0, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED);
-    }
-    else
-    {
-        return rcp_smc_copy(stack, locals, &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_BOXED - &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED, GETSELFADDR(), &_RCP_CUSTOM_RECORDING_CONSTANT_PHASE1_UNBOXED);
-    }
-}
+#pragma GCC diagnostic pop
 
 RCP_OP(RETURN,
 	   Value ret = Rsh_Return(stack);
@@ -754,6 +642,51 @@ RCP_OP(BRIFNOT,
 	   ,
 	   if (condition)
 		   GOTO_IMM(1);)
+
+#define BRIFNOT_VARIANT_INERT 2
+#define BRIFNOT_VARIANT_CHECK 1
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_2) // ambiguous / inert
+{
+	PROLOGUE;
+	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	if (condition)
+		GOTO_IMM(1);
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_1) // monomorphic
+{
+	PROLOGUE;
+	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	Rboolean *recording = (Rboolean *)GETCUSTOM_REL(0);
+	if (condition != *recording)
+	{
+		Rboolean *result = (Rboolean *)GETCUSTOM_REL(1);
+		*result = 0;
+		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(RECCONST_VARIANT_INERT), GET_NEXT_PTR(), GETSMCVARIANTSIZE(RECCONST_VARIANT_INERT));
+	}
+	if (condition)
+		GOTO_IMM(1);
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_0) // entry: record
+{
+	PROLOGUE;
+	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	Rboolean *recording = (Rboolean *)GETCUSTOM_REL(0);
+	*recording = condition;
+	if (condition)
+	{
+		POP_VAL(1);
+		EPILOGUE;
+		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_CHECK), GET_IMM_PTR(1), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_CHECK));
+	}
+	POP_VAL(1);
+	EPILOGUE;
+	return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_CHECK), GET_NEXT_PTR(), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_CHECK));
+}
 
 RCP_OP(POP,
 	   Rsh_Pop(stack);)
@@ -771,12 +704,18 @@ RCP_OP(ENDLOOPCNTXT,
 	   Rsh_EndLoopCntxt(stack, &GET_LOCAL_RCNTXT());)
 
 #ifdef STEPFOR_SPECIALIZE
+// Must match the SmcSiteHeader-compatible layout in compile.c: the {dst,
+// variants[]} prefix, then STEPFOR's selection cache and the variant blob.
 typedef struct
 {
-	int cached_type;
+	uint8_t *ptr;  // address of this variant's pre-patched body in data[]
+	uint32_t size; // its exact body length (memcpy length)
+} SmcVariant;
+typedef struct
+{
 	uint8_t *dst;
-	uint8_t *src[11];
-	uint16_t sizes[11];
+	SmcVariant variants[11];
+	int cached_type;
 	uint8_t data[];
 } StepFor_specialized;
 
@@ -813,8 +752,8 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
     break; }
 
 			  // Copy the specialized StepFor code if it is not already cached
-			  if (__builtin_expect(stepfor_mem->cached_type != i, FALSE)) {
-    memcpy(stepfor_mem->dst, stepfor_mem->src[i], stepfor_mem->sizes[i]);
+			  if (UNLIKELY(stepfor_mem->cached_type != i)) {
+    memcpy(stepfor_mem->dst, stepfor_mem->variants[i].ptr, stepfor_mem->variants[i].size);
     stepfor_mem->cached_type = i; }
 #endif
 			  ,

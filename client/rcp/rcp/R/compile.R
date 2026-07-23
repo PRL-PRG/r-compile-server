@@ -187,3 +187,19 @@ rcp_get_types_df <- function(func_name) {
   resolved_name <- .rcp_resolve_func_name(func_name_expr, parent.frame())
   .Call(C_rcp_get_types_df, resolved_name)
 }
+
+#' Export a type recording as a plain list
+#'
+#' Converts the recording gathered for a function compiled with
+#' \code{options(rcp.cmpfun.type_recording = TRUE)} into a plain named list of
+#' \code{bcids}, \code{counters}, \code{types} and \code{consts}. The result
+#' contains only ordinary R objects, so it can be passed to \code{\link{saveRDS}}
+#' or \code{\link{serialize}} directly.
+#'
+#' @param x A compiled function (or its body / recording object).
+#' @return A named list with one entry per recorded program point.
+#'
+#' @export
+rcp_export_recording <- function(x) {
+  .Call(C_rcp_export_recording, x)
+}

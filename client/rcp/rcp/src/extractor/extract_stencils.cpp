@@ -12,6 +12,7 @@
 #include <format>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -45,7 +46,8 @@ enum X86_64_RELOC_KIND
 	R_X86_64_DTPOFF32,
 	R_X86_64_GOTTPOFF,
 	R_X86_64_TPOFF32,
-	R_X86_64_GOTPCRELX = 41
+	R_X86_64_GOTPCRELX = 41,
+	R_X86_64_REX_GOTPCRELX = 42
 };
 
 struct StencilExport
@@ -67,11 +69,22 @@ struct StencilExportSet
 	std::string extra_string;
 };
 
+// A self-modifying-code variant group: the set of stencil bodies (phases /
+// type variants) declared as _RCP_SMC_<GROUP>_<n>, all normalized to a common
+// size so any one can be memcpy'd over the reserved slot of another.
+struct SmcGroup
+{
+	std::string name;					 // e.g. "RECCONST"
+	std::vector<StencilExport> variants; // index-ordered, 0 = entry
+	std::string extra_string;			 // per-group count/size #defines
+};
+
 struct Stencils
 {
 	std::vector<uint8_t> rodata;
 	std::array<StencilExportSet, NUM_OPCODES> stencils_opcodes;
 	std::vector<StencilExport> stencils_extra;
+	std::vector<SmcGroup> smc_groups;
 	std::vector<StencilExport> functions_not_inlined;
 	std::unordered_map<std::string, std::vector<uint8_t>> eh_frame_cfis;
 	std::vector<uint8_t> eh_frame_cie;
@@ -193,6 +206,88 @@ void prepare_stepfor(StencilExportSet &stencil_set)
 											stepfor_max_size, stepfor_sum_size);
 }
 
+// Recognize self-modifying-code variant groups declared as _RCP_SMC_<GROUP>_<n>
+// (n = variant index, 0 = entry). Pull them out of the generic "extra" stencils,
+// order them by index, normalize every variant in a group to a common size (so
+// any successor exactly fits the reserved slot and the copy length is one
+// per-group constant), and emit the per-group count/size #defines. The bodies
+// themselves are emitted later as `<GROUP>_smc_variants[]`.
+static void prepare_smc_groups(Stencils &stencils)
+{
+	std::map<std::string, std::map<int, StencilExport>> groups;
+	std::vector<StencilExport> remaining;
+
+	for (auto &s : stencils.stencils_extra)
+	{
+		// Section-defined symbols look like "_RCP_SMC_RECCONST_0"; the hole
+		// symbols (_RCP_SMC_SELF / _RCP_SMC_VARIANT*) are extern-only and never
+		// define a section, so they never reach here, but the trailing-digits
+		// test below rejects them regardless.
+		const char *descr = remove_prefix(s.name.c_str(), "_RCP_SMC_");
+		int index = -1;
+		std::string group;
+		if (descr)
+		{
+			std::string_view sv(descr);
+			size_t us = sv.rfind('_');
+			if (us != std::string_view::npos && us + 1 < sv.size())
+			{
+				std::string_view idx = sv.substr(us + 1);
+				bool digits = !idx.empty();
+				for (char c : idx)
+					if (!isdigit((unsigned char)c))
+						digits = false;
+				if (digits)
+				{
+					group = std::string(sv.substr(0, us));
+					index = atoi(std::string(idx).c_str());
+				}
+			}
+		}
+		if (index >= 0)
+			groups[group].emplace(index, std::move(s));
+		else
+			remaining.push_back(std::move(s));
+	}
+
+	stencils.stencils_extra = std::move(remaining);
+
+	for (auto &[gname, members] : groups)
+	{
+		SmcGroup g;
+		g.name = gname;
+
+		// Enforce contiguous 0..N-1 indices: GETSMCVARIANT(n) maps directly to
+		// variants[n] / src[n] at runtime.
+		int expected = 0;
+		for (auto &[idx, s] : members)
+		{
+			if (idx != expected)
+				throw std::runtime_error(std::format(
+					"SMC group {} has non-contiguous variant indices (expected {}, got {})\n",
+					gname, expected, idx));
+			g.variants.push_back(std::move(s));
+			expected++;
+		}
+
+		size_t max_size = 0;
+		for (const auto &v : g.variants)
+			max_size = std::max(max_size, v.body.size());
+		for (auto &v : g.variants)
+			prepare_variant_one(v, max_size);
+		size_t sum_size = 0;
+		for (const auto &v : g.variants)
+			sum_size += v.body.size();
+
+		g.extra_string = std::format("#define {0}_smc_variant_count {1}\n"
+									 "#define {0}_smc_max_size {2}\n"
+									 "#define {0}_smc_sum_size {3}\n",
+									 gname, g.variants.size(), max_size, sum_size);
+
+		stencils.smc_groups.push_back(std::move(g));
+	}
+}
+
 static void print_byte_array(std::ostream &file, const unsigned char *arr,
 							 size_t len)
 {
@@ -243,6 +338,9 @@ export_body(std::ostream &file, const StencilExport &stencil,
 			case RELOC_RCP_CONST_STR_AT_IMM:
 			case RELOC_RCP_CONSTCELL_AT_IMM:
 			case RELOC_RCP_CONSTCELL_AT_LABEL_IMM:
+			case RELOC_RCP_SMC_VARIANT:
+			case RELOC_RCP_SMC_VARIANT_SIZE:
+			case RELOC_RCP_CUSTOM:
 				file << std::format(", .val.imm_pos = {}", hole.val.imm_pos);
 				break;
 			default:
@@ -597,6 +695,25 @@ static void export_extra_stencil_bodies(std::ostream &c_file,
 	}
 }
 
+// Export stencil bodies and CFI for self-modifying-code variant groups.
+//
+// Generated variables (per variant):
+//   uint8_t _{VARIANT}_BODY[]
+//   Hole _{VARIANT}_HOLES[]
+//   uint8_t _{VARIANT}_cfi_data[]
+static void export_smc_group_bodies(std::ostream &c_file,
+									const Stencils &stencils)
+{
+	for (const auto &g : stencils.smc_groups)
+		for (const auto &v : g.variants)
+		{
+			export_body(c_file, v, v.name.c_str(),
+						stencils.functions_not_inlined);
+			export_cfi(c_file, stencils, v.section_symbol_name,
+					   std::format("_{}", v.name));
+		}
+}
+
 // Export stencil bodies and CFI for functions that couldn't be inlined.
 // Returns the total size of all not-inlined function bodies.
 //
@@ -694,6 +811,93 @@ static void export_extra_stencil_structs(std::ostream &c_file,
 
 		h_file << std::format("extern const Stencil {};\n", current.name);
 	}
+}
+
+// Export Stencil struct arrays for self-modifying-code variant groups, plus
+// their count/size #defines.
+//
+// Generated variables (per group):
+//   const Stencil {GROUP}_smc_variants[]
+//   #define {GROUP}_smc_variant_count / _smc_max_size / _smc_sum_size
+static void export_smc_group_arrays(std::ostream &c_file, std::ostream &h_file,
+									const Stencils &stencils)
+{
+	for (const auto &g : stencils.smc_groups)
+	{
+		h_file << g.extra_string << "\n";
+
+		c_file << std::format("\nconst Stencil {}_smc_variants[] = {{\n", g.name);
+		for (const auto &v : g.variants)
+		{
+			std::string cfi_data_ptr = "NULL";
+			std::string cfi_size_str = "0";
+			auto it = stencils.eh_frame_cfis.find(v.section_symbol_name);
+			if (it != stencils.eh_frame_cfis.end())
+			{
+				cfi_data_ptr = std::format("_{}_cfi_data", v.name);
+				cfi_size_str = std::format("sizeof(_{}_cfi_data)", v.name);
+			}
+
+			c_file << std::format("{{{}, _{}_BODY, {}, _{}_HOLES, {}, \"{}\"",
+								  v.body.size(), v.name, v.holes.size(), v.name,
+								  v.alignment, v.name);
+			c_file << ", " << cfi_data_ptr << ", " << cfi_size_str;
+			c_file << "},\n";
+		}
+		c_file << "};\n";
+
+		h_file << std::format("extern const Stencil {}_smc_variants[];\n", g.name);
+	}
+}
+
+// Per-site SMC block byte size for a group with `count` variants and `sum_size`
+// bytes of pre-patched bodies: the SmcSiteHeader (dst + variants[count]) plus
+// the bodies, rounded up so consecutive sites in the pool stay aligned. Uses
+// the real struct layouts from rcp_common.h (same target ABI as the extractor
+// host), so it matches what compile.c lays out at runtime.
+static size_t smc_site_size(size_t count, size_t sum_size)
+{
+	size_t bytes = sizeof(SmcSiteHeader) + count * sizeof(SmcVariant) + sum_size;
+	size_t align = alignof(SmcSiteHeader);
+	return (bytes + align - 1) / align * align;
+}
+
+// Export the descriptor table of SMC groups. Each group also gets a
+// SMC_GROUP_<NAME> macro resolving to its entry at compile time, so compile.c
+// references a group by name with no runtime lookup; adding a new
+// _RCP_SMC_<GROUP> to the stencils requires no change in compile.c.
+//
+// Generated variables:
+//   const SmcGroupInfo rcp_smc_groups[]
+//   #define rcp_smc_group_count
+//   #define SMC_GROUP_<NAME>   (per group)
+static void export_smc_group_table(std::ostream &c_file, std::ostream &h_file,
+								   const Stencils &stencils)
+{
+	h_file << std::format("#define rcp_smc_group_count {}\n",
+						  stencils.smc_groups.size());
+	h_file << "extern const SmcGroupInfo rcp_smc_groups[];\n";
+
+	c_file << "\nconst SmcGroupInfo rcp_smc_groups[] = {\n";
+	size_t idx = 0;
+	for (const auto &g : stencils.smc_groups)
+	{
+		size_t sum_size = 0;
+		for (const auto &v : g.variants)
+			sum_size += v.body.size();
+		c_file << std::format(
+			"\t{{ \"{0}\", {0}_smc_variants, {0}_smc_variant_count, "
+			"{0}_smc_max_size, {0}_smc_sum_size, {1} }},\n",
+			g.name, smc_site_size(g.variants.size(), sum_size));
+		h_file << std::format("#define SMC_GROUP_{0} (&rcp_smc_groups[{1}])\n",
+							  g.name, idx);
+		idx++;
+	}
+	// A zero-length array is not portable C; emit a zeroed sentinel when there
+	// are no groups. rcp_smc_group_count is 0 so the sentinel is never read.
+	if (stencils.smc_groups.empty())
+		c_file << "\t{ 0 },\n";
+	c_file << "};\n";
 }
 
 // Export the array of not-inlined function stencils.
@@ -824,6 +1028,13 @@ static size_t export_stencils_all(std::ostream &c_file, std::ostream &h_file,
 		stencils_all_count++;
 	}
 
+	for (const auto &g : stencils.smc_groups)
+		for (size_t i = 0; i < g.variants.size(); ++i)
+		{
+			c_file << std::format("&{}_smc_variants[{}],", g.name, i);
+			stencils_all_count++;
+		}
+
 	for (size_t i = 0; i < stencils.functions_not_inlined.size(); ++i)
 	{
 		c_file << std::format("&notinlined_stencils[{}],", i);
@@ -879,7 +1090,10 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#undef R_NaN\n";
 	c_file << "#undef R_PosInf\n";
 	c_file << "#undef R_NegInf\n";
-	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n\n";
+	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n";
+	// Self-modifying-code copy primitive, defined in stencils-runtime.c; the SMC
+	// variants reference it as an external runtime symbol.
+	c_file << "extern Value rcp_smc_copy(Value *stack, rcpEval_locals *locals, size_t size, void *dst, const void *src);\n\n";
 	// Under PROFILE_STENCILS the opcode stencils reference the global
 	// stencil_profile_info[] counter array (defined in compile.c) via the
 	// hard-coded PROFILING_START/END timing. Declare it so the generated
@@ -892,11 +1106,14 @@ static void export_to_files(const fs::path &output_dir,
 	// Export stencil bodies (machine code + holes + FDEs)
 	export_opcode_stencil_bodies(c_file, h_file, stencils);
 	export_extra_stencil_bodies(c_file, stencils);
+	export_smc_group_bodies(c_file, stencils);
 	size_t notinlined_total_size = export_notinlined_bodies(c_file, stencils);
 
 	// Export Stencil struct arrays and individual structs
 	export_opcode_stencil_arrays(c_file, h_file, stencils);
 	export_extra_stencil_structs(c_file, h_file, stencils);
+	export_smc_group_arrays(c_file, h_file, stencils);
+	export_smc_group_table(c_file, h_file, stencils);
 	export_notinlined_stencil_array(c_file, h_file, stencils,
 									notinlined_total_size);
 
@@ -1053,11 +1270,18 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 		{
 			bool is_last_instruction =
 				(rel.address - rel.addend) == stencil_body.size();
-			bool is_relative_jmp = stencil_body[rel.address - 1] == 0xE9; /*JMP*/
+			bool is_relative_jmp = stencil_body[rel.address - 1] == 0xE9;  /*JMP*/
+			bool is_relative_call = stencil_body[rel.address - 1] == 0xE8; /*CALL*/
 			bool is_got_jmp = stencil_body[rel.address - 2] == 0xFF &&
 							  stencil_body[rel.address - 1] == 0x25; /*GOT JMP*/
 			bool is_got_call = stencil_body[rel.address - 2] == 0xFF &&
 							   stencil_body[rel.address - 1] == 0x15; /*GOT CALL*/
+
+			if (is_relative_call || is_got_call)
+			{
+				std::cerr << "Error: EXEC_NEXT called using a non-tail call. Ensure tail-calling for correct stencil behaviour.\n";
+				exit(1);
+			}
 
 			if (is_last_instruction)
 			{
@@ -1087,11 +1311,6 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 				stencil_body[rel.address - 2] = 0x90; // NOP
 				stencil_body[rel.address - 1] = 0xE9; // JMP
 			}
-			else if (is_got_call) // Transform into relative JMP
-			{
-				stencil_body[rel.address - 2] = 0x90; // NOP
-				stencil_body[rel.address - 1] = 0xE8; // CALL
-			}
 			hole.kind = RELOC_RCP_EXEC_NEXT;
 		}
 		else if ((descr_imm = remove_prefix(descr, "EXEC_IMM")))
@@ -1107,9 +1326,27 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 			hole.kind = RELOC_RCP_EXEC_IMM;
 			hole.val.imm_pos = atoi(descr_imm);
 		}
-		else if (strcmp(descr, "CUSTOM_DATA_REL32") == 0 || strcmp(descr, "CUSTOM_DATA_ABS64") == 0)
+		else if ((descr_imm = remove_prefix(descr, "CUSTOM_DATA_REL32_")) || (descr_imm = remove_prefix(descr, "CUSTOM_DATA_ABS64_")))
 		{
 			hole.kind = RELOC_RCP_CUSTOM;
+			hole.val.imm_pos = atoi(descr_imm);
+		}
+		else if (strcmp(descr, "SMC_SELF") == 0)
+		{
+			// Address of this variant's own live slot (the memcpy destination).
+			hole.kind = RELOC_RCP_SMC_SELF;
+		}
+		else if ((descr_imm = remove_prefix(descr, "SMC_VARIANTSIZE")))
+		{
+			// Body size (memcpy length) of pre-patched successor variant n.
+			hole.kind = RELOC_RCP_SMC_VARIANT_SIZE;
+			hole.val.imm_pos = atoi(descr_imm);
+		}
+		else if ((descr_imm = remove_prefix(descr, "SMC_VARIANT")))
+		{
+			// Address of pre-patched successor variant n in this site's block.
+			hole.kind = RELOC_RCP_SMC_VARIANT;
+			hole.val.imm_pos = atoi(descr_imm);
 		}
 		else if (strcmp(descr, "LOOPCNTXT") == 0)
 		{
@@ -1118,6 +1355,15 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 		else if (strcmp(descr, "EXECUTABLE") == 0)
 		{
 			hole.kind = RELOC_RCP_EXECUTABLE_START;
+		}
+		else if (strcmp(descr, "NEXT_PTR") == 0)
+		{
+			hole.kind = RELOC_RCP_EXEC_NEXT;
+		}
+		else if ((descr_imm = remove_prefix(descr, "EXEC_PTR_IMM")))
+		{
+			hole.kind = RELOC_RCP_EXEC_IMM;
+			hole.val.imm_pos = atoi(descr_imm);
 		}
 		else
 		{
@@ -1129,7 +1375,7 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 					break;
 				default:
 					std::cerr << std::format("Unsupported internal relocation symbol: {}\n",
-									 (*rel.sym_ptr_ptr)->name);
+											 (*rel.sym_ptr_ptr)->name);
 
 					hole.kind = RELOC_RUNTIME_SYMBOL;
 					break;
@@ -1453,6 +1699,10 @@ static void cleanup(Stencils &stencils)
 
 	for (const auto &current : stencils.stencils_extra)
 		free_stencil(current);
+
+	for (const auto &g : stencils.smc_groups)
+		for (const auto &v : g.variants)
+			free_stencil(v);
 }
 
 static void analyze_object_file(const char *filename, Stencils &stencils)
@@ -1588,6 +1838,7 @@ int main(int argc, char **argv)
 		sort_stencil_set(current);
 
 	prepare_stepfor(stencils.stencils_opcodes[STEPFOR_BCOP]);
+	prepare_smc_groups(stencils);
 
 	export_to_files(argv[2], stencils);
 
