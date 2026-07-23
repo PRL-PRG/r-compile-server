@@ -425,10 +425,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> V { reg vargs:dots, reg result:V |
+        () --> V {
           mkenv;
-          vargs = dots[];
-          result = c< dots --> V >(vargs);
+          vargs: dots = dots[];
+          result: V = c< dots --> V >(vargs);
           return result;
         }
       }
@@ -438,7 +438,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(SEXPs.NULL), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.NULL), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -446,10 +446,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> V { reg vargs:dots, reg result:V |
+        () --> V {
           mkenv;
-          vargs = dots[<lgl TRUE>, <lgl FALSE>];
-          result = c< dots --> V >(vargs);
+          vargs: dots = dots[<lgl TRUE>, <lgl FALSE>];
+          result: V = c< dots --> V >(vargs);
           return result;
         }
       }
@@ -461,7 +461,7 @@ class OriginAnalysisTest {
 
     assertEquals(
         new Constant(SEXPs.logical(Logical.TRUE, Logical.FALSE)),
-        analysis.get(Variable.register("result")));
+        analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -469,10 +469,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> V { reg vargs:dots, reg result:V |
+        () --> V {
           mkenv;
-          vargs = dots[<real 1.5>, <real 2.5>];
-          result = c< dots --> V >(vargs);
+          vargs: dots = dots[<real 1.5>, <real 2.5>];
+          result: V = c< dots --> V >(vargs);
           return result;
         }
       }
@@ -482,7 +482,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(SEXPs.real(1.5, 2.5)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.real(1.5, 2.5)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -490,10 +490,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> V { reg vargs:dots, reg result:V |
+        () --> V {
           mkenv;
-          vargs = dots[<str "hello">, <str "world">];
-          result = c< dots --> V >(vargs);
+          vargs: dots = dots[<str "hello">, <str "world">];
+          result: V = c< dots --> V >(vargs);
           return result;
         }
       }
@@ -503,8 +503,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(
-        new Constant(SEXPs.string("hello", "world")), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.string("hello", "world")), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -513,10 +512,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> V { reg vargs:dots, reg result:V |
+        () --> V {
           mkenv;
-          vargs = dots[<lgl TRUE>, <int 2>];
-          result = c< dots --> V >(vargs);
+          vargs: dots = dots[<lgl TRUE>, <int 2>];
+          result: V = c< dots --> V >(vargs);
           return result;
         }
       }
@@ -526,7 +525,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertEquals(new Constant(SEXPs.integer(1, 2)), analysis.get(Variable.register("result")));
+    assertEquals(new Constant(SEXPs.integer(1, 2)), analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -534,10 +533,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> V { reg vargs:dots, reg result:V |
+        () --> V {
           mkenv;
-          vargs = dots[x = <int 1>];
-          result = c< dots --> V >(vargs);
+          vargs: dots = dots[x = <int 1>];
+          result: V = c< dots --> V >(vargs);
           return result;
         }
       }
@@ -547,7 +546,7 @@ class OriginAnalysisTest {
     var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
     var analysis = new OriginAnalysis(main);
 
-    assertInstanceOf(Read.class, analysis.get(Variable.register("result")));
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -555,10 +554,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> v(I) { reg vec:v1(I), reg result:v(I) |
+        () --> v(I) {
           mkenv;
-          vec = box< I --> v1(I) >(42);
-          result = `[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: v(I) = `[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
           return result;
         }
       }
@@ -569,7 +568,7 @@ class OriginAnalysisTest {
     var analysis = new OriginAnalysis(main);
 
     // box(42) creates a size-1 vector; writing at index 2 is out of bounds → no fold
-    assertInstanceOf(Read.class, analysis.get(Variable.register("result")));
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
   }
 
   @Test
@@ -577,10 +576,10 @@ class OriginAnalysisTest {
     var firText =
         """
       fun main() {
-        () --> v(I) { reg vec:v1(I), reg result:v(I) |
+        () --> v(I) {
           mkenv;
-          vec = box< I --> v1(I) >(42);
-          result = `[[<-`< v(I),I,I --> v(I) >(vec, 2, 99);
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: v(I) = `[[<-`< v(I),I,I --> v(I) >(vec, 2, 99);
           return result;
         }
       }
@@ -591,7 +590,7 @@ class OriginAnalysisTest {
     var analysis = new OriginAnalysis(main);
 
     // box(42) creates a size-1 vector; writing at index 2 is out of bounds → no fold
-    assertInstanceOf(Read.class, analysis.get(Variable.register("result")));
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
   }
 
   /// A promise that stores to `a` is itself stored in variable `p`, then `a` is reassigned, then
@@ -604,14 +603,14 @@ class OriginAnalysisTest {
     var firText =
         """
         fun main() {
-          () -+> V { reg pr:p(V +), reg q:p(V +), reg f:V, reg r:V, var a:V, var p:p(V +) |
+          () -+> V {
             mkenv;
-            pr = prom<V +>{ st a = <int 99>; return <int 0>; };
+            pr:p(V +) = prom<V +>{ st a = <int 99>; return <int 0>; };
             st p = pr;
             st a = <int 1>;
-            q = ld p;
-            f = force q;
-            r = ld a;
+            q:p(V +) = ld p;
+            f:V = force q;
+            r:V = ld a;
             popenv;
             return r;
           }
@@ -633,8 +632,8 @@ class OriginAnalysisTest {
         Set.of(new Constant(SEXPs.integer(99))),
         analysis.getPossible(entry, 5, Variable.named("a")));
     // The load and the forced value resolve to those constants.
-    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(Variable.register("r")));
-    assertEquals(new Constant(SEXPs.integer(0)), analysis.get(Variable.register("f")));
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "r")));
+    assertEquals(new Constant(SEXPs.integer(0)), analysis.get(reg(main, "f")));
   }
 
   /// A promise that stores to `a` is super-stored into the (untracked) global env, so it leaks: it
@@ -646,19 +645,19 @@ class OriginAnalysisTest {
     var firText =
         """
         fun main() {
-          () -+> V { reg pr:p(V +), reg c:V, var a:V, var gp:p(V +) |
+          () -+> V {
             mkenv;
-            pr = prom<V +>{ st a = <int 99>; return <int 0>; };
+            pr:p(V +) = prom<V +>{ st a = <int 99>; return <int 0>; };
             st-super gp = pr;
             st a = <int 1>;
-            c = g< --> V >();
+            c:V = g< --> V >();
             popenv;
             return c;
           }
         }
 
         fun g() {
-          () --> V { reg v:V | v = <int 0>; return v; }
+          () --> V { return <int 0>; }
         }
         """;
 

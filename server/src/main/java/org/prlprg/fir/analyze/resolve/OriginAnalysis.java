@@ -68,7 +68,6 @@ import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
@@ -260,25 +259,23 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       var origin = computeOrigin(statement);
       if (assignee != null) {
         put(assignee, origin);
-        trackAssigneePromise(assignee, expr);
+        trackAssigneePromise(assignee, statement);
       }
     }
 
     /// Tracks whether `assignee` holds a known promise, in `State#registerPromises`.
     ///
-    /// A register holds a known promise iff it was assigned a [Promise] expression, copied
-    /// ([Aea]) from another register that held one, or loaded from a variable that held one.
-    /// Anything else (including a [Force], whose result is the forced *value*) clears the entry.
-    private void trackAssigneePromise(Register assignee, Expression expr) {
-      switch (expr) {
+    /// A register holds a known promise iff it was assigned a [Promise] expression, copied from
+    /// another register that held one (through a value-preserving cast or type-assumption), or
+    /// loaded from a variable that held one. Anything else (including a [Force], whose result is
+    // the
+    /// forced *value*) clears the entry.
+    private void trackAssigneePromise(Register assignee, Statement statement) {
+      switch (statement.expression()) {
         case Promise promise -> state().registerPromises.put(assignee, new PromiseOrigin(promise));
-        case Aea(Read(var r)) -> copyRegisterPromise(r, assignee);
-        case Aea(Consume(var r)) -> copyRegisterPromise(r, assignee);
         // A cast or type-assumption is value-preserving, so it propagates the promise (if any).
-        case Cast(Read(var r), _) -> copyRegisterPromise(r, assignee);
-        case Cast(Consume(var r), _) -> copyRegisterPromise(r, assignee);
-        case Assume(AssumeType(Read(var r), _)) -> copyRegisterPromise(r, assignee);
-        case Assume(AssumeType(Consume(var r), _)) -> copyRegisterPromise(r, assignee);
+        case Cast _ -> copyArgPromise(statement.arg(0), assignee);
+        case Assume(AssumeType _) -> copyArgPromise(statement.arg(0), assignee);
         case Load(var loadType, var variable) -> {
           var po =
               switch (loadType) {
@@ -296,8 +293,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       }
     }
 
-    private void copyRegisterPromise(Register from, Register to) {
-      var po = state().registerPromises.get(from);
+    private void copyArgPromise(Argument from, Register to) {
+      var po = promiseOf(from);
       if (po == null) {
         state().registerPromises.remove(to);
       } else {
@@ -310,6 +307,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       return switch (statement.expression()) {
         case Store(var storeType, var variable) -> {
           var o = resolve(args.get(0));
+          var po = promiseOf(args.get(0));
           switch (storeType) {
             case LOCAL_VAR -> {
               state().store(variable, o);
@@ -389,7 +387,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
               }
               case AssumeConstant _, AssumeLoadVar _ -> null;
             };
-        case Force(var isMaybe, var value) -> {
+        case Force(var isMaybe) -> {
+          var value = args.get(0);
           var po = promiseOf(value);
           if (po != null) {
             // Forcing a known promise: run its body and apply its effects (see `force`).
@@ -418,8 +417,10 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         // Creating a promise doesn't run its body; that happens when it's forced. The promise is
         // tracked in `State#registerPromises` (see `trackAssigneePromise`).
         case Promise _ -> null;
-        case Call(var callee, var arguments) -> {
-          var constantFolded = tryConstantFold(callee, arguments);
+        case Call(var callee) -> {
+          var closureOrCalleeArg = args.get(0);
+          var callArgs = args.subList(1, args.size());
+          var constantFolded = tryConstantFold(callee, closureOrCalleeArg, callArgs);
           if (constantFolded != null) {
             yield constantFolded;
           }
@@ -429,11 +430,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           // point (maybe forced in this call, but it's superseded because it may be force in
           // *any* future call)
           var strictnesses =
-              callee instanceof StaticFnCallee(_, _, _, var signature)
+              callee instanceof StaticFnCallee(_, _, var signature)
                   ? signature.parameterStrictnesses()
                   : null;
-          for (var i = 0; i < arguments.size(); i++) {
-            var po = promiseOf(arguments.get(i));
+          for (var i = 0; i < callArgs.size(); i++) {
+            var po = promiseOf(callArgs.get(i));
             if (po == null) {
               continue;
             }
@@ -446,8 +447,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           }
 
           if (inferEffects.of(statement).reflect()
-              || (callee instanceof StaticFnCallee c
-                  && !c.closureWithEnv().equals(Constant.ELIDED_CLOSURE))) {
+              || (callee instanceof StaticFnCallee
+                  && !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE))) {
             state().taintViaReflection();
           }
 
@@ -473,7 +474,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             SubscriptWrite _ -> {
           // A promise passed to any of these may end up stored somewhere we don't track (a closure
           // capture, a vector element, a reflective store, ...), so it leaks.
-          leakPromiseArgs(expr);
+          leakPromiseArgs(statement);
           if (inferEffects.of(statement).reflect()) {
             state().taintViaReflection();
           }
@@ -482,9 +483,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       };
     }
 
-    /// Leaks any argument of `expr` that is a known promise (see `State#leakedPromises`).
-    private void leakPromiseArgs(Expression expr) {
-      for (var arg : expr.arguments()) {
+    /// Leaks any argument of `statement` that is a known promise (see `State#leakedPromises`).
+    private void leakPromiseArgs(Statement statement) {
+      for (var arg : statement.args()) {
         var po = promiseOf(arg);
         if (po != null) {
           state().leakedPromises.add(po);
@@ -560,9 +561,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       po.value = subAnalysis.returnOrigin();
     }
 
-    private @Nullable Argument tryConstantFold(Callee callee, List<Argument> arguments) {
-      if (!(callee
-              instanceof StaticFnCallee(var functionRef, var isDispatch, var closureWithEnv, _))
+    private @Nullable Argument tryConstantFold(
+        Callee callee, Argument closureOrCalleeArg, List<Argument> arguments) {
+      if (!(callee instanceof StaticFnCallee(var functionRef, var isDispatch, _))
           || isDispatch
           || !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)) {
         return null;
@@ -1276,7 +1277,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// A variable register holds a known promise only if both states agree it holds the *same*
   /// promise (then merge how-forced). Otherwise it's ambiguous, so any promise it might hold
   /// leaks and we stop tracking it.
-  private static <Var extends Variable> void mergeVariablePromises(
+  private static <Var> void mergeVariablePromises(
       Map<Var, PromiseOrigin> variablePromises,
       Map<Var, PromiseOrigin> otherVariablePromises,
       Set<PromiseOrigin> leakedPromises,

@@ -102,12 +102,11 @@ class ElideEnvTest implements AbstractionOptimizationUnitTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () -+> I { reg r:I, reg g:V |
+            () -+> I {
               mkenv~;
-              r = 0;
-              g = ldf g;
+              g: V = ldf g;
               popenv;
-              return r;
+              return 0;
             }
             """);
 

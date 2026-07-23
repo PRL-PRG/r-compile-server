@@ -36,8 +36,8 @@ class AbstractionFeedbackSerializationTest {
   private static final String ESCAPING_PROMISE_MODULE =
       """
       fun main() {
-        () -+> p(v1(I) +) { reg r:p(v1(I) +) |
-          r = prom<v1(I) +>{ return <int 42>; };
+        () -+> p(v1(I) +) {
+          r:p(v1(I) +) = prom<v1(I) +>{ return <int 42>; };
           return r;
         }
       }
@@ -49,10 +49,10 @@ class AbstractionFeedbackSerializationTest {
   private static final String REFLECTIVE_ENV_MODULE =
       """
       fun main() {
-        () -+> V { reg sysfun:cls, reg r:V |
+        () -+> V {
           mkenv;
-          sysfun = ldf `sys.frame`;
-          r = dyn sysfun(<int 0>);
+          sysfun:cls = ldf `sys.frame`;
+          r:V = dyn sysfun(<int 0>);
           popenv;
           return r;
         }

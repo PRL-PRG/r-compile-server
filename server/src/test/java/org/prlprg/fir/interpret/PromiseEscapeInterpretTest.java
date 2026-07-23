@@ -25,8 +25,8 @@ class PromiseEscapeInterpretTest {
   private static final String MODULE_TEMPLATE =
       """
       fun main() {
-        () -+> p(v1(I) -) { reg r:p(v1(I) -) |
-          r = prom%s<v1(I) ->{ return <int 42>; };
+        () -+> p(v1(I) -) {
+          r:p(v1(I) -) = prom%s<v1(I) ->{ return <int 42>; };
           return r;
         }
       }

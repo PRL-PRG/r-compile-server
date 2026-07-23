@@ -39,13 +39,13 @@ class ReflectionSpeculationInterpretTest {
   private static final String MODULE =
       """
       fun f(b) {
-        (reg b:v1(L)) -+> V { reg cond:B, reg sysfun:cls, reg r:V |
+        (reg b:v1(L)) -+> V {
           mkenv;
-          cond = naToFalse< v1(L) --> B >(b);
+          cond: B = naToFalse< v1(L) --> B >(b);
           if cond then L1() else L0();
         L1():
-          sysfun = ldf `sys.frame`;
-          r = dyn sysfun(<int 0>);
+          sysfun: cls = ldf `sys.frame`;
+          r: V = dyn sysfun(<int 0>);
           popenv;
           return <int 1>;
         L0():

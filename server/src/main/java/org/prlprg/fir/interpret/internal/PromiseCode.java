@@ -3,7 +3,7 @@ package org.prlprg.fir.interpret.internal;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.position.ScopePosition;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Interpreter-side data for a promise stub (see [InternalInterpreter]'s promise map).
@@ -17,9 +17,8 @@ final class PromiseCode {
   /// Scope (version) whose CFG contains the `prom` instruction that created this promise; where the
   /// force feedback is recorded (whether or not the promise escaped).
   final Abstraction scope;
-  /// [ScopePosition] of the `prom` instruction that created this promise (for escape feedback), so
-  /// its enclosing promises are known when running the promise body.
-  final @Nullable ScopePosition position;
+  /// The `prom` [Statement] that created this promise (for escape feedback).
+  final @Nullable Statement position;
   /// Whether the creating [#frame] has exited (so forcing this promise now is an escape).
   boolean escaped = false;
 
@@ -28,7 +27,7 @@ final class PromiseCode {
       StackFrame frame,
       @Nullable Register assignee,
       Abstraction scope,
-      @Nullable ScopePosition position) {
+      @Nullable Statement position) {
     this.expression = expression;
     this.frame = frame;
     this.assignee = assignee;

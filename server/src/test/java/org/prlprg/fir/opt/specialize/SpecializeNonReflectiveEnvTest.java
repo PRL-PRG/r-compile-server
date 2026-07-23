@@ -4,14 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.MkEnv;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
@@ -23,11 +21,10 @@ class SpecializeNonReflectiveEnvTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I |
+            () --> I {
               mkenv;
-              r = 0;
               popenv;
-              return r;
+              return <int 0>;
             }
             """);
     var feedback = recordedFeedback(abstraction);
@@ -44,11 +41,10 @@ class SpecializeNonReflectiveEnvTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I |
+            () --> I {
               mkenv;
-              r = 0;
               popenv;
-              return r;
+              return <int 0>;
             }
             """);
     var feedback = recordedFeedback(abstraction);
@@ -67,11 +63,10 @@ class SpecializeNonReflectiveEnvTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I |
+            () --> I {
               mkenv;
-              r = 0;
               popenv;
-              return r;
+              return <int 0>;
             }
             """);
     var thresholdOptimization = new Specialize(new SpecializeNonReflectiveEnv(2));
@@ -100,11 +95,10 @@ class SpecializeNonReflectiveEnvTest {
     var abstraction =
         ParseUtil.parseAbstraction(
             """
-            () --> I { reg r:I |
+            () --> I {
               mkenv;
-              r = 0;
               popenv;
-              return r;
+              return <int 0>;
             }
             """);
     // No recorded calls: the absence of a reflective access doesn't specify anything.
@@ -124,13 +118,12 @@ class SpecializeNonReflectiveEnvTest {
     return feedback;
   }
 
-  private static ScopePosition mkEnvPosition(Abstraction abstraction) {
+  private static Statement mkEnvPosition(Abstraction abstraction) {
     var cfg = Objects.requireNonNull(abstraction.cfg());
     for (var bb : cfg.bbs()) {
-      var statements = bb.statements();
-      for (var i = 0; i < statements.size(); i++) {
-        if (statements.get(i).expression() instanceof MkEnv) {
-          return new CfgHierarchy(abstraction).scopePos(new CfgPosition(bb, i));
+      for (var statement : bb.statements()) {
+        if (statement.expression() instanceof MkEnv) {
+          return statement;
         }
       }
     }

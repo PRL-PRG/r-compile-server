@@ -4,14 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.opt.Specialize;
 import org.prlprg.parseprint.Printer;
 
@@ -20,9 +18,9 @@ class SpecializeLocalPromiseTest {
 
   private static final String SOURCE =
       """
-      () -+> v1(I) { reg p:p(v1(I) -), reg r:v1(I) |
-        p = prom<v1(I) ->{ return <int 1>; };
-        r = force p;
+      () -+> v1(I) {
+        p:p(v1(I) -) = prom<v1(I) ->{ return <int 1>; };
+        r:v1(I) = force p;
         return r;
       }
       """;
@@ -74,13 +72,12 @@ class SpecializeLocalPromiseTest {
     return feedback;
   }
 
-  private static ScopePosition promisePosition(Abstraction abstraction) {
+  private static Statement promisePosition(Abstraction abstraction) {
     var cfg = Objects.requireNonNull(abstraction.cfg());
     for (var bb : cfg.bbs()) {
-      var statements = bb.statements();
-      for (var i = 0; i < statements.size(); i++) {
-        if (statements.get(i).expression() instanceof Promise) {
-          return new CfgHierarchy(abstraction).scopePos(new CfgPosition(bb, i));
+      for (var statement : bb.statements()) {
+        if (statement.expression() instanceof Promise) {
+          return statement;
         }
       }
     }

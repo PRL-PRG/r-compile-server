@@ -1,16 +1,12 @@
 package org.prlprg.fir.opt.specialize;
 
-import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
-import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.variable.Register;
+import org.prlprg.fir.ir.instruction.Statement;
 
 /// Optimization that marks [Promise]s as [local][Promise#local] when feedback indicates their
 /// promises never escaped (outlived the stack frame they were created in, then got forced
@@ -22,33 +18,31 @@ import org.prlprg.fir.ir.variable.Register;
 public record SpecializeLocalPromise(int threshold) implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
-    return new AnalysisTypes(CfgHierarchy.class);
+    return new AnalysisTypes();
   }
 
   @Override
-  public Expression run(
+  public Result run(
       BB bb,
       int index,
-      @Nullable Register assignee,
-      Expression expression,
+      Statement statement,
       Abstraction scope,
       AbstractionFeedback feedback,
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(expression instanceof Promise(var valueType, var effects, var code, boolean local))
+    if (!(statement.expression()
+            instanceof Promise(var valueType, var effects, var code, var local))
         || local) {
-      return expression;
+      return Result.UNCHANGED;
     }
-
-    var pos = analyses.get(CfgHierarchy.class).scopePos(new CfgPosition(bb, index));
 
     // Only specialize if we have feedback that specifies this promise didn't escape.
     // Without enough recorded calls, the absence of a recorded escape isn't reliable.
-    if (feedback.numCalls() < threshold || feedback.escapingPromises.contains(pos)) {
-      return expression;
+    if (feedback.numCalls() < threshold || feedback.escapingPromises.contains(statement)) {
+      return Result.UNCHANGED;
     }
 
-    return new Promise(valueType, effects, code, true);
+    return new Result.SetExpression(new Promise(valueType, effects, code, true));
   }
 }

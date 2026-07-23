@@ -1,7 +1,6 @@
 package org.prlprg.fir.check;
 
 import java.util.LinkedHashSet;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -30,7 +29,6 @@ public class CaptureChecker extends Checker {
       return;
     }
 
-    var defUses = new DefUses(version);
     version
         .streamCfgs()
         .forEach(
@@ -39,20 +37,20 @@ public class CaptureChecker extends Checker {
                 var statements = bb.statements();
                 for (var i = 0; i < statements.size(); i++) {
                   if (statements.get(i).expression() instanceof Promise promise) {
-                    check(bb, i, promise, defUses);
+                    check(bb, i, promise);
                   }
                 }
               }
             });
   }
 
-  private void check(BB bb, int index, Promise promise, DefUses defUses) {
+  private void check(BB bb, int index, Promise promise) {
     // Local promises are allowed to read captures (that's the point of speculating them local).
     if (promise.local()) {
       return;
     }
 
-    var readCaptures = readCaptures(promise.code(), defUses);
+    var readCaptures = readCaptures(promise.code());
     if (!readCaptures.isEmpty()) {
       report(
           bb,
@@ -64,18 +62,24 @@ public class CaptureChecker extends Checker {
   }
 
   /// Registers read directly in `code` but defined outside it (in an enclosing CFG).
-  private static LinkedHashSet<Register> readCaptures(CFG code, DefUses defUses) {
+  private static LinkedHashSet<Register> readCaptures(CFG code) {
     var captures = new LinkedHashSet<Register>();
-    for (var register : defUses.usedRegisters()) {
-      // Read directly in `code` (a use in a nested promise has that promise's CFG as innermost)?
-      if (defUses.uses(register).stream().noneMatch(use -> use.innermostCfg() == code)) {
-        continue;
-      }
-      // Defined outside `code`? (A register read in `code` is either defined in `code` or in an
-      // enclosing CFG, since a nested CFG's registers aren't in scope here.)
-      var def = defUses.definition(register);
-      if (def != null && def.innermostCfg() != code) {
-        captures.add(register);
+    for (var bb : code.bbs()) {
+      // Only reads *directly* in `code`: a read in a nested promise body iterates that promise's
+      // own CFG, and a promise statement contributes no arguments at this level.
+      for (var instruction : bb.instructions()) {
+        for (var argument : instruction.args()) {
+          var register = argument.variable();
+          if (register == null) {
+            continue;
+          }
+          // A register read in `code` is either defined in `code` or in an enclosing CFG (a nested
+          // CFG's registers aren't in scope here), so if it isn't defined in `code` it's a capture.
+          var defCfg = register.definingCfg();
+          if (defCfg != null && defCfg != code) {
+            captures.add(register);
+          }
+        }
       }
     }
     return captures;
