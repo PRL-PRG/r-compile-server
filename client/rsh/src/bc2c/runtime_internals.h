@@ -630,6 +630,17 @@ static ALWAYS_INLINE SEXP STACKVAL_TO_SEXP(R_bcstack_t v) {
   }
 }
 
+void old_to_new(SEXP x, SEXP y);
+#define NODE_IS_MARKED(s) (MARK(s)==1)
+#define NODE_GENERATION(s) ((s)->sxpinfo.gcgen)
+
+#define NODE_IS_OLDER(x, y) \
+    (NODE_IS_MARKED(x) && (y) && \
+   (! NODE_IS_MARKED(y) || NODE_GENERATION(x) > NODE_GENERATION(y)))
+
+#define CHECK_OLD_TO_NEW(x,y) do { \
+  if (NODE_IS_OLDER(x, y)) old_to_new(x,y);  } while (0)
+
 ALWAYS_INLINE R_xlen_t XLENGTH_0(SEXP x) { return STDVEC_LENGTH(x); }
 
 #define LONG_VECTOR_SUPPORT
