@@ -1,14 +1,13 @@
-#ifndef RUNTIME_H
-#define RUNTIME_H
+#pragma once
 
 // THIS HEADER NEEDS TO BE A C-compatible HEADER
-// IT IS USED BY THE SERVER COMPILER
 
 #include <setjmp.h>
 #define RSH
 
 // MAKE SURE Rinternals.h is not listed!
-#include "runtime_internals.h"
+#include "gnur_symbols.h"
+#include "opcodes_internals.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -475,22 +474,6 @@ static INLINE Rsh_isqinfo_t VAL_ISQ(Value v) {
 #else
 #define CHECK_OVERFLOW(__n__)
 #endif
-
-// FIXME: we do not need to set it to R_NilValue
-//  it would not be bad to set it to some sentinel when in ASSERT
-#define PUSH_VAL(n)                                                            \
-  do {                                                                         \
-    int __n__ = (n);                                                           \
-    CHECK_OVERFLOW(__n__);                                                     \
-    while (__n__-- > 0) {                                                      \
-      (R_BCNodeStackTop++)->tag = INTSXP;                                      \
-    }                                                                          \
-  } while (0)
-
-#define POP_VAL(n)                                                             \
-  do {                                                                         \
-    R_BCNodeStackTop -= (n);                                                   \
-  } while (0)
 
 #define GET_VAL_EX(stack, i) (stack + (i))
 #define GET_VAL(i) GET_VAL_EX(stack, i)
@@ -3724,5 +3707,3 @@ static INLINE int Rsh_Switch(Value *stack, SEXP call, SEXP names, SEXP coffsets,
                        (Rboolean)(TYPEOF(coffsets) == INTSXP),
                        (Rboolean)(coffsets_length == names_length));
 }
-
-#endif // RUNTIME_H
