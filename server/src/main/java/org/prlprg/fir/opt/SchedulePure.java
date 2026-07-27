@@ -110,7 +110,10 @@ public final class SchedulePure implements AbstractionOptimization {
     int deferIndex;
     // Instruction objects resolved from the indices before any move (so moves don't invalidate
     // them): hoisted statements go *after* `hoistAnchor`, deferred statements *before*
-    // `deferAnchor`.
+    // `deferAnchor`. Both are `null` iff the corresponding index is the "before all statements"
+    // boundary (`-1`), in which case the statements go at the very start of the block (which can't
+    // be resolved to an anchor up-front, because the instruction currently at the start may itself
+    // be moved elsewhere).
     @Nullable Instruction hoistAnchor;
     @Nullable Instruction deferAnchor;
 
@@ -375,16 +378,22 @@ public final class SchedulePure implements AbstractionOptimization {
       for (var bbEntry : targetToOrigin.entrySet()) {
         var bb = bbEntry.getKey();
         for (var motionsToIndex : bbEntry.getValue().values()) {
-          motionsToIndex.hoistAnchor = instrAt(bb, motionsToIndex.hoistIndex);
-          motionsToIndex.deferAnchor = instrAt(bb, motionsToIndex.deferIndex);
+          motionsToIndex.hoistAnchor =
+              motionsToIndex.hoistIndex == -1 ? null : instrAt(bb, motionsToIndex.hoistIndex);
+          motionsToIndex.deferAnchor =
+              motionsToIndex.deferIndex == -1 ? null : instrAt(bb, motionsToIndex.deferIndex);
         }
       }
 
       for (var bbEntry : targetToOrigin.entrySet()) {
         var bb = bbEntry.getKey();
         for (var motionsToIndex : bbEntry.getValue().values()) {
-          // Hoisted statements move to just after `hoistAnchor` (i.e. before its successor).
-          var hoistPoint = Objects.requireNonNull(motionsToIndex.hoistAnchor).next();
+          // Hoisted statements move to just after `hoistAnchor` (i.e. before its successor), or to
+          // the very start of the block if there's no anchor.
+          var hoistPoint =
+              motionsToIndex.hoistAnchor == null
+                  ? instrAt(bb, 0)
+                  : motionsToIndex.hoistAnchor.next();
           motionsToIndex.motions.entrySet().stream()
               .filter(e -> e.getValue() == Motion.HOIST)
               .map(Entry::getKey)
@@ -395,7 +404,8 @@ public final class SchedulePure implements AbstractionOptimization {
                     changed = true;
                   });
 
-          var deferPoint = Objects.requireNonNull(motionsToIndex.deferAnchor);
+          var deferPoint =
+              motionsToIndex.deferAnchor == null ? instrAt(bb, 0) : motionsToIndex.deferAnchor;
           motionsToIndex.motions.entrySet().stream()
               .filter(e -> e.getValue() == Motion.DEFER)
               .map(Entry::getKey)
@@ -408,7 +418,7 @@ public final class SchedulePure implements AbstractionOptimization {
                     // gets a fresh assignee, and we substitute it in at the defer position.
                     var assignee = statement.assignee();
                     if (assignee != null && !insertedAssignees.add(assignee)) {
-                      var copy = statement.copy((idx, a) -> a);
+                      var copy = statement.copy((_, a) -> a);
                       var newAssignee = Objects.requireNonNull(copy.assignee());
                       substs.stage(assignee, new Read(newAssignee), bb, motionsToIndex.deferIndex);
                       copy.insertBefore(deferPoint);

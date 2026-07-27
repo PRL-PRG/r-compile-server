@@ -100,6 +100,7 @@ public final class BB implements Comparable<BB> {
     }
     parameter.setOwner(this);
     parameters.add(parameter);
+    owner.scope().reserveName(parameter.name());
   }
 
   public void appendPhiParameters(List<BlockParameter> parameters) {
@@ -128,6 +129,7 @@ public final class BB implements Comparable<BB> {
     parameters.get(index).setOwner(null);
     parameter.setOwner(this);
     parameters.set(index, parameter);
+    owner.scope().reserveName(parameter.name());
   }
 
   public void clearPhiParameters() {

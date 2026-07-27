@@ -538,6 +538,9 @@ public final class Fir2CCompiler {
       private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
       private final Map<CFG, Set<Register>> captures = new LinkedHashMap<>();
       private final Map<Register, Type> registerTypes = new LinkedHashMap<>();
+      /// Each promise CFG to the CFG whose frame creates it. The version's own body CFG isn't a
+      /// key, so a lookup chain from any CFG terminates there.
+      private final Map<CFG, CFG> enclosingCfgs = new LinkedHashMap<>();
 
       static void forwardDeclareStub(CUnit cUnit, Function function, Abstraction version) {
         if (!version.isStub()) {
@@ -569,6 +572,18 @@ public final class Fir2CCompiler {
         // Compute local and captured registers
         version.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
         version.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
+        version
+            .streamCfgs()
+            .forEach(
+                cfg -> {
+                  for (var bb : cfg.bbs()) {
+                    for (var statement : bb.statements()) {
+                      if (statement.expression() instanceof Promise promise) {
+                        enclosingCfgs.put(promise.code(), cfg);
+                      }
+                    }
+                  }
+                });
         version
             .streamRegisters()
             .forEach(
@@ -604,8 +619,13 @@ public final class Fir2CCompiler {
                     if (useBb == null) {
                       continue;
                     }
-                    var useCfg = useBb.owner();
-                    if (useCfg != defCfg) {
+                    // The register only has a slot in `defCfg`'s frame, and a promise's capture
+                    // array holds pointers into the frame that *creates* it. So a use nested more
+                    // than one promise deep has to be threaded through every frame in between,
+                    // each of which captures it from its own enclosing frame.
+                    for (var useCfg = useBb.owner();
+                        useCfg != null && useCfg != defCfg;
+                        useCfg = enclosingCfgs.get(useCfg)) {
                       captures.get(useCfg).add(register);
                     }
                   }

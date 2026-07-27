@@ -72,7 +72,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     cfg = isStub ? null : new CFG(this);
 
     for (var parameter : this.parameters) {
-      nextLocalDisambiguator.add(parameter.name());
+      reserveName(parameter.name());
     }
   }
 
@@ -141,8 +141,26 @@ public final class Abstraction implements Comparable<Abstraction> {
   // --- Registers ------------------------------------------------------------------------------
 
   /// A unique register name resembling `prefix` that doesn't already exist in this version.
+  ///
+  /// Registers are identified by object, but their names must still be unique within the version:
+  /// they're how the textual IR and the generated C name them.
   public String freshName(String prefix) {
-    return nextLocalDisambiguator.disambiguate(Register.resemblance(prefix));
+    var name = nextLocalDisambiguator.disambiguate(Register.resemblance(prefix));
+    // Reserve it, otherwise the next call with the same prefix would hand out the same name.
+    reserveName(name);
+    return name;
+  }
+
+  /// Record that a register named `name` exists in this version, so [#freshName(String)] never
+  /// hands `name` out.
+  ///
+  /// Names that didn't come from [#freshName(String)] must be reserved as soon as their register
+  /// enters this version; that's what makes [#freshName(String)] always return an unused name. All
+  /// three ways a register can enter do so: [FunctionParameter]s in the constructor,
+  /// [BlockParameter]s when appended to one of this version's blocks, and [Statement] assignees
+  /// when the statement is spliced into one of this version's [CFG]s.
+  public void reserveName(String name) {
+    nextLocalDisambiguator.add(name);
   }
 
   /// All registers defined in this version: parameters, then each block's phi parameters and each

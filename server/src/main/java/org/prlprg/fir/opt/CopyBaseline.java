@@ -4,6 +4,7 @@ import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy2;
 
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 
 /// If a version with the same signature as baseline doesn't already exist, copies it by copying
 /// baseline
@@ -19,7 +20,11 @@ public record CopyBaseline() implements Optimization {
       return false;
     }
 
-    copy2(feedback, function, function.baseline(), function.baseline().parameters());
+    copy2(
+        feedback,
+        function,
+        function.baseline(),
+        FunctionParameter.copyAll(function.baseline().parameters()));
     return true;
   }
 }
