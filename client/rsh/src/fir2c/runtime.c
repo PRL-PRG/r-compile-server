@@ -1244,7 +1244,10 @@ DEFINE_INTRINSIC(SEXP, setVisible, fx_none_ret_value) {
 }
 
 DEFINE_INTRINSIC(bool, naToFalse, vec1_logical_fx_none_ret_bool, SEXP value) {
-  return value == R_TrueValue;
+  // Compare the element, not the pointer: a `v1(L)` doesn't have to be one of R's
+  // `R_TrueValue`/`R_FalseValue`/`R_LogicalNAValue` singletons (e.g. a generic builtin call
+  // allocates a fresh `logical(1)`).
+  return LOGICAL(value)[0] == TRUE;
 }
 
 DEFINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboolean value) {
@@ -1282,7 +1285,7 @@ DEFINE_INTRINSIC(double, unbox, vec1_real_borrowed_fx_none_ret_scalar_real, SEXP
 }
 
 DEFINE_INTRINSIC(char*, unbox, vec1_string_borrowed_fx_none_ret_scalar_string, SEXP value) {
-  return value == NA_STRING ? NULL : (char*)CHAR(STRING_ELT(value, 0));
+  return STRING_ELT(value, 0) == NA_STRING ? NULL : (char*)CHAR(STRING_ELT(value, 0));
 }
 
 // === Vector operation helpers ===

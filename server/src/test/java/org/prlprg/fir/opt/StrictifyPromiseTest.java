@@ -2,6 +2,7 @@ package org.prlprg.fir.opt;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.parseprint.Printer;
@@ -46,10 +47,14 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
     // The call argument is now the inlined result, not the promise register
     assertFalse(
         printed.contains("< p(v(I) -)@! --> v(I) >(rx)"), "old promise-taking call should be gone");
-    // A suitable non-promise version is used
-    assertTrue(
-        printed.contains("< v(I) --> v(I) >(rx)"), "call should use the integer-taking version");
-    assertTrue(printed.contains("ry: v(I) = v(I)[1]"), "promise body should appear in outer scope");
+    // A suitable non-promise version is used. The registers the optimization creates get
+    // disambiguated names, since the ones they replace are still around when they're created.
+    assertMatches(
+        printed,
+        "< v\\(I\\) --> v\\(I\\) >\\(rx\\d*\\)",
+        "call should use the integer-taking version");
+    assertMatches(
+        printed, "ry\\d*: v\\(I\\) = v\\(I\\)\\[1]", "promise body should appear in outer scope");
   }
 
   @Test
@@ -121,8 +126,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
     assertTrue(
         printed.contains("< v(I),p(v(I) +)@! --> v(I) >"),
         "dispatch signature should reflect inlined param type");
-    assertTrue(
-        printed.contains("rc: v(I) = `+`< v(I),v(I) --> v(I) >(ra, rb)"),
+    assertMatches(
+        printed,
+        "rc\\d*: v\\(I\\) = `\\+`< v\\(I\\),v\\(I\\) --> v\\(I\\) >\\(ra, rb\\)",
         "promise body should be inlined");
   }
 
@@ -156,5 +162,9 @@ class StrictifyPromiseTest implements AbstractionOptimizationUnitTest {
             """);
 
     assertFalse(run(module), "multiply-used promise: optimization should report no change");
+  }
+
+  private static void assertMatches(String printed, String regex, String message) {
+    assertTrue(Pattern.compile(regex).matcher(printed).find(), () -> message + ", in:\n" + printed);
   }
 }

@@ -31,11 +31,25 @@ public final class AbstractionCopier {
   }
 
   /// Copy `version` except change the parameters.
+  ///
+  /// Every parameter in `newParameters` must be unowned: a [FunctionParameter] is owned by exactly
+  /// one [Abstraction] and accumulates that abstraction's uses, so handing the copy one that
+  /// `version` already owns would re-own it and merge both bodies' uses. Pass
+  /// [FunctionParameter#copyAll(List)] of `version`'s parameters to keep some of them unchanged.
+  ///
+  /// @throws IllegalArgumentException If any parameter in `newParameters` is already owned.
   public static Abstraction copy2(
       ModuleFeedback feedback,
       Function function,
       Abstraction version,
       List<FunctionParameter> newParameters) {
+    for (var parameter : newParameters) {
+      if (parameter.owner() != null) {
+        throw new IllegalArgumentException(
+            "Parameter is already owned by another abstraction, pass a copy instead: " + parameter);
+      }
+    }
+
     var copy = function.addVersion(newParameters, version.isStub());
     copy.setReturnType(version.returnType());
     copy.setEffects(version.effects());

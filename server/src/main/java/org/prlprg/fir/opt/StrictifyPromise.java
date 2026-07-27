@@ -150,7 +150,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
           // takes value parameters, rewraps them in promises, then runs the old version
 
           var oldParams = oldVersion.parameters();
-          var newParams = new ArrayList<>(oldParams);
+          var newParams = new ArrayList<>(FunctionParameter.copyAll(oldParams));
           for (var inlineable : inlineables) {
             var oldParam = oldParams.get(inlineable.argIndex);
             newParams.set(

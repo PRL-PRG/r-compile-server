@@ -245,7 +245,7 @@ public class Unbox implements AbstractionOptimization {
     var numParams = oldParams.size();
 
     // Specialize parameters (the new version takes unboxed scalars where applicable).
-    var newParams = new ArrayList<>(oldParams);
+    var newParams = new ArrayList<>(FunctionParameter.copyAll(oldParams));
     for (var i = 0; i < numParams; i++) {
       if (!specialization.parameterUnboxings().get(i)) continue;
       var oldParam = oldParams.get(i);

@@ -268,8 +268,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     /// A register holds a known promise iff it was assigned a [Promise] expression, copied from
     /// another register that held one (through a value-preserving cast or type-assumption), or
     /// loaded from a variable that held one. Anything else (including a [Force], whose result is
-    // the
-    /// forced *value*) clears the entry.
+    /// the forced *value*) clears the entry.
     private void trackAssigneePromise(Register assignee, Statement statement) {
       switch (statement.expression()) {
         case Promise promise -> state().registerPromises.put(assignee, new PromiseOrigin(promise));
@@ -306,8 +305,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       var args = statement.args();
       return switch (statement.expression()) {
         case Store(var storeType, var variable) -> {
-          var o = resolve(args.get(0));
-          var po = promiseOf(args.get(0));
+          var o = resolve(args.getFirst());
+          var po = promiseOf(args.getFirst());
           switch (storeType) {
             case LOCAL_VAR -> {
               state().store(variable, o);
@@ -340,7 +339,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           yield uniqueOrNull(origins);
         }
         case Cast(var type) -> {
-          var valueOrigin = resolve(args.get(0));
+          var valueOrigin = resolve(args.getFirst());
           // Only see through the cast if it's guaranteed to succeed.
           // Otherwise, we'll get a type error substituting,
           // and a runtime error iff the instruction gets rearranged before the cast
@@ -351,7 +350,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         case Assume(var assumption) ->
             switch (assumption) {
               case AssumeType(var type) -> {
-                var valueOrigin = resolve(args.get(0));
+                var valueOrigin = resolve(args.getFirst());
 
                 // Only see through the assumption if it's guaranteed to succeed.
                 // Otherwise, we'll get a type error substituting,
@@ -361,7 +360,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
                 yield valueType == null || !valueType.isSubtypeOf(type) ? null : valueOrigin;
               }
               case AssumeFunction(var functionRef) -> {
-                var targetOrigin = resolve(args.get(0));
+                var targetOrigin = resolve(args.getFirst());
 
                 // Again, only see through the assumption if it's guaranteed to succeed
                 var targetOriginExpr = definitionExpression(targetOrigin);
@@ -388,7 +387,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
               case AssumeConstant _, AssumeLoadVar _ -> null;
             };
         case Force(var isMaybe) -> {
-          var value = args.get(0);
+          var value = args.getFirst();
           var po = promiseOf(value);
           if (po != null) {
             // Forcing a known promise: run its body and apply its effects (see `force`).
@@ -418,7 +417,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         // tracked in `State#registerPromises` (see `trackAssigneePromise`).
         case Promise _ -> null;
         case Call(var callee) -> {
-          var closureOrCalleeArg = args.get(0);
+          var closureOrCalleeArg = args.getFirst();
           var callArgs = args.subList(1, args.size());
           var constantFolded = tryConstantFold(callee, closureOrCalleeArg, callArgs);
           if (constantFolded != null) {
@@ -534,9 +533,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
     }
 
     /// Runs `po.promise`'s body sub-analysis with the current state, then either replaces the
-    // current
-    /// environment bindings with the result (the body definitely ran) or merges them (it may have).
-    /// Sets `po.value` to the return origin.
+    /// current environment bindings with the result (the body definitely ran) or merges them
+    /// (it may have). Sets `po.value` to the return origin.
     private void runPromiseBody(PromiseOrigin po, boolean replace) {
       var subAnalysis = (OnCfg) onCfg(po.promise.code());
 
@@ -654,7 +652,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           // statement's arguments, parallel to `elementNames`.
           var sexps = new ArrayList<SEXP>(elementNames.size());
           for (var i = 0; i < elementNames.size(); i++) {
-            if (elementNames.get(i) != null) yield null;
+            if (elementNames.get(i).isPresent()) yield null;
             var elemArg = resolve(dotsStmt.arg(i));
             if (!(elemArg instanceof Constant(Value.Sexp(var elemSexp)))) yield null;
             if (!(elemSexp instanceof LglSXP
