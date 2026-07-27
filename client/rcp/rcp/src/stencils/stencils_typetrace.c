@@ -1,5 +1,5 @@
 #include "stencils_internals.h"
-#include <runtime_internals.h>
+#include <opcodes_internals.h>
 
 #include "../rcp_hooks.h"
 

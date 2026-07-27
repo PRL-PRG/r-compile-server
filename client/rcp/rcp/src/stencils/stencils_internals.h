@@ -227,11 +227,11 @@ extern const void *const _RCP_SMC_VARIANT3;
 #define GETSMCVARIANT(n)  GETSMCVARIANT_(n) // extra layer so n is macro-expanded before ##
 
 // Body size of variant n (its exact memcpy length)
-extern const void *const _RCP_SMC_VARIANT_SIZE0;
-extern const void *const _RCP_SMC_VARIANT_SIZE1;
-extern const void *const _RCP_SMC_VARIANT_SIZE2;
-extern const void *const _RCP_SMC_VARIANT_SIZE3;
-#define GETSMCVARIANTSIZE_(n) ((size_t)(int)(int64_t)&_RCP_SMC_VARIANT_SIZE##n)
+extern const void *const _RCP_SMC_SIZE_VARIANT0;
+extern const void *const _RCP_SMC_SIZE_VARIANT1;
+extern const void *const _RCP_SMC_SIZE_VARIANT2;
+extern const void *const _RCP_SMC_SIZE_VARIANT3;
+#define GETSMCVARIANTSIZE_(n) ((size_t)(int)(int64_t)&_RCP_SMC_SIZE_VARIANT##n)
 #define GETSMCVARIANTSIZE(n)  GETSMCVARIANTSIZE_(n)
 
 extern const void *const _RCP_LOOPCNTXT;

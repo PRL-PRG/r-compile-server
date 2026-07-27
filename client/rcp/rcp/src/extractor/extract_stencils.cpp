@@ -1336,7 +1336,7 @@ process_relocation(std::vector<uint8_t> &stencil_body, const arelent &rel)
 			// Address of this variant's own live slot (the memcpy destination).
 			hole.kind = RELOC_RCP_SMC_SELF;
 		}
-		else if ((descr_imm = remove_prefix(descr, "SMC_VARIANTSIZE")))
+		else if ((descr_imm = remove_prefix(descr, "SMC_SIZE_VARIANT")))
 		{
 			// Body size (memcpy length) of pre-patched successor variant n.
 			hole.kind = RELOC_RCP_SMC_VARIANT_SIZE;
