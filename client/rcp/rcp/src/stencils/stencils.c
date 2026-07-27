@@ -12,6 +12,8 @@
 #include "../rcp_bc_info.h"
 #include "../rcp_hooks.h"
 
+typedef R_bcstack_t StackVal;
+
 #define CONST_RUNTIME_VAR(symbol, type) ((type const)(void *const)(&_RCP_CRUNTIME0_##symbol))
 
 extern const void *const _RCP_CRUNTIME0_R_NilValue[];
@@ -107,7 +109,7 @@ extern struct StencilProfileInfo stencil_profile_info[];
 #define PROFILING_END(opcode)	((void)0)
 #endif
 
-#define RET_T Value
+#define RET_T StackVal
 
 // Macros to define stencil functions
 #define RCP_STENCIL_FUNCTION(name) __attribute__((noinline)) STENCIL_ATTRIBUTES RET_T name(void)
@@ -118,7 +120,7 @@ extern struct StencilProfileInfo stencil_profile_info[];
    Rinternals.h so the GNU R fork and the stencils agree on the ABI. */
 
 #define PROLOGUE                                                                 \
-	Value *restrict stack;                                                       \
+	StackVal *restrict stack;                                                       \
 	rcpEval_locals *restrict locals;                                             \
 	do                                                                           \
 	{                                                                            \
@@ -481,7 +483,7 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 	PROLOGUE;
 	unsigned *recording_types = (unsigned *)GETCUSTOM_REL(0);
 	char type;
-	Value val = *GET_VAL(-1);
+	StackVal val = *GET_VAL(-1);
 	if (VAL_IS_SXP(val))
 	{
 		SEXP sexp = VAL_SXP(val);
@@ -563,9 +565,9 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 // stencil. stack/locals should not be touched.
 extern STENCIL_ATTRIBUTES RET_T rcp_smc_copy(void *dst, const void *src, void *jmp, size_t size);
 
-static ALWAYS_INLINE int eq_val(const Value a, const Value b)
+static inline __attribute__((always_inline)) int eq_val(const R_bcstack_t a, const R_bcstack_t b)
 {
-	static_assert(sizeof(Value) == 16);
+	static_assert(sizeof(R_bcstack_t) == 16);
 	__m128i x = _mm_loadu_si128((const __m128i *)&a);
 	__m128i y = _mm_loadu_si128((const __m128i *)&b);
 	return _mm_movemask_epi8(_mm_cmpeq_epi8(x, y)) == 0xFFFF;
@@ -592,13 +594,13 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_2) // ambiguous / inert
 
 // The recording_constant placeholder symbol is a scalar (its definition drives
 // the relocation encoding), but we deliberately reinterpret it as a larger
-// Value. Silence -Warray-bounds locally rather than globally
+// StackVal. Silence -Warray-bounds locally rather than globally
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
 RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_1) // monomorphic
 {
 	PROLOGUE;
-	Value *recording_constant = (Value *)GETCUSTOM_REL(0);
+	StackVal *recording_constant = (StackVal *)GETCUSTOM_REL(0);
 	if (!eq_val(*recording_constant, *GET_VAL(-1)))
 	{
 		// Diverged (different pointer, or an unboxed value now): record ambiguity and
@@ -613,7 +615,7 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_1) // monomorphic
 RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_0) // entry: record
 {
 	PROLOGUE;
-	Value *recording_constant = (Value *)GETCUSTOM_REL(0);
+	StackVal *recording_constant = (StackVal *)GETCUSTOM_REL(0);
 	*recording_constant = *GET_VAL(-1);
 	if (VAL_IS_SXP(*GET_VAL(-1)))
 	{
