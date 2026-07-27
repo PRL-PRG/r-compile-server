@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -145,7 +146,7 @@ public final class InternalInterpreter implements Interpreter {
   private boolean lastRunDeopted = false;
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
-  private final MockModuleFeedback feedback = new MockModuleFeedback();
+  private final MockModuleFeedback feedback;
   private final CheckpointTrace checkpointTrace = new CheckpointTrace(this);
 
   /// Interpret the module in a global environment containing only its functions.
@@ -154,6 +155,7 @@ public final class InternalInterpreter implements Interpreter {
   /// thanks to [org.prlprg.fir.ir.observer.Observer].
   public InternalInterpreter(Module module) {
     this.module = module;
+    feedback = new MockModuleFeedback(module);
 
     var baseEnv = new BaseEnvSXP();
     globalEnv = new GlobalEnvSXP(baseEnv);
@@ -722,10 +724,7 @@ public final class InternalInterpreter implements Interpreter {
       }
       case MkVector(var kind, var elementNames) ->
           new Value.Sexp(
-              mkVector(
-                  kind,
-                  Lists.mapLazy(elementNames, OptionalNamedVariable::ofNullable),
-                  statement.args().stream().map(this::run).toList()));
+              mkVector(kind, elementNames, statement.args().stream().map(this::run).toList()));
       case MkEnv _ -> {
         topFrame().mkEnv();
         yield null;
@@ -1495,8 +1494,8 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   private boolean isReversiblePureFun(Statement statement) {
-    return statement.expression() instanceof Call call
-        && call.callee() instanceof StaticFnCallee(var functionRef, var isDispatch, _)
+    return statement.expression()
+            instanceof Call(StaticFnCallee(var functionRef, var isDispatch, _))
         && !isDispatch
         // args = [elided-closure callee arg, single call arg]
         && statement.argCount() == 2

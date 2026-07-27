@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.MkEnv;
@@ -102,7 +101,7 @@ class SpecializeNonReflectiveEnvTest {
             }
             """);
     // No recorded calls: the absence of a reflective access doesn't specify anything.
-    var feedback = new MockModuleFeedback().get(abstraction);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
 
     assertFalse(
         optimization.run(null, feedback, abstraction),
@@ -113,7 +112,7 @@ class SpecializeNonReflectiveEnvTest {
   }
 
   private static AbstractionFeedback recordedFeedback(Abstraction abstraction) {
-    var feedback = new MockModuleFeedback().get(abstraction);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
     feedback.recordCall();
     return feedback;
   }

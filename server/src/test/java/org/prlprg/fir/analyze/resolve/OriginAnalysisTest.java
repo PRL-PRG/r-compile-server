@@ -41,7 +41,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
 
     var analysis = new OriginAnalysis(main);
 
@@ -76,7 +76,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
 
     var analysis = new OriginAnalysis(main);
     // In bb3, r4 should have itself as origin due to conflicting inputs
@@ -109,7 +109,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var bb3 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB3"));
 
     var analysis = new OriginAnalysis(main);
@@ -139,7 +139,7 @@ class OriginAnalysisTest {
            """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
 
     var analysis = new OriginAnalysis(main);
@@ -194,7 +194,7 @@ class OriginAnalysisTest {
            """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var bb2 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB2"));
 
     var analysis = new OriginAnalysis(main);
@@ -227,7 +227,7 @@ class OriginAnalysisTest {
         """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
     var analysis = new OriginAnalysis(main);
 
@@ -258,7 +258,7 @@ class OriginAnalysisTest {
         """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
     var analysis = new OriginAnalysis(main);
 
@@ -285,7 +285,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(1, 2, 3)), analysis.get(reg(main, "result")));
@@ -306,7 +306,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     // box(<int 42>) = v1(I)[42], then [2] on a size-1 vector is out of bounds → no fold
@@ -328,7 +328,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
@@ -349,7 +349,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
@@ -370,7 +370,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "result")));
@@ -391,7 +391,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "result")));
@@ -414,7 +414,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(10, 99, 30)), analysis.get(reg(main, "result")));
@@ -435,7 +435,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.NULL), analysis.get(reg(main, "result")));
@@ -456,7 +456,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(
@@ -479,7 +479,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.real(1.5, 2.5)), analysis.get(reg(main, "result")));
@@ -500,7 +500,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.string("hello", "world")), analysis.get(reg(main, "result")));
@@ -522,7 +522,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(1, 2)), analysis.get(reg(main, "result")));
@@ -543,7 +543,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
@@ -564,7 +564,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     // box(42) creates a size-1 vector; writing at index 2 is out of bounds → no fold
@@ -586,7 +586,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     // box(42) creates a size-1 vector; writing at index 2 is out of bounds → no fold
@@ -618,7 +618,7 @@ class OriginAnalysisTest {
         """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
 
     var analysis = new OriginAnalysis(main);
@@ -662,7 +662,7 @@ class OriginAnalysisTest {
         """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
 
     var analysis = new OriginAnalysis(main);

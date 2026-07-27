@@ -51,13 +51,13 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(statement.expression() instanceof Call call)) {
+    if (!(statement.expression() instanceof Call(var callee))) {
       return Result.UNCHANGED;
     }
 
     // Call arguments follow the callee's own argument (index 0).
     var callArgs = statement.args().subList(1, statement.argCount());
-    var newCallee = run(scope, feedback, call.callee(), callArgs);
+    var newCallee = run(scope, feedback, callee, callArgs);
     if (newCallee == null) {
       return Result.UNCHANGED;
     }
@@ -110,7 +110,7 @@ public record OptimizeCallee(int threshold) implements SpecializeOptimization {
     // and there are better versions that can be called with recorded runtime types...
     var isBestAtRuntime =
         newBestSignature.returnType().kind().repr() != Repr.SEXP
-            || calleeFun.versionsSorted().headSet(bestVersion).stream()
+            || calleeFun.versions().headSet(bestVersion).stream()
                 .noneMatch(
                     better -> {
                       var betterSignature = better.signature();

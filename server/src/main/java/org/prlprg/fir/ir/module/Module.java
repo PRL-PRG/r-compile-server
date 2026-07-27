@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.observer.Observer;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -52,17 +53,29 @@ public final class Module {
     return functions.get(name);
   }
 
+  /// Add a function with a baseline version.
   public Function addFunction(
       NamedVariable name, List<NamedVariable> parameterNames, boolean baselineIsStub) {
     return addFunction(
         name, parameterNames, Function.computeBaselineParameters(parameterNames), baselineIsStub);
   }
 
+  /// Add a function with a baseline version.
   public Function addFunction(
       NamedVariable name,
       List<NamedVariable> parameterNames,
       List<FunctionParameter> baselineParameters,
       boolean baselineIsStub) {
+    var function = addFunction(name, parameterNames);
+    function.addBaseline(new Abstraction(function.owner(), baselineParameters, baselineIsStub));
+    return function;
+  }
+
+  /// Add a function with no baseline.
+  ///
+  /// A function without a baseline is incomplete: you must call
+  /// [Function#addBaseline(Abstraction)] to finish initializing it.
+  public Function addFunction(NamedVariable name, List<NamedVariable> parameterNames) {
     return this.record(
         "Module#addFunction",
         List.of(this, name),
@@ -70,31 +83,9 @@ public final class Module {
           if (functions.containsKey(name)) {
             throw new IllegalArgumentException("Function with name '" + name + "' already exists.");
           }
-          var function =
-              new Function(this, name, parameterNames, baselineParameters, baselineIsStub);
+          var function = new Function(this, name, parameterNames);
           functions.put(name, function);
           return function;
-        });
-  }
-
-  /// Add an already-constructed function, e.g. one that was just parsed.
-  ///
-  /// @throws IllegalArgumentException If the function isn't owned by this module, or this module
-  ///   already has a function with its name.
-  public void addFunction(Function function) {
-    this.record(
-        "Module#addFunction",
-        List.of(this, function),
-        () -> {
-          if (function.owner() != this) {
-            throw new IllegalArgumentException(
-                "Function '" + function.name() + "' belongs to a different module.");
-          }
-          if (functions.containsKey(function.name())) {
-            throw new IllegalArgumentException(
-                "Function with name '" + function.name() + "' already exists.");
-          }
-          functions.put(function.name(), function);
         });
   }
 

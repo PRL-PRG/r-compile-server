@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Type;
@@ -18,8 +19,13 @@ import org.prlprg.fir.parseprint.ModuleFeedbackPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
-/// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
+/// Feedback for a closure version ([Abstraction]).
 public class AbstractionFeedback {
+  /// Create a feedback for a single-[Abstraction] module, only for use in tests.
+  public static AbstractionFeedback standaloneForTesting(Abstraction abstraction) {
+    return new MockModuleFeedback(abstraction.module()).get(abstraction);
+  }
+
   private final ModuleFeedback module;
   /// How many times this abstraction was called.
   private int numCalls = 0;
@@ -55,7 +61,7 @@ public class AbstractionFeedback {
   /// created in, then get forced afterwards).
   public final Set<Statement> escapingPromises = new LinkedHashSet<>();
 
-  public AbstractionFeedback(ModuleFeedback module) {
+  AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
   }
 

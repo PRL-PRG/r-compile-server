@@ -121,7 +121,7 @@ public abstract class Checker {
   ///
   /// @throws IllegalArgumentException If `version` isn't in `function`.
   public final void run(@Nullable Function function, Abstraction version) {
-    if (function != null && !function.contains(version)) {
+    if (function != null && !function.versions().contains(version)) {
       throw new IllegalArgumentException(
           "Function " + function.name() + " doesn't contain version " + version);
     }

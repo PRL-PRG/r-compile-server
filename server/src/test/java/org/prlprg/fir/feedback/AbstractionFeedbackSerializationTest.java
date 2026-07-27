@@ -8,7 +8,6 @@ import java.util.Objects;
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Module;
@@ -18,14 +17,6 @@ import org.prlprg.sexp.PromSXP;
 
 /// Regression tests for serializing [AbstractionFeedback], which round-trips (prints then parses)
 /// during [MockModuleFeedback#deepCopy] — the copy the optimizer runs on.
-///
-/// [reflectiveEnvs][AbstractionFeedback#reflectiveEnvs] and
-/// [escapingPromises][AbstractionFeedback#escapingPromises] are stored as
-/// [ScopePosition][org.prlprg.fir.ir.position.ScopePosition]s. A `ScopePosition` prints its whole
-/// CFG by default, so the feedback prints them *compactly* (`bb:index`, or `outer/.../innermost`
-/// through enclosing promises) and parses them back against the abstraction. These tests guard
-/// that round-trip: before it was fixed, a recorded escape/reflective-env made the deep copy fail
-/// to parse.
 ///
 /// The feedback is produced by the interpreter (not hand-built) so it's realistic: the scope also
 /// has register feedback, which the compact positions are printed alongside.

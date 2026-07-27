@@ -9,7 +9,8 @@ import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
+import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
@@ -59,9 +60,12 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       var pc = PerformanceCounters.from(v.get(1));
       var feedback =
           switch (v.get(2)) {
-            case NilSXP _ -> new MockModuleFeedback();
-            case StrSXP s when s.isSimpleScalar() ->
-                Parser.fromString(s.get(0), MockModuleFeedback.class);
+            case NilSXP _ -> null;
+            case StrSXP s when s.isSimpleScalar() -> {
+              var module = store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
+              var parseCtx = new ModuleFeedbackParseContext(module);
+              yield Parser.fromString(s.get(0), MockModuleFeedback.class, parseCtx);
+            }
             default ->
                 throw new IllegalArgumentException(
                     "Value third item must be NULL or serialized `MockModuleFeedback`");
@@ -69,8 +73,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       var outputLog = rawOutput.second();
       return new EvalOutput(new Ok(res), outputLog, feedback, pc);
     } catch (EvalException e) {
-      return new EvalOutput(
-          new Error(e, false), e.outputLog(), new MockModuleFeedback(), PerformanceCounters.EMPTY);
+      return new EvalOutput(new Error(e, false), e.outputLog(), null, PerformanceCounters.EMPTY);
     }
   }
 
@@ -203,6 +206,8 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     Files.createDirectories(path);
     data.result().write(path);
     Files.writeString(outputLogPath, data.outputLog());
-    Printer.toFile(feedbackPath.toFile(), data.feedback());
+    if (data.feedback() != null) {
+      Printer.toFile(feedbackPath.toFile(), data.feedback());
+    }
   }
 }

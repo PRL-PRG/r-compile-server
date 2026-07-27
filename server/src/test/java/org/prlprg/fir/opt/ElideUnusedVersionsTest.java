@@ -3,7 +3,7 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
 import org.prlprg.parseprint.Parser;

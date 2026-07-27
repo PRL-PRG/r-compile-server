@@ -1,11 +1,7 @@
-package org.prlprg.fir.interpret.internal;
+package org.prlprg.fir.feedback;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
@@ -17,6 +13,7 @@ import org.prlprg.util.Pair;
 
 /// [ModuleFeedback] implemented by a simple hash-map.
 public class MockModuleFeedback implements ModuleFeedback {
+  private final Module module;
   private final Map<Abstraction, AbstractionFeedback> feedbacks = new HashMap<>();
 
   /// Deep copy the module and its feedback together
@@ -31,21 +28,21 @@ public class MockModuleFeedback implements ModuleFeedback {
     return Pair.of(moduleCopy, feedbackCopy);
   }
 
-  public MockModuleFeedback() {}
+  public MockModuleFeedback(Module module) {
+    this.module = module;
+  }
+
+  public Module module() {
+    return module;
+  }
+
+  public boolean recordedAny(Abstraction scope) {
+    return feedbacks.containsKey(scope);
+  }
 
   @Override
   public AbstractionFeedback get(Abstraction scope) {
     return feedbacks.computeIfAbsent(scope, _ -> new AbstractionFeedback(this));
-  }
-
-  /// The feedback recorded for every version that has any.
-  public @UnmodifiableView Map<Abstraction, AbstractionFeedback> all() {
-    return Collections.unmodifiableMap(feedbacks);
-  }
-
-  /// Set the feedback for a version, e.g. one that was just parsed.
-  public void put(Abstraction scope, AbstractionFeedback feedback) {
-    feedbacks.put(scope, feedback);
   }
 
   @Override
