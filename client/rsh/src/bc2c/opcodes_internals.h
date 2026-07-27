@@ -10,6 +10,11 @@
 #include <Rinternals.h>
 #include "gnur_symbols.h"
 #include <assert.h>
+#include <limits.h>
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 // this file contains some internal functions that are not exported
 
 // these macros are from Defn.h
