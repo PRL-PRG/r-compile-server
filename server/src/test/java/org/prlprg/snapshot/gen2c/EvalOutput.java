@@ -2,14 +2,18 @@ package org.prlprg.snapshot.gen2c;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.examples.SexpResult;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
 // we do not persist the performance counters
 public record EvalOutput(
-    SexpResult result, String outputLog, MockModuleFeedback feedback, PerformanceCounters pc) {
+    SexpResult result,
+    String outputLog,
+    @Nullable MockModuleFeedback feedback,
+    PerformanceCounters pc) {
   /// Ignore `pc` in comparison
   @Override
   public boolean equals(Object o) {
@@ -51,7 +55,9 @@ public record EvalOutput(
     p.print(result);
     w.write("\n---\n");
     w.write(outputLog);
-    w.write("\n---\n");
-    p.print(feedback);
+    if (feedback != null) {
+      w.write("\n---\n");
+      p.print(feedback);
+    }
   }
 }

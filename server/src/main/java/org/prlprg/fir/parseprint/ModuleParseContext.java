@@ -105,7 +105,7 @@ public final class ModuleParseContext {
     var p2 = p.withContext(forFunctions);
 
     while (!s.isAtEof() && !s.nextCharIs('}')) {
-      module.addFunction(p2.parse(Function.class));
+      p2.parse(Function.class);
     }
 
     forFunctions.resolveDeferredFunctions(s);
@@ -176,30 +176,24 @@ public final class ModuleParseContext {
       var name = p.parse(NamedVariable.class);
       var parameterNames = List.copyOf(p.parseList("(", ")", NamedVariable.class));
 
-      // Versions are stored by index, and a removed version leaves a gap (so the versions after it
-      // keep their indices, which serialized calls may refer to).
-      var versions = new LinkedHashMap<Integer, Abstraction>();
-      var nextVersionIndex = 0;
-      s.assertAndSkip('{');
-      for (; !s.nextCharIs('}'); nextVersionIndex++) {
-        // A removed version: skip it but still advance the index (hence the unusual `for`).
-        if (s.trySkip("<removed>")) {
-          if (versions.isEmpty()) {
-            throw s.fail("function's baseline can't be removed");
-          }
-          continue;
-        }
+      var function = module.addFunction(name, parameterNames);
+      function.comments().addAll(comments);
+      function.userProperties().setStrict(strict);
 
-        versions.put(nextVersionIndex, p.withContext(forAbstraction()).parse(Abstraction.class));
+      s.assertAndSkip('{');
+      while (!s.nextCharIs('}')) {
+        var version = p.withContext(forAbstraction()).parse(Abstraction.class);
+        if (function.versions().isEmpty()) {
+          function.addBaseline(version);
+        } else {
+          function.addVersion(version);
+        }
       }
-      if (versions.isEmpty()) {
+      if (function.versions().isEmpty()) {
         throw s.fail("function must have at least one version (the baseline)");
       }
       s.assertAndSkip('}');
 
-      var function = new Function(module, name, parameterNames, versions, nextVersionIndex);
-      function.comments().addAll(comments);
-      function.userProperties().setStrict(strict);
       return function;
     }
 

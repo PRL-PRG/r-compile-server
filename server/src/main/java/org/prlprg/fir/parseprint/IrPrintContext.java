@@ -80,14 +80,9 @@ public final class IrPrintContext {
     w.write(" {");
     w.runIndented(
         () -> {
-          for (var i = 0; i < function.nextVersionIndex(); i++) {
+          for (var version : function.versions()) {
             w.write('\n');
-
-            if (function.containsIndex(i)) {
-              p.print(function.version(i));
-            } else {
-              w.write("<removed>");
-            }
+            p.print(version);
           }
         });
     w.write("\n}");
@@ -288,7 +283,7 @@ public final class IrPrintContext {
         p.print(kind);
         var elements = new ArrayList<NamedArgument>(args.size());
         for (var i = 0; i < args.size(); i++) {
-          elements.add(new NamedArgument(elementNames.get(i), args.get(i)));
+          elements.add(new NamedArgument(elementNames.get(i).orNull(), args.get(i)));
         }
         p.printAsList("[", "]", elements);
       }

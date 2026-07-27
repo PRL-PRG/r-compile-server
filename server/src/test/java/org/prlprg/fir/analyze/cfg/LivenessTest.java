@@ -37,7 +37,7 @@ class LivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
     var entry = cfg.entry();
 
@@ -74,7 +74,7 @@ class LivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
 
     var liveness = new Liveness(cfg);
@@ -111,7 +111,7 @@ class LivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
 
     var liveness = new Liveness(cfg);
@@ -144,7 +144,7 @@ class LivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
 
     var liveness = new Liveness(cfg);
@@ -177,7 +177,7 @@ class LivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
     var entry = cfg.entry();
 
@@ -204,7 +204,7 @@ class LivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
     var entry = cfg.entry();
 

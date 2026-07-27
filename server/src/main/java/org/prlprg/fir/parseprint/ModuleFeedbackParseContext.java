@@ -3,9 +3,9 @@ package org.prlprg.fir.parseprint;
 import java.util.Objects;
 import java.util.Optional;
 import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.feedback.TypeFeedback;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -40,7 +40,7 @@ public final class ModuleFeedbackParseContext {
   @ParseMethod
   private MockModuleFeedback parseModuleFeedback(Parser p) {
     var s = p.scanner();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     s.assertAndSkip("feedback");
     s.assertAndSkip('{');
@@ -61,10 +61,8 @@ public final class ModuleFeedbackParseContext {
 
       s.assertAndSkip('=');
 
-      feedback.put(
-          version,
-          p.withContext(new AbstractionFeedbackParseContext(feedback, version))
-              .parse(AbstractionFeedback.class));
+      p.withContext(new AbstractionFeedbackParseContext(feedback, version))
+          .parse(AbstractionFeedback.class);
     }
 
     return feedback;
@@ -83,7 +81,7 @@ public final class ModuleFeedbackParseContext {
     @ParseMethod
     private AbstractionFeedback parseAbstractionFeedback(Parser p) {
       var s = p.scanner();
-      var feedback = new AbstractionFeedback(moduleFeedback);
+      var feedback = moduleFeedback.get(scope);
 
       feedback.setNumCalls(s.readUInt());
       s.assertAndSkip("x");

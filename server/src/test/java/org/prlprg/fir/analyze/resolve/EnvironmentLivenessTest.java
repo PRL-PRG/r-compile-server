@@ -23,7 +23,7 @@ class EnvironmentLivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
     var entry = cfg.entry();
 
@@ -57,7 +57,7 @@ class EnvironmentLivenessTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var cfg = Objects.requireNonNull(main.cfg());
 
     var analysis = new EnvironmentLiveness(main);

@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.Printer;

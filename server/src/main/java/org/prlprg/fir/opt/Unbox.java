@@ -135,7 +135,7 @@ public class Unbox implements AbstractionOptimization {
 
     // First, see if we have an existing specialized version
     var exactVersion =
-        function.versionsSorted().stream()
+        function.versions().stream()
             .filter(
                 v ->
                     bestSpecialization.equals(
@@ -156,7 +156,7 @@ public class Unbox implements AbstractionOptimization {
 
     // Lastly, see if we can use an existing version that is not maximally specialized
     var okVersion =
-        function.versionsSorted().stream()
+        function.versions().stream()
             .map(v -> Optional.ofNullable(specializationFinder.specializationFor(v.signature())))
             .filter(Optional::isPresent)
             .map(Optional::get)
@@ -298,7 +298,7 @@ public class Unbox implements AbstractionOptimization {
   /// Insert `unbox<v1(X) --> X>(original)` immediately before `point`, and return its register.
   private Register insertUnbox(Argument original, Abstraction scope, Statement point) {
     var argumentType = scope.typeOf(original);
-    assert argumentType != null && canUnbox(argumentType);
+    assert canUnbox(argumentType);
     var unboxStmt = unboxStatement(original, argumentType);
     var unboxedReg =
         unboxStmt.setAssignee(

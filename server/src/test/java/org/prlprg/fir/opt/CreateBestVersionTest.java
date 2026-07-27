@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.google.common.collect.ImmutableList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.DynamicCallee;
@@ -24,7 +24,7 @@ class CreateBestVersionTest {
     // A function with no calls — nothing should happen
     var module = new Module();
     var callerFun = module.addFunction(Variable.named("caller"), List.of(), false);
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
@@ -58,7 +58,7 @@ class CreateBestVersionTest {
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
 
@@ -89,14 +89,14 @@ class CreateBestVersionTest {
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
 
     // Callee should now have a new version with BOXED_INTEGER parameter
     assertEquals(2, calleeFun.versions().size());
-    var versions = List.copyOf(calleeFun.versions());
-    var newVersion = versions.get(1);
+    // First = best, in this case non-baseline
+    var newVersion = calleeFun.versions().getFirst();
     assertEquals(Type.BOXED_INTEGER, newVersion.parameters().getFirst().type());
   }
 
@@ -123,7 +123,7 @@ class CreateBestVersionTest {
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
     // Set version limit to 1 — callee already has 1 version (baseline)
     var opt = new CreateBestVersion(1);
     opt.run(feedback, callerFun);
@@ -155,7 +155,7 @@ class CreateBestVersionTest {
         .appendStatement(
             new Statement(call, ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA))));
 
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
 
@@ -182,7 +182,7 @@ class CreateBestVersionTest {
         .entry()
         .appendStatement(new Statement(call, ImmutableList.of(new Read(paramA), new Read(paramA))));
 
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
     var opt = new CreateBestVersion(10);
 
     // Should not throw, just skip
@@ -217,14 +217,14 @@ class CreateBestVersionTest {
                 call,
                 ImmutableList.of(Constant.ELIDED_CLOSURE, new Read(paramA), new Read(paramB))));
 
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
     var opt = new CreateBestVersion(10);
     opt.run(feedback, callerFun);
 
     // Callee should now have a new version with BOXED_INTEGER, BOXED_REAL parameters
     assertEquals(2, calleeFun.versions().size());
-    var versions = List.copyOf(calleeFun.versions());
-    var newVersion = versions.get(1);
+    // First = best, in this case non-baseline
+    var newVersion = calleeFun.versions().getFirst();
     assertEquals(Type.BOXED_INTEGER, newVersion.parameters().get(0).type());
     assertEquals(Type.BOXED_REAL, newVersion.parameters().get(1).type());
   }

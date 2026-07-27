@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.parseprint.PrintMethod;
@@ -37,37 +37,38 @@ public final class ModuleFeedbackPrintContext {
   }
 
   @PrintMethod
-  private void printModuleFeedback(MockModuleFeedback feedback, Printer p) {
+  private void printModuleFeedback(MockModuleFeedback moduleFeedback, Printer p) {
     var w = p.writer();
-    var feedbacks = feedback.all();
     var p2 = p.withContext(forAbstraction());
 
-    if (feedbacks.isEmpty()) {
-      w.write("feedback {}");
-      return;
-    }
-
-    var module = feedbacks.keySet().iterator().next().module();
+    var module = moduleFeedback.module();
+    boolean[] printedAny = {false};
 
     w.write("feedback {");
     w.runIndented(
         () -> {
           for (var fn : module.localFunctions()) {
             for (var version : fn.versions()) {
-              if (!feedbacks.containsKey(version)) {
+              if (!moduleFeedback.recordedAny(version)) {
                 continue;
               }
+              printedAny[0] = true;
+
+              var abstractionFeedback = moduleFeedback.get(version);
 
               w.write('\n');
               p.print(fn.name());
               w.write("< ");
               p.print(version.signature());
               w.write(" > = ");
-              w.runIndented(() -> p2.print(feedbacks.get(version)));
+              w.runIndented(() -> p2.print(abstractionFeedback));
             }
           }
         });
-    w.write("\n}");
+    if (printedAny[0]) {
+      w.write('\n');
+    }
+    w.write('}');
   }
 
   /// Prints the [AbstractionFeedback] recorded for one version.

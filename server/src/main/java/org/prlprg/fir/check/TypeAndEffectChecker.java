@@ -103,7 +103,7 @@ public final class TypeAndEffectChecker extends Checker {
 
       // Check that versions with strictly worse parameters have strictly worse effects.
       var signature = version.signature();
-      for (var worse : function.versionsSorted().tailSet(version)) {
+      for (var worse : function.versions().tailSet(version)) {
         var worseSignature = worse.signature();
         if (signature.hasNarrowerParameters(worseSignature)
             && !signature.effects().isSubsetOf(worseSignature.effects())) {
@@ -225,7 +225,7 @@ public final class TypeAndEffectChecker extends Checker {
           case Assume(var assumption) -> {
             Argument target =
                 switch (assumption) {
-                  case AssumeType _, AssumeConstant _, AssumeFunction _ -> args.get(0);
+                  case AssumeType _, AssumeConstant _, AssumeFunction _ -> args.getFirst();
                   case AssumeLoadVar _, AssumeLoadFun _ -> null;
                 };
             if (target == null) {
@@ -233,7 +233,7 @@ public final class TypeAndEffectChecker extends Checker {
             }
             var argType = scope.typeOf(target);
 
-            if (argType != null && !assumeCanSucceed(assumption, argType)) {
+            if (!assumeCanSucceed(assumption, argType)) {
               report(
                   "Assumption can't succeed, clearly we never recorded it ("
                       + target
@@ -253,7 +253,7 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case Call(var callee) -> {
-            var closureOrCalleeArg = args.get(0);
+            var closureOrCalleeArg = args.getFirst();
             var callArguments = args.subList(1, args.size());
             var argumentTypes = callArguments.stream().map(inferType::of).toList();
 
@@ -302,7 +302,7 @@ public final class TypeAndEffectChecker extends Checker {
               }
               case DynamicCallee(var argumentNames) -> {
                 var calleeType = scope.typeOf(closureOrCalleeArg);
-                if (calleeType != null && !calleeType.isSubtypeOf(Type.CLOSURE)) {
+                if (!calleeType.isSubtypeOf(Type.CLOSURE)) {
                   report(
                       "Dynamic callee must be a closure, got "
                           + closureOrCalleeArg
@@ -331,11 +331,8 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case Dup _ -> {
-            var value = args.get(0);
+            var value = args.getFirst();
             var type = scope.typeOf(value);
-            if (type == null) {
-              break;
-            }
 
             if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
               report("Can't dup non-vector, got " + value + " {:" + type + "}");
@@ -346,11 +343,8 @@ public final class TypeAndEffectChecker extends Checker {
               break;
             }
 
-            var value = args.get(0);
+            var value = args.getFirst();
             var type = scope.typeOf(value);
-            if (type == null) {
-              break;
-            }
 
             if (!type.isPromise()) {
               report("Can't force non-(definite-)promise, got " + type);
@@ -367,7 +361,7 @@ public final class TypeAndEffectChecker extends Checker {
                 var elementType = Type.primitiveScalar(primitiveKind);
 
                 for (var i = 0; i < args.size(); i++) {
-                  if (elementNames.get(i) != null) {
+                  if (!elementNames.get(i).isPresent()) {
                     report("Element of primitive vector can't be named: at " + i);
                   }
 
@@ -416,9 +410,9 @@ public final class TypeAndEffectChecker extends Checker {
             checkSubEffects(actualEffects, expectedEffects, "Promise effects mismatch");
           }
           case ReflectiveLoad _ -> {
-            var promise = args.get(0);
+            var promise = args.getFirst();
             var promiseType = scope.typeOf(promise);
-            if (promiseType != null && !promiseType.isPromise()) {
+            if (!promiseType.isPromise()) {
               report(
                   "Reflective read target must be a promise, got "
                       + promise
@@ -428,9 +422,9 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case ReflectiveStore _ -> {
-            var promise = args.get(0);
+            var promise = args.getFirst();
             var promiseType = scope.typeOf(promise);
-            if (promiseType != null && !promiseType.isPromise()) {
+            if (!promiseType.isPromise()) {
               report(
                   "Reflective write target must be a promise, got "
                       + promise
@@ -444,7 +438,7 @@ public final class TypeAndEffectChecker extends Checker {
               break;
             }
 
-            var value = args.get(0);
+            var value = args.getFirst();
             var type = scope.typeOf(variable);
             var valueType = scope.typeOf(value);
 
@@ -456,13 +450,12 @@ public final class TypeAndEffectChecker extends Checker {
             }
           }
           case SubscriptRead _ -> {
-            var target = args.get(0);
+            var target = args.getFirst();
             var index = args.get(1);
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
 
-            if (targetType != null
-                && (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector))) {
+            if (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector)) {
               report(
                   "Subscript read target must be a vector, got "
                       + target
@@ -477,37 +470,34 @@ public final class TypeAndEffectChecker extends Checker {
                 "Subscript index must be an integer, got " + index + " {:" + indexType + "}");
           }
           case SubscriptWrite _ -> {
-            var target = args.get(0);
+            var target = args.getFirst();
             var index = args.get(1);
             var value = args.get(2);
             var targetType = scope.typeOf(target);
             var indexType = scope.typeOf(index);
             var valueType = scope.typeOf(value);
 
-            if (targetType != null) {
-              if (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector)) {
-                report(
-                    "Subscript write target must be a vector, got "
-                        + target
-                        + " {:"
-                        + targetType
-                        + "}");
-              }
-              if (targetType.ownership() != Ownership.OWNED
-                  && targetType.ownership() != Ownership.FRESH) {
-                report(
-                    "Subscript write target must be owned or fresh, got "
-                        + target
-                        + " {:"
-                        + targetType
-                        + "}");
-              }
+            if (!targetType.isValue() || !(targetType.kind() instanceof PrimitiveVector)) {
+              report(
+                  "Subscript write target must be a vector, got "
+                      + target
+                      + " {:"
+                      + targetType
+                      + "}");
+            }
+            if (targetType.ownership() != Ownership.OWNED
+                && targetType.ownership() != Ownership.FRESH) {
+              report(
+                  "Subscript write target must be owned or fresh, got "
+                      + target
+                      + " {:"
+                      + targetType
+                      + "}");
             }
 
             checkSubtype(indexType, Type.INTEGER, "Subscript index must be integer");
 
-            if (valueType != null
-                && (!valueType.isValue() || !(valueType.kind() instanceof PrimitiveScalar))) {
+            if (!valueType.isValue() || !(valueType.kind() instanceof PrimitiveScalar)) {
               report(
                   "Subscript write value must be a primitive scalar, got "
                       + value
@@ -515,9 +505,7 @@ public final class TypeAndEffectChecker extends Checker {
                       + valueType
                       + "}");
             }
-            if (targetType != null
-                && valueType != null
-                && targetType.kind() instanceof PrimitiveVector(_, var targetKind)
+            if (targetType.kind() instanceof PrimitiveVector(_, var targetKind)
                 && valueType.kind() instanceof PrimitiveScalar(var valueKind)
                 && targetKind != valueKind) {
               report(
@@ -532,9 +520,6 @@ public final class TypeAndEffectChecker extends Checker {
           case Constant _, Read _ -> {}
           case Consume(var register) -> {
             var type = scope.typeOf(register);
-            if (type == null) {
-              break;
-            }
 
             if (!type.isValue() || !(type.kind() instanceof PrimitiveVector)) {
               report("Can't consume non-(definite-)vector, got " + type);

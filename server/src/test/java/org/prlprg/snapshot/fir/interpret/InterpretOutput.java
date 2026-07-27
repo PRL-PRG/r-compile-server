@@ -1,7 +1,7 @@
 package org.prlprg.snapshot.fir.interpret;
 
 import org.prlprg.examples.SexpResult;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 

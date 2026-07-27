@@ -7,7 +7,7 @@ import java.util.Objects;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.snapshot.SkipQueryException;
@@ -66,7 +66,7 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
       //noinspection CallToPrintStackTrace
       e.printStackTrace();
 
-      feedback = new MockModuleFeedback();
+      feedback = new MockModuleFeedback(original);
       System.err.println("Using MOCK feedback");
     }
 
