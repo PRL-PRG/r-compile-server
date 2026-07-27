@@ -2,17 +2,16 @@
 
 // THIS HEADER NEEDS TO BE A C-compatible HEADER
 
-#include <setjmp.h>
 #define RSH
 
-// MAKE SURE Rinternals.h is not listed!
-#include "gnur_symbols.h"
+// MAKE SURE Rinternals.h is not listed! It is pulled in (together with
+// gnur_symbols.h) by opcodes_internals.h, which must come first.
 #include "opcodes_internals.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <setjmp.h>
+#include <string.h>
 
 
 // INSTRUCTIONS
