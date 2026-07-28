@@ -2,10 +2,10 @@ package org.prlprg.bc;
 
 import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.*;
 import java.util.function.Function;
 import javax.annotation.concurrent.Immutable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;

@@ -1,16 +1,16 @@
 package org.prlprg.session;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.RVersion;
+import org.prlprg.primitive.FunTabEntry;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.server.Messages;
 import org.prlprg.sexp.*;
@@ -27,6 +27,7 @@ class DummySession implements RSession {
   private final NamespaceEnvSXP namespaceEnv =
       new NamespaceEnvSXP("base", "4.3.2", globalEnv, new HashMap<>());
   private final BaseEnvSXP baseEnv = new BaseEnvSXP(new HashMap<>());
+  private final Map<String, Map<String, NamespaceEnvSXP>> dummyNamespaces = new HashMap<>();
 
   @Override
   public NamespaceEnvSXP baseNamespace() {
@@ -60,12 +61,20 @@ class DummySession implements RSession {
 
   @Override
   public NamespaceEnvSXP getNamespace(String name, String version) {
-    throw new UnsupportedOperationException();
+    if (name.equals("base")) {
+      return baseNamespace();
+    }
+
+    // Return dummy namespace
+    return dummyNamespaces
+        .computeIfAbsent(name, k -> new HashMap<>())
+        .computeIfAbsent(
+            version, _ -> new NamespaceEnvSXP(name, version, globalEnv, new HashMap<>()));
   }
 
   @Override
-  public ImmutableList<String> RFunTab() {
-    throw new UnsupportedOperationException();
+  public ImmutableMap<String, FunTabEntry> RFunTab() {
+    return GNURSession.readFunTab();
   }
 }
 
@@ -85,8 +94,10 @@ public class GNURSession implements RSession {
   private @Nullable Set<String> specials = null;
   private @Nullable Set<String> builtinsInternal = null;
   private final HashMap<String, NamespaceEnvSXP> namespaces = new HashMap<>();
-  private @Nullable ImmutableList<String> rFunTab = null;
+  private static final String LATEST_BASEENV_FILE = "latest-baseenv.RDS";
   private static final String R_FUN_TAB_FILE = "R_FunTab.txt";
+  private static @Nullable EnvSXP LATEST_BASE_ENV = null;
+  private static @Nullable ImmutableMap<String, FunTabEntry> FUN_TAB = null;
 
   // TODO: need the path to R *and* the path to the installed packages
   public GNURSession(RVersion version, Path r_dir, Path r_libraries) {
@@ -116,11 +127,12 @@ public class GNURSession implements RSession {
 
   // We should also handle installation of a package from a GitHub repo?
   public void loadPackage(String name, String version) {
-    @Nullable var pkgDir = resolvePaths(name);
+    var pkgDir = resolvePaths(name);
     if (pkgDir == null) {
       installPackage(name);
       pkgDir = resolvePaths(name);
     }
+    Objects.requireNonNull(pkgDir);
 
     DESCRIPTION description = getDescription(name);
 
@@ -178,7 +190,7 @@ public class GNURSession implements RSession {
 
   private DESCRIPTION getDescription(String name) {
     try {
-      var pkgDir = resolvePaths(name);
+      var pkgDir = Objects.requireNonNull(resolvePaths(name));
 
       Path descriptionFile = pkgDir.toAbsolutePath().resolve("DESCRIPTION");
       DESCRIPTION description;
@@ -198,9 +210,6 @@ public class GNURSession implements RSession {
   /**
    * Objects in a package database refer to their own namespace so we need to create it before
    * reading.
-   *
-   * @param name
-   * @param version
    */
   private void prepareNamespace(String name, String version) {
     var ns = namespaces.get(name + version);
@@ -218,8 +227,6 @@ public class GNURSession implements RSession {
    *
    * <p>Note that it does not support loading the package's data, documentation, etc.
    *
-   * @param name
-   * @param version
    * @param functions in the package
    * @return the populated environment
    */
@@ -329,14 +336,6 @@ public class GNURSession implements RSession {
     return builtinsInternal;
   }
 
-  /// Get all builtins, including specials and "internal" (?) builtins.
-  public static Iterable<String> getAllBuiltins() {
-    return Iterables.concat(
-        readNamesFromRds(BUILTINS_SYMBOLS_RDS_FILE),
-        readNamesFromRds(SPECIALS_SYMBOLS_RDS_FILE),
-        readNamesFromRds(BUILTINS_INTERNAL_SYMBOLS_RDS_FILE));
-  }
-
   private static ImmutableSet<String> readNamesFromRds(String fileName) {
     try {
       var names =
@@ -351,18 +350,55 @@ public class GNURSession implements RSession {
     }
   }
 
+  // TODO: Fix this
+  //  - Do we want to support different R versions or merge everything into a singleton?
+  //  - If we do support different R versions, do we have different FUNTABs (since it will
+  //    probably only be extended)? What could R change in a backwards-incompatible way?
+  // Right now most things are tied to an RSession, but for FIR specifically, we have a global
+  // FUNTAB, and for the FIR test interpreter specifically, a global base-env.
+
   @Override
-  public synchronized ImmutableList<String> RFunTab() {
-    if (rFunTab == null) {
-      rFunTab =
-          ImmutableList.<String>builder()
-              .addAll(
-                  Files.readLines(
-                      Objects.requireNonNull(
-                          GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE))))
-              .build();
+  public synchronized ImmutableMap<String, FunTabEntry> RFunTab() {
+    return readFunTab();
+  }
+
+  public static EnvSXP readLatestBaseEnv() {
+    if (LATEST_BASE_ENV == null) {
+      try {
+        LATEST_BASE_ENV =
+            (EnvSXP)
+                RDSReader.readStream(
+                    new DummySession(),
+                    IO.maybeDecompress(
+                        Objects.requireNonNull(
+                            GNURSession.class.getResourceAsStream(LATEST_BASEENV_FILE))));
+      } catch (IOException e) {
+        throw new RuntimeException("failed to read base environment", e);
+      }
     }
-    return rFunTab;
+
+    return LATEST_BASE_ENV;
+  }
+
+  public static ImmutableMap<String, FunTabEntry> readFunTab() {
+    if (FUN_TAB == null) {
+      var funtabFileStream =
+          Objects.requireNonNull(GNURSession.class.getResourceAsStream(R_FUN_TAB_FILE));
+      var builder = ImmutableMap.<String, FunTabEntry>builder();
+      int i = 0;
+      for (var line : Files.readLines(funtabFileStream)) {
+        var parts = line.split(",");
+        var name = parts[0];
+        var eval = Integer.parseInt(parts[1]);
+        var arity = Integer.parseInt(parts[2]);
+        var isSpecial = (eval & 1) == 0;
+        var isInternal = (eval & 10) != 0;
+        builder.put(name, new FunTabEntry(i++, arity, isSpecial, isInternal));
+      }
+      FUN_TAB = builder.buildKeepingLast();
+    }
+
+    return FUN_TAB;
   }
 
   @Override

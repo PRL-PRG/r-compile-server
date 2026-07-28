@@ -2,7 +2,7 @@ package org.prlprg.parseprint;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Thrown when the {@link Parser} or {@link Scanner} expects something different than what it finds.

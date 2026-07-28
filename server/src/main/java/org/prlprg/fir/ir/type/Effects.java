@@ -6,26 +6,29 @@ import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.parseprint.SkipWhitespace;
 
-public record Effects(boolean reflect) implements Comparable<Effects> {
-  public static final Effects ANY = new Effects(true);
-  public static final Effects NONE = new Effects(false);
+public enum Effects {
+  NONE,
+  IMPURE,
+  REFLECT;
 
-  /// Comparison is subtyping arbitrarily extended to be totally ordered.
-  @Override
-  public int compareTo(Effects o) {
-    return Boolean.compare(reflect, o.reflect);
+  public boolean reflect() {
+    return this == REFLECT;
+  }
+
+  public boolean impure() {
+    return this == IMPURE || this == REFLECT;
   }
 
   public boolean isSubsetOf(Effects expected) {
-    return !reflect || expected.reflect;
+    return this.ordinal() <= expected.ordinal();
   }
 
   public Effects union(Effects other) {
-    return new Effects(reflect || other.reflect);
+    return ordinal() >= other.ordinal() ? this : other;
   }
 
   public Effects intersect(Effects other) {
-    return new Effects(reflect && other.reflect);
+    return ordinal() <= other.ordinal() ? this : other;
   }
 
   @Override
@@ -37,10 +40,10 @@ public record Effects(boolean reflect) implements Comparable<Effects> {
   private void print(Printer p) {
     var w = p.writer();
 
-    if (reflect) {
-      w.write("+");
-    } else {
-      w.write("-");
+    switch (this) {
+      case NONE -> w.write("-");
+      case IMPURE -> w.write("~");
+      case REFLECT -> w.write("+");
     }
   }
 
@@ -51,11 +54,13 @@ public record Effects(boolean reflect) implements Comparable<Effects> {
     s.skipWhitespace(true);
 
     if (s.trySkip('+')) {
-      return new Effects(true);
+      return REFLECT;
+    } else if (s.trySkip('~')) {
+      return IMPURE;
     } else if (s.trySkip('-')) {
-      return new Effects(false);
+      return NONE;
     } else {
-      throw s.fail("expected '+' or '-'");
+      throw s.fail("expected '+', '~', or '-'");
     }
   }
 }

@@ -12,19 +12,19 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>24</maven.compiler.source>
+    <maven.compiler.source>26</maven.compiler.source>
     <maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
-    <protobuf.version>3.25.3</protobuf.version>
+    <protobuf.version>4.27.2</protobuf.version>
     <grpc.version>1.64.0</grpc.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
-      <!-- JUnit5, unit tests -->
+      <!-- JUnit, unit tests -->
       <dependency>
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
-        <version>5.10.1</version>
+        <version>6.0.1</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -32,12 +32,6 @@
   </dependencyManagement>
 
   <dependencies>
-    <!-- ZeroMQ, socket communication -->
-    <dependency>
-      <groupId>org.zeromq</groupId>
-      <artifactId>jeromq</artifactId>
-      <version>0.6.0</version>
-    </dependency>
     <!-- gRPC, RPC communication -->
     <dependency>
       <groupId>io.grpc</groupId>
@@ -69,46 +63,37 @@
       <artifactId>grpc-inprocess</artifactId>
       <version>${grpc.version}</version>
     </dependency>
-    <!-- To write unit tests for gRPC when using JUnit 5 -->
+    <!-- javax annotations, for gRPC -->
+    <dependency>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
+      <version>1.3.2</version>
+    </dependency>
+    <!-- To write unit tests for gRPC when using JUnit -->
     <dependency>
       <groupId>com.asarkar.grpc</groupId>
       <artifactId>grpc-test</artifactId>
       <version>1.2.2</version>
     </dependency>
-    <dependency>
-      <!-- necessary for Java 9+ -->
-      <groupId>org.apache.tomcat</groupId>
-      <artifactId>annotations-api</artifactId>
-      <version>6.0.53</version>
-      <scope>provided</scope>
-    </dependency>
     <!-- Guava, utilities -->
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>33.1.0-jre</version>
+      <version>33.5.0-jre</version>
     </dependency>
-    <!-- jsr305, annotations for IDEs and static analyses -->
-    <!-- (jsr305 is apparently deprecated, but seems to be the most well-supported annotation library) -->
+    <!-- JSpecify, annotations for IDEs and static analyses -->
     <dependency>
-      <groupId>com.github.spotbugs</groupId>
-      <artifactId>spotbugs-annotations</artifactId>
-      <version>4.8.3</version>
-      <optional>true</optional>
+      <groupId>org.jspecify</groupId>
+      <artifactId>jspecify</artifactId>
+      <version>1.0.0</version>
     </dependency>
     <!-- JetBrains annotations, specifically for `@Contract` and `@UnmodifiableView` -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
-      <version>24.1.0</version>
+      <version>26.1.0</version>
     </dependency>
-    <!-- javac-warning-annotation, @Warning annotation so we can annotate unsafe methods -->
-    <dependency>
-      <groupId>com.pushtorefresh</groupId>
-      <artifactId>javac-warning-annotation</artifactId>
-      <version>1.0.0</version>
-    </dependency>
-    <!-- JUnit5, unit tests -->
+    <!-- JUnit, unit tests -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
@@ -119,6 +104,13 @@
       <groupId>com.google.truth</groupId>
       <artifactId>truth</artifactId>
       <version>1.3.0</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Line-oriented diff generation for snapshot HTML -->
+    <dependency>
+      <groupId>io.github.java-diff-utils</groupId>
+      <artifactId>java-diff-utils</artifactId>
+      <version>4.16</version>
       <scope>test</scope>
     </dependency>
     <!-- JQwik, property-based tests -->
@@ -137,7 +129,7 @@
           <exclude>**/*.proto</exclude>
         </excludes>
       </resource>
-      <!-- If you had a separate resources entry pointing at src/main/proto, just remove it entirely. -->
+      <!-- If you had a separate resources entry pointing at src/main/protobuf, just remove it entirely. -->
     </resources>
 
     <!-- Snapshots aren't test resources, because we have to write to them, so we access them
@@ -145,28 +137,24 @@
     <plugins>
       <!-- code gen for protobuf -->
       <plugin>
-        <groupId>org.xolstice.maven.plugins</groupId>
+        <groupId>io.github.ascopes</groupId>
         <artifactId>protobuf-maven-plugin</artifactId>
-        <version>0.6.1</version>
+        <version>4.1.2</version>
+
         <configuration>
-          <protocArtifact>com.google.protobuf:protoc:3.25.1:exe:${os.detected.classifier}</protocArtifact>
-          <pluginId>grpc-java</pluginId>
-          <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.64.0:exe:${os.detected.classifier}</pluginArtifact>
-
-          <!-- turn on timestamp-based staleness checking -->
-          <checkStaleness>true</checkStaleness>
-          <!-- (optional) minimum age in ms before considering a file stale;
-              useful when building over NFS or other slow file systems -->
-          <staleMillis>10000</staleMillis>
-
-          <!-- do not attach .proto files as resources, otherwise, compilation takes ages -->
-          <attachProtoSources>false</attachProtoSources>
+          <protoc>${protobuf.version}</protoc>
+          <plugins>
+            <plugin kind="binary-maven">
+              <groupId>io.grpc</groupId>
+              <artifactId>protoc-gen-grpc-java</artifactId>
+              <version>${grpc.version}</version>
+            </plugin>
+          </plugins>
         </configuration>
         <executions>
           <execution>
             <goals>
-              <goal>compile</goal>
-              <goal>compile-custom</goal>
+              <goal>generate</goal>
             </goals>
           </execution>
         </executions>
@@ -175,10 +163,10 @@
       <plugin>
         <groupId>com.rudikershaw.gitbuildhook</groupId>
         <artifactId>git-build-hook-maven-plugin</artifactId>
-        <version>3.4.1</version>
+        <version>3.6.0</version>
         <configuration>
           <installHooks>
-            <pre-commit>.githooks/pre-commit.sh</pre-commit>
+            <pre-commit>../.githooks/pre-commit.sh</pre-commit>
           </installHooks>
         </configuration>
         <executions>
@@ -194,7 +182,7 @@
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
-        <version>2.46.1</version>
+        <version>3.3.0</version>
         <configuration>
           <formats>
             <!-- Generally handle trailing whitespace and newline -->
@@ -232,7 +220,7 @@
               <exclude>target/**/*</exclude>
             </excludes>
             <googleJavaFormat>
-              <version>1.28.0</version>
+              <version>1.35.0</version>
               <style>GOOGLE</style>
               <formatJavadoc>true</formatJavadoc>
             </googleJavaFormat>
@@ -278,6 +266,7 @@
             </includes>
             <excludes>
               <exclude>target/**/*</exclude>
+              <exclude>**/*.dSYM/**/*</exclude>
             </excludes>
             <indent>
               <spaces>true</spaces>
@@ -301,18 +290,16 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.13.0</version>
+        <version>4.0.0-beta-4</version>
         <configuration>
-          <!-- enable the compiler’s incremental mode -->
-          <useIncrementalCompilation>false</useIncrementalCompilation>
-          <source>24</source>
-          <target>24</target>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
         </configuration>
       </plugin>
-      <!-- JUnit5, unit test runner -->
+      <!-- JUnit, unit test runner -->
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.2.2</version>
+        <version>3.5.5</version>
         <!-- Run tests in parallel. You can annotate tests with @NotThreadSafe if necessary -->
         <configuration>
           <parallel>all</parallel>
@@ -324,7 +311,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>3.5.5</version>
         <executions>
           <execution>
             <goals>
@@ -338,7 +325,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
-        <version>3.7.0</version>
+        <version>3.12.0</version>
         <!-- `executions` is required to run this on verify -->
         <!-- disabled for now
                 <executions>
@@ -354,7 +341,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>3.7.1</version>
+        <version>3.8.0</version>
         <configuration>
           <archive>
             <manifest>
@@ -378,7 +365,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>3.6.3</version>
         <configuration>
           <mainClass>org.prlprg.server.CompileServer</mainClass>
         </configuration>
@@ -395,9 +382,9 @@
     <extensions>
       <!-- For gRPC/protobuf-->
       <extension>
-        <groupId>kr.motd.maven</groupId>
-        <artifactId>os-maven-plugin</artifactId>
-        <version>1.7.1</version>
+        <groupId>com.tisonkun.os</groupId>
+        <artifactId>os-detector-maven-plugin</artifactId>
+        <version>0.6.0</version>
       </extension>
     </extensions>
   </build>

@@ -1,39 +1,30 @@
 package org.prlprg.fir.ir.instruction;
 
-import java.util.Collection;
+import com.google.common.collect.ImmutableList;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Function;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.phi.Target;
-import org.prlprg.parseprint.PrintMethod;
-import org.prlprg.parseprint.Printer;
 
-public record Goto(Target target) implements Jump {
+/// Unconditional jump to [#target]; the owning jump's arguments are the target's phi arguments.
+public record Goto(BBRef target) implements JumpExpression {
   @Override
-  public @UnmodifiableView Collection<Target> targets() {
+  @UnmodifiableView
+  public List<BBRef> targetRefs() {
     return List.of(target);
   }
 
   @Override
-  public @UnmodifiableView Set<BB> targetBBs() {
-    return Set.of(target.bb());
+  @UnmodifiableView
+  public List<Target> targets(List<Argument> args) {
+    return List.of(new Target(target, ImmutableList.copyOf(args)));
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
-    return target.phiArgs();
-  }
-
-  @Override
-  public String toString() {
-    return Printer.toString(this);
-  }
-
-  @PrintMethod
-  private void print(Printer p) {
-    p.writer().write("goto ");
-    p.print(target);
+  public Mapped mapTargets(Function<Target, Target> transformer, List<Argument> args) {
+    var mapped = transformer.apply(new Target(target, ImmutableList.copyOf(args)));
+    return new Mapped(new Goto(mapped.bbRef()), mapped.phiArgs());
   }
 }

@@ -1,7 +1,7 @@
 package org.prlprg.sexp;
 
 import java.util.Objects;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -11,6 +11,9 @@ import org.prlprg.sexp.parseprint.SEXPPrintContext;
 
 /** An R "list" element which consists of an optional string tag (name) and SEXP value. */
 public record TaggedElem(String tag, SEXP value) {
+  public static final TaggedElem DOTS_FORMAL = new TaggedElem("...", SEXPs.MISSING_ARG);
+  public static final TaggedElem DOTS_ARGUMENT = new TaggedElem(SEXPs.DOTS_SYMBOL);
+
   /** Create a {@link TaggedElem} with an optional (if non-empty) tag and value. */
   public TaggedElem {
     Objects.requireNonNull(tag, "Pass the empty string for no tag");

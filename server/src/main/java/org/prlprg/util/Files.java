@@ -12,18 +12,21 @@ import java.nio.file.attribute.FileTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class Files {
-  /**
-   * @param root Directory to list files from
-   * @param glob Filter files by glob applied to the filename. Pass {@code ""} to not filter.
-   * @param depth Specify a number > 1 to include files in subdirectories. Specify INT_MAX to
-   *     recurse infinitely.
-   * @param includeDirs Whether to include directories.
-   * @param relativize Whether to relativize the paths to {@code root}.
-   * @return The paths of each of the children of {@code root} filtered by the other arguments. It
-   *     doesn't return {@code root} itself. The children are ordered lexicographically.
-   */
+  /// Recursively list paths of files in a directory.
+  ///
+  /// Paths are ordered lexicographically.
+  ///
+  /// @param root Directory to list files from
+  /// @param glob Filter files by glob applied to the filename. Pass `""` to not filter.
+  /// @param depth Specify a number > 1 to include files in subdirectories. Specify INT_MAX to
+  ///     recurse infinitely.
+  /// @param includeDirs Whether to include directories.
+  /// @param relativize Whether to relativize the paths to `root`.
+  /// @return The paths of each of the children of `root` filtered by the other arguments. It
+  ///     doesn't return `root` itself. The children are ordered lexicographically.
   public static Collection<Path> listDir(
       Path root, String glob, int depth, boolean includeDirs, boolean relativize) {
     if (!isDirectory(root)) {
@@ -101,6 +104,10 @@ public class Files {
     return ThrowingSupplier.get(() -> java.nio.file.Files.readString(path));
   }
 
+  public static long size(Path path) {
+    return ThrowingSupplier.get(() -> java.nio.file.Files.size(path));
+  }
+
   public static void delete(Path path) {
     ThrowingRunnable.run(() -> java.nio.file.Files.delete(path));
   }
@@ -108,6 +115,10 @@ public class Files {
   @CanIgnoreReturnValue
   public static boolean deleteIfExists(Path path) {
     return ThrowingSupplier.get(() -> java.nio.file.Files.deleteIfExists(path));
+  }
+
+  public static Stream<Path> list(Path dir) {
+    return ThrowingSupplier.get(() -> java.nio.file.Files.list(dir));
   }
 
   public static void clearDirectory(Path path) throws IOException {

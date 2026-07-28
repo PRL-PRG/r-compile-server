@@ -1,9 +1,11 @@
 package org.prlprg.sexp.parseprint;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Logger;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Complex;
@@ -18,6 +20,7 @@ import org.prlprg.sexp.BuiltinOrSpecialSXP;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EmptyEnvSXP;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ExtptrSxp;
 import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
@@ -31,6 +34,7 @@ import org.prlprg.sexp.StaticEnvSXP;
 import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.SymSXP;
 import org.prlprg.sexp.TaggedElem;
+import org.prlprg.sexp.UserEnvSXP;
 import org.prlprg.sexp.VectorSXP;
 
 /**
@@ -86,10 +90,32 @@ public class SEXPPrintContext {
     return forBindings;
   }
 
+  /// Explicitly assign a forward reference: when `sexp` is printed, it will print the reference
+  /// instead.
+  ///
+  /// @throws IllegalArgumentException If the reference has already been assigned.
+  public void setRef(SEXP sexp, int ref) {
+    if (refs.containsKey(sexp)) {
+      throw new IllegalArgumentException(
+          "Reference already assigned for SEXP:\n" + sexp + " => " + refs.get(sexp));
+    }
+    refs.put(sexp, ref);
+  }
+
   @PrintMethod
   private void print(NilSXP sexp, Printer p) {
-    // `NULL`
-    handleDepth(p, () -> p.writer().write(sexp.toString()));
+    handleDepth(
+        p,
+        () -> {
+          if (options.printDelimited()) {
+            var w = p.writer();
+            w.write('<');
+            p.print(sexp.type());
+            w.write('>');
+          } else {
+            p.writer().write(sexp.toString());
+          }
+        });
   }
 
   @PrintMethod
@@ -156,7 +182,7 @@ public class SEXPPrintContext {
     handleDepth(
         p,
         () -> {
-          if (sexp.isSimpleScalar()) {
+          if (sexp.isSimpleScalar() && !options.printDelimited()) {
             printStringElem(sexp.get(0), options.maxStringLength(), p.withContext(forVectorElem));
           } else {
             printGeneralStart(sexp.type(), p);
@@ -176,7 +202,7 @@ public class SEXPPrintContext {
         p,
         () -> {
           // RAWSXP are simple scalars, but can't be printed inline because they conflict with ints.
-          if (sexp.isSimpleScalar() && sexp.type() != SEXPType.RAW) {
+          if (sexp.isSimpleScalar() && sexp.type() != SEXPType.RAW && !options.printDelimited()) {
             p.withContext(forVectorElem).print(sexp.get(0));
           } else {
             printGeneralStart(sexp.type(), p);
@@ -236,13 +262,28 @@ public class SEXPPrintContext {
                   }
 
                   if (!(sexp instanceof EmptyEnvSXP)) {
-                    if (options.printStaticEnvironmentDetails()) {
+                    var print =
+                        switch (options.printEnvironmentDetails()) {
+                              case ALL -> true;
+                              case BELOW_GLOBAL -> sexp instanceof UserEnvSXP;
+                              case NONE -> false;
+                            }
+                            && (options.environmentDetailPrinter() == null
+                                || !options.environmentDetailPrinter().test(sexp, p));
+                    if (print) {
                       if (!(sexp instanceof BaseEnvSXP)) {
                         w.write(" parent=");
                         w.runIndented(() -> p.print(sexp.parent()));
                       }
+
                       w.write(' ');
-                      printList(sexp.bindingsAsTaggedElems(), p.withContext(forBindings));
+                      var bindings =
+                          options.printMapsSorted()
+                              ? sexp.bindingsAsTaggedElems().stream()
+                                  .sorted(Comparator.comparing(TaggedElem::tag))
+                                  .toList()
+                              : sexp.bindingsAsTaggedElems();
+                      printList(bindings, p.withContext(forBindings));
                     } else {
                       w.write(" ...");
                     }
@@ -271,9 +312,13 @@ public class SEXPPrintContext {
                     return;
                   }
 
-                  if (options.printBcContents()) {
-                    w.write(' ');
-                    p.print(sexp.bc());
+                  if (options.printBcDetails()) {
+                    w.runIndented(
+                        () -> {
+                          w.write("{\n");
+                          p.print(sexp.bc());
+                        });
+                    w.write("\n}");
                   } else {
                     w.write(" ...");
                   }
@@ -293,14 +338,23 @@ public class SEXPPrintContext {
 
                   printGeneralStart(sexp.type(), p);
 
-                  w.write("env=");
-                  w.runIndented(() -> p.print(sexp.env()));
-                  if (sexp.isEvaluated()) {
-                    w.write(" val=");
-                    w.runIndented(() -> p.print(sexp.boundVal()));
+                  if (options.printPromiseLazyDetails()) {
+                    w.write("env=");
+                    w.runIndented(() -> p.print(sexp.env()));
+                    if (sexp.isEvaluated()) {
+                      w.write(" val=");
+                      w.runIndented(() -> p.print(sexp.boundVal()));
+                    }
+                    w.write(" ⇒ ");
+                    w.runIndented(() -> p.print(sexp.expr()));
+                  } else {
+                    if (sexp.isEvaluated()) {
+                      w.write("val=");
+                      w.runIndented(() -> p.print(sexp.boundVal()));
+                      w.write(' ');
+                    }
+                    w.write("...");
                   }
-                  w.write(" ⇒ ");
-                  w.runIndented(() -> p.print(sexp.expr()));
 
                   printGeneralEnd(p);
                 }));
@@ -318,6 +372,11 @@ public class SEXPPrintContext {
   }
 
   @PrintMethod
+  private void print(ExtptrSxp sexp, Printer p) {
+    handleDepth(p, () -> p.writer().write("<extptr>"));
+  }
+
+  @PrintMethod
   private void print(SEXP sexp, Printer ignored) {
     throw new AssertionError("unhandled SEXP class: " + sexp.getClass().getSimpleName());
   }
@@ -328,12 +387,11 @@ public class SEXPPrintContext {
 
     var i = 0;
     for (var attribute : attributes.entrySet()) {
-      assert attribute.getKey() != null;
-
       if (i == options.maxAttributes()) {
         w.write("\n...");
         break;
       }
+      warnLarge(i, ATTR_WARN_LEN, "many attributes");
 
       if (i != 0) {
         w.write("\n, ");
@@ -588,6 +646,7 @@ public class SEXPPrintContext {
               w.write(" ...");
               break;
             }
+            warnLarge(i, ELEMENT_WARN_LEN, "many elements");
 
             if (i != 0) {
               w.write(", ");
@@ -610,6 +669,7 @@ public class SEXPPrintContext {
               w.write(" ...");
               break;
             }
+            warnLarge(i, ELEMENT_WARN_LEN, "many elements");
 
             if (i != 0) {
               w.write(", ");
@@ -625,6 +685,7 @@ public class SEXPPrintContext {
     var w = p.writer();
 
     if (elem.length() < allowedLength) {
+      warnLarge(elem.length(), STRING_WARN_LEN, "long string");
       p.print(elem);
     } else {
       p.print(elem.substring(0, (int) allowedLength));
@@ -637,6 +698,8 @@ public class SEXPPrintContext {
   /// Otherwise, write `<...>`.
   private void handleDepth(Printer p, Runnable doPrint) {
     if (currentDepth < options.maxDepth()) {
+      warnLarge(currentDepth, WARN_DEPTH, "deeply-nested SEXP");
+
       currentDepth++;
       try {
         doPrint.run();
@@ -648,10 +711,34 @@ public class SEXPPrintContext {
     }
   }
 
+  private static final int ELEMENT_WARN_LEN = 1000;
+  private static final int ATTR_WARN_LEN = 100;
+  private static final int WARN_DEPTH = 100;
+  private static final int STRING_WARN_LEN = 1000;
+
+  private void warnLarge(int len, int warn, String msg) {
+    if (len == warn) {
+      Logger.getLogger(SEXPPrintContext.class.getName()).warning(msg);
+    }
+  }
+
   /// Call `doPrint` with `options.withDelimited(false)`.
   ///
   /// @see SEXPPrintOptions#printDelimited()
-  private void runNotDelimited(Runnable doPrint) {
+  public void runDelimited(Runnable doPrint) {
+    var oldOptions = options;
+    try {
+      options = options.withDelimited(true);
+      doPrint.run();
+    } finally {
+      options = oldOptions;
+    }
+  }
+
+  /// Call `doPrint` with `options.withDelimited(false)`.
+  ///
+  /// @see SEXPPrintOptions#printDelimited()
+  public void runNotDelimited(Runnable doPrint) {
     var oldOptions = options;
     try {
       options = options.withDelimited(false);

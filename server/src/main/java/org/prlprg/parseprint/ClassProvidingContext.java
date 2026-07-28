@@ -1,6 +1,6 @@
 package org.prlprg.parseprint;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /** A {@link Parser} context which provides classes to parse records. */
 public interface ClassProvidingContext {

@@ -3,7 +3,7 @@ package org.prlprg.rds;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The bitflags describing a {@code SEXP} in RDS. They are described as follows:

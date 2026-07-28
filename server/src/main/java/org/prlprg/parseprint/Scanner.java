@@ -12,7 +12,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.util.Characters;
 import org.prlprg.util.Strings;
 import org.prlprg.util.ThrowingSupplier;
@@ -427,6 +427,36 @@ public class Scanner {
         });
   }
 
+  /// Read until ',', ')', ']', '}', or EOI is encountered *and* there's no unclosed '(', '[',
+  /// or '{'.
+  ///
+  /// @throws ParseException At EOI if there's an unclosed '(', '[', or '{'.
+  public String readCodeItem() {
+    final int[] numOpen = {0};
+
+    var result =
+        readUntil(
+            c -> {
+              if (c == -1 || (numOpen[0] == 0 && (c == ')' || c == ']' || c == '}' || c == ','))) {
+                return true;
+              }
+
+              if (c == '(' || c == '[' || c == '{') {
+                numOpen[0]++;
+              } else if (c == ')' || c == ']' || c == '}') {
+                numOpen[0]--;
+              }
+
+              return false;
+            });
+
+    if (isAtEof && numOpen[0] > 0) {
+      throw fail("unclosed '(', '[', or '{' before end of input");
+    }
+
+    return result;
+  }
+
   /**
    * Read characters until, but not including, the first whitespace.
    *
@@ -468,6 +498,11 @@ public class Scanner {
   public String readUntilEndOfLine() {
     return runWithWhitespacePolicy(
         skipsWhitespace.notSkippingNewlines(), () -> readUntil('\n', true));
+  }
+
+  /** Read all remaining characters. */
+  public String readUntilEndOfInput() {
+    return readUntil(-1);
   }
 
   /**

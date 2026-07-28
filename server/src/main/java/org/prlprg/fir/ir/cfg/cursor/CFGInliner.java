@@ -1,13 +1,16 @@
 package org.prlprg.fir.ir.cfg.cursor;
 
-import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
+import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
 
 import com.google.common.collect.ImmutableList;
-import javax.annotation.Nullable;
+import java.util.HashMap;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Goto;
-import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Utility for inlining CFGs at specific instruction positions.
@@ -21,8 +24,11 @@ public final class CFGInliner {
   /// If `returnDestination` is non-null, it becomes a phi parameter of the split successor and
   /// stores the inlinee's return. Otherwise, the return is discarded.
   ///
+  /// @return The split successor, which runs after the inlined code (is an actual successor of
+  ///  `bb` only iff the inlined code returns).
   /// @throws IndexOutOfBoundsException if `index < -1 || index >= bb.statements.size()`
-  public static void inline(CFG inlinee, BB bb, int index, @Nullable Register returnDestination) {
+  public static BB inline(
+      CFG inlinee, BB bb, int index, @Nullable BlockParameter returnDestination) {
     if (index < -1 || index >= bb.statements().size()) {
       throw new IndexOutOfBoundsException("Instruction index out of bounds");
     }
@@ -32,20 +38,23 @@ public final class CFGInliner {
 
     // Add `returnDestination` as phi parameter if needed
     if (returnDestination != null) {
-      successor.appendParameter(returnDestination);
+      successor.appendPhiParameter(returnDestination);
     }
 
     // Inlining a CFG is the same as copying it into another, except the source entry block's
     // instructions are inserted at the inline position, not destination entry, and `Return`s
     // are replaced with `Goto`s to the split successor.
-    copyFrom(
+    copyTo(
         bb,
         inlinee,
-        value ->
-            new Goto(
-                new Target(
-                    successor,
-                    returnDestination == null ? ImmutableList.of() : ImmutableList.of(value))));
+        new HashMap<Register, Register>(),
+        (comments, value) ->
+            new Jump(
+                comments,
+                new Goto(new BBRef(successor)),
+                returnDestination == null ? ImmutableList.of() : ImmutableList.of(value)));
+
+    return successor;
   }
 
   private CFGInliner() {}

@@ -1,73 +1,130 @@
 package org.prlprg.fir.analyze.cfg;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collector;
+import java.util.stream.Collector.Characteristics;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.UnmodifiableView;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.util.Streams;
+import org.prlprg.fir.ir.instruction.Instruction;
+import org.prlprg.fir.ir.instruction.Statement;
 
 /// Computes [CFG] parent-child relationships. A [CFG] is another's child if the [CFG] is a
 /// promise's body and the other [CFG] contains that promise instruction.
 public final class CfgHierarchy implements Analysis {
-  private final Map<CFG, CfgPosition> parents = new HashMap<>();
-  private final Multimap<CFG, CfgPosition> children = ArrayListMultimap.create();
+  // For each promise-body CFG, the promise statement that owns it.
+  private final Map<CFG, Statement> parents = new HashMap<>();
 
   @AnalysisConstructor
   public CfgHierarchy(Abstraction scope) {
     if (scope.cfg() != null) {
-      run(new ArrayList<>(), scope.cfg());
+      run(scope.cfg());
     }
   }
 
-  /// If `cfg` is a promise body, returns the position of that promise instruction.
-  public @Nullable CfgPosition parent(CFG cfg) {
+  /// If `cfg` is a promise body, returns that promise instruction (a [Promise] statement).
+  public @Nullable Statement parentPromise(CFG cfg) {
     return parents.get(cfg);
   }
 
-  /// Returns the positions of every promise instruction in `cfg`.
-  public @UnmodifiableView Collection<CfgPosition> children(CFG cfg) {
-    return Collections.unmodifiableCollection(children.get(cfg));
+  /// The [CFG] that (transitively) contains `cfg`'s parent promise, its parent, etc. (not `cfg`).
+  public Stream<CFG> streamAncestorCfgs(CFG cfg) {
+    return Stream.iterate(parentCfg(cfg), Objects::nonNull, this::parentCfg);
   }
 
-  /// [#parent(CFG)], its [CFG]'s parent, etc. (not `cfg` itself)
-  public Stream<CfgPosition> streamAncestors(CFG cfg) {
-    return Stream.iterate(parent(cfg), Objects::nonNull, pos -> parent(pos.cfg()));
+  private @Nullable CFG parentCfg(CFG cfg) {
+    var parent = parents.get(cfg);
+    return parent == null ? null : Objects.requireNonNull(parent.parentBB()).owner();
   }
 
-  /// [#children(CFG)], their children, etc. (not `cfg` itself)
-  public Stream<CfgPosition> streamDescendants(CFG cfg) {
-    return Streams.worklist2(
-        children(cfg), (next, worklist) -> worklist.addAll(children(next.cfg())));
+  /// The instruction within `cfg` corresponding to `instr`: `instr` itself if it's already in
+  /// `cfg`, otherwise the [Promise] statement in `cfg` that (transitively) contains `instr`, or
+  /// `null` if `instr` is in a sibling or outer scope.
+  public @Nullable Instruction projectInto(CFG cfg, Instruction instr) {
+    var c = Objects.requireNonNull(instr.parentBB()).owner();
+    while (c != cfg) {
+      var parent = parentPromise(c);
+      if (parent == null) {
+        return null;
+      }
+      instr = parent;
+      c = Objects.requireNonNull(parent.parentBB()).owner();
+    }
+    return instr;
   }
 
-  private void run(ArrayList<CfgPosition> parents, CFG cfg) {
-    for (var bb : cfg.bbs()) {
-      for (var i = 0; i < bb.statements().size(); i++) {
-        var stmt = bb.statements().get(i);
-        if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
-          continue;
+  /// The innermost [CFG] that is an ancestor (or self) of both `cfg1` and `cfg2`, or `null` if
+  /// they're in unrelated scopes.
+  public @Nullable CFG commonAncestor(CFG cfg1, CFG cfg2) {
+    if (cfg1 == cfg2) {
+      return cfg1;
+    }
+
+    // Ancestors-or-self of `cfg1`.
+    var ancestors1 = new LinkedHashSet<CFG>();
+    ancestors1.add(cfg1);
+    streamAncestorCfgs(cfg1).forEach(ancestors1::add);
+
+    // Walk `cfg2` and its ancestors; the first one that's also an ancestor-or-self of `cfg1` is
+    // the innermost common ancestor.
+    if (ancestors1.contains(cfg2)) {
+      return cfg2;
+    }
+    return streamAncestorCfgs(cfg2).filter(ancestors1::contains).findFirst().orElse(null);
+  }
+
+  public Collector<CFG, ?, Optional<CFG>> commonAncestor() {
+    class Result {
+      boolean isSet = false;
+      @Nullable CFG value = null;
+
+      void add(CFG next) {
+        if (!isSet) {
+          isSet = true;
+          value = next;
+          return;
         }
 
-        var pos = new CfgPosition(bb, i, stmt);
-        this.parents.put(code, pos);
-        children.put(cfg, pos);
+        if (value != null && value != next) {
+          value = commonAncestor(value, next);
+        }
+      }
 
-        parents.add(pos);
-        run(parents, code);
-        parents.removeLast();
+      Result merge(Result other) {
+        if (!isSet) {
+          isSet = other.isSet;
+          value = other.value;
+        } else if (other.isSet) {
+          value = value == null || other.value == null ? null : commonAncestor(value, other.value);
+        }
+
+        return this;
+      }
+
+      Optional<CFG> get() {
+        return Optional.ofNullable(value);
+      }
+    }
+
+    return Collector.of(
+        Result::new, Result::add, Result::merge, Result::get, Characteristics.CONCURRENT);
+  }
+
+  private void run(CFG cfg) {
+    for (var bb : cfg.bbs()) {
+      for (var stmt : bb.statements()) {
+        if (stmt.expression() instanceof Promise(_, _, var code)) {
+          parents.put(code, stmt);
+          run(code);
+        }
       }
     }
   }

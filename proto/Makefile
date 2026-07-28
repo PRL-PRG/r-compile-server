@@ -1,5 +1,5 @@
 CPP_DEST := ../client/rsh/src
-JAVA_DEST := ../server/src/main/proto
+JAVA_DEST := ../server/src/main/protobuf
 
 all:
 	protoc --cpp_out=$(CPP_DEST)  messages.proto routes.proto

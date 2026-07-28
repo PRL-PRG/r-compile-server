@@ -4,8 +4,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Formatter;
@@ -33,19 +31,17 @@ public class PrettyPrintWriter {
     return writer.toString();
   }
 
+  /** Use a printer and write the output to a file. */
+  public static void use(File output, Consumer<PrettyPrintWriter> useWriter) throws IOException {
+    try (var writer = new BufferedWriter(new FileWriter(output))) {
+      var printer = new PrettyPrintWriter(writer);
+      useWriter.accept(printer);
+    }
+  }
+
   /** Adapt the writer. */
   public PrettyPrintWriter(Writer output) {
     this.output = output;
-  }
-
-  /** Create or open a file for printing. */
-  public PrettyPrintWriter(File output) throws IOException {
-    this.output = new BufferedWriter(new FileWriter(output));
-  }
-
-  /** Create a printer which prints to the given stream. */
-  public PrettyPrintWriter(OutputStream output) {
-    this.output = new BufferedWriter(new OutputStreamWriter(output));
   }
 
   // endregion constructors

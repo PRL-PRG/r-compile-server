@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
