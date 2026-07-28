@@ -40,7 +40,9 @@
 #define PRIMNAME(x)	(R_FunTab[PRIMOFFSET(x)].name)
 
 // This one is defined somewhere unknown, but the value is mentioned in a comment
+#ifndef FLT_EPSILON
 #define FLT_EPSILON 1.192e-07
+#endif
 
 #define R_NaN (NAN)
 #define R_PosInf (INFINITY)
