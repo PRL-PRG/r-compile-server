@@ -33,6 +33,7 @@ CFLAGS += -Wall \
 					-Os \
 					-I$(R_HOME)/include \
 					-I$(RSH_HOME)/src/bc2c \
+					-I$(RSH_HOME)/src/common2c \
 					-fcf-protection=none \
 					-ffunction-sections \
 					-fno-align-functions \
@@ -63,11 +64,14 @@ HEADERS = $(wildcard *.h)
 .PHONY: all
 all: $(OBJ)
 
-RUNTIME_H := $(RSH_HOME)/src/bc2c/runtime.h
-RUNTIME_INTERNALS_H := $(RSH_HOME)/src/bc2c/runtime_internals.h
+# runtime.h and runtime_internals.h are thin shims over the headers that hold
+# the actual runtime (opcodes*.h in bc2c, rsh_utils.h/gnur_symbols.h in
+# common2c), so depend on both directories rather than on the two entry points.
+RSH_HEADERS := $(wildcard $(RSH_HOME)/src/bc2c/*.h) \
+               $(wildcard $(RSH_HOME)/src/common2c/*.h)
 RINTERNALS_H := $(R_HOME)/include/Rinternals.h
 
-DEPS = $(HEADERS) $(RUNTIME_H) $(RUNTIME_INTERNALS_H) $(RINTERNALS_H) \
+DEPS = $(HEADERS) $(RSH_HEADERS) $(RINTERNALS_H) \
        ../rcp_bc_info.h ../rcp_hooks.h
 
 %.o: %.c $(DEPS)
