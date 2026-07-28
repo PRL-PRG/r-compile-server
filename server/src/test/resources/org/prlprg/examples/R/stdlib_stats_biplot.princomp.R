@@ -1,0 +1,27 @@
+#? stdlib
+`biplot.princomp` <- function (x, choices = 1L:2L, scale = 1, pc.biplot = FALSE, ...) 
+{
+    if (length(choices) != 2L) 
+        stop("length of choices must be 2")
+    if (!length(scores <- x$scores)) 
+        stop(gettextf("object '%s' has no scores", deparse1(substitute(x))), 
+            domain = NA)
+    lam <- x$sdev[choices]
+    n <- x$n.obs %||% 1
+    lam <- lam * sqrt(n)
+    if (scale < 0 || scale > 1) 
+        warning("'scale' is outside [0, 1]")
+    if (scale != 0) 
+        lam <- lam^scale
+    else lam <- 1
+    if (pc.biplot) 
+        lam <- lam/sqrt(n)
+    biplot.default(t(t(scores[, choices])/lam), t(t(x$loadings[, 
+        choices]) * lam), ...)
+    invisible()
+}
+
+# Examples
+require(graphics)
+biplot(princomp(USArrests))
+

@@ -1,44 +1,50 @@
 package org.prlprg.fir.opt;
 
 import static org.prlprg.fir.analyze.resolve.NamedVariablesOf.namedVariablesOf;
-import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyFrom;
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
 
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import javax.annotation.Nullable;
+import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
+import org.prlprg.fir.analyze.cfg.CfgHierarchy;
 import org.prlprg.fir.analyze.cfg.CfgReachability;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.resolve.NamedVariablesOf;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.abstraction.substitute.InlineSubstituter;
-import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Read;
-import org.prlprg.fir.ir.binding.Local;
-import org.prlprg.fir.ir.callee.StaticCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.cfg.cursor.CFGCopier;
 import org.prlprg.fir.ir.cfg.cursor.CFGInliner;
-import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Force;
-import org.prlprg.fir.ir.expression.MaybeForce;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Deopt;
+import org.prlprg.fir.ir.instruction.Instruction;
+import org.prlprg.fir.ir.instruction.Jump;
+import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.ir.variable.BlockParameter;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Inline forces, maybe-forces, and static calls when possible.
 public record Inline(int maxInlineeSize) implements AbstractionOptimization {
   @Override
-  public boolean run(Abstraction abstraction) {
+  public boolean runWithoutRecording(
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;
@@ -57,7 +63,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               scope,
               CfgDominatorTree.class,
               CfgReachability.class,
-              DefUses.class,
+              CfgHierarchy.class,
               OriginAnalysis.class,
               NamedVariablesOf.class);
     }
@@ -71,7 +77,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
     void run(CFG cfg) {
       // We run DFS to run inlined instructions, trying to inline recursively.
       // Then we don't need to repeat the analysis to reach a fixpoint.
-      for (var bb : dfs(cfg)) {
+      for (var bb : BbDfs.bbDfs(cfg)) {
         for (int i = 0; i < bb.statements().size(); i++) {
           run(bb, i);
         }
@@ -85,103 +91,131 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
 
       // Step 3: Check for inlining opportunities
       switch (expr) {
-        case Force(var value) -> tryInlineForce(bb, statementIndex, assignee, value);
-        case MaybeForce(var value) -> tryInlineForce(bb, statementIndex, assignee, value);
-        case Call call when call.callee() instanceof StaticCallee(var _, var version) ->
-            tryInlineCall(bb, statementIndex, assignee, version, call.callArguments());
+        case Force _ -> tryInlineForce(bb, statementIndex, assignee, stmt.arg(0));
+        case Call call
+            when call.callee() instanceof StaticFnCallee callee && callee.exactVersion() != null ->
+            tryInlineCall(
+                bb,
+                statementIndex,
+                assignee,
+                Objects.requireNonNull(callee.exactVersion()),
+                // Call arguments follow the callee's own argument (index 0).
+                stmt.args().subList(1, stmt.argCount()));
         // Inline within the promise
-        case Promise(var _, var _, var code) -> run(code);
+        case Promise(_, _, var code) -> run(code);
         default -> {}
       }
     }
 
+    /// A non-force use of the promise, with its `(bb, index)` captured at analysis time (before
+    /// any promise-wrapping insertions shift positions).
+    private record OtherUse(Instruction instruction, BB bb, int index) {}
+
     private void tryInlineForce(
         BB bb, int statementIndex, @Nullable Register assignee, Argument forced) {
       var cfg = bb.owner();
+      var hierarchy = analyses.get(CfgHierarchy.class);
 
       // Check if the origin is a non-reflective `Promise`
-      if (!(analyses.get(OriginAnalysis.class).resolve(forced) instanceof Read(var forcedReg))) {
+      if (!(analyses.get(OriginAnalysis.class).resolve(forced) instanceof Read(var promiseReg))) {
         return;
       }
-      var forceDef = analyses.get(DefUses.class).definition(forcedReg);
-      if (forceDef == null
-          || !(forceDef.inInnermostCfg().instruction() instanceof Statement forceStmt)
-          || !(forceStmt.expression() instanceof Promise(var valueType, var effects, var code))
+      // A register *is* its definition: the promise must be defined by a (non-reflective)
+      // `Promise` statement.
+      if (!(promiseReg instanceof AssigneeOf promiseAssignee)
+          || !(promiseAssignee.statement().expression()
+              instanceof Promise(var valueType, var effects, var code))
           || effects.reflect()) {
         return;
       }
 
+      var forceStmt = bb.statements().get(statementIndex);
+
       // Check whether the promise has definitely, maybe, or definitely not been forced.
       // If it has definitely not been forced, also store the location of all other forces.
-      Register dominator = null;
+      Register dominatingForceAssignee = null;
       var hasMaybeBeenForced = false;
-      var otherForcePositions = new ArrayList<CfgPosition>();
-      for (var use : analyses.get(DefUses.class).uses(forcedReg)) {
-        var use1 = use.inCfg(cfg);
-        var use2 = use.inInnermostCfg();
-        if (use1 == null || (use1.bb() == bb && use1.instructionIndex() == statementIndex)) {
+      var otherUses = new ArrayList<OtherUse>();
+      for (var use : promiseReg.uses()) {
+        var useInstr = use.instruction();
+        // Project the use into this force's CFG (its enclosing promise statement if the use is in a
+        // nested promise). `null` means the use is in a sibling or outer scope.
+        var projected = hierarchy.projectInto(cfg, useInstr);
+        if (projected == null || projected == forceStmt) {
           continue;
         }
 
-        if (!(use2.instruction() instanceof Statement(var useAssignee, var useExpr))
-            || !(useExpr instanceof Force)) {
-          continue;
-        }
+        // `use` is not this force.
+        otherUses.add(
+            new OtherUse(
+                useInstr, Objects.requireNonNull(useInstr.parentBB()), useInstr.indexInBB()));
 
-        // `use` is a force, and not this force.
-        otherForcePositions.add(use2);
-
-        if (cfg == use2.cfg()
-            && analyses
-                .get(cfg, CfgDominatorTree.class)
-                .dominates(use1.bb(), use1.instructionIndex(), bb, statementIndex)) {
+        if (useInstr.parentBB().owner() == cfg
+            && analyses.get(cfg, CfgDominatorTree.class).dominates(projected, forceStmt)) {
           // `use` will definitely occur before this force.
           hasMaybeBeenForced = true;
-          dominator = useAssignee;
-        } else if (!analyses
-                .get(cfg, CfgDominatorTree.class)
-                .dominates(bb, statementIndex, use1.bb(), use1.instructionIndex())
-            && analyses
-                .get(cfg, CfgReachability.class)
-                .isReachable(use1.bb(), use1.instructionIndex(), bb, statementIndex)) {
-          // This force may occur after `use` and may not occur before,
-          // therefore `use` will maybe occur before this force.
+          if (useInstr instanceof Statement useStmt && useStmt.expression() instanceof Force) {
+            dominatingForceAssignee = useStmt.assignee();
+          }
+        } else if (analyses.get(cfg, CfgReachability.class).isReachable(projected, forceStmt)
+            && !analyses.get(cfg, CfgDominatorTree.class).dominates(forceStmt, projected)) {
+          // `use` may occur before this force
+          // (checks that this force may occur after `use`, and `use` does not always occur
+          //  after this force; if the former is `false` then any trace with `use` doesn't have
+          //  `force`, if the latter is `true` then `force` always occurs first).
           hasMaybeBeenForced = true;
         }
       }
 
-      if (dominator != null) {
-        // This will never evaluate, so replace with the dominator.
-        bb.replaceStatementAt(
-            statementIndex, new Statement(assignee, new Aea(new Read(dominator))));
+      if (dominatingForceAssignee != null) {
+        // This will never evaluate, so forward to the dominating force's result and remove it.
+        if (assignee != null) {
+          assignee.substUsesWith(new Read(dominatingForceAssignee));
+        }
+        bb.statements().get(statementIndex).remove();
+        changed = true;
       } else if (!hasMaybeBeenForced) {
-        // This will always evaluate, so:
-        // - Remove promise (it has duplicate register definitions if we keep it)
-        // - Convert all other forces into reads
-        // - Replace statement with inline
+        // This will always evaluate, and one force dominates all other possible forces, so:
+        // - Replace statement with inline (its return goes to a fresh `returnDest`).
+        // - Forward all other possible forces (i.e. all other forces) to `returnDest`.
+        // - Wrap non-force uses in trivial promises that return `returnDest`.
+        var returnDest =
+            new BlockParameter(
+                scope.freshName(assignee == null ? Register.DEFAULT_NAME : assignee.name()),
+                valueType);
 
-        // If there are other forces,
-        // we need to ensure this force's result is assigned to a register,
-        // so they can read it.
-        if (!otherForcePositions.isEmpty() && assignee == null) {
-          assignee = scope.addLocal(valueType);
+        for (var use : otherUses) {
+          var useInstr = use.instruction();
+          if (useInstr instanceof Statement useStmt && useStmt.expression() instanceof Force) {
+            // Redundant force: forward its result to the inlined value and remove it.
+            if (useStmt.assignee() != null) {
+              useStmt.assignee().substUsesWith(new Read(returnDest));
+            }
+            useStmt.replaceWith(new Statement(new Noop()));
+          } else {
+            // Non-force use: wrap the inlined value in a trivial promise.
+            var newPromiseCfg = new CFG(scope);
+            newPromiseCfg.entry().setJump(new Jump(new Return(), List.of(new Read(returnDest))));
+            var newPromiseStmt = new Statement(new Promise(valueType, effects, newPromiseCfg));
+            var newPromiseAssignee =
+                newPromiseStmt.setAssignee(
+                    scope.freshName(Register.DEFAULT_NAME), Type.promise(valueType, effects));
+
+            useInstr.mapArguments(
+                a -> a.equals(new Read(promiseReg)) ? new Read(newPromiseAssignee) : a);
+            newPromiseStmt.insertBefore(useInstr);
+            if (use.bb() == bb && use.index() < statementIndex) {
+              statementIndex++;
+            }
+          }
         }
 
-        // Remove promise and convert forces into reads before we inline,
-        // because the CFG positions are non-local, so they'll be corrupted after insertions.
-
-        // Technically instead of removing the promise, we must replace it, because non-force
-        // instructions may use it. We replace with a promise stub so types are correct.
-        forceDef.inInnermostCfg().replaceWith(new Promise(valueType, effects, new CFG(scope)));
-
-        // Now convert forces into reads.
-        for (var forcePos : otherForcePositions) {
-          forcePos.replaceWith(new Aea(new Read(assignee)));
+        // Forward this force's result, remove it, and inline the promise body in its place.
+        if (assignee != null) {
+          assignee.substUsesWith(new Read(returnDest));
         }
-
-        // Finally, replace the statement with inline.
-        bb.removeStatementAt(statementIndex);
-        inline(code, bb, statementIndex - 1, assignee);
+        bb.statements().get(statementIndex).remove();
+        inline(code, bb, statementIndex - 1, returnDest);
       }
     }
 
@@ -213,8 +247,8 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               .anyMatch(
                   s ->
                       s.expression() instanceof Call call
-                          && call.callee() instanceof StaticCallee(var _, var target)
-                          && target == callee);
+                          && call.callee() instanceof StaticFnCallee callee1
+                          && callee1.exactVersion() == callee);
       var variablesClash =
           !Sets.intersection(
                   namedVariablesOf(callee), analyses.get(NamedVariablesOf.class).namedVariables())
@@ -234,58 +268,45 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           callee
               .streamCfgs()
               .flatMap(cfg -> cfg.bbs().stream())
-              .anyMatch(bb1 -> bb1.jump() instanceof Deopt);
+              .anyMatch(bb1 -> bb1.jump().expression() instanceof Deopt);
       if (hasDeopt) {
         return;
       }
 
-      // Add local types of named variables we're going to import from `callee`.
-      for (var local : callee.locals()) {
-        if (!(local.variable() instanceof NamedVariable nv)) {
-          continue;
-        }
-        scope.setLocalType(nv, local.type());
+      // Import the callee's named-variable declared types.
+      callee.namedVariableTypes().forEach(scope::setNamedVariableType);
+
+      // Copy `callee` into a throwaway `body` (so we can mutate it), seeding the register map so
+      // the body references fresh copies of the callee's parameters; then substitute each
+      // parameter with the corresponding call argument.
+      var bodyParams =
+          callee.parameters().stream()
+              .map(p -> new FunctionParameter(p.name(), p.type(), p.strict()))
+              .collect(java.util.stream.Collectors.<FunctionParameter>toList());
+      var body = new Abstraction(scope.module(), bodyParams);
+      var registerMap = new HashMap<Register, Register>();
+      for (var i = 0; i < callee.parameters().size(); i++) {
+        registerMap.put(callee.parameters().get(i), body.parameters().get(i));
+      }
+      CFGCopier.copyTo(
+          Objects.requireNonNull(body.cfg()), Objects.requireNonNull(callee.cfg()), registerMap);
+      for (var i = 0; i < body.parameters().size(); i++) {
+        body.parameters().get(i).substUsesWith(arguments.get(i));
       }
 
-      // Copy `callee` (since these are in-place mutations), then prepare it for inlining:
-      // substitute parameters with arguments, and substitute locals with new locals.
-      var body = new Abstraction(scope.module(), List.of());
-      assert body.cfg() != null;
-      for (var parameter : callee.parameters()) {
-        body.addLocal(new Local(parameter.variable(), parameter.type()));
+      // Replace the call with the inlined body (its return goes to a fresh `returnDest`).
+      BlockParameter returnDest = null;
+      if (assignee != null) {
+        returnDest = new BlockParameter(scope.freshName(assignee.name()), assignee.type());
+        assignee.substUsesWith(new Read(returnDest));
       }
-      for (var local : callee.locals()) {
-        if (!(local.variable() instanceof Register _)) {
-          continue;
-        }
-        body.addLocal(local);
-      }
-      copyFrom(body.cfg(), callee.cfg());
-      var localSubstituter = new InlineSubstituter(body);
-      for (var local : callee.locals()) {
-        if (!(local.variable() instanceof Register oldVariable)) {
-          continue;
-        }
-        var type = local.type();
-        var disambiguatedVariable = scope.addLocal(oldVariable.name(), type);
-        localSubstituter.stage(oldVariable, disambiguatedVariable);
-      }
-      localSubstituter.commit();
-      var parameterSubstituter = new Substituter(body);
-      for (int i = 0; i < callee.parameters().size(); i++) {
-        var parameter = callee.parameters().get(i).variable();
-        var argument = arguments.get(i);
-        parameterSubstituter.stage(parameter, argument);
-      }
-      parameterSubstituter.commit();
-
-      // Replace statement with inline
-      bb.removeStatementAt(statementIndex);
-      inline(body.cfg(), bb, statementIndex - 1, assignee);
+      bb.statements().get(statementIndex).remove();
+      inline(Objects.requireNonNull(body.cfg()), bb, statementIndex - 1, returnDest);
     }
 
-    private void inline(CFG cfg, BB bb, int statementIndex, @Nullable Register assignee) {
-      CFGInliner.inline(cfg, bb, statementIndex, assignee);
+    private void inline(
+        CFG cfg, BB bb, int statementIndex, @Nullable BlockParameter returnDestination) {
+      CFGInliner.inline(cfg, bb, statementIndex, returnDestination);
       changed = true;
       analyses.evict();
     }

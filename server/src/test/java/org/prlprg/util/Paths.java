@@ -1,8 +1,16 @@
 package org.prlprg.util;
 
 import java.nio.file.Path;
+import java.util.Objects;
 
 public class Paths {
+  public static Path getResource(Class<?> anchor, String name) {
+    return Files.pathFromFileUrl(
+        Objects.requireNonNull(
+            anchor.getResource(name),
+            "Resource not found in " + anchor.getPackageName() + ": " + name));
+  }
+
   public static String getFileStem(Path path) {
     var fileName = path.getFileName().toString();
     var lastDot = fileName.lastIndexOf('.');
@@ -12,11 +20,15 @@ public class Paths {
   public static String getExtension(Path path) {
     var fileName = path.getFileName().toString();
     var lastDot = fileName.lastIndexOf('.');
-    return lastDot == -1 ? "" : fileName.substring(lastDot);
+    return lastDot == -1 ? "" : fileName.substring(lastDot + 1);
   }
 
-  public static Path withExtension(Path path, String extension) {
-    return path.resolveSibling(getFileStem(path) + extension);
+  public static Path addingExtension(Path path, String extension) {
+    return path.resolveSibling(path.getFileName().toString() + "." + extension);
+  }
+
+  public static Path removingExtension(Path path) {
+    return path.resolveSibling(getFileStem(path));
   }
 
   private Paths() {}

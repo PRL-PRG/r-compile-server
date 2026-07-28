@@ -6,13 +6,15 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
-import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.If;
-import org.prlprg.fir.ir.position.CfgPosition;
-import org.prlprg.fir.ir.position.ScopePosition;
+import org.prlprg.fir.ir.instruction.Statement;
+import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.ir.variable.BlockParameter;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Verifies the following invariants (*(strict)* only if `isStrict` is `true`):
@@ -45,19 +47,24 @@ public class CFGChecker extends Checker {
   }
 
   @Override
+  public String name() {
+    return "cfg";
+  }
+
+  @Override
   protected void doRun(Abstraction version) {
     new OnAbstraction(version).run();
   }
 
   private class OnAbstraction {
     final Abstraction scope;
-    final DefUses defUses;
     final Map<CFG, CfgDominatorTree> dominatorTrees;
+    final DominatorTree domTree;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
-      defUses = new DefUses(scope);
       dominatorTrees = scope.streamCfgs().collect(Collectors.toMap(c -> c, CfgDominatorTree::new));
+      domTree = new DominatorTree(scope);
     }
 
     void run() {
@@ -67,84 +74,70 @@ public class CFGChecker extends Checker {
 
       var entry = scope.cfg().entry();
 
-      // No duplicate variable declarations in the scope
-      var seenBindings = new HashSet<>();
-      for (var binding : Iterables.concat(scope.parameters(), scope.locals())) {
-        if (!seenBindings.add(binding.variable())) {
-          report(entry, -1, "Duplicate variable declaration: " + binding.variable());
+      // All declared registers (parameters, phi parameters, and statement assignees) and the
+      // non-parameter "local" registers among them.
+      var allRegisters = scope.streamRegisters().toList();
+      var localRegisters = allRegisters.stream().filter(r -> !scope.isParameter(r)).toList();
+
+      // No duplicate variable declarations in the scope. (Registers are identity-based and named
+      // variables are map-keyed, so this primarily guards against the same register being attached
+      // in two places.)
+      var seenDeclarations = new HashSet<>();
+      for (var register : allRegisters) {
+        if (!seenDeclarations.add(register)) {
+          report(entry, -1, "Duplicate variable declaration: " + register);
+        }
+      }
+      for (var named : scope.namedVariableTypes().keySet()) {
+        if (!seenDeclarations.add(named)) {
+          report(entry, -1, "Duplicate variable declaration: " + named);
         }
       }
 
-      // All register assignments (defs) and reads (uses) must be declared
-      for (var register : defUses.allRegisters()) {
-        assert register != null;
-
-        if (!scope.contains(register)) {
-          var occurrence =
-              defUses.definitions(register).stream()
-                  .findFirst()
-                  .or(() -> defUses.uses(register).stream().findFirst())
-                  .orElseThrow(
-                      () ->
-                          new IllegalStateException(
-                              "def-use analysis contains a register, but neither its definitions nor uses contain it: "
-                                  + register
-                                  + "\nIn "
-                                  + scope));
-          report(occurrence, "Register " + register + " is not declared as parameter or local");
-        }
-      }
-
-      // Parameters should never be assigned
-      for (var parameter : scope.parameters()) {
-        var definitions = defUses.definitions(parameter.variable());
-        if (!definitions.isEmpty()) {
-          for (var def : definitions) {
-            report(def, "Parameter " + parameter + " can't be assigned");
+      // All register reads (uses) must reference a register declared (defined) in this scope.
+      // A register's definition site is intrinsic to its identity, so a used register that isn't
+      // in the scope is either foreign or has a detached definition.
+      var reportedUndeclared = new HashSet<Register>();
+      for (var cfg : (Iterable<CFG>) scope.streamCfgs()::iterator) {
+        for (var bb : cfg.bbs()) {
+          for (var instr : bb.instructions()) {
+            for (var arg : instr.args()) {
+              var used = arg.variable();
+              if (used != null && !scope.contains(used) && reportedUndeclared.add(used)) {
+                report(instr, "Register " + used + " is not declared as parameter or local");
+              }
+            }
           }
         }
       }
 
-      // *(non-strict)* Local registers have at most one assignment
-      // *(strict)* Local registers have exactly one assignment
-      for (var local : scope.locals()) {
-        if (!(local.variable() instanceof Register localReg)) {
-          continue;
-        }
-
-        var definitions = defUses.definitions(localReg);
-
-        if (isStrict && definitions.isEmpty()) {
-          report(scope, "Local register " + localReg + " is never assigned");
-        } else if (definitions.size() > 1) {
-          for (var def : definitions) {
-            report(def, "Local register " + localReg + " assigned multiple times");
+      // *(strict)* Every local register's definition must be attached to a block. (In the
+      // identity-based model a register *is* its definition, so this only fails for a detached
+      // AssigneeOf or an unattached phi/parameter — i.e. programmatically-malformed IR.)
+      if (isStrict) {
+        for (var localReg : localRegisters) {
+          if (localReg.definingBB() == null) {
+            report(scope, "Local register " + localReg + " is never assigned");
           }
         }
       }
 
-      // Defs must dominate uses
-      for (var local : scope.locals()) {
-        if (!(local.variable() instanceof Register localReg)) {
-          continue;
-        }
-
-        var def = defUses.definition(localReg);
-        var uses = defUses.uses(localReg);
-
-        if (def == null) {
+      // Defs must dominate uses (`reg.uses()` spans nested promises; `domTree` handles the
+      // cross-scope dominance projection).
+      for (var localReg : localRegisters) {
+        if (localReg.definingBB() == null) {
           continue;
         }
 
         var reportedDef = false;
-        for (var use : uses) {
-          if (!isDefBeforeUse(def, use)) {
+        for (var use : localReg.uses()) {
+          if (!domTree.dominates(localReg, use.instruction())) {
             if (!reportedDef) {
-              report(def, "Local register " + localReg + " assigned after use(s)");
+              reportDef(localReg, "Local register " + localReg + " assigned after use(s)");
               reportedDef = true;
             }
 
-            report(use, "Local register " + localReg + " used before assignment");
+            report(use.instruction(), "Local register " + localReg + " used before assignment");
           }
         }
       }
@@ -153,8 +146,20 @@ public class CFGChecker extends Checker {
       scope.streamCfgs().forEach(cfg -> new OnCfg(cfg).run());
     }
 
-    private boolean isDefBeforeUse(ScopePosition definition, ScopePosition use) {
-      return CfgDominatorTree.dominates(dominatorTrees::get, definition, use);
+    /// Report an error at `register`'s definition site.
+    private void reportDef(Register register, String message) {
+      switch (register) {
+        case AssigneeOf a -> report(a.statement(), message);
+        case BlockParameter p -> {
+          var owner = p.owner();
+          if (owner == null) {
+            report(scope, message);
+          } else {
+            report(owner, -1, message);
+          }
+        }
+        case FunctionParameter _ -> report(scope, message);
+      }
     }
 
     class OnCfg {
@@ -171,7 +176,7 @@ public class CFGChecker extends Checker {
         for (var bb : cfg.bbs()) {
           for (var i = 0; i < bb.statements().size(); i++) {
             var stmt = bb.statements().get(i);
-            if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
+            if (!(stmt.expression() instanceof Promise(_, _, var code))) {
               continue;
             }
 
@@ -189,17 +194,17 @@ public class CFGChecker extends Checker {
         }
 
         // Promises don't reuse CFG pointers
-        var seenCfgs = new HashMap<CFG, CfgPosition>();
+        var seenCfgs = new HashMap<CFG, Statement>();
         for (var bb : cfg.bbs()) {
           for (var i = 0; i < bb.statements().size(); i++) {
             var stmt = bb.statements().get(i);
-            if (!(stmt.expression() instanceof Promise(var _, var _, var code))) {
+            if (!(stmt.expression() instanceof Promise(_, _, var code))) {
               continue;
             }
-            var pos = new CfgPosition(bb, i, stmt);
-            var otherPos = seenCfgs.put(code, pos);
-            if (otherPos != null) {
-              report(otherPos, "Promise CFG @" + code.hashCode() + " is reused in multiple places");
+            var otherStmt = seenCfgs.put(code, stmt);
+            if (otherStmt != null) {
+              report(
+                  otherStmt, "Promise CFG @" + code.hashCode() + " is reused in multiple places");
               report(
                   bb,
                   i,
@@ -228,10 +233,12 @@ public class CFGChecker extends Checker {
 
               if (bb.predecessors().size() == 1) {
                 var predecessor = Iterables.getOnlyElement(bb.predecessors());
-                if (!(predecessor.jump() instanceof If(var _, var ifTrue, var ifFalse)
-                    && ifTrue.bb() == bb
-                    && ifFalse.bb() == bb
-                    && !ifTrue.phiArgs().equals(ifFalse.phiArgs()))) {
+                var predJump = predecessor.jump();
+                var predTargets = predJump.targets();
+                if (!(predJump.expression() instanceof If
+                    && predTargets.get(0).bb() == bb
+                    && predTargets.get(1).bb() == bb
+                    && !predTargets.get(0).phiArgs().equals(predTargets.get(1).phiArgs()))) {
                   report(
                       bb,
                       -1,

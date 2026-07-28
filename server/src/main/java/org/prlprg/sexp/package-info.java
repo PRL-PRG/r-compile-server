@@ -3,11 +3,7 @@
  * R runtime is an SEXP): the different types of SEXPs and data closely associated to SEXPs (e.g.
  * {@link org.prlprg.sexp.TaggedElem}).
  */
-@ParametersAreNonnullByDefault
-@FieldsAreNonNullByDefault
-@ReturnTypesAreNonNullByDefault
+@NullMarked
 package org.prlprg.sexp;
 
-import javax.annotation.ParametersAreNonnullByDefault;
-import org.prlprg.util.FieldsAreNonNullByDefault;
-import org.prlprg.util.ReturnTypesAreNonNullByDefault;
+import org.jspecify.annotations.NullMarked;

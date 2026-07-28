@@ -1,30 +1,28 @@
 package org.prlprg.fir.analyze.type;
 
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
-import org.prlprg.fir.ir.callee.DispatchCallee;
+import org.prlprg.fir.ir.assumption.AssumeConstant;
+import org.prlprg.fir.ir.assumption.AssumeFunction;
+import org.prlprg.fir.ir.assumption.AssumeLoadFun;
+import org.prlprg.fir.ir.assumption.AssumeLoadVar;
+import org.prlprg.fir.ir.assumption.AssumeType;
 import org.prlprg.fir.ir.callee.DynamicCallee;
-import org.prlprg.fir.ir.callee.StaticCallee;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
-import org.prlprg.fir.ir.expression.AssumeConstant;
-import org.prlprg.fir.ir.expression.AssumeFunction;
-import org.prlprg.fir.ir.expression.AssumeType;
+import org.prlprg.fir.ir.expression.Assume;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.expression.Cast;
 import org.prlprg.fir.ir.expression.Closure;
 import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
 import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.MaybeForce;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Placeholder;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.ReflectiveLoad;
@@ -32,18 +30,18 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.expression.SuperLoad;
-import org.prlprg.fir.ir.expression.SuperStore;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Return;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Concreteness;
-import org.prlprg.fir.ir.type.Kind;
 import org.prlprg.fir.ir.type.Kind.PrimitiveVector;
 import org.prlprg.fir.ir.type.Ownership;
+import org.prlprg.fir.ir.type.Promisity;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 
-/// Infer the [Type] of [CFG]s and [Expression]s.
+/// Infer the [Type] of [CFG]s and [Statement]s.
 ///
 /// This analysis is **on-demand**: it only infers when called the type of the argument, and
 /// remains accurate if the code changes (except previous return values are invalidated when
@@ -59,78 +57,71 @@ public final class InferType implements Analysis {
   public @Nullable Type of(CFG cfg) {
     Type result = null;
     for (var bb : cfg.bbs()) {
-      if (bb.jump() instanceof Return(var value)) {
-        result = Type.union(result, of(value));
+      var jump = bb.jump();
+      switch (jump.expression()) {
+        case Return _ -> result = Type.union(result, of(jump.arg(0)));
+        case Deopt _ -> {
+          return Type.ANY_VALUE_SEXP;
+        }
+        default -> {}
       }
     }
     return result;
   }
 
-  public @Nullable Type of(Expression expression) {
-    return switch (expression) {
-      case Aea(var value) -> of(value);
-      case AssumeType(var _, var type) -> type;
-      case AssumeConstant(var _, var _), AssumeFunction _ -> Type.ANY_VALUE;
+  /// The type of the value `statement` assigns (or would assign). Arg-dependent operations read
+  /// the statement's arguments.
+  public @Nullable Type of(Statement statement) {
+    return switch (statement.expression()) {
+      case Assume(var assumption) ->
+          switch (assumption) {
+            case AssumeType(var type) -> type;
+            case AssumeFunction _, AssumeLoadFun _ -> Type.CLOSURE;
+            case AssumeConstant _, AssumeLoadVar _ -> null;
+          };
       case Call call ->
           switch (call.callee()) {
-            case StaticCallee(var _, var version) -> version.returnType();
-            case DispatchCallee(var function, var signature) ->
-                signature == null ? function.baseline().returnType() : signature.returnType();
-            case DynamicCallee(var _, var _) -> Type.ANY_VALUE;
+            case StaticFnCallee(_, _, var signature) -> signature.returnType();
+            case DynamicCallee _ -> Type.ANY_VALUE_SEXP;
           };
-      case Cast(var _, var castType) -> castType;
+      case Cast(var castType) -> castType;
       case Closure _ -> Type.CLOSURE;
-      case Dup(var value) -> {
-        var type = of(value);
+      case Dup _ -> {
+        var type = of(statement.arg(0));
         yield type == null ? null : type.withOwnership(Ownership.FRESH);
       }
-      case Force(var value) -> {
-        var type = of(value);
-        yield type == null || !(type.kind() instanceof Kind.Promise(var innerTy, var _))
+      case Force(var isMaybe) -> {
+        var type = of(statement.arg(0));
+        yield type == null || (!isMaybe && !type.isPromise())
             ? null
-            : innerTy;
+            : type.concreteness() == Concreteness.MAYBE
+                ? Type.ANY_VALUE_SEXP
+                : type.withPromisity(Promisity.VALUE);
       }
-      case Load(var variable) -> of(variable);
-      case LoadFun(var _, var _) -> Type.CLOSURE;
-      case MaybeForce(var value) -> {
-        var type = of(value);
-        yield type == null
-            ? null
-            : switch (type.kind()) {
-              case Kind.Promise(var innerTy, var _) -> innerTy;
-              case Kind.Any() -> Type.ANY_VALUE;
-              default -> type;
-            };
-      }
-      case MkVector(var kind, var _) ->
+      case Load(var loadType, var variable) ->
+          switch (loadType) {
+            case LOCAL_VAR -> of(variable);
+            case SUPER_VAR -> Type.ANY_SEXP;
+            case LOCAL_FUN, GLOBAL_FUN, BASE_FUN -> Type.CLOSURE;
+          };
+      case MkVector(var kind, _) ->
           new Type(
               kind,
+              Promisity.VALUE,
               kind.isWellFormedWithOwnership() ? Ownership.FRESH : Ownership.SHARED,
               Concreteness.DEFINITE);
-      case MkEnv(), PopEnv() -> Type.ANY;
-      case Placeholder() -> null;
-      case Promise(var valueType, var effects, var _) -> Type.promise(valueType, effects);
-      case ReflectiveLoad(var _, var _) -> Type.ANY;
-      case ReflectiveStore(var _, var _, var value) -> {
-        var valueType = of(value);
-        yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
+      case MkEnv _, Noop _, PopEnv _ -> null;
+      case Promise(var valueType, var effects, _) -> Type.promise(valueType, effects);
+      case ReflectiveLoad _ -> Type.ANY_SEXP;
+      case ReflectiveStore _, Store _ -> null;
+      case SubscriptRead _ -> {
+        var targetType = of(statement.arg(0));
+        if (targetType == null || !(targetType.kind() instanceof PrimitiveVector(_, var kind))) {
+          yield null;
+        }
+        yield Type.primitiveScalar(kind);
       }
-      case Store(var variable, var _) -> of(variable);
-      case SubscriptRead(var target, var _) -> {
-        var targetType = of(target);
-        yield targetType != null && targetType.kind() instanceof PrimitiveVector(var kind)
-            ? Type.primitiveScalar(kind)
-            : null;
-      }
-      case SubscriptWrite(var _, var _, var value) -> {
-        var valueType = of(value);
-        yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
-      }
-      case SuperLoad(var _) -> Type.ANY;
-      case SuperStore(var _, var value) -> {
-        var valueType = of(value);
-        yield valueType == null ? null : valueType.withOwnership(Ownership.SHARED);
-      }
+      case SubscriptWrite _ -> null;
     };
   }
 

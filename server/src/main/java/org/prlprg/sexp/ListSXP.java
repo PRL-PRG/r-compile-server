@@ -54,6 +54,7 @@ public sealed interface ListSXP extends AbstractListSXP, LangOrListSXP permits N
 
   ListSXP appended(ListSXP other);
 
+  @Override
   ListSXP fromIndex(int fromIndex);
 
   ListSXP prepend(TaggedElem elem);

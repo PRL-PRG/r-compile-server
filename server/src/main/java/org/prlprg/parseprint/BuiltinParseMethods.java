@@ -2,7 +2,7 @@ package org.prlprg.parseprint;
 
 import java.util.Arrays;
 import java.util.Optional;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.util.Reflection;
 import org.prlprg.util.StringCase;
 import org.prlprg.util.Strings;

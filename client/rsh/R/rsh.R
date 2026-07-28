@@ -17,6 +17,24 @@ NULL
 # Note: this only works as long as there is no useDynLib directive in
 # the NAMESPACE file.
 .onLoad <- function(libname, pkgname) {
+  # TODO(jakob): this may not be necessary,
+  # but with my setup I get a missing LLVM symbol if this isn't explicitly loaded
+  llvmConfigCandidates <- c(
+    "llvm-config-17",
+    "/opt/homebrew/Cellar/llvm@17/*/bin/llvm-config",
+    "/usr/local/Homebrew/Cellar/llvm@17/*/bin/llvm-config"
+  )
+  for (config in llvmConfigCandidates) {
+    llvmLib <- try(system(paste(config, "--libfiles"), intern=TRUE, ignore.stderr=TRUE), silent=TRUE)
+    if (class(llvmLib) != "try-error") {
+      break
+    }
+  }
+  if (class(llvmLib) == "try-error") {
+    stop("You must install llvm-17 from apt or 'brew install llvm@17'")
+  }
+  dyn.load(llvmLib, local=FALSE)
+
   so <- library.dynam("rsh", pkgname, lib.loc=.libPaths(), local=FALSE)
   symbols <- getDLLRegisteredRoutines(so, addNames=FALSE)
   env <- getNamespace(pkgname)

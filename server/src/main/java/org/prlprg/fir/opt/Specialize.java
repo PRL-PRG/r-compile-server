@@ -3,45 +3,68 @@ package org.prlprg.fir.opt;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import javax.annotation.Nullable;
+import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
 import org.prlprg.fir.analyze.AnalysisTypes;
-import org.prlprg.fir.analyze.cfg.DefUses;
 import org.prlprg.fir.analyze.type.InferType;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.position.CfgPosition;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization.DeferredInsertions;
 import org.prlprg.fir.opt.specialize.SpecializeOptimization.NonLocalSpecializations;
+import org.prlprg.fir.opt.specialize.SpecializeOptimization.Result;
+import org.prlprg.util.Streams;
 
 /// Groups [SpecializeOptimization]s (see [org.prlprg.fir.opt.specialize]).
 public class Specialize implements AbstractionOptimization {
+  private final String name;
   private final List<SpecializeOptimization> subOptimizations;
   private final AnalysisTypes analysisTypes;
 
-  public Specialize(SpecializeOptimization... subOptimizations) {
+  public Specialize(SpecializeOptimization subOptimization) {
+    this(subOptimization.name(), subOptimization);
+  }
+
+  public Specialize(String name, SpecializeOptimization... subOptimizations) {
+    this.name = name;
     this.subOptimizations = List.of(subOptimizations);
     this.analysisTypes =
         Arrays.stream(subOptimizations)
             .map(SpecializeOptimization::analyses)
-            .reduce(new AnalysisTypes(DefUses.class, InferType.class), AnalysisTypes::union);
+            .reduce(new AnalysisTypes(InferType.class), AnalysisTypes::union);
   }
 
   @Override
-  public boolean run(Abstraction abstraction) {
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public String toString() {
+    return getClass().getSimpleName() + "[" + name + "]";
+  }
+
+  @Override
+  public boolean runWithoutRecording(
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
     var analyses = new Analyses(abstraction, analysisTypes);
     var subOptimizations =
         this.subOptimizations.stream().filter(so -> so.shouldRun(abstraction, analyses)).toList();
@@ -49,26 +72,45 @@ public class Specialize implements AbstractionOptimization {
       return false;
     }
 
-    var opt = new OnAbstraction(abstraction, analyses, subOptimizations);
+    var opt = new OnAbstraction(abstraction, feedback, analyses, subOptimizations);
     opt.run();
     return opt.changed;
   }
 
+  /// A statement location `(bb, index)` in the specialization worklist. Stable during the fixpoint
+  /// because sub-optimizations only replace statements in place (same index); insertions are
+  /// deferred until after the fixpoint.
+  private record Position(BB bb, int index) {}
+
   private static class OnAbstraction {
     final Abstraction scope;
+    final AbstractionFeedback feedback;
     final Analyses analyses;
     final List<SpecializeOptimization> subOptimizations;
     boolean changed = false;
 
     public OnAbstraction(
-        Abstraction scope, Analyses analyses, List<SpecializeOptimization> subOptimizations) {
+        Abstraction scope,
+        AbstractionFeedback feedback,
+        Analyses analyses,
+        List<SpecializeOptimization> subOptimizations) {
       this.scope = scope;
+      this.feedback = feedback;
       this.analyses = analyses;
       this.subOptimizations = subOptimizations;
     }
 
     void run() {
-      var changes = new TreeSet<CfgPosition>();
+      var cfgs =
+          scope
+              .streamCfgs()
+              .gather(Streams.mapWithIndex(Map::entry))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      var changes =
+          new TreeSet<>(
+              Comparator.<Position>comparingInt(pos -> cfgs.get(pos.bb().owner()))
+                  .thenComparing(Position::bb)
+                  .thenComparingInt(Position::index));
       var deferredInsertions = new LinkedHashMap<BB, TreeMap<Integer, List<Runnable>>>();
 
       // Initially, run on every expression.
@@ -78,7 +120,7 @@ public class Specialize implements AbstractionOptimization {
               cfg -> {
                 for (var bb : cfg.bbs()) {
                   for (var i = 0; i < bb.statements().size(); i++) {
-                    var next = new CfgPosition(bb, i, bb.statements().get(i));
+                    var next = new Position(bb, i);
 
                     // Remove from `changes` in case it was added by an earlier expression,
                     // since we change it here.
@@ -97,7 +139,7 @@ public class Specialize implements AbstractionOptimization {
       }
 
       for (var subOptimization : subOptimizations) {
-        subOptimization.finish(scope, analyses);
+        changed |= subOptimization.finish(scope, analyses);
       }
 
       // Commit deferred insertions.
@@ -118,36 +160,33 @@ public class Specialize implements AbstractionOptimization {
     }
 
     void run(
-        CfgPosition position,
-        TreeSet<CfgPosition> changes,
+        Position position,
+        TreeSet<Position> changes,
         HashMap<BB, TreeMap<Integer, List<Runnable>>> deferredInsertions) {
       var bb = position.bb();
-      var statementIndex = position.instructionIndex();
-      var oldStmt =
-          (Statement)
-              Objects.requireNonNull(position.instruction(), "only adds statements to changes");
-      var assignee = oldStmt.assignee();
-      var expr = oldStmt.expression();
+      var statementIndex = position.index();
+      // Re-fetch the current statement at the position (a stored instruction reference may be
+      // stale if an earlier specialization replaced it).
+      var statement = bb.statements().get(statementIndex);
 
       var nonLocalAdapter =
           new NonLocalSpecializations() {
             @Override
-            public void replace(CfgPosition pos, Expression newExpression) {
-              var oldStmt = (Statement) Objects.requireNonNull(pos.instruction());
-              if (oldStmt.expression().equals(newExpression)) {
+            public void replace(Statement stmt, Expression newExpression) {
+              if (stmt.expression().equals(newExpression)) {
                 return;
               }
 
-              // Immediately replace
-              var assignee = oldStmt.assignee();
-              pos.replaceWith(new Statement(assignee, newExpression));
+              // Swap the operation in place (keeping arguments).
+              stmt.setExpression(newExpression);
               changed = true;
 
               // Update type if necessary
-              trySpecializeType(newExpression, assignee, changes);
+              trySpecializeType(stmt, changes);
 
               // Queue other analyses on `newExpression` (even if the type didn't change)
-              changes.add(pos);
+              var stmtBb = Objects.requireNonNull(stmt.parentBB());
+              changes.add(new Position(stmtBb, stmt.indexInBB()));
             }
           };
       var deferredInsertionsAdapter =
@@ -164,42 +203,70 @@ public class Specialize implements AbstractionOptimization {
             }
           };
 
-      // Specialize `expr`.
+      // Specialize the statement, applying each sub-optimization's result in turn.
       for (var subOptimization : subOptimizations) {
-        expr =
+        if (statement.isStandalone()) {
+          // The statement was removed or forwarded by an earlier sub-optimization.
+          break;
+        }
+        var result =
             subOptimization.run(
                 bb,
                 statementIndex,
-                assignee,
-                expr,
+                statement,
                 scope,
+                feedback,
                 analyses,
                 nonLocalAdapter,
                 deferredInsertionsAdapter);
+        switch (result) {
+          case Result.Unchanged() -> {}
+          case Result.SetExpression(var newExpression) -> {
+            if (!newExpression.equals(statement.expression())) {
+              statement.setExpression(newExpression);
+              changed = true;
+            }
+          }
+          case Result.Replace(var newExpression, var newArgs) -> {
+            var oldAssignee = statement.assignee();
+            var newStmt = new Statement(statement.comments(), newExpression, newArgs);
+            if (oldAssignee != null) {
+              var newAssignee = newStmt.setAssignee(oldAssignee.name(), oldAssignee.type());
+              oldAssignee.substUsesWith(new Read(newAssignee));
+            }
+            statement.replaceWith(newStmt);
+            statement = newStmt;
+            changed = true;
+          }
+          case Result.ForwardResult(var argument) -> {
+            var assignee = statement.assignee();
+            if (assignee != null) {
+              assignee.substUsesWith(argument);
+            }
+            statement.replaceWith(new Statement(new Noop()));
+            changed = true;
+          }
+          case Result.Remove() -> {
+            statement.replaceWith(new Statement(new Noop()));
+            changed = true;
+          }
+        }
       }
 
-      // If actually specialized, replace statement
-      if (!expr.equals(oldStmt.expression())) {
-        var newStmt = new Statement(assignee, expr);
-        bb.replaceStatementAt(statementIndex, newStmt);
-        changed = true;
+      // If the type changed (even if the operation didn't), refine the register's declared type
+      // and enqueue uses to be further specialized.
+      if (!statement.isStandalone()) {
+        trySpecializeType(statement, changes);
       }
-
-      // If the type changed (even if the expression didn't),
-      // change the register's explicit type and enqueue uses to be further specialized.
-      trySpecializeType(expr, assignee, changes);
     }
 
-    private void trySpecializeType(
-        Expression expr, @Nullable Register assignee, TreeSet<CfgPosition> changes) {
+    private void trySpecializeType(Statement statement, TreeSet<Position> changes) {
+      var assignee = statement.assignee();
       if (assignee == null) {
         return;
       }
       var oldType = scope.typeOf(assignee);
-      if (oldType == null) {
-        return;
-      }
-      var newType = analyses.get(InferType.class).of(expr);
+      var newType = analyses.get(InferType.class).of(statement);
       if (newType == null) {
         return;
       }
@@ -208,7 +275,7 @@ public class Specialize implements AbstractionOptimization {
     }
 
     void specializeType(
-        Register assignee, @Nullable Type oldType, Type newType, TreeSet<CfgPosition> changes) {
+        Register assignee, @Nullable Type oldType, Type newType, TreeSet<Position> changes) {
       if (oldType != null && oldType.equals(newType)) {
         // No specialization occurred.
         return;
@@ -222,20 +289,19 @@ public class Specialize implements AbstractionOptimization {
                 + "\nCurrent type: "
                 + newType
                 + "\n"
-                + analyses.get(DefUses.class).definitions(assignee).stream()
-                    .findFirst()
-                    .orElse(null));
+                + assignee);
       }
 
-      scope.setLocalType(assignee, newType);
+      assignee.setType(newType);
       changed = true;
 
-      for (var use : analyses.get(DefUses.class).uses(assignee)) {
-        // The position in the innermost CFG is all we care about.
-        var use1 = use.inInnermostCfg();
+      for (var use : assignee.uses()) {
+        var useInstr = use.instruction();
 
-        switch (Objects.requireNonNull(use1.instruction(), "phis are never uses")) {
-          case Statement _ -> changes.add(use1);
+        switch (useInstr) {
+          case Statement _ ->
+              changes.add(
+                  new Position(Objects.requireNonNull(useInstr.parentBB()), useInstr.indexInBB()));
           case Jump jump -> {
             // If it's a phi argument, try to refine the phi type.
             for (var target : jump.targets()) {

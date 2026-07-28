@@ -5,23 +5,23 @@ import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.Charset;
+import java.io.*;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.bc.BCCompiler;
 import org.prlprg.bc.Bc;
+import org.prlprg.bc.BcOptLevel;
 import org.prlprg.bc2c.BC2CCompiler;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.rds.RDSWriter;
 import org.prlprg.service.NativeClosure;
 import org.prlprg.service.RshCompiler;
+import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.GNURSession;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.SEXP;
@@ -37,10 +37,10 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
   // Cache for byte-code, only for functions. We keep the already serialized code in the cache
   // not the Bc (or BcCodeSXP)
   // Key is (hash, optimisationLevel)
-  private final HashMap<Pair<Long, Integer>, Pair<Bc, ByteString>> bcCache = new HashMap<>();
+  private final HashMap<Pair<Long, BcOptLevel>, Pair<Bc, ByteString>> bcCache = new HashMap<>();
   // Cache for native code.
   // Key is (hash, bcOpt, ccOpt)
-  private final HashMap<Triple<Long, Integer, Integer>, NativeClosure> nativeCache =
+  private final HashMap<Triple<Long, BcOptLevel, Integer>, NativeClosure> nativeCache =
       new HashMap<>();
 
   private static String genSymbol(Messages.Function function) {
@@ -73,7 +73,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     if (tier == Messages.Tier.UNRECOGNIZED) {
       tier = Messages.Tier.OPTIMIZED;
     }
-    var bcOpt = request.hasBcOpt() ? request.getBcOpt() : 2;
+    var bcOpt = request.hasBcOpt() ? BcOptLevel.fromValue(request.getBcOpt()) : BcOptLevel.DEFAULT;
     var ccOpt = request.hasCcOpt() ? request.getCcOpt() : 2;
     Messages.Context context = request.getContext(); // null if not provided
 
@@ -200,24 +200,20 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
           assert bc != null;
           // Name should be fully decided by the client?
           var name = genSymbol(function);
-          var bc2cCompiler = new BC2CCompiler(bc, name, false);
-          var module = bc2cCompiler.finish();
-          var input = File.createTempFile("cfile", ".c");
-          var f = Files.newWriter(input, Charset.defaultCharset());
-          module.file().writeTo(f);
-          var output = File.createTempFile("ofile", ".o");
+          var module = BC2CCompiler.compile(bc, name, false);
+          var inputFile = File.createTempFile("cfile", ".c");
+          module.code().writeTo(inputFile.toPath());
+          var outputFile = File.createTempFile("ofile", ".o");
 
-          RshCompiler.getInstance(ccOpt)
-              .createBuilder(input.getPath(), output.getPath())
+          RshCompiler.getInstance(ccOpt, RuntimeVariant.DIRECT_BC2C)
+              .createBuilder(inputFile.toPath(), outputFile.toPath())
               .flag("-c")
               .compile();
 
-          var res = Files.asByteSource(output).read();
+          var res = Files.asByteSource(outputFile).read();
           var serializedConstantPool = RDSWriter.writeByteString(module.constantPool());
 
-          ccCached =
-              new NativeClosure(
-                  ByteString.copyFrom(res), module.topLevelFunName(), serializedConstantPool);
+          ccCached = new NativeClosure(ByteString.copyFrom(res), name, serializedConstantPool);
 
           if (!request.getNoCache()) {
             nativeCache.put(nativeKey, ccCached);
@@ -314,7 +310,7 @@ class CompileService extends CompileServiceGrpc.CompileServiceImplBase {
     return new RVersion(version.getMajor(), version.getMinor(), version.getPatch());
   }
 
-  private Optional<Bc> compileBcClosure(ByteString body, int optimizationLevel) {
+  private Optional<Bc> compileBcClosure(ByteString body, BcOptLevel optimizationLevel) {
     SEXP closure = null;
     try {
       assert session != null;

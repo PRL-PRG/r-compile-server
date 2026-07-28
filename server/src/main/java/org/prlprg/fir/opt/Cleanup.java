@@ -1,64 +1,46 @@
 package org.prlprg.fir.opt;
 
-import static org.prlprg.fir.ir.cfg.iterator.Dfs.dfs;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
-import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
-import org.prlprg.fir.analyze.cfg.DefUses;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.analyze.resolve.OriginAnalysis;
+import org.prlprg.fir.analyze.type.InferEffects;
+import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.abstraction.substitute.Substituter;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.argument.Constant;
-import org.prlprg.fir.ir.argument.Use;
+import org.prlprg.fir.ir.argument.Consume;
+import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.expression.Aea;
+import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Assume;
-import org.prlprg.fir.ir.expression.Call;
-import org.prlprg.fir.ir.expression.Cast;
-import org.prlprg.fir.ir.expression.Closure;
-import org.prlprg.fir.ir.expression.Dup;
-import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.expression.Force;
-import org.prlprg.fir.ir.expression.Load;
-import org.prlprg.fir.ir.expression.LoadFun;
-import org.prlprg.fir.ir.expression.LoadFun.Env;
-import org.prlprg.fir.ir.expression.MaybeForce;
-import org.prlprg.fir.ir.expression.MkEnv;
-import org.prlprg.fir.ir.expression.MkVector;
-import org.prlprg.fir.ir.expression.Placeholder;
-import org.prlprg.fir.ir.expression.PopEnv;
-import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.expression.ReflectiveLoad;
-import org.prlprg.fir.ir.expression.ReflectiveStore;
-import org.prlprg.fir.ir.expression.Store;
-import org.prlprg.fir.ir.expression.SubscriptRead;
-import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.expression.SuperLoad;
-import org.prlprg.fir.ir.expression.SuperStore;
-import org.prlprg.fir.ir.instruction.Checkpoint;
-import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Goto;
 import org.prlprg.fir.ir.instruction.If;
 import org.prlprg.fir.ir.instruction.Jump;
-import org.prlprg.fir.ir.instruction.Return;
-import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.instruction.Unreachable;
+import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.value.Value;
+import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.ir.variable.BlockParameter;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.primitive.Logical;
 
 /// Cleanup optimizations:
 /// - Basic blocks
 ///   - Remove unreachable blocks.
-///   - Convert [If]s whose condition is always true or false, or where both targets are the same,
-///     into [Goto]s.
+///   - Convert [If]s whose condition is always true or false into [Goto]s.
+///   - Convert [If]s whose branches only pass through empty [Goto] and [If] blocks before
+///     converging into [Goto]s.
 ///   - Merge single-predecessor/single-successor blocks.
 ///   - Remove phi parameters in single-predecessor blocks (substitute with the phi argument).
 /// - Registers
@@ -67,48 +49,65 @@ import org.prlprg.primitive.Logical;
 ///   - Remove unused assignees (convert `r = e` to `e` if `r` is unused) and phis.
 /// - Instructions
 ///   - Remove trivial no-ops (pure expressions not assigned to anything).
-public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptimization {
-  public static void cleanup(Module module, boolean substituteWithOrigins) {
-    new Cleanup(substituteWithOrigins).run(module);
+///
+/// This is a special optimization that's implicitly run after other optimizations, and never
+/// reports changes.
+public record Cleanup(boolean reportChanges) implements AbstractionOptimization {
+  /// Run the [Cleanup] optimization on `module`
+  public static boolean cleanup(Module module) {
+    var changed = false;
+    for (var function : module.localFunctions()) {
+      for (var abstraction : function.versions()) {
+        changed |= cleanup(abstraction);
+      }
+    }
+    return changed;
   }
 
-  public Cleanup() {
-    this(true);
-  }
-
-  @Override
-  public boolean run(Abstraction abstraction) {
+  /// Run the [Cleanup] optimization on `abstraction`
+  public static boolean cleanup(Abstraction abstraction) {
     var opt = new OnAbstraction(abstraction);
     opt.run();
     return opt.changed;
   }
 
-  private class OnAbstraction {
+  @Override
+  public boolean runWithoutRecording(
+      @Nullable Function function, AbstractionFeedback feedback, Abstraction abstraction) {
+    var opt = new OnAbstraction(abstraction);
+    opt.run();
+    return reportChanges && opt.changed;
+  }
+
+  private static class OnAbstraction {
     final Abstraction scope;
+    final InferEffects inferEffects;
     final Substituter substituter;
     boolean changed = false;
 
     OnAbstraction(Abstraction scope) {
       this.scope = scope;
+      inferEffects = new InferEffects(scope);
       substituter = new Substituter(scope);
     }
 
     void run() {
-      // Basic blocks
-      scope.streamCfgs().forEach(this::removeUnreachableBlocks);
-      scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::simplifyBranches));
+      // Registers
+      substituteWithOrigins();
+
+      // Instructions (affected by origins)
+      scope.streamCfgs().forEach(this::removeEffectiveNoOps);
+
+      // Basic blocks (affected by instructions)
+      scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::constantFoldBranches));
+      scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeNoEffectIfJumps));
       scope.streamCfgs().forEach(cfg -> cfg.bbs().forEach(this::removeSinglePredecessorPhis));
+      scope.streamCfgs().forEach(this::removeUnreachableBlocks);
       scope.streamCfgs().forEach(this::mergeBlocks);
       substituter.commit();
 
-      // Registers
-      if (substituteWithOrigins) {
-        substituteWithOrigins();
-      }
+      // Registers (affected by instructions and blocks)
       removeUnusedLocals();
-
-      // Instructions
-      scope.streamCfgs().forEach(this::removeTrivialNoOps);
     }
 
     void removeUnreachableBlocks(CFG cfg) {
@@ -137,36 +136,134 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       changed |= !unreachable.isEmpty();
     }
 
-    void simplifyBranches(BB bb) {
-      if (bb.jump() instanceof If(Argument cond, Target ifTrue, Target ifFalse)) {
-        // Case 1: Condition is a constant
-        if (cond instanceof Constant literal) {
-          var target =
-              switch (truthiness(literal)) {
-                case TRUE -> ifTrue;
-                case FALSE -> ifFalse;
-                case NA -> null;
-              };
-          if (target == null) {
-            // If the condition is not a boolean logical, this is a type error.
-            return;
-          }
-
-          bb.setJump(new Goto(target));
-          changed = true;
-          return;
-        }
-
-        // Case 2: Both targets are the same
-        if (ifTrue.bb() == ifFalse.bb() && ifTrue.phiArgs().equals(ifFalse.phiArgs())) {
-          bb.setJump(new Goto(ifTrue));
+    void constantFoldBranches(BB bb) {
+      if (bb.jump().expression() instanceof If) {
+        var cond = bb.jump().arg(0);
+        var targets = bb.jump().targets();
+        if (cond instanceof Constant(var c) && c instanceof Value.Bool(var b)) {
+          var target = b ? targets.get(0) : targets.get(1);
+          bb.setJump(new Jump(bb.jump().comments(), new Goto(target.bbRef()), target.phiArgs()));
           changed = true;
         }
       }
     }
 
-    static Logical truthiness(Constant constant) {
-      return constant.sexp().asScalarLogical().orElse(Logical.NA);
+    void removeNoEffectIfJumps(BB bb) {
+      if (!(bb.jump().expression() instanceof If)) {
+        return;
+      }
+      var comments = bb.jump().comments();
+      var targets = bb.jump().targets();
+
+      var collapsedIfTrue = collapseTransparentTarget(targets.get(0));
+      if (collapsedIfTrue == null) {
+        return;
+      }
+      var collapsedIfFalse = collapseTransparentTarget(targets.get(1));
+      if (collapsedIfFalse == null) {
+        return;
+      }
+
+      if (!collapsedIfTrue.equals(collapsedIfFalse)) {
+        return;
+      }
+
+      bb.setJump(new Jump(comments, new Goto(collapsedIfTrue.bbRef()), collapsedIfTrue.phiArgs()));
+      changed = true;
+    }
+
+    @Nullable Target collapseTransparentTarget(Target start) {
+      var exits = new LinkedHashSet<Target>();
+      var visited = new LinkedHashSet<Target>();
+      var worklist = new ArrayList<Target>();
+      worklist.add(start);
+
+      while (!worklist.isEmpty()) {
+        var current = worklist.removeLast();
+        if (!visited.add(current)) {
+          continue;
+        }
+
+        var currentBb = current.bb();
+        if (!isTransparentBranchBypass(currentBb)) {
+          exits.add(current);
+          if (exits.size() > 1) {
+            return null;
+          }
+          continue;
+        }
+
+        var nextTargets = instantiatedTargets(current);
+        if (nextTargets == null) {
+          return null;
+        }
+        worklist.addAll(nextTargets);
+      }
+
+      return exits.size() == 1 ? Iterables.getOnlyElement(exits) : null;
+    }
+
+    boolean isTransparentBranchBypass(BB bb) {
+      return bb.statements().isEmpty()
+          && (bb.jump().expression() instanceof Goto || bb.jump().expression() instanceof If);
+    }
+
+    @Nullable ImmutableList<Target> instantiatedTargets(Target incoming) {
+      var bb = incoming.bb();
+      var phiParameters = bb.phiParameters();
+      var phiArgs = incoming.phiArgs();
+      if (phiParameters.size() != phiArgs.size()) {
+        return null;
+      }
+
+      var targets = ImmutableList.<Target>builderWithExpectedSize(bb.jump().targets().size());
+      for (var target : bb.jump().targets()) {
+        var instantiatedTarget = instantiateTarget(target, phiParameters, phiArgs);
+        if (instantiatedTarget == null) {
+          return null;
+        }
+        targets.add(instantiatedTarget);
+      }
+      return targets.build();
+    }
+
+    @Nullable Target instantiateTarget(
+        Target target, List<? extends Register> phiParameters, List<Argument> phiArgs) {
+      var instantiatedArgs =
+          ImmutableList.<Argument>builderWithExpectedSize(target.phiArgs().size());
+      for (var argument : target.phiArgs()) {
+        var instantiatedArgument = instantiateArgument(argument, phiParameters, phiArgs);
+        if (instantiatedArgument == null) {
+          return null;
+        }
+        instantiatedArgs.add(instantiatedArgument);
+      }
+      return new Target(target.bb(), instantiatedArgs.build());
+    }
+
+    @Nullable Argument instantiateArgument(
+        Argument argument, List<? extends Register> phiParameters, List<Argument> phiArgs) {
+      var variable = argument.variable();
+      if (variable == null) {
+        return argument;
+      }
+
+      var phiIndex = phiParameters.indexOf(variable);
+      if (phiIndex == -1) {
+        return argument;
+      }
+
+      var phiArg = phiArgs.get(phiIndex);
+      return switch (argument) {
+        case Read _ -> phiArg;
+        case Consume _ ->
+            switch (phiArg) {
+              case Read(var register) -> new Consume(register);
+              case Consume _ -> phiArg;
+              case Constant _ -> null;
+            };
+        case Constant _ -> argument;
+      };
     }
 
     void removeSinglePredecessorPhis(BB bb) {
@@ -183,7 +280,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
       // Skip if the predecessor has multiple targets pointing to this BB.
       // For example, if the predecessor is an `If` and both branches point to this block:
-      // - if the arguments are the same, it will be handled by `simplifyBranches`.
+      // - if the arguments are the same, it will be handled by `removeNoEffectIfJumps`.
       // - if the arguments are different, we can't remove the jump or phi parameters.
       var jumpTargets =
           predecessor.jump().targets().stream().filter(target -> target.bb() == bb).toList();
@@ -215,14 +312,14 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       }
 
       // Remove phi parameter definitions and arguments.
-      bb.clearParameters();
-      predecessor.setJump(removingAllJumpArguments(predecessor.jump(), bb));
+      bb.clearPhiParameters();
+      removingAllJumpArguments(predecessor.jump(), bb);
 
       changed = true;
     }
 
     void mergeBlocks(CFG cfg) {
-      for (var bb : dfs(cfg)) {
+      for (var bb : BbDfs.bbDfs(cfg)) {
         while (canMergeWithSuccessor(bb)) {
           mergeWithSuccessor(bb);
         }
@@ -233,9 +330,10 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
       // Can merge if:
 
       // 1. Block has exactly one successor ([Goto])
-      if (!(bb.jump() instanceof Goto(var target))) {
+      if (!(bb.jump().expression() instanceof Goto)) {
         return false;
       }
+      var target = bb.jump().targets().getFirst();
       var successor = target.bb();
 
       // 2. That successor has exactly one predecessor (this block)
@@ -254,7 +352,7 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
 
     void mergeWithSuccessor(BB first) {
       var cfg = first.owner();
-      var target = ((Goto) first.jump()).target();
+      var target = first.jump().targets().getFirst();
       var second = target.bb();
 
       // Substitute phi parameters with arguments
@@ -265,9 +363,15 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         substituter.stage(phi, arg);
       }
 
-      // Add statements and replace jump
-      first.appendStatements(second.statements());
-      first.setJump(second.jump());
+      // Move the successor's statements to the end of this block and adopt a copy of its jump.
+      for (var s : List.copyOf(second.statements())) {
+        s.moveBefore(first.jump());
+      }
+      first.setJump(
+          new Jump(
+              second.jump().comments(),
+              second.jump().expression(),
+              List.copyOf(second.jump().args())));
 
       // Remove second block
       cfg.removeBB(second);
@@ -276,17 +380,21 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     }
 
     void substituteWithOrigins() {
-      var analyses =
-          new Analyses(scope, OriginAnalysis.class, DefUses.class, CfgDominatorTree.class);
-      var defUseAnalysis = analyses.get(DefUses.class);
+      var analyses = new Analyses(scope, OriginAnalysis.class, DominatorTree.class);
+      var domTree = analyses.get(DominatorTree.class);
       var originAnalysis = analyses.get(OriginAnalysis.class);
 
       for (var entry : originAnalysis.registerOrigins().entrySet()) {
         var register = entry.getKey();
         var origin = entry.getValue();
 
-        // Can't substitute with `use`, unless there's exactly one occurrence besides this one.
-        if (origin instanceof Use(var used) && defUseAnalysis.uses(used).size() > 2) {
+        // Can't substitute invalid
+        if (!scope.contains(register)) {
+          continue;
+        }
+
+        // Can't substitute with `consume`, unless there's exactly one other occurrence.
+        if (origin instanceof Consume(var used) && used.useCount() > 2) {
           continue;
         }
 
@@ -297,17 +405,14 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
         // But if it did, technically we're allowed to substitute and the code is "valid" in
         // that it won't cause UB (assuming no other bugs), it just isn't "valid" according to
         // our underapproximate but simpler criteria (promises can never be guaranteed forced).
-        var originDef =
-            origin.variable() == null ? null : defUseAnalysis.definition(origin.variable());
-        if (originDef != null
-            && defUseAnalysis.uses(register).stream()
-                .anyMatch(
-                    registerUse ->
-                        !CfgDominatorTree.dominates(
-                            cfg -> analyses.get(cfg, CfgDominatorTree.class),
-                            originDef,
-                            registerUse))) {
-          continue;
+        if (origin.variable() != null) {
+          var originVar = origin.variable();
+          if (originVar.definingBB() == null
+              || register.uses().stream()
+                  .anyMatch(
+                      registerUse -> !domTree.dominates(originVar, registerUse.instruction()))) {
+            continue;
+          }
         }
 
         substituter.stage(register, origin);
@@ -320,125 +425,65 @@ public record Cleanup(boolean substituteWithOrigins) implements AbstractionOptim
     void removeUnusedLocals() {
       // ???: Do we need to repeat this for long phi/jump-argument chains, since we remove jump
       //  arguments? Or we may need to do something equivalent to repeating but more optimal.
-      var defUses = new DefUses(scope);
-
-      var iterator = scope.mutablyIterateLocals();
-      while (iterator.hasNext()) {
-        var local = iterator.next();
-
-        if (!(local.variable() instanceof Register localReg && defUses.uses(localReg).isEmpty())) {
+      for (var localReg : scope.streamRegisters().toList()) {
+        // A register exists only by virtue of its definition; "removing" an unused non-parameter
+        // register means removing its phi parameter or clearing its assigning statement's assignee.
+        if (scope.isParameter(localReg) || localReg.isUsed()) {
           continue;
         }
 
-        // Remove the local from definitions
-        for (var definition : defUses.definitions(localReg)) {
-          var localDef = definition.inInnermostCfg();
-          var defBb = localDef.bb();
-          var defStmt = (Statement) localDef.instruction();
-
-          if (defStmt == null) {
+        switch (localReg) {
+          case BlockParameter phi -> {
             // Remove unused phi
-            var phiIndex = defBb.phiParameters().indexOf(localReg);
+            var defBb = phi.owner();
+            if (defBb == null) {
+              break;
+            }
+            var phiIndex = defBb.phiParameters().indexOf(phi);
             assert phiIndex != -1
-                : "def-use analysis reported a def in phis, but there is no phi: "
-                    + localReg
-                    + " in\n"
-                    + defBb;
+                : "phi's owner block doesn't contain it: " + phi + " in\n" + defBb;
             defBb.removeParameterAt(phiIndex);
             for (var pred : defBb.predecessors()) {
-              pred.setJump(removingJumpArgument(pred.jump(), defBb, phiIndex));
+              removingJumpArgument(pred.jump(), defBb, phiIndex);
             }
-          } else {
-            // Convert assignment to void statement
-            localDef.replaceWith(new Statement(defStmt.expression()));
           }
+          // Convert assignment to void statement
+          case AssigneeOf a -> a.statement().clearAssignee();
+          // Parameters are excluded above.
+          case FunctionParameter _ -> {}
         }
 
-        // Remove the local from the scope
-        iterator.remove();
         changed = true;
       }
     }
 
-    void removeTrivialNoOps(CFG cfg) {
+    void removeEffectiveNoOps(CFG cfg) {
       for (var bb : cfg.bbs()) {
         for (int i = 0; i < bb.statements().size(); ) {
           var stmt = bb.statements().get(i);
-          if (stmt.assignee() != null || !isTriviallyPure(stmt.expression())) {
+          if ((stmt.assignee() != null && stmt.assignee().isUsed())
+              || stmt.expression() instanceof Assume
+              || inferEffects.of(stmt) != Effects.NONE) {
             i++;
             continue;
           }
 
-          // No-op, remove
-          bb.removeStatementAt(i);
+          // No-op, remove (the next statement shifts into index `i`).
+          stmt.remove();
           changed = true;
         }
       }
     }
-
-    boolean isTriviallyPure(Expression expression) {
-      return switch (expression) {
-        case Aea _ -> true;
-        case Assume _, Call _ -> false;
-        // Other instructions may implicitly depend on it succeeding
-        case Cast _ -> false;
-        case Closure _, Dup _ -> true;
-        case Force _ -> false;
-        // May error
-        case Load _ -> false;
-        // May force iff `env == Env.LOCAL`
-        case LoadFun(var _, var env) -> env != Env.LOCAL;
-        case MaybeForce _ -> false;
-        case MkVector _ -> true;
-        case MkEnv _, Placeholder _, PopEnv _ -> false;
-        case Promise _ -> true;
-        case ReflectiveLoad _, ReflectiveStore _, Store _ -> false;
-        // May error
-        case SubscriptRead _ -> false;
-        case SubscriptWrite _ -> false;
-        // May error
-        case SuperLoad _ -> false;
-        case SuperStore _ -> false;
-      };
-    }
   }
 
-  /// Returns the jump removing the phi argument in the target pointing to `targetBb`.
-  public static Jump removingJumpArgument(Jump jump, BB targetBb, int index) {
-    return switch (jump) {
-      case Goto(var next) -> new Goto(removingJumpArgument(next, targetBb, index));
-      case If(var condition, var ifTrue, var ifFalse) ->
-          new If(
-              condition,
-              removingJumpArgument(ifTrue, targetBb, index),
-              removingJumpArgument(ifFalse, targetBb, index));
-      case Return(var value) -> new Return(value);
-      case Checkpoint(var success, var deopt) ->
-          new Checkpoint(
-              removingJumpArgument(success, targetBb, index),
-              removingJumpArgument(deopt, targetBb, index));
-      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-      case Unreachable() -> new Unreachable();
-    };
+  /// Removes (in place) the phi argument at `index` in `jump`'s target(s) pointing to `targetBb`.
+  public static void removingJumpArgument(Jump jump, BB targetBb, int index) {
+    jump.mapTargets(t -> removingJumpArgument(t, targetBb, index));
   }
 
-  /// Returns the jump removing all phi arguments for the given target BB
-  private static Jump removingAllJumpArguments(Jump jump, BB targetBb) {
-    return switch (jump) {
-      case Goto(var next) -> new Goto(removingAllJumpArguments(next, targetBb));
-      case If(var condition, var ifTrue, var ifFalse) ->
-          new If(
-              condition,
-              removingAllJumpArguments(ifTrue, targetBb),
-              removingAllJumpArguments(ifFalse, targetBb));
-      case Return(var value) -> new Return(value);
-      case Checkpoint(var success, var deopt) ->
-          new Checkpoint(
-              removingAllJumpArguments(success, targetBb),
-              removingAllJumpArguments(deopt, targetBb));
-      case Deopt(var pc, var stack) -> new Deopt(pc, stack);
-      case Unreachable() -> new Unreachable();
-    };
+  /// Removes (in place) all phi arguments in `jump`'s target(s) pointing to `targetBb`.
+  private static void removingAllJumpArguments(Jump jump, BB targetBb) {
+    jump.mapTargets(t -> removingAllJumpArguments(t, targetBb));
   }
 
   /// If this points to `targetBb`, returns removing the phi argument at the given index.

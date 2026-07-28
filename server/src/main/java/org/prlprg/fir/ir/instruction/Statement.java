@@ -1,29 +1,107 @@
 package org.prlprg.fir.ir.instruction;
 
-import java.util.Collection;
-import javax.annotation.Nullable;
-import org.jetbrains.annotations.UnmodifiableView;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiFunction;
+import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Expression;
-import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.fir.ir.variable.Variable;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
+import org.prlprg.fir.ir.type.Type;
+import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.primitive.Names;
-import org.prlprg.util.Characters;
 
-public record Statement(@Nullable Register assignee, Expression expression) implements Instruction {
-  public static final Statement NOOP = new Statement(Expression.NOOP);
+/// An [Instruction] that evaluates an [Expression], optionally assigning the result to a register
+/// ([#assignee]).
+public final class Statement extends Instruction {
+  private Expression expression;
+  private @Nullable AssigneeOf assignee;
+
+  public Statement(Comments comments, Expression expression, List<Argument> args) {
+    super(comments, args);
+    this.expression = expression;
+  }
+
+  public Statement(Expression expression, List<Argument> args) {
+    this(new Comments(), expression, args);
+  }
 
   public Statement(Expression expression) {
-    this(null, expression);
+    this(new Comments(), expression, List.of());
+  }
+
+  public Expression expression() {
+    return expression;
+  }
+
+  /// Replace the operation while keeping the arguments and assignee. The new expression must use
+  /// the same argument layout (caller's responsibility).
+  public void setExpression(Expression expression) {
+    this.expression = expression;
+  }
+
+  /// The register this statement's result is assigned to, or `null` if the result is discarded.
+  public @Nullable AssigneeOf assignee() {
+    return assignee;
+  }
+
+  /// Give this statement's result a register named `name` of declared `type`, and return it.
+  public AssigneeOf setAssignee(String name, Type type) {
+    assignee = new AssigneeOf(this, name, type);
+    return assignee;
+  }
+
+  public void clearAssignee() {
+    assignee = null;
+  }
+
+  // --- Positioning ----------------------------------------------------------------------------
+
+  /// Splice this (standalone) statement immediately before `point`, which must be in a CFG.
+  public void insertBefore(Instruction point) {
+    if (!isStandalone()) {
+      throw new IllegalStateException("Statement already in a CFG; remove or copy it first");
+    }
+    var pPrev = point.prev();
+    setPrev(pPrev);
+    setNext(point);
+    pPrev.setNext(this);
+    point.setPrev(this);
+  }
+
+  /// Splice this (standalone) statement immediately after `point`, which must be in a CFG.
+  public void insertAfter(Instruction point) {
+    if (!isStandalone()) {
+      throw new IllegalStateException("Statement already in a CFG; remove or copy it first");
+    }
+    var pNext = point.next();
+    setNext(pNext);
+    setPrev(point);
+    pNext.setPrev(this);
+    point.setNext(this);
+  }
+
+  /// A standalone copy with arguments mapped through `copyArguments` (index, oldArg) -> newArg.
+  /// If this has an assignee, the copy gets a fresh assignee with the same name and type.
+  public Statement copy(BiFunction<Integer, Argument, Argument> copyArguments) {
+    var newArgs = new ArrayList<Argument>(argCount());
+    for (var i = 0; i < argCount(); i++) {
+      newArgs.add(copyArguments.apply(i, arg(i)));
+    }
+    var copy = new Statement(comments(), expression, newArgs);
+    if (assignee != null) {
+      copy.setAssignee(assignee.name(), assignee.type());
+    }
+    return copy;
   }
 
   @Override
-  public @UnmodifiableView Collection<Argument> arguments() {
-    return expression.arguments();
+  public void replaceWith(Instruction newInst) {
+    if (!(newInst instanceof Statement)) {
+      throw new IllegalArgumentException("A Statement can only be replaced with a Statement");
+    }
+    super.replaceWith(newInst);
   }
 
   @Override
@@ -33,36 +111,13 @@ public record Statement(@Nullable Register assignee, Expression expression) impl
 
   @PrintMethod
   private void print(Printer p) {
+    p.print(comments());
     if (assignee != null) {
       p.print(assignee);
+      p.writer().write(": ");
+      p.print(assignee.type());
       p.writer().write(" = ");
     }
-    p.print(expression);
-  }
-
-  @ParseMethod
-  private static Statement parse(Parser p1, ParseContext ctx) {
-    var cfg = ctx.cfg();
-    var postModule = ctx.postModule();
-    var p = p1.withContext(ctx.inner());
-    var p2 = p.withContext(new Expression.ParseContext(null, cfg, postModule, ctx.inner()));
-
-    var s = p.scanner();
-
-    if (s.nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))) {
-      var nameHead = s.nextCharIs('`') ? Names.read(s, true) : s.readIdentifierOrKeyword();
-
-      if (s.trySkip('=')) {
-        var assignee = Variable.register(nameHead);
-        var expression = p2.parse(Expression.class);
-        return new Statement(assignee, expression);
-      } else {
-        return new Statement(
-            p.withContext(new Expression.ParseContext(nameHead, cfg, postModule, ctx.inner()))
-                .parse(Expression.class));
-      }
-    } else {
-      return new Statement(p2.parse(Expression.class));
-    }
+    IrText.printExpression(p, this);
   }
 }

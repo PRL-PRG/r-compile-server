@@ -1,0 +1,16 @@
+package org.prlprg.bc2fir;
+
+import org.jspecify.annotations.Nullable;
+import org.prlprg.bc.Bc;
+import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+
+/**
+ * {@link BC2FirCFGCompilerException} thrown when encountering an unsupported bytecode instruction,
+ * e.g. {@link org.prlprg.bc.BcInstr.GetSymFun GetSymFun}.
+ */
+public final class BC2FirCFGCompilerUnsupportedException extends BC2FirCFGCompilerException {
+  BC2FirCFGCompilerUnsupportedException(
+      String message, Bc bc, int bcPos, CFGCursor irPos, @Nullable Throwable cause) {
+    super(message, bc, bcPos, irPos, cause);
+  }
+}

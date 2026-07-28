@@ -5,25 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
 import org.junit.jupiter.api.Test;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.PromSXP;
 import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Pair;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
 
-@GNURTestSupport
 public class ContextTest {
-
-  private final GNUR R;
-
-  public ContextTest(GNUR R) {
-    this.R = R;
-  }
-
   @Test
   public void testFindLocals() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -42,6 +35,8 @@ public class ContextTest {
 
   @Test
   public void testFindLocalsInFormals() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -57,6 +52,8 @@ public class ContextTest {
 
   @Test
   public void testFindLocalsWithShadowing() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -78,6 +75,8 @@ public class ContextTest {
   @SuppressWarnings("OptionalGetWithoutIsPresent")
   @Test
   public void testBindingInNestedFunction() {
+    var R = GNUR.instance();
+
     var fun =
         (CloSXP)
             R.eval(
@@ -113,6 +112,8 @@ public class ContextTest {
 
   @Test
   public void testFindLocalsWithShadowingInOtherEnvironment() {
+    var R = GNUR.instance();
+
     /*
     > local <- function(a) a
     > f <- function(y) { local(x <- y); x }
@@ -142,6 +143,8 @@ public class ContextTest {
 
   @Test
   public void testFrameTypes() {
+    var R = GNUR.instance();
+
     var fun = (CloSXP) R.eval("utils::unzip");
     var ctx = Context.functionContext(fun);
 

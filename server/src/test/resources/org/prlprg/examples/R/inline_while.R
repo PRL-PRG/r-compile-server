@@ -1,0 +1,1 @@
+while (FALSE) 1

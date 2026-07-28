@@ -14,21 +14,14 @@ import org.prlprg.bc.BCCompiler;
 import org.prlprg.primitive.Complex;
 import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
+import org.prlprg.session.gnur.GNUR;
 import org.prlprg.sexp.*;
-import org.prlprg.util.gnur.GNUR;
-import org.prlprg.util.gnur.GNURTestSupport;
 
-@GNURTestSupport
 public class RDSWriterTest {
-
-  private final GNUR R;
-
-  public RDSWriterTest(GNUR R) {
-    this.R = R;
-  }
-
   @Test
   public void testInts() throws Exception {
+    var R = GNUR.instance();
+
     var ints = integer(5, 4, 3, 2, 1);
     var output = new ByteArrayOutputStream();
 
@@ -51,6 +44,8 @@ public class RDSWriterTest {
 
   @Test
   public void testInts_withR() {
+    var R = GNUR.instance();
+
     var ints = integer(5, 4, 3, 2, 1);
     var output =
         R.eval("typeof(input) == 'integer' && identical(input, c(5L, 4L, 3L, 2L, 1L))", ints);
@@ -65,6 +60,8 @@ public class RDSWriterTest {
 
   @Test
   public void testComplex() throws Exception {
+    var R = GNUR.instance();
+
     var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
     var output = new ByteArrayOutputStream();
 
@@ -83,6 +80,8 @@ public class RDSWriterTest {
 
   @Test
   public void testComplex_withR() {
+    var R = GNUR.instance();
+
     var complexes = complex(new Complex(0, 0), new Complex(1, 2), new Complex(-2, -1));
     var output =
         R.eval("typeof(input) == 'complex' && identical(input, c(0+0i, 1+2i, -2-1i))", complexes);
@@ -97,6 +96,8 @@ public class RDSWriterTest {
 
   @Test
   public void testLang() throws Exception {
+    var R = GNUR.instance();
+
     var lang =
         lang(
             symbol("func"),
@@ -115,14 +116,16 @@ public class RDSWriterTest {
 
       assert name.isPresent();
 
-      assertEquals(name.get(), "func");
-      assertEquals(arg1, new TaggedElem("arg", integer(1)));
-      assertEquals(arg2, new TaggedElem(integer(2)));
+      assertEquals("func", name.get());
+      assertEquals(new TaggedElem("arg", integer(1)), arg1);
+      assertEquals(new TaggedElem(integer(2)), arg2);
     }
   }
 
   @Test
   public void testVecAttributes() throws Exception {
+    var R = GNUR.instance();
+
     var attrs =
         new Attributes.Builder().put("a", integer(1)).put("b", logical(Logical.TRUE)).build();
     var ints = integer(1, attrs);
@@ -145,6 +148,8 @@ public class RDSWriterTest {
 
   @Test
   public void testLgls() throws Exception {
+    var R = GNUR.instance();
+
     var lgls = logical(Logical.TRUE, Logical.FALSE, Logical.NA);
     var output = new ByteArrayOutputStream();
 
@@ -165,6 +170,8 @@ public class RDSWriterTest {
 
   @Test
   public void testReals() throws Exception {
+    var R = GNUR.instance();
+
     var reals = real(5.2, 4.0, Constants.NA_REAL, 2.0, NaN, 1.0);
     var output = new ByteArrayOutputStream();
 
@@ -188,6 +195,8 @@ public class RDSWriterTest {
 
   @Test
   public void testNull() throws Exception {
+    var R = GNUR.instance();
+
     var output = new ByteArrayOutputStream();
 
     RDSWriter.writeStream(output, NULL);
@@ -200,6 +209,8 @@ public class RDSWriterTest {
 
   @Test
   public void testVec() throws Exception {
+    var R = GNUR.instance();
+
     var vec = vec(integer(1, 2, 3), logical(Logical.TRUE, Logical.FALSE, Logical.NA));
     var output = new ByteArrayOutputStream();
 
@@ -233,6 +244,8 @@ public class RDSWriterTest {
 
   @Test
   public void testList() throws Exception {
+    var R = GNUR.instance();
+
     var elems =
         new TaggedElem[] {
           new TaggedElem("a", integer(1)),
@@ -275,6 +288,8 @@ public class RDSWriterTest {
 
   @Test
   public void testEnv() throws Exception {
+    var R = GNUR.instance();
+
     var env = new UserEnvSXP();
     env.set("a", integer(1));
     env.set("b", logical(Logical.TRUE));
@@ -305,6 +320,8 @@ public class RDSWriterTest {
 
   @Test
   public void testEnv_withR() {
+    var R = GNUR.instance();
+
     var env = new UserEnvSXP();
     env.set("a", integer(1));
     env.set("b", logical(Logical.TRUE));
@@ -323,6 +340,8 @@ public class RDSWriterTest {
 
   @Test
   public void testClosureEval() {
+    var R = GNUR.instance();
+
     // function(x, y=1) length(x) + x + y
     // test by loading the closure into R and evaluating
     var clo =
@@ -345,6 +364,8 @@ public class RDSWriterTest {
 
   @Test
   public void testClosureWithBC() throws Exception {
+    var R = GNUR.instance();
+
     // Same closure as `testClosure`, just compiled to bytecode
     // Test by serializing and deserializing
     var clo =
@@ -370,6 +391,8 @@ public class RDSWriterTest {
 
   @Test
   public void testClosureWithBCEval() {
+    var R = GNUR.instance();
+
     // Same closure as `testClosure`, just compiled to bytecode
     // Test by loading into R and evaluating
     var clo =

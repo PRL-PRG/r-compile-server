@@ -1,0 +1,1 @@
+identical(quit, "internal")

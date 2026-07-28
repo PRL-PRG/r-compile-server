@@ -1,14 +1,10 @@
 package org.prlprg.primitive;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Set;
 import org.prlprg.rds.RDSReader;
 import org.prlprg.sexp.SEXPs;
 
 /** Constants for R runtime primitives. Other constants are in {@link SEXPs}. */
-@SuppressFBWarnings(
-    value = {"DM_STRING_CTOR", "ES_COMPARING_PARAMETER_STRING_WITH_EQ"},
-    justification = "NA_STRING has to be a unique string, and we compare via direct equality")
 public final class Constants {
   // according to Arith.h
   /**

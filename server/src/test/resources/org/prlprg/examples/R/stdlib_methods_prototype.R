@@ -1,0 +1,3 @@
+#? stdlib
+`prototype` <- function (...) 
+.prototype(...)

@@ -1,12 +1,18 @@
 package org.prlprg.fir.analyze.cfg;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.prlprg.fir.analyze.Analysis;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.instruction.Instruction;
+import org.prlprg.fir.ir.variable.AssigneeOf;
+import org.prlprg.fir.ir.variable.BlockParameter;
+import org.prlprg.fir.ir.variable.FunctionParameter;
+import org.prlprg.fir.ir.variable.Register;
 
 /// Dominator tree that can check if instructions and blocks in promise [CFG]s dominate or are
 /// dominated by those outside or in other promises.
@@ -30,6 +36,37 @@ public final class DominatorTree implements Analysis {
     this.hierarchy = hierarchy;
   }
 
+  /// Check if `dominator` dominates `dominee`, across promise scopes.
+  public boolean dominates(Instruction dominator, Instruction dominee) {
+    return dominates(
+        Objects.requireNonNull(dominator.parentBB()),
+        dominator.indexInBB(),
+        Objects.requireNonNull(dominee.parentBB()),
+        dominee.indexInBB());
+  }
+
+  /// Check if `definition`'s definition site dominates `use`, across promise scopes.
+  ///
+  /// The definition must be attached to a CFG (for an [AssigneeOf], its statement must be in a
+  /// block).
+  public boolean dominates(Register definition, Instruction use) {
+    var useBb = Objects.requireNonNull(use.parentBB());
+    var useIdx = use.indexInBB();
+    return switch (definition) {
+      case FunctionParameter param -> {
+        var owner = Objects.requireNonNull(param.owner());
+        var entry = Objects.requireNonNull(owner.cfg()).entry();
+        yield dominates(entry, -1, useBb, useIdx);
+      }
+      case BlockParameter phi -> dominates(Objects.requireNonNull(phi.owner()), -1, useBb, useIdx);
+      case AssigneeOf assignee -> {
+        var defStmt = assignee.statement();
+        var defBb = Objects.requireNonNull(defStmt.parentBB());
+        yield dominates(defBb, defStmt.indexInBB(), useBb, useIdx);
+      }
+    };
+  }
+
   /// Check if `dominatorBb`/`dominatorIndex` dominates `domineeBb`/`domineeIndex`.
   public boolean dominates(BB dominatorBb, int dominatorIndex, BB domineeBb, int domineeIndex) {
     if (!cfgs.containsKey(dominatorBb.owner())) {
@@ -45,13 +82,13 @@ public final class DominatorTree implements Analysis {
             .dominates(dominatorBb, dominatorIndex, domineeBb, domineeIndex);
       }
 
-      var domineeParentPos = hierarchy.parent(domineeBb.owner());
-      if (domineeParentPos == null) {
+      var domineeParent = hierarchy.parentPromise(domineeBb.owner());
+      if (domineeParent == null) {
         return false;
       }
 
-      domineeBb = domineeParentPos.bb();
-      domineeIndex = domineeParentPos.instructionIndex();
+      domineeBb = Objects.requireNonNull(domineeParent.parentBB());
+      domineeIndex = domineeParent.indexInBB();
     }
   }
 
@@ -69,13 +106,13 @@ public final class DominatorTree implements Analysis {
         return cfgs.get(dominator.owner()).dominates(dominator, dominee);
       }
 
-      var domineeParentPos = hierarchy.parent(dominee.owner());
-      if (domineeParentPos == null) {
+      var domineeParent = hierarchy.parentPromise(dominee.owner());
+      if (domineeParent == null) {
         return false;
       }
 
-      // This works even though we forget `domineeParentPos.instructionIndex`.
-      dominee = domineeParentPos.bb();
+      // This works even though we forget the parent's instruction index.
+      dominee = Objects.requireNonNull(domineeParent.parentBB());
     }
   }
 }

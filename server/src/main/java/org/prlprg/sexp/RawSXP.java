@@ -11,6 +11,12 @@ import org.prlprg.parseprint.Printer;
 @Immutable
 public sealed interface RawSXP extends PrimVectorSXP<Byte>
     permits EmptyRawSXPImpl, RawSXPImpl, ScalarRawSXP {
+  /**
+   * The data contained in this vector. Note that if it's an empty or scalar, those aren't actually
+   * backed by an array, so this gets created and returns every access.
+   */
+  byte[] data();
+
   @Override
   default SEXPType type() {
     return SEXPType.RAW;
@@ -42,6 +48,11 @@ final class RawSXPImpl implements RawSXP {
   RawSXPImpl(byte[] data, Attributes attributes) {
     this.data = Arrays.copyOf(data, data.length);
     this.attributes = attributes;
+  }
+
+  @Override
+  public byte[] data() {
+    return data;
   }
 
   @Override
@@ -117,6 +128,11 @@ final class ScalarRawSXP extends ScalarSXPImpl<Byte> implements RawSXP {
     super(data);
   }
 
+  @Override
+  public byte[] data() {
+    return new byte[] {data};
+  }
+
   @SuppressWarnings("MissingJavadoc")
   public Byte value() {
     return data;
@@ -139,6 +155,11 @@ final class EmptyRawSXPImpl extends EmptyVectorSXPImpl<Byte> implements RawSXP {
 
   private EmptyRawSXPImpl() {
     super();
+  }
+
+  @Override
+  public byte[] data() {
+    return new byte[0];
   }
 
   @Override

@@ -1,0 +1,3 @@
+f <- function() ...
+
+tryCatch(f(), error = function(e) stopifnot(e$message == "'...' used in an incorrect context"))

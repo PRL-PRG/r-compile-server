@@ -11,16 +11,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.UnmodifiableView;
-import org.prlprg.fir.ir.CommentParser;
-import org.prlprg.fir.ir.binding.Parameter;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.observer.Observer;
+import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.parseprint.ParseMethod;
+import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.util.DeferredCallbacks;
 
 public final class Module {
   // Observers
@@ -33,7 +32,7 @@ public final class Module {
     return Collections.unmodifiableCollection(functions.values());
   }
 
-  /// Lookup a function in this module or enclosing modules (the intrinsic and builtin modules).
+  /// Lookup a function in this module or enclosing modules (the builtin and intrinsic modules).
   public @Nullable Function lookupFunction(NamedVariable name) {
     var f = functions.get(name);
     if (f != null) {
@@ -60,7 +59,7 @@ public final class Module {
   public Function addFunction(
       NamedVariable name,
       List<NamedVariable> parameterNames,
-      List<Parameter> baselineParameters,
+      List<FunctionParameter> baselineParameters,
       boolean baselineIsStub) {
     return this.record(
         "Module#addFunction",
@@ -95,6 +94,11 @@ public final class Module {
     observers.remove(observer);
   }
 
+  /// Run all observers associated with the given function and arguments, before and after
+  /// `action`
+  ///
+  /// All mutating IR operations (except deferred initialization) must be wrapped in
+  /// `module.record`
   public <T> T record(String func, List<Object> args, Supplier<T> action) {
     for (var observer : observers) {
       observer.before(func, args);
@@ -120,8 +124,12 @@ public final class Module {
         args,
         () -> {
           action.run();
-          return null;
+          return 0;
         });
+  }
+
+  public Module deepCopy() {
+    return Parser.fromString(toString(), Module.class);
   }
 
   @Override
@@ -131,28 +139,35 @@ public final class Module {
 
   @PrintMethod
   private void print(Printer p) {
-    p.printSeparated("\n", functions.values());
+    p.printSeparated("\n\n", functions.values());
   }
 
   @ParseMethod
-  private static Module parse(org.prlprg.parseprint.Parser p) {
+  private static Module parse(Parser p) {
     var s = p.scanner();
     var module = new Module();
 
-    var postModule = new DeferredCallbacks<Module>();
+    var deferredFunctions = new LinkedHashMap<NamedVariable, FunctionRef>();
+    var functionParser =
+        p.withContext(
+            new Function.ParseContext(module, new FunctionRef.ParseContext(deferredFunctions)));
 
-    var p1 = p.withContext(new Function.ParseContext(module, postModule, p.context()));
-    CommentParser.skipComments(s);
     while (!s.isAtEof() && !s.nextCharIs('}')) {
-      var function = p1.parse(Function.class);
+      var function = functionParser.parse(Function.class);
       if (module.functions.put(function.name(), function) != null) {
         throw new IllegalArgumentException(
             "Function with name '" + function.name() + "' already exists.");
       }
-      CommentParser.skipComments(s);
     }
 
-    postModule.run(module);
+    // Resolve forward references to functions (e.g. recursive or mutually-recursive calls).
+    for (var entry : deferredFunctions.entrySet()) {
+      var function = module.lookupFunction(entry.getKey());
+      if (function == null) {
+        throw s.fail("function not found: " + entry.getKey());
+      }
+      entry.getValue().set(function);
+    }
 
     return module;
   }

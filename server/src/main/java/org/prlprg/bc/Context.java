@@ -5,7 +5,7 @@ import java.util.LinkedList;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.LangSXP;

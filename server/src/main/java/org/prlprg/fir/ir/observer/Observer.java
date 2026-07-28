@@ -1,7 +1,7 @@
 package org.prlprg.fir.ir.observer;
 
 import java.util.List;
-import javax.annotation.Nullable;
+import org.jspecify.annotations.Nullable;
 
 public interface Observer {
   /** Records an atomic mutation before it occurs. */

@@ -20,7 +20,6 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.EnvSXP;
 import org.prlprg.sexp.EnvType;
 import org.prlprg.sexp.GlobalEnvSXP;
-import org.prlprg.sexp.LangSXP;
 import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.NamespaceEnvSXP;
 import org.prlprg.sexp.RegSymSXP;
@@ -73,6 +72,18 @@ public class SEXPParseContext {
     return forBindings;
   }
 
+  /// Explicitly assign a forward reference: when the reference is parsed, it will parse `sexp`.
+  /// This corresponds to [SEXPPrintContext#setRef(SEXP, int)]
+  ///
+  /// @throws IllegalArgumentException If the reference has already been assigned.
+  public void setRef(int ref, SEXP sexp) {
+    if (refs.containsKey(ref)) {
+      throw new IllegalArgumentException(
+          "SEXP already assigned for reference:\n" + ref + " => " + refs.get(ref));
+    }
+    refs.put(ref, sexp);
+  }
+
   @ParseMethod
   private SEXP parseSEXP(Parser p) {
     var s = p.scanner();
@@ -92,7 +103,8 @@ public class SEXPParseContext {
         case "NA_STR" -> SEXPs.NA_STRING;
         case "NA" ->
             throw s.fail("NA type (uppercase): NA_LGL, NA_INT, NA_REAL, NA_CPLX, NA_STR", name);
-        default -> finishParsingSymOrNotBlockLangSXP(Names.unquoteIfNecessary(name), p);
+        default ->
+            finishParsingSymOrNotBlockLangSXP(SEXPs.symbol(Names.unquoteIfNecessary(name)), p);
       };
     } else if (s.nextCharIs('{')) {
       return parseBlockLangSXP(p);
@@ -385,6 +397,7 @@ public class SEXPParseContext {
               var expr = p.parse(SEXP.class);
               yield SEXPs.promise(expr, val, env);
             }
+            case SEXPType.NIL -> SEXPs.NULL;
             case SEXPType.BUILTIN, SEXPType.SPECIAL -> {
               var id = p.parse(BuiltinId.class);
               if (type == SEXPType.BUILTIN && id.isSpecial()) {
@@ -424,7 +437,7 @@ public class SEXPParseContext {
   private SymOrLangSXP parseSymOrLangSXP(Parser p) {
     return p.scanner().nextCharIs('{')
         ? parseBlockLangSXP(p)
-        : finishParsingSymOrNotBlockLangSXP(Names.read(p.scanner(), true), p);
+        : finishParsingSymOrNotBlockLangSXP(SEXPs.symbol(Names.read(p.scanner(), true)), p);
   }
 
   @ParseMethod
@@ -432,11 +445,11 @@ public class SEXPParseContext {
     return SEXPs.symbol(Names.read(p.scanner(), true));
   }
 
-  private LangSXP parseBlockLangSXP(Parser p) {
+  private SymOrLangSXP parseBlockLangSXP(Parser p) {
     var s = p.scanner();
     s.assertAndSkip('{');
 
-    var elems = ImmutableList.<TaggedElem>builder();
+    var elems = ImmutableList.<SEXP>builder();
     if (!s.trySkip('}')) {
       do {
         // while (s.trySkip(';')) but IntelliJ doesn't complain
@@ -446,17 +459,16 @@ public class SEXPParseContext {
           }
         }
 
-        elems.add(p.parse(TaggedElem.class));
+        elems.add(p.parse(SEXP.class));
       } while (s.trySkip(';'));
       s.assertAndSkip('}');
     }
-    return SEXPs.blockLang(elems.build());
+    return finishParsingSymOrNotBlockLangSXP(SEXPs.blockLang(elems.build()), p);
   }
 
-  private SymOrLangSXP finishParsingSymOrNotBlockLangSXP(String name, Parser p) {
+  private SymOrLangSXP finishParsingSymOrNotBlockLangSXP(SymOrLangSXP result, Parser p) {
     var s = p.scanner();
 
-    SymOrLangSXP result = SEXPs.symbol(name);
     while (s.trySkip('(')) {
       var args = new ArrayList<TaggedElem>();
       if (!s.trySkip(')')) {

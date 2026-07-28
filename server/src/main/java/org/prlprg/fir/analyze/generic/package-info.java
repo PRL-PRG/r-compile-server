@@ -1,9 +1,5 @@
 /// Common functionality shared between analyses, e.g. abstract classes.
-@ParametersAreNonnullByDefault
-@FieldsAreNonNullByDefault
-@ReturnTypesAreNonNullByDefault
+@NullMarked
 package org.prlprg.fir.analyze.generic;
 
-import javax.annotation.ParametersAreNonnullByDefault;
-import org.prlprg.util.FieldsAreNonNullByDefault;
-import org.prlprg.util.ReturnTypesAreNonNullByDefault;
+import org.jspecify.annotations.NullMarked;

@@ -1,8 +1,8 @@
 package org.prlprg.fir.ir.variable;
 
 import java.util.Objects;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -48,6 +48,10 @@ public class OptionalNamedVariable {
     return inner;
   }
 
+  public String name() {
+    return inner == null ? "" : inner.name();
+  }
+
   public TaggedElem taggedElem(SEXP value) {
     return inner == null ? new TaggedElem(value) : new TaggedElem(inner.name(), value);
   }
@@ -78,7 +82,7 @@ public class OptionalNamedVariable {
   }
 
   @ParseMethod
-  private OptionalNamedVariable parse(Parser p) {
+  private static OptionalNamedVariable parse(Parser p) {
     return p.scanner().nextCharSatisfies(c -> c == '`' || Characters.isIdentifierStart(c))
         ? of(p.parse(NamedVariable.class))
         : empty();

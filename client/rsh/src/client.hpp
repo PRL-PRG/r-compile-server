@@ -5,9 +5,11 @@
 #include "routes.pb.h"
 #include "rsh.hpp"
 
+extern "C" {
 #include <R.h>
 #include <Rinternals.h>
 #include <Rversion.h>
+}
 #include <cstdint>
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
