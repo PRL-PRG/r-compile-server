@@ -1,5 +1,5 @@
-#ifndef RUNTIME_INTENALS_H
-#define RUNTIME_INTENALS_H
+#ifndef RSH_UTILS_H
+#define RSH_UTILS_H
 
 // THIS HEADER NEEDS TO BE A C-compatible HEADER
 // IT IS USED BY THE SERVER COMPILER
@@ -346,4 +346,4 @@ typedef uint32_t u32;
 // Fallback: nothing
 #define NODISCARD
 #endif
-#endif // RUNTIME_INTENALS_H
+#endif // RSH_UTILS_H

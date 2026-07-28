@@ -3,7 +3,7 @@
 // THIS HEADER NEEDS TO BE A C-COMPATIBLE HEADER
 // IT IS USED BY THE SERVER COMPILER
 
-#include "../common2c/runtime_internals.h"
+#include "../common2c/rsh_utils.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
