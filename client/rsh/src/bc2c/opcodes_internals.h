@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../common2c/runtime_internals.h"
+#include "../common2c/rsh_utils.h"
 
 #define RSH_INLINE_CLOSURE_CALL_OK(fun, rho)                                   \
   (RSH_IS_CLOSURE_BODY(BODY(fun)) && !RDEBUG(fun) && !RSTEP(fun) &&            \
