@@ -80,7 +80,11 @@ public final class IrPrintContext {
     w.write(" {");
     w.runIndented(
         () -> {
-          for (var version : function.versions()) {
+          // `versions()` is in *dispatch* order (most specific first, baseline last), but the
+          // textual form goes baseline first and then increasingly specific — which is also what
+          // the parser assumes, since it takes the first version it reads as the baseline. So
+          // print the reverse; otherwise print -> parse -> print moves the baseline every time.
+          for (var version : function.versions().reversed()) {
             w.write('\n');
             p.print(version);
           }
