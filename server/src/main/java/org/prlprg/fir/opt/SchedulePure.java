@@ -196,8 +196,10 @@ public final class SchedulePure implements AbstractionOptimization {
       }
 
       if (originToTarget.containsKey(target)) {
-        // If we have target → C, add origin → C instead
-        for (var nextTarget : originToTarget.get(target)) {
+        // If we have target → C, add origin → C instead.
+        // Copy first: if `target` also has a motion *to* `origin` (they swap positions), the
+        // recursive call redirects it to C, which mutates the set we're iterating.
+        for (var nextTarget : List.copyOf(originToTarget.get(target))) {
           addMotion(motion, origin, nextTarget);
         }
       } else {
@@ -420,6 +422,10 @@ public final class SchedulePure implements AbstractionOptimization {
                     if (assignee != null && !insertedAssignees.add(assignee)) {
                       var copy = statement.copy((_, a) -> a);
                       var newAssignee = Objects.requireNonNull(copy.assignee());
+                      // `copy` reuses the original's name, but register names must be unique
+                      // within the version: they name the register in the textual IR and in the
+                      // generated C, so a duplicate makes both ambiguous (C won't even compile).
+                      newAssignee.rename(scope.freshName(assignee.name()));
                       substs.stage(assignee, new Read(newAssignee), bb, motionsToIndex.deferIndex);
                       copy.insertBefore(deferPoint);
                     } else {
