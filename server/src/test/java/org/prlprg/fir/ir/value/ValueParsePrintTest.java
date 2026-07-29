@@ -3,6 +3,7 @@ package org.prlprg.fir.ir.value;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
@@ -61,7 +62,7 @@ public class ValueParsePrintTest {
   }
 
   /// Same as [#assertRoundTrip(String)], and also asserts the parse yields `expected`.
-  private void assertRoundTrip(String input, @org.jspecify.annotations.Nullable Value expected) {
+  private void assertRoundTrip(String input, @Nullable Value expected) {
     try {
       var value = Parser.fromString(input, Value.class);
       if (expected != null) {
