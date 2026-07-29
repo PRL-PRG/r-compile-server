@@ -7,6 +7,7 @@ import org.prlprg.fir.opt.specialize.DefiniteForce;
 import org.prlprg.fir.opt.specialize.ElideBuiltinClosure;
 import org.prlprg.fir.opt.specialize.ElideCheckMissing;
 import org.prlprg.fir.opt.specialize.ElideDeadStore;
+import org.prlprg.fir.opt.specialize.ElideEnv;
 import org.prlprg.fir.opt.specialize.ElideRedundantAssumeLoad;
 import org.prlprg.fir.opt.specialize.ElideTrivialAssume;
 import org.prlprg.fir.opt.specialize.ElideTrivialCast;
@@ -15,6 +16,8 @@ import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
+import org.prlprg.fir.opt.specialize.SpecializeLocalPromise;
+import org.prlprg.fir.opt.specialize.SpecializeNonReflectiveEnv;
 import org.prlprg.fir.opt.specialize.StaticClosure;
 
 public class Optimizations {
@@ -55,12 +58,16 @@ public class Optimizations {
                         new ResolveDynamicCallee(),
                         new ResolveLoad(),
                         new ImproveSignatures()),
+                    new Specialize(
+                        "specializeEnv",
+                        new SpecializeNonReflectiveEnv(threshold),
+                        new SpecializeLocalPromise(threshold),
+                        new ElideEnv()), // must be in a pass after `ElideDeadStore`
                     new PromoteStaticallyKnownVariables(),
                     new Unbox(),
                     new UnboxPhi(),
                     new ElideRedundantBoxUnbox(),
                     new SchedulePure(),
-                    new ElideEnv(),
                     new Inline(1000),
                     new DeferIntoPromise(),
                     new StrictifyPromise(),

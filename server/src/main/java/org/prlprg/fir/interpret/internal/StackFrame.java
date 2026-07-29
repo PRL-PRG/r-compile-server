@@ -6,12 +6,15 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.cursor.CFGCursor;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.NamedVariable;
@@ -30,12 +33,22 @@ final class StackFrame {
   /// If there are multiple, that's because we're in a promise being forced.
   private final List<SubFrame> subFrames = new ArrayList<>();
   private final Map<Register, Value> registers = new LinkedHashMap<>();
+  /// Promises created while this frame was live, so that when the frame exits (in [
+  /// InternalInterpreter#call][InternalInterpreter]) they can all be marked
+  /// [escaped][PromiseCode#escaped].
+  private final List<PromiseCode> createdPromises = new ArrayList<>();
+  /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` statement
+  // that
+  /// created them. [#mkEnv()] adds to it; [#put(Variable, Value)] reads it to reject stores to
+  /// elided environments.
+  private final Map<EnvSXP, Statement> userEnvPositions;
   private EnvSXP environment;
   private int numEnvsPushed = 0;
 
-  StackFrame(Function function, EnvSXP parentEnv) {
+  StackFrame(Function function, EnvSXP parentEnv, Map<EnvSXP, Statement> userEnvPositions) {
     this.function = function;
     environment = parentEnv;
+    this.userEnvPositions = userEnvPositions;
   }
 
   Function function() {
@@ -54,6 +67,7 @@ final class StackFrame {
     return subFrames.get(index).position;
   }
 
+  /// Enters a sub-frame for `position`'s [`CFG`][org.prlprg.fir.ir.cfg.CFG].
   public void enter(CFGCursor position, ModuleFeedback feedback) {
     var scope = position.cfg().scope();
     var scopeFeedback = feedback.get(scope);
@@ -117,12 +131,40 @@ final class StackFrame {
       throw new IllegalArgumentException(
           "Can't store non-SEXP (" + value + ") under named variable (" + nv + ")");
     }
+    var position = userEnvPositions.get(environment);
+    if (position != null && InternalInterpreter.mkEnvTypeOf(position) == MkEnvType.ELIDED) {
+      throw new IllegalStateException(
+          "Local store to an elided environment: " + nv + " at:\n" + position);
+    }
     environment.set(nv.name(), sexp);
+  }
+
+  /// Records a promise created while this frame is live (see [#createdPromises]).
+  public void addPromise(PromiseCode promise) {
+    createdPromises.add(promise);
+  }
+
+  /// Marks every promise created while this frame was live as [escaped][PromiseCode#escaped] (this
+  /// frame has exited, so forcing one now reads a gone stack frame). Called when the frame returns.
+  public void markPromisesEscaped() {
+    for (var promise : createdPromises) {
+      promise.escaped = true;
+    }
+    createdPromises.clear();
   }
 
   public void mkEnv() {
     environment = new UserEnvSXP(environment);
+    userEnvPositions.put(environment, currentStatement());
     numEnvsPushed++;
+  }
+
+  /// The [Statement] the current sub-frame's cursor is at (e.g. the `mkenv` or `prom` being
+  /// executed). Its enclosing promises are derivable statically from the IR (see
+  /// [CfgHierarchy][org.prlprg.fir.analyze.cfg.CfgHierarchy]).
+  Statement currentStatement() {
+    var cursor = subFrames.getLast().position;
+    return (Statement) Objects.requireNonNull(cursor.instruction());
   }
 
   public void popEnv() {

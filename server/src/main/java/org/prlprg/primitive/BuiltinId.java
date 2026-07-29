@@ -1,5 +1,10 @@
 package org.prlprg.primitive;
 
+import static org.prlprg.session.GNURSession.readFunTab;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import java.util.ArrayList;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -16,6 +21,30 @@ import org.prlprg.sexp.SEXPs;
  * @see org.prlprg.sexp.SEXPType#SPECIAL
  */
 public record BuiltinId(int index) {
+  private static final ImmutableMap<String, FunTabEntry> FUNTAB = readFunTab();
+  private static final ImmutableList<String> NAMES =
+      ImmutableList.copyOf(
+          FUNTAB.entrySet().stream()
+              .<ArrayList<String>>collect(
+                  ArrayList::new,
+                  (list, entry) -> {
+                    var name = entry.getKey();
+                    var index = entry.getValue().index();
+                    while (list.size() <= index) {
+                      list.add("");
+                    }
+                    list.set(index, name);
+                  },
+                  (list, newNames) -> {
+                    for (var i = 0; i < newNames.size(); i++) {
+                      var newName = newNames.get(i);
+                      if (!newName.isEmpty()) {
+                        assert list.get(i).isEmpty() || list.get(i).equals(newName);
+                        list.set(i, newName);
+                      }
+                    }
+                  }));
+
   /** The id of the builtin function referenced by the given symbol in R. */
   public static BuiltinId referencedBy(RegSymSXP symbol) {
     return named(symbol.name());
@@ -23,14 +52,17 @@ public record BuiltinId(int index) {
 
   /** The id of the builtin function with the given name (in R). */
   public static BuiltinId named(String name) {
-    // TODO: this isn't the actual ID
-    return new BuiltinId(name.equals("environment") ? 1 : 0);
+    var entry = FUNTAB.get(name);
+    if (entry == null) {
+      throw new IllegalArgumentException(
+          "No builtin named " + name + " (note: in latest supported R)");
+    }
+    return new BuiltinId(entry.index());
   }
 
   /** Returns the name (in R) of the builtin function with this id. */
   public String name() {
-    // TODO: this isn't the actual name
-    return index == 1 ? "environment" : "TODO_BUILTIN_NAME";
+    return NAMES.get(index);
   }
 
   /** Returns the symbol in R which refers to the builtin function with this id. */

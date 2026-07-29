@@ -12,6 +12,7 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
+import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.SEXPs;
 
 class OriginAnalysisTest {
@@ -40,7 +41,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
 
     var analysis = new OriginAnalysis(main);
 
@@ -75,7 +76,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
 
     var analysis = new OriginAnalysis(main);
     // In bb3, r4 should have itself as origin due to conflicting inputs
@@ -108,7 +109,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var bb3 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB3"));
 
     var analysis = new OriginAnalysis(main);
@@ -138,7 +139,7 @@ class OriginAnalysisTest {
            """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
 
     var analysis = new OriginAnalysis(main);
@@ -193,7 +194,7 @@ class OriginAnalysisTest {
            """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var bb2 = Objects.requireNonNull(Objects.requireNonNull(main.cfg()).bb("BB2"));
 
     var analysis = new OriginAnalysis(main);
@@ -226,7 +227,7 @@ class OriginAnalysisTest {
         """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
     var analysis = new OriginAnalysis(main);
 
@@ -257,7 +258,7 @@ class OriginAnalysisTest {
         """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var entry = Objects.requireNonNull(main.cfg()).entry();
     var analysis = new OriginAnalysis(main);
 
@@ -284,7 +285,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(1, 2, 3)), analysis.get(reg(main, "result")));
@@ -305,7 +306,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     // box(<int 42>) = v1(I)[42], then [2] on a size-1 vector is out of bounds → no fold
@@ -327,7 +328,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
@@ -348,7 +349,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(new Value.Int(42)), analysis.get(reg(main, "result")));
@@ -369,7 +370,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "result")));
@@ -390,7 +391,7 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "result")));
@@ -413,9 +414,267 @@ class OriginAnalysisTest {
       """;
 
     var module = parseModule(firText);
-    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).version(0);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
     var analysis = new OriginAnalysis(main);
 
     assertEquals(new Constant(SEXPs.integer(10, 99, 30)), analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldCEmpty() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          vargs: dots = dots[];
+          result: V = c< dots --> V >(vargs);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.NULL), analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldCLogical() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          vargs: dots = dots[<lgl TRUE>, <lgl FALSE>];
+          result: V = c< dots --> V >(vargs);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(
+        new Constant(SEXPs.logical(Logical.TRUE, Logical.FALSE)),
+        analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldCReal() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          vargs: dots = dots[<real 1.5>, <real 2.5>];
+          result: V = c< dots --> V >(vargs);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.real(1.5, 2.5)), analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldCString() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          vargs: dots = dots[<str "hello">, <str "world">];
+          result: V = c< dots --> V >(vargs);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.string("hello", "world")), analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldCTypePromotion() {
+    // logical + int → int (widest type)
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          vargs: dots = dots[<lgl TRUE>, <int 2>];
+          result: V = c< dots --> V >(vargs);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertEquals(new Constant(SEXPs.integer(1, 2)), analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldCNamedElementsNotFolded() {
+    var firText =
+        """
+      fun main() {
+        () --> V {
+          mkenv;
+          vargs: dots = dots[x = <int 1>];
+          result: V = c< dots --> V >(vargs);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldSubscriptWriteOutOfBounds() {
+    var firText =
+        """
+      fun main() {
+        () --> v(I) {
+          mkenv;
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: v(I) = `[<-`< v(I),I,I,miss --> v(I) >(vec, 2, 99, <missing>);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    // box(42) creates a size-1 vector; writing at index 2 is out of bounds → no fold
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
+  }
+
+  @Test
+  void testConstantFoldDoubleSubscriptWriteOutOfBounds() {
+    var firText =
+        """
+      fun main() {
+        () --> v(I) {
+          mkenv;
+          vec: v1(I) = box< I --> v1(I) >(42);
+          result: v(I) = `[[<-`< v(I),I,I --> v(I) >(vec, 2, 99);
+          return result;
+        }
+      }
+      """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var analysis = new OriginAnalysis(main);
+
+    // box(42) creates a size-1 vector; writing at index 2 is out of bounds → no fold
+    assertInstanceOf(Read.class, analysis.get(reg(main, "result")));
+  }
+
+  /// A promise that stores to `a` is itself stored in variable `p`, then `a` is reassigned, then
+  /// `p` is loaded and forced. The promise's body must run at the *force* (not its creation), with
+  /// the env state at that point, so its store to `a` definitely takes effect there. This is the
+  /// case the old "run the promise once at its creation" handling got wrong (it couldn't follow the
+  /// promise through `p`, nor force it with the later state).
+  @Test
+  void testPromiseForcedThroughVariableRunsAtForce() {
+    var firText =
+        """
+        fun main() {
+          () -+> V {
+            mkenv;
+            pr:p(V +) = prom<V +>{ st a = <int 99>; return <int 0>; };
+            st p = pr;
+            st a = <int 1>;
+            q:p(V +) = ld p;
+            f:V = force q;
+            r:V = ld a;
+            popenv;
+            return r;
+          }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var entry = Objects.requireNonNull(main.cfg()).entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    // Before the force, `a` is the value stored after the promise was created.
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 3, Variable.named("a")));
+    // The force definitely runs the promise body for the first time, so its store replaces `a`.
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(99))),
+        analysis.getPossible(entry, 5, Variable.named("a")));
+    // The load and the forced value resolve to those constants.
+    assertEquals(new Constant(SEXPs.integer(99)), analysis.get(reg(main, "r")));
+    assertEquals(new Constant(SEXPs.integer(0)), analysis.get(reg(main, "f")));
+  }
+
+  /// A promise that stores to `a` is super-stored into the (untracked) global env, so it leaks: it
+  /// may now be forced from anywhere. After reassigning `a` and calling a function (which may force
+  /// the leaked promise), `a` is ambiguous — either the value stored before the call, or the one
+  /// the promise stores.
+  @Test
+  void testLeakedPromiseMaybeForcedAtCall() {
+    var firText =
+        """
+        fun main() {
+          () -+> V {
+            mkenv;
+            pr:p(V +) = prom<V +>{ st a = <int 99>; return <int 0>; };
+            st-super gp = pr;
+            st a = <int 1>;
+            c:V = g< --> V >();
+            popenv;
+            return c;
+          }
+        }
+
+        fun g() {
+          () --> V { return <int 0>; }
+        }
+        """;
+
+    var module = parseModule(firText);
+    var main = Objects.requireNonNull(module.localFunction(Variable.named("main"))).baseline();
+    var entry = Objects.requireNonNull(main.cfg()).entry();
+
+    var analysis = new OriginAnalysis(main);
+
+    // Before the call, `a` is just the value stored after the promise was created.
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1))),
+        analysis.getPossible(entry, 3, Variable.named("a")));
+    // The call may force the leaked promise, so `a` is either its prior value or what the promise
+    // stores.
+    assertEquals(
+        Set.of(new Constant(SEXPs.integer(1)), new Constant(SEXPs.integer(99))),
+        analysis.getPossible(entry, 4, Variable.named("a")));
   }
 }

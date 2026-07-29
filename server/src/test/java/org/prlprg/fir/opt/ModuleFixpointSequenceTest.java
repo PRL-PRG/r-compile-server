@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.feedback.ModuleFeedback;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.Variable;
@@ -39,7 +39,7 @@ class ModuleFixpointSequenceTest {
   void testSingleOptimizationNoChanges() {
     var optimization = new TestOptimization(false);
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var fixpoint = new ModuleFixpointSequence("testSequence", optimization);
     var changed = fixpoint.run(feedback, module);
@@ -52,7 +52,7 @@ class ModuleFixpointSequenceTest {
   void testSingleOptimizationWithChanges() {
     var optimization = new TestOptimization(true, false);
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var fixpoint = new ModuleFixpointSequence("testSequence", optimization);
     var changed = fixpoint.run(feedback, module);
@@ -65,7 +65,7 @@ class ModuleFixpointSequenceTest {
   void testSingleOptimizationWithChangesTwice() {
     var optimization = new TestOptimization(true, true, false);
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var fixpoint = new ModuleFixpointSequence("testSequence", optimization);
     var changed = fixpoint.run(feedback, module);
@@ -79,7 +79,7 @@ class ModuleFixpointSequenceTest {
     var opt1 = new TestOptimization(true, false);
     var opt2 = new TestOptimization(false, false);
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var fixpoint = new ModuleFixpointSequence("testSequence", opt1, opt2);
     var changed = fixpoint.run(feedback, module);
@@ -93,7 +93,7 @@ class ModuleFixpointSequenceTest {
   void testMaxIterationsLimit() {
     var optimization = new TestOptimization(true); // Always returns true
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var fixpoint = new ModuleFixpointSequence("testSequence", 3, optimization);
     var changed = fixpoint.run(feedback, module);
@@ -106,7 +106,7 @@ class ModuleFixpointSequenceTest {
   void testHardLimit() {
     var optimization = new TestOptimization(true); // Always returns true
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var fixpoint = new ModuleFixpointSequence("testSequence", optimization);
 
@@ -120,7 +120,7 @@ class ModuleFixpointSequenceTest {
     var opt1 = new TestOptimization(true, false, false);
     var opt2 = new TestOptimization(false, true, false);
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
 
     var fixpoint = new ModuleFixpointSequence("testSequence", opt1, opt2);
     var changed = fixpoint.run(feedback, module);
@@ -134,7 +134,7 @@ class ModuleFixpointSequenceTest {
   void testRunOnFunctionThrows() {
     var optimization = new TestOptimization(false);
     var module = testModule();
-    var feedback = new MockModuleFeedback();
+    var feedback = new MockModuleFeedback(module);
     var function = module.localFunctions().iterator().next();
 
     var fixpoint = new ModuleFixpointSequence("testSequence", optimization);

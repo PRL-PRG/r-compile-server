@@ -1,16 +1,12 @@
 package org.prlprg.fir.ir.abstraction;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jetbrains.annotations.UnmodifiableView;
@@ -22,9 +18,7 @@ import org.prlprg.fir.ir.argument.Consume;
 import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.Promise;
-import org.prlprg.fir.ir.instruction.FirParseContext;
 import org.prlprg.fir.ir.instruction.Statement;
-import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Effects;
 import org.prlprg.fir.ir.type.Ownership;
@@ -34,8 +28,7 @@ import org.prlprg.fir.ir.variable.BlockParameter;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
+import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.util.DisambiguatorMap;
@@ -59,8 +52,6 @@ public final class Abstraction implements Comparable<Abstraction> {
   private final Map<NamedVariable, Type> namedVariableTypes = new LinkedHashMap<>();
   private final @Nullable CFG cfg;
 
-  // Cache
-  private final ImmutableMap<String, Integer> nameToParamIndex;
   private final DisambiguatorMap nextLocalDisambiguator = new DisambiguatorMap();
 
   public Abstraction(Module module, List<FunctionParameter> parameters) {
@@ -75,27 +66,14 @@ public final class Abstraction implements Comparable<Abstraction> {
       parameter.setOwner(this);
     }
 
-    nameToParamIndex = computeNameToParamIndex(this.parameters);
+    // Cache
     returnType = Type.ANY_VALUE_SEXP;
     effects = Effects.REFLECT;
     cfg = isStub ? null : new CFG(this);
 
     for (var parameter : this.parameters) {
-      nextLocalDisambiguator.add(parameter.name());
+      reserveName(parameter.name());
     }
-  }
-
-  private static ImmutableMap<String, Integer> computeNameToParamIndex(FunctionParameter[] params) {
-    return IntStream.range(0, params.length)
-        .boxed()
-        .collect(
-            Streams.toImmutableMap(
-                i -> params[i].name(),
-                i -> i,
-                (i1, i2) -> {
-                  throw new IllegalArgumentException(
-                      "Duplicate parameter variable: " + params[i1] + " and " + params[i2]);
-                }));
   }
 
   public Module module() {
@@ -152,7 +130,7 @@ public final class Abstraction implements Comparable<Abstraction> {
     return namedVariableTypes.getOrDefault(named, Type.ANY_SEXP);
   }
 
-  public @Nullable Type typeOf(Argument argument) {
+  public Type typeOf(Argument argument) {
     return switch (argument) {
       case Constant(var constant) -> constant.type();
       case Read(var register) -> register.type();
@@ -163,12 +141,26 @@ public final class Abstraction implements Comparable<Abstraction> {
   // --- Registers ------------------------------------------------------------------------------
 
   /// A unique register name resembling `prefix` that doesn't already exist in this version.
+  ///
+  /// Registers are identified by object, but their names must still be unique within the version:
+  /// they're how the textual IR and the generated C name them.
   public String freshName(String prefix) {
-    return nextLocalDisambiguator.disambiguate(Register.resemblance(prefix));
+    var name = nextLocalDisambiguator.disambiguate(Register.resemblance(prefix));
+    // Reserve it, otherwise the next call with the same prefix would hand out the same name.
+    reserveName(name);
+    return name;
   }
 
-  public String freshName() {
-    return freshName(Register.DEFAULT_NAME);
+  /// Record that a register named `name` exists in this version, so [#freshName(String)] never
+  /// hands `name` out.
+  ///
+  /// Names that didn't come from [#freshName(String)] must be reserved as soon as their register
+  /// enters this version; that's what makes [#freshName(String)] always return an unused name. All
+  /// three ways a register can enter do so: [FunctionParameter]s in the constructor,
+  /// [BlockParameter]s when appended to one of this version's blocks, and [Statement] assignees
+  /// when the statement is spliced into one of this version's [CFG]s.
+  public void reserveName(String name) {
+    nextLocalDisambiguator.add(name);
   }
 
   /// All registers defined in this version: parameters, then each block's phi parameters and each
@@ -286,112 +278,10 @@ public final class Abstraction implements Comparable<Abstraction> {
     return Printer.toString(this);
   }
 
+  /// A version can be printed without any surrounding information, so this forwards to
+  /// [IrPrintContext] and callers can just `p.print(abstraction)`.
   @PrintMethod
   private void print(Printer p) {
-    var w = p.writer();
-
-    p.print(comments);
-
-    // Parameters, e.g. `(reg n:*, reg m:I@!)`.
-    w.write('(');
-    var firstParam = true;
-    for (var parameter : parameters) {
-      if (!firstParam) {
-        w.write(", ");
-      }
-      firstParam = false;
-      w.write("reg ");
-      p.print(parameter);
-      w.write(':');
-      p.print(parameter.type());
-      if (parameter.strict()) {
-        w.write("@!");
-      }
-    }
-    w.write(')');
-
-    w.write(" -");
-    p.print(effects);
-    w.write("> ");
-    p.print(returnType);
-
-    w.write(" {");
-
-    if (cfg == null) {
-      w.write(" ... ");
-    } else {
-      // Registers declare their type inline at their definition site (see [Statement] and the phi
-      // parameters in a block header), so there is no separate declarations line — the body follows
-      // the `{` directly.
-      w.write('\n');
-      p.print(cfg);
-      w.write('\n');
-    }
-
-    w.write('}');
+    p.withContext(new IrPrintContext()).print(this);
   }
-
-  // region parsing
-
-  public record ParseContext(Module module, FunctionRef.ParseContext forFunctionRef) {}
-
-  @ParseMethod
-  private static Abstraction parse(Parser p, ParseContext ctx) {
-    var s = p.scanner();
-
-    var comments = p.parse(Comments.class);
-
-    // Parameters, e.g. `(reg n:*, reg m:I@!)`.
-    var parameters = new ArrayList<FunctionParameter>();
-    s.assertAndSkip('(');
-    if (!s.nextCharIs(')')) {
-      do {
-        s.assertAndSkip("reg");
-        var name = s.readIdentifierOrKeyword();
-        s.assertAndSkip(':');
-        var type = p.parse(Type.class);
-        var strict = s.trySkip("@!");
-        parameters.add(new FunctionParameter(name, type, strict));
-      } while (s.trySkip(','));
-    }
-    s.assertAndSkip(')');
-
-    s.assertAndSkip('-');
-    var effects = p.parse(Effects.class);
-    s.assertAndSkip('>');
-    var returnType = p.parse(Type.class);
-
-    s.assertAndSkip('{');
-
-    var isStub = s.trySkip("...");
-    var abstraction = new Abstraction(ctx.module(), parameters, isStub);
-    abstraction.comments.addAll(comments);
-    abstraction.setReturnType(returnType);
-    abstraction.setEffects(effects);
-
-    if (isStub) {
-      s.assertAndSkip('}');
-      return abstraction;
-    }
-
-    // Seed the parse context with the parameters (registers resolve by name). Register types are
-    // declared inline at their definition sites, so there is no separate declarations line.
-    var registers = new HashMap<String, Register>();
-    for (var parameter : parameters) {
-      registers.put(parameter.name(), parameter);
-    }
-    var bodyCtx =
-        new FirParseContext(
-            Objects.requireNonNull(abstraction.cfg()),
-            registers,
-            new HashMap<>(),
-            ctx.forFunctionRef());
-
-    Objects.requireNonNull(abstraction.cfg()).parseInto(p.withContext(bodyCtx), bodyCtx);
-
-    s.assertAndSkip('}');
-    return abstraction;
-  }
-
-  // endregion parsing
 }

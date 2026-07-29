@@ -10,6 +10,7 @@ import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.phi.Target;
+import org.prlprg.fir.parseprint.IrPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 
@@ -117,9 +118,10 @@ public final class Jump extends Instruction {
     return Printer.toString(this);
   }
 
+  /// A jump can be printed without any surrounding information, so this forwards to
+  /// [IrPrintContext] and callers can just `p.print(jump)`.
   @PrintMethod
   private void print(Printer p) {
-    p.print(comments());
-    IrText.printJump(p, this);
+    p.withContext(new IrPrintContext()).print(this);
   }
 }

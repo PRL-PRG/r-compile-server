@@ -3,12 +3,10 @@ package org.prlprg.fir.ir;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.Formatter;
-import java.util.LinkedHashMap;
 import org.intellij.lang.annotations.Language;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.module.FunctionRef;
 import org.prlprg.fir.ir.module.Module;
-import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.parseprint.ModuleParseContext;
 import org.prlprg.parseprint.ParseException;
 import org.prlprg.parseprint.Parser;
 
@@ -31,16 +29,11 @@ public class ParseUtil {
       @Language(value = "FIR", prefix = "fun main(`...`) {\n", suffix = "\n}") String firText) {
     try {
       var module = new Module();
-      var deferredFunctions = new LinkedHashMap<NamedVariable, FunctionRef>();
+      var forFunctions = new ModuleParseContext.FunctionParseContext(module);
 
-      var result =
-          Parser.fromString(
-              firText,
-              Abstraction.class,
-              new Abstraction.ParseContext(
-                  module, new FunctionRef.ParseContext(deferredFunctions)));
+      var result = Parser.fromString(firText, Abstraction.class, forFunctions.forAbstraction());
 
-      for (var entry : deferredFunctions.entrySet()) {
+      for (var entry : forFunctions.deferredFunctions().entrySet()) {
         var name = entry.getKey();
         var deferred = entry.getValue();
         var function = module.lookupFunction(name);
@@ -64,6 +57,16 @@ public class ParseUtil {
               + region(firText, e.position().line(), e.position().column()),
           e);
     }
+  }
+
+  public static int countOccurrences(String text, String needle) {
+    int count = 0;
+    int idx = 0;
+    while ((idx = text.indexOf(needle, idx)) != -1) {
+      count++;
+      idx += needle.length();
+    }
+    return count;
   }
 
   private ParseUtil() {}

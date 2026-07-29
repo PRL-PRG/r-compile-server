@@ -121,7 +121,7 @@ public final class CfgHierarchy implements Analysis {
   private void run(CFG cfg) {
     for (var bb : cfg.bbs()) {
       for (var stmt : bb.statements()) {
-        if (stmt.expression() instanceof Promise(_, _, var code)) {
+        if (stmt.expression() instanceof Promise(_, _, var code, _)) {
           parents.put(code, stmt);
           run(code);
         }

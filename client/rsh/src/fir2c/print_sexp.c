@@ -225,11 +225,14 @@ static void printSexpInternal(SEXP s, int indent) {
     }
     case ENVSXP:
       if (s == R_GlobalEnv) {
-        fprintf(stderr, "<environment: R_GlobalEnv>");
+        fprintf(stderr, "<environment: global>");
       } else if (s == R_BaseEnv) {
         fprintf(stderr, "<environment: base>");
       } else if (s == R_EmptyEnv) {
-        fprintf(stderr, "<environment: R_EmptyEnv>");
+        fprintf(stderr, "<environment: empty>");
+      } else if (s == Rsh_ElidedEnv) {
+        fprintf(stderr, "<environment: elided> -> ");
+        printSexpInternal(ENCLOS(s), indent);
       } else if (R_IsNamespaceEnv(s)) {
         SEXP name = R_NamespaceEnvSpec(s);
         if (name != R_NilValue && TYPEOF(name) == STRSXP && LENGTH(name) > 0) {

@@ -243,6 +243,14 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
       return state;
     }
+
+    /// Whether this per-[CFG] analysis is currently running (i.e. [#run(State)] is on the stack).
+    ///
+    /// Used to detect re-entrant runs of the same [CFG], which would corrupt the in-progress
+    /// analysis (its [#state] and cursor are reused, and [#run(State)] nulls [#state] on exit).
+    protected final boolean isRunning() {
+      return state != null;
+    }
   }
 
   public interface State<Self extends State<Self>> {

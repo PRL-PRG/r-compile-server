@@ -15,6 +15,7 @@ import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.PopEnv;
 import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -42,6 +43,11 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
     return Collections.unmodifiableCollection(allEnvs.values());
   }
 
+  /// Returns the environment range created by the [MkEnv] at `mk`, or `null` if there's none.
+  public @Nullable EnvRange rangeAt(Statement mk) {
+    return allEnvs.get(mk);
+  }
+
   public @UnmodifiableView Set<EnvRange> envsAt(BB bb, int instructionIndex) {
     return Collections.unmodifiableSet(at(bb, instructionIndex).envs);
   }
@@ -59,7 +65,7 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
     @Override
     protected void run(Statement statement) {
       switch (statement.expression()) {
-        case Promise(var _, var _, var code) -> runSubAnalysis(code, state()::merge);
+        case Promise(var _, var _, var code, _) -> runSubAnalysis(code, state()::merge);
         case MkEnv _ -> {
           var range = allEnvs.computeIfAbsent(statement, EnvRange::new);
           state().push(range);
@@ -144,6 +150,10 @@ public final class EnvironmentLiveness extends AbstractInterpretation<Environmen
 
     public Statement mk() {
       return mk;
+    }
+
+    public MkEnvType type() {
+      return ((MkEnv) mk.expression()).type();
     }
 
     public @UnmodifiableView Set<Statement> pops() {

@@ -1,26 +1,31 @@
 package org.prlprg.fir.feedback;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
-import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
-import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Register;
-import org.prlprg.parseprint.ParseMethod;
-import org.prlprg.parseprint.Parser;
+import org.prlprg.fir.parseprint.ModuleFeedbackPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
-import org.prlprg.sexp.parseprint.SEXPParseContext;
-import org.prlprg.sexp.parseprint.SEXPPrintContext;
-import org.prlprg.sexp.parseprint.SEXPPrintOptions;
 
-/// Feedback for a closure version ([org.prlprg.fir.ir.abstraction.Abstraction]).
+/// Feedback for a closure version ([Abstraction]).
 public class AbstractionFeedback {
+  /// Create a feedback for a single-[Abstraction] module, only for use in tests.
+  public static AbstractionFeedback standaloneForTesting(Abstraction abstraction) {
+    return new MockModuleFeedback(abstraction.module()).get(abstraction);
+  }
+
   private final ModuleFeedback module;
   /// How many times this abstraction was called.
   private int numCalls = 0;
@@ -50,8 +55,13 @@ public class AbstractionFeedback {
   ///
   /// Registers are ordered by when feedback was first recorded for them.
   private final Map<Register, Integer> allRecorded = new LinkedHashMap<>();
+  /// `mkenv` statements whose environments were reflectively accessed.
+  public final Set<Statement> reflectiveEnvs = new LinkedHashSet<>();
+  /// `prom` statements whose promises were recorded to escape (outlive the stack frame they were
+  /// created in, then get forced afterwards).
+  public final Set<Statement> escapingPromises = new LinkedHashSet<>();
 
-  public AbstractionFeedback(ModuleFeedback module) {
+  AbstractionFeedback(ModuleFeedback module) {
     this.module = module;
   }
 
@@ -133,6 +143,21 @@ public class AbstractionFeedback {
     return allRecorded.getOrDefault(register, 0);
   }
 
+  /// All registers we recorded any feedback for, ordered by when feedback was first recorded.
+  public @UnmodifiableView Set<Register> recordedRegisters() {
+    return Collections.unmodifiableSet(allRecorded.keySet());
+  }
+
+  /// Set how many times this abstraction was called (when re-reading recorded feedback).
+  public void setNumCalls(int numCalls) {
+    this.numCalls = numCalls;
+  }
+
+  /// Set how many times we recorded feedback for `register` (when re-reading recorded feedback).
+  public void setTimes(Register register, int times) {
+    allRecorded.put(register, times);
+  }
+
   /// Reset the call counter to 0.
   public void resetCalls() {
     numCalls = 0;
@@ -147,160 +172,24 @@ public class AbstractionFeedback {
     copy.constants.putAll(this.constants);
     copy.forceCount.putAll(this.forceCount);
     copy.allRecorded.putAll(this.allRecorded);
+    copy.reflectiveEnvs.addAll(this.reflectiveEnvs);
+    copy.escapingPromises.addAll(this.escapingPromises);
     return copy;
   }
 
   @Override
   public String toString() {
-    return Printer.toString(this);
+    return Printer.toString(this, forPrinting());
   }
 
-  public record ParseContext(
-      ModuleFeedback moduleFeedback, Module module, SEXPParseContext forSexps) {}
-
-  public record PrintContext(SEXPPrintContext forSexps) {}
-
-  @ParseMethod
-  private AbstractionFeedback(Parser p, ParseContext ctx) {
-    var s = p.scanner();
-    module = ctx.moduleFeedback;
-
-    numCalls = s.readUInt();
-    s.assertAndSkip("x");
-
-    s.assertAndSkip('[');
-
-    while (!s.trySkip(']')) {
-      s.assertAndSkip("reg ");
-      var register = p.parse(Register.class);
-      parse(register, p, ctx);
-    }
-  }
-
-  /// Parse feedback and assign it to the register. Parses nothing if it has none.
-  private void parse(Register register, Parser p, ParseContext ctx) {
-    var s = p.scanner();
-    var module = ctx.module;
-    var p2 = p.withContext(ctx.forSexps());
-
-    if (s.trySkip('!')) {
-      var assignedForceCount = s.readUInt();
-      forceCount.put(register, assignedForceCount);
-    }
-
-    if (s.trySkip('-')) {
-      if (s.trySkip('_')) {
-        callees.put(register, Optional.empty());
-      } else {
-        var calleeName = p2.parse(NamedVariable.class);
-        var callee = module.lookupFunction(calleeName);
-        if (callee == null) {
-          throw s.fail("No such function: " + calleeName);
-        }
-        callees.put(register, Optional.of(callee));
-      }
-    }
-
-    if (s.trySkip('=')) {
-      if (s.trySkip('_')) {
-        constants.put(register, Optional.empty());
-      } else {
-        var value = p2.parse(Value.class);
-        constants.put(register, Optional.of(value));
-      }
-    }
-
-    if (s.trySkip(':')) {
-      var type = p.parse(TypeFeedback.class);
-      types.put(register, type);
-    }
-
-    s.assertAndSkip("(");
-    var times = s.readUInt();
-    s.assertAndSkip("x)");
-    allRecorded.put(register, times);
-  }
-
+  /// Feedback can be printed without any surrounding information (constants are printed in full),
+  /// so this forwards to [ModuleFeedbackPrintContext] and callers can just `p.print(feedback)`.
   @PrintMethod
   private void print(Printer p) {
-    p.withContext(new PrintContext(new SEXPPrintContext(SEXPPrintOptions.FULL))).print(this);
+    p.withContext(forPrinting()).print(this);
   }
 
-  @PrintMethod
-  private void print(Printer p, PrintContext ctx) {
-    var w = p.writer();
-
-    p.print(numCalls);
-    w.write("x\n");
-
-    if (allRecorded.isEmpty()) {
-      w.write("[]");
-      return;
-    }
-
-    w.write("[ ");
-    w.runIndented(
-        () -> {
-          var wroteAny = false;
-
-          for (var register : allRecorded.keySet()) {
-            if (wroteAny) {
-              w.write('\n');
-            } else {
-              wroteAny = true;
-            }
-
-            w.write("reg ");
-            p.print(register);
-            print(register, p, ctx);
-          }
-        });
-    w.write("\n]");
-  }
-
-  /// Print the register's feedback. Prints nothing if it has none.
-  public void print(Register register, Printer p, PrintContext ctx) {
-    var w = p.writer();
-    var p2 = p.withContext(ctx.forSexps());
-
-    var type = types.get(register);
-    var callee = callees.get(register);
-    var constant = constants.get(register);
-    var assignedForceCount = forceCount.get(register);
-    var times = times(register);
-
-    if (times != 0) {
-      if (assignedForceCount != null) {
-        w.write(" !");
-        p.print(assignedForceCount);
-      }
-
-      if (callee != null) {
-        w.write(" -");
-        if (callee.isPresent()) {
-          p.print(callee.get().name());
-        } else {
-          w.write("_");
-        }
-      }
-
-      if (constant != null) {
-        w.write(" =");
-        if (constant.isPresent()) {
-          p2.print(constant.get());
-        } else {
-          w.write("_");
-        }
-      }
-
-      if (type != null) {
-        w.write(" :");
-        p.print(type);
-      }
-
-      w.write(" (");
-      p.print(times);
-      w.write("x)");
-    }
+  private static ModuleFeedbackPrintContext.AbstractionFeedbackPrintContext forPrinting() {
+    return new ModuleFeedbackPrintContext().forAbstraction();
   }
 }

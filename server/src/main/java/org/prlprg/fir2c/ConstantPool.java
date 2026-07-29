@@ -44,6 +44,18 @@ final class ConstantPool {
     return data.size() - 1;
   }
 
+  /// Add `sexp` to the pool in an always-unique slot (never deduplicated, unlike
+  /// [#intern(SEXP)]), and return its index.
+  ///
+  /// Required for constant pools of nested functions, versions, and promises: those are mutated
+  /// at runtime by their init functions (e.g. each promise stores its `Fir_PromiseGlobalData`
+  /// in its pool's slot 0), so two structurally-equal pools must not share a slot, otherwise
+  /// their inits overwrite each other's runtime data.
+  public int internUnique(SEXP sexp) {
+    data.add(sexp);
+    return data.size() - 1;
+  }
+
   public VecSXP toSexp() {
     return SEXPs.vec(data);
   }

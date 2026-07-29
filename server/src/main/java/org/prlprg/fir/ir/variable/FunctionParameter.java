@@ -1,7 +1,9 @@
 package org.prlprg.fir.ir.variable;
 
+import com.google.common.collect.ImmutableList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
@@ -30,6 +32,16 @@ public final class FunctionParameter implements Register {
 
   public FunctionParameter(String name, Type type) {
     this(name, type, false);
+  }
+
+  /// Unowned copies of `parameters`, with the same names, types, and strictnesses.
+  ///
+  /// A [FunctionParameter] is owned by exactly one [Abstraction] and accumulates that abstraction's
+  /// uses, so one can't be shared between two abstractions: give the second one copies.
+  public static ImmutableList<FunctionParameter> copyAll(List<FunctionParameter> parameters) {
+    return parameters.stream()
+        .map(p -> new FunctionParameter(p.name(), p.type(), p.strict()))
+        .collect(ImmutableList.toImmutableList());
   }
 
   /// The [Abstraction] this is a parameter of, or `null` if not (yet) attached to one.

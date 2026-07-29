@@ -44,6 +44,6 @@ public class AbstractionFixpointSequence
   @Override
   protected boolean checkTarget(Pair<Optional<Function>, Abstraction> functionAndAbstraction) {
     var abstraction = functionAndAbstraction.second();
-    return checkAll(abstraction, Exclude.STRICT_CFG);
+    return checkAll(abstraction, Exclude.STRICT_CFG, Exclude.CAPTURE);
   }
 }

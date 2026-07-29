@@ -45,7 +45,8 @@ public final class BC2FirUtils {
       cleanup(firModule);
 
       // Don't check provenance, because it's trivial (no `consume` annotations) but expensive.
-      if (!checkAll(firModule, Exclude.PROVENANCE)) {
+      // Don't check captures, because promises are still non-local until `SpecializeLocalPromise`.
+      if (!checkAll(firModule, Exclude.PROVENANCE, Exclude.CAPTURE)) {
         fail("Compiled FIŘ failed verification\n" + firModule);
       }
 

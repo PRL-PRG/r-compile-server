@@ -6,7 +6,7 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.module.Module;
@@ -136,6 +136,6 @@ class AbstractionFixpointSequenceTest {
 
   boolean runOpt(Function function, AbstractionOptimization optimization, Abstraction abstraction) {
     return optimization.run(
-        function, new AbstractionFeedback(new MockModuleFeedback()), abstraction);
+        function, new MockModuleFeedback(function.owner()).get(abstraction), abstraction);
   }
 }

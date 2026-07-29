@@ -102,7 +102,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
                 // Call arguments follow the callee's own argument (index 0).
                 stmt.args().subList(1, stmt.argCount()));
         // Inline within the promise
-        case Promise(_, _, var code) -> run(code);
+        case Promise(_, _, var code, _) -> run(code);
         default -> {}
       }
     }
@@ -124,7 +124,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // `Promise` statement.
       if (!(promiseReg instanceof AssigneeOf promiseAssignee)
           || !(promiseAssignee.statement().expression()
-              instanceof Promise(var valueType, var effects, var code))
+              instanceof Promise(var valueType, var effects, var code, _))
           || effects.reflect()) {
         return;
       }

@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.GlobalModules;
 import org.prlprg.fir.feedback.AbstractionFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.interpret.InterpretException;
 import org.prlprg.fir.interpret.Interpreter;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -41,6 +42,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -129,9 +131,22 @@ public final class InternalInterpreter implements Interpreter {
   private final Map<SEXP, PromiseCode> promises = new HashMap<>();
   /// Same situation as [#promises] except for [CloSXP].
   private final Map<SEXP, Function> closures = new HashMap<>();
+  /// Maps each user-created environment (from [MkEnv]) to the `mkenv` [Statement] that created it.
+  ///
+  /// Used to mark environments [reflective][AbstractionFeedback#reflectiveEnvs] in their closure
+  /// version's feedback, and to detect reflective access or local stores to environments the
+  /// compiler assumed weren't reflectively accessed ([MkEnvType#NON_REFLECTIVE]) or were
+  /// [elided][MkEnvType#ELIDED].
+  private final Map<EnvSXP, Statement> userEnvPositions = new HashMap<>();
+
+  /// Whether the most-recently-returned [#run(StackFrame, CFG, CFG)] deopt-restored at
+  /// some point. Set right before `run` returns and consumed (reset) by [#call]; used to check
+  /// the result against the deopt-restore CFG's return type instead of the version's, since a
+  /// version's return type only describes its normal returns.
+  private boolean lastRunDeopted = false;
 
   // Feedback (part of state but not depended on by [Interpreter], only updated).
-  private final MockModuleFeedback feedback = new MockModuleFeedback();
+  private final MockModuleFeedback feedback;
   private final CheckpointTrace checkpointTrace = new CheckpointTrace(this);
 
   /// Interpret the module in a global environment containing only its functions.
@@ -140,6 +155,7 @@ public final class InternalInterpreter implements Interpreter {
   /// thanks to [org.prlprg.fir.ir.observer.Observer].
   public InternalInterpreter(Module module) {
     this.module = module;
+    feedback = new MockModuleFeedback(module);
 
     var baseEnv = new BaseEnvSXP();
     globalEnv = new GlobalEnvSXP(baseEnv);
@@ -385,11 +401,59 @@ public final class InternalInterpreter implements Interpreter {
       feedback.recordAssign(param);
     }
 
-    // Execute CFG
+    // Execute CFG (a function body, so it has no enclosing promises)
     var result = run(frame, cfg, deoptRestoreCfg);
 
-    checkType(result, abstraction.returnType(), "return");
+    // The frame has exited: any promise it created has now escaped (outlived its frame). Forcing
+    // one afterwards is detected in `force`.
+    frame.markPromisesEscaped();
+
+    if (lastRunDeopted) {
+      lastRunDeopted = false;
+      // The result comes from the deopt-restore CFG (the baseline), so it may not match this
+      // version's return type, which only describes normal returns. Check against the
+      // baseline's, then adapt the representation to the version's, since the caller relies on
+      // the version's (possibly without a checkpoint).
+      checkType(result, function.baseline().returnType(), "return (after deopt)");
+      result = adaptDeoptResult(result, abstraction.returnType());
+    } else {
+      checkType(result, abstraction.returnType(), "return");
+    }
     return result;
+  }
+
+  /// Adapt a deopt-restored result to the version's declared return type: unbox if the declared
+  /// type is an unboxed scalar and the result is a corresponding boxed scalar.
+  ///
+  /// @throws InternalInterpretException if the result can't be adapted; the caller may rely on
+  ///   the declared type without a checkpoint, and cascading the deopt to the caller is
+  ///   unimplemented.
+  private Value adaptDeoptResult(Value result, Type returnType) {
+    var actual = inferType(result, returnType.ownership());
+    if (actual.isSubtypeOf(returnType)) {
+      return result;
+    }
+
+    if (returnType.kind() instanceof Kind.PrimitiveScalar(var primitive)
+        && result instanceof Value.Sexp(var sexp)) {
+      var adapted =
+          switch (primitive) {
+            case LOGICAL -> sexp.asScalarLogical().<Value>map(Value.Lgl::new);
+            case INTEGER -> sexp.asScalarInteger().<Value>map(Value.Int::new);
+            case REAL -> sexp.asScalarReal().<Value>map(Value.Real::new);
+            case STRING -> sexp.asScalarString().<Value>map(Value.Str::new);
+          };
+      if (adapted.isPresent()) {
+        return adapted.get();
+      }
+    }
+
+    throw fail(
+        "Deopt result can't be adapted to the version's return type (cascading the deopt to the"
+            + " caller is unimplemented): "
+            + result
+            + " isn't a(n) "
+            + returnType);
   }
 
   private Value callExternal(
@@ -409,7 +473,7 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   private StackFrame mkFrame(Function function, EnvSXP parentEnv) {
-    return new StackFrame(function, parentEnv);
+    return new StackFrame(function, parentEnv, userEnvPositions);
   }
 
   /// Interprets the control flow graph starting from the entry block.
@@ -423,6 +487,7 @@ public final class InternalInterpreter implements Interpreter {
     frame.enter(cursor, feedback);
     stack.push(frame);
 
+    var deopted = false;
     while (true) {
       var nextControl = cursor.iterateCurrentBb1(this::run, this::run);
 
@@ -435,6 +500,9 @@ public final class InternalInterpreter implements Interpreter {
           var f = stack.pop();
           assert f == frame : "stack imbalance";
           frame.exit();
+          // Set right before returning, because nested `run`s (from calls in statements)
+          // overwrite it (and consume it before we iterate any further instruction).
+          lastRunDeopted = deopted;
           return value;
         }
         case ControlFlow.Deopt(var pc, var deoptStack) -> {
@@ -445,6 +513,7 @@ public final class InternalInterpreter implements Interpreter {
           cursor = restoreDeopt(pc, deoptStack, deoptRestoreCfg);
           frame.exit();
           frame.enter(cursor, feedback);
+          deopted = true;
           System.out.println("DEOPT");
         }
       }
@@ -655,11 +724,8 @@ public final class InternalInterpreter implements Interpreter {
       }
       case MkVector(var kind, var elementNames) ->
           new Value.Sexp(
-              mkVector(
-                  kind,
-                  Lists.mapLazy(elementNames, OptionalNamedVariable::ofNullable),
-                  statement.args().stream().map(this::run).toList()));
-      case MkEnv() -> {
+              mkVector(kind, elementNames, statement.args().stream().map(this::run).toList()));
+      case MkEnv _ -> {
         topFrame().mkEnv();
         yield null;
       }
@@ -682,6 +748,7 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't reflective load in non-promise: " + promValue);
         }
         var env = promise.env();
+        recordReflectiveEnv(env);
 
         yield env.getLocal(variable.name())
             .map(Value.Sexp::new)
@@ -699,6 +766,7 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't reflective store non-SEXP value: " + valueValue);
         }
         var env = promise.env();
+        recordReflectiveEnv(env);
 
         env.set(variable.name(), valueSexp);
         yield null;
@@ -1109,14 +1177,25 @@ public final class InternalInterpreter implements Interpreter {
     if (promCode == null) {
       throw fail("Can't force promise code created outside the interpreter: " + promSXP);
     }
-    var promExpr = promCode.expression;
 
-    // Record evaluation (before in case it crashes)
-    if (promCode.assignee != null) {
-      promCode.frame.scopeFeedback().recordForce(promCode.assignee);
+    // If the promise escaped its creating frame, either crash (if it was speculated local) or
+    // record the escape as feedback (so the promise won't be speculated local next time).
+    if (promCode.escaped) {
+      if (promCode.expression.local()) {
+        throw fail("forced a speculated-local promise after it escaped");
+      }
+      recordEscapingPromise(promCode);
     }
 
-    // Evaluate the promise
+    var promExpr = promCode.expression;
+
+    // Record evaluation (before in case it crashes) in the feedback of the scope whose `prom`
+    // instruction created this promise (whether or not it escaped its creating frame).
+    if (promCode.assignee != null) {
+      feedback().get(promCode.scope).recordForce(promCode.assignee);
+    }
+
+    // Evaluate the promise.
     // No restore CFG = can't deopt in promises, at least for now.
     var value = run(promCode.frame, promExpr.code(), null);
     if (!(value instanceof Value.Sexp(var valueSexp))) {
@@ -1284,7 +1363,7 @@ public final class InternalInterpreter implements Interpreter {
       var stmt = (Statement) Objects.requireNonNull(cursor.instruction());
       var expression = stmt.expression();
       switch (expression) {
-        case MkEnv() -> {
+        case MkEnv _ -> {
           try {
             topFrame().popEnv();
           } catch (IllegalStateException e) {
@@ -1356,7 +1435,7 @@ public final class InternalInterpreter implements Interpreter {
     for (var i = 0; i < deopt.bb().statements().size(); i++) {
       var stmt = deopt.bb().statements().get(i);
       switch (stmt.expression()) {
-        case MkEnv() -> env = new UserEnvSXP(env);
+        case MkEnv _ -> env = new UserEnvSXP(env);
         case Call call when stmt.assignee() != null && isReversiblePureFun(stmt) -> {
           // Substitute already-snapshotted registers with their constant values, then evaluate the
           // (pure box/unbox) call. The callee arg at index 0 is the elided closure.
@@ -1415,8 +1494,8 @@ public final class InternalInterpreter implements Interpreter {
   }
 
   private boolean isReversiblePureFun(Statement statement) {
-    return statement.expression() instanceof Call call
-        && call.callee() instanceof StaticFnCallee(var functionRef, var isDispatch, _)
+    return statement.expression()
+            instanceof Call(StaticFnCallee(var functionRef, var isDispatch, _))
         && !isDispatch
         // args = [elided-closure callee arg, single call arg]
         && statement.argCount() == 2
@@ -1529,6 +1608,59 @@ public final class InternalInterpreter implements Interpreter {
     return stack.getLast();
   }
 
+  /// The environment of the current (innermost) call frame, e.g. where a reflective builtin like
+  /// `substitute` is being evaluated (builtins don't push their own frame).
+  EnvSXP currentEnvironment() {
+    return topFrame().environment();
+  }
+
+  /// The environment of the call frame `which` frames relative to the current one, for
+  /// `sys.frame(which)` where `which <= 0` (`0` = current frame, `-1` = caller, ...).
+  ///
+  /// @throws InterpretException If `which > 0` (unsupported), or there's no such frame.
+  EnvSXP relativeFrameEnvironment(int which) {
+    if (which > 0) {
+      throw failUnsupported("`sys.frame` with a positive frame number: " + which);
+    }
+    var index = stack.size() - 1 + which;
+    if (index < 0 || index >= stack.size()) {
+      throw fail("`sys.frame(" + which + ")`: no such frame");
+    }
+    return stack.get(index).environment();
+  }
+
+  /// Records that `env` was reflectively accessed: if it's a tracked user environment (created by
+  /// an [MkEnv]), marks its `mkenv` [reflective][AbstractionFeedback#reflectiveEnvs] in its closure
+  /// version's feedback.
+  ///
+  /// @throws InterpretException If `env`'s `mkenv` isn't [MkEnvType#REGULAR], i.e. the compiler
+  /// assumed it wouldn't be reflectively accessed but it was.
+  public void recordReflectiveEnv(EnvSXP env) {
+    var position = userEnvPositions.get(env);
+    if (position == null) {
+      // Not a tracked user environment (e.g. the global or base environment): nothing to record.
+      return;
+    }
+
+    if (mkEnvTypeOf(position) != MkEnvType.REGULAR) {
+      throw fail(
+          "Reflective access to a speculated-non-reflective ("
+              + mkEnvTypeOf(position)
+              + ") environment created at:\n"
+              + position);
+    }
+
+    feedback()
+        .get(Objects.requireNonNull(position.parentBB()).owner().scope())
+        .reflectiveEnvs
+        .add(position);
+  }
+
+  /// The [type][MkEnvType] of the [MkEnv] `mkenv` statement.
+  static MkEnvType mkEnvTypeOf(Statement mkenv) {
+    return ((MkEnv) mkenv.expression()).type();
+  }
+
   private @Nullable AssumeLoadFunLookup loadFunctionForAssume(String name, EnvSXP env) {
     while (!(env instanceof EmptyEnvSXP)) {
       var value = env.getLocal(name).orElse(null);
@@ -1585,9 +1717,26 @@ public final class InternalInterpreter implements Interpreter {
         SEXPs.lang(
             SEXPs.symbol(".Interpret"),
             SEXPs.lang(SEXPs.symbol("promise"), SEXPs.integer(promExpr.hashCode())));
-    var sexp = SEXPs.promise(codeStub, topFrame().environment());
-    promises.put(sexp, new PromiseCode(promExpr, topFrame(), assignee));
+    var frame = topFrame();
+    var sexp = SEXPs.promise(codeStub, frame.environment());
+    var promCode =
+        new PromiseCode(promExpr, frame, assignee, frame.scope(), frame.currentStatement());
+    promises.put(sexp, promCode);
+    frame.addPromise(promCode);
     return sexp;
+  }
+
+  /// Records that the promise created at `promCode`'s position escaped, in its version's feedback
+  /// ([AbstractionFeedback#escapingPromises]).
+  private void recordEscapingPromise(PromiseCode promCode) {
+    var position = promCode.position;
+    if (position == null) {
+      return;
+    }
+    feedback()
+        .get(Objects.requireNonNull(position.parentBB()).owner().scope())
+        .escapingPromises
+        .add(position);
   }
 
   private record AssumeLoadFunLookup(EnvSXP environment, CloSXP closure) {}
@@ -1630,6 +1779,4 @@ public final class InternalInterpreter implements Interpreter {
 
     record Deopt(int pc, List<SEXP> stack) implements ControlFlow {}
   }
-
-  private record PromiseCode(Promise expression, StackFrame frame, @Nullable Register assignee) {}
 }
