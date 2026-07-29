@@ -6,7 +6,8 @@ import static org.prlprg.fir.check.Checker.checkAll;
 import java.util.Objects;
 import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult.Error;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.examples.SexpResult.Ok;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.snapshot.SkipQueryException;
@@ -48,19 +49,24 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
     var original = store.load(example, FirQuery.INSTANCE);
 
     MockModuleFeedback feedback;
+    // Get feedback from interpreter because feedback from eval is unimplemented.
+    // When it's implemented, switch to eval.
     try {
-      var interpreterOutput = store.load(example, InterpretQuery.MAIN);
-      if (interpreterOutput.result() instanceof Error(var message, _)) {
-        System.err.println("WARNING: interpreter crashed:\n" + message);
+      var interpretOutput = store.load(example, InterpretQuery.MAIN);
+      feedback = interpretOutput.feedback();
+      switch (interpretOutput.result()) {
+        case Ok _ -> System.err.println("Using INTERPRETER feedback");
+        case Error(var message, _) ->
+            System.err.println(
+                "Using PARTIAL INTERPRETER feedback (from crashed but successful run):\n"
+                    + message);
       }
-      feedback = interpreterOutput.feedback();
-      System.err.println("Using INTERPRETER feedback");
     } catch (SkipQueryException e) {
-      System.err.println("Interpreter crashed: " + e.getMessage());
+      System.err.println("Interpreter crashed with exception: " + e.getMessage());
       //noinspection CallToPrintStackTrace
       e.printStackTrace();
 
-      feedback = new MockModuleFeedback();
+      feedback = new MockModuleFeedback(original);
       System.err.println("Using MOCK feedback");
     }
 

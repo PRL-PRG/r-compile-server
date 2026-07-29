@@ -43,6 +43,6 @@ public class ModuleFixpointSequence
 
   @Override
   protected boolean checkTarget(Module module) {
-    return checkAll(module, Exclude.STRICT_CFG);
+    return checkAll(module, Exclude.STRICT_CFG, Exclude.CAPTURE);
   }
 }

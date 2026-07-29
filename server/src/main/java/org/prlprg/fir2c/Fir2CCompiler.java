@@ -34,6 +34,7 @@ import org.prlprg.fir.ir.expression.Force;
 import org.prlprg.fir.ir.expression.Load;
 import org.prlprg.fir.ir.expression.Load.LoadType;
 import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
 import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
 import org.prlprg.fir.ir.expression.PopEnv;
@@ -88,6 +89,8 @@ public final class Fir2CCompiler {
   private static final String VAR_CAPTURES = "captures";
   private static final String VAR_POOL = "pool";
   private static final String VAR_SIGNATURE = "signature";
+  private static final String VAR_LOCAL_PROMISES = "local_promises";
+  private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
 
   // Input
   private final Module module;
@@ -129,7 +132,7 @@ public final class Fir2CCompiler {
         // (and before referenced functions encountered before).
         var initCode = mainEmitter.initCFunction.addFirst();
         var nextInitCName = functionInitCName(next);
-        initCode.stmt("%s(%s);", nextInitCName, constantRef(mainEmitter.fnPool, nextCpSxp));
+        initCode.stmt("%s(%s);", nextInitCName, nestedPoolRef(mainEmitter.fnPool, nextCpSxp));
       }
     } else {
       emitReferencedExternalDeclarations();
@@ -253,7 +256,7 @@ public final class Fir2CCompiler {
 
       int numParams = function.parameterNames().size();
       var versions =
-          function.versionsSorted().stream()
+          function.versions().stream()
               .filter(
                   v ->
                       v.parameters().size() == numParams
@@ -368,7 +371,7 @@ public final class Fir2CCompiler {
       var cFunction = cUnit.addFunction(DISPATCH_C_RETURN, cName, DISPATCH_C_PARAMS);
 
       var versions =
-          function.versionsSorted().stream()
+          function.versions().stream()
               .filter(
                   v ->
                       v.signature().parameterTypes().stream()
@@ -515,7 +518,7 @@ public final class Fir2CCompiler {
           VersionEmitter.forwardDeclareStub(cUnit, function, version);
         } else {
           var cpSxp = new VersionEmitter(version).run();
-          var cp = constantRef(fnPool, cpSxp);
+          var cp = nestedPoolRef(fnPool, cpSxp);
 
           var versionInitCName = versionInitCName(function, version);
           initCCode.stmt("%s(%s);", versionInitCName, cp);
@@ -535,6 +538,9 @@ public final class Fir2CCompiler {
       private final Map<CFG, Set<Register>> locals = new LinkedHashMap<>();
       private final Map<CFG, Set<Register>> captures = new LinkedHashMap<>();
       private final Map<Register, Type> registerTypes = new LinkedHashMap<>();
+      /// Each promise CFG to the CFG whose frame creates it. The version's own body CFG isn't a
+      /// key, so a lookup chain from any CFG terminates there.
+      private final Map<CFG, CFG> enclosingCfgs = new LinkedHashMap<>();
 
       static void forwardDeclareStub(CUnit cUnit, Function function, Abstraction version) {
         if (!version.isStub()) {
@@ -566,6 +572,18 @@ public final class Fir2CCompiler {
         // Compute local and captured registers
         version.streamCfgs().forEach(cfg -> locals.put(cfg, new LinkedHashSet<>()));
         version.streamCfgs().forEach(cfg -> captures.put(cfg, new LinkedHashSet<>()));
+        version
+            .streamCfgs()
+            .forEach(
+                cfg -> {
+                  for (var bb : cfg.bbs()) {
+                    for (var statement : bb.statements()) {
+                      if (statement.expression() instanceof Promise promise) {
+                        enclosingCfgs.put(promise.code(), cfg);
+                      }
+                    }
+                  }
+                });
         version
             .streamRegisters()
             .forEach(
@@ -601,8 +619,13 @@ public final class Fir2CCompiler {
                     if (useBb == null) {
                       continue;
                     }
-                    var useCfg = useBb.owner();
-                    if (useCfg != defCfg) {
+                    // The register only has a slot in `defCfg`'s frame, and a promise's capture
+                    // array holds pointers into the frame that *creates* it. So a use nested more
+                    // than one promise deep has to be threaded through every frame in between,
+                    // each of which captures it from its own enclosing frame.
+                    for (var useCfg = useBb.owner();
+                        useCfg != null && useCfg != defCfg;
+                        useCfg = enclosingCfgs.get(useCfg)) {
                       captures.get(useCfg).add(register);
                     }
                   }
@@ -708,13 +731,17 @@ public final class Fir2CCompiler {
           var evalCName = promiseEvalCName(promise);
           var valueType = emitType(promise.valueType());
           var reflect = emitEffects(promise.effects());
+          var escaped =
+              promise.local() ? "FIR_GLOBALLY_ESCAPED_LOCAL" : "FIR_GLOBALLY_ESCAPED_DEFAULT";
           cCode.stmt(
-              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s};",
-              evalCName, valueType, reflect);
+              "*data = (Fir_PromiseGlobalData) {.eval = %s, .value_type = %s, .effects = %s, .escaped = %s};",
+              evalCName, valueType, reflect, escaped);
         }
 
         private void emitFromR() {
           var cCode = fromRCFunction.add();
+          // If the promise escaped its creating frame, record the escape or crash (if local).
+          cCode.stmt("Fir_check_promise_escaped(%s);", VAR_DATA);
           cCode.stmt(
               "void **captures = ((Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(%s)))->captures;",
               VAR_DATA);
@@ -757,6 +784,10 @@ public final class Fir2CCompiler {
         private final Set<Register> locals;
         private final Map<String, Integer> tempArrayDisambiguators = new HashMap<>();
 
+        /// Whether this CFG (frame) directly creates any promises, so we must track them and mark
+        /// them escaped when the frame exits.
+        private final boolean createsPromises;
+
         CfgEmitter(
             CFG cfg,
             Type returnType,
@@ -773,6 +804,10 @@ public final class Fir2CCompiler {
 
           liveness = new Liveness(cfg);
           locals = Objects.requireNonNull(VersionEmitter.this.locals.get(cfg));
+          createsPromises =
+              cfg.bbs().stream()
+                  .flatMap(bb -> bb.statements().stream())
+                  .anyMatch(s -> s.expression() instanceof Promise);
         }
 
         VecSXP run() {
@@ -784,6 +819,8 @@ public final class Fir2CCompiler {
 
           emitLocalDeclarations();
 
+          emitPromiseTrackingSetup();
+
           for (var bb : cfg.bbs()) {
             new BBEmitter(bb, cFunction.add()).run();
           }
@@ -791,6 +828,21 @@ public final class Fir2CCompiler {
           endEmitInit();
 
           return pool.toSexp();
+        }
+
+        /// Declares and protects the per-frame list of created promises (see [#createsPromises]).
+        /// The list is prepended to as promises are created and iterated to mark them escaped when
+        /// the frame returns.
+        private void emitPromiseTrackingSetup() {
+          if (!createsPromises) {
+            return;
+          }
+
+          var sec = cFunction.add();
+          debugComment(sec, "# Track promises created in this frame (to mark escaped on exit)");
+          sec.stmt("SEXP %s = R_NilValue;", VAR_LOCAL_PROMISES);
+          sec.stmt("PROTECT_INDEX %s;", VAR_LOCAL_PROMISES_IDX);
+          sec.stmt("PROTECT_WITH_INDEX(%s, &%s);", VAR_LOCAL_PROMISES, VAR_LOCAL_PROMISES_IDX);
         }
 
         private void emitConstants() {
@@ -929,7 +981,7 @@ public final class Fir2CCompiler {
                   // Compile function and add declarations
                   var cpSxp = new FunctionEmitter(function).run();
                   // Store the constant pool inline
-                  cp = constantRef(pool, cpSxp);
+                  cp = nestedPoolRef(pool, cpSxp);
 
                   // Call the function's initializer with the stored constant pool
                   var initCCode = initCFunction.add();
@@ -983,7 +1035,7 @@ public final class Fir2CCompiler {
                             promiseFromRCFunction,
                             promiseEvalCFunction)
                         .run();
-                var cp = constantRef(pool, cpSxp);
+                var cp = nestedPoolRef(pool, cpSxp);
 
                 var initCCode = initCFunction.add();
                 debugComment(
@@ -1007,17 +1059,26 @@ public final class Fir2CCompiler {
                         captureSet.stream().map(reg -> "(void *)&" + registerPlace(reg)).toList());
                 var captures = captureArray.pointer();
 
-                yield "Fir_mk_promise(%s, %s, %s, %s)".formatted(fromRCName, cp, captures, VAR_ENV);
+                // Track the created promise so it's marked escaped when this frame exits.
+                yield "Fir_track_promise(Fir_mk_promise(%s, %s, %s, %s), &%s, %s)"
+                    .formatted(
+                        fromRCName,
+                        cp,
+                        captures,
+                        VAR_ENV,
+                        VAR_LOCAL_PROMISES,
+                        VAR_LOCAL_PROMISES_IDX);
               }
               case Assume(var assumption) ->
-                  emitAssumptionValue(assignee, assumption, args.isEmpty() ? null : args.get(0));
+                  emitAssumptionValue(
+                      assignee, assumption, args.isEmpty() ? null : args.getFirst());
               case Call _ -> emitCall(statement);
               case Cast(var type) ->
-                  "Fir_cast(%s, %s)".formatted(emitArgument(args.get(0)), emitType(type));
-              case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.get(0)));
+                  "Fir_cast(%s, %s)".formatted(emitArgument(args.getFirst()), emitType(type));
+              case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.getFirst()));
               case Force(var isMaybe) ->
                   (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
-                      .formatted(emitArgument(args.get(0)));
+                      .formatted(emitArgument(args.getFirst()));
               // This is an R special case.
               // There's no equivalent for `Store`, `LoadFun`, etc.
               // their behavior is inconsistent.
@@ -1031,14 +1092,15 @@ public final class Fir2CCompiler {
                     case SUPER_VAR ->
                         "Fir_super_load(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
                     case LOCAL_FUN ->
-                        "Rf_findFun(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
+                        "Fir_load_fun(%s, %s)".formatted(nvSymbolRef(pool, variable), VAR_ENV);
                     case GLOBAL_FUN ->
                         "Rf_findFun(%s, R_GlobalEnv)".formatted(nvSymbolRef(pool, variable));
                     case BASE_FUN ->
                         "Rf_findFun(%s, R_BaseEnv)".formatted(nvSymbolRef(pool, variable));
                   };
-              case MkEnv() -> {
-                cCode.stmt("Fir_push_env(&%s);", VAR_ENV);
+              case MkEnv(var type) -> {
+                cCode.stmt("Fir_push_env(&%s, %s);", VAR_ENV, emitMkEnvType(type));
+                debugValue(cCode, "(env)", VAR_ENV, Repr.SEXP);
                 yield null;
               }
               case MkVector(var kind, var elementNames) -> {
@@ -1065,17 +1127,17 @@ public final class Fir2CCompiler {
               }
               case ReflectiveLoad(var variable) ->
                   "Fir_reflective_load(%s, %s)"
-                      .formatted(emitArgument(args.get(0)), nvSymbolRef(pool, variable));
+                      .formatted(emitArgument(args.getFirst()), nvSymbolRef(pool, variable));
               case ReflectiveStore(var variable) -> {
                 cCode.stmt(
                     "Fir_reflective_store(%s, %s, %s);",
-                    emitArgument(args.get(0)),
+                    emitArgument(args.getFirst()),
                     nvSymbolRef(pool, variable),
                     emitArgument(args.get(1)));
                 yield null;
               }
               case Store(var storeType, var variable) -> {
-                var arg = emitArgument(args.get(0));
+                var arg = emitArgument(args.getFirst());
                 switch (storeType) {
                   case LOCAL_VAR ->
                       cCode.stmt(
@@ -1088,7 +1150,7 @@ public final class Fir2CCompiler {
                 yield null;
               }
               case SubscriptRead _ -> {
-                var vector = args.get(0);
+                var vector = args.getFirst();
                 var index = args.get(1);
                 if (!(argumentType(vector).kind()
                     instanceof Kind.PrimitiveVector(_, var primitiveKind))) {
@@ -1101,7 +1163,7 @@ public final class Fir2CCompiler {
                     .formatted(suffix, emitArgument(vector), emitArgument(index));
               }
               case SubscriptWrite _ -> {
-                var vector = args.get(0);
+                var vector = args.getFirst();
                 var index = args.get(1);
                 var value = args.get(2);
                 if (!(argumentType(vector).kind()
@@ -1198,7 +1260,7 @@ public final class Fir2CCompiler {
                               initCCode,
                               "# Protect constants of %s version %s",
                               calleeFun.name(),
-                              calleeFun.indexOf(calleeVersion));
+                              calleeVersion.signature());
                           initCCode.stmt(
                               "Fir_set_const(%s, %d, %s);", VAR_POOL, poolIdx, constantsCName);
                         });
@@ -1251,8 +1313,17 @@ public final class Fir2CCompiler {
             debugInstr(cCode, jump);
 
             switch (jump.expression()) {
-              case Return _ -> cCode.stmt("return %s;", emitArgument(jump.arg(0)));
-              case Goto _ -> emitJumpTo(1, jump.targets().get(0));
+              case Return _ -> {
+                var returnValue = emitArgument(jump.arg(0));
+                // The frame is exiting: mark all promises it created as escaped, and release the
+                // tracking list (its `PROTECT_WITH_INDEX` from `emitPromiseTrackingSetup`).
+                if (createsPromises) {
+                  cCode.stmt("Fir_mark_promises_escaped(%s);", VAR_LOCAL_PROMISES);
+                  cCode.stmt("UNPROTECT(1);");
+                }
+                cCode.stmt("return %s;", returnValue);
+              }
+              case Goto _ -> emitJumpTo(1, jump.targets().getFirst());
               case Raise _ -> {
                 cCode.stmt("Rf_error(\"%%s\", %s);", emitArgument(jump.arg(0)));
                 cCode.stmt("return %s;", reprDefaultValue(returnType.kind().repr()));
@@ -1264,14 +1335,14 @@ public final class Fir2CCompiler {
               case If _ -> {
                 var targets = jump.targets();
                 cCode.stmt("if (%s) {", emitArgument(jump.arg(0)));
-                emitJumpTo(2, targets.get(0));
+                emitJumpTo(2, targets.getFirst());
                 cCode.stmt("} else {");
                 emitJumpTo(2, targets.get(1));
                 cCode.stmt("}");
               }
               case Checkpoint _ -> {
                 var targets = jump.targets();
-                var success = targets.get(0);
+                var success = targets.getFirst();
                 var deopt = targets.get(1);
                 for (var statement : success.bb().statements()) {
                   if (!(statement.expression() instanceof Assume(var assumption))) {
@@ -1296,34 +1367,26 @@ public final class Fir2CCompiler {
             }
           }
 
-          private List<Assumption> assumptionsFor(Target target) {
-            var assumptions = new ArrayList<Assumption>();
-            for (var statement : target.bb().statements()) {
-              if (!(statement.expression() instanceof Assume(var assumption))) {
-                break;
-              }
-              assumptions.add(assumption);
-            }
-            return assumptions;
-          }
-
           private String emitAssumptionCondition(
               @Nullable Register assignee, Assumption assumption, @Nullable Argument target) {
             debugComment(cCode, "? %s", assumption);
-            debugArgs(cCode, target == null ? List.<Argument>of() : List.of(target));
+            debugArgs(cCode, target == null ? List.of() : List.of(target));
 
             var refAssigneePlace =
                 assignee == null ? "NULL" : "&%s".formatted(registerPlace(assignee));
 
             return switch (assumption) {
               case AssumeConstant(var constant) ->
-                  "%s == %s".formatted(emitArgument(target), constantRef(pool, constant));
+                  "%s == %s"
+                      .formatted(
+                          emitArgument(Objects.requireNonNull(target)),
+                          constantRef(pool, constant));
               case AssumeFunction a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =
                     Objects.requireNonNull(rSession.RFunTab().get(a.function().name().name()))
                         .index();
                 yield "Fir_assume_builtin_function(%s, %d)"
-                    .formatted(emitArgument(target), builtinIndex);
+                    .formatted(emitArgument(Objects.requireNonNull(target)), builtinIndex);
               }
               case AssumeFunction a when a.function().owner() == INTRINSICS ->
                   throw new IllegalArgumentException(
@@ -1334,7 +1397,9 @@ public final class Fir2CCompiler {
                 referencedFunctions.add(a.function());
 
                 yield "Fir_assume_function(%s, &%s)"
-                    .formatted(emitArgument(target), functionDispatchCName(a.function()));
+                    .formatted(
+                        emitArgument(Objects.requireNonNull(target)),
+                        functionDispatchCName(a.function()));
               }
               case AssumeLoadFun a when a.function().owner() == BUILTINS -> {
                 var builtinIndex =
@@ -1364,14 +1429,15 @@ public final class Fir2CCompiler {
                       .formatted(
                           nvSymbolRef(pool, variable), VAR_ENV, constantRef(pool, constant.box()));
               case AssumeType(var type) ->
-                  "Fir_assume_type(%s, %s)".formatted(emitArgument(target), emitType(type));
+                  "Fir_assume_type(%s, %s)"
+                      .formatted(emitArgument(Objects.requireNonNull(target)), emitType(type));
             };
           }
 
           private @Nullable String emitAssumptionValue(
               @Nullable Register assignee, Assumption assumption, @Nullable Argument target) {
             return switch (assumption) {
-              case AssumeType _, AssumeFunction _ -> emitArgument(target);
+              case AssumeType _, AssumeFunction _ -> emitArgument(Objects.requireNonNull(target));
               // `assignee` is assigned by-reference in `emitAssumptionCondition`
               case AssumeLoadFun _ -> assignee == null ? null : registerPlace(assignee);
               case AssumeConstant _, AssumeLoadVar _ -> null;
@@ -1475,12 +1541,12 @@ public final class Fir2CCompiler {
           }
 
           private ArrayAndNames emitNamedArgumentArrays(
-              Repr repr, List<Argument> values, List<@Nullable NamedVariable> elementNames) {
+              Repr repr, List<Argument> values, List<OptionalNamedVariable> elementNames) {
             var names = new ArrayList<OptionalNamedVariable>(elementNames.size());
             var hasNames = false;
             for (var name : elementNames) {
-              names.add(OptionalNamedVariable.ofNullable(name));
-              if (name != null) {
+              names.add(name);
+              if (name.isPresent()) {
                 hasNames = true;
               }
             }
@@ -1599,6 +1665,11 @@ public final class Fir2CCompiler {
   }
 
   // region emit types
+
+  private static String emitMkEnvType(MkEnvType type) {
+    return "FIR_MKENV_" + type.name();
+  }
+
   private String emitType(Type type) {
     var comment = options.contains(Option.EMIT_DEBUG_COMMENTS) ? "/* %s */ ".formatted(type) : "";
     return "%sFir_type(%s, %s, %s, %s)"
@@ -1920,6 +1991,12 @@ public final class Fir2CCompiler {
 
   private static String constantRef(ConstantPool pool, SEXP sexp) {
     return "Fir_const(%s, %d)".formatted(VAR_POOL, pool.intern(sexp));
+  }
+
+  /// Like [#constantRef(ConstantPool, SEXP)] but in an always-unique slot; required for nested
+  /// constant pools, which are mutated at runtime (see [ConstantPool#internUnique(SEXP)]).
+  private static String nestedPoolRef(ConstantPool pool, SEXP sexp) {
+    return "Fir_const(%s, %d)".formatted(VAR_POOL, pool.internUnique(sexp));
   }
 
   // endregion constants

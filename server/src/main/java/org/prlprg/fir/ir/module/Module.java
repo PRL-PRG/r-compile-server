@@ -13,9 +13,12 @@ import java.util.Set;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.observer.Observer;
 import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.NamedVariable;
+import org.prlprg.fir.parseprint.IrPrintContext;
+import org.prlprg.fir.parseprint.ModuleParseContext;
 import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
@@ -50,17 +53,29 @@ public final class Module {
     return functions.get(name);
   }
 
+  /// Add a function with a baseline version.
   public Function addFunction(
       NamedVariable name, List<NamedVariable> parameterNames, boolean baselineIsStub) {
     return addFunction(
         name, parameterNames, Function.computeBaselineParameters(parameterNames), baselineIsStub);
   }
 
+  /// Add a function with a baseline version.
   public Function addFunction(
       NamedVariable name,
       List<NamedVariable> parameterNames,
       List<FunctionParameter> baselineParameters,
       boolean baselineIsStub) {
+    var function = addFunction(name, parameterNames);
+    function.addBaseline(new Abstraction(function.owner(), baselineParameters, baselineIsStub));
+    return function;
+  }
+
+  /// Add a function with no baseline.
+  ///
+  /// A function without a baseline is incomplete: you must call
+  /// [Function#addBaseline(Abstraction)] to finish initializing it.
+  public Function addFunction(NamedVariable name, List<NamedVariable> parameterNames) {
     return this.record(
         "Module#addFunction",
         List.of(this, name),
@@ -68,8 +83,7 @@ public final class Module {
           if (functions.containsKey(name)) {
             throw new IllegalArgumentException("Function with name '" + name + "' already exists.");
           }
-          var function =
-              new Function(this, name, parameterNames, baselineParameters, baselineIsStub);
+          var function = new Function(this, name, parameterNames);
           functions.put(name, function);
           return function;
         });
@@ -137,38 +151,17 @@ public final class Module {
     return Printer.toString(this);
   }
 
+  /// A module can be printed without any surrounding information, so this forwards to
+  /// [IrPrintContext] and callers can just `p.print(module)`.
   @PrintMethod
   private void print(Printer p) {
-    p.printSeparated("\n\n", functions.values());
+    p.withContext(new IrPrintContext()).print(this);
   }
 
+  /// A module can be parsed without any surrounding information, so this forwards to
+  /// [ModuleParseContext] and callers can just `p.parse(Module.class)`.
   @ParseMethod
   private static Module parse(Parser p) {
-    var s = p.scanner();
-    var module = new Module();
-
-    var deferredFunctions = new LinkedHashMap<NamedVariable, FunctionRef>();
-    var functionParser =
-        p.withContext(
-            new Function.ParseContext(module, new FunctionRef.ParseContext(deferredFunctions)));
-
-    while (!s.isAtEof() && !s.nextCharIs('}')) {
-      var function = functionParser.parse(Function.class);
-      if (module.functions.put(function.name(), function) != null) {
-        throw new IllegalArgumentException(
-            "Function with name '" + function.name() + "' already exists.");
-      }
-    }
-
-    // Resolve forward references to functions (e.g. recursive or mutually-recursive calls).
-    for (var entry : deferredFunctions.entrySet()) {
-      var function = module.lookupFunction(entry.getKey());
-      if (function == null) {
-        throw s.fail("function not found: " + entry.getKey());
-      }
-      entry.getValue().set(function);
-    }
-
-    return module;
+    return p.withContext(new ModuleParseContext()).parse(Module.class);
   }
 }

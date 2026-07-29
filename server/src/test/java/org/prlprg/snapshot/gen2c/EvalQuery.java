@@ -9,9 +9,15 @@ import org.prlprg.examples.Example;
 import org.prlprg.examples.SexpResult;
 import org.prlprg.examples.SexpResult.Error;
 import org.prlprg.examples.SexpResult.Ok;
+import org.prlprg.fir.feedback.MockModuleFeedback;
+import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
+import org.prlprg.parseprint.Parser;
+import org.prlprg.parseprint.Printer;
 import org.prlprg.service.RshCompiler.RuntimeVariant;
 import org.prlprg.session.gnur.EvalException;
 import org.prlprg.session.gnur.GNUR;
+import org.prlprg.sexp.NilSXP;
+import org.prlprg.sexp.StrSXP;
 import org.prlprg.sexp.VecSXP;
 import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SkipQueryException;
@@ -46,17 +52,28 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       var rawOutput =
           R.capturingEval("path <- '%s'\n%s".formatted(modulePath.toAbsolutePath(), EVAL_DRIVER));
 
-      if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 2) {
+      if (!(rawOutput.first() instanceof VecSXP v) || v.size() != 3) {
         throw new IllegalArgumentException(
-            "Value first item must be a vector of size 2, got: " + rawOutput.first());
+            "Value first item must be a vector of size 3, got: " + rawOutput.first());
       }
       var res = v.get(0);
       var pc = PerformanceCounters.from(v.get(1));
-
+      var feedback =
+          switch (v.get(2)) {
+            case NilSXP _ -> null;
+            case StrSXP s when s.isSimpleScalar() -> {
+              var module = store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
+              var parseCtx = new ModuleFeedbackParseContext(module);
+              yield Parser.fromString(s.get(0), MockModuleFeedback.class, parseCtx);
+            }
+            default ->
+                throw new IllegalArgumentException(
+                    "Value third item must be NULL or serialized `MockModuleFeedback`");
+          };
       var outputLog = rawOutput.second();
-      return new EvalOutput(new Ok(res), outputLog, pc);
+      return new EvalOutput(new Ok(res), outputLog, feedback, pc);
     } catch (EvalException e) {
-      return new EvalOutput(new Error(e, false), e.outputLog(), PerformanceCounters.EMPTY);
+      return new EvalOutput(new Error(e, false), e.outputLog(), null, PerformanceCounters.EMPTY);
     }
   }
 
@@ -70,9 +87,19 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
   @Override
   public void verifyEqual(
       EvalOutput expected, EvalOutput actual, Example example, SnapshotStore store) {
+    // If a crash is expected in this query but not the oracle's (e.g.
+    // `#? [opt.fir2c.opt.eval]crashes`, for optimized code that crashes instead of deoptimizing),
+    // the outputs deliberately differ; `verifyExtra` asserts the crash and `verifyNoRegression`
+    // asserts its message doesn't change.
+    var oracleName = new EvalQuery(moduleQuery.evalOracle()).name();
+    if (example.hasOption(name(), "crashes") != example.hasOption(oracleName, "crashes")) {
+      return;
+    }
+
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
       assertEquals(expected.behaviorOutputLog(), actual.behaviorOutputLog(), "Output changed");
+      assertEquals(expected.feedback(), actual.feedback(), "Feedback changed");
     }
   }
 
@@ -90,7 +117,7 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
   @Override
   public void verifyExtra(EvalOutput data, Example example, SnapshotStore store) {
-    data.result().check(example);
+    data.result().check(example, name());
 
     if (moduleQuery.runtime() == RuntimeVariant.DIRECT_BC2C) {
       if (example.hasOption(name(), "fastArith")) {
@@ -161,20 +188,33 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     var R = GNUR.instance();
 
     var outputLogPath = path.resolve("output.log");
+    var feedbackPath = path.resolve("feedback.txt");
 
     var result = SexpResult.read(path, R);
     var outputLog = Files.readString(outputLogPath);
+    MockModuleFeedback feedback = null;
+    if (Files.exists(feedbackPath)) {
+      var module = store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
+      var parseCtx = new ModuleFeedbackParseContext(module);
+      feedback = Parser.fromFile(feedbackPath.toFile(), MockModuleFeedback.class, parseCtx);
+    }
 
-    return new EvalOutput(result, outputLog, PerformanceCounters.EMPTY);
+    return new EvalOutput(result, outputLog, feedback, PerformanceCounters.EMPTY);
   }
 
   @Override
   public void serialize(EvalOutput data, Path path, Example example, SnapshotStore store)
       throws IOException {
     var outputLogPath = path.resolve("output.log");
+    var feedbackPath = path.resolve("feedback.txt");
 
     Files.createDirectories(path);
     data.result().write(path);
     Files.writeString(outputLogPath, data.outputLog());
+    if (data.feedback() == null) {
+      Files.deleteIfExists(feedbackPath);
+    } else {
+      Printer.toFile(feedbackPath.toFile(), data.feedback());
+    }
   }
 }

@@ -6,7 +6,6 @@ import java.util.List;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import org.prlprg.fir.feedback.AbstractionFeedback;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Promise;
@@ -112,7 +111,7 @@ class ElideUnforcedPromiseTest {
             }
             """);
 
-    var feedback = new MockModuleFeedback().get(abstraction);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
 
     assertFalse(optimization.run(null, feedback, abstraction), "no feedback should not elide");
   }
@@ -166,7 +165,7 @@ class ElideUnforcedPromiseTest {
     var promiseAssignees = findPromiseAssignees(abstraction);
     assertEquals(2, promiseAssignees.size());
 
-    var feedback = new MockModuleFeedback().get(abstraction);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
     // p1: created many times, never forced
     for (int i = 0; i < THRESHOLD; i++) {
       feedback.recordAssign(promiseAssignees.getFirst());
@@ -192,7 +191,7 @@ class ElideUnforcedPromiseTest {
       Abstraction abstraction, int createCount, int forceCount) {
     var promiseAssignee = findPromiseAssignees(abstraction).getFirst();
 
-    var feedback = new MockModuleFeedback().get(abstraction);
+    var feedback = AbstractionFeedback.standaloneForTesting(abstraction);
     for (int i = 0; i < createCount; i++) {
       feedback.recordAssign(promiseAssignee);
     }

@@ -95,7 +95,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
 
           // Must be a non-effectful Promise
           if (!(promiseDefStmt.expression()
-                  instanceof Promise(var valueType, var effects, var code))
+                  instanceof Promise(var valueType, var effects, var code, _))
               || effects.impure()) {
             continue;
           }
@@ -150,7 +150,7 @@ public record StrictifyPromise() implements AbstractionOptimization {
           // takes value parameters, rewraps them in promises, then runs the old version
 
           var oldParams = oldVersion.parameters();
-          var newParams = new ArrayList<>(oldParams);
+          var newParams = new ArrayList<>(FunctionParameter.copyAll(oldParams));
           for (var inlineable : inlineables) {
             var oldParam = oldParams.get(inlineable.argIndex);
             newParams.set(

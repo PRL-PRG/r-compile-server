@@ -15,6 +15,24 @@ extern "C" {
 #define Fir_set_const(env, idx, value) ((SEXP *)STDVEC_DATAPTR((env)))[(idx)] = (value)
 
 typedef enum {
+  FIR_MKENV_REGULAR,
+  FIR_MKENV_NON_REFLECTIVE,
+  FIR_MKENV_ELIDED,
+} Fir_MkEnvType;
+
+/// Whether a promise (all instances created by a given `prom` instruction) has been observed to
+/// escape (be forced after outliving the stack frame it was created in).
+///
+/// - `DEFAULT`: not speculated local, no escape observed yet.
+/// - `ESCAPED`: not speculated local, an escape has been observed (recorded as feedback).
+/// - `LOCAL`: speculated local; if it escapes, forcing it afterwards is a runtime error.
+typedef enum {
+  FIR_GLOBALLY_ESCAPED_DEFAULT = 0,
+  FIR_GLOBALLY_ESCAPED_ESCAPED = 1,
+  FIR_GLOBALLY_ESCAPED_LOCAL = 2,
+} Fir_GloballyEscaped;
+
+typedef enum {
   FIR_PRIMITIVE_LOGICAL = 0,
   FIR_PRIMITIVE_INTEGER = 1,
   FIR_PRIMITIVE_REAL = 2,
@@ -93,10 +111,16 @@ typedef struct Fir_PromiseGlobalData {
   Fir_PromiseFn eval;
   Fir_Type value_type;
   Fir_Effects effects;
+  /// Whether promises created by this `prom` instruction have been observed to escape. Shared by
+  /// all instances (it lives in the constant pool).
+  Fir_GloballyEscaped escaped;
 } Fir_PromiseGlobalData;
 
 typedef struct Fir_PromiseLocalData {
   void **captures;
+  /// Whether this specific promise instance has escaped, i.e. the stack frame that created it has
+  /// exited. Set to `false` when created, then `true` when the creating frame exits.
+  bool escaped;
 } Fir_PromiseLocalData;
 
 extern Fir_Kind Fir_kind_any_value;
@@ -104,6 +128,11 @@ extern Fir_Kind Fir_kind_closure;
 extern Fir_Kind Fir_kind_dots;
 extern Fir_Kind Fir_kind_missing;
 extern Fir_Kind Fir_kind_boolean;
+
+/// Scalar string of a serialized `MockModuleFeedback` containing feedback for every
+/// compiled closure stored in the constant pool and (recursively) every found closure's
+/// constant pool.
+SEXP Fir_serialized_feedback(SEXP pool);
 
 void Fir_print_signature(Fir_Signature signature);
 void Fir_print_type(Fir_Type type);
@@ -120,7 +149,8 @@ Fir_Effects Fir_effects_union(Fir_Effects a, Fir_Effects b);
 Fir_Effects Fir_effects_intersect(Fir_Effects a, Fir_Effects b);
 
 bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data);
-bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data, Fir_PromiseLocalData **local_data);
+bool Fir_is_compiled_promise(SEXP value, Fir_PromiseGlobalData **global_data,
+                             Fir_PromiseLocalData **local_data);
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind);
 Fir_Kind Fir_kind_primitive_vector(Fir_PrimitiveKind primitive_kind);
@@ -138,6 +168,16 @@ Fir_Signature Fir_signature(Fir_Type return_type, int param_count, Fir_Type cons
 
 SEXP Fir_mk_closure(Rsh_code dispatchFromR, SEXP formals, SEXP cp, SEXP env);
 SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env);
+/// Prepend `promise` to `tracked_list` (a pairlist of promises created in the current frame),
+/// re-protecting it at `idx`, and return `promise`. Used to remember which promises to mark
+/// escaped when the frame exits.
+SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx);
+/// Mark every promise in `tracked_list` as escaped (its creating frame has exited).
+void Fir_mark_promises_escaped(SEXP tracked_list);
+/// Given a compiled promise's data (the `cons(cp, local_data)` in its external pointer), if it
+/// escaped its creating frame, record the escape or crash (if it was speculated local). Called
+/// before forcing, including when R itself forces the promise.
+void Fir_check_promise_escaped(SEXP data);
 
 SEXP Fir_cast(SEXP value, Fir_Type type);
 SEXP Fir_dup(SEXP value);
@@ -145,10 +185,11 @@ SEXP Fir_force(SEXP promise);
 SEXP Fir_maybe_force(SEXP valueOrPromise);
 SEXP Fir_safe_force(SEXP valueOrPromise);
 SEXP Fir_load(SEXP symbol, SEXP env);
+SEXP Fir_load_fun(SEXP symbol, SEXP env);
 SEXP Fir_load_dots(int index, SEXP env);
 void Fir_set_env_pushed_from_r(SEXP env, SEXP* outer_env, bool* push_suppressed);
 void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed);
-void Fir_push_env(SEXP *env);
+void Fir_push_env(SEXP *env, Fir_MkEnvType type);
 void Fir_pop_env(SEXP *env);
 SEXP Fir_mk_vector(Fir_Kind kind, int count, void const *values, SEXP const *names);
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol);

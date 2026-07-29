@@ -131,14 +131,16 @@ public final class CFGCopier {
   private Statement copyStatement(Statement oldStmt, Abstraction newScope) {
     var expr = oldStmt.expression();
     Statement newStmt;
-    if (expr instanceof Promise(var valueType, var effects, var code)) {
+    if (expr instanceof Promise(var valueType, var effects, var code, var local)) {
       // Promises hold a mutable nested CFG, which references this abstraction's registers, so copy
       // it (sharing this copier's register map).
       var newCode = new CFG(newScope);
       copyBlocks(newCode.entry(), code, DEFAULT_RETURN);
       newStmt =
           new Statement(
-              oldStmt.comments().copy(), new Promise(valueType, effects, newCode), List.of());
+              oldStmt.comments().copy(),
+              new Promise(valueType, effects, newCode, local),
+              List.of());
     } else {
       newStmt = new Statement(oldStmt.comments().copy(), expr, List.copyOf(oldStmt.args()));
     }

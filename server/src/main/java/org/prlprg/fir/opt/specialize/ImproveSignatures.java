@@ -30,7 +30,7 @@ public record ImproveSignatures() implements SpecializeOptimization {
       Analyses analyses,
       NonLocalSpecializations nonLocal,
       DeferredInsertions defer) {
-    if (!(statement.expression() instanceof Promise(var oldType, _, var code))) {
+    if (!(statement.expression() instanceof Promise(var oldType, _, var code, var local))) {
       return Result.UNCHANGED;
     }
 
@@ -39,7 +39,7 @@ public record ImproveSignatures() implements SpecializeOptimization {
     var newEffects = analyses.get(InferEffects.class).ofNonRecursive(code);
 
     return new Result.SetExpression(
-        new Promise(newType == null ? oldType : newType, newEffects, code));
+        new Promise(newType == null ? oldType : newType, newEffects, code, local));
   }
 
   @Override

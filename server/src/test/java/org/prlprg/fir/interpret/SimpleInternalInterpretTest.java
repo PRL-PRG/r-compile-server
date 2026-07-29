@@ -3,7 +3,10 @@ package org.prlprg.fir.interpret;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.prlprg.fir.interpret.internal.Builtins.registerBuiltins;
 
+import com.google.common.collect.ImmutableList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,15 +14,29 @@ import org.junit.jupiter.api.Test;
 import org.prlprg.fir.interpret.internal.InternalInterpreter;
 import org.prlprg.fir.ir.argument.Constant;
 import org.prlprg.fir.ir.argument.Read;
+import org.prlprg.fir.ir.callee.StaticFnCallee;
+import org.prlprg.fir.ir.expression.Call;
+import org.prlprg.fir.ir.expression.Load;
+import org.prlprg.fir.ir.expression.Load.LoadType;
+import org.prlprg.fir.ir.expression.MkEnv;
+import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
+import org.prlprg.fir.ir.expression.MkVector;
 import org.prlprg.fir.ir.expression.Noop;
+import org.prlprg.fir.ir.expression.PopEnv;
+import org.prlprg.fir.ir.expression.Store;
+import org.prlprg.fir.ir.expression.Store.StoreType;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
+import org.prlprg.fir.ir.type.Effects;
+import org.prlprg.fir.ir.type.Kind;
+import org.prlprg.fir.ir.type.Signature;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.value.Value;
 import org.prlprg.fir.ir.variable.FunctionParameter;
+import org.prlprg.fir.ir.variable.NamedVariable;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.sexp.SEXPs;
 
@@ -97,6 +114,96 @@ class SimpleInternalInterpretTest {
     assertThrows(
         InterpretException.class,
         () -> interpreter.call("test", new Value.Int(1), new Value.Int(2)));
+  }
+
+  @Test
+  void mkEnvElidedLocalStoreCrashes() {
+    // fun test() { () --> V { | mkenv-; st x = <int 1>; return <int 0>; } }
+    // A local store to an elided environment is illegal: it should have been removed/super-stored.
+    var function = module.addFunction(Variable.named("test"), List.of(), false);
+    var version = function.baseline();
+
+    var entry = Objects.requireNonNull(version.cfg()).entry();
+    entry.appendStatement(new Statement(new MkEnv(MkEnvType.ELIDED)));
+    entry.appendStatement(
+        new Statement(
+            new Store(StoreType.LOCAL_VAR, Variable.named("x")),
+            List.of(new Constant(SEXPs.integer(1)))));
+    entry.setJump(new Jump(new Return(), List.of(new Constant(SEXPs.integer(0)))));
+
+    assertThrows(InterpretException.class, () -> interpreter.call("test"));
+  }
+
+  @Test
+  void mkEnvElidedLoadPassesThrough() {
+    // fun test() { () --> V { reg r:V | mkenv-; r = ld x; return r; } }
+    // Loads pass through an elided environment as if it were empty, finding `x` in the parent.
+    var interp = (InternalInterpreter) interpreter;
+    interp.globalEnv().set("x", SEXPs.integer(7));
+
+    var function = module.addFunction(Variable.named("test"), List.of(), false);
+    var version = function.baseline();
+    version.setReturnType(Type.ANY_VALUE_SEXP);
+
+    var entry = Objects.requireNonNull(version.cfg()).entry();
+    entry.appendStatement(new Statement(new MkEnv(MkEnvType.ELIDED)));
+    var loadStmt = new Statement(new Load(LoadType.LOCAL_VAR, Variable.named("x")));
+    entry.appendStatement(loadStmt);
+    var r = loadStmt.setAssignee("r", Type.ANY_VALUE_SEXP);
+    entry.setJump(new Jump(new Return(), List.of(new Read(r))));
+
+    var result = interpreter.call("test");
+
+    assertEquals(new Value.Sexp(SEXPs.integer(7)), result);
+  }
+
+  @Test
+  void sysFrameMarksCallerEnvironmentReflective() {
+    // fun main() { mkenv; r = inner(); popenv; return r; }
+    // fun inner() { vargs = dots[<int -1>]; r = sys.frame(vargs); return r; }
+    // `sys.frame(-1)` accesses `main`'s frame, marking `main`'s `mkenv` reflective.
+    var interp = (InternalInterpreter) interpreter;
+    registerBuiltins(interp);
+
+    var inner = module.addFunction(Variable.named("inner"), List.of(), false);
+    var innerV = inner.baseline();
+    innerV.setReturnType(Type.ANY_VALUE_SEXP);
+    var innerEntry = Objects.requireNonNull(innerV.cfg()).entry();
+    var vargsStmt =
+        new Statement(
+            new MkVector(new Kind.Dots(), Collections.<NamedVariable>singletonList(null)),
+            List.of(new Constant(SEXPs.integer(-1))));
+    innerEntry.appendStatement(vargsStmt);
+    var vargs = vargsStmt.setAssignee("vargs", Type.DOTS);
+    var sysFrame = Objects.requireNonNull(module.lookupFunction(Variable.named("sys.frame")));
+    var sysFrameSig =
+        new Signature(ImmutableList.of(Type.DOTS), Type.ANY_VALUE_SEXP, Effects.REFLECT);
+    var innerCallStmt =
+        new Statement(
+            new Call(new StaticFnCallee(sysFrame, true, sysFrameSig)),
+            List.of(Constant.ELIDED_CLOSURE, new Read(vargs)));
+    innerEntry.appendStatement(innerCallStmt);
+    var innerR = innerCallStmt.setAssignee("r", Type.ANY_VALUE_SEXP);
+    innerEntry.setJump(new Jump(new Return(), List.of(new Read(innerR))));
+
+    var main = module.addFunction(Variable.named("main"), List.of(), false);
+    var mainV = main.baseline();
+    mainV.setReturnType(Type.ANY_VALUE_SEXP);
+    var mainEntry = Objects.requireNonNull(mainV.cfg()).entry();
+    mainEntry.appendStatement(new Statement(new MkEnv(MkEnvType.REGULAR)));
+    var innerSig = new Signature(ImmutableList.of(), Type.ANY_VALUE_SEXP, Effects.REFLECT);
+    var mainCallStmt =
+        new Statement(
+            new Call(new StaticFnCallee(inner, false, innerSig)), List.of(Constant.ELIDED_CLOSURE));
+    mainEntry.appendStatement(mainCallStmt);
+    var mainR = mainCallStmt.setAssignee("r", Type.ANY_VALUE_SEXP);
+    mainEntry.appendStatement(new Statement(new PopEnv()));
+    mainEntry.setJump(new Jump(new Return(), List.of(new Read(mainR))));
+
+    interpreter.call("main");
+
+    assertEquals(1, interpreter.feedback().get(main.baseline()).reflectiveEnvs.size());
+    assertEquals(0, interpreter.feedback().get(inner.baseline()).reflectiveEnvs.size());
   }
 
   @Test

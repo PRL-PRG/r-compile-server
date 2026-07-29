@@ -15,6 +15,7 @@ import org.prlprg.session.gnur.GNUR;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.ir.FirQuery;
+import org.prlprg.snapshot.fir.ir.GenFirQuery;
 import org.prlprg.snapshot.fir.opt.OptimizedFirQuery;
 import org.prlprg.snapshot.gen2c.CompiledModuleQuery;
 
@@ -28,6 +29,10 @@ public record Fir2CQuery(
 
   public Fir2CQuery(String name, @Nullable Optimization optimization) {
     this(name, optimization, false);
+  }
+
+  public GenFirQuery firQuery() {
+    return optimization == null ? FirQuery.INSTANCE : new OptimizedFirQuery(optimization);
   }
 
   @Override
@@ -54,8 +59,7 @@ public record Fir2CQuery(
 
     var R = GNUR.instance();
 
-    var firQuery = optimization == null ? FirQuery.INSTANCE : new OptimizedFirQuery(optimization);
-    var firModule = store.load(example, firQuery);
+    var firModule = store.load(example, firQuery());
 
     var firMainFn = firModule.localFunction(Variable.named("main"));
     assertNotNull(firMainFn, "FIR module missing main function");

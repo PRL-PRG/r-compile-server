@@ -47,7 +47,7 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     for (var bb : cfg.bbs()) {
       // Snapshot, since deferring mutates the block.
       for (var stmt : List.copyOf(bb.statements())) {
-        if (!(stmt.expression() instanceof Promise(_, _, var promiseBody))) {
+        if (!(stmt.expression() instanceof Promise(_, _, var promiseBody, _))) {
           continue;
         }
         changed |= deferInto(scope, stmt, promiseBody);

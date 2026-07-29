@@ -178,10 +178,18 @@ public class RDSReader implements Closeable {
   }
 
   private SEXP readExternalPtr() throws IOException {
+    // R assigns the external pointer its reference index *before* it (de)serializes the prot and
+    // tag (`HashAdd` then `WriteItem` in `WriteItem`, `AddReadRef` then `ReadItem` in `ReadItem`),
+    // so claim the slot up-front: anything referenced while reading them would otherwise be off by
+    // one. Unlike an environment, `ExtptrSxp` is immutable, so fill the slot in afterwards.
+    var index = refTable.size();
+    refTable.add(SEXPs.NULL);
+
     var prot = readItem();
     var tag = readItem();
+
     var ptr = new ExtptrSxp(prot, tag);
-    refTable.add(ptr);
+    refTable.set(index, ptr);
     return ptr;
   }
 

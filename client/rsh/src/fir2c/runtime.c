@@ -5,7 +5,8 @@
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
 
-#define ASSERT(x, msg, ...) if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
+#define ASSERT(x, msg, ...) \
+  if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
 
 Fir_Kind Fir_kind_any_value = {.tag = FIR_KIND_ANY_VALUE};
 Fir_Kind Fir_kind_closure = {.tag = FIR_KIND_CLOSURE};
@@ -33,6 +34,14 @@ static Fir_Kind const PRIMITIVE_VECTOR1_KINDS[4] = {
   {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
   {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
+
+/// Scalar string of a serialized `MockModuleFeedback` containing feedback for every
+/// compiled closure stored in the constant pool and (recursively) every found closure's
+/// constant pool.
+SEXP Fir_serialized_feedback(SEXP pool) {
+  // TODO(llm) but only after the copy-and-patch JIT is merged
+  return R_NilValue;
+}
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_SCALAR_KINDS[primitive_kind];
@@ -250,7 +259,7 @@ SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env) {
 
   SEXP local_data_sexp = PROTECT(Rf_allocVector(RAWSXP, sizeof(Fir_PromiseLocalData)));
   Fir_PromiseLocalData *local_data = STDVEC_DATAPTR(local_data_sexp);
-  *local_data = (Fir_PromiseLocalData) {.captures = captures};
+  *local_data = (Fir_PromiseLocalData) {.captures = captures, .escaped = false};
 
   SEXP data = PROTECT(Rf_cons(cp, local_data_sexp));
 
@@ -259,6 +268,49 @@ SEXP Fir_mk_promise(Rsh_code evalFromR, SEXP cp, void **captures, SEXP env) {
   UNPROTECT(4); // local_data_sexp + data + ext + promise
 
   return promise;
+}
+
+SEXP Fir_track_promise(SEXP promise, SEXP *tracked_list, PROTECT_INDEX idx) {
+  PROTECT(promise);
+  REPROTECT(*tracked_list = Rf_cons(promise, *tracked_list), idx);
+  UNPROTECT(1);
+  return promise;
+}
+
+void Fir_mark_promises_escaped(SEXP tracked_list) {
+  for (SEXP cell = tracked_list; cell != R_NilValue; cell = CDR(cell)) {
+    SEXP promise = CAR(cell);
+    Fir_PromiseGlobalData *global_data;
+    Fir_PromiseLocalData *local_data;
+    if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
+      local_data->escaped = true;
+    }
+  }
+}
+
+/// If the promise escaped its creating frame, either record the escape (as `ESCAPED` global
+/// feedback) or, if it was speculated local, crash. No-op if it hasn't escaped.
+static void Fir_handle_escape(Fir_PromiseGlobalData *global_data, Fir_PromiseLocalData *local_data) {
+  if (!local_data->escaped) {
+    return;
+  }
+  switch (global_data->escaped) {
+  case FIR_GLOBALLY_ESCAPED_DEFAULT:
+    global_data->escaped = FIR_GLOBALLY_ESCAPED_ESCAPED;
+    break;
+  case FIR_GLOBALLY_ESCAPED_ESCAPED:
+    break;
+  case FIR_GLOBALLY_ESCAPED_LOCAL:
+    Rf_error("forced a speculated-local promise after it escaped");
+    break;
+  }
+}
+
+void Fir_check_promise_escaped(SEXP data) {
+  Fir_PromiseGlobalData *global_data =
+      (Fir_PromiseGlobalData*) STDVEC_DATAPTR(Fir_const(CAR0(data), 0));
+  Fir_PromiseLocalData *local_data = (Fir_PromiseLocalData*) STDVEC_DATAPTR(CDR(data));
+  Fir_handle_escape(global_data, local_data);
 }
 
 SEXP Fir_cast(SEXP value, Fir_Type type) {
@@ -271,6 +323,11 @@ SEXP Fir_dup(SEXP value) { return Rf_duplicate(value); }
 SEXP Fir_load(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "load");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load");
+
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+
   SEXP value = Rf_findVar(symbol, env);
 
   if (value == R_UnboundValue) {
@@ -284,8 +341,24 @@ SEXP Fir_load(SEXP symbol, SEXP env) {
   return value;
 }
 
+SEXP Fir_load_fun(SEXP symbol, SEXP env) {
+  Fir_assert_symbol(symbol, "load-fun");
+  ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load-fun");
+
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+
+  return Rf_findFun(symbol, env);
+}
+
 SEXP Fir_load_dots(int index, SEXP env) {
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for load_dots");
+
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
+
   // `ddfind` handles non-positive indices, missing `...`, and out-of-range
   // accesses by raising R errors, matching the behavior of `..N` lookups.
   return ddfind(index, env);
@@ -306,7 +379,10 @@ void Fir_unset_env_pushed_from_r(SEXP outer_env, bool push_suppressed) {
   Fir_env_push_suppressed = push_suppressed;
 }
 
-void Fir_push_env(SEXP *env_ptr) {
+// ???: GNU-R expose methods to update R_GlobalContext->sysparent,
+// if necessary (it may only when the env is pushed from R, `Fir_env_push_suppressed`)
+
+void Fir_push_env(SEXP *env_ptr, Fir_MkEnvType type) {
   ASSERT(env_ptr && *env_ptr && TYPEOF(*env_ptr) == ENVSXP, "push_env requires a pointer to an environment");
 
   if (Fir_env_pushed_from_r == *env_ptr && !Fir_env_push_suppressed) {
@@ -314,7 +390,16 @@ void Fir_push_env(SEXP *env_ptr) {
     return;
   }
 
-  SEXP new_env = Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
+  SEXP new_env =
+    type == FIR_MKENV_ELIDED
+      ? Rsh_ElidedEnv
+      : Rf_NewEnvironment(R_NilValue, R_NilValue, *env_ptr);
+  if (type == FIR_MKENV_ELIDED && *env_ptr != Rsh_ElidedEnv) {
+    SET_ENCLOS(Rsh_ElidedEnv, *env_ptr);
+  }
+  if (type == FIR_MKENV_NON_REFLECTIVE) {
+    Rf_defineVar(Rsh_ReflectivelyAccessed, R_LogicalNAValue, new_env);
+  }
   *env_ptr = new_env;
   PROTECT(*env_ptr);
 }
@@ -430,6 +515,8 @@ SEXP Fir_force(SEXP promise) {
     Fir_PromiseGlobalData *global_data;
     Fir_PromiseLocalData *local_data;
     if (Fir_is_compiled_promise(promise, &global_data, &local_data)) {
+      // If this promise escaped its creating frame, record the escape or crash (see the helper).
+      Fir_handle_escape(global_data, local_data);
       SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
       SET_PRVALUE(promise, forced);
       SET_PRENV(promise, R_NilValue);
@@ -786,6 +873,9 @@ static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   // `Rf_findFun`,
   // but returns `NULL` when it encounters a promise (instead of forcing
   // or on lookup fail (instead of `Rf_error`)
+  if (env == Rsh_ElidedEnv) {
+    env = ENCLOS(env);
+  }
   while (env != R_EmptyEnv) {
     SEXP vl = R_findVarInFrame(env, symbol);
     if (vl != R_UnboundValue) {
@@ -1154,7 +1244,10 @@ DEFINE_INTRINSIC(SEXP, setVisible, fx_none_ret_value) {
 }
 
 DEFINE_INTRINSIC(bool, naToFalse, vec1_logical_fx_none_ret_bool, SEXP value) {
-  return value == R_TrueValue;
+  // Compare the element, not the pointer: a `v1(L)` doesn't have to be one of R's
+  // `R_TrueValue`/`R_FalseValue`/`R_LogicalNAValue` singletons (e.g. a generic builtin call
+  // allocates a fresh `logical(1)`).
+  return LOGICAL(value)[0] == TRUE;
 }
 
 DEFINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboolean value) {
@@ -1192,7 +1285,7 @@ DEFINE_INTRINSIC(double, unbox, vec1_real_borrowed_fx_none_ret_scalar_real, SEXP
 }
 
 DEFINE_INTRINSIC(char*, unbox, vec1_string_borrowed_fx_none_ret_scalar_string, SEXP value) {
-  return value == NA_STRING ? NULL : (char*)CHAR(STRING_ELT(value, 0));
+  return STRING_ELT(value, 0) == NA_STRING ? NULL : (char*)CHAR(STRING_ELT(value, 0));
 }
 
 // === Vector operation helpers ===

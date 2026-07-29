@@ -30,7 +30,6 @@ import org.prlprg.fir.ir.expression.ReflectiveStore;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.expression.SubscriptRead;
 import org.prlprg.fir.ir.expression.SubscriptWrite;
-import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Return;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.type.Concreteness;
@@ -54,16 +53,16 @@ public final class InferType implements Analysis {
     this.scope = scope;
   }
 
+  /// The union of the types of `cfg`'s normal returns.
+  ///
+  /// [Deopt]s don't contribute: a deopt never returns normally (in compiled code it's a non-local
+  /// exit, and the interpreter's deoptless-restore result is checked against the baseline's
+  /// return type at the call boundary instead; see `InternalInterpreter#call`).
   public @Nullable Type of(CFG cfg) {
     Type result = null;
     for (var bb : cfg.bbs()) {
-      var jump = bb.jump();
-      switch (jump.expression()) {
-        case Return _ -> result = Type.union(result, of(jump.arg(0)));
-        case Deopt _ -> {
-          return Type.ANY_VALUE_SEXP;
-        }
-        default -> {}
+      if (bb.jump().expression() instanceof Return) {
+        result = Type.union(result, of(bb.jump().arg(0)));
       }
     }
     return result;
@@ -111,7 +110,7 @@ public final class InferType implements Analysis {
               kind.isWellFormedWithOwnership() ? Ownership.FRESH : Ownership.SHARED,
               Concreteness.DEFINITE);
       case MkEnv _, Noop _, PopEnv _ -> null;
-      case Promise(var valueType, var effects, _) -> Type.promise(valueType, effects);
+      case Promise(var valueType, var effects, _, _) -> Type.promise(valueType, effects);
       case ReflectiveLoad _ -> Type.ANY_SEXP;
       case ReflectiveStore _, Store _ -> null;
       case SubscriptRead _ -> {

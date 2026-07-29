@@ -3,8 +3,9 @@ package org.prlprg.fir.opt;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
-import org.prlprg.fir.interpret.internal.MockModuleFeedback;
+import org.prlprg.fir.feedback.MockModuleFeedback;
 import org.prlprg.fir.ir.ParseUtil;
+import org.prlprg.fir.parseprint.ModuleFeedbackParseContext;
 import org.prlprg.parseprint.Parser;
 
 class ElideUnusedVersionsTest implements OptimizationUnitTest {
@@ -16,7 +17,7 @@ class ElideUnusedVersionsTest implements OptimizationUnitTest {
   private MockModuleFeedback parseFeedback(
       org.prlprg.fir.ir.module.Module module, String feedbackText) {
     return Parser.fromString(
-        feedbackText, MockModuleFeedback.class, new MockModuleFeedback.ParseContext(module));
+        feedbackText, MockModuleFeedback.class, new ModuleFeedbackParseContext(module));
   }
 
   @Test

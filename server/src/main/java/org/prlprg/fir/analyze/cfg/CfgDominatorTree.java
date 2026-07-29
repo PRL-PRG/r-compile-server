@@ -17,6 +17,7 @@ import org.prlprg.fir.analyze.CfgAnalysis;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.instruction.Instruction;
+import org.prlprg.fir.ir.instruction.Statement;
 
 /// Organizes the blocks in a control-flow graph into a tree, where each parent is the immediate
 /// dominator of its children.
@@ -99,6 +100,12 @@ public final class CfgDominatorTree implements CfgAnalysis {
     }
 
     return Comparator.comparingInt(bb -> depth.getOrDefault(bb, Integer.MAX_VALUE));
+  }
+
+  /// [#comparator()] for [BB]s, breaks ties via instruction index
+  public Comparator<Statement> positionComparator() {
+    return Comparator.comparing(Statement::parentBB, comparator())
+        .thenComparingInt(Statement::indexInBB);
   }
 
   private void run() {
