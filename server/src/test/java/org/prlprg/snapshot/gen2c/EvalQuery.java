@@ -192,7 +192,12 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
     var result = SexpResult.read(path, R);
     var outputLog = Files.readString(outputLogPath);
-    var feedback = Parser.fromFile(feedbackPath.toFile(), MockModuleFeedback.class);
+    MockModuleFeedback feedback = null;
+    if (Files.exists(feedbackPath)) {
+      var module = store.load(example, ((Fir2CQuery) moduleQuery).firQuery());
+      var parseCtx = new ModuleFeedbackParseContext(module);
+      feedback = Parser.fromFile(feedbackPath.toFile(), MockModuleFeedback.class, parseCtx);
+    }
 
     return new EvalOutput(result, outputLog, feedback, PerformanceCounters.EMPTY);
   }
@@ -206,7 +211,9 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
     Files.createDirectories(path);
     data.result().write(path);
     Files.writeString(outputLogPath, data.outputLog());
-    if (data.feedback() != null) {
+    if (data.feedback() == null) {
+      Files.deleteIfExists(feedbackPath);
+    } else {
       Printer.toFile(feedbackPath.toFile(), data.feedback());
     }
   }
