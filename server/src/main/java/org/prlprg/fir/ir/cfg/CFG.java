@@ -13,6 +13,7 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
@@ -121,10 +122,57 @@ public final class CFG {
                 throw new IllegalArgumentException("Basic block '" + bb + "' does not exist.");
               }
 
+              // Drop the def-use links of the block's statements. A removed block no longer uses
+              // anything, and `BB#owner` is final, so a leftover use would be a `Use` pointing at
+              // an instruction in a block that's still `owner()`-ed by this CFG but absent from
+              // `bbs` -- which reads as "in the CFG" to analyses (e.g. `CfgDominatorTree`) while
+              // having no entry in their per-block maps. The jump's uses are dropped by `setJump`.
+              dropUses(bb);
+
               // Ensure block isn't in exits or predecessors
               bb.setJump(new Jump(new Unreachable()));
               exits.remove(bb);
             });
+  }
+
+  /// Drop every def-use link held by this CFG's instructions, including those in nested promise
+  /// bodies, leaving it inert.
+  ///
+  /// For discarding a CFG that was only ever scaffolding -- e.g. the throwaway [Abstraction] the
+  /// inliner copies a callee into and substitutes the *caller's* arguments through. Such a CFG
+  /// registers uses on registers that outlive it, so dropping the reference isn't enough: the
+  /// uses would linger in those registers'
+  /// [uses][org.prlprg.fir.ir.variable.Register#uses], pointing into a CFG no longer reachable
+  /// from any live [Abstraction].
+  ///
+  /// TODO: the one use should be refactored, then this is probably unnecessary
+  ///   and makes the API more confusing
+  public void dropAllUses() {
+    for (var bb : bbs.values()) {
+      dropUses(bb);
+      bb.setJump(new Jump(new Unreachable()));
+    }
+  }
+
+  /// Drop every def-use link held by `bb`'s statements, including those held by the bodies of any
+  /// promises they create.
+  ///
+  /// A promise's body is a separate [CFG] whose instructions read registers of the *enclosing*
+  /// frame, and destroying the creating [org.prlprg.fir.ir.instruction.Statement] doesn't reach
+  /// them ([org.prlprg.fir.ir.instruction.Instruction#detach] only drops that instruction's own
+  /// arguments). Left behind, those reads stay in their register's
+  /// [uses][org.prlprg.fir.ir.variable.Register#uses] while living in a CFG no longer reachable
+  /// from its [Abstraction], which later reads as a use in an unknown CFG.
+  private static void dropUses(BB bb) {
+    for (var statement : bb.statements()) {
+      if (statement.expression() instanceof Promise(_, _, var code, _)) {
+        for (var promiseBb : code.bbs()) {
+          dropUses(promiseBb);
+          promiseBb.setJump(new Jump(new Unreachable()));
+        }
+      }
+      statement.detach();
+    }
   }
 
   @Override

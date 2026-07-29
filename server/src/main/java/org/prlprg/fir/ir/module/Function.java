@@ -3,6 +3,7 @@ package org.prlprg.fir.ir.module;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
@@ -38,10 +39,17 @@ public final class Function {
   private final NamedVariable name;
   private final List<NamedVariable> parameterNames;
   private @Nullable Abstraction baseline;
-  private final SortedSet<Abstraction> versions =
-      new TreeSet<>(
-          Comparator.<Abstraction>comparingInt(v -> v == baseline ? 1 : 0)
-              .thenComparing(Comparator.naturalOrder()));
+  /// Stored by identity, in insertion order; [#versions()] derives the sorted (dispatch-order)
+  /// view on demand.
+  ///
+  /// Not itself a [TreeSet], because [Abstraction#compareTo] reads the version's parameter types,
+  /// effects and return type — all of which optimizations mutate in place *while the version is in
+  /// this set* (e.g. `Unbox` calls [Abstraction#setReturnType]). A sorted set can't see those
+  /// mutations, so its elements end up filed under stale keys, and every comparator-driven
+  /// operation (`contains`, `headSet`, `tailSet`, iteration order) silently misbehaves. The
+  /// baseline is ordered last, which likewise can't be a fixed key because [#baseline] is only
+  /// assigned after some versions may already have been added.
+  private final Set<Abstraction> versions = new LinkedHashSet<>();
 
   Function(Module owner, NamedVariable name, List<NamedVariable> parameterNames) {
     comments = new Comments();
@@ -119,8 +127,15 @@ public final class Function {
     return baseline;
   }
 
+  /// This function's versions in dispatch order: most specific first, the baseline last
   public @UnmodifiableView SortedSet<Abstraction> versions() {
-    return Collections.unmodifiableSortedSet(versions);
+    var sorted =
+        new TreeSet<>(
+            Comparator.<Abstraction>comparingInt(v -> v == baseline ? 1 : 0)
+                .thenComparing(Comparator.naturalOrder()));
+    sorted.addAll(versions);
+    assert sorted.size() == versions.size() : "equal non-identical versions shouldn't be possible";
+    return Collections.unmodifiableSortedSet(sorted);
   }
 
   /// A function can only be dispatched if its baseline's parameter and return types are SEXPs
@@ -133,7 +148,7 @@ public final class Function {
   /// Gets the *worst* version whose parameters are more permissive than `signature`, and whose
   /// return value is *not disjoint*
   public @Nullable Abstraction guessWorst(Signature signature) {
-    for (var version : versions.reversed()) {
+    for (var version : versions().reversed()) {
       if (signature.hasNarrowerParameters(version.signature())
           && (version.signature().returnType().isSubtypeOf(signature.returnType())
               || signature.returnType().isSubtypeOf(version.signature().returnType()))) {
@@ -146,7 +161,7 @@ public final class Function {
   /// Gets the best version whose signature can be substituted with `signature` in a call, i.e.
   /// the best version with more permissive parameters and more restrictive effects/return.
   public @Nullable Abstraction guess(Signature signature) {
-    for (var version : versions) {
+    for (var version : versions()) {
       if (signature.hasNarrowerParameters(version.signature())
           && version.signature().hasNarrowerPostconditions(signature)) {
         return version;
@@ -163,7 +178,7 @@ public final class Function {
       throw new IllegalArgumentException("Version not found: " + version);
     }
 
-    return versions.headSet(version).reversed().stream()
+    return versions().headSet(version).reversed().stream()
         .filter(
             other ->
                 other.signature().hasNarrowerParameters(version.signature())
