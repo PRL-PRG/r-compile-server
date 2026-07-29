@@ -161,7 +161,7 @@ SEXP compile(SEXP closure, SEXP options) {
 
     auto c_cp = rsh::deserialize(compiled_fun.constants());
     body =
-        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_CodeTag, c_cp));
+        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
     // PROTECT(create_wrapper_body(closure, (Rsh_code)fun_ptr, c_cp)); // P1
   } else if (opts.tier == protocol::Tier::BASELINE) {
     body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2
