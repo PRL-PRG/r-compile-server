@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../common2c/runtime_internals.h"
+#include "../common2c/rsh_utils.h"
 
 #ifdef __cplusplus
 extern "C" {

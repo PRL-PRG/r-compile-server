@@ -1,0 +1,27 @@
+# Top-20 CRAN packages by downloads, pinned for reproducible benchmarking.
+# Ranking source : https://cranlogs.r-pkg.org/top/last-month/20  (window 2026-05-15 .. 2026-06-13)
+# Versions       : current on CRAN as of the snapshot_date below (queried via crandb.r-pkg.org).
+# Reproducibility : harvest.R installs from the dated Posit Public Package Manager snapshot,
+#                   which is the authoritative pin -- it also fixes every transitive dependency.
+#                   The `version` column is informational/audit only.
+rank,package,version,downloads_last_month,snapshot_date
+1,ggplot2,4.0.3,2590309,2026-06-15
+2,rlang,1.2.0,2434183,2026-06-15
+3,vctrs,0.7.3,2144483,2026-06-15
+4,cli,3.6.6,2090513,2026-06-15
+5,lifecycle,1.0.5,1983445,2026-06-15
+6,scales,1.4.0,1941565,2026-06-15
+7,Rcpp,1.1.1-1.1,1904914,2026-06-15
+8,dplyr,1.2.1,1820635,2026-06-15
+9,glue,1.8.1,1811149,2026-06-15
+10,magrittr,2.0.5,1759322,2026-06-15
+11,tibble,3.3.1,1740230,2026-06-15
+12,R6,2.6.1,1731194,2026-06-15
+13,cpp11,0.5.5,1714943,2026-06-15
+14,fs,2.1.0,1670748,2026-06-15
+15,pillar,1.11.1,1605311,2026-06-15
+16,withr,3.0.2,1605045,2026-06-15
+17,RcppEigen,0.3.4.0.2,1568915,2026-06-15
+18,jsonlite,2.0.0,1474544,2026-06-15
+19,bslib,0.11.0,1442329,2026-06-15
+20,S7,0.2.2,1429347,2026-06-15

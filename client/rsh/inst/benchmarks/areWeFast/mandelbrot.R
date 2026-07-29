@@ -8,7 +8,7 @@
 lim <- 2
 iter <- 50
 
-execute <- function(size=300L) {
+execute <- function(size=450L) {
     sum = 0
     byteAcc = 0
     bitNum  = 0

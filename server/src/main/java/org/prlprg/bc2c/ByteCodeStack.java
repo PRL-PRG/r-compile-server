@@ -6,17 +6,13 @@ class ByteCodeStack {
   private int top = 0;
 
   public String push() {
-    top++;
-    max = Math.max(max, top);
+    reset(top + 1);
     return get(top);
   }
 
   public String pop() {
-    if (top < 0) {
-      throw new IllegalArgumentException("Stack underflow: %d".formatted(top));
-    }
     var s = get(top);
-    --top;
+    reset(top - 1);
     return "*" + s;
   }
 
@@ -37,9 +33,10 @@ class ByteCodeStack {
   }
 
   public void reset(int newTop) {
-    if (newTop < -1) {
-      throw new IllegalArgumentException("Invalid top: %d".formatted(newTop));
+    if (newTop < 0) {
+      throw new IllegalArgumentException("Invalid stack top: %d".formatted(newTop));
     }
+    this.max = Math.max(max, newTop);
     this.top = newTop;
   }
 }

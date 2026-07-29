@@ -32,11 +32,13 @@ class ClosureCompiler {
   /** The name of the variable representing the C constant pool */
   private static final String VAR_CCP = "CCP";
 
-  private static final String VAR_STACK_SAVE = "STACK_SAVE";
+  private static final String VAR_STACK = "STACK";
 
   private static final String BCELL_PREFIX = "C";
 
   private static final String VAR_LOOP_CTX = "LOOP_CTX";
+
+  private static final String VAR_SWITCH_LABELS = "SL_";
 
   private final Bc bc;
   private final ByteCodeStack stack = new ByteCodeStack();
@@ -45,6 +47,7 @@ class ClosureCompiler {
   private final Map<Integer, BCell> cells = new HashMap<>();
   private final Map<Integer, Integer> branchStackState = new HashMap<>();
   private final Map<Integer, Integer> loopContexts = new HashMap<>();
+  private int switchesCount = 0;
   private int extraConstPoolIdx;
   private final String name;
   private boolean debug = true;
@@ -87,9 +90,10 @@ class ClosureCompiler {
 
     // the stack should be left with one element
     // which will be the return value
-    if (stack.top() != 1) {
+    if (stack.top() != 1 && stack.top() != 0) {
+      // TODO: better check, the 0 element case happens with DOTSERR
       throw new IllegalStateException(
-          "Expected stack to have 1 element, got %d".formatted(stack.top()));
+          "Expected stack to have 1 or 0 element, got %d".formatted(stack.top()));
     }
 
     afterCompile();
@@ -97,22 +101,17 @@ class ClosureCompiler {
     return SEXPs.vec(constants());
   }
 
-  private int stackSpace() {
-    return stack.max();
-  }
-
   private void beforeCompile() {
     analyseCode();
   }
 
   private void afterCompile() {
-    prologue.stmt("int %s = %d;", VAR_STACK_SAVE, stackSpace());
+    prologue.stmt("Value *%s = R_BCNodeStackTop;", VAR_STACK);
     if (!cells.isEmpty() || !stack.isEmpty()) {
-      prologue.stmt("CHECK_OVERFLOW(%d);", stackSpace());
+      prologue.stmt("DEFINE_REGS(%d);", stack.max());
     }
 
     compileCells();
-    compileRegisters();
     compileLoopContexts();
   }
 
@@ -134,6 +133,10 @@ class ClosureCompiler {
       }
 
       instr.label().ifPresent(l -> labels.add(l.target()));
+      if (instr instanceof BcInstr.Switch sw) {
+        sw.labels(bc.consts()).forEach(labels::add);
+      }
+
       instr
           .bindingCell()
           .ifPresent(
@@ -167,8 +170,6 @@ class ClosureCompiler {
 
     var code =
         switch (instr) {
-          case BcInstr.Return() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
-          case BcInstr.ReturnJmp() -> builder.addArgs(VAR_STACK_SAVE).compileStmt();
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
@@ -230,6 +231,7 @@ class ClosureCompiler {
             int idx = loopContexts.get(pc);
             yield builder.args("&" + VAR_LOOP_CTX + "[" + idx + "]").compileStmt();
           }
+          case BcInstr.Switch sw -> compileSwitch(builder, sw);
           default -> {
             if (instr.label().orElse(null) instanceof BcLabel l) {
               yield "if (%s) {\n\tgoto %s;\n}".formatted(builder.compile(), label(l));
@@ -244,18 +246,51 @@ class ClosureCompiler {
   }
 
   private void updateBranchStackState(BcInstr instr) {
-    if (instr.op() == BcOp.GOTO) {
-      // GOTO do not change the stack state
+    var op = instr.op();
+    if (op == BcOp.GOTO || op == BcOp.BASEGUARD) {
+      // these do not change the stack state
       return;
     }
+
+    if (instr instanceof BcInstr.Switch sw) {
+      var targets = sw.labels(bc.consts());
+      for (int i = 0; i < targets.length(); i++) {
+        branchStackState.put(targets.get(i), stack.top());
+      }
+      return;
+    }
+
     var diff =
-        switch (instr.op()) {
+        switch (op) {
           case BcOp.STARTSUBSET, BcOp.STARTSUBSET2 -> -3;
           case BcOp.STARTSUBASSIGN, BcOp.STARTSUBASSIGN2 -> -4;
           case BcOp.STARTSUBASSIGN_N, BcOp.STARTSUBASSIGN2_N -> -1;
           default -> 0;
         };
     instr.label().ifPresent(label -> branchStackState.put(label.target(), stack.top() + diff));
+  }
+
+  private String compileSwitch(InstrCallBuilder builder, BcInstr.Switch instr) {
+    StringBuilder sb = new StringBuilder();
+    var labels = instr.labels(bc.consts());
+    if (labels.isEmpty()) {
+      throw new IllegalArgumentException("Switch instruction must have non-empty offsets");
+    }
+
+    var switchLabelName = "%s%d".formatted(VAR_SWITCH_LABELS, switchesCount++);
+    sb.append("static const void *%s[] = {".formatted(switchLabelName));
+    for (int i = 0; i < labels.length(); i++) {
+      if (i > 0) {
+        sb.append(", ");
+      }
+      sb.append("__extension__ &&").append(label(labels.get(i)));
+    }
+    sb.append("};");
+    sb.append("\n");
+    var switchCall = builder.compile();
+    sb.append("goto *%s[%s];\n".formatted(switchLabelName, switchCall));
+
+    return sb.toString();
   }
 
   private String compileMakePromise(InstrCallBuilder builder, BCodeSXP bc) {
@@ -269,12 +304,7 @@ class ClosureCompiler {
 
   private String compileSubsetN(
       InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
-    var line =
-        builder
-            .push(0)
-            .pop(0)
-            .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
-            .compileStmt();
+    var line = builder.push(0).pop(0).args(String.valueOf(rank), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < rank + 1; i++) {
       stack.pop();
@@ -285,12 +315,7 @@ class ClosureCompiler {
 
   private String compileSubassignN(
       InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
-    var line =
-        builder
-            .push(0)
-            .pop(0)
-            .args(stack.get(stack.top()), String.valueOf(rank), constantSXP(call))
-            .compileStmt();
+    var line = builder.push(0).pop(0).args(String.valueOf(rank), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < rank + 2; i++) {
       stack.pop();
@@ -302,11 +327,7 @@ class ClosureCompiler {
   private String compileDotCall(
       InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int numArgs) {
     var line =
-        builder
-            .push(0)
-            .pop(0)
-            .args(stack.get(stack.top()), String.valueOf(numArgs), constantSXP(call))
-            .compileStmt();
+        builder.push(0).pop(0).args(String.valueOf(numArgs), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < numArgs + 1; i++) {
       stack.pop();
@@ -327,13 +348,6 @@ class ClosureCompiler {
     }
   }
 
-  private void compileRegisters() {
-    prologue.comment("REGISTERS");
-    for (int i = 1; i <= stack.max(); i++) {
-      prologue.stmt("DEFINE_VAL(%s);", stack.get(i));
-    }
-  }
-
   private void compileCells() {
     if (cells.isEmpty()) {
       return;
@@ -343,7 +357,7 @@ class ClosureCompiler {
     for (var cell : cells.values()) {
       var debugComment =
           debug ? " // symbol: '%s' (used: %d)".formatted(cell.name(), cell.uses()) : "";
-      prologue.stmt("DEFINE_BCELL2(%s%d);%s", BCELL_PREFIX, cell.id(), debugComment);
+      prologue.stmt("DEFINE_BCELL(%s%d);%s", BCELL_PREFIX, cell.id(), debugComment);
     }
   }
 
@@ -416,16 +430,13 @@ class ClosureCompiler {
     }
 
     public String compile() {
-      var n = Math.max(pop, push);
-      var xs = new String[n + args.size() + (needsRho ? 1 : 0) + (cell != null ? 1 : 0)];
+      var xs = new String[1 + args.size() + (needsRho ? 1 : 0) + (cell != null ? 1 : 0)];
+      int n = 0;
+      int d = push - pop;
+      int t = Math.max(stack.top(), stack.top() + d);
 
-      for (int i = pop; i > 0; i--) {
-        xs[i - 1] = stack.pop();
-      }
-
-      for (int i = 0; i < push; i++) {
-        xs[i] = stack.push();
-      }
+      xs[n++] = VAR_STACK + (t > 0 ? " + " + t : "");
+      stack.reset(stack.top() + d);
 
       for (String arg : args) {
         xs[n++] = arg;
@@ -510,6 +521,7 @@ class ClosureCompiler {
   private static final Set<BcOp> SUPPORTED_OPS =
       Set.of(
           BcOp.AND,
+          BcOp.BASEGUARD,
           BcOp.BRIFNOT,
           BcOp.CALLBUILTIN,
           BcOp.CALLSPECIAL,
@@ -620,7 +632,11 @@ class ClosureCompiler {
           BcOp.DDVAL,
           BcOp.RETURNJMP,
           BcOp.STARTLOOPCNTXT,
-          BcOp.ENDLOOPCNTXT);
+          BcOp.ENDLOOPCNTXT,
+          BcOp.DOTSERR,
+          BcOp.INCLNKSTK,
+          BcOp.DECLNKSTK,
+          BcOp.SWITCH);
 
   private void checkSupported(BcInstr instr) {
     if (!SUPPORTED_OPS.contains(instr.op())) {
