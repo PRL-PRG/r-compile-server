@@ -83,21 +83,26 @@ BENCH_OUT_DIR := $(shell echo "$$(pwd)/benchmark-results")/$(BENCH_NAME)
 BENCH_R = R_PROFILE_USER=$(BENCH_DIR)/Rprofile.site $(LLVM_R) -f
 BENCH_OPTS ?= --rsh
 FILTER ?=
+HARVEST_OPTS ?=
 
 .PHONY: benchmark
 benchmark:
-	@total=0; failed=0; failed_tests=""; \
-	for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R"); do \
+	@RVER=$$($(R_HOME)/bin/Rscript -e 'cat(paste(R.version$$major, R.version$$minor, sep="."))' 2>/dev/null); \
+	CRAN_LIB=$(BENCH_DIR)/cran-harvest/lib/$$RVER; \
+	if [ -d "$$CRAN_LIB" ]; then export R_LIBS_USER="$$CRAN_LIB$${R_LIBS_USER:+:$$R_LIBS_USER}"; fi; \
+	total=0; failed=0; failed_tests=""; \
+	for file in $$(find $(BENCH_DIR) -mindepth 2 -name "*$(FILTER)*.R" -not -path "*/cran-harvest/*"); do \
 		test=$$(basename $$file); \
+		label=$$(echo "$${file#$(BENCH_DIR)/}" | sed 's#\.R$$##; s#/#__#g'); \
 		total=$$((total + 1)); \
 		echo "$(TXT_BOLD)┌──── $$test ...$(TXT_NORM)"; \
-		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --runs $(BENCH_ITER) --output-dir $(BENCH_OUT_DIR) $(BENCH_OPTS) $${file%.*}"; \
+		cmd="$(BENCH_R) $(BENCH_DIR)/harness.R --args --runs $(BENCH_ITER) --output-dir $(BENCH_OUT_DIR) --name $$label $(BENCH_OPTS) $${file%.*}"; \
 		echo $$cmd; \
 		eval "$$cmd"; \
 		exit=$$?; \
 		echo -n "$(TXT_BOLD)└──── $$test: "; \
 		if [ $$exit -eq 0 ]; then \
-			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BENCH_OUT_DIR)/$${test%.*}.csv)"; \
+			echo "$(TXT_GREEN)OK$(TXT_NORM) (output in $(BENCH_OUT_DIR)/$$label.csv)"; \
 		else \
 			echo "$(TXT_RED)FAIL$(NO_NORM) $$exit$(TXT_NORM)"; \
 			failed=$$((failed + 1)); \
@@ -115,4 +120,13 @@ benchmark:
 .PHONY: benchmark-baseline
 benchmark-baseline:
 	$(MAKE) benchmark BENCH_OPTS=--bc BENCH_NAME=baseline
+
+# Provision the CRAN package benchmarks: install the pinned packages (into a
+# per-R-version library under inst/benchmarks/cran-harvest/lib) and generate the
+# cran/ benchmark group. One-time; `make benchmark` then runs them like any
+# other suite. Use R_HOME=... to target a different R (e.g. a vanilla bc R) and
+# HARVEST_OPTS=--install-only to only populate that R's library.
+.PHONY: cran-harvest
+cran-harvest:
+	$(R_HOME)/bin/Rscript $(BENCH_DIR)/cran-harvest/harvest.R $(HARVEST_OPTS)
 
