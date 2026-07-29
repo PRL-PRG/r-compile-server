@@ -11,8 +11,8 @@ import org.prlprg.sexp.EnvSXP;
 /// In particular, you can omit details when printing large SEXPs. [#FULL] or [#FULL_DELIMITED]
 /// is required to be able to parse the SEXPs.
 ///
-/// @param printDelimited Ensure that all [`SEXP`][org.prlprg.sexp.SEXP]s except `NULL` and
-/// scalars are printed within `<` and `>`.
+/// @param printDelimited Ensure that all [`SEXP`][org.prlprg.sexp.SEXP]s are printed within `<`
+/// and `>`, including `NULL` (`<nil>`) and scalars (`<int 1>`).
 ///
 /// Default: `false`.
 ///

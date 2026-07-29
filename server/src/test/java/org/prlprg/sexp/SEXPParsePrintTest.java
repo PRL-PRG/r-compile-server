@@ -34,9 +34,14 @@ public class SEXPParsePrintTest {
     assertRoundTrip("-1.0+0.0i");
     assertRoundTrip("\"\\n\\\"\\\\\"");
 
-    assertRoundTrip("1", true);
-    assertRoundTrip("1.0", true);
-    assertRoundTrip("TRUE", true);
+    // Delimited mode wraps scalars too, so a boxed scalar SEXP stays distinguishable from FIŘ's
+    // unboxed scalars (which print bare -- see `org.prlprg.fir.ir.value.Value`).
+    assertPrintsDelimitedAs("1", "<int 1>");
+    assertPrintsDelimitedAs("1.0", "<real 1.0>");
+    assertPrintsDelimitedAs("TRUE", "<lgl TRUE>");
+    assertRoundTrip("<int 1>", true);
+    assertRoundTrip("<real 1.0>", true);
+    assertRoundTrip("<lgl TRUE>", true);
 
     assertRoundTrip("NA_INT");
     assertRoundTrip("NA_REAL");
@@ -114,7 +119,9 @@ public class SEXPParsePrintTest {
   @Test
   public void testNull() {
     assertRoundTrip("NULL");
-    assertRoundTrip("NULL", true);
+    // As with scalars, `NULL` is delimited in delimited mode.
+    assertPrintsDelimitedAs("NULL", "<nil>");
+    assertRoundTrip("<nil>", true);
   }
 
   @Test
@@ -133,6 +140,19 @@ public class SEXPParsePrintTest {
   @Provide
   public Arbitrary<SEXP> sexps() {
     return ArbitraryProvider.sexps();
+  }
+
+  /// Parse the string into an [SEXP], print it delimited, and assert the result is `expected`.
+  ///
+  /// For the forms that delimiting rewrites (scalars and `NULL`), where input and output
+  /// deliberately differ so [#assertRoundTrip(String, boolean)] doesn't apply.
+  private void assertPrintsDelimitedAs(String input, String expected) {
+    try {
+      var sexp = Parser.fromString(input, SEXP.class);
+      assertEquals(expected, Printer.toString(sexp, SEXPPrintOptions.FULL_DELIMITED));
+    } catch (ParseException e) {
+      fail("Failed to parse '" + input + "'", e);
+    }
   }
 
   /// Parse the string into an [SEXP], print it, and assert that the original and printed

@@ -228,18 +228,17 @@ public final class TypeAndEffectChecker extends Checker {
                   case AssumeType _, AssumeConstant _, AssumeFunction _ -> args.getFirst();
                   case AssumeLoadVar _, AssumeLoadFun _ -> null;
                 };
-            if (target == null) {
-              break;
-            }
-            var argType = scope.typeOf(target);
+            if (target != null) {
+              var argType = scope.typeOf(target);
 
-            if (!assumeCanSucceed(assumption, argType)) {
-              report(
-                  "Assumption can't succeed, clearly we never recorded it ("
-                      + target
-                      + ": "
-                      + argType
-                      + ")");
+              if (!assumeCanSucceed(assumption, argType)) {
+                report(
+                    "Assumption can't succeed, clearly we never recorded it ("
+                        + target
+                        + ": "
+                        + argType
+                        + ")");
+              }
             }
 
             var function =
@@ -361,7 +360,7 @@ public final class TypeAndEffectChecker extends Checker {
                 var elementType = Type.primitiveScalar(primitiveKind);
 
                 for (var i = 0; i < args.size(); i++) {
-                  if (!elementNames.get(i).isPresent()) {
+                  if (elementNames.get(i).isPresent()) {
                     report("Element of primitive vector can't be named: at " + i);
                   }
 
