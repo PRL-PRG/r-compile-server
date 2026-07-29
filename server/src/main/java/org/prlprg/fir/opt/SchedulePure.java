@@ -55,6 +55,9 @@ import org.prlprg.fir.ir.variable.Register;
 /// A hoisted instruction is specifically hoisted immediately after the latest assignment to one
 /// of its arguments. If the instruction is in a promise and every argument is in the enclosing
 /// CFG, it's hoisted to the enclosing CFG.
+///
+/// TODO: this entire pass should probably be redone, it keeps having bugs and has lots of
+///   special cases which suggest it will have more
 public final class SchedulePure implements AbstractionOptimization {
   static final ImmutableList<Predicate<Statement>> HOIST_RULES =
       ImmutableList.of(matchRule(UNBOX_FUN));
@@ -361,14 +364,33 @@ public final class SchedulePure implements AbstractionOptimization {
             motionsToIndex.hoistIndex++;
           }
           while (motionsToIndex.deferIndex - 1 >= 0
-              && (motionsToIndex.motions.remove(
-                      new Pos(bb, motionsToIndex.deferIndex - 1), Motion.DEFER)
+              && (removeIfRedundantDefer(motionsToIndex, new Pos(bb, motionsToIndex.deferIndex - 1))
                   || bb.statements().get(motionsToIndex.deferIndex - 1).expression()
                       instanceof Noop)) {
             motionsToIndex.deferIndex--;
           }
         }
       }
+    }
+
+    /// Drop the defer of `origin` into this target if it's redundant — `origin` already sits right
+    /// where it would be deferred to — reporting whether it was dropped.
+    ///
+    /// Only for an `origin` deferred to exactly one target. With several targets the statement has
+    /// uses in branches that don't dominate each other, so it must be *copied* to each (see
+    /// [SchedulePure]); dropping the one it currently sits at would leave the others to move it
+    /// away instead, and the next run would find it sitting at one of those and move it back —
+    /// ping-ponging between targets, and reporting progress every time, so the enclosing fixpoint
+    /// sequence never settles.
+    private boolean removeIfRedundantDefer(MotionsTo motionsTo, Pos origin) {
+      if (motionsTo.motions.get(origin) != Motion.DEFER) {
+        return false;
+      }
+      var targets = originToTarget.get(origin);
+      if (targets != null && targets.size() > 1) {
+        return false;
+      }
+      return motionsTo.motions.remove(origin, Motion.DEFER);
     }
 
     private void applyMotions() {
@@ -402,6 +424,9 @@ public final class SchedulePure implements AbstractionOptimization {
               .forEach(
                   hoist -> {
                     var statement = Objects.requireNonNull(hoist.statement());
+                    if (isAlreadyBefore(statement, hoistPoint)) {
+                      return;
+                    }
                     statement.moveBefore(hoistPoint);
                     changed = true;
                   });
@@ -429,6 +454,9 @@ public final class SchedulePure implements AbstractionOptimization {
                       substs.stage(assignee, new Read(newAssignee), bb, motionsToIndex.deferIndex);
                       copy.insertBefore(deferPoint);
                     } else {
+                      if (isAlreadyBefore(statement, deferPoint)) {
+                        return;
+                      }
                       statement.moveBefore(deferPoint);
                     }
 
@@ -438,6 +466,15 @@ public final class SchedulePure implements AbstractionOptimization {
       }
 
       substs.commit();
+    }
+
+    /// Whether moving `statement` to just before `point` would leave the block unchanged.
+    ///
+    /// [Instruction#moveBefore] is already a no-op in that case, but the caller still has to know,
+    /// because reporting "changed" for a move that didn't happen keeps the enclosing fixpoint
+    /// sequence iterating until it hits its hard limit.
+    private static boolean isAlreadyBefore(Instruction statement, Instruction point) {
+      return statement == point || statement.next() == point;
     }
 
     private static Instruction instrAt(BB bb, int index) {

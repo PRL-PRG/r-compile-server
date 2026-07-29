@@ -138,6 +138,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       var otherUses = new ArrayList<OtherUse>();
       for (var use : promiseReg.uses()) {
         var useInstr = use.instruction();
+        var useParentBb = Objects.requireNonNull(useInstr.parentBB());
         // Project the use into this force's CFG (its enclosing promise statement if the use is in a
         // nested promise). `null` means the use is in a sibling or outer scope.
         var projected = hierarchy.projectInto(cfg, useInstr);
@@ -146,11 +147,9 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         }
 
         // `use` is not this force.
-        otherUses.add(
-            new OtherUse(
-                useInstr, Objects.requireNonNull(useInstr.parentBB()), useInstr.indexInBB()));
+        otherUses.add(new OtherUse(useInstr, useParentBb, useInstr.indexInBB()));
 
-        if (useInstr.parentBB().owner() == cfg
+        if (useParentBb.owner() == cfg
             && analyses.get(cfg, CfgDominatorTree.class).dominates(projected, forceStmt)) {
           // `use` will definitely occur before this force.
           hasMaybeBeenForced = true;
@@ -246,8 +245,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
               .flatMap(bb1 -> bb1.statements().stream())
               .anyMatch(
                   s ->
-                      s.expression() instanceof Call call
-                          && call.callee() instanceof StaticFnCallee callee1
+                      s.expression() instanceof Call(StaticFnCallee callee1)
                           && callee1.exactVersion() == callee);
       var variablesClash =
           !Sets.intersection(
@@ -302,6 +300,13 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       }
       bb.statements().get(statementIndex).remove();
       inline(Objects.requireNonNull(body.cfg()), bb, statementIndex - 1, returnDest);
+
+      // TODO: this is wrong and/or should be modified somehow.
+      //    I think the uses should be removed in `substUsesWith` or inline
+      // `inline` *copies* out of `body`, so `body` is now scaffolding. It still holds def-use links
+      // on the caller's registers (the `substUsesWith` above substituted the call arguments into
+      // it), and those registers outlive it, so it has to be torn down rather than just dropped.
+      Objects.requireNonNull(body.cfg()).dropAllUses();
     }
 
     private void inline(
