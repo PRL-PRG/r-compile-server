@@ -473,7 +473,7 @@ static INLINE void Rsh_finish_inline_closure_call(SEXP fun, SEXP args,
   UNPROTECT_SAFE(newrho);
 }
 
-void Rsh_inline_call(RCNTXT *pcntxt, Value *res, SEXP body, SEXP newrho)
+static INLINE void Rsh_inline_call(RCNTXT *pcntxt, Value *res, SEXP body, SEXP newrho)
 #ifndef RSH_EXTERN_HELPERS
 {
   if (sigsetjmp(pcntxt->cjmpbuf, 0)) {
@@ -2767,7 +2767,7 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
 extern NODISCARD Rboolean Rsh_StartLoopCntxt(Value *stack, RCNTXT *cntxt,
                                              SEXP rho);
 #else
-NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+static INLINE NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
                                       SEXP rho) {
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);

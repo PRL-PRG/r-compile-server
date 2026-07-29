@@ -6,6 +6,7 @@ import org.prlprg.parseprint.ParseMethod;
 import org.prlprg.parseprint.Parser;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.sexp.SEXP;
 import org.prlprg.sexp.SEXPs;
@@ -111,7 +112,6 @@ public sealed interface Value {
     } else if (s.nextCharSatisfies(Character::isDigit)
         || s.nextCharIs('+')
         || s.nextCharIs('-')
-        || s.nextCharsAre("NA_LGL")
         || s.nextCharsAre("NA_INT")
         || s.nextCharsAre("NA_REAL")
         || s.nextCharsAre("NA_CPLX")) {
@@ -123,6 +123,7 @@ public sealed interface Value {
       } else if (sexp.asScalarComplex().isPresent()) {
         throw s.fail("unboxed complex numbers aren't implemented");
       }
+      throw s.fail("an unboxed number", sexp.toString());
     } else if (s.nextCharIs('"')) {
       var str = s.readQuoted('"');
       return new Str(str);
@@ -130,12 +131,20 @@ public sealed interface Value {
       return new Lgl(Logical.TRUE);
     } else if (s.trySkip("FALSE_LGL")) {
       return new Lgl(Logical.FALSE);
+      // Not routed through `SEXP` like the other `NA_`s: an unboxed logical is a `Lgl`, not a
+      // scalar `SEXP`, so it belongs with `TRUE_LGL`/`FALSE_LGL` (which is also how `print` emits
+      // it).
+    } else if (s.trySkip("NA_LGL")) {
+      return new Lgl(Logical.NA);
+    } else if (s.trySkip("NA_STR")) {
+      return new Str(Constants.NA_STRING);
     } else if (s.trySkip("TRUE")) {
       return new Bool(true);
     } else if (s.trySkip("FALSE")) {
       return new Bool(false);
     }
-    throw s.fail("expected '<', digit, '+', '-', '\"', \"TRUE\", or \"FALSE\"");
+    throw s.fail(
+        "expected '<', digit, '+', '-', '\"', \"TRUE\", \"FALSE\", \"TRUE_LGL\", \"FALSE_LGL\", \"NA_LGL\", \"NA_INT\", \"NA_REAL\", or \"NA_STR\"");
   }
 
   @PrintMethod
@@ -159,7 +168,15 @@ public sealed interface Value {
           case NA -> w.write("NA_LGL");
         }
       }
-      case Str(var v) -> w.writeQuoted('"', v);
+      // The NA string is compared by identity and has no quoted form that reparses to it (its
+      // contents are a sentinel), so it prints as `NA_STR` — same as the `SEXP` printer.
+      case Str(var v) -> {
+        if (Constants.isNaString(v)) {
+          w.write("NA_STR");
+        } else {
+          w.writeQuoted('"', v);
+        }
+      }
       case Bool(var v) -> w.write(v ? "TRUE" : "FALSE");
     }
   }
