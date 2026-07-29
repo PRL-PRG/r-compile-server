@@ -268,7 +268,7 @@ static INLINE Rboolean R_isReplaceSymbol(SEXP fun) {
 static INLINE SEXP getActiveValue(SEXP fun) {
   SEXP expr = LCONS(fun, R_NilValue);
   PROTECT(expr);
-  expr = eval(expr, R_GlobalEnv);
+  expr = Rf_eval(expr, R_GlobalEnv);
   UNPROTECT(1);
   return expr;
 }
