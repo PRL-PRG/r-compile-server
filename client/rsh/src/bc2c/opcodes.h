@@ -464,7 +464,7 @@ static INLINE void Rsh_finish_inline_closure_call(SEXP fun, SEXP args,
                                          !R_isReplaceSymbol(CAR0(call)));
     R_CleanupEnvir(newrho, value);
     if (is_getter_call && MAYBE_REFERENCED(value))
-      value = shallow_duplicate(value);
+      value = Rf_shallow_duplicate(value);
     unpromiseArgs(args);
 #endif
     // TODO support tailcall here?
@@ -2089,7 +2089,7 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
 static INLINE void GET_VEC_LOOP_VALUE(Value *val, BCell cell, int rtype) {
   if (BCELL_TAG(cell) || VAL_SXP(*val) != CAR0(cell) ||
       MAYBE_SHARED(VAL_SXP(*val)) || ATTRIB(VAL_SXP(*val)) != R_NilValue) {
-    SEXP val_sxp = allocVector(rtype, 1);
+    SEXP val_sxp = Rf_allocVector(rtype, 1);
     INCREMENT_NAMED(val_sxp);
     SET_SXP_NLNK_VAL(val, val_sxp);
   }
@@ -2448,9 +2448,10 @@ static ALWAYS_INLINE int Rsh_val_as_logical(Value *v, SEXP call) {
     return INTEGER_TO_LOGICAL(VAL_INT(*v));
   case REALSXP:
     return REAL_TO_LOGICAL(VAL_DBL(*v));
-  case ISQSXP:
+  case ISQSXP: {
     Rsh_isqinfo_t isqinfo = VAL_ISQ(*v);
     SET_SXP_VAL(v, R_compact_intrange(isqinfo.n1, isqinfo.n2));
+  }
   case 0: // some SEXP
     return Rf_asLogical2(VAL_SXP(*v), 1, call);
   default:
@@ -2506,7 +2507,7 @@ static INLINE NODISCARD Rboolean Rsh_Or1st(Value *stack, SEXP call) {
   int val = fixup_scalar_logical(v, call, "'x'", "||");
   SET_LGL_VAL(v, val);
   R_Visible = TRUE;
-  int r = val != FALSE && val != NA_LOGICAL;
+  Rboolean r = (Rboolean)(val != FALSE && val != NA_LOGICAL);
   return r;
 }
 
