@@ -103,6 +103,16 @@ else
   CONFIGURE_ARGS=""
 fi
 
+# Build the copy-and-patch (RCP) variant of the unified GNU-R sources when RCP
+# is set in the environment. Appended to CPPFLAGS *after* the per-platform reset
+# above so it actually survives (and keeps the -O2 etc. in CFLAGS). With RCP
+# unset, the bytecode (BC2C/RSH) variant is built. NB: the RCP variant requires
+# GCC 14+.
+if [[ -n "${RCP:-}" ]]; then
+  echo "-> building RCP (copy-and-patch) variant: adding -DRCP"
+  export CPPFLAGS="$CPPFLAGS -DRCP"
+fi
+
 # Run
 
 echo "Building in $R_DIR"
@@ -148,4 +158,8 @@ fi
 
 echo "-> make"
 make clean
-make -j8
+CMD="make -j8"
+if command -v bear &>/dev/null; then
+  CMD="bear -- $CMD"
+fi
+$CMD
