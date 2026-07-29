@@ -7,8 +7,8 @@
 #include "../rcp_bc_info.h"
 
 // Macros to define stencil functions
-#define RCP_OP_EX(op, ex)		   RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
-#define RCP_STENCIL(op)			   RCP_STENCIL_FUNCTION(_RCP_##op##_OP)
+#define RCP_OP_EX(op, ex) RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
+#define RCP_STENCIL(op)	  RCP_STENCIL_FUNCTION(_RCP_##op##_OP)
 
 // Macros to help generate boilerplate for stencil functions
 #define RCP_OP_TEMPLATE_JUMP(name, body, continuation)                                 \
@@ -33,7 +33,6 @@
 #define EXPAND(x)						 x
 #define GET_MACRO(_1, _2, _3, name, ...) name
 #define RCP_OP(...)						 EXPAND(GET_MACRO(__VA_ARGS__, RCP_OP_TEMPLATE_JUMP, RCP_OP_TEMPLATE_CONTINUE)(__VA_ARGS__))
-
 
 RCP_OP(RETURN,
 	   Value ret = Rsh_Return(stack);
@@ -71,6 +70,13 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_1) // monomorphic
 	{
 		Rboolean *result = (Rboolean *)GETCUSTOM_REL(1);
 		*result = 0;
+		POP_VAL(1);
+		if (condition)
+		{
+			EPILOGUE;
+			return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_INERT), GET_IMM_PTR(1), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_INERT));
+		}
+		EPILOGUE;
 		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_INERT), GET_NEXT_PTR(), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_INERT));
 	}
 	if (condition)
@@ -84,13 +90,12 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_0) // entry: record
 	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
 	Rboolean *recording = (Rboolean *)GETCUSTOM_REL(0);
 	*recording = condition;
+	POP_VAL(1);
 	if (condition)
 	{
-		POP_VAL(1);
 		EPILOGUE;
 		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_CHECK), GET_IMM_PTR(1), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_CHECK));
 	}
-	POP_VAL(1);
 	EPILOGUE;
 	return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_CHECK), GET_NEXT_PTR(), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_CHECK));
 }
