@@ -7,6 +7,7 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.expression.Expression;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.parseprint.IrPrintContext;
@@ -38,7 +39,19 @@ public final class Statement extends Instruction {
 
   /// Replace the operation while keeping the arguments and assignee. The new expression must use
   /// the same argument layout (caller's responsibility).
+  ///
+  /// If this statement created a promise and the new expression doesn't create the same one, the
+  /// old promise's body is discarded, so the def-use links its instructions hold are dropped: they
+  /// read registers of *this* frame, and left behind they'd stay in those registers'
+  /// [uses][org.prlprg.fir.ir.variable.Register#uses] while pointing into a
+  /// [org.prlprg.fir.ir.cfg.CFG] no longer reachable from the
+  /// [org.prlprg.fir.ir.abstraction.Abstraction].
   public void setExpression(Expression expression) {
+    if (this.expression instanceof Promise(_, _, var oldCode, _)
+        && !(expression instanceof Promise(_, _, var newCode, _) && newCode == oldCode)) {
+      dropUsesIn(oldCode);
+    }
+
     this.expression = expression;
   }
 
