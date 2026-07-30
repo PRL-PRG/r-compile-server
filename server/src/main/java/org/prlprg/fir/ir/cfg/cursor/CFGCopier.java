@@ -23,11 +23,6 @@ import org.prlprg.fir.ir.variable.Register;
 
 /// Deep-copies a [CFG] into another, remapping its identity-based [Register]s (parameters, phi
 /// parameters, and statement assignees) to fresh ones in the destination scope.
-///
-/// Copying happens in two passes so that loops/back-edges are handled correctly: the first pass
-/// creates all destination blocks, fresh registers, and (placeholder-argument) instructions while
-/// building the old-to-new register map; the second pass rewrites every instruction's arguments
-/// through the (now complete) map.
 public final class CFGCopier {
   /// Replaces a copied `Return` jump with some other terminator (used by the inliner to redirect
   /// returns to a continuation block).
@@ -40,12 +35,21 @@ public final class CFGCopier {
       (comments, value) -> new Jump(comments, new Return(), List.of(value));
 
   // Old register -> new register, for parameters/phis/assignees across the copied CFGs.
+  // `consume r` copies to `consume r'`.
   private final Map<Register, Register> registerMap;
+
+  // Old register -> the destination argument replacing it, for source registers with no copy.
+  //
+  // Unlike `registerMap`, this replaces the whole argument, so a `consume r` may be replaced by
+  // a read or constant.
+  private final Map<Register, Argument> substitutions;
+
   // Every copied instruction, whose arguments are remapped in the second pass.
   private final List<Instruction> copiedInstructions = new ArrayList<>();
 
-  private CFGCopier(Map<Register, Register> registerMap) {
+  private CFGCopier(Map<Register, Register> registerMap, Map<Register, Argument> substitutions) {
     this.registerMap = registerMap;
+    this.substitutions = substitutions;
   }
 
   /// Assuming `dst` is empty, makes it a copy of `inner` (except [CFG#scope()]).
@@ -56,16 +60,19 @@ public final class CFGCopier {
   /// As [#copyTo(CFG, CFG)] but with an initial register remapping (e.g. old parameters to new
   /// parameters). The map is updated in-place with the copied phis and assignees.
   public static void copyTo(CFG dst, CFG inner, Map<Register, Register> registerMap) {
-    var copier = new CFGCopier(registerMap);
+    var copier = new CFGCopier(registerMap, Map.of());
     copier.copyBlocks(dst.entry(), inner, DEFAULT_RETURN);
     copier.remapArguments();
   }
 
   /// Appends instructions from `inner`'s entry block into `dstBb`, copies all other blocks, and
-  /// replaces each `Return` via `replaceReturn`. `registerMap` seeds (and receives) the remapping.
+  /// replaces each `Return` via `replaceReturn`.
+  ///
+  /// `substitutions` maps registers of `inner` that have no counterpart in the copy, i.e.
+  /// [parameters][org.prlprg.fir.ir.variable.FunctionParameter].
   static void copyTo(
-      BB dstBb, CFG inner, Map<Register, Register> registerMap, ReturnReplacer replaceReturn) {
-    var copier = new CFGCopier(registerMap);
+      BB dstBb, CFG inner, Map<Register, Argument> substitutions, ReturnReplacer replaceReturn) {
+    var copier = new CFGCopier(new HashMap<>(), substitutions);
     copier.copyBlocks(dstBb, inner, replaceReturn);
     copier.remapArguments();
   }
@@ -155,13 +162,17 @@ public final class CFGCopier {
   private void remapArguments() {
     for (var instr : copiedInstructions) {
       for (var i = 0; i < instr.argCount(); i++) {
+        var oldArg = instr.arg(i);
+        var oldRegister = oldArg.variable();
+        if (oldRegister == null) {
+          continue;
+        }
+
+        var renamed = registerMap.get(oldRegister);
         var mapped =
-            switch (instr.arg(i)) {
-              case Read(var r) when registerMap.containsKey(r) -> new Read(registerMap.get(r));
-              case Consume(var r) when registerMap.containsKey(r) ->
-                  new Consume(registerMap.get(r));
-              default -> null;
-            };
+            renamed != null
+                ? (oldArg instanceof Consume ? new Consume(renamed) : new Read(renamed))
+                : substitutions.get(oldRegister);
         if (mapped != null) {
           instr.setArg(i, mapped);
         }
