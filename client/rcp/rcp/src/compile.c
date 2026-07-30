@@ -2326,74 +2326,130 @@ static void munmap_finalizer(SEXP ptr)
 
 static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins)
 {
-	int count = 0;
+	int n_branch = 0, n_type = 0, n_fun = 0;
 	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		switch (bytecode[i])
 		{
 			case BRIFNOT_BCOP:
+				n_branch++;
+				break;
 			case GETVAR_BCOP:
-			case GETFUN_BCOP:
 			case CALL_BCOP:
-				count++;
+				n_type++;
+				break;
+			case GETFUN_BCOP:
+				n_fun++;
+				break;
 		}
 	}
 
-	SEXP result = PROTECT(allocVector(VECSXP, 4));
+	SEXP result = PROTECT(allocVector(VECSXP, 3));
 
-	SEXP recording_bcids = Rf_allocVector(INTSXP, count);
-	SET_VECTOR_ELT(result, 0, recording_bcids);
-
-	if (count != 0)
+	// Group 0 (brifnot): two counters per point, packed adjacently -- one before
+	// the instruction and one on the fall-through path just after it.
+	// WARNING: Produces wrong results in case an error is thrown from the BRIFNOT instruction.
+	SEXP branch = Rf_allocVector(VECSXP, 2);
+	SET_VECTOR_ELT(result, 0, branch);
+	SEXP branch_bcids = Rf_allocVector(INTSXP, n_branch);
+	SET_VECTOR_ELT(branch, 0, branch_bcids);
+	int *branch_counters_raw = NULL;
+	if (n_branch != 0)
 	{
-		int *recording_counters_raw = mmap_near(sizeof(int) * (count + 1));
-		recording_counters_raw[0] = sizeof(int) * (count + 1);
-		memset(recording_counters_raw + 1, 0, sizeof(int) * count);
-		SEXP recording_counters = R_MakeExternalPtr(recording_counters_raw, R_NilValue, R_NilValue);
-		SET_VECTOR_ELT(result, 1, recording_counters);
-		R_RegisterCFinalizerEx(recording_counters, &munmap_finalizer, FALSE);
+		branch_counters_raw = mmap_near(sizeof(int) * (2 * n_branch + 1));
+		branch_counters_raw[0] = sizeof(int) * (2 * n_branch + 1);
+		memset(branch_counters_raw + 1, 0, sizeof(int) * (2 * n_branch));
+		SEXP branch_counters = R_MakeExternalPtr(branch_counters_raw, R_NilValue, R_NilValue);
+		SET_VECTOR_ELT(branch, 1, branch_counters);
+		R_RegisterCFinalizerEx(branch_counters, &munmap_finalizer, FALSE);
+	}
 
-		int *recording_types_raw = mmap_near(sizeof(int) * (count + 1));
-		recording_types_raw[0] = sizeof(int) * (count + 1);
-		memset(recording_types_raw + 1, 0, sizeof(int) * count);
-		SEXP recording_types = R_MakeExternalPtr(recording_types_raw, R_NilValue, R_NilValue);
-		SET_VECTOR_ELT(result, 2, recording_types);
-		R_RegisterCFinalizerEx(recording_types, &munmap_finalizer, FALSE);
+	// Group 1 (getvar, call): counter and observed-type bitmap per point.
+	SEXP typed = Rf_allocVector(VECSXP, 3);
+	SET_VECTOR_ELT(result, 1, typed);
+	SEXP typed_bcids = Rf_allocVector(INTSXP, n_type);
+	SET_VECTOR_ELT(typed, 0, typed_bcids);
+	int *typed_counters_raw = NULL;
+	int *typed_types_raw = NULL;
+	if (n_type != 0)
+	{
+		typed_counters_raw = mmap_near(sizeof(int) * (n_type + 1));
+		typed_counters_raw[0] = sizeof(int) * (n_type + 1);
+		memset(typed_counters_raw + 1, 0, sizeof(int) * n_type);
+		SEXP typed_counters = R_MakeExternalPtr(typed_counters_raw, R_NilValue, R_NilValue);
+		SET_VECTOR_ELT(typed, 1, typed_counters);
+		R_RegisterCFinalizerEx(typed_counters, &munmap_finalizer, FALSE);
 
-		R_bcstack_t *recording_consts_raw = mmap_near(sizeof(R_bcstack_t) * (count + 1));
-		((int *)recording_consts_raw)[0] = sizeof(R_bcstack_t) * (count + 1);
-		memset(recording_consts_raw + 1, -1, sizeof(R_bcstack_t) * count);
+		typed_types_raw = mmap_near(sizeof(int) * (n_type + 1));
+		typed_types_raw[0] = sizeof(int) * (n_type + 1);
+		memset(typed_types_raw + 1, 0, sizeof(int) * n_type);
+		SEXP typed_types = R_MakeExternalPtr(typed_types_raw, R_NilValue, R_NilValue);
+		SET_VECTOR_ELT(typed, 2, typed_types);
+		R_RegisterCFinalizerEx(typed_types, &munmap_finalizer, FALSE);
+	}
 
-		SEXP recording_consts_prot = PROTECT(Rf_allocVector(VECSXP, count));
-		SEXP recording_consts = R_MakeExternalPtr(recording_consts_raw, R_NilValue, recording_consts_prot);
-		UNPROTECT_SAFE(recording_consts_prot);
-		SET_VECTOR_ELT(result, 3, recording_consts);
-		R_RegisterCFinalizerEx(recording_consts, &munmap_finalizer, FALSE);
+	// Group 2 (getfun): counter and single recorded constant per point.
+	SEXP fun = Rf_allocVector(VECSXP, 3);
+	SET_VECTOR_ELT(result, 2, fun);
+	SEXP fun_bcids = Rf_allocVector(INTSXP, n_fun);
+	SET_VECTOR_ELT(fun, 0, fun_bcids);
+	int *fun_counters_raw = NULL;
+	SEXP *fun_consts_raw = NULL;
+	SEXP fun_consts_prot = R_NilValue;
+	if (n_fun != 0)
+	{
+		fun_counters_raw = mmap_near(sizeof(int) * (n_fun + 1));
+		fun_counters_raw[0] = sizeof(int) * (n_fun + 1);
+		memset(fun_counters_raw + 1, 0, sizeof(int) * n_fun);
+		SEXP fun_counters = R_MakeExternalPtr(fun_counters_raw, R_NilValue, R_NilValue);
+		SET_VECTOR_ELT(fun, 1, fun_counters);
+		R_RegisterCFinalizerEx(fun_counters, &munmap_finalizer, FALSE);
 
-		for (int i = 0, j = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+		// The recorded getfun constant is always a boxed SEXP, so this buffer
+		// holds bare SEXPs directly. To record full StackVals instead (capturing
+		// unboxed scalars), make this an R_bcstack_t buffer and use the
+		// RECCONST-style recording stencils. Index 0 keeps the byte-size header.
+		fun_consts_raw = mmap_near(sizeof(SEXP) * (n_fun + 1));
+		((int *)fun_consts_raw)[0] = sizeof(SEXP) * (n_fun + 1);
+		memset(fun_consts_raw + 1, 0, sizeof(SEXP) * n_fun);
+
+		fun_consts_prot = PROTECT(Rf_allocVector(VECSXP, n_fun));
+		SEXP fun_consts = R_MakeExternalPtr(fun_consts_raw, R_NilValue, fun_consts_prot);
+		UNPROTECT_SAFE(fun_consts_prot);
+		SET_VECTOR_ELT(fun, 2, fun_consts);
+		R_RegisterCFinalizerEx(fun_consts, &munmap_finalizer, FALSE);
+	}
+
+	for (int i = 0, jb = 0, jt = 0, jf = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
+	{
+		int after = i + RCP_BC_ARG_CNT[bytecode[i]] + 1;
+		switch (bytecode[i])
 		{
-			int pos;
-			switch (bytecode[i])
-			{
-				case BRIFNOT_BCOP:
-					pos = i;
-					break;
-				case GETVAR_BCOP:
-				case GETFUN_BCOP:
-				case CALL_BCOP:
-					pos = i + RCP_BC_ARG_CNT[bytecode[i]] + 1; // Record after
-					break;
-				default:
-					continue;
-			}
-			INTEGER0(recording_bcids)
-			[j] = i + 1; // +1 to adjust for version number at the start of bytecode
-			add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_COUNTER_REL32, &recording_counters_raw[j + 1]);
-			add_plugin_stencil_pos(plugins, pos, &_RCP_CUSTOM_RECORDING_BITMAP, &recording_types_raw[j + 1]);
-			add_plugin_stencil_smc(plugins, pos, SMC_GROUP_RECCONST, &recording_consts_raw[j + 1], &VECTOR_ELT_0(recording_consts_prot, j), recording_consts_prot, NULL);
-			j++;
+			case BRIFNOT_BCOP:
+				INTEGER0(branch_bcids)
+				[jb] = i + 1; // +1 to adjust for version number at the start of bytecode
+				add_plugin_stencil_pos(plugins, i, &_RCP_CUSTOM_COUNTER_REL32, &branch_counters_raw[1 + 2 * jb]);
+				add_plugin_stencil_pos(plugins, after, &_RCP_CUSTOM_COUNTER_REL32, &branch_counters_raw[1 + 2 * jb + 1]);
+				jb++;
+				break;
+			case GETVAR_BCOP:
+			case CALL_BCOP:
+				INTEGER0(typed_bcids)
+				[jt] = i + 1;
+				add_plugin_stencil_pos(plugins, after, &_RCP_CUSTOM_COUNTER_REL32, &typed_counters_raw[jt + 1]);
+				add_plugin_stencil_pos(plugins, after, &_RCP_CUSTOM_RECORDING_BITMAP, &typed_types_raw[jt + 1]);
+				jt++;
+				break;
+			case GETFUN_BCOP:
+				INTEGER0(fun_bcids)
+				[jf] = i + 1;
+				add_plugin_stencil_pos(plugins, after, &_RCP_CUSTOM_COUNTER_REL32, &fun_counters_raw[jf + 1]);
+				add_plugin_stencil_smc(plugins, after, SMC_GROUP_RECFUN, &fun_consts_raw[jf + 1], &VECTOR_ELT_0(fun_consts_prot, jf), fun_consts_prot, NULL);
+				jf++;
+				break;
+			default:
+				break;
 		}
-		assert(j == count);
 	}
 
 	UNPROTECT_SAFE(result);
@@ -2401,27 +2457,21 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 }
 
 // Export the recording produced by type_recording() as a plain, readily
-// serializable R object.
+// serializable R object. The mmap'd counter/bitmap/constant buffers reached
+// through external pointers are copied into ordinary R vectors (and recorded
+// constants resolved back to SEXPs), so the caller can serialize the result.
 //
-// The recording's counters, type bitmaps and recorded constants live in mmap'd
-// raw buffers reachable only through external pointers, which cannot be
-// serialized. This copies each buffer into an ordinary R vector and resolves the
-// recorded constants back to SEXPs, returning a named list with four parallel
-// vectors (one entry per recorded program point):
+// The result is a named list of three per-opcode groups, each a named list of
+// parallel vectors (one entry per recorded program point):
 //
-//   bcids    INTSXP : bytecode offset of the recorded instruction
-//   counters INTSXP : execution count observed at that point
-//   types    INTSXP : bitmap of observed value representations (1u << type)
-//   consts   VECSXP : the single constant seen there, or R_UnboundValue when the
-//                     point observed more than one distinct value
-//
-// The result contains only ordinary R objects, so the caller can serialize or
-// saveRDS it directly.
+//   branch (brifnot)      bcids, taken, not_taken
+//   var_call (getvar/call) bcids, counters, types (observed 1u<<type bitmap)
+//   fun (getfun)          bcids, counters, consts (the single constant seen, or
+//                         R_UnboundValue when more than one distinct value)
 //
 // `x` may be the recording list itself, a compiled closure, or its (external
 // pointer) body -- in the latter two cases the recording is read from the
-// "recording" attribute that C_rcp_cmpfun attaches. Reading it here with
-// Rf_getAttrib avoids relying on R-level attr() of an external pointer.
+// "recording" attribute that C_rcp_cmpfun attaches.
 SEXP C_rcp_export_recording(SEXP x)
 {
 	SEXP recording = x;
@@ -2430,75 +2480,126 @@ SEXP C_rcp_export_recording(SEXP x)
 	if (TYPEOF(recording) == EXTPTRSXP)
 		recording = Rf_getAttrib(recording, Rf_install("recording"));
 
-	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 4)
+	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 3)
 		Rf_error("no type recording found; compile with "
 				 "options(rcp.cmpfun.type_recording = TRUE)");
 
-	SEXP bcids_in = VECTOR_ELT_0(recording, 0);
-	SEXP counters_p = VECTOR_ELT_0(recording, 1);
-	SEXP types_p = VECTOR_ELT_0(recording, 2);
-	SEXP consts_p = VECTOR_ELT_0(recording, 3);
+	SEXP branch = VECTOR_ELT_0(recording, 0);
+	SEXP typed = VECTOR_ELT_0(recording, 1);
+	SEXP fun = VECTOR_ELT_0(recording, 2);
 
-	if (TYPEOF(bcids_in) != INTSXP)
+	if (TYPEOF(branch) != VECSXP || TYPEOF(typed) != VECSXP || TYPEOF(fun) != VECSXP)
 		Rf_error("malformed recording structure");
 
-	R_xlen_t count = XLENGTH(bcids_in);
+	// Index 0 of each raw buffer is a byte-size header; payload starts at [1].
 
-	const int *counters_raw = NULL;
-	const int *types_raw = NULL;
-	const R_bcstack_t *consts_raw = NULL;
-
-	if (count != 0)
+	// --- branch (brifnot): bcids, taken, not_taken ---
+	SEXP branch_bcids = VECTOR_ELT_0(branch, 0);
+	R_xlen_t n_branch = XLENGTH(branch_bcids);
+	SEXP branch_taken = PROTECT(Rf_allocVector(INTSXP, n_branch));
+	SEXP branch_not_taken = PROTECT(Rf_allocVector(INTSXP, n_branch));
+	if (n_branch != 0)
 	{
-		if (TYPEOF(counters_p) != EXTPTRSXP || TYPEOF(types_p) != EXTPTRSXP || TYPEOF(consts_p) != EXTPTRSXP)
+		SEXP p = VECTOR_ELT_0(branch, 1);
+		if (TYPEOF(p) != EXTPTRSXP)
 			Rf_error("malformed recording structure");
-
-		counters_raw = (const int *)EXTPTR_PTR(counters_p);
-		types_raw = (const int *)EXTPTR_PTR(types_p);
-		consts_raw = (const R_bcstack_t *)EXTPTR_PTR(consts_p);
-		if (!counters_raw || !types_raw || !consts_raw)
+		const int *raw = (const int *)EXTPTR_PTR(p);
+		if (!raw)
 			Rf_error("recording buffers have already been released");
+		// Per point: raw[1 + 2j] counts every time the branch is reached,
+		// raw[1 + 2j + 1] counts fall-throughs (condition true, branch not taken).
+		for (R_xlen_t j = 0; j < n_branch; j++)
+		{
+			int before = raw[1 + 2 * j];
+			int after = raw[1 + 2 * j + 1];
+			INTEGER0(branch_taken)
+			[j] = before - after;
+			INTEGER0(branch_not_taken)
+			[j] = after;
+		}
 	}
+	SEXP branch_out = PROTECT(Rf_allocVector(VECSXP, 3));
+	SET_VECTOR_ELT(branch_out, 0, branch_bcids);
+	SET_VECTOR_ELT(branch_out, 1, branch_taken);
+	SET_VECTOR_ELT(branch_out, 2, branch_not_taken);
+	SEXP branch_names = PROTECT(Rf_allocVector(STRSXP, 3));
+	SET_STRING_ELT(branch_names, 0, Rf_mkChar("bcids"));
+	SET_STRING_ELT(branch_names, 1, Rf_mkChar("taken"));
+	SET_STRING_ELT(branch_names, 2, Rf_mkChar("not_taken"));
+	Rf_setAttrib(branch_out, R_NamesSymbol, branch_names);
 
-	// Index 0 of each raw buffer is a byte-size header; payload is at [1..count].
-	SEXP counters = PROTECT(Rf_allocVector(INTSXP, count));
-	SEXP types = PROTECT(Rf_allocVector(INTSXP, count));
-	SEXP consts = PROTECT(Rf_allocVector(VECSXP, count));
-
-	memcpy(INTEGER0(counters), counters_raw + 1, count * sizeof(int));
-	memcpy(INTEGER0(types), types_raw + 1, count * sizeof(int));
-
-	for (R_xlen_t j = 0; j < count; j++)
+	// --- var_call (getvar/call): bcids, counters, types ---
+	SEXP typed_bcids = VECTOR_ELT_0(typed, 0);
+	R_xlen_t n_type = XLENGTH(typed_bcids);
+	SEXP typed_counters = PROTECT(Rf_allocVector(INTSXP, n_type));
+	SEXP typed_types = PROTECT(Rf_allocVector(INTSXP, n_type));
+	if (n_type != 0)
 	{
-		R_bcstack_t v = consts_raw[j + 1];
-		SEXP c;
-		if (v.tag == -1)
-		{
-			c = R_UnboundValue;
-		}
-		else
-		{
-			c = STACKVAL_TO_SEXP(v);
-		}
-
-		SET_VECTOR_ELT(consts, j, c);
+		SEXP cp = VECTOR_ELT_0(typed, 1);
+		SEXP tp = VECTOR_ELT_0(typed, 2);
+		if (TYPEOF(cp) != EXTPTRSXP || TYPEOF(tp) != EXTPTRSXP)
+			Rf_error("malformed recording structure");
+		const int *counters_raw = (const int *)EXTPTR_PTR(cp);
+		const int *types_raw = (const int *)EXTPTR_PTR(tp);
+		if (!counters_raw || !types_raw)
+			Rf_error("recording buffers have already been released");
+		memcpy(INTEGER0(typed_counters), counters_raw + 1, n_type * sizeof(int));
+		memcpy(INTEGER0(typed_types), types_raw + 1, n_type * sizeof(int));
 	}
+	SEXP typed_out = PROTECT(Rf_allocVector(VECSXP, 3));
+	SET_VECTOR_ELT(typed_out, 0, typed_bcids);
+	SET_VECTOR_ELT(typed_out, 1, typed_counters);
+	SET_VECTOR_ELT(typed_out, 2, typed_types);
+	SEXP typed_names = PROTECT(Rf_allocVector(STRSXP, 3));
+	SET_STRING_ELT(typed_names, 0, Rf_mkChar("bcids"));
+	SET_STRING_ELT(typed_names, 1, Rf_mkChar("counters"));
+	SET_STRING_ELT(typed_names, 2, Rf_mkChar("types"));
+	Rf_setAttrib(typed_out, R_NamesSymbol, typed_names);
 
-	SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+	// --- fun (getfun): bcids, counters, consts ---
+	SEXP fun_bcids = VECTOR_ELT_0(fun, 0);
+	R_xlen_t n_fun = XLENGTH(fun_bcids);
+	SEXP fun_counters = PROTECT(Rf_allocVector(INTSXP, n_fun));
+	SEXP fun_consts = PROTECT(Rf_allocVector(VECSXP, n_fun));
+	if (n_fun != 0)
+	{
+		SEXP cp = VECTOR_ELT_0(fun, 1);
+		SEXP kp = VECTOR_ELT_0(fun, 2);
+		if (TYPEOF(cp) != EXTPTRSXP || TYPEOF(kp) != EXTPTRSXP)
+			Rf_error("malformed recording structure");
+		const int *counters_raw = (const int *)EXTPTR_PTR(cp);
+		const SEXP *consts_raw = (const SEXP *)EXTPTR_PTR(kp);
+		if (!counters_raw || !consts_raw)
+			Rf_error("recording buffers have already been released");
+		memcpy(INTEGER0(fun_counters), counters_raw + 1, n_fun * sizeof(int));
+		for (R_xlen_t j = 0; j < n_fun; j++)
+		{
+			// The buffer holds bare SEXPs; ambiguous and never-recorded slots hold NULL.
+			SEXP c = consts_raw[j + 1];
+			SET_VECTOR_ELT(fun_consts, j, c ? c : R_UnboundValue);
+		}
+	}
+	SEXP fun_out = PROTECT(Rf_allocVector(VECSXP, 3));
+	SET_VECTOR_ELT(fun_out, 0, fun_bcids);
+	SET_VECTOR_ELT(fun_out, 1, fun_counters);
+	SET_VECTOR_ELT(fun_out, 2, fun_consts);
+	SEXP fun_names = PROTECT(Rf_allocVector(STRSXP, 3));
+	SET_STRING_ELT(fun_names, 0, Rf_mkChar("bcids"));
+	SET_STRING_ELT(fun_names, 1, Rf_mkChar("counters"));
+	SET_STRING_ELT(fun_names, 2, Rf_mkChar("consts"));
+	Rf_setAttrib(fun_out, R_NamesSymbol, fun_names);
 
-	SET_VECTOR_ELT(out, 0, bcids_in);
-	SET_VECTOR_ELT(out, 1, counters);
-	SET_VECTOR_ELT(out, 2, types);
-	SET_VECTOR_ELT(out, 3, consts);
-
-	SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
-	SET_STRING_ELT(names, 0, Rf_mkChar("bcids"));
-	SET_STRING_ELT(names, 1, Rf_mkChar("counters"));
-	SET_STRING_ELT(names, 2, Rf_mkChar("types"));
-	SET_STRING_ELT(names, 3, Rf_mkChar("consts"));
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
+	SET_VECTOR_ELT(out, 0, branch_out);
+	SET_VECTOR_ELT(out, 1, typed_out);
+	SET_VECTOR_ELT(out, 2, fun_out);
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
+	SET_STRING_ELT(names, 0, Rf_mkChar("branch"));
+	SET_STRING_ELT(names, 1, Rf_mkChar("var_call"));
+	SET_STRING_ELT(names, 2, Rf_mkChar("fun"));
 	Rf_setAttrib(out, R_NamesSymbol, names);
 
-	UNPROTECT(5); // counters, types, consts, out, names
+	UNPROTECT(14);
 	return out;
 }
 

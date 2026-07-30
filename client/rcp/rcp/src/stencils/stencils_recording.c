@@ -158,12 +158,68 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_RECCONST_0) // entry: record
 	if (VAL_IS_SXP(*GET_VAL(-1)))
 	{
 		SEXP *protect = (SEXP *)GETCUSTOM_REL(1);
-		// FIXME: this is inefficient. Find a better solution to protect SEXPs from the GC.
-		CHECK_OLD_TO_NEW((SEXP)GETCUSTOM(2), VAL_SXP(*GET_VAL(-1)));
 		*protect = VAL_SXP(*GET_VAL(-1));
 		MARK_NOT_MUTABLE(VAL_SXP(*GET_VAL(-1)));
+
+		// FIXME: this is inefficient. Find a better solution to protect SEXPs from the GC.
+		CHECK_OLD_TO_NEW((SEXP)GETCUSTOM(2), VAL_SXP(*GET_VAL(-1)));
 	}
 	EPILOGUE;
 	return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(RECCONST_VARIANT_CHECK), GET_NEXT_PTR(), GETSMCVARIANTSIZE(RECCONST_VARIANT_CHECK));
+}
+#pragma GCC diagnostic pop
+
+// Same monotonic lattice as RECCONST, but for the function pushed by GETFUN.
+// GETFUN leaves the function at GET_VAL(-3), with the two call-frame
+// placeholders at GET_VAL(-2)/GET_VAL(-1), so this records slot -3 instead of
+// the top of stack. GETFUN always pushes a boxed value, so the recorded
+// constant is stored directly as a bare SEXP rather than a StackVal.
+#define RECFUN_VARIANT_CHECK 1
+#define RECFUN_VARIANT_INERT 2
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_RECFUN_2) // ambiguous / inert
+{
+	PROLOGUE;
+	NEXT;
+}
+
+// recording_constant aliases the scalar placeholder symbol as a SEXP slot; the
+// -Warray-bounds diagnostic misreads that as an over-read, so silence it here.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+RCP_STENCIL_FUNCTION(_RCP_SMC_RECFUN_1) // monomorphic
+{
+	PROLOGUE;
+	SEXP *recording_constant = (SEXP *)GETCUSTOM_REL(0);
+	assert(VAL_IS_SXP(*GET_VAL(-3))); // GETFUN always pushes a SEXP
+	if (UNLIKELY(*recording_constant != VAL_SXP(*GET_VAL(-3))))
+	{
+		*recording_constant = NULL;
+
+		// Uncomment to let GC claim the recorded constant at the expense of a small performance hit.
+		// SEXP *protect = (SEXP *)GETCUSTOM_REL(1);
+		// *protect = R_NilValue;
+
+		EPILOGUE;
+		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(RECFUN_VARIANT_INERT), GET_NEXT_PTR(), GETSMCVARIANTSIZE(RECFUN_VARIANT_INERT));
+	}
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_RECFUN_0) // entry: record
+{
+	PROLOGUE;
+	SEXP *recording_constant = (SEXP *)GETCUSTOM_REL(0);
+	assert(VAL_IS_SXP(*GET_VAL(-3))); // GETFUN always pushes a SEXP
+	*recording_constant = VAL_SXP(*GET_VAL(-3));
+
+	SEXP *protect = (SEXP *)GETCUSTOM_REL(1);
+	*protect = VAL_SXP(*GET_VAL(-3));
+	MARK_NOT_MUTABLE(VAL_SXP(*GET_VAL(-3)));
+	// FIXME: this is inefficient. Find a better solution to protect SEXPs from the GC.
+	CHECK_OLD_TO_NEW((SEXP)GETCUSTOM(2), VAL_SXP(*GET_VAL(-3)));
+
+	EPILOGUE;
+	return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(RECFUN_VARIANT_CHECK), GET_NEXT_PTR(), GETSMCVARIANTSIZE(RECFUN_VARIANT_CHECK));
 }
 #pragma GCC diagnostic pop
