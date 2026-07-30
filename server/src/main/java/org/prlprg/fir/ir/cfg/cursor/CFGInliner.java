@@ -3,8 +3,9 @@ package org.prlprg.fir.ir.cfg.cursor;
 import static org.prlprg.fir.ir.cfg.cursor.CFGCopier.copyTo;
 
 import com.google.common.collect.ImmutableList;
-import java.util.HashMap;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.BBRef;
 import org.prlprg.fir.ir.cfg.CFG;
@@ -29,6 +30,22 @@ public final class CFGInliner {
   /// @throws IndexOutOfBoundsException if `index < -1 || index >= bb.statements.size()`
   public static BB inline(
       CFG inlinee, BB bb, int index, @Nullable BlockParameter returnDestination) {
+    return inline(inlinee, bb, index, returnDestination, Map.of());
+  }
+
+  /// As [#inline(CFG, BB, int, BlockParameter)], but each register in `substitutions` is replaced
+  /// with its argument as the code is copied in.
+  ///
+  /// This is how a call's arguments reach an inlined callee body: the callee's
+  /// [parameters][org.prlprg.fir.ir.variable.FunctionParameter] have no counterpart in
+  /// `bb`'s scope, so they're substituted rather than renamed. The substituted arguments must be
+  /// valid in `bb`'s scope, and `inlinee` is left untouched.
+  public static BB inline(
+      CFG inlinee,
+      BB bb,
+      int index,
+      @Nullable BlockParameter returnDestination,
+      Map<Register, Argument> substitutions) {
     if (index < -1 || index >= bb.statements().size()) {
       throw new IndexOutOfBoundsException("Instruction index out of bounds");
     }
@@ -47,7 +64,7 @@ public final class CFGInliner {
     copyTo(
         bb,
         inlinee,
-        new HashMap<Register, Register>(),
+        substitutions,
         (comments, value) ->
             new Jump(
                 comments,

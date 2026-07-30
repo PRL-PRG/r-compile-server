@@ -6,6 +6,7 @@ import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.Analyses;
@@ -21,7 +22,6 @@ import org.prlprg.fir.ir.argument.Read;
 import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
-import org.prlprg.fir.ir.cfg.cursor.CFGCopier;
 import org.prlprg.fir.ir.cfg.cursor.CFGInliner;
 import org.prlprg.fir.ir.cfg.iterator.BbDfs;
 import org.prlprg.fir.ir.expression.Call;
@@ -37,7 +37,6 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Type;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
-import org.prlprg.fir.ir.variable.FunctionParameter;
 import org.prlprg.fir.ir.variable.Register;
 
 /// Inline forces, maybe-forces, and static calls when possible.
@@ -214,7 +213,7 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
           assignee.substUsesWith(new Read(returnDest));
         }
         bb.statements().get(statementIndex).remove();
-        inline(code, bb, statementIndex - 1, returnDest);
+        inline(code, bb, statementIndex - 1, returnDest, Map.of());
       }
     }
 
@@ -274,22 +273,12 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
       // Import the callee's named-variable declared types.
       callee.namedVariableTypes().forEach(scope::setNamedVariableType);
 
-      // Copy `callee` into a throwaway `body` (so we can mutate it), seeding the register map so
-      // the body references fresh copies of the callee's parameters; then substitute each
-      // parameter with the corresponding call argument.
-      var bodyParams =
-          callee.parameters().stream()
-              .map(p -> new FunctionParameter(p.name(), p.type(), p.strict()))
-              .collect(java.util.stream.Collectors.<FunctionParameter>toList());
-      var body = new Abstraction(scope.module(), bodyParams);
-      var registerMap = new HashMap<Register, Register>();
+      // The callee's parameters have no counterpart in this scope, so the inliner substitutes each
+      // with the corresponding call argument while copying the body in. (Computed before removing
+      // the call below, since `arguments` is a view of its argument list.)
+      var substitutions = new HashMap<Register, Argument>();
       for (var i = 0; i < callee.parameters().size(); i++) {
-        registerMap.put(callee.parameters().get(i), body.parameters().get(i));
-      }
-      CFGCopier.copyTo(
-          Objects.requireNonNull(body.cfg()), Objects.requireNonNull(callee.cfg()), registerMap);
-      for (var i = 0; i < body.parameters().size(); i++) {
-        body.parameters().get(i).substUsesWith(arguments.get(i));
+        substitutions.put(callee.parameters().get(i), arguments.get(i));
       }
 
       // Replace the call with the inlined body (its return goes to a fresh `returnDest`).
@@ -299,19 +288,17 @@ public record Inline(int maxInlineeSize) implements AbstractionOptimization {
         assignee.substUsesWith(new Read(returnDest));
       }
       bb.statements().get(statementIndex).remove();
-      inline(Objects.requireNonNull(body.cfg()), bb, statementIndex - 1, returnDest);
-
-      // TODO: this is wrong and/or should be modified somehow.
-      //    I think the uses should be removed in `substUsesWith` or inline
-      // `inline` *copies* out of `body`, so `body` is now scaffolding. It still holds def-use links
-      // on the caller's registers (the `substUsesWith` above substituted the call arguments into
-      // it), and those registers outlive it, so it has to be torn down rather than just dropped.
-      Objects.requireNonNull(body.cfg()).dropAllUses();
+      inline(
+          Objects.requireNonNull(callee.cfg()), bb, statementIndex - 1, returnDest, substitutions);
     }
 
     private void inline(
-        CFG cfg, BB bb, int statementIndex, @Nullable BlockParameter returnDestination) {
-      CFGInliner.inline(cfg, bb, statementIndex, returnDestination);
+        CFG cfg,
+        BB bb,
+        int statementIndex,
+        @Nullable BlockParameter returnDestination,
+        Map<Register, Argument> substitutions) {
+      CFGInliner.inline(cfg, bb, statementIndex, returnDestination, substitutions);
       changed = true;
       analyses.evict();
     }

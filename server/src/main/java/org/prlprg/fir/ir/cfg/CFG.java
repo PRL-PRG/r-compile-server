@@ -135,25 +135,6 @@ public final class CFG {
             });
   }
 
-  /// Drop every def-use link held by this CFG's instructions, including those in nested promise
-  /// bodies, leaving it inert.
-  ///
-  /// For discarding a CFG that was only ever scaffolding -- e.g. the throwaway [Abstraction] the
-  /// inliner copies a callee into and substitutes the *caller's* arguments through. Such a CFG
-  /// registers uses on registers that outlive it, so dropping the reference isn't enough: the
-  /// uses would linger in those registers'
-  /// [uses][org.prlprg.fir.ir.variable.Register#uses], pointing into a CFG no longer reachable
-  /// from any live [Abstraction].
-  ///
-  /// TODO: the one use should be refactored, then this is probably unnecessary
-  ///   and makes the API more confusing
-  public void dropAllUses() {
-    for (var bb : bbs.values()) {
-      dropUses(bb);
-      bb.setJump(new Jump(new Unreachable()));
-    }
-  }
-
   /// Drop every def-use link held by `bb`'s statements, including those held by the bodies of any
   /// promises they create.
   ///
