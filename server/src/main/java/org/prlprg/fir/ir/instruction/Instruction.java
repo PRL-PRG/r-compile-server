@@ -11,6 +11,8 @@ import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.Comments;
 import org.prlprg.fir.ir.argument.Argument;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.expression.Promise;
 
 /// A FIŘ instruction: either a [Statement] or a [Jump] (wraps a [JumpExpression]).
 ///
@@ -209,14 +211,44 @@ public abstract sealed class Instruction permits Statement, Jump {
       throw new IllegalStateException("Instruction cannot be removed while its result has uses");
     }
 
-    for (var i = 0; i < args.size(); i++) {
-      args.get(i).removeUse(new Use(this, i));
-    }
+    dropArgumentUses();
 
     next.setPrev(prev);
     prev.setNext(next);
     next = null;
     prev = null;
+  }
+
+  /// Drop every def-use link this instruction holds.
+  ///
+  /// That is its own arguments, and -- if it creates a promise -- the links held by the
+  /// instructions inside the promise's code, at any depth. A [Promise] contributes no arguments at
+  /// its own level, but the instructions in its body read registers of the *enclosing* frame, and
+  /// destroying only the creating [Statement] leaves those reads registered in their register's
+  /// [uses][org.prlprg.fir.ir.variable.Register#uses] while living in a [CFG] no longer reachable
+  /// from its [org.prlprg.fir.ir.abstraction.Abstraction] -- which later reads as a use in an
+  /// unknown CFG.
+  private void dropArgumentUses() {
+    for (var i = 0; i < args.size(); i++) {
+      args.get(i).removeUse(new Use(this, i));
+    }
+
+    if (this instanceof Statement s && s.expression() instanceof Promise(_, _, var code, _)) {
+      dropUsesIn(code);
+    }
+  }
+
+  /// Drop the def-use links held by every instruction in `code`, including those in any promise
+  /// nested within it.
+  ///
+  /// Call this when a promise's body is discarded, so the reads it made of the enclosing frame's
+  /// registers don't outlive it. See [#dropArgumentUses].
+  static void dropUsesIn(CFG code) {
+    for (var bb : code.bbs()) {
+      for (var instruction : bb.instructions()) {
+        instruction.dropArgumentUses();
+      }
+    }
   }
 
   /// Move this instruction to immediately before `point`, preserving all def-use links (the
@@ -248,9 +280,7 @@ public abstract sealed class Instruction permits Statement, Jump {
     prev.setNext(next);
     next = null;
     prev = null;
-    for (var i = 0; i < args.size(); i++) {
-      args.get(i).removeUse(new Use(this, i));
-    }
+    dropArgumentUses();
   }
 
   /// Splice `newInst` into this instruction's position, then destroy this instruction.
@@ -278,8 +308,6 @@ public abstract sealed class Instruction permits Statement, Jump {
     next = null;
     prev = null;
 
-    for (var i = 0; i < args.size(); i++) {
-      args.get(i).removeUse(new Use(this, i));
-    }
+    dropArgumentUses();
   }
 }

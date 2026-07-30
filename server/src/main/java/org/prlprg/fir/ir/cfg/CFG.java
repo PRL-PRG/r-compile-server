@@ -13,7 +13,6 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.cfg.CfgDominatorTree;
 import org.prlprg.fir.ir.abstraction.Abstraction;
-import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.instruction.Jump;
 import org.prlprg.fir.ir.instruction.Unreachable;
 import org.prlprg.fir.ir.module.Module;
@@ -135,23 +134,12 @@ public final class CFG {
             });
   }
 
-  /// Drop every def-use link held by `bb`'s statements, including those held by the bodies of any
-  /// promises they create.
+  /// Drop every def-use link held by `bb`'s statements.
   ///
-  /// A promise's body is a separate [CFG] whose instructions read registers of the *enclosing*
-  /// frame, and destroying the creating [org.prlprg.fir.ir.instruction.Statement] doesn't reach
-  /// them ([org.prlprg.fir.ir.instruction.Instruction#detach] only drops that instruction's own
-  /// arguments). Left behind, those reads stay in their register's
-  /// [uses][org.prlprg.fir.ir.variable.Register#uses] while living in a CFG no longer reachable
-  /// from its [Abstraction], which later reads as a use in an unknown CFG.
+  /// [org.prlprg.fir.ir.instruction.Instruction#detach] reaches into the bodies of any promises
+  /// they create, whose instructions read registers of this frame.
   private static void dropUses(BB bb) {
     for (var statement : bb.statements()) {
-      if (statement.expression() instanceof Promise(_, _, var code, _)) {
-        for (var promiseBb : code.bbs()) {
-          dropUses(promiseBb);
-          promiseBb.setJump(new Jump(new Unreachable()));
-        }
-      }
       statement.detach();
     }
   }
