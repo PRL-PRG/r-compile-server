@@ -13,7 +13,6 @@
 #include <setjmp.h>
 #include <string.h>
 
-
 // INSTRUCTIONS
 // ------------
 
@@ -2493,16 +2492,19 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
-#ifdef RSH_EXTERN_HELPERS
-extern NODISCARD Rboolean Rsh_StartLoopCntxt(Value *stack, RCNTXT *cntxt,
-                                             SEXP rho);
-#else
-static INLINE NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
-                                      SEXP rho) {
+#ifndef COMPILING_STENCILS
+static
+#endif
+    NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+                                          SEXP rho)
+#ifndef COMPILING_STENCILS
+{
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
   return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
 }
+#else
+    ;
 #endif
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
