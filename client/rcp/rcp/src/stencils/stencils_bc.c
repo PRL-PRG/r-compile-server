@@ -1,8 +1,6 @@
 #include "stencils_internals.h"
 
-#define RSH_EXTERN_HELPERS
 #include <opcodes.h>
-#undef RSH_EXTERN_HELPERS
 
 #include "../rcp_bc_info.h"
 
