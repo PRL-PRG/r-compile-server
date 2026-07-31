@@ -1166,8 +1166,11 @@ static INLINE SEXP Rsh_closure_call_args(SEXP args) {
   return args;
 }
 
-static INLINE void Rsh_inline_call(RCNTXT *pcntxt, Value *res, SEXP body, SEXP newrho)
-#ifndef RSH_EXTERN_HELPERS
+#ifndef COMPILING_STENCILS
+static
+#endif
+    void Rsh_inline_call(RCNTXT *pcntxt, Value *res, SEXP body, SEXP newrho)
+#ifndef COMPILING_STENCILS
 {
   if (sigsetjmp(pcntxt->cjmpbuf, 0)) {
     if (!pcntxt->jumptarget) {
