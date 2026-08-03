@@ -18,11 +18,13 @@ endif
 CFLAGS ?= -std=gnu17
 CXXFLAGS ?= -std=gnu++20
 
-# The bundled GNU-R sources that `make setup` builds.
-GNUR_DIR := external/rsh/external/R
+# The bundled GNU-R sources that `make setup` builds. rcp lives inside the
+# r-compile-server repo, so this is the repo-root R submodule.
+GNUR_DIR := ../../R
 
-RSH_COMMIT ?= $(shell git -C external/rsh rev-parse HEAD)
-RCP_COMMIT ?= $(shell git rev-parse HEAD)
+# rcp and the compile server are one repository, so both commits are the same.
+RSH_COMMIT ?= $(shell git rev-parse HEAD)
+RCP_COMMIT ?= $(RSH_COMMIT)
 
 RCP_MAKE := $(MAKE) -C rcp
 
@@ -96,7 +98,7 @@ setup: check-toolchain
 		echo ">> $(GNUR_DIR) is configured without -DRCP; running 'make distclean' to force a clean RCP reconfigure"; \
 		$(MAKE) -C $(GNUR_DIR) distclean >/dev/null 2>&1 || true; \
 	fi
-	CC="$(CC)" CXX="$(CXX)" RCP=1 external/rsh/tools/build-gnur.sh $(GNUR_DIR)
+	CC="$(CC)" CXX="$(CXX)" RCP=1 ../../tools/build-gnur.sh $(GNUR_DIR)
 	$(MAKE) -C rcp CC="$(CC)" CXX="$(CXX)"
 
 test: check-toolchain

@@ -43,9 +43,6 @@ BENCH_STAMP := $(shell date +%Y-%m-%d_%H-%M-%S)
 BENCH_OUT_DIR ?= $(ROOT_DIR)/measurements/benchmarks/$(BENCH_STAMP)
 HARVEST_OPTS ?=
 
-RSH_HOME ?= ../external/rsh
-R_HOME ?= $(RSH_HOME)/external/R
-
 # The benchmark infrastructure (runner, harness, suites, CRAN harvester) lives
 # in the rsh project so it is shared; rcp just drives it with its own R. Add a
 # benchmark by dropping a file into a group folder under

@@ -24,6 +24,14 @@ See `./client/rsh/README.md`.
   - `inst/` - Benchmarks (R code)
   - `tests/` - Unit tests (R code)
 
+## Copy-and-patch compiler (rcp)
+
+At `./client/rcp`.
+
+A standalone R package that JIT-compiles bytecode with copy-and-patch stencils, built against the RCP variant of the vendored GNU-R (`RCP=1 ./tools/build-gnur.sh R`). Linux x86-64 and GCC 14+ only. It shares `./client/rsh/inst/benchmarks` as its benchmark harness.
+
+See `./client/rcp/README.md`.
+
 ## Compile server
 
 At `./server`.

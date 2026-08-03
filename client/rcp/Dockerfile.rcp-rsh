@@ -5,7 +5,7 @@ ARG RSH_COMMIT
 
 RUN git clone https://github.com/PRL-PRG/r-compile-server.git /rsh && \
     git -C /rsh checkout --detach ${RSH_COMMIT} && \
-    git -C /rsh submodule update --init --depth 1 external/R
+    git -C /rsh submodule update --init --depth 1 R
 
 # Assert that the vanilla bc baseline in /R-vanilla (pinned by R_VERSION in
 # Dockerfile.rcp-base, so that its expensive build stays cached) is the same R
@@ -24,7 +24,7 @@ RUN git clone https://github.com/PRL-PRG/r-compile-server.git /rsh && \
 # the vendored R is a development snapshot, since no CRAN release matches one.
 ARG ALLOW_R_VERSION_MISMATCH=0
 RUN set -eu; \
-    rcp_v="$(head -n1 /rsh/external/R/VERSION | sed 's/[[:space:]]*$//')"; \
+    rcp_v="$(head -n1 /rsh/R/VERSION | sed 's/[[:space:]]*$//')"; \
     van_v="$(awk '/^Version:/ {print $2; exit}' "$(/R-vanilla/bin/R RHOME)/library/base/DESCRIPTION")"; \
     echo "vendored (rcp) R: $rcp_v"; \
     echo "vanilla (bc) R:   $van_v"; \
@@ -35,7 +35,7 @@ RUN set -eu; \
       echo "         bc-vs-rcp results will include upstream R differences." >&2; \
     else \
       echo "error: the bc baseline and the RCP R are different R versions." >&2; \
-      echo "  vendored /rsh/external/R/VERSION: $rcp_v" >&2; \
+      echo "  vendored /rsh/R/VERSION: $rcp_v" >&2; \
       echo "  vanilla /R-vanilla:               $van_v" >&2; \
       echo "  Bump R_VERSION in Dockerfile.rcp-base to $rcp_v and rebuild rcp-base," >&2; \
       echo "  or pass --build-arg ALLOW_R_VERSION_MISMATCH=1 to benchmark anyway." >&2; \
@@ -46,9 +46,9 @@ RUN set -eu; \
 # rcp* runtime symbols (rcpEval, R_RcpFree, ...). The bc benchmarks use the
 # separate vanilla /R-vanilla from the base image, so this stays RCP-only.
 RUN cd /rsh && \
-    RCP=1 bash -x ./tools/build-gnur.sh external/R
+    RCP=1 bash -x ./tools/build-gnur.sh R
 
-RUN /rsh/external/R/bin/R --quiet -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")'
+RUN /rsh/R/bin/R --quiet -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")'
 
 # Provision the CRAN package benchmarks here, in the rsh image, so they are
 # CACHED across rcp commits: this layer is keyed on RSH_COMMIT and only rebuilds
@@ -63,12 +63,12 @@ RUN /rsh/external/R/bin/R --quiet -e 'install.packages("microbenchmark", repos="
 # the synthetic suites.
 ARG HARVEST_CRAN=0
 RUN if [ "$HARVEST_CRAN" = "1" ]; then \
-      /rsh/external/R/bin/Rscript /rsh/client/rsh/inst/benchmarks/cran-harvest/harvest.R --binary && \
+      /rsh/R/bin/Rscript /rsh/client/rsh/inst/benchmarks/cran-harvest/harvest.R --binary && \
       /R-vanilla/bin/Rscript    /rsh/client/rsh/inst/benchmarks/cran-harvest/harvest.R --binary --install-only ; \
     else \
       echo "HARVEST_CRAN=$HARVEST_CRAN: skipping CRAN benchmark harvest (set build-arg HARVEST_CRAN=1 to enable)" ; \
     fi
 
 ENV RSH_HOME=/rsh/client/rsh
-ENV R_HOME=/rsh/external/R
+ENV R_HOME=/rsh/R
 ENV PATH="${PATH}:${R_HOME}/bin"

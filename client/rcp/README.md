@@ -26,11 +26,12 @@ The R implementation is described in Kocourek et al.,
 
 ## Building from source
 
-Clone the repository with its submodules:
+rcp lives inside the r-compile-server repository. Clone it with its
+submodules (the bundled GNU-R sources):
 
 ```sh
-git clone --recurse-submodules https://github.com/PRL-PRG/rcp.git
-cd rcp
+git clone --recurse-submodules https://github.com/PRL-PRG/r-compile-server.git
+cd r-compile-server/client/rcp
 ```
 
 Build R from source and install R package dependencies:
@@ -113,7 +114,7 @@ components and their change frequency.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rcp-base` | Ubuntu 26.04 LTS, toolchain (gcc-14, pinned), vanilla R 4.5.2 in `/R-vanilla` (the bc baseline), `microbenchmark` for it                     |
 | `rcp-rsh`  | `rcp-base` + [r-compile-server](https://github.com/PRL-PRG/r-compile-server) at `RSH_COMMIT`, custom R build, `microbenchmark` for custom R |
-| `rcp`      | `rcp-rsh` + `rcp` at `RCP_COMMIT`, built and installed                                                                                       |
+| `rcp`      | `rcp-rsh` + `client/rcp` from the same checkout, built and installed                                                                         |
 
 This split keeps rebuilds short: frequent `rcp` edits only rebuild the top
 image, while expensive R builds stay cached in lower layers.
@@ -123,7 +124,7 @@ R, so the vanilla baseline is kept at the same version as the R that rsh vendors
 and is compiled the same way (`-g -O2`, plain `./configure`, minus `-DRCP`). Its
 version is pinned by `R_VERSION` in `Dockerfile.rcp-base` — keeping that layer
 keyed on nothing is what keeps the build cached — and `Dockerfile.rcp-rsh`
-asserts the pin still matches the vendored `external/R/VERSION`, so bumping the
+asserts the pin still matches the vendored `R/VERSION`, so bumping the
 vendored R without bumping `R_VERSION` fails the build instead of quietly
 skewing results:
 
@@ -158,13 +159,14 @@ make docker-rcp
 3. `make docker-rcp` builds `ghcr.io/prl-prg/rcp:$RCP_COMMIT` from
    `Dockerfile.rcp`.
 
-`Dockerfile.rcp` reuses `/rsh` from the parent `rcp-rsh` image and does not
-clone the `external/rsh` submodule again.
+`Dockerfile.rcp` reuses the `/rsh` checkout from the parent `rcp-rsh` image,
+which already contains `client/rcp`, so it clones nothing itself.
 
 ### Reproducibility and cache behavior
 
-- `RSH_COMMIT` defaults to the checked-out `external/rsh` submodule commit.
-- `RCP_COMMIT` defaults to `git rev-parse HEAD` of this repository.
+- `RSH_COMMIT` defaults to `git rev-parse HEAD` of this repository.
+- `RCP_COMMIT` defaults to the same commit -- rcp and the compile server share
+  one repository.
 - Docker image source checkouts are pinned to those commit SHAs.
 - Build context is intentionally minimal via `.dockerignore`; Dockerfiles clone
   exact commits instead of copying the local workspace.
@@ -182,20 +184,20 @@ make docker-rcp \
 
 ```sh
 docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD) \
-  bash -c "make -C /rcp/rcp/tests test"
+  bash -c "make -C /rsh/client/rcp/rcp/tests test"
 ```
 
 ### Running benchmarks in Docker
 
 ```sh
 docker run --rm ghcr.io/prl-prg/rcp:$(git rev-parse HEAD) \
-  make -C /rcp/rcp benchmark BENCH_ITER=15 BENCH_OPTS=--rcp
+  make -C /rsh/client/rcp/rcp benchmark BENCH_ITER=15 BENCH_OPTS=--rcp
 ```
 
 ## Benchmarks
 
-The benchmark suite lives in the `rsh` submodule and is driven by
-`rcp/inst/benchmarks/run-benchmarks.sh`.
+The benchmark suite lives in the compile server's `client/rsh` and is driven by
+`client/rsh/inst/benchmarks/run-benchmarks.sh`.
 
 ### Running benchmarks locally
 
@@ -368,7 +370,6 @@ rcp/                  Root
  Dockerfile.rcp-rsh   R compile server image
  Dockerfile.rcp       Full image (rcp built and installed)
  Makefile             Top-level targets: setup, test, docker-*
- external/rsh/        Git submodule: R compile server
  rcp/                 The R package
    src/               C/C++ source
      compile.c        JIT compiler -- calls debug/profiling hooks
