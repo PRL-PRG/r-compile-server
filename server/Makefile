@@ -2,7 +2,7 @@
 MAKEFLAGS += --no-builtin-rules
 
 BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/..)
-R_HOME ?= $(BASE_DIR)/external/R
+R_HOME ?= $(BASE_DIR)/R
 R := $(R_HOME)/bin/R
 
 build:

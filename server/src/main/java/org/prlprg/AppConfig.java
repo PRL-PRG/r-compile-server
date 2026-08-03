@@ -23,7 +23,7 @@ public final class AppConfig extends Config {
   ///
   /// Note that we pass extra arguments to the command. The working directory of the command is
   /// the working directory of this running program.
-  public static final String R_BIN = INSTANCE.get("R_BIN", "../external/R/bin/R");
+  public static final String R_BIN = INSTANCE.get("R_BIN", "../R/bin/R");
 
   /// R library paths. There are the paths that the compile server will look libraries for in. We
   /// could call `.libPaths()` in R to get the paths R knows, but we also want to support custom
