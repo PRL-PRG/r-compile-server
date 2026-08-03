@@ -1,0 +1,4 @@
+[submodule "external/r-compile-server"]
+	path = external/rsh
+	url = git@github.com:PRL-PRG/r-compile-server.git
+	branch = main

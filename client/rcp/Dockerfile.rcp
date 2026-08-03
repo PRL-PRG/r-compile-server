@@ -1,0 +1,16 @@
+ARG RCP_RSH_IMAGE=ghcr.io/prl-prg/rcp-rsh
+ARG RSH_COMMIT=latest
+
+FROM ${RCP_RSH_IMAGE}:${RSH_COMMIT}
+
+ARG RCP_COMMIT
+RUN git clone https://github.com/PRL-PRG/rcp.git /rcp && \
+    git -C /rcp checkout --detach ${RCP_COMMIT}
+
+WORKDIR /rcp/rcp
+
+RUN make
+
+# The CRAN package benchmarks (packages + generated cran/ group) are provisioned
+# and cached in the rcp-rsh base image; `make benchmark` here runs them
+# alongside the synthetic suites with no further setup.

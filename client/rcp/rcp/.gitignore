@@ -1,0 +1,10 @@
+src/**/*.o
+src/**/*.so
+src/**/*.a
+tools/**/*.o
+tools/**/*.so
+tools/**/*.a
+compile_commands.json
+src/extractor/extractor
+src/stencils-build/
+tests/gdb-jit/*/actual.log
