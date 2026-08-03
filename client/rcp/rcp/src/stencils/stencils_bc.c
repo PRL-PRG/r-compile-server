@@ -1,141 +1,12 @@
-#define RSH_INLINE
+#include "stencils_internals.h"
 
-#define RSH
-#ifndef USE_RINTERNALS
-#define USE_RINTERNALS
-#endif
-#include <Rinternals.h>
-#undef USE_RINTERNALS
-#undef RSH
+#include <opcodes.h>
 
 #include "../rcp_bc_info.h"
-#include "../rcp_hooks.h"
-
-#define CONST_RUNTIME_VAR(symbol, type) ((type const)(void *const)(&_RCP_CRUNTIME0_##symbol))
-
-extern const void *const _RCP_CRUNTIME0_R_NilValue[];
-#define R_NilValue CONST_RUNTIME_VAR(R_NilValue, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_UnboundValue[];
-#define R_UnboundValue CONST_RUNTIME_VAR(R_UnboundValue, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_MissingArg[];
-#define R_MissingArg CONST_RUNTIME_VAR(R_MissingArg, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_TrueValue[];
-#define R_TrueValue CONST_RUNTIME_VAR(R_TrueValue, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_FalseValue[];
-#define R_FalseValue CONST_RUNTIME_VAR(R_FalseValue, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_LogicalNAValue[];
-#define R_LogicalNAValue CONST_RUNTIME_VAR(R_LogicalNAValue, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_DotsSymbol[];
-#define R_DotsSymbol CONST_RUNTIME_VAR(R_DotsSymbol, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_DimSymbol[];
-#define R_DimSymbol CONST_RUNTIME_VAR(R_DimSymbol, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_BaseEnv[];
-#define R_BaseEnv CONST_RUNTIME_VAR(R_BaseEnv, SEXP)
-
-extern const void *const _RCP_CRUNTIME0_R_BaseNamespace[];
-#define R_BaseNamespace CONST_RUNTIME_VAR(R_BaseNamespace, SEXP)
-
-#define RSH_EXTERN_HELPERS
-#include <runtime.h>
-#undef RSH_EXTERN_HELPERS
-
-#ifdef STEPFOR_SPECIALIZE
-extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
-#endif
-
-#if __GNUC__ >= 14
-#define STENCIL_ATTRIBUTES __attribute__((no_callee_saved_registers))
-#else
-#warning "Compiler does not support no_callee_saved_registers directive. Generated code will be slower."
-#define STENCIL_ATTRIBUTES
-#endif
-
-#if RCP_TRACE
-#define TRACE_PRINT(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define TRACE_PRINT(...) ((void)0)
-#endif
-
-#undef PUSH_VAL
-#define PUSH_VAL(n)                           \
-	do                                        \
-	{                                         \
-		stack += (n);                         \
-		assert(stack - 1 < R_BCNodeStackTop); \
-	} while (0)
-
-#undef POP_VAL
-#define POP_VAL(n)    \
-	do                \
-	{                 \
-		stack -= (n); \
-	} while (0)
-
-#ifdef PROFILE_STENCILS
-#include "x86intrin.h"
-// Hard-coded per-stencil timing: every opcode stencil is bracketed with a
-// PROFILING_START/PROFILING_END pair (see RCP_OP_TEMPLATE_JUMP) that records its
-// call count and rdtsc cycle total into the global stencil_profile_info[] array
-// owned by compile.c. This is the original, compile-time profiling and is gated
-// behind PROFILE_STENCILS (off by default). Lighter-weight per-instruction
-// counting is available at runtime instead via the _RCP_CUSTOM_COUNTER plugins.
-struct StencilProfileInfo
-{
-	size_t call_count;
-	size_t total_cycles;
-};
-extern struct StencilProfileInfo stencil_profile_info[];
-#define PROFILING_START(opcode) uint64_t _profiling_start_time = __rdtsc();
-#define PROFILING_END(opcode)                               \
-	do                                                      \
-	{                                                       \
-		uint64_t _profiling_end_time = __rdtsc();           \
-		stencil_profile_info[opcode##_BCOP].call_count++;   \
-		stencil_profile_info[opcode##_BCOP].total_cycles += \
-			_profiling_end_time - _profiling_start_time;    \
-	} while (0)
-#else
-#define PROFILING_START(opcode) ((void)0)
-#define PROFILING_END(opcode)	((void)0)
-#endif
-
-#define RET_T Value
 
 // Macros to define stencil functions
-#define RCP_STENCIL_FUNCTION(name) __attribute__((noinline)) STENCIL_ATTRIBUTES RET_T name(void)
-#define RCP_OP_EX(op, ex)		   RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
-#define RCP_STENCIL(op)			   RCP_STENCIL_FUNCTION(_RCP_##op##_OP)
-
-/* RSH_RCP_REGISTER_STACK and RSH_RCP_REGISTER_LOCALS are defined in
-   Rinternals.h so the GNU R fork and the stencils agree on the ABI. */
-
-#define PROLOGUE                                                                 \
-	Value *restrict stack;                                                       \
-	rcpEval_locals *restrict locals;                                             \
-	do                                                                           \
-	{                                                                            \
-		register __typeof__(stack) stack_reg __asm__(RSH_RCP_REGISTER_STACK);    \
-		stack = stack_reg;                                                       \
-		register __typeof__(locals) locals_reg __asm__(RSH_RCP_REGISTER_LOCALS); \
-		locals = locals_reg;                                                     \
-	} while (0);
-
-#define EPILOGUE                                                                          \
-	do                                                                                    \
-	{                                                                                     \
-		register __typeof__(stack) stack_reg __asm__(RSH_RCP_REGISTER_STACK) = stack;     \
-		asm volatile("" : : "r"(stack_reg));                                              \
-		register __typeof__(locals) locals_reg __asm__(RSH_RCP_REGISTER_LOCALS) = locals; \
-		asm volatile("" : : "r"(locals_reg));                                             \
-	} while (0);
+#define RCP_OP_EX(op, ex) RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
+#define RCP_STENCIL(op)	  RCP_STENCIL_FUNCTION(_RCP_##op##_OP)
 
 // Macros to help generate boilerplate for stencil functions
 #define RCP_OP_TEMPLATE_JUMP(name, body, continuation)                                 \
@@ -161,239 +32,6 @@ extern struct StencilProfileInfo stencil_profile_info[];
 #define GET_MACRO(_1, _2, _3, name, ...) name
 #define RCP_OP(...)						 EXPAND(GET_MACRO(__VA_ARGS__, RCP_OP_TEMPLATE_JUMP, RCP_OP_TEMPLATE_CONTINUE)(__VA_ARGS__))
 
-/* PATCHING SYMBOLS */
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_NEXT(void);
-#define NEXT                     \
-	do                           \
-	{                            \
-		EPILOGUE;                \
-		return _RCP_EXEC_NEXT(); \
-	} while (0)
-
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM0(void);
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM1(void);
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM2(void);
-extern STENCIL_ATTRIBUTES RET_T _RCP_EXEC_IMM3(void);
-#define GOTO_IMM(i)                \
-	do                             \
-	{                              \
-		EPILOGUE;                  \
-		return _RCP_EXEC_IMM##i(); \
-	} while (0)
-
-//__attribute__((musttail))
-//[[gnu::musttail]]
-
-#define GET_RHO() locals->rho
-
-extern const void *const _RCP_RAW_IMM0;
-extern const void *const _RCP_RAW_IMM1;
-extern const void *const _RCP_RAW_IMM2;
-extern const void *const _RCP_RAW_IMM3;
-#define GET_IMM(index) (int)(int64_t)&_RCP_RAW_IMM##index
-
-extern const void *const _RCP_CONST_AT_IMM0[];
-extern const void *const _RCP_CONST_AT_IMM1[];
-extern const void *const _RCP_CONST_AT_IMM2[];
-extern const void *const _RCP_CONST_AT_IMM3[];
-#define GETCONST_IMM(i) (const SEXP const)(&_RCP_CONST_AT_IMM##i)
-
-extern const void *const _RCP_CONST_STR_AT_IMM0[];
-extern const void *const _RCP_CONST_STR_AT_IMM1[];
-extern const void *const _RCP_CONST_STR_AT_IMM2[];
-extern const void *const _RCP_CONST_STR_AT_IMM3[];
-#define GETCONST_STR_IMM(i) (const char *const)&_RCP_CONST_STR_AT_IMM##i
-
-extern const void *const _RCP_CONSTCELL_AT_IMM0;
-extern const void *const _RCP_CONSTCELL_AT_IMM1;
-extern const void *const _RCP_CONSTCELL_AT_IMM2;
-extern const void *const _RCP_CONSTCELL_AT_IMM3;
-#define GETCONSTCELL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_IMM##i]), __alignof__(SEXP *)))
-
-extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM0;
-extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM1;
-extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM2;
-extern const void *const _RCP_CONSTCELL_AT_LABEL_IMM3;
-#define GETCONSTCELL_LABEL_IMM(i) (__builtin_assume_aligned((SEXP *)(&((uint8_t *)locals)[(unsigned)(uint64_t)&_RCP_CONSTCELL_AT_LABEL_IMM##i]), __alignof__(SEXP *)))
-
-// Custom data for stencils. The two versions point to identical data,
-// but the REL version using more efficient encoding of the pointer,
-// and can be used when its guaranteed that the data is within
-// 2GB of the stencil code.
-extern void *const _RCP_CUSTOM_DATA_REL32;
-extern void *const _RCP_CUSTOM_DATA_ABS64[];
-#define GETCUSTOM_REL()	  (const void *)&_RCP_CUSTOM_DATA_REL32
-#define GETCUSTOM()	  (const void *)&_RCP_CUSTOM_DATA_ABS64
-#define GETVARIANTS() (const void *)&_RCP_CUSTOM_DATA_ABS64
-
-extern const void *const _RCP_LOOPCNTXT;
-#define GET_RCNTXT_INDEX() ((unsigned)(uint64_t)&_RCP_LOOPCNTXT - 1)
-#define GET_LOCAL_RCNTXT() locals->rcntxts[GET_RCNTXT_INDEX()]
-
-extern const void *const _RCP_EXECUTABLE[];
-#define GETEXECUTABLE() (const void *const)&_RCP_EXECUTABLE
-#define GOTO_VAL(i)                                                                                     \
-	{                                                                                                   \
-		STENCIL_ATTRIBUTES RET_T (*call)(void) = (const void *const)(((uint8_t *)GETEXECUTABLE()) + i); \
-		EPILOGUE;                                                                                       \
-		return call();                                                                                  \
-	}
-
-static __attribute__((always_inline)) inline SEXP rcp_binding_value(SEXP binding_cell)
-{
-	if (BNDCELL_TAG(binding_cell))
-	{
-		return R_NilValue;
-	}
-	return CAR0(binding_cell);
-}
-
-static __attribute__((always_inline)) inline int rcp_value_type(SEXP val)
-{
-	if (TYPEOF(val) == PROMSXP)
-	{
-		SEXP prval = PRVALUE(val);
-		return (prval != R_UnboundValue) ? TYPEOF(prval) : PROMSXP;
-	}
-	return TYPEOF(val);
-}
-
-static __attribute__((always_inline)) inline int rcp_binding_type(SEXP binding_cell)
-{
-	return BNDCELL_TAG(binding_cell) ? BNDCELL_TAG(binding_cell) : rcp_value_type(CAR0(binding_cell));
-}
-
-/**************************************************************************/
-
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COUNTER_REL32)
-{
-	PROLOGUE;
-	int *counter = (int *)GETCUSTOM();
-	*counter += 1;
-	NEXT;
-}
-
-RCP_STENCIL_FUNCTION(_RCP_CUSTOM_COUNTER_ABS64)
-{
-	PROLOGUE;
-	int *counter = (int *)GETCUSTOM();
-	*counter += 1;
-	NEXT;
-}
-
-RCP_STENCIL_FUNCTION(_RCP_ENTRY_HOOK)
-{
-	PROLOGUE;
-	// do we actually need an entry hook for the types?
-	// If we have evaluated promises, and an argument is assigned with another type
-	// later in the function, yes...
-	// But that should be rare.
-
-#ifdef RCP_TRACE
-	Rprintf("Entry hook\n");
-#endif
-	NEXT;
-}
-
-RCP_STENCIL_FUNCTION(_RCP_EXIT_HOOK)
-{
-	PROLOGUE;
-#ifdef RCP_TRACE
-	Rprintf("Exit hook\n");
-#endif
-	TypeTrace *trace = (TypeTrace *)GETCUSTOM();
-	SEXP rho = GET_RHO();
-
-	// Resize if needed
-	if (trace->count >= trace->capacity)
-	{
-		trace->capacity *= 2;
-		trace->types = realloc(trace->types, trace->capacity * sizeof(TypeRecord));
-	}
-
-	TypeRecord *rec = &trace->types[trace->count];
-
-	// Skip locals (arguments are expected to start at first_arg_sym)
-	SEXP b = FRAME(rho);
-	while (b != R_NilValue && TAG(b) != trace->first_arg_sym)
-		b = CDR(b);
-
-	// Use argument count known at compile time from FORMALS
-	size_t nargs = trace->argument_count;
-	if (b == R_NilValue)
-		nargs = 0;
-
-	rec->count = nargs;
-	rec->arguments = malloc(nargs * sizeof(int));
-	rec->dots_names = NULL;
-	rec->dots_types = NULL;
-	rec->dots_count = 0;
-
-	// Record argument types (promises are forced by now for used args)
-	size_t i = 0;
-	for (SEXP f = b; f != R_NilValue; f = CDR(f))
-	{
-		SEXP tag = TAG(f);
-		if (tag == R_DotsSymbol)
-		{
-			SEXP dots_val = rcp_binding_value(f);
-			if (TYPEOF(dots_val) == PROMSXP)
-			{
-				SEXP prval = PRVALUE(dots_val);
-				if (prval != R_UnboundValue)
-					dots_val = prval;
-			}
-
-			if (dots_val != R_MissingArg && TYPEOF(dots_val) == DOTSXP)
-			{
-				size_t ndots = 0;
-				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d))
-					ndots++;
-				rec->dots_count = ndots;
-				rec->dots_names = malloc(ndots * sizeof(SEXP));
-				rec->dots_types = malloc(ndots * sizeof(int));
-
-				size_t di = 0;
-				for (SEXP d = dots_val; d != R_NilValue; d = CDR(d), di++)
-				{
-					SEXP dtag = TAG(d);
-					SEXP dval = CAR(d);
-					rec->dots_names[di] = dtag;
-					rec->dots_types[di] = (dval == R_MissingArg) ? RCP_ARG_MISSING : rcp_value_type(dval);
-				}
-			}
-			continue;
-		}
-
-		if (i >= nargs)
-			continue;
-
-		// A missing argument (no default, not supplied) appears as R_MissingArg
-		// in the frame. Record RCP_ARG_MISSING (== NA_INTEGER) so it serialises
-		// to NA, matching injectr, instead of being mis-recorded as `symbol`.
-		SEXP argval = rcp_binding_value(f);
-		rec->arguments[i] = (argval == R_MissingArg) ? RCP_ARG_MISSING : rcp_binding_type(f);
-
-#ifdef RCP_TRACE
-		if (tag != R_NilValue && TYPEOF(tag) == SYMSXP)
-		{
-			Rprintf("Arg %s: %s\n", CHAR(PRINTNAME(tag)), type2char(rec->arguments[i]));
-		}
-		else
-		{
-			Rprintf("Arg <non-symbol>: %s\n", type2char(rec->arguments[i]));
-		}
-#endif
-		i++;
-	}
-
-	// Record return value type (top of stack before RETURN)
-	rec->ret = TYPEOF_VAL(*GET_VAL(-1));
-
-	trace->count++;
-	NEXT;
-}
-
 RCP_OP(RETURN,
 	   Value ret = Rsh_Return(stack);
 	   ,
@@ -408,6 +46,57 @@ RCP_OP(BRIFNOT,
 	   ,
 	   if (condition)
 		   GOTO_IMM(1);)
+
+#define BRIFNOT_VARIANT_INERT 2
+#define BRIFNOT_VARIANT_CHECK 1
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_2) // ambiguous / inert
+{
+	PROLOGUE;
+	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	if (condition)
+		GOTO_IMM(1);
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_1) // monomorphic
+{
+	PROLOGUE;
+	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	Rboolean *recording = (Rboolean *)GETCUSTOM_REL(0);
+	if (condition != *recording)
+	{
+		Rboolean *result = (Rboolean *)GETCUSTOM_REL(1);
+		*result = 0;
+		POP_VAL(1);
+		if (condition)
+		{
+			EPILOGUE;
+			return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_INERT), GET_IMM_PTR(1), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_INERT));
+		}
+		EPILOGUE;
+		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_INERT), GET_NEXT_PTR(), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_INERT));
+	}
+	if (condition)
+		GOTO_IMM(1);
+	NEXT;
+}
+
+RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_0) // entry: record
+{
+	PROLOGUE;
+	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	Rboolean *recording = (Rboolean *)GETCUSTOM_REL(0);
+	*recording = condition;
+	POP_VAL(1);
+	if (condition)
+	{
+		EPILOGUE;
+		return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_CHECK), GET_IMM_PTR(1), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_CHECK));
+	}
+	EPILOGUE;
+	return rcp_smc_copy(GETSELFADDR(), GETSMCVARIANT(BRIFNOT_VARIANT_CHECK), GET_NEXT_PTR(), GETSMCVARIANTSIZE(BRIFNOT_VARIANT_CHECK));
+}
 
 RCP_OP(POP,
 	   Rsh_Pop(stack);)
@@ -425,12 +114,20 @@ RCP_OP(ENDLOOPCNTXT,
 	   Rsh_EndLoopCntxt(stack, &GET_LOCAL_RCNTXT());)
 
 #ifdef STEPFOR_SPECIALIZE
+extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
+
+// Must match the SmcSiteHeader-compatible layout in compile.c: the {dst,
+// variants[]} prefix, then STEPFOR's selection cache and the variant blob.
 typedef struct
 {
-	int cached_type;
+	uint8_t *ptr;  // address of this variant's pre-patched body in data[]
+	uint32_t size; // its exact body length (memcpy length)
+} SmcVariant;
+typedef struct
+{
 	uint8_t *dst;
-	uint8_t *src[11];
-	uint16_t sizes[11];
+	SmcVariant variants[11];
+	int cached_type;
 	uint8_t data[];
 } StepFor_specialized;
 
@@ -467,8 +164,8 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
     break; }
 
 			  // Copy the specialized StepFor code if it is not already cached
-			  if (__builtin_expect(stepfor_mem->cached_type != i, FALSE)) {
-    memcpy(stepfor_mem->dst, stepfor_mem->src[i], stepfor_mem->sizes[i]);
+			  if (UNLIKELY(stepfor_mem->cached_type != i)) {
+    memcpy(stepfor_mem->dst, stepfor_mem->variants[i].ptr, stepfor_mem->variants[i].size);
     stepfor_mem->cached_type = i; }
 #endif
 			  ,

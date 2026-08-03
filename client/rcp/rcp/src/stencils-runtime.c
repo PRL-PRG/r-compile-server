@@ -26,3 +26,14 @@ Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho)
 	return Rsh_StepFor(stack, cell, rho);
 }
 #endif
+
+void rcp_smc_copy(void *dst, const void *src, void *jmp, size_t size)
+{
+    // Note: the argument order we use allows the registers on x86-64 to be exactly where we need them,
+    // so the memcpy is just one instruction and the jump another. Any change would break this.
+
+    //fprintf(stderr, "rcp_smc_copy: dst=%p, src=%p, jmp=%p, size=%zu\n", dst, src, jmp, size);
+	memcpy(dst, src, size);
+	void (*call)(void) = (const void *const)(jmp);
+	return call();
+}
