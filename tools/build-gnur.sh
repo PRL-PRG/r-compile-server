@@ -44,7 +44,7 @@ fi
 
 # Set compilation options
 
-if [[ $DEBUG -eq 1 ]] || [[ $DEBUG -eq "true" ]]; then
+if [[ "${DEBUG:-0}" == "1" ]] || [[ "${DEBUG:-0}" == "true" ]]; then
   if [[ $USING_OSX -eq 1 ]]; then
     OPT="-g -O0"
   else
