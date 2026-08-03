@@ -1,7 +1,7 @@
 message("Starting benchmark...\n")
 
 options("rcp.cmpfun.force_bc_recomp" = TRUE)
-# options("rcp.cmpfun.use_original_cmpfun" = TRUE)
+# set/unset RCP_CRBCC_DEFAULT=1 preprocessor macros to switch between compilation backends
 library(rcp)
 
 total_start_time <- Sys.time()

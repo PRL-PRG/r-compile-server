@@ -19,8 +19,11 @@ ifneq ($(OPENMP),0)
 endif
 
 RCP_COMPILE_PROMISES ?= 0
-
 PKG_CFLAGS += -DRCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES)
+
+# Use the crbcc package as bc-compiler backend, if available
+RCP_CRBCC_DEFAULT ?= 0
+PKG_CFLAGS += -DRCP_CRBCC_DEFAULT=$(RCP_CRBCC_DEFAULT)
 
 # Per-stencil profiling (see common.mk). common.mk's `CFLAGS += -DPROFILE_STENCILS'
 # reaches the stencils/shared-lib (plain make) but NOT this package compile of
@@ -74,6 +77,7 @@ $(info RCP_GIT_COMMIT=$(RCP_GIT_COMMIT))
 $(info OPENMP=$(OPENMP))
 $(info ASSUME_VALID_BC=$(ASSUME_VALID_BC))
 $(info PROFILE_STENCILS=$(PROFILE_STENCILS))
+$(info RCP_CRBCC_DEFAULT=$(RCP_CRBCC_DEFAULT))
 $(info RCP_COMPILE_PROMISES=$(RCP_COMPILE_PROMISES))
 $(info DECOMPILE_TRIVIAL_PROMISES=$(DECOMPILE_TRIVIAL_PROMISES))
 $(info ALIGNMENT_LABELS=$(ALIGNMENT_LABELS))

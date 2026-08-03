@@ -3284,28 +3284,49 @@ static void save_original_cmpfun(void)
 
 static void choose_cmpfun(void)
 {
-    if (is_option_true("rcp.cmpfun.use_original_cmpfun"))
-    {
-        used_cmpfun = original_cmpfun;
-        return;
-    }
-	// Try to find the crbcc namespace, falling back gracefully if not available
-	SEXP getNamespace_call = Rf_lang2(PROTECT(Rf_install("getNamespace")),
-									  PROTECT(Rf_mkString("crbcc")));
-	UNPROTECT(2);
-	PROTECT(getNamespace_call);
+#if !RCP_CRBCC_DEFAULT
+	used_cmpfun = original_cmpfun;
+#else
+	// Try to find the crbcc namespace, falling back gracefully if not available.
+	// Use requireNamespace(quietly = TRUE) rather than getNamespace(): a missing
+	// package makes getNamespace() signal an error, and even though
+	// R_tryEvalSilent() catches it, jump_to_top_ex() still overwrites the base
+	// .Traceback binding. That leaves a stale crbcc stack behind that later
+	// shows up under some unrelated error. requireNamespace() never signals.
+	SEXP pkg = PROTECT(Rf_mkString("crbcc"));
+
+	SEXP quietly = PROTECT(Rf_ScalarLogical(TRUE));
+	SEXP require_call =
+		PROTECT(Rf_lang3(Rf_install("requireNamespace"), pkg, quietly));
+	SET_TAG(CDDR(require_call), Rf_install("quietly"));
+
 	int error_occurred = 0;
-	SEXP compiler_namespace = R_tryEvalSilent(getNamespace_call, R_GlobalEnv, &error_occurred);
-	UNPROTECT_SAFE(getNamespace_call);
-	if (error_occurred)
+	SEXP available = R_tryEvalSilent(require_call, R_BaseEnv, &error_occurred);
+	int have_crbcc = !error_occurred && Rf_asLogical(available) == TRUE;
+	UNPROTECT(2); // require_call, quietly
+
+	SEXP crbcc_cmpfun = R_UnboundValue;
+	if (have_crbcc)
+	{
+		// requireNamespace() succeeded, so the namespace is registered and
+		// R_FindNamespace() cannot signal here.
+		SEXP crbcc_namespace = PROTECT(R_FindNamespace(pkg));
+		crbcc_cmpfun = Rf_findVarInFrame(crbcc_namespace, Rf_install("cmpfun"));
+		UNPROTECT_SAFE(crbcc_namespace);
+	}
+	UNPROTECT_SAFE(pkg);
+
+	if (crbcc_cmpfun != R_UnboundValue)
+	{
+		used_cmpfun = crbcc_cmpfun;
+		R_ShowMessage("Using the crbcc package for JIT compilation.");
+	}
+	else
 	{
 		used_cmpfun = original_cmpfun;
-		return;
+		R_ShowMessage("Using the compiler package for JIT compilation.");
 	}
-	PROTECT(compiler_namespace);
-	used_cmpfun = Rf_findVarInFrame(compiler_namespace, Rf_install("cmpfun"));
-	UNPROTECT_SAFE(compiler_namespace);
-	R_ShowMessage("Using cmpfun from crbcc package for JIT compilation.");
+#endif
 }
 
 static SEXP cmpfun_call_sexp(void)
@@ -3352,7 +3373,7 @@ static SEXP cmpfun_call_sexp(void)
 	return wrapper;
 }
 
-static SEXP C_rcp_override_cmpfun(SEXP cmpfun)
+static void C_rcp_override_cmpfun(SEXP cmpfun)
 {
 	// Get the compiler namespace
 	SEXP compiler_namespace =
