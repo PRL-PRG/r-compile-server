@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import org.prlprg.AppConfig;
 import org.prlprg.util.cc.CCCompilationBuilder;
 
 public class RshCompiler {
@@ -14,8 +13,7 @@ public class RshCompiler {
           ? Paths.get("").toAbsolutePath().getParent()
           : Paths.get("").toAbsolutePath();
   public static final Path RSH_DIRECTORY = BASE_DIRECTORY.resolve("client/rsh");
-  public static final Path R_DIRECTORY =
-      BASE_DIRECTORY.resolve(AppConfig.DEBUG ? "external/R-debug" : "external/R");
+  public static final Path R_DIRECTORY = BASE_DIRECTORY.resolve("external/R");
 
   // TODO: this is just temporary
   //  what we need is to keep this in the resources, versioned by R version

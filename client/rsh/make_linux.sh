@@ -1,1 +1,1 @@
-R_HOME=../../external/R-debug make install
+R_HOME=../../external/R make install
