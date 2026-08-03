@@ -1,10 +1,22 @@
-name: benchmarks
+name: rcp benchmarks
 
+# rcp only depends on its own sources and on the GNU-R it is built against, so
+# everything else in the repository skips this (expensive, self-hosted) suite.
+# The two `paths` lists must be kept in sync -- GitHub Actions does not support
+# YAML anchors.
 on:
   push:
     branches:
       - main
+    paths:
+      - "client/rcp/**"
+      # The GNU-R submodule. Only the gitlink itself is tracked, so this is a
+      # plain path rather than an `R/**` glob, which would never match.
+      - "R"
   pull_request:
+    paths:
+      - "client/rcp/**"
+      - "R"
   workflow_dispatch:
 
 concurrency:
@@ -41,8 +53,8 @@ jobs:
         # Such commit does not exists in the origin. Therefore we have to parse the log to
         # get the merge commits (if they exist)
         run: |
-          rsh_commit=$(git submodule status | sed -n 's/^[ +-]*\([0-9a-f]\{40\}\) .*external\/rsh.*/\1/p')
-          rcp_commit=$(git rev-parse HEAD)
+          rsh_commit=$(git rev-parse HEAD)
+          rcp_commit=$rsh_commit
           echo "rsh_commit: $rsh_commit"
           echo "rcp_commit: $rcp_commit"
           echo "rsh_commit=$rsh_commit" >> "$GITHUB_OUTPUT"
@@ -61,8 +73,8 @@ jobs:
       - name: Build prl-rpg/rcp-base
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile.rcp-base
+          context: client/rcp
+          file: client/rcp/Dockerfile.rcp-base
           tags: |
             ghcr.io/prl-prg/rcp-base:latest
             ghcr.io/prl-prg/rcp-base
@@ -74,8 +86,8 @@ jobs:
       - name: Build prl-prg/rcp-rsh
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile.rcp-rsh
+          context: client/rcp
+          file: client/rcp/Dockerfile.rcp-rsh
           build-args: |
             RSH_COMMIT=${{ steps.vars.outputs.rsh_commit }}
           tags: ghcr.io/prl-prg/rcp-rsh:${{ steps.vars.outputs.rsh_commit }}
@@ -87,8 +99,8 @@ jobs:
       - name: Build prl-prg/rcp
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile.rcp
+          context: client/rcp
+          file: client/rcp/Dockerfile.rcp
           build-args: |
             RSH_COMMIT=${{ steps.vars.outputs.rsh_commit }}
             RCP_COMMIT=${{ steps.vars.outputs.rcp_commit }}
@@ -102,7 +114,7 @@ jobs:
         id: set-matrix
         shell: bash
         run: |
-          json=$(find rcp/tests -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | jq -R . | jq -sc '{"test": .}')
+          json=$(find client/rcp/rcp/tests -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | jq -R . | jq -sc '{"test": .}')
           echo "Discovered tests: $json"
           echo "matrix=$json" >> "$GITHUB_OUTPUT"
 
@@ -133,7 +145,7 @@ jobs:
           docker run \
           --name $TEST_DOCKER_CONTAINER \
           ghcr.io/prl-prg/rcp:${{ github.sha }} \
-          bash -c "make -C /rcp/rcp/tests/${{ matrix.test }} test"
+          bash -c "make -C /rsh/client/rcp/rcp/tests/${{ matrix.test }} test"
 
       - name: Cleanup
         if: always()
@@ -154,7 +166,7 @@ jobs:
       BENCH_DOCKER_CONTAINER: bench-run
       BENCH_RESULT_NAME: benchmark-results
       # note: github workflow does not support variable expansion
-      BENCH_OUT_DIR: /rcp/rcp/benchmark-results/${{ matrix.bench_type }}
+      BENCH_OUT_DIR: /rsh/client/rcp/rcp/benchmark-results/${{ matrix.bench_type }}
       BENCH_ITER: 15
       HARVEST_CRAN: 0
     steps:
