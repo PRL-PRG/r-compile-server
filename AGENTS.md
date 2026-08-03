@@ -127,6 +127,15 @@ At `./tools`.
 
 Tools that are automatically invoked by Makefiles and other code. Don't invoke directly.
 
+### Continuous integration
+
+At `./.github/workflows`. Both workflows are gated on `paths`, so most changes run neither.
+
+- `maven.yml` - builds and tests `./server`. Runs on `server/**`.
+- `rcp-benchmarks.yml` - builds the rcp Docker images, runs rcp's test suites, and runs the benchmarks on a self-hosted runner. Runs on `client/rcp/**` and `R` (the submodule pointer, which is a plain path and not a `R/**` glob), or manually via `workflow_dispatch`.
+
+Note the gaps: `./server` tests compile C against `./client/rsh/src`, and rcp builds R with `./tools/build-gnur.sh` and benchmarks with `./client/rsh/inst/benchmarks`, but changes to those paths trigger neither workflow. Also, a `paths` list can't be shared between the `push` and `pull_request` triggers of one workflow, because GitHub Actions does not support YAML anchors -- keep the two copies in sync.
+
 ---
 
 ## MCP Servers

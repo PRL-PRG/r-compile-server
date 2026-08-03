@@ -8,11 +8,18 @@
 
 name: Java CI with Maven
 
+# Everything this builds lives under server/ -- including the .proto files, which
+# `make -C proto` copies into server/src/main/protobuf. The two `paths` lists
+# must be kept in sync; GitHub Actions does not support YAML anchors.
 on:
   push:
     branches: ["main"]
+    paths:
+      - "server/**"
   pull_request:
     branches: ["main"]
+    paths:
+      - "server/**"
 
 jobs:
   artifact:
