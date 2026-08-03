@@ -1,0 +1,207 @@
+.rcp_banner <- function() {
+  info <- .Call("C_rcp_build_info")
+  ver <- utils::packageVersion("rcp")
+  flags <- c(
+    if (nzchar(Sys.getenv("RCP_DUMP_DIR"))) paste0("dump:", Sys.getenv("RCP_DUMP_DIR")),
+    if (nzchar(Sys.getenv("RCP_GDB_JIT"))) "gdb",
+    if (nzchar(Sys.getenv("RCP_PERF_JIT"))) "perf"
+  )
+  flag_str <- if (length(flags)) paste0(" [", paste(flags, collapse = ", "), "]") else ""
+  packageStartupMessage(sprintf("rcp %s (%s)%s", ver, info$git_commit, flag_str))
+}
+
+.onLoad <- function(libname, pkgname) {
+  .Call("rcp_init")
+}
+
+.onAttach <- function(libname, pkgname) {
+  .rcp_banner()
+}
+
+#' Compile a function
+#'
+#' This function compiles another function with optional settings.
+#' @param f The function to compile.
+#' @param options Optional settings for compilation.
+#' @return A compiled function.
+#' @export
+rcp_cmpfun <- function(f, options = NULL) {
+  .Call("C_rcp_cmpfun", f, options, PACKAGE = "rcp")
+}
+
+
+#' Check if the closure is natively compiled
+#'
+#' @param f closure to be checked
+#' @return TRUE if the closure is compiled, FALSE otherwise
+#' @export
+rcp_is_compiled <- function(f) {
+  .Call(C_rcp_is_compiled, f)
+}
+
+#' Activate the RCP JIT
+#'
+#' @export
+rcp_jit_enable <- function() {
+  .Call(C_rcp_jit_enable)
+}
+
+#' Deactivate the RCP JIT
+#'
+#' @export
+rcp_jit_disable <- function() {
+  .Call(C_rcp_jit_disable)
+}
+
+#' Compile all functions in a package to native code
+#'
+#' This function compiles all functions in a specified package namespace
+#' in-place using RCP JIT compilation.
+#'
+#' @param package Character string naming the package to compile
+#' @return A list with counts of successfully compiled and failed functions
+#' @export
+rcp_cmppkg <- function(package) {
+  invisible(.Call(C_rcp_cmppkg, package))
+}
+
+#' Enable runtime per-instruction counting
+#'
+#' Instruments functions compiled by [rcp_cmpfun()] *after* this call so each
+#' executed instruction increments a per-opcode counter, readable with
+#' [rcp_get_counts()]. Functions already compiled are unaffected. This is the
+#' lightweight, always-available counterpart to the cycle-level
+#' [rcp_get_profiling()] (which requires building RCP with the PROFILE_STENCILS
+#' macro).
+#'
+#' @export
+rcp_count_enable <- function() {
+  invisible(.Call(C_rcp_count_enable))
+}
+
+#' Disable runtime per-instruction counting
+#'
+#' @export
+rcp_count_disable <- function() {
+  invisible(.Call(C_rcp_count_disable))
+}
+
+#' Reset the runtime per-instruction counters to zero
+#'
+#' @export
+rcp_count_reset <- function() {
+  invisible(.Call(C_rcp_count_reset))
+}
+
+#' Get runtime per-instruction execution counts
+#'
+#' @return The live named integer vector mapping opcode name to execution count,
+#'   in opcode order (unsorted). Counts accumulate across all functions compiled
+#'   while counting was enabled; use [rcp_count_reset()] to clear them. Returns
+#'   `NULL` if counting was never enabled. The result aliases RCP's internal
+#'   buffer, so copy it (e.g. `c(rcp_get_counts())`) if you need a stable
+#'   snapshot across further execution.
+#' @export
+rcp_get_counts <- function() {
+  .Call(C_rcp_get_counts)
+}
+
+#' Get cycle-level profiling data from RCP
+#'
+#' Requires RCP built with the PROFILE_STENCILS macro; otherwise warns and
+#' returns NULL. For lightweight, always-available counting see [rcp_get_counts()].
+#'
+#' @export
+rcp_get_profiling <- function() {
+  .Call(C_rcp_get_profiling)
+}
+
+.rcp_resolve_func_name <- function(expr, env) {
+  if (is.symbol(expr)) {
+    symbol_name <- as.character(expr)
+    if (exists(symbol_name, envir = env, inherits = TRUE)) {
+      value <- tryCatch(eval(expr, envir = env), error = function(e) NULL)
+      if (is.character(value) && length(value) == 1L && !is.na(value)) {
+        return(value)
+      }
+    }
+    return(symbol_name)
+  }
+
+  value <- eval(expr, envir = env)
+  if (is.character(value) && length(value) == 1L && !is.na(value)) {
+    return(value)
+  }
+  if (is.symbol(value)) {
+    return(as.character(value))
+  }
+
+  stop("Expected a function name as a string or symbol", call. = FALSE)
+}
+
+#' Reset accumulated type trace data
+#'
+#' Clears all recorded type observations without deallocating the
+#' underlying storage, so subsequent calls reuse the existing capacity.
+#'
+#' @export
+rcp_reset_types <- function() {
+  invisible(.Call(C_rcp_reset_types))
+}
+
+#' Get recorded type information from entry/exit hooks
+#'
+#' Returns an environment where each key is a function name and each value
+#' is a list of call records. Each record has \code{arguments} (integer vector
+#' of SEXPTYPEs) and \code{ret} (integer SEXPTYPE of the return value).
+#'
+#' @param func_name Optional function name as a character string or symbol.
+#'   When provided, returns only that function's records.
+#'
+#' @export
+rcp_get_types <- function(func_name) {
+  all_types <- .Call(C_rcp_get_types)
+  if (missing(func_name)) {
+    return(all_types)
+  }
+
+  func_name_expr <- substitute(func_name)
+  resolved_name <- .rcp_resolve_func_name(func_name_expr, parent.frame())
+  all_types[[resolved_name]]
+}
+
+#' Get a data frame of traced types for a given function
+#'
+#' Returns a data frame with one row per traced call. Columns are one per
+#' formal argument of the function (named after those arguments), zero or
+#' more columns for expanded \code{...} arguments (if present), a
+#' \code{dots_count} column giving the number of \code{...} arguments for
+#' that call, and a \code{ret} column for the return type. Types are shown
+#' as character strings.
+#'
+#' @param func_name Function name to query, as a character string or symbol.
+#' @return A data.frame, or NULL if no type data is available.
+#' @export
+rcp_get_types_df <- function(func_name) {
+  func_name_expr <- substitute(func_name)
+  resolved_name <- .rcp_resolve_func_name(func_name_expr, parent.frame())
+  .Call(C_rcp_get_types_df, resolved_name)
+}
+
+#' Export a type recording as a plain list
+#'
+#' Converts the recording gathered for a function compiled with
+#' \code{options(rcp.cmpfun.type_recording = TRUE)} into a plain named list of
+#' three per-opcode groups: \code{branch} (\code{bcids}, \code{taken},
+#' \code{not_taken}), \code{var_call} (\code{bcids}, \code{counters},
+#' \code{types}) and \code{fun} (\code{bcids}, \code{counters}, \code{consts}).
+#' The result contains only ordinary R objects, so it can be passed to
+#' \code{\link{saveRDS}} or \code{\link{serialize}} directly.
+#'
+#' @param x A compiled function (or its body / recording object).
+#' @return A named list of three groups, each a named list of parallel vectors.
+#'
+#' @export
+rcp_export_recording <- function(x) {
+  .Call(C_rcp_export_recording, x)
+}

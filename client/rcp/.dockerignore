@@ -1,0 +1,8 @@
+# Dockerfiles clone sources by commit, so keep build context tiny.
+**
+
+# Files needed by docker build invocations.
+!Dockerfile.rcp
+!Dockerfile.rcp-base
+!Dockerfile.rcp-rsh
+!.dockerignore
