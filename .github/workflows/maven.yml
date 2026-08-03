@@ -8,18 +8,22 @@
 
 name: Java CI with Maven
 
-# Everything this builds lives under server/ -- including the .proto files, which
-# `make -C proto` copies into server/src/main/protobuf. The two `paths` lists
-# must be kept in sync; GitHub Actions does not support YAML anchors.
+# Nearly everything this builds lives under server/ -- including the .proto
+# files, which `make -C proto` copies into server/src/main/protobuf. The
+# exception is client/rsh/src, whose headers the server's tests compile the
+# generated C against. The two `paths` lists must be kept in sync; GitHub
+# Actions does not support YAML anchors.
 on:
   push:
     branches: ["main"]
     paths:
       - "server/**"
+      - "client/rsh/src/**"
   pull_request:
     branches: ["main"]
     paths:
       - "server/**"
+      - "client/rsh/src/**"
   workflow_dispatch:
 
 jobs:
@@ -41,8 +45,6 @@ jobs:
       - name: Build artifact
         working-directory: server
         run: mvn --batch-mode --update-snapshots package
-      - run: mkdir staging && cp target/*.jar staging
-        working-directory: server
       - name: Upload snapshot as artifact
         uses: actions/upload-artifact@v4
         with:
