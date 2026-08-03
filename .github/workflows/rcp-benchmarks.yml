@@ -13,10 +13,16 @@ on:
       # The GNU-R submodule. Only the gitlink itself is tracked, so this is a
       # plain path rather than an `R/**` glob, which would never match.
       - "R"
+      # Dockerfile.rcp-rsh builds R with this script...
+      - "tools/build-gnur.sh"
+      # ...and rcp drives the benchmark harness, which lives in rsh.
+      - "client/rsh/inst/benchmarks/**"
   pull_request:
     paths:
       - "client/rcp/**"
       - "R"
+      - "tools/build-gnur.sh"
+      - "client/rsh/inst/benchmarks/**"
   workflow_dispatch:
 
 concurrency:
