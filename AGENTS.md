@@ -131,10 +131,10 @@ Tools that are automatically invoked by Makefiles and other code. Don't invoke d
 
 At `./.github/workflows`. Both workflows are gated on `paths`, so most changes run neither. Both can also be run manually via `workflow_dispatch`, which ignores `paths`.
 
-- `maven.yml` - builds and tests `./server`. Runs on `server/**`, which also covers the protocol buffers, since `make -C proto` copies them into `./server/src/main/protobuf`.
+- `maven.yml` - builds and tests `./server`. Runs on `server/**`, which also covers the protocol buffers, since `make -C proto` copies them into `./server/src/main/protobuf`, and on `client/rsh/src/**`, whose headers the tests compile the generated C against.
 - `rcp-benchmarks.yml` - builds the rcp Docker images, runs rcp's test suites, and runs the benchmarks on a self-hosted runner. Runs on `client/rcp/**`, `R`, `tools/build-gnur.sh` (which builds the R it links against), and `client/rsh/inst/benchmarks/**` (the harness it drives). `R` is the submodule pointer: only the gitlink is tracked, so it's a plain path and not a `R/**` glob, which would never match.
 
-Two things to keep in mind when editing these. A `paths` list can't be shared between a workflow's `push` and `pull_request` triggers, because GitHub Actions does not support YAML anchors -- keep the two copies in sync. And `./server`'s tests compile C against `./client/rsh/src`, but changes there don't trigger `maven.yml`.
+When editing these, note that a `paths` list can't be shared between a workflow's `push` and `pull_request` triggers, because GitHub Actions does not support YAML anchors -- keep the two copies in sync.
 
 ---
 
