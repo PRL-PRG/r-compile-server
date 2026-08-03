@@ -111,7 +111,7 @@ Used by the compiler client and server to communicate.
 
 ### Vendored GNU-R (R interpreter)
 
-At `./external/R`.
+At `./R`.
 
 ### Tools
 

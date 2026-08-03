@@ -13,7 +13,7 @@ public class RshCompiler {
           ? Paths.get("").toAbsolutePath().getParent()
           : Paths.get("").toAbsolutePath();
   public static final Path RSH_DIRECTORY = BASE_DIRECTORY.resolve("client/rsh");
-  public static final Path R_DIRECTORY = BASE_DIRECTORY.resolve("external/R");
+  public static final Path R_DIRECTORY = BASE_DIRECTORY.resolve("R");
 
   // TODO: this is just temporary
   //  what we need is to keep this in the resources, versioned by R version

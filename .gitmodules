@@ -1,5 +1,5 @@
-[submodule "external/R"]
-	path = external/R
+[submodule "R"]
+	path = R
 	url = https://github.com/PRL-PRG/r-compiler-server-gnur
 	ignore = untracked
-	branch = RSH-4-3-2
+	branch = RSH-4-5-2

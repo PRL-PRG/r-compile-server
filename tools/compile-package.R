@@ -4,7 +4,7 @@
 # Report the ones that do not compile
 
 # For yaml
-# LD_PRELOAD=/usr/lib/llvm-17/lib/libLLVM-17.so ../external/R/bin/Rscript compile-package.R yaml
+# LD_PRELOAD=/usr/lib/llvm-17/lib/libLLVM-17.so ../R/bin/Rscript compile-package.R yaml
 
 
 
