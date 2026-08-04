@@ -206,6 +206,8 @@ SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names);
+/// Run a baseline version that is the function's original GNU-R bytecode.
+SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_builtin_function(SEXP value, int blt_idx);
