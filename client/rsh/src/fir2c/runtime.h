@@ -129,9 +129,13 @@ extern Fir_Kind Fir_kind_dots;
 extern Fir_Kind Fir_kind_missing;
 extern Fir_Kind Fir_kind_boolean;
 
-/// Scalar string of a serialized `MockModuleFeedback` containing feedback for every
-/// compiled closure stored in the constant pool and (recursively) every found closure's
-/// constant pool.
+/// Scalar string of a serialized `MockModuleFeedback` containing the feedback recorded by every
+/// bytecode baseline whose constant pool is reachable from `pool` (which is a module's
+/// constant pool, i.e. the one its main function was initialized with).
+///
+/// Baselines only record feedback when they're compiled by the copy-and-patch JIT, so this
+/// returns `R_NilValue` if it isn't available or no baseline ran. See
+/// `server/doc/bytecode-baseline-feedback.md`.
 SEXP Fir_serialized_feedback(SEXP pool);
 
 void Fir_print_signature(Fir_Signature signature);

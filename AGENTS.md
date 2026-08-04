@@ -48,6 +48,7 @@ Written in Java 26. Uses Maven.
 - `var`
 - `_`
 - Triple-quoted multiline strings
+- Streams instead of for=in loops (keep loops where index is used)
 - Markdown Javadoc
 - Assume non-null by default. Explicitly annotate with `@Nullable` (from `org.jspecify.annotations`) when necessary.
 - Annotate immutable collections with `@Unmodifiable` (from `org.jetbrains.annotations`), and readonly views of collections with `@UnmodifiableView` (from `org.jetbrains.annotations`)
