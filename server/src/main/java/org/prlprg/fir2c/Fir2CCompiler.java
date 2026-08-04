@@ -9,6 +9,8 @@ import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.bc2fir.FunctionBcOrigin;
+import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -80,7 +82,20 @@ import org.prlprg.util.Lists;
 public final class Fir2CCompiler {
   /// Return a C file and constant pools for `function` and its children.
   public static CompiledModule compile(Function function, RSession rSession, Option... options) {
-    return new Fir2CCompiler(function.owner(), rSession, ImmutableSet.copyOf(options))
+    return compile(function, rSession, null, options);
+  }
+
+  /// Return a C file and constant pools for `function` and its children.
+  ///
+  /// If `bytecodes` is non-`null`, each function whose original GNU-R bytecode it records gets a
+  /// baseline version that runs the bytecode (copy-and-patch JIT-compiled by the client runtime
+  /// when possible, interpreted otherwise) instead of C compiled from the baseline's FIŘ.
+  public static CompiledModule compile(
+      Function function,
+      RSession rSession,
+      @Nullable ModuleBcOriginMap bytecodes,
+      Option... options) {
+    return new Fir2CCompiler(function.owner(), rSession, bytecodes, ImmutableSet.copyOf(options))
         .run(function);
   }
 
@@ -95,6 +110,7 @@ public final class Fir2CCompiler {
   // Input
   private final Module module;
   private final RSession rSession;
+  private final @Nullable ModuleBcOriginMap bytecodes;
   private final ImmutableSet<Option> options;
 
   // Output
@@ -104,9 +120,14 @@ public final class Fir2CCompiler {
   private final Set<Function> compiledFunctions = new HashSet<>();
   private final Set<Promise> compiledPromises = new HashSet<>();
 
-  private Fir2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
+  private Fir2CCompiler(
+      Module module,
+      RSession rSession,
+      @Nullable ModuleBcOriginMap bytecodes,
+      ImmutableSet<Option> options) {
     this.module = module;
     this.rSession = rSession;
+    this.bytecodes = bytecodes;
     this.options = options;
   }
 
@@ -517,13 +538,74 @@ public final class Fir2CCompiler {
         if (version.isStub()) {
           VersionEmitter.forwardDeclareStub(cUnit, function, version);
         } else {
-          var cpSxp = new VersionEmitter(version).run();
+          var bytecode =
+              version == function.baseline() && bytecodes != null
+                  ? bytecodes.get(function.name().name())
+                  : null;
+          var cpSxp =
+              bytecode == null
+                  ? new VersionEmitter(version).run()
+                  : emitBytecodeBaseline(version, bytecode);
           var cp = nestedPoolRef(fnPool, cpSxp);
 
           var versionInitCName = versionInitCName(function, version);
           initCCode.stmt("%s(%s);", versionInitCName, cp);
         }
       }
+    }
+
+    /// Emits the baseline version as a shim that runs the function's original GNU-R bytecode
+    /// (`Fir_bc_baseline_call` in `runtime.c` copy-and-patch JIT-compiles it when possible,
+    /// interprets it otherwise) instead of C compiled from the baseline's FIŘ.
+    ///
+    /// Same C names and calling convention as [VersionEmitter], so call sites are unaffected.
+    private VecSXP emitBytecodeBaseline(Abstraction baseline, FunctionBcOrigin bytecode) {
+      var pool = new ConstantPool();
+
+      var constantsCName = versionConstantsCName(function, baseline);
+      cUnit.addGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
+
+      var initCName = versionInitCName(function, baseline);
+      var initCFunction = cUnit.addFunction(INIT_C_RETURN, initCName, INIT_C_PARAMS);
+      debugComment(
+          initCFunction.add(), "## Init %s baseline (GNU-R bytecode)", function.name().name());
+      var initCCode = initCFunction.add();
+      debugComment(initCCode, "# Assign constant pool global variable");
+      initCCode.stmt("%s = %s;", constantsCName, VAR_POOL);
+      initCFunction.add().stmt("return R_NilValue;");
+
+      var cName = versionCallCName(function, baseline);
+      var cParams = versionCallCParams(baseline);
+      var cReturn = versionCallCReturn(baseline);
+      var cFunction = cUnit.addFunction(cReturn, cName, cParams);
+      var cCode = cFunction.add();
+      debugComment(
+          cCode, "## Call %s baseline (JIT-compiled GNU-R bytecode)", function.name().name());
+
+      // Fixed pool layout, mirrored by `Fir_bc_baseline_call` in `runtime.c`:
+      // 0 = the GNU-R bytecode, 1 = the formals (with default-argument expressions),
+      // 2 = space for the lazily JIT-compiled code.
+      var bcIdx = pool.internUnique(SEXPs.bcode(bytecode.bc()));
+      var formalsIdx = pool.internUnique(bytecode.formals());
+      var jitIdx = pool.internSpace();
+      assert bcIdx == 0 && formalsIdx == 1 && jitIdx == 2;
+
+      cCode.stmt("SEXP %s = %s;", VAR_POOL, constantsCName);
+      var parameters = baseline.parameters();
+      if (parameters.isEmpty()) {
+        cCode.stmt("return Fir_bc_baseline_call(%s, %s, 0, NULL);", VAR_POOL, VAR_ENV);
+      } else {
+        cCode.stmt(
+            "SEXP args[%d] = {%s};",
+            parameters.size(),
+            parameters.stream()
+                .map(Fir2CCompiler::registerCName)
+                .collect(Collectors.joining(", ")));
+        cCode.stmt(
+            "return Fir_bc_baseline_call(%s, %s, %d, args);", VAR_POOL, VAR_ENV, parameters.size());
+      }
+
+      return pool.toSexp();
     }
 
     private void emitConstantPoolAlias(CFunction cFunction) {

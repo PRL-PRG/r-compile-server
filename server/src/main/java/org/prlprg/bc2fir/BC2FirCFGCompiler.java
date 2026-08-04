@@ -185,32 +185,14 @@ import org.prlprg.util.Strings;
 ///
 /// This could be a set of functions but they would be *very* large and/or pass around lots of
 /// variables. Instead, it's a class and those commonly-passed variables are fields.
-public class BC2FirCFGCompiler {
-  /// Compile the given bytecode into the given control-flow-graph
-  ///
-  /// @throws IllegalArgumentException If the control-flow graph isn't empty
-  /// ([#compile(RSession, CFGCursor, Bc)] doesn't have this restriction).
-  public static void compile(@Nullable RSession r, CFG cfg, Bc bc) {
-    if (cfg.bbs().size() != 1
-        || !cfg.entry().statements().isEmpty()
-        || !(cfg.entry().jump().expression() instanceof Unreachable)) {
-      throw new IllegalArgumentException("CFG must be empty");
-    }
-
-    compile(r, new CFGCursor(cfg), bc);
-  }
-
-  /// Compile the given bytecode into the given control-flow-graph, starting at the cursor
-  public static void compile(@Nullable RSession r, CFGCursor cursor, Bc bc) {
-    new BC2FirCFGCompiler(r, cursor, bc).compileBc();
-  }
-
+public final class BC2FirCFGCompiler {
   // region compiler data
   // - Some of it is constant through the compilation, some changes as instructions are compiled.
   private final @Nullable RSession r;
   private final InferType inferType;
   private final CFG cfg;
   private final Bc bc;
+  private final @Nullable ModuleBcOriginMap bytecodes;
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
@@ -225,11 +207,15 @@ public class BC2FirCFGCompiler {
 
   // region constructor
   /// Create the compiler, but don't compile `bc` into `cfg` yet.
-  BC2FirCFGCompiler(@Nullable RSession r, CFGCursor cursor, Bc bc) {
+  ///
+  /// If `bytecodes` is non-`null`, the GNU-R bytecode of every inner closure is recorded in it.
+  BC2FirCFGCompiler(
+      @Nullable RSession r, CFGCursor cursor, Bc bc, @Nullable ModuleBcOriginMap bytecodes) {
     this.r = r;
     cfg = cursor.cfg();
     inferType = new InferType(cfg.scope());
     this.bc = bc;
+    this.bytecodes = bytecodes;
     this.cursor = cursor;
   }
 
@@ -781,7 +767,7 @@ public class BC2FirCFGCompiler {
         var code =
             alreadyGenerated != null
                 ? alreadyGenerated
-                : BC2FirClosureCompiler.compile(r, module(), generatedName, cloSxp);
+                : BC2FirClosureCompiler.compile(r, module(), generatedName, cloSxp, bytecodes);
 
         pushInsert(new Closure(false, code));
       }
@@ -1211,7 +1197,7 @@ public class BC2FirCFGCompiler {
     }
 
     var cfg = new CFG(scope());
-    compile(r, cfg, bc);
+    new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes).compileBc();
 
     return insertAndReturn("_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg));
   }

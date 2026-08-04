@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
+#include <R_ext/Rdynload.h>
 
 #define ASSERT(x, msg, ...) \
   if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
@@ -839,6 +840,90 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
     default:
       Rf_error("Unsupported callee type");
   }
+}
+
+// Fixed slots of a bytecode baseline's constant pool
+// (mirrored by `Fir2CCompiler#emitBytecodeBaseline` on the server).
+enum {
+  FIR_BC_BASELINE_CODE = 0,
+  FIR_BC_BASELINE_FORMALS = 1,
+  FIR_BC_BASELINE_JIT = 2,
+};
+
+/// `C_rcp_cmpfun` from the rcp package (the copy-and-patch JIT), or `NULL` if it can't be loaded.
+/// It can only be loaded in the RCP variant of GNU-R (`RCP=1 tools/build-gnur.sh`), whose `eval`
+/// can run the JIT-compiled code it produces.
+static SEXP (*Fir_rcp_cmpfun(void))(SEXP, SEXP) {
+  static bool searched = false;
+  static SEXP (*cmpfun)(SEXP, SEXP) = NULL;
+  if (searched) {
+    return cmpfun;
+  }
+  searched = true;
+
+  SEXP require = PROTECT(Rf_lang3(Rf_install("requireNamespace"), Rf_mkString("rcp"), Rf_ScalarLogical(TRUE)));
+  SET_TAG(CDDR(require), Rf_install("quietly"));
+  int error = 0;
+  SEXP loaded = R_tryEval(require, R_BaseEnv, &error);
+  UNPROTECT(1);
+  if (error || loaded == NULL || Rf_asLogical(loaded) != TRUE) {
+    return NULL;
+  }
+
+  *(void **)&cmpfun = (void *)R_FindSymbol("C_rcp_cmpfun", "rcp", NULL);
+  return cmpfun;
+}
+
+/// The code a bytecode baseline evaluates: the copy-and-patch-JIT-compiled bytecode if rcp is
+/// available, the bytecode itself otherwise. Compiled and cached in the pool on first call.
+static SEXP Fir_bc_baseline_code(SEXP pool) {
+  SEXP code = Fir_const(pool, FIR_BC_BASELINE_JIT);
+  if (code != R_NilValue) {
+    return code;
+  }
+
+  code = Fir_const(pool, FIR_BC_BASELINE_CODE);
+  SEXP (*cmpfun)(SEXP, SEXP) = Fir_rcp_cmpfun();
+  if (cmpfun != NULL) {
+    // `C_rcp_cmpfun` copy-and-patches a closure whose body is already bytecode in place,
+    // replacing the body with an external pointer to the JIT-compiled code
+    // (which `eval` in the RCP variant of GNU-R runs in the environment it's evaluated in).
+    SEXP closure = PROTECT(Rf_mkCLOSXP(Fir_const(pool, FIR_BC_BASELINE_FORMALS), code, R_GlobalEnv));
+    SEXP compiled = cmpfun(closure, R_NilValue);
+    if (TYPEOF(BODY(compiled)) == EXTPTRSXP) {
+      code = BODY(compiled);
+    }
+    UNPROTECT(1);
+  }
+
+  // `SET_VECTOR_ELT` instead of `Fir_set_const` for the write barrier: unlike init-time pool
+  // writes, the pool may already be old-generation here.
+  SET_VECTOR_ELT(pool, FIR_BC_BASELINE_JIT, code);
+  return code;
+}
+
+SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
+  Fir_push_env(&env, FIR_MKENV_REGULAR);
+
+  SEXP formal = Fir_const(pool, FIR_BC_BASELINE_FORMALS);
+  for (int i = 0; i < argc; ++i, formal = CDR(formal)) {
+    ASSERT(formal != R_NilValue, "bytecode baseline called with more arguments than formals");
+    SEXP value = args[i];
+    if (value == R_MissingArg && CAR(formal) != R_MissingArg) {
+      // Bind a missing argument that has a default as a promise of the default,
+      // like GNU-R's `applyClosure`.
+      value = Rf_mkPROMISE(CAR(formal), env);
+    }
+    PROTECT(value);
+    Rf_defineVar(TAG(formal), value, env);
+    UNPROTECT(1);
+  }
+  ASSERT(formal == R_NilValue, "bytecode baseline called with fewer arguments than formals");
+
+  SEXP out = Rf_eval(Fir_bc_baseline_code(pool), env);
+
+  Fir_pop_env(&env);
+  return out;
 }
 
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env) {
