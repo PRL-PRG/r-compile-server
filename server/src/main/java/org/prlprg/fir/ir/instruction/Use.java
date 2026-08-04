@@ -8,7 +8,6 @@ import org.prlprg.fir.ir.argument.Argument;
 /// A Register tracks the set of its [Use]s, so replacing every use of a register
 /// ([org.prlprg.fir.ir.variable.Register#substUsesWith]) is a local operation, and def-use
 /// information stays accurate as the
-/// IR is mutated (rather than being recomputed by an external analysis).
 public record Use(Instruction instruction, int index) {
   /// The argument currently in this slot.
   public Argument argument() {
