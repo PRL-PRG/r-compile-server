@@ -60,16 +60,14 @@ public final class BC2FirClosureCompiler {
                           "Failed to compile AST body", closure));
     }
 
-    if (bytecodes != null) {
-      bytecodes.record(name, bc, closure.parameters());
-    }
+    var origin = bytecodes == null ? null : bytecodes.record(name, bc, closure.parameters());
 
     var output = module.addFunction(Variable.named(name), parameterNames, false);
     var outputBaseline = output.baseline();
     var outputCfg = Objects.requireNonNull(outputBaseline.cfg(), "baseline is never a stub");
     var outputCursor = new CFGCursor(outputCfg);
 
-    var cfgCompiler = new BC2FirCFGCompiler(r, outputCursor, bc, bytecodes);
+    var cfgCompiler = new BC2FirCFGCompiler(r, outputCursor, bc, bytecodes, origin);
 
     cfgCompiler.compileClosureEntry(parameterNames, closure.parameters().values());
     cfgCompiler.compileBc();

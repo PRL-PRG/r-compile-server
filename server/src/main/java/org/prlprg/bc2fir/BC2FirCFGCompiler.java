@@ -193,6 +193,7 @@ public final class BC2FirCFGCompiler {
   private final CFG cfg;
   private final Bc bc;
   private final @Nullable ModuleBcOriginMap bytecodes;
+  private final @Nullable FunctionBcOrigin origin;
   private final Map<Integer, BB> bbByLabel = new HashMap<>();
   private final Set<BB> bbsWithPhis = new HashSet<>();
   private int bcPos = 0;
@@ -209,13 +210,22 @@ public final class BC2FirCFGCompiler {
   /// Create the compiler, but don't compile `bc` into `cfg` yet.
   ///
   /// If `bytecodes` is non-`null`, the GNU-R bytecode of every inner closure is recorded in it.
+  ///
+  /// If `origin` is non-`null`, `bc` is the bytecode it was recorded for, and the registers of the
+  /// instructions the copy-and-patch JIT records feedback for are recorded in it. It's `null` for
+  /// promise bodies, whose feedback the JIT records separately (and which we don't read).
   BC2FirCFGCompiler(
-      @Nullable RSession r, CFGCursor cursor, Bc bc, @Nullable ModuleBcOriginMap bytecodes) {
+      @Nullable RSession r,
+      CFGCursor cursor,
+      Bc bc,
+      @Nullable ModuleBcOriginMap bytecodes,
+      @Nullable FunctionBcOrigin origin) {
     this.r = r;
     cfg = cursor.cfg();
     inferType = new InferType(cfg.scope());
     this.bc = bc;
     this.bytecodes = bytecodes;
+    this.origin = origin;
     this.cursor = cursor;
   }
 
@@ -432,6 +442,7 @@ public final class BC2FirCFGCompiler {
                         Effects.NONE),
                     cond,
                     new Constant(SEXPs.MISSING_ARG)));
+        recordFeedbackRegister(condCasted);
         insert(next -> branch(condCasted, next, bb));
       }
       case Pop() -> pop();
@@ -656,6 +667,8 @@ public final class BC2FirCFGCompiler {
         tryAddCheckpoint(false, preStack);
 
         pushInsert(getStr(name), new Force(true), pop());
+        // The JIT records the type of the value `GETVAR` leaves on the stack, i.e. the forced one.
+        recordFeedbackRegister(top());
         insert(intrinsic("checkMissing", top()));
         tryAddCheckpoint(true, stack);
       }
@@ -672,6 +685,7 @@ public final class BC2FirCFGCompiler {
       case SetVar(var name) -> insert(new Store(StoreType.LOCAL_VAR, getVar(name)), top());
       case GetFun(var name) -> {
         var fun = insertAndReturn(getStr(name), new Load(LoadType.LOCAL_FUN, getVar(name)));
+        recordFeedbackRegister(fun);
         pushCall(fun);
         tryAddCheckpoint(true, stack);
       }
@@ -722,7 +736,13 @@ public final class BC2FirCFGCompiler {
       case PushNullArg() -> pushCallArg(new Constant(SEXPs.NULL));
       case PushTrueArg() -> pushCallArg(new Constant(SEXPs.TRUE));
       case PushFalseArg() -> pushCallArg(new Constant(SEXPs.FALSE));
-      case BcInstr.Call(var _), CallBuiltin(var _) -> compileCall();
+      case BcInstr.Call(var _) -> {
+        compileCall();
+        // The JIT records the type of the value `CALL` leaves on the stack, i.e. the call's result
+        // (`CALLBUILTIN` isn't recorded).
+        recordFeedbackRegister(top());
+      }
+      case CallBuiltin(var _) -> compileCall();
       case CallSpecial(var astId) -> {
         var ast = get(astId);
         if (!(ast.fun() instanceof RegSymSXP builtinSymbol)) {
@@ -1107,7 +1127,7 @@ public final class BC2FirCFGCompiler {
         }
         var funAndArgs = stack.subList(stack.size() - numArgs - 1, stack.size());
         var fun = funAndArgs.getFirst();
-        var argValues = ImmutableList.<Argument>copyOf(funAndArgs.subList(1, funAndArgs.size()));
+        var argValues = ImmutableList.copyOf(funAndArgs.subList(1, funAndArgs.size()));
         funAndArgs.clear();
 
         // Insert dots list for arguments (the `.Call` arguments are unnamed).
@@ -1197,7 +1217,7 @@ public final class BC2FirCFGCompiler {
     }
 
     var cfg = new CFG(scope());
-    new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes).compileBc();
+    new BC2FirCFGCompiler(r, new CFGCursor(cfg), bc, bytecodes, null).compileBc();
 
     return insertAndReturn("_p", new Promise(Type.ANY_VALUE_SEXP, Effects.REFLECT, cfg));
   }
@@ -1266,7 +1286,7 @@ public final class BC2FirCFGCompiler {
                             var paramMatch = matches.arguments().get(paramName);
                             return paramMatch != null
                                 ? args.get(paramMatch)
-                                : (Argument) new Constant(SEXPs.MISSING_ARG);
+                                : new Constant(SEXPs.MISSING_ARG);
                           })
                       .collect(ImmutableList.<Argument>toImmutableList());
 
@@ -1299,16 +1319,27 @@ public final class BC2FirCFGCompiler {
     pushInsertThenCp(callInstr);
   }
 
+  /// Record that the feedback the copy-and-patch JIT records for the bytecode instruction being
+  /// compiled describes `argument`'s register (see [FunctionBcOrigin]).
+  ///
+  /// Does nothing if we aren't recording bytecode origins.
+  private void recordFeedbackRegister(Argument argument) {
+    assert argument instanceof Read
+        : "a recorded bytecode instruction must compile into a register, got: " + argument;
+    if (origin == null) {
+      return;
+    }
+
+    var read = (Read) argument;
+    var register = read.variable();
+    origin.recordFeedbackRegister(bcPos, register.name());
+  }
+
   // endregion compile instructions
 
   // region checkpoints
   private void pushInsertThenCp(Built built) {
     pushInsert(built);
-    tryAddCheckpoint(true, stack);
-  }
-
-  private void pushInsertThenCp(Expression expression, Argument... args) {
-    pushInsert(expression, args);
     tryAddCheckpoint(true, stack);
   }
 
@@ -1451,11 +1482,6 @@ public final class BC2FirCFGCompiler {
     cursor.insert(new Statement(expression, List.of(args)));
   }
 
-  /// Insert a statement.
-  private void insert(Statement statement) {
-    cursor.insert(statement);
-  }
-
   /// Insert a statement that executes a built operation (expression + arguments), assigns its
   /// result to a fresh register, and return a read of that register.
   private Argument insertAndReturn(String name, Built built) {
@@ -1588,10 +1614,6 @@ public final class BC2FirCFGCompiler {
   /// [#pushInsert(Built)] but with a different default name (`_cond`), for conditionals.
   private void pushInsertCond(Built built) {
     pushInsert(inferDescriptiveName("_cond"), built);
-  }
-
-  private void pushInsertCond(Expression expression, Argument... args) {
-    pushInsert(inferDescriptiveName("_cond"), expression, args);
   }
 
   /// Push a value onto the "virtual stack" so that the next call to [#pop()] or
