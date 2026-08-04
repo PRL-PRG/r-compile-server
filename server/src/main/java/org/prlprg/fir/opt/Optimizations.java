@@ -74,7 +74,13 @@ public class Optimizations {
                     new Cleanup(false)),
                 new CreateBestVersion(9)),
             modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
-            modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP));
+            modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP),
+        new ModuleFixpointSequence(
+            "elideDupAfterEverythingElse",
+            new MarkConsume(),
+            new CreateBestVersion(9), // seems sensible
+            new ElideDupConsume(),
+            new Cleanup(true)));
   }
 
   private Optimizations() {}
