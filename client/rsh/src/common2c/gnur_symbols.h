@@ -18,12 +18,10 @@ double R_pow(double x, double y);
 SEXP R_bcDecode(SEXP);
 SEXP R_bcEncode(SEXP);
 SEXP R_Primitive(const char *primname);
-Rboolean asLogicalNoNA(SEXP s, SEXP call, SEXP rho);
-NORET void MISSING_ARGUMENT_ERROR(SEXP symbol, SEXP rho);
 NORET void UNBOUND_VARIABLE_ERROR(SEXP symbol, SEXP rho);
 void checkForMissings(SEXP args, SEXP call);
 SEXP markSpecialArgs(SEXP args);
-Rboolean asLogicalNoNA(SEXP s, SEXP call, SEXP rho);
+Rboolean asLogicalNoNA(SEXP s, SEXP call);
 int DispatchGroup(const char *group, SEXP call, SEXP op, SEXP args, SEXP rho,
                   SEXP *ans);
 SEXP CONS_NR(SEXP car, SEXP cdr);
@@ -54,7 +52,7 @@ SEXP do_colon(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP R_compact_intrange(R_xlen_t n1, R_xlen_t n2);
 SEXP do_seq_along(SEXP call, SEXP op, SEXP args, SEXP rho);
 SEXP do_seq_len(SEXP call, SEXP op, SEXP args, SEXP rho);
-R_varloc_t R_findVarLoc(SEXP rho, SEXP symbol);
+R_varloc_t R_findVarLoc(SEXP symbol, SEXP rho);
 SEXP R_GetVarLocValue(R_varloc_t vl);
 SEXP findVarLoc(SEXP symbol, SEXP rho);
 SEXP findVarLocInFrame(SEXP rho, SEXP symbol, Rboolean *canCache);
@@ -73,6 +71,8 @@ void Rf_endcontext(RCNTXT *cptr);
 NORET void Rf_findcontext(int mask, SEXP env, SEXP val);
 SEXP Rf_NewEnvironment(SEXP, SEXP, SEXP);
 Rboolean Rf_pmatch(SEXP, SEXP, Rboolean);
+NORET void R_MissingArgError(SEXP symbol, SEXP call, const char *subclass);
+SEXP getLexicalCall(SEXP rho);
 
 SEXP rcpEval(SEXP body, SEXP rho);
 

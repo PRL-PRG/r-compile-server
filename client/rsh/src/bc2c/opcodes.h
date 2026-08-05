@@ -459,8 +459,7 @@ static INLINE void Rsh_CallBuiltin(Value *stack, SEXP call, SEXP rho) {
   SET_VAL_N(-3, value);
 }
 
-static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
-                                             SEXP rho) {
+static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call) {
   Value value = *GET_VAL(-1);
   if (VAL_IS_LGL_NOT_NA(value)) {
     return (Rboolean)!VAL_INT(value);
@@ -484,7 +483,7 @@ static INLINE NODISCARD Rboolean Rsh_BrIfNot(Value *stack, SEXP call,
     value_sxp = R_LogicalNAValue;
   }
 
-  Rboolean ans = asLogicalNoNA(value_sxp, call, rho);
+  Rboolean ans = asLogicalNoNA(value_sxp, call);
   return (Rboolean)!ans;
 }
 
