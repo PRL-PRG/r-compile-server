@@ -5,6 +5,9 @@
 // IT IS USED BY THE SERVER COMPILER
 
 // The USE_RINTERNALS needs to be set
+#ifndef C99_INLINE_SEMANTICS
+#define C99_INLINE_SEMANTICS 0
+#endif
 #ifndef USE_RINTERNALS
 #define USE_RINTERNALS
 #endif
@@ -95,12 +98,6 @@ static INLINE double R_logbase(double x, double base) {
 #define FAST_VECELT_OK(/* SEXP */ vec)                                         \
   (ATTRIB(vec) == R_NilValue ||                                                \
    (TAG(ATTRIB(vec)) == R_DimSymbol && CDR(ATTRIB(vec)) == R_NilValue))
-
-#define MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho)                    \
-  do {                                                                         \
-    if (!keepmiss)                                                             \
-      MISSING_ARGUMENT_ERROR(symbol, rho);                                     \
-  } while (0)
 
 static INLINE SEXP arith2(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
                           SEXP rho) {
@@ -312,10 +309,10 @@ void old_to_new(SEXP x, SEXP y);
     if (NODE_IS_OLDER(x, y))                                                   \
       old_to_new(x, y);                                                        \
   } while (0)
-ALWAYS_INLINE R_xlen_t XLENGTH_0(SEXP x) { return STDVEC_LENGTH(x); }
+static ALWAYS_INLINE R_xlen_t XLENGTH_0(SEXP x) { return STDVEC_LENGTH(x); }
 
 #define LONG_VECTOR_SUPPORT
-ALWAYS_INLINE int LENGTH_EX_0(SEXP x, const char *file, int line) {
+static ALWAYS_INLINE int LENGTH_EX_0(SEXP x, const char *file, int line) {
   if (x == R_NilValue)
     return 0;
   R_xlen_t len = XLENGTH_0(x);

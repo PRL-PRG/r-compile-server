@@ -110,7 +110,6 @@ public sealed interface BcInstr {
     }
   }
 
-  @NeedsRho
   @StackEffect(pop = 1)
   record BrIfNot(ConstPool.Idx<LangSXP> ast, @LabelName("IF_FALSE") BcLabel dest)
       implements BcInstr {
