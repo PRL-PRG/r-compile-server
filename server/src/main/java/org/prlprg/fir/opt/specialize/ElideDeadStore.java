@@ -84,9 +84,16 @@ public record ElideDeadStore() implements SpecializeOptimization {
     if (loads.get(variable).stream()
         .anyMatch(
             load -> {
+              var loadBb = load.parentBB();
+              if (loadBb == null) {
+                // Invalid CFG
+                return true;
+              }
+              var loadCfg = loadBb.owner();
+
               var commonCfg =
                   Objects.requireNonNull(
-                      analyses.get(CfgHierarchy.class).commonAncestor(cfg, load.parentBB().owner()),
+                      analyses.get(CfgHierarchy.class).commonAncestor(cfg, loadCfg),
                       "both are in the same scope, so at worst their ancestor is the scope's CFG");
               var storePos =
                   Objects.requireNonNull(
