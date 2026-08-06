@@ -1118,11 +1118,16 @@ static INLINE void Rsh_evaluated_promise_to_value(Value *res, SEXP value) {
 static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
                                   Rboolean keepmiss, SEXP rho) {
   RSH_PC_INC(slow_getvar);
+  if (keepmiss) { // This should be statically eliminated for non-keepmiss instructions
+    SET_SXP_VAL(res, value); // Set now to protect during R_isMissing
+  }
 
   if (value == R_UnboundValue) {
     UNBOUND_VARIABLE_ERROR(symbol, rho);
   } else if (value == R_MissingArg) {
-    MAYBE_MISSING_ARGUMENT_ERROR(symbol, keepmiss, rho);
+    if (!keepmiss) {
+      R_MissingArgError(symbol, getLexicalCall(rho), "getvarError");
+    }
   } else if (TYPEOF(value) == PROMSXP) {
     if (!PROMISE_IS_EVALUATED(value)) {
       /**** R_isMissing is inefficient */
@@ -1142,7 +1147,9 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
   } else {
     ENSURE_NAMEDMAX(value);
   }
-  SET_SXP_VAL(res, value);
+  if (!keepmiss) {
+    SET_SXP_VAL(res, value); // Set now to protect during R_isMissing
+  }
 }
 
 static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
