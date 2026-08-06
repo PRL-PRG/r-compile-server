@@ -68,6 +68,14 @@ endif
 CFLAGS += -DRCP
 CXXFLAGS += -DRCP
 
+# Write a `.d` beside each object listing the headers it read, so the per-directory makefiles can
+# `-include` them and rebuild on a header edit. This matters most for the stencils, which include
+# the rsh runtime headers from another tree: without it, editing one leaves stale stencils that the
+# extractor happily bakes into stencils.h. -MP emits a phony target per header so deleting one
+# doesn't wedge the build.
+CFLAGS += -MMD -MP
+CXXFLAGS += -MMD -MP
+
 ifeq (,$(findstring -std=,$(CFLAGS)))
   CFLAGS += $(C_STD_FLAG)
 endif

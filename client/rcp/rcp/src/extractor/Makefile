@@ -11,9 +11,12 @@ $(EXTRACTOR_BIN): $(OBJECTS) $(SHARED_LIB)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Header dependencies, from the -MMD -MP in common.mk.
+-include $(OBJECTS:.o=.d)
+
 $(SHARED_LIB):
 	$(MAKE) -C $(SHARED_LIB_DIR)
 
 .PHONY: clean
 clean:
-	rm -f $(EXTRACTOR_BIN) $(OBJECTS)
+	rm -f $(EXTRACTOR_BIN) $(OBJECTS) $(OBJECTS:.o=.d)
