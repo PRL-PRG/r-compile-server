@@ -42,7 +42,7 @@ RCP_OP(GOTO,
 	   GOTO_IMM(0);)
 
 RCP_OP(BRIFNOT,
-	   Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	   Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0));
 	   ,
 	   if (condition)
 		   GOTO_IMM(1);)
@@ -53,7 +53,7 @@ RCP_OP(BRIFNOT,
 RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_2) // ambiguous / inert
 {
 	PROLOGUE;
-	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
+	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0));
 	if (condition)
 		GOTO_IMM(1);
 	NEXT;
@@ -62,11 +62,11 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_2) // ambiguous / inert
 RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_1) // monomorphic
 {
 	PROLOGUE;
-	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
-	Rboolean *recording = (Rboolean *)GETCUSTOM_REL(0);
+	char condition = Rsh_BrIfNot(stack, GETCONST_IMM(0));
+	char *recording = (char *)GETCUSTOM_REL(0);
 	if (condition != *recording)
 	{
-		Rboolean *result = (Rboolean *)GETCUSTOM_REL(1);
+		char *result = (char *)GETCUSTOM_REL(1);
 		*result = 0;
 		POP_VAL(1);
 		if (condition)
@@ -85,8 +85,8 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_1) // monomorphic
 RCP_STENCIL_FUNCTION(_RCP_SMC_BRIFNOT_RECCONST_0) // entry: record
 {
 	PROLOGUE;
-	Rboolean condition = Rsh_BrIfNot(stack, GETCONST_IMM(0), GET_RHO());
-	Rboolean *recording = (Rboolean *)GETCUSTOM_REL(0);
+	char condition = Rsh_BrIfNot(stack, GETCONST_IMM(0));
+	char *recording = (char *)GETCUSTOM_REL(0);
 	*recording = condition;
 	POP_VAL(1);
 	if (condition)

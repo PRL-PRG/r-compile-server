@@ -30,9 +30,17 @@ RCP_MAKE := $(MAKE) -C rcp
 # Derived command fragments
 # --------------------------------------------------------------------------- #
 
+# R_VERSION pins the vanilla R that the bc benchmarks baseline against; unset it
+# to take the default in Dockerfile.rcp-base. rcp-rsh then asserts that pin
+# matches the R that rsh vendors, and ALLOW_R_VERSION_MISMATCH=1 downgrades that
+# assertion to a warning (needed when the vendored R is a development snapshot).
+BASE_BUILD_ARGS = \
+	$(if $(R_VERSION),--build-arg R_VERSION=$(R_VERSION))
+
 RSH_BUILD_ARGS = \
 	--build-arg RCP_BASE_IMAGE=$(RCP_BASE_IMAGE):latest \
-	--build-arg RSH_COMMIT=$(RSH_COMMIT)
+	--build-arg RSH_COMMIT=$(RSH_COMMIT) \
+	$(if $(ALLOW_R_VERSION_MISMATCH),--build-arg ALLOW_R_VERSION_MISMATCH=$(ALLOW_R_VERSION_MISMATCH))
 
 RCP_BUILD_ARGS = \
 	--build-arg RCP_RSH_IMAGE=$(RCP_RSH_IMAGE) \
@@ -49,6 +57,7 @@ all: docker-rcp
 
 docker-rcp-base:
 	$(DOCKER_BUILD_CMD) \
+		$(BASE_BUILD_ARGS) \
 		-t $(RCP_BASE_IMAGE):latest \
 		-f Dockerfile.rcp-base .
 

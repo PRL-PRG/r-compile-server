@@ -5,6 +5,9 @@ include ../../common.mk
 # sees it. Use it to guard stencil-only code paths in shared headers.
 CFLAGS += -DCOMPILING_STENCILS
 
+# Inlines everything in Rinlinedfuns.h without generating symbols
+CFLAGS += -DC99_INLINE_SEMANTICS=0
+
 ifeq ($(RELOC_MODEL),1)
   CFLAGS += -fno-plt
 endif

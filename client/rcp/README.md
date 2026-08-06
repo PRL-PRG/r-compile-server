@@ -111,12 +111,29 @@ components and their change frequency.
 
 | Image      | Description                                                                                                                                 |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rcp-base` | Ubuntu 24.04, toolchain, vanilla R 4.3.2, `microbenchmark` for `/R-vanilla`                                                                 |
+| `rcp-base` | Ubuntu 26.04 LTS, toolchain (gcc-14, pinned), vanilla R 4.5.2 in `/R-vanilla` (the bc baseline), `microbenchmark` for it                     |
 | `rcp-rsh`  | `rcp-base` + [r-compile-server](https://github.com/PRL-PRG/r-compile-server) at `RSH_COMMIT`, custom R build, `microbenchmark` for custom R |
 | `rcp`      | `rcp-rsh` + `rcp` at `RCP_COMMIT`, built and installed                                                                                       |
 
 This split keeps rebuilds short: frequent `rcp` edits only rebuild the top
 image, while expensive R builds stay cached in lower layers.
+
+The bc-vs-rcp ratio only measures the JIT if both sides are otherwise the same
+R, so the vanilla baseline is kept at the same version as the R that rsh vendors
+and is compiled the same way (`-g -O2`, plain `./configure`, minus `-DRCP`). Its
+version is pinned by `R_VERSION` in `Dockerfile.rcp-base` — keeping that layer
+keyed on nothing is what keeps the build cached — and `Dockerfile.rcp-rsh`
+asserts the pin still matches the vendored `external/R/VERSION`, so bumping the
+vendored R without bumping `R_VERSION` fails the build instead of quietly
+skewing results:
+
+```sh
+make docker-rcp-base R_VERSION=4.5.2          # override the pin
+make docker-rcp-rsh ALLOW_R_VERSION_MISMATCH=1  # warn instead of fail
+```
+
+The mismatch escape hatch is needed when the vendored R is a development
+snapshot, since no CRAN release matches one.
 
 ### Building locally
 

@@ -1072,17 +1072,10 @@ static void export_to_files(const fs::path &output_dir,
 
 	// C file preamble
 	c_file << "#include \"stencils.h\"\n\n";
-	c_file << "#define USE_RINTERNALS\n";
 	c_file << "#define RSH\n";
-	c_file << "#include <string.h>\n";
-	c_file << "#include <R.h>\n";
-	c_file << "#include <Rinternals.h>\n";
-	c_file << "#include <Rmath.h>\n";
 	c_file << "#define RSH_INLINE\n";
-	c_file << "#include \"opcodes_internals.h\"\n";
 	c_file << "#include <opcodes.h>\n";
-	c_file << "#undef NDEBUG\n"; // Ensure assert() is available if used in generated code
-	c_file << "#include <assert.h>\n";
+	c_file << "#include <stdlib.h>\n";
 	// runtime.h redefines R_NaInt etc. as macros; undo so &R_NaInt remains an lvalue
 	c_file << "#undef R_NaInt\n";
 	c_file << "#undef R_NaN\n";
