@@ -152,6 +152,7 @@ charmatch,11,3
 match.call,11,4
 crossprod,1,1
 tcrossprod,1,1
+asplit,11,8
 lengths,11,2
 sequence,11,3
 vhash,11,-1
@@ -595,7 +596,7 @@ standardGeneric,201,-1
 Sys.time,11,0
 as.POSIXct,11,2
 as.POSIXlt,11,2
-format.POSIXlt,11,3
+format.POSIXlt,11,4
 strptime,11,3
 Date2POSIXlt,11,2
 POSIXlt2Date,11,1
@@ -639,6 +640,7 @@ fifo,11,4
 gzfile,11,4
 bzfile,11,4
 xzfile,11,4
+zstdfile,11,4
 unz,11,3
 seek,11,4
 truncate,11,1
@@ -697,7 +699,7 @@ getVarsFromFrame,11,3
 lazyLoadDBinsertValue,11,5
 bincode,11,4
 tabulate,11,2
-findInterval,11,5
+findInterval,11,6
 pretty,11,8
 formatC,11,7
 crc64,11,1

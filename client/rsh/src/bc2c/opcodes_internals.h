@@ -2,6 +2,19 @@
 
 #include "../common2c/rsh_utils.h"
 
+// `RCP` means "built against the copy-and-patch variant of GNU-R". It comes from that R's
+// `etc/Makeconf`, so *every* package built against it gets it, and it only says which `Rinternals.h`
+// (`rshEvalUnboxed`, `Rsh_closure`, ...) we agree with.
+//
+// `RCP_STENCILS` means this translation unit *is* a copy-and-patch stencil: its ops and R symbols
+// are holes the extractor patches, its data is patched in place, and it follows the RCP calling
+// convention. Only `client/rcp`'s stencils are (they define `COMPILING_STENCILS`); the rsh package
+// is ordinary code that happens to be compiled against the same R. Same test as
+// `../common2c/gnur_symbols.h`.
+#if defined(RCP) && defined(COMPILING_STENCILS)
+#define RCP_STENCILS
+#endif
+
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
@@ -296,7 +309,7 @@ typedef struct {
 
 // For copy-and-patch. Possibly for Rsh as well.
 // To allow patching of internal symbols without unnecessary indirection
-#ifdef RCP
+#ifdef RCP_STENCILS
 #define EXTERN_ATTRIBUTES                                                      \
   __attribute__((section(".data"), visibility("hidden")))
 #else
@@ -444,7 +457,7 @@ typedef enum { X_LOGIC2_OPS } RshLogic2Op;
   X(seq_len, Rsh_SeqLen)                                                  \
   X(log, Rsh_Log)
 
-#ifdef RCP
+#ifdef RCP_STENCILS
 
 // Create extern declarations for all ops and symbols
 #define X(a, b, ...)                                                           \
@@ -471,7 +484,7 @@ RSH_R_SYMBOLS
 // Map to correct extern symbols
 // Rsh TODO: do we need to preserve calls to R_Primitive?
 #define RCP_OPS(fun, arg)                                                      \
-  (const SEXP const)(&_RCP_CRUNTIME_OPS_##fun##__RCP__##arg)
+  ((SEXP)(&_RCP_CRUNTIME_OPS_##fun##__RCP__##arg))
 
 #define RSH_ARITH_OPS(op) (RCP_OPS(R_Primitive, op))
 #define RSH_ARITH_OP_SYMS(op) (RCP_OPS(Rf_install, op))
