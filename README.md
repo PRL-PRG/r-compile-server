@@ -36,8 +36,9 @@ To run the IntelliJ inside the dev container:
 
 If the dev container is too slow, you can also setup on the host machine. To do so, must install the following dependencies:
 
-- **Java 26 and Maven 3**
+- **Java 26 and Maven 4**
   - IntelliJ will automatically install these. If not, you can download a Java 26 binary from https://adoptium.net/temurin/releases/?version=26, and Maven from https://maven.apache.org/download.cgi.
+  - Alternatively, run `server/mvnw` instead of `mvn`: it downloads the pinned Maven version (see `server/.mvn/wrapper/maven-wrapper.properties`) on first use. This is what CI does.
   - If you are using IntelliJ, navigate to "Project Structure > Project" and make sure the **SDK* is set to **a JDK of version 26** (e.g. "openjdk-26"). If not, click the dropdown and "Download JDK", then select any JDK of version 26.
 
 ## Commands

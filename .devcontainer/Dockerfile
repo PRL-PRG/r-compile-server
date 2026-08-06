@@ -1,5 +1,5 @@
 ARG JAVA_VERSION=26
-ARG MAVEN_VERSION=4.0.0-rc-5
+ARG MAVEN_VERSION=4.0.0-rc-6
 ARG LLVM_VERSION=17
 ARG BASE_IMAGE=ubuntu-24.04
 
@@ -21,8 +21,10 @@ RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
   && ln -s "$(which java | xargs readlink -f | xargs dirname | xargs dirname)" /opt/java
 
 # install maven
+# archive.apache.org rather than dlcdn.apache.org: the latter only serves the
+# current release, so a pinned version 404s as soon as Maven cuts a new one.
 RUN mkdir -p /opt/maven \
- && curl -fsSL -o /tmp/apache-maven.tar.gz "https://dlcdn.apache.org/maven/maven-4/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" \
+ && curl -fsSL -o /tmp/apache-maven.tar.gz "https://archive.apache.org/dist/maven/maven-4/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" \
  && tar -xzf /tmp/apache-maven.tar.gz -C /opt/maven --strip-components=1 \
  && rm -f /tmp/apache-maven.tar.gz
 
