@@ -32,7 +32,10 @@ public class InterpretAfterOptTest {
   void testRepeat(Example example, SnapshotStore store) {
     var optimization = optimizations();
 
-    var module = store.load(example, FirQuery.INSTANCE);
+    // Optimize a copy: `store.load` hands out the one cached module, and re-optimizing it here
+    // would corrupt every other test that loads the same query (same reason
+    // [OptimizedFirQuery#compute] copies).
+    var module = store.load(example, FirQuery.INSTANCE).deepCopy();
     var interpreter = new TestInterpreter(module);
 
     // Warmup
@@ -53,7 +56,9 @@ public class InterpretAfterOptTest {
   void testDeopt(Example example, SnapshotStore store) {
     var optimization = optimizations();
 
-    var module = store.load(example, new OptimizedFirQuery(optimization));
+    // A copy for the same reason as in [#testRepeat]: this re-optimizes as it goes, and the
+    // module `store.load` returns is shared with everything else that loads this query.
+    var module = store.load(example, new OptimizedFirQuery(optimization)).deepCopy();
     var interpreter = new TestInterpreter(module);
 
     var deoptFnName =

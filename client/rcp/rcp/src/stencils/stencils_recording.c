@@ -197,7 +197,8 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_RECFUN_1) // monomorphic
 		*recording_constant = NULL;
 
 		// Uncomment to let GC claim the recorded constant at the expense of a small performance hit.
-		// SEXP *protect = (SEXP *)GETCUSTOM_REL(1);
+		// ABS64 for the same reason as in `_RCP_SMC_RECFUN_0`: this slot is in R's heap.
+		// SEXP *protect = (SEXP *)GETCUSTOM(1);
 		// *protect = R_NilValue;
 
 		EPILOGUE;
@@ -213,7 +214,10 @@ RCP_STENCIL_FUNCTION(_RCP_SMC_RECFUN_0) // entry: record
 	assert(VAL_IS_SXP(*GET_VAL(-3))); // GETFUN always pushes a SEXP
 	*recording_constant = VAL_SXP(*GET_VAL(-3));
 
-	SEXP *protect = (SEXP *)GETCUSTOM_REL(1);
+	// ABS64 and not REL32 like hole 0: hole 0 is a slot in the recording's own `mmap_near` buffer,
+	// but this one is a slot inside an R vector (`fun_consts_prot`, so the GC can see the recorded
+	// function), which lives in R's heap and can be further than 2GB from the compiled code.
+	SEXP *protect = (SEXP *)GETCUSTOM(1);
 	*protect = VAL_SXP(*GET_VAL(-3));
 	MARK_NOT_MUTABLE(VAL_SXP(*GET_VAL(-3)));
 	// FIXME: this is inefficient. Find a better solution to protect SEXPs from the GC.

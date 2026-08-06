@@ -1,6 +1,16 @@
 #pragma once
 #define RSH_INLINE
 
+// Keep `Rinlinedfuns.h` on GNU inline semantics, so its functions get no external definition here.
+// With C99 semantics `INLINE_FUN` is a bare `inline`, and because `Rinternals.h` also declares each
+// of them without `inline`, every stencil translation unit emits its own external copy and they
+// collide when the stencils are linked together. `../../../../client/rsh/src/common2c/rsh_utils.h`
+// does the same, but it can't help here: every stencil includes this header (and so `Rinternals.h`)
+// first.
+#ifndef C99_INLINE_SEMANTICS
+#define C99_INLINE_SEMANTICS 0
+#endif
+
 #define RSH
 #ifndef USE_RINTERNALS
 #define USE_RINTERNALS

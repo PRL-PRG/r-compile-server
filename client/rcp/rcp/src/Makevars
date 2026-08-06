@@ -8,6 +8,14 @@ include ../common.mk
 # PKG_CPPFLAGS is applied to both C and C++ (rcp_exceptions.cpp) sources.
 PKG_CPPFLAGS += -DRCP
 
+# Keep `Rinlinedfuns.h` on GNU inline semantics. Under C99 semantics `INLINE_FUN` is a bare
+# `inline`, and since `Rinternals.h` also declares each of those functions without `inline`, every
+# translation unit emits its own external copy of `CAR`, `DATAPTR`, ... and they collide when the
+# package is linked. This has to be a flag rather than a `#define` like the one in
+# `client/rsh/src/common2c/rsh_utils.h`: `stencils-runtime.c` and the generated
+# `stencils-build/stencils_data.c` both include <Rinternals.h> before any of our headers.
+PKG_CPPFLAGS += -DC99_INLINE_SEMANTICS=0
+
 RCP_GIT_COMMIT := $(shell git -C $(ROOT_DIR) rev-parse --short HEAD 2>/dev/null || echo NA)
 PKG_CFLAGS += -DRCP_GIT_COMMIT=\"$(RCP_GIT_COMMIT)\"
 
@@ -100,6 +108,17 @@ OBJECTS = $(SOURCES:.c=.o) $(STENCILS_BUILD_DIR)/stencils_data.o rcp_exceptions.
 
 # Compile stencils-runtime.c with frame pointers so perf can unwind through helpers
 stencils-runtime.o: PKG_CFLAGS += -fno-omit-frame-pointer
+
+# `rcp_smc_copy` must leave its `return call()` as a tail *jump*: it overwrites the stencil slot it
+# was called from, so if it returns there instead it resumes in the middle of the variant it just
+# installed. `R CMD INSTALL` takes CFLAGS from the R build's etc/Makeconf, and an R built with
+# DEBUG=1 puts -O0 there, which turns the tail call into `call; leave; ret` and crashes as soon as a
+# self-modifying (feedback-recording) stencil runs. Sibling-call optimization is what makes it a
+# jump, so ask for it explicitly instead of inheriting whatever the R build chose. This has to
+# override CFLAGS rather than add to PKG_CFLAGS, because `ALL_CFLAGS` puts CFLAGS last and the last
+# -O wins. (GCC 14 has no `musttail` to assert this with; -O2 also restores the one-instruction
+# memcpy+jump that the register contract in stencils-runtime.c relies on.)
+stencils-runtime.o: CFLAGS += -O2 -foptimize-sibling-calls
 
 ## ------------------------------------------------------------------------
 ## targets
