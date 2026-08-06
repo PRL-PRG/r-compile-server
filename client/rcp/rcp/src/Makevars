@@ -16,6 +16,11 @@ PKG_CPPFLAGS += -DRCP
 # `stencils-build/stencils_data.c` both include <Rinternals.h> before any of our headers.
 PKG_CPPFLAGS += -DC99_INLINE_SEMANTICS=0
 
+# Record header dependencies (see common.mk for why). This has to go through PKG_CPPFLAGS for the
+# same reason as -DRCP above: common.mk's `CFLAGS +=` reaches the plain-make subdirectories but not
+# this package compile.
+PKG_CPPFLAGS += -MMD -MP
+
 RCP_GIT_COMMIT := $(shell git -C $(ROOT_DIR) rev-parse --short HEAD 2>/dev/null || echo NA)
 PKG_CFLAGS += -DRCP_GIT_COMMIT=\"$(RCP_GIT_COMMIT)\"
 
@@ -132,6 +137,20 @@ $(SHLIB): $(SHARED_LIB)
 
 $(OBJECTS): $(STENCILS_H)
 
+# Cancel Makeconf's own `.c.d`/`.cc.d`/`.cpp.d` rules (pattern rules with no recipe cancel), so make
+# never tries to *remake* one of the `.d` files below. Ours are written by the compiler during the
+# real compile (-MMD above); R's rule re-runs the preprocessor with only ALL_CPPFLAGS, which omits
+# the PKG_CFLAGS -I paths, so it can't find runtime.h or the generated stencils.h.
+%.d: %.c
+%.d: %.cc
+%.d: %.cpp
+
+# Header dependencies recorded by -MMD -MP above. `wildcard` so only existing ones are named: on a
+# clean tree there are none (everything is built anyway), and naming a `.d` under the not-yet-created
+# stencils-build/ makes make resolve stencils_data.o before the extractor has generated its source.
+# -MP emits a phony target per header, so deleting one doesn't wedge the build.
+-include $(wildcard $(OBJECTS:.o=.d))
+
 $(STENCILS_H): $(EXTRACTOR) $(STENCILS_OBJ) $(STENCIL_DIFF)
 	@if [ -f $(STENCILS_BUILD_DIR)/stencils_data.c ]; then \
 		mv $(STENCILS_BUILD_DIR)/stencils_data.c $(STENCILS_BUILD_DIR)/stencils_data.c.old; \
@@ -157,7 +176,7 @@ clean:
 	$(MAKE) -C $(STENCIL_DIFF_DIR) clean
 	$(MAKE) -C $(STENCILS_DIR) clean
 	$(MAKE) -C $(SHARED_LIB_DIR) clean
-	rm -f *.o *.so
+	rm -f *.o *.d *.so
 	rm -rf $(STENCILS_BUILD_DIR)
 
 # vim: ft=make

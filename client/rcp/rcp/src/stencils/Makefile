@@ -61,24 +61,16 @@ OBJ = $(notdir $(STENCILS_OBJ))
 SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)
 
-# Local headers shared by the translation units.
-HEADERS = $(wildcard *.h)
-
 .PHONY: all
 all: $(OBJ)
 
-# runtime.h and runtime_internals.h are thin shims over the headers that hold
-# the actual runtime (opcodes*.h in bc2c, rsh_utils.h/gnur_symbols.h in
-# common2c), so depend on both directories rather than on the two entry points.
-RSH_HEADERS := $(wildcard $(RSH_HOME)/src/bc2c/*.h) \
-               $(wildcard $(RSH_HOME)/src/common2c/*.h)
-RINTERNALS_H := $(R_HOME)/include/Rinternals.h
-
-DEPS = $(HEADERS) $(RSH_HEADERS) $(RINTERNALS_H) \
-       ../rcp_bc_info.h ../rcp_hooks.h
-
-%.o: %.c $(DEPS)
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Header dependencies, from the -MMD -MP in common.mk. These replace a hand-maintained list of
+# header globs: the stencils reach into the rsh runtime headers (bc2c, common2c) and R's
+# Rinternals.h as well as this directory, and the compiler tracks all of them exactly.
+-include $(OBJS:.o=.d)
 
 # Relocatable link merges all per-TU objects into one stencils.o, preserving the
 # per-function sections and relocations the extractor reads. -nostdlib avoids
@@ -88,4 +80,4 @@ $(OBJ): $(OBJS)
 
 .PHONY: clean
 clean:
-	rm -f $(OBJ) $(OBJS)
+	rm -f $(OBJ) $(OBJS) $(OBJS:.o=.d)
