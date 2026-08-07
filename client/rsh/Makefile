@@ -9,7 +9,7 @@ BEAR := $(shell command -v bear 2> /dev/null)
 
 BASE_DIR = $(realpath $(dir $(abspath $(lastword $(MAKEFILE_LIST))))/../..)
 RSH_HOME = $(BASE_DIR)/client/rsh
-R_HOME ?= $(BASE_DIR)/external/R
+R_HOME ?= $(BASE_DIR)/R
 R := $(R_HOME)/bin/R --slave --no-restore
 LLVM_R := LD_PRELOAD=$(LLVM_LIB) $(R)
 
@@ -24,7 +24,7 @@ clean:
 	-rm -f rsh*tar.gz
 	-rm -fr rsh.Rcheck
 	-rm -rf src/*.so
-	-find src -name '*.o' -delete
+	-find src \( -name '*.o' -o -name '*.d' \) -delete
 
 .PHONY: build
 build:

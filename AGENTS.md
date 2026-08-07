@@ -24,6 +24,14 @@ See `./client/rsh/README.md`.
   - `inst/` - Benchmarks (R code)
   - `tests/` - Unit tests (R code)
 
+## Copy-and-patch compiler (rcp)
+
+At `./client/rcp`.
+
+A standalone R package that JIT-compiles bytecode with copy-and-patch stencils, built against the RCP variant of the vendored GNU-R (`RCP=1 ./tools/build-gnur.sh R`). Linux x86-64 and GCC 14+ only. It shares `./client/rsh/inst/benchmarks` as its benchmark harness.
+
+See `./client/rcp/README.md`.
+
 ## Compile server
 
 At `./server`.
@@ -40,6 +48,7 @@ Written in Java 26. Uses Maven.
 - `var`
 - `_`
 - Triple-quoted multiline strings
+- Streams instead of for=in loops (keep loops where index is used)
 - Markdown Javadoc
 - Assume non-null by default. Explicitly annotate with `@Nullable` (from `org.jspecify.annotations`) when necessary.
 - Annotate immutable collections with `@Unmodifiable` (from `org.jetbrains.annotations`), and readonly views of collections with `@UnmodifiableView` (from `org.jetbrains.annotations`)
@@ -111,13 +120,22 @@ Used by the compiler client and server to communicate.
 
 ### Vendored GNU-R (R interpreter)
 
-At `./external/R` (release version) and `./external/R-debug` (debug version).
+At `./R`.
 
 ### Tools
 
 At `./tools`.
 
 Tools that are automatically invoked by Makefiles and other code. Don't invoke directly.
+
+### Continuous integration
+
+At `./.github/workflows`. Both workflows are gated on `paths`, so most changes run neither. Both can also be run manually via `workflow_dispatch`, which ignores `paths`.
+
+- `maven.yml` - builds and tests `./server`. Runs on `server/**`, which also covers the protocol buffers, since `make -C proto` copies them into `./server/src/main/protobuf`, and on `client/rsh/src/**`, whose headers the tests compile the generated C against.
+- `rcp-benchmarks.yml` - builds the rcp Docker images, runs rcp's test suites, and runs the benchmarks on a self-hosted runner. Runs on `client/rcp/**`, `R`, `tools/build-gnur.sh` (which builds the R it links against), and `client/rsh/inst/benchmarks/**` (the harness it drives). `R` is the submodule pointer: only the gitlink is tracked, so it's a plain path and not a `R/**` glob, which would never match.
+
+When editing these, note that a `paths` list can't be shared between a workflow's `push` and `pull_request` triggers, because GitHub Actions does not support YAML anchors -- keep the two copies in sync.
 
 ---
 

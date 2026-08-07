@@ -9,6 +9,9 @@ import java.util.*;
 import java.util.stream.*;
 import org.intellij.lang.annotations.PrintFormat;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.bc.BcLabel;
+import org.prlprg.bc2fir.FunctionBcOrigin;
+import org.prlprg.bc2fir.ModuleBcOriginMap;
 import org.prlprg.fir.analyze.cfg.Liveness;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.argument.Argument;
@@ -72,6 +75,7 @@ import org.prlprg.fir.ir.variable.*;
 import org.prlprg.gen2c.*;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.primitive.Constants;
+import org.prlprg.rds.LabelMapping;
 import org.prlprg.session.RSession;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Lists;
@@ -80,7 +84,20 @@ import org.prlprg.util.Lists;
 public final class Fir2CCompiler {
   /// Return a C file and constant pools for `function` and its children.
   public static CompiledModule compile(Function function, RSession rSession, Option... options) {
-    return new Fir2CCompiler(function.owner(), rSession, ImmutableSet.copyOf(options))
+    return compile(function, rSession, null, options);
+  }
+
+  /// Return a C file and constant pools for `function` and its children.
+  ///
+  /// If `bytecodes` is non-`null`, each function whose original GNU-R bytecode it records gets a
+  /// baseline version that runs the bytecode (copy-and-patch JIT-compiled by the client runtime
+  /// when possible, interpreted otherwise) instead of C compiled from the baseline's FIŘ.
+  public static CompiledModule compile(
+      Function function,
+      RSession rSession,
+      @Nullable ModuleBcOriginMap bytecodes,
+      Option... options) {
+    return new Fir2CCompiler(function.owner(), rSession, bytecodes, ImmutableSet.copyOf(options))
         .run(function);
   }
 
@@ -92,9 +109,26 @@ public final class Fir2CCompiler {
   private static final String VAR_LOCAL_PROMISES = "local_promises";
   private static final String VAR_LOCAL_PROMISES_IDX = "local_promises_idx";
 
+  /// Constant pool slot of a bytecode baseline's feedback map (see
+  /// [FunctionEmitter#bcBaselineFeedbackMap(Abstraction, FunctionBcOrigin)()]).
+  ///
+  /// Mirrored by `FIR_BC_BASELINE_FEEDBACK` in `runtime.c`.
+  static final int FIR_BC_BASELINE_FEEDBACK = 3;
+
+  /// Constant pool slot of a bytecode baseline's call counter (a scalar integer the baseline
+  /// increments, which becomes the version's number of recorded calls).
+  ///
+  /// Mirrored by `FIR_BC_BASELINE_CALLS` in `runtime.c`.
+  static final int FIR_BC_BASELINE_CALLS = 4;
+
+  /// First element of a bytecode baseline's feedback map, which is how `Fir_serialized_feedback`
+  /// in `runtime.c` recognizes bytecode baseline pools while walking the module's constant pool.
+  static final String FIR_BC_BASELINE_FEEDBACK_MAGIC = "Fir_bc_baseline_feedback";
+
   // Input
   private final Module module;
   private final RSession rSession;
+  private final @Nullable ModuleBcOriginMap bytecodes;
   private final ImmutableSet<Option> options;
 
   // Output
@@ -104,9 +138,14 @@ public final class Fir2CCompiler {
   private final Set<Function> compiledFunctions = new HashSet<>();
   private final Set<Promise> compiledPromises = new HashSet<>();
 
-  private Fir2CCompiler(Module module, RSession rSession, ImmutableSet<Option> options) {
+  private Fir2CCompiler(
+      Module module,
+      RSession rSession,
+      @Nullable ModuleBcOriginMap bytecodes,
+      ImmutableSet<Option> options) {
     this.module = module;
     this.rSession = rSession;
+    this.bytecodes = bytecodes;
     this.options = options;
   }
 
@@ -517,13 +556,133 @@ public final class Fir2CCompiler {
         if (version.isStub()) {
           VersionEmitter.forwardDeclareStub(cUnit, function, version);
         } else {
-          var cpSxp = new VersionEmitter(version).run();
+          var bytecode =
+              version == function.baseline() && bytecodes != null
+                  ? bytecodes.get(function.name().name())
+                  : null;
+          var cpSxp =
+              bytecode == null
+                  ? new VersionEmitter(version).run()
+                  : emitBytecodeBaseline(version, bytecode);
           var cp = nestedPoolRef(fnPool, cpSxp);
 
           var versionInitCName = versionInitCName(function, version);
           initCCode.stmt("%s(%s);", versionInitCName, cp);
         }
       }
+    }
+
+    /// Emits the baseline version as a shim that runs the function's original GNU-R bytecode
+    /// (`Fir_bc_baseline_call` in `runtime.c` copy-and-patch JIT-compiles it when possible,
+    /// interprets it otherwise) instead of C compiled from the baseline's FIŘ.
+    ///
+    /// Same C names and calling convention as [VersionEmitter], so call sites are unaffected.
+    private VecSXP emitBytecodeBaseline(Abstraction baseline, FunctionBcOrigin bytecode) {
+      var pool = new ConstantPool();
+
+      var constantsCName = versionConstantsCName(function, baseline);
+      cUnit.addGlobalVariable(CONSTANTS_C_TYPE, constantsCName);
+
+      var initCName = versionInitCName(function, baseline);
+      var initCFunction = cUnit.addFunction(INIT_C_RETURN, initCName, INIT_C_PARAMS);
+      debugComment(
+          initCFunction.add(), "## Init %s baseline (GNU-R bytecode)", function.name().name());
+      var initCCode = initCFunction.add();
+      debugComment(initCCode, "# Assign constant pool global variable");
+      initCCode.stmt("%s = %s;", constantsCName, VAR_POOL);
+      var initCallCounterCode = initCFunction.add();
+      debugComment(initCallCounterCode, "# Allocate the call counter (recorded feedback)");
+      initCallCounterCode.stmt(
+          "Fir_set_const(%s, %d, Rf_ScalarInteger(0));", VAR_POOL, FIR_BC_BASELINE_CALLS);
+      initCFunction.add().stmt("return R_NilValue;");
+
+      var cName = versionCallCName(function, baseline);
+      var cParams = versionCallCParams(baseline);
+      var cReturn = versionCallCReturn(baseline);
+      var cFunction = cUnit.addFunction(cReturn, cName, cParams);
+      var cCode = cFunction.add();
+      debugComment(
+          cCode, "## Call %s baseline (JIT-compiled GNU-R bytecode)", function.name().name());
+
+      // Fixed pool layout, mirrored by `Fir_bc_baseline_call` in `runtime.c`:
+      // 0 = the GNU-R bytecode, 1 = the formals (with default-argument expressions),
+      // 2 = space for the lazily JIT-compiled code, 3 = how to translate the feedback the JIT
+      // records into FIŘ feedback, 4 = space for the call counter.
+      var bcIdx = pool.internUnique(SEXPs.bcode(bytecode.bc()));
+      var formalsIdx = pool.internUnique(bytecode.formals());
+      var jitIdx = pool.internSpace();
+      var feedbackIdx = pool.internUnique(bcBaselineFeedbackMap(baseline, bytecode));
+      var callsIdx = pool.internSpace();
+      assert bcIdx == 0
+          && formalsIdx == 1
+          && jitIdx == 2
+          && feedbackIdx == FIR_BC_BASELINE_FEEDBACK
+          && callsIdx == FIR_BC_BASELINE_CALLS;
+
+      cCode.stmt("SEXP %s = %s;", VAR_POOL, constantsCName);
+      var parameters = baseline.parameters();
+      if (parameters.isEmpty()) {
+        cCode.stmt("return Fir_bc_baseline_call(%s, %s, 0, NULL);", VAR_POOL, VAR_ENV);
+      } else {
+        cCode.stmt(
+            "SEXP args[%d] = {%s};",
+            parameters.size(),
+            parameters.stream()
+                .map(Fir2CCompiler::registerCName)
+                .collect(Collectors.joining(", ")));
+        cCode.stmt(
+            "return Fir_bc_baseline_call(%s, %s, %d, args);", VAR_POOL, VAR_ENV, parameters.size());
+      }
+
+      return pool.toSexp();
+    }
+
+    /// The table `Fir_serialized_feedback` in `runtime.c` uses to translate the feedback the
+    /// copy-and-patch JIT records for `baseline`'s bytecode into FIŘ feedback (the format is
+    /// documented in `server/doc/bytecode-baseline-feedback.md`).
+    ///
+    /// It's a 3-element list:
+    /// - `[0]` = [#FIR_BC_BASELINE_FEEDBACK_MAGIC] (which is how the runtime recognizes a bytecode
+    ///   baseline's pool) followed by the prefix of this version's printed feedback (its function
+    ///   name and signature).
+    /// - `[1]` = the GNU-R bytecode offsets of the recorded instructions, ascending. Those are
+    ///   what the JIT keys its recording by, and they're offsets into the encoded bytecode array
+    ///   (which counts the version number and every instruction's arguments), not instruction
+    ///   indices.
+    /// - `[2]` = the name of the register each offset's feedback describes, parallel to `[1]`.
+    private VecSXP bcBaselineFeedbackMap(Abstraction baseline, FunctionBcOrigin bytecode) {
+      var labels = LabelMapping.toGNUR(bytecode.bc().code());
+      var baselineRegisters =
+          baseline.streamRegisters().map(Register::name).collect(Collectors.toSet());
+
+      var offsets = new ArrayList<Integer>();
+      var registers = new ArrayList<String>();
+      bytecode.feedbackRegisters().entrySet().stream()
+          // The runtime prints registers in the order it reads them, so ordering by bytecode
+          // position makes the printed feedback deterministic.
+          .sorted(Map.Entry.comparingByKey())
+          .forEach(
+              e -> {
+                // Only registers the baseline still has can be referred to (the feedback is parsed
+                // against it). They all are unless the bytecode was recorded from a different
+                // compile of the same closure, e.g. `Fir2CQuery` re-runs bc2fir to recover the
+                // bytecode the FIŘ snapshot was compiled from.
+                if (!baselineRegisters.contains(e.getValue())) {
+                  return;
+                }
+                offsets.add(labels.extract(new BcLabel(e.getKey())));
+                registers.add(e.getValue());
+              });
+
+      var prefix =
+          Printer.toString(function.name())
+              + "< "
+              + Printer.toString(baseline.signature())
+              + " > = ";
+      return SEXPs.vec(
+          SEXPs.string(FIR_BC_BASELINE_FEEDBACK_MAGIC, prefix),
+          SEXPs.integer(offsets),
+          SEXPs.string(registers));
     }
 
     private void emitConstantPoolAlias(CFunction cFunction) {
