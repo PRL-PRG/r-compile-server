@@ -59,8 +59,13 @@ public class SnapshotStore {
       assert regresses[0] != RegressionStatus.UNCHECKED
           : "`verifyNoRegression` didn't set regression status";
 
+      // The two exemptions from the doc comment above. A regression normally suppresses the save,
+      // so that the snapshot on disk keeps describing the last known-good run; `IGNORE_SNAPSHOTS`
+      // is what says the deviation is intended and `actual` should become the new snapshot.
       var shouldSaveToDisk =
-          !shouldSaveToDisk(example, query) && regresses[0] == RegressionStatus.NO;
+          !example.hasOption("", "dontSaveSnapshots")
+              && (regresses[0] == RegressionStatus.NO
+                  || TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches());
       if (shouldSaveToDisk) {
         saveToDisk(actual, example, query);
       }
@@ -106,7 +111,7 @@ public class SnapshotStore {
 
   private <T> void verifyNoRegression(
       Example example, Query<T> query, T actual, RegressionStatus[] regresses) {
-    if (shouldSaveToDisk(example, query)) {
+    if (usesSavedSnapshot(example, query)) {
       T oldFromDisk;
       try {
         oldFromDisk = loadFromDisk(example, query);
@@ -276,7 +281,14 @@ public class SnapshotStore {
     }
   }
 
-  private boolean shouldSaveToDisk(Example example, Query<?> query) {
+  /// Whether a snapshot saved by an earlier run is authoritative for `query`, i.e. worth loading
+  /// and comparing `actual` against.
+  ///
+  /// False when the example opts out of snapshots altogether, and when
+  // [TestConfig#IGNORE_SNAPSHOTS]
+  /// marks the query as one being deliberately regenerated -- there the old value is about to be
+  /// overwritten, so a deviation from it is not a regression.
+  private boolean usesSavedSnapshot(Example example, Query<?> query) {
     return !example.hasOption("", "dontSaveSnapshots")
         && !TestConfig.IGNORE_SNAPSHOTS.matcher(query.name()).matches();
   }
