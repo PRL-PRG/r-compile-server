@@ -60,7 +60,7 @@ If the dev container is too slow, you can also setup on the host machine. To do 
     - e.g. if using IntelliJ on macOS, openJDK 26, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-26/Contents/Home`
     - In the devcontainer, `JAVA_HOME=/usr/lib/jvm/jdk`
 - **Problem:** some R symbols are not visible when JIT-compiling.
-  - **Solution:** make sure that `R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-3-2`. 
+  - **Solution:** make sure that `R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-5-2`. 
 
 If you have a different issue than the above, [report it on GitHub](https://github.com/PRL-PRG/r-compile-server/issues/new/choose).
 
