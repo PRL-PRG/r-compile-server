@@ -53,7 +53,7 @@ public class TestRSession implements RSession {
 
       // 3. Create a temporary baseenv and temporary base namespace
       baseEnv = new BaseEnvSXP(bindings);
-      // the 4.5.2 should correspond to the R version that written the RDS files used in this class
+      // the 4.5.2 should correspond to the R version that wrote the RDS files used in this class
       baseNamespace = new NamespaceEnvSXP("base", "4.5.2", baseEnv, bindings);
 
       // 4. Load the values
