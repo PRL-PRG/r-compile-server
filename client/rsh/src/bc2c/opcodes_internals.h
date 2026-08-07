@@ -115,17 +115,24 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
       case RAWSXP:                                                             \
         SET_SXP_VAL(res, Rf_ScalarRaw(RAW(vec)[i]));                           \
         return;                                                                \
-      case VECSXP:                                                             \
-        SEXP elt = VECTOR_ELT(vec, i);                                         \
-        RAISE_NAMED(elt, NAMED(vec));                                          \
+      /* Braced because a label must be followed by a statement and a          \
+         declaration is not one; without them the `SEXP` below is a syntax     \
+         error. Named `__elt__`/`__v__` rather than `elt`/`v` because          \
+         `rsh_utils.h` includes <Rinternals.h> with the remapping on, so       \
+         plain `elt` expands to `Rf_elt` and the local turns into a            \
+         redeclaration of that function. */                                    \
+      case VECSXP: {                                                           \
+        SEXP __elt__ = VECTOR_ELT(vec, i);                                     \
+        RAISE_NAMED(__elt__, NAMED(vec));                                      \
         if (subset2) {                                                         \
-          SET_SXP_VAL(res, elt);                                               \
+          SET_SXP_VAL(res, __elt__);                                           \
         } else {                                                               \
-          SEXP v = Rf_allocVector(VECSXP, 1);                                  \
-          SET_VECTOR_ELT(v, 0, elt);                                           \
-          SET_SXP_VAL(res, v);                                                 \
+          SEXP __v__ = Rf_allocVector(VECSXP, 1);                              \
+          SET_VECTOR_ELT(__v__, 0, __elt__);                                   \
+          SET_SXP_VAL(res, __v__);                                             \
         }                                                                      \
         return;                                                                \
+      }                                                                        \
       }                                                                        \
     }                                                                          \
   } while (0)
