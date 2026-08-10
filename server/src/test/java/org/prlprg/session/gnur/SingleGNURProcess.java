@@ -37,7 +37,7 @@ class SingleGNURProcess implements GNUR {
     // Start process
     try {
       String version;
-      try (var versionProc = new ProcessBuilder(R_BIN, "--version").start()) {
+      try (var versionProc = rProcess(R_BIN, "--version").start()) {
         if (!versionProc.waitFor(10, TimeUnit.SECONDS)) {
           throw new RuntimeException("R (`" + R_BIN + " --version`) timed out");
         }
@@ -72,7 +72,7 @@ class SingleGNURProcess implements GNUR {
         }
       }
 
-      process = new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
+      process = rProcess(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
 
       if (logger.isLoggable(Level.FINE)) {
         logger.fine("Started %s version: %s process: %d".formatted(R_BIN, version, process.pid()));
@@ -85,6 +85,18 @@ class SingleGNURProcess implements GNUR {
 
     in = new PrintStream(process.getOutputStream());
     out = new BufferedReader(new InputStreamReader(process.getInputStream()));
+  }
+
+  /// [ProcessBuilder] for `R_BIN`, without `R_HOME` in the environment.
+  ///
+  /// `R_BIN` is a path to a specific R, whose launcher script ignores an inherited `R_HOME` and
+  /// says so on stderr. That warning would otherwise land in the captured output of whichever
+  /// eval happened to start the process, which is nondeterministic once a crashing example makes
+  /// [RestartingGNURProcess] restart it mid-suite.
+  private static ProcessBuilder rProcess(String... command) {
+    var builder = new ProcessBuilder(command);
+    builder.environment().remove("R_HOME");
+    return builder;
   }
 
   @Override

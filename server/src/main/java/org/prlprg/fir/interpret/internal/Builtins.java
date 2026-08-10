@@ -23,9 +23,11 @@ import org.prlprg.sexp.CloSXP;
 import org.prlprg.sexp.ComplexSXP;
 import org.prlprg.sexp.DotsListSXP;
 import org.prlprg.sexp.EnvSXP;
+import org.prlprg.sexp.ExprSXP;
 import org.prlprg.sexp.IntSXP;
 import org.prlprg.sexp.LglSXP;
 import org.prlprg.sexp.ListOrVectorSXP;
+import org.prlprg.sexp.ListSXP;
 import org.prlprg.sexp.RawSXP;
 import org.prlprg.sexp.RealSXP;
 import org.prlprg.sexp.RegSymSXP;
@@ -253,6 +255,10 @@ public final class Builtins {
         "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.BOXED_LOGICAL), Builtins::naToFalse0);
     interpreter.registerExternal(
         "naToFalse", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToFalse1);
+    interpreter.registerExternal(
+        "naToTrue", sig(Type.BOOLEAN, Effects.NONE, Type.BOXED_LOGICAL), Builtins::naToTrue0);
+    interpreter.registerExternal(
+        "naToTrue", sig(Type.BOOLEAN, Effects.NONE, Type.LOGICAL), Builtins::naToTrue1);
 
     // box: scalar → vector
     interpreter.registerExternal(
@@ -1155,6 +1161,9 @@ public final class Builtins {
   // region index operators
 
   private static void registerIndex(InternalInterpreter interpreter, String name) {
+    // `[` reads out of range as `NA` (`NULL` for lists), whereas `[[` errors.
+    var outOfRangeIsNa = name.equals("[");
+
     // Generic: (*, *, *, *) -+> V for [, (*, *, dots, *) -+> V for [[
     // Both have 4 params in generic form with all being ANY
     interpreter.registerExternal(
@@ -1177,7 +1186,8 @@ public final class Builtins {
                     "Mock `" + name + "` not implemented for non-vector objects");
               }
               int idx = sexpToInt(args.get(1).box(), interpreter, name);
-              return new Value.Sexp(interpreter.subscriptLoad(vector, idx - 1).box());
+              return new Value.Sexp(
+                  subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box());
             }));
     // v5-9: (v(T), I, miss, miss) --> T for T = L, I, R, S
     Type[] vecTypes = {
@@ -1195,7 +1205,7 @@ public final class Builtins {
               (_, _, args, _) -> {
                 var vector = (ListOrVectorSXP<?>) args.getFirst().box();
                 int idx = ((Value.Int) args.get(1)).value();
-                return interpreter.subscriptLoad(vector, idx - 1);
+                return subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa);
               }));
     }
     // v1-4: (v(T), v(I), miss, miss) --> v(T) for T = L, I, R, S
@@ -1215,17 +1225,42 @@ public final class Builtins {
                 var indices = (IntSXP) args.get(1).box();
                 // For vector indexing, build result by loading each index
                 if (indices.size() == 1) {
-                  return interpreter.subscriptLoad(vector, indices.get(0) - 1);
+                  return subscriptLoad(interpreter, vector, indices.get(0) - 1, outOfRangeIsNa);
                 }
                 // For multiple indices, build a result
                 var results = new SEXP[indices.size()];
                 for (int i = 0; i < indices.size(); i++) {
-                  var loaded = interpreter.subscriptLoad(vector, indices.get(i) - 1);
+                  var loaded =
+                      subscriptLoad(interpreter, vector, indices.get(i) - 1, outOfRangeIsNa);
                   results[i] = valueToSexp(loaded);
                 }
                 return new Value.Sexp(buildVector(results, vector));
               }));
     }
+  }
+
+  /// [InternalInterpreter#subscriptLoad], except that when `outOfRangeIsNa`, an index outside the
+  /// vector reads as `NA` (`NULL` for lists) instead of failing.
+  ///
+  /// That's how R's `[` behaves; `[[` is the one that errors.
+  private static Value subscriptLoad(
+      InternalInterpreter interpreter,
+      ListOrVectorSXP<?> vector,
+      int index,
+      boolean outOfRangeIsNa) {
+    if (!outOfRangeIsNa || (index >= 0 && index < vector.size())) {
+      return interpreter.subscriptLoad(vector, index);
+    }
+
+    return switch (vector) {
+      case LglSXP _ -> new Value.Lgl(Logical.NA);
+      case IntSXP _ -> new Value.Int(Constants.NA_INT);
+      case RealSXP _ -> new Value.Real(Constants.NA_REAL);
+      case StrSXP _ -> new Value.Str(Constants.NA_STRING);
+      case VecSXP _, ListSXP _, DotsListSXP _, ExprSXP _ -> Value.NULL;
+      default ->
+          throw interpreter.failUnsupported("Out-of-range `[` on a " + vector.type() + " vector");
+    };
   }
 
   // endregion
@@ -2663,6 +2698,28 @@ public final class Builtins {
       throw interpreter.fail("`naToFalse< L --> B >` requires a logical argument");
     }
     return new Value.Bool(sexp == Logical.TRUE);
+  }
+
+  private static Value naToTrue0(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`naToTrue` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Sexp(var sexp) && sexp.asScalarLogical().isPresent())) {
+      throw interpreter.fail("`naToTrue< v(L) --> B >` requires a scalar logical SEXP");
+    }
+    return new Value.Bool(sexp.asScalarLogical().get() != Logical.FALSE);
+  }
+
+  private static Value naToTrue1(
+      InternalInterpreter interpreter, Abstraction callee, List<Value> args, EnvSXP env) {
+    if (args.size() != 1) {
+      throw interpreter.fail("`naToTrue` takes 1 argument");
+    }
+    if (!(args.getFirst() instanceof Value.Lgl(var sexp))) {
+      throw interpreter.fail("`naToTrue< L --> B >` requires a logical argument");
+    }
+    return new Value.Bool(sexp != Logical.FALSE);
   }
 
   // box: L → v1(L)

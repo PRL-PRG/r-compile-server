@@ -159,9 +159,14 @@ SEXP compile(SEXP closure, SEXP options) {
     // FIXME: update the finalizer
     // R_RegisterCFinalizerEx(fun_ptr_sxp, &jit_fun_destructor, FALSE);
 
-    auto c_cp = rsh::deserialize(compiled_fun.constants());
+    auto c_cp = PROTECT(rsh::deserialize(compiled_fun.constants()));
+    // Wrapped in a one-element list, not stored bare: GNU-R reads the pool back as
+    // `VECTOR_ELT(EXTPTR_PROT(body), 0)` (`RSH_JIT_CONSTS`).
+    SEXP prot = PROTECT(Rf_allocVector(VECSXP, 1));
+    SET_VECTOR_ELT(prot, 0, c_cp);
     body =
-        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, c_cp));
+        PROTECT(R_MakeExternalPtr((void *)fun_ptr, Rsh_ClosureBodyTag, prot));
+    UNPROTECT(2); // c_cp, prot -- `body` keeps `prot` alive
     // PROTECT(create_wrapper_body(closure, (Rsh_code)fun_ptr, c_cp)); // P1
   } else if (opts.tier == protocol::Tier::BASELINE) {
     body = PROTECT(rsh::deserialize(compiled_fun.code())); // P2

@@ -11,12 +11,14 @@ setup: setup-gnur
 # without also building the client.
 #
 # `GNURSessionTest` loads `yaml` out of the vendored R's own library, so a copy
-# has to be installed there; nothing else in the repository uses it. The version
-# is deliberately not pinned -- the test reads whichever one this installs.
+# has to be installed there; nothing else in the repository uses it. The
+# `dot_call3` example builds its 17-argument `.Call` target with
+# `inline::cfunction`, so `inline` has to be there too. Neither version is
+# pinned -- the tests use whichever ones this installs.
 .PHONY: setup-gnur
 setup-gnur:
 	$(TOOLS_DIR)/build-gnur.sh R
-	$(BASE_DIR)/R/bin/Rscript -e 'install.packages("yaml", repos = "https://cloud.r-project.org")'
+	$(BASE_DIR)/R/bin/Rscript -e 'install.packages(c("yaml", "inline"), repos = "https://cloud.r-project.org")'
 
 .PHONY: setup-git
 setup-git:

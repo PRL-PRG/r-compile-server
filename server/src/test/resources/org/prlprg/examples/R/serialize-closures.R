@@ -1,3 +1,4 @@
+#? noEval
 # This script is used to generate the `.ast.rds` and `.bc.rds` files from the closures in other scripts
 .args <- commandArgs(trailingOnly = TRUE)
 .source <- .args[1]

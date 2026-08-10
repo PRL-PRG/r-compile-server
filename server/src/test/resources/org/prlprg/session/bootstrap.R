@@ -55,4 +55,8 @@ saveRDS(latest_base_env, "latest-baseenv.RDS", version = 2)
 # saveRDS(funs, "functions.RDS", version = 2)
 
 dyn.load("export-funtab.so")
-.Call("export_funtab", "R_FunTab.txt")
+# `GNURSession` (main, not test, code) reads this, so it lives in the main resources; the
+# rest of what this script writes is only reachable from tests.
+# TODO: funtab should not be rebuilt by running tests, because it's necessary for main.
+# However, the funtab only needs to be rebuilt when we upgrade GNU-R, which is *extremely* rare.
+.Call("export_funtab", "../../../../../main/resources/org/prlprg/session/R_FunTab.txt")

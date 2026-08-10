@@ -21,6 +21,10 @@ fun naToFalse(r) {
   (reg r:v1(L)) --> B { ... }
   (reg r:L) --> B { ... }
 }
+fun naToTrue(r) {
+  (reg r:v1(L)) --> B { ... }
+  (reg r:L) --> B { ... }
+}
 fun box(r) {
   (reg r:L) --> v1(L) { ... }
   (reg r:I) --> v1(I) { ... }

@@ -315,7 +315,9 @@ public class BCCompiler {
 
   /** The set of functions that can be folded. */
   private static final Set<String> ALLOWED_FOLDABLE_FUNS =
-      Set.of("c", "+", "*", "/", ":", "-", "^", "(", "log2", "log", "sqrt", "rep", "seq.int");
+      Set.of(
+          "c", "+", "*", "/", ":", "-", "^", "(", "cos", "exp", "log", "log10", "log2", "seq.int",
+          "seq_len", "sin", "sqrt", "rep", "tan");
 
   /**
    * The set of functions that if encounted in loop body allow us to stop the search whether loop
@@ -1522,7 +1524,7 @@ public class BCCompiler {
     ListSXP args = call.args();
 
     if (!dotsOrMissing(args) && args.size() == 2) {
-      Function<SEXP, String> extractName =
+      Function<SEXP, @Nullable String> extractName =
           (x) ->
               switch (x) {
                 case StrSXP s when s.size() == 1 -> s.get(0);
@@ -1568,7 +1570,8 @@ public class BCCompiler {
     var names = args.names(1);
     // allow for corner cases like switch(x, 1) which always
     // returns 1 if x is a character scalar.
-    if (cases.size() == 1 && names.getFirst() == null) {
+    // TODO: do we still need this?
+    if (cases.size() == 1 && names.getFirst().isEmpty()) {
       names = List.of("");
     }
 
@@ -1613,7 +1616,9 @@ public class BCCompiler {
     // default case is provided.
     var defaultLabel = cb.makeLabel();
     var labels = new ArrayList<BcLabel>(miss.size() + 1);
-    miss.stream().map(x -> x ? missLabel : cb.makeLabel()).forEach(labels::add);
+    miss.stream()
+        .map(x -> x ? Objects.requireNonNull(missLabel) : cb.makeLabel())
+        .forEach(labels::add);
     labels.add(defaultLabel);
 
     // needed as the GOTO target for a switch expression that is not in tail
@@ -2218,11 +2223,16 @@ public class BCCompiler {
   private Optional<SEXP> constantFoldSym(RegSymSXP sym) {
     var name = sym.name();
 
-    if (ALLOWED_FOLDABLE_CONSTS.contains(name)) {
-      return ctx.resolve(name).filter(x -> x.first().isBase()).flatMap(x -> checkConst(x.second()));
-    } else {
+    if (!ALLOWED_FOLDABLE_CONSTS.contains(name)) {
       return Optional.empty();
     }
+
+    // GNU-R guards this on `isBaseVar`, which goes through `getInlineInfo` and so is subject to
+    // the optimization level: at the default level, only [#LANGUAGE_FUNS] resolve in a global
+    // frame, so `T`/`F`/`pi` are left as variable lookups and only fold at [BcOptLevel#MAX].
+    return getInlineInfo(name, false)
+        .filter(info -> info.env().isBase() && info.value() != null)
+        .flatMap(info -> checkConst(info.value()));
   }
 
   /**
@@ -2289,11 +2299,17 @@ public class BCCompiler {
       }
       case ":" -> ConstantFolding.colon(args);
       case "^" -> ConstantFolding.pow(args);
+      case "cos" -> ConstantFolding.cos(args);
+      case "exp" -> ConstantFolding.exp(args);
       case "log" -> ConstantFolding.log(args);
+      case "log10" -> ConstantFolding.log10(args);
       case "log2" -> ConstantFolding.log2(args);
+      case "sin" -> ConstantFolding.sin(args);
       case "sqrt" -> ConstantFolding.sqrt(args);
+      case "tan" -> ConstantFolding.tan(args);
       case "rep" -> ConstantFolding.rep(args);
       case "seq.int" -> ConstantFolding.seqInt(args);
+      case "seq_len" -> ConstantFolding.seqLen(args);
       default -> Optional.empty();
     };
   }

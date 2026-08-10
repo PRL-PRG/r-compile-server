@@ -37,6 +37,12 @@ on:
       - ".github/actions/setup-gnur/**"
   workflow_dispatch:
 
+# Skip the `stdlib_*` examples in the snapshot tests: they're slow and cover the
+# same code paths as the smaller examples. `TestConfig` picks this up from the
+# environment, which the forked Surefire JVMs inherit.
+env:
+  EXAMPLE_FILTER: "(?!stdlib_).*"
+
 # All the jobs run `./mvnw` rather than the runner's `mvn`: the build needs
 # Maven 4 (maven-compiler-plugin 4.x), while the runner images still ship Maven
 # 3.9, which bails out before it gets as far as the build.

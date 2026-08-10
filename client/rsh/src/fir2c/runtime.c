@@ -686,6 +686,17 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
 SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) {
   FUNTAB fun = R_FunTab[blt_idx];
 
+  // An `.Internal`-only entry has no primitive of its own: what R code calls `fun.name` -- and so
+  // what the FIŘ signature in `builtins.fir` describes -- is a *base closure* wrapping
+  // `.Internal(fun.name(...))`. For most of them that wrapper passes its arguments straight
+  // through, so calling the internal below is equivalent. `stop` and `warning` are the exceptions:
+  // they build one message out of `...`, and it shows in their parameters not lining up with the
+  // internal's arity. Send those through the closure instead.
+  if (fun.arity != -1 && fun.arity != argc && R_Primitive(fun.name) == R_NilValue) {
+    SEXP closure = Rf_findFun(Rf_install(fun.name), R_BaseEnv);
+    return Fir_call_dynamic(closure, env, argc, args, names);
+  }
+
   ASSERT(
     fun.arity == -1 || fun.arity == argc ||
     // Subassign's arity in `names.c` is 3, but it has `...` and works with variadic arguments
@@ -1714,6 +1725,16 @@ DEFINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboolean valu
   return value == TRUE;
 }
 
+// `&&` short-circuits on `FALSE` only, so its guard sends `NA` the other way.
+DEFINE_INTRINSIC(bool, naToTrue, vec1_logical_fx_none_ret_bool, SEXP value) {
+  // Compare the element, not the pointer, for the same reason as `naToFalse`.
+  return LOGICAL(value)[0] != FALSE;
+}
+
+DEFINE_INTRINSIC(bool, naToTrue, scalar_logical_fx_none_ret_bool, Rboolean value) {
+  return value != FALSE;
+}
+
 // === box ===
 DEFINE_INTRINSIC(SEXP, box, scalar_logical_fx_none_ret_vec1_logical, Rboolean value) {
   return Rf_ScalarLogical(value);
@@ -1767,6 +1788,14 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_int_scalar_real_fx_none_ret_scala
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
   return a + b;
 }
+// +I→I (unary; `b` is the missing second argument)
+DEFINE_OVERRIDDEN_BUILTIN(int, _u2b, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b) {
+  return a;
+}
+// +R→R (unary)
+DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_missing_fx_none_ret_scalar_real, double a, SEXP b) {
+  return a;
+}
 
 // === - ===
 // I-I→I
@@ -1784,6 +1813,14 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_int_scalar_real_fx_none_ret_scala
 // R-I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
   return a - b;
+}
+// -I→I (unary; `b` is the missing second argument)
+DEFINE_OVERRIDDEN_BUILTIN(int, _u2d, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b) {
+  return -a;
+}
+// -R→R (unary)
+DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_missing_fx_none_ret_scalar_real, double a, SEXP b) {
+  return -a;
 }
 
 // === * ===

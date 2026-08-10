@@ -1,6 +1,10 @@
+### Custom local config ###
+.config.properties
+
+### Test artifacts
 src/test/snapshots
 !src/test/resources/**/*.log
-.config.properties
+Rplots.pdf
 
 ### Build ###
 target/
