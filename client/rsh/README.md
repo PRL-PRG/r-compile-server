@@ -13,6 +13,5 @@ $ make setup
 
 which will create the `compile_commands.json` file for clangd.
 
-You can pass `R_HOME=...` to the make command to specify the R installation to use.
-It is not a bad idea to have a copy of the `../../R` compiled for debugging.
-To do that you can use the `../../tools/build-gnur.sh` script with `-d` option.
+It is not a bad idea to have `../../R` compiled for debugging.
+To do that you can use the `../../tools/build-gnur.sh` script with `DEBUG=true`.

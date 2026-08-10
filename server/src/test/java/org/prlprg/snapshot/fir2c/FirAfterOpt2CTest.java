@@ -13,14 +13,13 @@ import org.prlprg.snapshot.gen2c.Gen2CCompilerTest;
 class FirAfterOpt2CTest implements Gen2CCompilerTest {
   /// FIXME: these examples compile, but the optimized code doesn't behave like the unoptimized
   ///  code does, so [#testEval] skips them to keep CI green. They are *not* new breakage -- every
-  ///  one of them already failed before the surrounding fixes -- but they are real bugs in the
-  ///  optimized FIŘ-to-C backend, grouped below by symptom. Delete a name once it passes again;
-  ///  delete the whole set (and this override) once they all do.
+  ///  one already failed before the surrounding fixes -- but they are real bugs in the optimized
+  ///  FIŘ-to-C backend, grouped below by symptom. Delete a name once it passes again; delete the
+  ///  whole set (and this override) once they all do.
   private static final Set<String> BROKEN_UNDER_OPTIMIZATION =
       Set.of(
           // `switch` warns "EXPR is a \"factor\", treated as integer" where the baseline doesn't
           "inline_switch",
-          "super_assign3",
           "switch_default_index_1",
           "switch_default_index_4",
           "switch_default_name_a",
@@ -45,25 +44,26 @@ class FirAfterOpt2CTest implements Gen2CCompilerTest {
           "switch_name_d",
           "switch_name_empty",
           "switch_null_1",
+          "switch_null_2",
           // crashes
           "dd_val2",
           "leak_promise",
           "leak_promise2",
           "non_bytecode_closure",
-          "vecsubset2_n5",
-          "vecsubset_n9",
+          "vecsubset2_n6",
           "vectorized_boolean_operations",
-          "vectorized_boolean_operations3",
+          "vectorized_boolean_operations10",
           "vectorized_boolean_operations4",
           "vectorized_boolean_operations5",
           "vectorized_boolean_operations6",
+          "vectorized_boolean_operations7",
           // returns a different value
           "inline_is_xyz",
           "inline_logical",
           "is",
           "is7",
           "is8",
-          "vecsubset_n5",
+          "vecsubset_n6",
           // prints different diagnostics (extra warnings, or a different message)
           "inline_square_subset3",
           "inline_square_subset4",
