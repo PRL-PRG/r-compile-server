@@ -1168,7 +1168,7 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
     ENSURE_NAMEDMAX(value);
   }
   if (!keepmiss) {
-    SET_SXP_VAL(res, value); // Set now to protect during R_isMissing
+    SET_SXP_VAL(res, value); // Store final value for non-keepmiss instructions
   }
 }
 
