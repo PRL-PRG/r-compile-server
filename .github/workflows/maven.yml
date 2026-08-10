@@ -42,8 +42,10 @@ on:
 # Skip the `stdlib_*` examples in the snapshot tests: they're slow and cover the
 # same code paths as the smaller examples. `TestConfig` picks this up from the
 # environment, which the forked Surefire JVMs inherit.
+#
+# FIXME: `bench_awf_*|bench_shootout_*` are skipped because they OOM the forked Surefire JVM.
 env:
-  EXAMPLE_FILTER: "(?!stdlib_).*"
+  EXAMPLE_FILTER: "(?!stdlib_|bench_awf_*|bench_shootout_*).*"
 
 # All the jobs run `./mvnw` rather than the runner's `mvn`: the build needs
 # Maven 4 (maven-compiler-plugin 4.x), while the runner images still ship Maven
@@ -140,6 +142,14 @@ jobs:
   verify-macos:
     runs-on: macos-latest
     needs: gnur-macos
+
+    # macos-latest has 7 GB of RAM against ubuntu-latest's 16, so the default max heap is
+    # ~1.75 GB rather than ~4 GB, and it shares that with the R process and the C compiler these
+    # tests spawn. Skip every benchmark here, not just the runaway one above: they're the
+    # examples with by far the largest snapshots (all of them together are ~79% of the bytes,
+    # against a 4 MB ceiling for everything else), and they're covered on Linux.
+    env:
+      EXAMPLE_FILTER: "(?!stdlib_|bench_).*"
 
     steps:
       - uses: actions/checkout@v5

@@ -17,7 +17,7 @@ check <- function(tree)
     if(is.na(tree[[2]][[1]])) tree[[1]] else tree[[1]] + check(tree[[2]]) - check(tree[[3]])
 
 binarytrees_naive <- function(args) {
-    n = if(length(args)) as.integer(args[[1]]) else 13L
+    n <- if(length(args)) as.integer(args[[1]]) else 13L
 
     min_depth <- 4
     max_depth <- max(min_depth + 2, n)
@@ -41,7 +41,7 @@ binarytrees_naive <- function(args) {
         check(long_lived_tree), "\n")
 }
 
-#? benchmark: binarytrees_naive(32)
+#? benchmark: binarytrees_naive(16)
 
 # warmup
 for (i in 1:12) {
