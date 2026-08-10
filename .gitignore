@@ -65,4 +65,5 @@ compile_commands.json
 ### IntelliJ IDEA ###
 /.idea/uiDesigner.xml
 .idea/modules.xml
+.idea/csv-editor.xml
 .idea/workspace.iml

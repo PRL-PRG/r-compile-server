@@ -24,8 +24,8 @@ import org.prlprg.fir.ir.variable.NamedVariable;
 ///
 /// When eliding a store, puts it in the deopt branches reachable from the store, so they still see
 /// the environment the store would have produced. Only elides when that replay is faithful: every
-  /// store of the variable must dominate the deopt branches it reaches (see
-  /// [#dominatesAllReachableDeopts]).
+/// store of the variable must dominate the deopt branches it reaches (see
+/// [#dominatesAllReachableDeopts]).
 public record ElideDeadStore() implements SpecializeOptimization {
   @Override
   public AnalysisTypes analyses() {
