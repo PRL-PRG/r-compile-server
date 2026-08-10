@@ -54,6 +54,10 @@ benchmark:
 		--runs $(BENCH_ITER) --parallel $(BENCH_PARALLEL) \
 		$(if $(BENCH_OUT_DIR),--output $(BENCH_OUT_DIR))
 
+.PHONY: profile
+profile:
+	$(MAKE) -C tools/profile-counts profile
+
 # Provision the CRAN package benchmarks (install pinned packages into a
 # per-R-version library and generate the cran/ group). One-time; `make
 # benchmark` then runs whatever has been harvested. Override the target R with
