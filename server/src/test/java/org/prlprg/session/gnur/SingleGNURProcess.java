@@ -37,17 +37,34 @@ class SingleGNURProcess implements GNUR {
     // Start process
     try {
       String version;
-      try (var versionProc = rProcess(R_BIN, "--version").start()) {
+      // Errors are merged in because this is the first R invocation of the run: if R can't start at
+      // all (on macOS, a dyld failure when the libraries it was linked against aren't installed),
+      // what it says about it is the only clue, and it says it on stderr.
+      try (var versionProc = rProcess(R_BIN, "--version").redirectErrorStream(true).start()) {
         if (!versionProc.waitFor(10, TimeUnit.SECONDS)) {
           throw new RuntimeException("R (`" + R_BIN + " --version`) timed out");
         }
 
         try (var versionReader = versionProc.inputReader()) {
-          var versionStr = versionReader.readLine();
+          var output = new StringBuilder();
+          String versionStr;
 
           // Skip lines like "WARNING: ignoring environment value of R_HOME"
-          while (versionStr.startsWith("WARNING:")) {
+          do {
             versionStr = versionReader.readLine();
+            if (versionStr != null) {
+              output.append(versionStr).append('\n');
+            }
+          } while (versionStr != null && versionStr.startsWith("WARNING:"));
+
+          if (versionStr == null) {
+            throw new RuntimeException(
+                "R (`"
+                    + R_BIN
+                    + " --version`) exited with code "
+                    + versionProc.exitValue()
+                    + " without reporting a version. Its output was:\n"
+                    + (output.isEmpty() ? "<nothing>" : output.toString()));
           }
 
           if (versionStr.startsWith("R version")) {

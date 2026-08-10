@@ -11,9 +11,11 @@ name: Java CI with Maven
 # Nearly everything this builds lives under server/ -- including the .proto
 # files, which `make -C proto` copies into server/src/main/protobuf. The
 # exceptions are client/rsh/src, whose headers the server's tests compile the
-# generated C against, and the vendored GNU-R those tests run and link against
-# (the `R` gitlink plus the script that builds it). The two `paths` lists must
-# be kept in sync; GitHub Actions does not support YAML anchors.
+# generated C against (plus the fir2c runtime sources they compile into it, so
+# the result loads without the `rsh` package), and the vendored GNU-R those
+# tests run and link against (the `R` gitlink plus the script that builds it).
+# The two `paths` lists must be kept in sync; GitHub Actions does not support
+# YAML anchors.
 on:
   push:
     branches: ["main"]
