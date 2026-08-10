@@ -1257,7 +1257,10 @@ public final class Builtins {
       case IntSXP _ -> new Value.Int(Constants.NA_INT);
       case RealSXP _ -> new Value.Real(Constants.NA_REAL);
       case StrSXP _ -> new Value.Str(Constants.NA_STRING);
-      case VecSXP _, ListSXP _, DotsListSXP _, ExprSXP _ -> Value.NULL;
+      case VecSXP _ -> new Value.Sexp(SEXPs.vec(SEXPs.NULL));
+      case ListSXP _ -> new Value.Sexp(SEXPs.list(SEXPs.NULL));
+      case DotsListSXP _ -> new Value.Sexp(SEXPs.dots(SEXPs.NULL));
+      case ExprSXP _ -> new Value.Sexp(SEXPs.expr(SEXPs.NULL));
       default ->
           throw interpreter.failUnsupported("Out-of-range `[` on a " + vector.type() + " vector");
     };
