@@ -71,6 +71,9 @@ runs:
       shell: bash
       run: git submodule update --init --depth 1 R
 
+    # Only needed to *build*: the runtime halves of these (libpcre2-8-0, liblzma5, ...) are already
+    # in the runner image, so a job that only restores R can still run it. macOS is not like that;
+    # see below.
     - name: Install build dependencies (Linux)
       if: inputs.build == 'true' && steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
       shell: bash
@@ -100,13 +103,17 @@ runs:
           rsync \
           zlib1g-dev
 
-    - name: Install build dependencies (macOS)
-      if: inputs.build == 'true' && steps.cache.outputs.cache-hit != 'true' && runner.os == 'macOS'
+    # Unconditional, unlike the Linux step: none of these ship with the macOS image, and the R that
+    # comes out of the cache names them by absolute path (`/opt/homebrew/opt/pcre2/lib/...` and
+    # friends, from the LDFLAGS `build-gnur.sh` sets). Without them `R --version` dies in dyld
+    # before printing anything, and every test that touches R fails at once.
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
       shell: bash
       run: |
-        # `gcc` is here for gfortran, which `build-gnur.sh` sets as FC. The rest
-        # are the libraries R's configure looks for under /opt/homebrew, which
-        # is what build-gnur.sh puts on CPPFLAGS/LDFLAGS.
+        # `gcc` is here for gfortran, which `build-gnur.sh` sets as FC (and for the libgfortran /
+        # libquadmath that leaves in libR). The rest are the libraries R's configure looks for under
+        # /opt/homebrew, which is what build-gnur.sh puts on CPPFLAGS/LDFLAGS.
         brew install --quiet gcc pcre2 xz readline libpng jpeg-turbo libtiff cairo pango pkgconf
 
     # `setup-gnur` rather than `build-gnur.sh` directly: it also installs the

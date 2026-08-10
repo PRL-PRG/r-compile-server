@@ -30,7 +30,7 @@ bc <- function(path) {
 
 # Compiled code (bc2c and fir2c, both have the same API)
 cc <- function(path) {
-  library(rsh)
+  # No `library(rsh)`: the module is compiled standalone and brings its own runtime (see `eval.R`).
 
   dyn.load(paste0(path, "/code.so"))
   constantPool <- readRDS(paste0(path, "/bindings.rds"))

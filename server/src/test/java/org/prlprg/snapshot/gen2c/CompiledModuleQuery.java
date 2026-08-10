@@ -74,6 +74,7 @@ public interface CompiledModuleQuery extends Query<CompiledModule> {
     try {
       RshCompiler.getInstance(isOptimized() ? 3 : 0, runtime())
           .createBuilder(cPath, soPath)
+          .inputs(RshCompiler.standaloneRuntimeSources(runtime()))
           .flag("-shared")
           .flag("-Wl,-undefined,dynamic_lookup")
           .flag("-DRSH_TESTS")

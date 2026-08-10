@@ -7,7 +7,8 @@ if (length(args) > 0) {
   path <- args[1]
 }
 
-library(rsh)
+# No `library(rsh)`: the module is compiled standalone (`-DRSH_TESTS`, plus the `fir2c` runtime
+# sources), so it brings its own runtime and only needs the symbols the patched GNU-R exports.
 
 dyn.load(paste0(path, "/code.so"))
 constantPool <- readRDS(paste0(path, "/bindings.rds"))

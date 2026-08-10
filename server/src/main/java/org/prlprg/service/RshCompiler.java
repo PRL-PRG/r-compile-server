@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.prlprg.util.Files;
 import org.prlprg.util.cc.CCCompilationBuilder;
 
 public class RshCompiler {
@@ -25,6 +26,15 @@ public class RshCompiler {
       RSH_DIRECTORY.resolve("src/fir2c").normalize().toAbsolutePath();
   private static final Path R_INCLUDE_PATH =
       R_DIRECTORY.resolve("include").normalize().toAbsolutePath();
+
+  /// Every `.c` in the `fir2c` directory, the same set the `rsh` package's `Makevars` compiles.
+  ///
+  /// Listed lazily, in a holder class, so that a tree without `client/rsh` only fails when it
+  /// actually compiles `fir2c` code, not on the first use of anything in here.
+  private static class Fir2CRuntimeSources {
+    private static final List<Path> INSTANCE =
+        List.copyOf(Files.listDir(FIR2C_RSH_INCLUDE_PATH, "*.c", 1, false, false));
+  }
 
   // TODO: which ones are needed?
   private static final List<String> COMMON_COMPILER_FLAGS =
@@ -53,6 +63,21 @@ public class RshCompiler {
 
   public RshCompiler(List<String> compilerFlags) {
     this.compilerFlags = compilerFlags;
+  }
+
+  /// Runtime sources to compile into a module that is loaded on its own, i.e. with `-DRSH_TESTS`
+  /// and without the `rsh` package (which otherwise provides these symbols).
+  ///
+  /// `bc2c`'s runtime is header-only in that mode, so it needs none. `fir2c`'s isn't: its
+  /// implementation lives in a separate translation unit, so without it the module's `Fir_*` calls
+  /// would be unresolved at `dyn.load` time. Compiling it in also means the tests exercise the
+  /// runtime in the working tree, instead of whichever one the last `R CMD INSTALL` happened to
+  /// build.
+  public static List<Path> standaloneRuntimeSources(RuntimeVariant variant) {
+    return switch (variant) {
+      case DIRECT_BC2C -> List.of();
+      case FIR2C -> Fir2CRuntimeSources.INSTANCE;
+    };
   }
 
   public static RshCompiler getInstance(int optimizationLevel, RuntimeVariant variant) {
