@@ -1076,6 +1076,9 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "#define RSH_INLINE\n";
 	c_file << "#include <opcodes.h>\n";
 	c_file << "#include <stdlib.h>\n";
+	c_file << "#include <Rmath.h>\n";
+	c_file << "#undef NDEBUG\n";
+	c_file << "#include <assert.h>\n";
 	// runtime.h redefines R_NaInt etc. as macros; undo so &R_NaInt remains an lvalue
 	c_file << "#undef R_NaInt\n";
 	c_file << "#undef R_NaN\n";
