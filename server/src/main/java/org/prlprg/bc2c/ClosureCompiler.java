@@ -66,7 +66,7 @@ class ClosureCompiler {
         module
             .cUnit()
             .addFunction(
-                "SEXP", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP)));
+                "Value", name, List.of("SEXP %s".formatted(VAR_RHO), "SEXP %s".formatted(VAR_CCP)));
     this.prologue = fun.add();
     this.body = fun.add();
     this.extraConstPoolIdx = bc.consts().size() + 1;
@@ -171,6 +171,10 @@ class ClosureCompiler {
     var code =
         switch (instr) {
           case BcInstr.Goto(var dest) -> "goto %s;".formatted(label(dest));
+          // `Rsh_Return` pops the result off the stack and hands it back; it is the compiled
+          // closure's return value, not a statement. It is `NODISCARD` precisely so that dropping
+          // it, as this used to, is diagnosed.
+          case BcInstr.Return _ -> "return %s;".formatted(builder.compile());
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
             yield builder
