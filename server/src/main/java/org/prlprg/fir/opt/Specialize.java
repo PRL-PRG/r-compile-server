@@ -101,11 +101,13 @@ public class Specialize implements AbstractionOptimization {
     }
 
     void run() {
+      var orderedCfgs = scope.streamCfgs().toList();
       var cfgs =
-          scope
-              .streamCfgs()
+          orderedCfgs.stream()
               .gather(Streams.mapWithIndex(Map::entry))
-              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+              .collect(
+                  Collectors.toMap(
+                      Map.Entry::getKey, Map.Entry::getValue, (a, _) -> a, LinkedHashMap::new));
       var changes =
           new TreeSet<>(
               Comparator.<Position>comparingInt(pos -> cfgs.get(pos.bb().owner()))
@@ -114,22 +116,25 @@ public class Specialize implements AbstractionOptimization {
       var deferredInsertions = new LinkedHashMap<BB, TreeMap<Integer, List<Runnable>>>();
 
       // Initially, run on every expression.
-      scope
-          .streamCfgs()
-          .forEach(
-              cfg -> {
-                for (var bb : cfg.bbs()) {
-                  for (var i = 0; i < bb.statements().size(); i++) {
-                    var next = new Position(bb, i);
+      //
+      // Over the snapshot, not a fresh `scope.streamCfgs()`: a sub-optimization can add a CFG (a
+      // new promise, say) while this loop runs, and a lazy re-stream would walk into it with
+      // `analyses` -- and the `changes` comparator -- still only covering the CFGs that existed
+      // when this pass started. The enclosing fixpoint sequence reruns with fresh analyses, so
+      // whatever was added gets specialized on the next round.
+      for (var cfg : orderedCfgs) {
+        for (var bb : cfg.bbs()) {
+          for (var i = 0; i < bb.statements().size(); i++) {
+            var next = new Position(bb, i);
 
-                    // Remove from `changes` in case it was added by an earlier expression,
-                    // since we change it here.
-                    changes.remove(next);
+            // Remove from `changes` in case it was added by an earlier expression,
+            // since we change it here.
+            changes.remove(next);
 
-                    run(next, changes, deferredInsertions);
-                  }
-                }
-              });
+            run(next, changes, deferredInsertions);
+          }
+        }
+      }
 
       // Then, only run on expressions changed by other expressions, until there are no more.
       // This always reaches a fixpoint because types only get more specific.

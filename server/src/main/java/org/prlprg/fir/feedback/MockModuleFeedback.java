@@ -51,7 +51,7 @@ public class MockModuleFeedback implements ModuleFeedback {
     if (srcFeedback == null) {
       return;
     }
-    feedbacks.put(dst, srcFeedback.copy());
+    feedbacks.put(dst, srcFeedback.copy(src, dst));
   }
 
   @Override

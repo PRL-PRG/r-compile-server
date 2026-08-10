@@ -10,8 +10,10 @@ import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.fir.opt.Optimization;
 import org.prlprg.sexp.SEXPs;
+import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.ir.FirQuery;
+import org.prlprg.snapshot.fir.ir.GenFirQuery;
 import org.prlprg.snapshot.fir.opt.OptimizedFirQuery;
 import org.prlprg.util.Streams;
 
@@ -30,6 +32,10 @@ public class InterpretAfterOptTest {
   /// same.
   @FirExampleTest(skipOption = "noEval")
   void testRepeat(Example example, SnapshotStore store) {
+    if (GenFirQuery.isDeliberatelyInvalid(example)) {
+      throw new SkipQueryException(InterpretQuery.MAIN.name(), new RuntimeException("Invalid FIR"));
+    }
+
     var optimization = optimizations();
 
     // Optimize a copy: `store.load` hands out the one cached module, and re-optimizing it here

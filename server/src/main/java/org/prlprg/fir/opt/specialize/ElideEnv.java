@@ -8,8 +8,10 @@ import org.prlprg.fir.analyze.type.InferEffects;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
+import org.prlprg.fir.ir.cfg.CFG;
 import org.prlprg.fir.ir.expression.MkEnv;
 import org.prlprg.fir.ir.expression.MkEnv.MkEnvType;
+import org.prlprg.fir.ir.expression.Promise;
 import org.prlprg.fir.ir.expression.Store;
 import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Statement;
@@ -82,7 +84,7 @@ public record ElideEnv() implements SpecializeOptimization {
       }
 
       // Reached the end of the environment's range, so prune (don't iterate past it).
-      if (popPoss.contains(instruction)) {
+      if (instruction instanceof Statement s && popPoss.contains(s)) {
         dfs.prune();
         continue;
       }
@@ -95,8 +97,36 @@ public record ElideEnv() implements SpecializeOptimization {
               || (!ignoreReflection && inferEffects.of(stmt).reflect()))) {
         return false;
       }
+
+      // A promise created here captures this environment and runs its body in it whenever it's
+      // forced -- which the DFS doesn't walk into, and which may not even happen within the range.
+      // So a promise that stores has to block elision just like a store here would.
+      if (instruction instanceof Statement stmt
+          && stmt.expression() instanceof Promise(_, _, var code, _)
+          && needsMaterializedEnv(code, inferEffects, ignoreReflection)) {
+        return false;
+      }
     }
 
     return true;
+  }
+
+  /// Whether running `code` would observe whether the enclosing environment is materialized, i.e.
+  /// it stores into it (or reflects on it), directly or from a promise of its own.
+  private static boolean needsMaterializedEnv(
+      CFG code, InferEffects inferEffects, boolean ignoreReflection) {
+    return code.bbs().stream()
+        .flatMap(bb -> bb.statements().stream())
+        .anyMatch(
+            stmt ->
+                switch (stmt.expression()) {
+                  case Store _ -> true;
+                  case Promise(_, _, var nested, _) ->
+                      needsMaterializedEnv(nested, inferEffects, ignoreReflection);
+                  // `MkEnv` shadows this environment for the rest of the promise, but stores
+                  // before it (and super-stores after) still reach here, so don't try to be
+                  // clever -- the check above already covers them.
+                  default -> !ignoreReflection && inferEffects.of(stmt).reflect();
+                });
   }
 }

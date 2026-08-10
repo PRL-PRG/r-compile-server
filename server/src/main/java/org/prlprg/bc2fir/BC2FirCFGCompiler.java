@@ -854,7 +854,7 @@ public final class BC2FirCFGCompiler {
             insertAndReturn(
                 "_cond",
                 intrinsic(
-                    "naToFalse",
+                    "naToTrue",
                     new Signature(ImmutableList.of(Type.BOXED_LOGICAL), Type.BOOLEAN, Effects.NONE),
                     top()));
         insert(next -> branch(cond, next, shortCircuitBb));

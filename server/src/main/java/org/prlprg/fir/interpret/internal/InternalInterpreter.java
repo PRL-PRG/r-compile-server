@@ -1195,9 +1195,12 @@ public final class InternalInterpreter implements Interpreter {
       feedback().get(promCode.scope).recordForce(promCode.assignee);
     }
 
-    // Evaluate the promise.
+    // Evaluate the promise, in the environment it captured rather than whichever one its frame is
+    // on now (it may have `popenv`'d, or returned altogether if the promise escaped).
     // No restore CFG = can't deopt in promises, at least for now.
-    var value = run(promCode.frame, promExpr.code(), null);
+    var value =
+        promCode.frame.withEnvironment(
+            promSXP.env(), () -> run(promCode.frame, promExpr.code(), null));
     if (!(value instanceof Value.Sexp(var valueSexp))) {
       throw fail("Not an SEXP (for promise eval): " + value);
     }

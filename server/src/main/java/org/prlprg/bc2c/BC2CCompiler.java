@@ -25,6 +25,6 @@ public class BC2CCompiler {
     cUnit
         .addFunction("SEXP", name, List.of("SEXP rho", "SEXP c_cp"))
         .add()
-        .stmt("return val_as_sexp(%s(rho, c_cp));", name);
+        .stmt("return val_as_sexp(%s%s(rho, c_cp));", name, RAW_SUFFIX);
   }
 }

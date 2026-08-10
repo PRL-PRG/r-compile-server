@@ -199,7 +199,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// `null` iff the variable's origin can't be uniquely determined: either there are multiple
   /// possible origins, or it's completely unknown.
   public @Nullable Argument get(BB bb, int instructionIndex, NamedVariable variable) {
-    return uniqueOrNull(at(bb, instructionIndex).load(variable));
+    var state = atOrNull(bb, instructionIndex);
+    return state == null ? null : uniqueOrNull(state.load(variable));
   }
 
   /// Gets the possible origins of a named variable after a specific location.
@@ -207,7 +208,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   /// This is empty iff the variable's origin is completely unknown (infinite set).
   public @UnmodifiableView Set<Argument> getPossible(
       BB bb, int instructionIndex, NamedVariable variable) {
-    var origins = at(bb, instructionIndex).load(variable);
+    var state = atOrNull(bb, instructionIndex);
+    var origins = state == null ? null : state.load(variable);
     return origins == null ? Set.of() : Set.copyOf(origins);
   }
 
@@ -216,7 +218,9 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
   ///
   /// This ignores the untracked static environment below the local environment stack
   public boolean anyMayBeLocal(BB bb, int instructionIndex, Collection<NamedVariable> variables) {
-    return at(bb, instructionIndex).mayContainAny(variables);
+    var state = atOrNull(bb, instructionIndex);
+    // Unanalyzed means unknown, and the conservative unknown here is "yes, it may be".
+    return state == null || state.mayContainAny(variables);
   }
 
   /// Gets the origin of the return value.
@@ -559,6 +563,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
       po.value = subAnalysis.returnOrigin();
     }
 
+    /// `naToFalse(x)` is true only for `TRUE`; `naToTrue(x)` is true for everything but `FALSE`.
+    private static Value.Bool logicalToBool(Logical logical, boolean naIsTrue) {
+      return new Value.Bool(naIsTrue ? logical != Logical.FALSE : logical == Logical.TRUE);
+    }
+
     private @Nullable Argument tryConstantFold(
         Callee callee, Argument closureOrCalleeArg, List<Argument> arguments) {
       if (!(callee instanceof StaticFnCallee(var functionRef, var isDispatch, _))
@@ -571,7 +580,8 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
         return null;
       }
 
-      return switch (function.name().name()) {
+      var name = function.name().name();
+      return switch (name) {
         case "checkFun" -> {
           if (arguments.size() != 1) {
             yield null;
@@ -588,7 +598,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           var argType = inferType.of(arg);
           yield argType == null || Type.MISSING.isSubtypeOf(argType) ? null : arg;
         }
-        case "naToFalse" -> {
+        case "naToFalse", "naToTrue" -> {
           if (arguments.size() != 1) {
             yield null;
           }
@@ -596,11 +606,11 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           if (!(arg instanceof Constant(var value))) {
             yield null;
           }
+          // `naToFalse` is true only for `TRUE`; `naToTrue` is true for everything but `FALSE`.
+          var na = name.equals("naToTrue");
           yield (value instanceof Value.Sexp(var sexp) && sexp.asScalarLogical().isPresent())
-              ? new Constant(new Value.Bool(sexp.asScalarLogical().get() == Logical.TRUE))
-              : (value instanceof Value.Lgl(var lgl))
-                  ? new Constant(new Value.Bool(lgl == Logical.TRUE))
-                  : null;
+              ? new Constant(logicalToBool(sexp.asScalarLogical().get(), na))
+              : (value instanceof Value.Lgl(var lgl)) ? new Constant(logicalToBool(lgl, na)) : null;
         }
         case "box" -> {
           if (arguments.size() != 1) {

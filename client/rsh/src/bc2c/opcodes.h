@@ -725,6 +725,18 @@ static INLINE void Rsh_logic(Value *stack, SEXP call, RshLogic2Op op, SEXP rho,
 X_LOGIC2_OPS
 #undef X
 
+// GNU-R reads a JIT body's constant pool as `VECTOR_ELT(EXTPTR_PROT(body), 0)` (`RSH_JIT_CONSTS`,
+// and it rejects a `prot` that isn't a non-empty `VECSXP` with "missing constant pool"), so the
+// pool has to be wrapped in a one-element list rather than being the `prot` itself. Storing it
+// bare silently hands the compiled body the pool's *first constant* instead.
+static INLINE SEXP Rsh_closure_body(Rsh_closure fun_ptr, SEXP c_cp) {
+  SEXP prot = PROTECT(Rf_allocVector(VECSXP, 1));
+  SET_VECTOR_ELT(prot, 0, c_cp);
+  SEXP body = R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, prot);
+  UNPROTECT(1);
+  return body;
+}
+
 static INLINE void Rsh_MakeClosure(Value *stack, SEXP mkclos_arg,
                                    Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
   Value *res = GET_VAL(-1);
@@ -736,7 +748,7 @@ static INLINE void Rsh_MakeClosure(Value *stack, SEXP mkclos_arg,
   // In RCP, we store/replace the body directly in the constant pool
   SEXP body = VECTOR_ELT_0(mkclos_arg, 1);
 #else
-  SEXP body = R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp);
+  SEXP body = Rsh_closure_body(fun_ptr, c_cp);
   SET_SXP_VAL(res, body); // To protect
 #endif
 
@@ -836,8 +848,7 @@ static INLINE void Rsh_MakeProm2(Value *stack, Rsh_closure fun_ptr, SEXP c_cp,
 
   switch (TYPEOF(VAL_SXP(*fun))) {
   case CLOSXP: {
-    SEXP code = PROTECT(
-        R_MakeExternalPtr(*(void **)&fun_ptr, Rsh_ClosureBodyTag, c_cp));
+    SEXP code = PROTECT(Rsh_closure_body(fun_ptr, c_cp));
     SEXP value = Rf_mkPROMISE(code, rho);
     RSH_PUSH_ARG(args_head, args_tail, value);
     UNPROTECT(1);

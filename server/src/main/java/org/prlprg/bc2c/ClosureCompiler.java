@@ -84,8 +84,21 @@ class ClosureCompiler {
     beforeCompile();
 
     var code = bc.code();
+    var unreachable = false;
     for (int i = 0; i < code.size(); i++) {
-      compile(code.get(i), i);
+      var instr = code.get(i);
+
+      // Everything after an unconditional jump is reachable only by branching to it. GNU-R does
+      // emit code that isn't -- a loop body ending in `break` is followed by the `POP; GOTO` that
+      // would have discarded its value -- and compiling it would run the stack model against a
+      // depth no execution ever reaches (that `POP` underflows it). Skip until a jump target;
+      // [#analyseCode] has already collected all of them into `labels`.
+      if (unreachable && !labels.contains(i)) {
+        continue;
+      }
+      unreachable = endsControlFlow(instr);
+
+      compile(instr, i);
     }
 
     // the stack should be left with one element
@@ -99,6 +112,14 @@ class ClosureCompiler {
     afterCompile();
 
     return SEXPs.vec(constants());
+  }
+
+  /// Whether `instr` always transfers control elsewhere, so the instruction after it can only be
+  /// reached by a branch.
+  private static boolean endsControlFlow(BcInstr instr) {
+    return instr instanceof BcInstr.Goto
+        || instr instanceof BcInstr.Return
+        || instr instanceof BcInstr.ReturnJmp;
   }
 
   private void beforeCompile() {
@@ -123,12 +144,8 @@ class ClosureCompiler {
       var instr = code.get(i);
 
       switch (instr) {
-        case BcInstr.Goto(var label) -> {
-          hasLoop |= label.target() < i;
-        }
-        case BcInstr.StartFor(var _, var symbol, var label) -> {
-          hasLoop = true;
-        }
+        case BcInstr.Goto(var label) -> hasLoop |= label.target() < i;
+        case BcInstr.StartFor _ -> hasLoop = true;
         default -> {}
       }
 
@@ -140,10 +157,11 @@ class ClosureCompiler {
       instr
           .bindingCell()
           .ifPresent(
-              s -> {
-                cells.merge(
-                    s.idx(), new BCell(s.idx(), symbolName(s), 1), (o, _) -> o.uses(o.uses() + 1));
-              });
+              s ->
+                  cells.merge(
+                      s.idx(),
+                      new BCell(s.idx(), symbolName(s), 1),
+                      (o, _) -> o.uses(o.uses() + 1)));
     }
 
     if (hasLoop) {
@@ -186,6 +204,18 @@ class ClosureCompiler {
                       case SEXP _ -> "Rsh_LdConst";
                     })
                 .compileStmt();
+          }
+          // `BASEGUARD`'s fail path evaluates the whole guarded expression and *pushes* the result
+          // (GNU-R: `BCNPUSH(eval(expr, rho))`) before jumping past the guarded code, which is
+          // where that value is expected. So `Rsh_BaseGuard` -- which writes `GET_VAL(-1)` -- has
+          // to be handed the pushed slot; without the `+ 1` it scribbles under the frame. Falling
+          // through leaves the stack where it was, hence the reset (and the `BASEGUARD` case in
+          // [#updateBranchStackState]).
+          case BcInstr.BaseGuard(_, var ifFail) -> {
+            var top = stack.top();
+            var call = builder.push(1).compile();
+            stack.reset(top);
+            yield "if (%s) {\n\tgoto %s;\n}".formatted(call, label(ifFail));
           }
           case BcInstr.MakeClosure(var idx) -> compileMakeClosure(builder, idx);
           case BcInstr.MakeProm(var idx) -> {
@@ -281,6 +311,21 @@ class ClosureCompiler {
       throw new IllegalArgumentException("Switch instruction must have non-empty offsets");
     }
 
+    // `Rsh_do_switch` returns the selected element of the offsets vector, and the code below uses
+    // it to index the label array directly. So the offsets handed to it have to be positions in
+    // that array, not the bytecode PCs GNU-R stores -- otherwise `goto *SL_n[pc]` reads past the
+    // array and jumps to garbage. [BcInstr.Switch#labels] concatenates the character offsets and
+    // then the numeric ones, so renumber them in that order.
+    var characterCount =
+        instr.chrLabelsIdx() == null ? 0 : bc.consts().get(instr.chrLabelsIdx()).size();
+    var numericCount =
+        instr.numLabelsIdx() == null ? 0 : bc.consts().get(instr.numLabelsIdx()).size();
+    builder.args(
+        constantSXP(instr.ast()),
+        constantSXP(instr.names()),
+        labelPositions(instr.chrLabelsIdx() == null ? -1 : 0, characterCount),
+        labelPositions(instr.numLabelsIdx() == null ? -1 : characterCount, numericCount));
+
     var switchLabelName = "%s%d".formatted(VAR_SWITCH_LABELS, switchesCount++);
     sb.append("static const void *%s[] = {".formatted(switchLabelName));
     for (int i = 0; i < labels.length(); i++) {
@@ -297,6 +342,20 @@ class ClosureCompiler {
     return sb.toString();
   }
 
+  /// An integer constant holding `count` consecutive label-array positions starting at `from`, or
+  /// `R_NilValue` when `from` is negative (the switch has no offsets of that kind).
+  private String labelPositions(int from, int count) {
+    if (from < 0) {
+      return "R_NilValue";
+    }
+
+    var positions = new int[count];
+    for (var i = 0; i < count; i++) {
+      positions[i] = from + i;
+    }
+    return constantSXP(createExtraConstant(SEXPs.integer(positions)));
+  }
+
   private String compileMakePromise(InstrCallBuilder builder, BCodeSXP bc) {
     var compiledPromiseClosure = module.compilePromise(bc.bc(), name);
     var cpConst = createExtraConstant(compiledPromiseClosure.constantPool());
@@ -307,7 +366,7 @@ class ClosureCompiler {
   }
 
   private String compileSubsetN(
-      InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
+      InstrCallBuilder builder, ConstPool.@Nullable Idx<? extends SEXP> call, int rank) {
     var line = builder.push(0).pop(0).args(String.valueOf(rank), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < rank + 1; i++) {
@@ -318,7 +377,7 @@ class ClosureCompiler {
   }
 
   private String compileSubassignN(
-      InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int rank) {
+      InstrCallBuilder builder, ConstPool.@Nullable Idx<? extends SEXP> call, int rank) {
     var line = builder.push(0).pop(0).args(String.valueOf(rank), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
     for (int i = 0; i < rank + 2; i++) {
@@ -329,7 +388,7 @@ class ClosureCompiler {
   }
 
   private String compileDotCall(
-      InstrCallBuilder builder, ConstPool.Idx<? extends SEXP> call, int numArgs) {
+      InstrCallBuilder builder, ConstPool.@Nullable Idx<? extends SEXP> call, int numArgs) {
     var line =
         builder.push(0).pop(0).args(String.valueOf(numArgs), constantSXP(call)).compileStmt();
     // manually apply the instruction stack effect
@@ -375,11 +434,10 @@ class ClosureCompiler {
 
   // API
   class InstrCallBuilder {
-
-    private String fun = "";
-    private int push = 0;
-    private int pop = 0;
-    private boolean needsRho = false;
+    private String fun;
+    private int push;
+    private int pop;
+    private final boolean needsRho;
     @Nullable private BCell cell = null;
     private List<String> args = new ArrayList<>();
     private final List<String> debugMessages = new ArrayList<>();
@@ -394,12 +452,7 @@ class ClosureCompiler {
         args.add(constantSXP(x));
       }
 
-      instr
-          .bindingCell()
-          .ifPresent(
-              s -> {
-                cell = cells.get(s.idx());
-              });
+      instr.bindingCell().ifPresent(s -> cell = cells.get(s.idx()));
     }
 
     public InstrCallBuilder fun(String fun) {
@@ -452,7 +505,7 @@ class ClosureCompiler {
       }
 
       if (needsRho) {
-        xs[n++] = VAR_RHO;
+        xs[n /*++*/] = VAR_RHO;
       }
 
       var line = fun + "(" + String.join(", ", xs) + ")";

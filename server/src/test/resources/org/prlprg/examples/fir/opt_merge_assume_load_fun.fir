@@ -1,6 +1,8 @@
 fun main() {
   () -+> V {
+    mkenv;
     out: V = call_f< -+> V >();
+    popenv;
     return out;
   }
 }

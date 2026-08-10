@@ -5,8 +5,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.ir.abstraction.Abstraction;
@@ -18,6 +20,7 @@ import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.parseprint.ModuleFeedbackPrintContext;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.util.Streams;
 
 /// Feedback for a closure version ([Abstraction]).
 public class AbstractionFeedback {
@@ -164,7 +167,7 @@ public class AbstractionFeedback {
   }
 
   /// Create a deep copy.
-  public AbstractionFeedback copy() {
+  private AbstractionFeedback copy() {
     var copy = new AbstractionFeedback(module);
     copy.numCalls = this.numCalls;
     copy.types.putAll(this.types);
@@ -175,6 +178,36 @@ public class AbstractionFeedback {
     copy.reflectiveEnvs.addAll(this.reflectiveEnvs);
     copy.escapingPromises.addAll(this.escapingPromises);
     return copy;
+  }
+
+  /// Create a deep copy.
+  ///
+  /// @param src The [Abstraction] this contains feedback for.
+  /// @param dst The [Abstraction] the copy will contain feedback for, which must be
+  ///            structurally equivalent.
+  AbstractionFeedback copy(Abstraction src, Abstraction dst) {
+    var copy = copy();
+
+    var statements = new HashMap<Statement, Statement>();
+    Streams.zip(streamStatements(src), streamStatements(dst), Map::entry)
+        .forEach(e -> statements.put(e.getKey(), e.getValue()));
+
+    remap(copy.reflectiveEnvs, statements);
+    remap(copy.escapingPromises, statements);
+    return copy;
+  }
+
+  private static Stream<Statement> streamStatements(Abstraction abstraction) {
+    return abstraction
+        .streamCfgs()
+        .flatMap(cfg -> cfg.bbs().stream())
+        .flatMap(bb -> bb.statements().stream());
+  }
+
+  private static void remap(Set<Statement> statements, Map<Statement, Statement> mapping) {
+    var remapped = statements.stream().map(mapping::get).filter(Objects::nonNull).toList();
+    statements.clear();
+    statements.addAll(remapped);
   }
 
   @Override

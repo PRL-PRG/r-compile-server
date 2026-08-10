@@ -2135,14 +2135,14 @@ public final class Fir2CCompiler {
   private static String constantRef(ConstantPool pool, Value constant) {
     return switch (constant) {
       case Value.Sexp(var sexp) -> constantRef(pool, sexp);
-      case Value.Int(var i) -> i == Constants.NA_INT ? "NA_INT" : Integer.toString(i);
+      case Value.Int(var i) -> i == Constants.NA_INT ? "NA_INTEGER" : Integer.toString(i);
       case Value.Real(var d) -> Double.isNaN(d) ? "NA_REAL" : Double.toString(d);
       case Value.Str(var s) -> Printer.use(p -> p.writer().writeQuoted('"', s));
       case Value.Lgl(var l) ->
           switch (l) {
             case TRUE -> "(Rboolean)true";
             case FALSE -> "(Rboolean)false";
-            case NA -> "NA_LGL";
+            case NA -> "(Rboolean)NA_LOGICAL";
           };
       case Value.Bool(var b) -> Boolean.toString(b);
     };

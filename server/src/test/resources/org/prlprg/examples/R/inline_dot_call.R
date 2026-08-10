@@ -1,1 +1,2 @@
+#? crashes
 .Call("bar")
