@@ -512,7 +512,12 @@ SEXP Fir_force(SEXP promise) {
       Fir_handle_escape(global_data, local_data);
       SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
       SET_PRVALUE(promise, forced);
-      SET_PRENV(promise, R_NilValue);
+      // Unlike R's `forcePromise`, keep the environment: it's only dropped there so the GC can
+      // collect it, but FIŘ's reflective promise accesses (`Fir_reflective_load`/`_store`, i.e.
+      // `p$x`) read and write that environment, and the interpreter -- which the snapshot tests
+      // compare against -- keeps it too.
+      // TODO: drop reflective access, because we never compile it, and this is a duct-tape
+      //  solution, not fixing if the promise is forced by R
     } else {
       forcePromise(promise);
     }
@@ -552,6 +557,10 @@ SEXP Fir_safe_force(SEXP valueOrPromise) {
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
   Fir_assert_symbol(symbol, "reflective_load symbol");
   ASSERT(TYPEOF(promise) == PROMSXP, "reflective_load requires a promise");
+  // A promise R itself forced (or one whose environment was elided) has no environment left, and
+  // `R_NilValue` isn't an environment: passing it on reads/writes the NULL object's fields.
+  ASSERT(TYPEOF(PRENV(promise)) == ENVSXP,
+         "reflective_load requires a promise with an environment");
 
   SEXP value = Rf_findVarInFrame(PRENV(promise), symbol);
   ASSERT(value != R_UnboundValue, "Variable not bound in promise environment");
@@ -562,6 +571,9 @@ SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
   Fir_assert_symbol(symbol, "reflective_store symbol");
   ASSERT(TYPEOF(promise) == PROMSXP, "reflective_store requires a promise");
+  // See `Fir_reflective_load`.
+  ASSERT(TYPEOF(PRENV(promise)) == ENVSXP,
+         "reflective_store requires a promise with an environment");
 
   Rf_defineVar(symbol, value, PRENV(promise));
 
