@@ -161,6 +161,8 @@ class SingleGNURProcess implements GNUR {
 
       return Pair.of(res, output);
     } catch (IOException e) {
+      // Ensure [RestartingGNURProcess] starts a new process if this didn't actually die
+      process.destroy();
       throw new RuntimeException(
           "I/O exception during R source evaluation"
               + (output != null ? "\nOutput:\n" + output : ""),
