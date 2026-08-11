@@ -1104,7 +1104,11 @@ static INLINE void Rsh_StartAssign(Value *stack, SEXP symbol, BCell *cell,
   Value *lhs_cell = GET_VAL(-3);
   Value *lhs_val = GET_VAL(-2);
   Value *rhs_dup = GET_VAL(-1);
-  // FIXME: INCLNK_stack_commit
+
+  // Must precede any mutation: this is what makes MAYBE_SHARED() below see
+  // values live on the node stack as shared, so they get duplicated.
+  INCLNK_stack_commit();
+  assert((R_bcstack_t *)rhs >= R_BCProtTop);
 
   if (VAL_IS_SXP(*rhs)) {
     SEXP saverhs = VAL_SXP(*rhs);
@@ -1146,7 +1150,8 @@ static INLINE void Rsh_StartAssign2(Value *stack, SEXP symbol, SEXP rho) {
   Value *lhs_val = GET_VAL(-2);
   Value *rhs_dup = GET_VAL(-1);
 
-  // TODO INCLNK_stack_commit
+  INCLNK_stack_commit(); // see Rsh_StartAssign
+  assert((R_bcstack_t *)rhs >= R_BCProtTop);
 
   // There is a bug in GNU R BC interpreter that is different
   // from AST interpeter: it sets the pending assignment flag
@@ -1787,10 +1792,11 @@ static INLINE void Rsh_SpecialSwap(Value *stack) {
 
 static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
                                 BCell *cell, SEXP rho) {
-  Value *initial = GET_VAL(-1);
-  Value *seq = GET_VAL(-3);
+  RSH_CHECK_BCPROT();
+  SET_INT_VAL(GET_VAL(-3), (int)(R_BCProtTop - R_BCNodeStackBase));
 
-  // FIXME: BCPROT?
+  Value *initial = GET_VAL(-1);
+  Value *seq = GET_VAL(-4);
 
   SEXP info_sxp = Rf_allocVector(RAWSXP, sizeof(RshLoopInfo));
   RshLoopInfo *info = (RshLoopInfo *)RAW0(info_sxp);
@@ -1818,6 +1824,7 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
       info->len = XLENGTH(seq_sxp);
     } else if (Rf_isList(seq_sxp) || isNull(seq_sxp)) {
       info->len = Rf_length(seq_sxp);
+      info->cursor = seq_sxp;
     } else {
       Rf_errorcall(call, "invalid for() loop sequence");
     }
@@ -1867,7 +1874,7 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
   // SET_SXP_NLNK_VAL(initial, value);
   // break;
   default:
-    SET_SXP_VAL(initial, R_NilValue);
+    SET_SXP_NLNK_VAL(initial, R_NilValue);
     break;
   }
 
@@ -1885,14 +1892,22 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
   assert(*cell != R_NilValue);
 
   //  stack at the end:
-  //          -3 - sequence
+  //          -4 - sequence (already there on entry; becomes ENDFOR's result)
+  //          -3 - saved R_BCProtTop offset
   //          -2 - casted pointer for the RshLoopInfo
-  //          -1 - the initial value
+  //          -1 - the initial value (NLNKSXP)
+  //
+  // The raise must come after every write above, since only slots at or above
+  // R_BCProtTop may be written. It parks R_BCProtCommitted over the loop state
+  // for the whole loop, so commits in the body stop re-walking it; the value
+  // slot is in range but carries NLNKSXP, so STEPFOR may still replace it.
+  INCLNK_stack(stack);
 }
 
 static INLINE void GET_VEC_LOOP_VALUE(Value *val, BCell cell, int rtype) {
-  if (BCELL_TAG(cell) || VAL_SXP(*val) != CAR0(cell) ||
-      MAYBE_SHARED(VAL_SXP(*val)) || ATTRIB(VAL_SXP(*val)) != R_NilValue) {
+  if (BCELL_TAG(cell) || VAL_SXP_NLNK(*val) != CAR0(cell) ||
+      MAYBE_SHARED(VAL_SXP_NLNK(*val)) ||
+      ATTRIB(VAL_SXP_NLNK(*val)) != R_NilValue) {
     SEXP val_sxp = Rf_allocVector(rtype, 1);
     INCREMENT_NAMED(val_sxp);
     SET_SXP_NLNK_VAL(val, val_sxp);
@@ -1918,7 +1933,7 @@ static INLINE void GET_VEC_LOOP_VALUE(Value *val, BCell cell, int rtype) {
       BCELL_##btype##_NEW(__c__, __v__);                                       \
     } else {                                                                   \
       GET_VEC_LOOP_VALUE((s), __c__, rtype);                                   \
-      value = VAL_SXP(*(s));                                                   \
+      value = VAL_SXP_NLNK(*(s));                                              \
       SET_SCALAR_##btype((value), __v__);                                      \
       Rf_defineVar(symbol, value, (rho));                                      \
     }                                                                          \
@@ -1931,6 +1946,11 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
                                                SEXP rho, int type) {
   assert(VAL_TAG(*seq_val) == 0 || VAL_TAG(*seq_val) == ISQSXP);
   assert(type == ISQSXP || loopinfo->len == Rf_xlength(seq_val->u.sxpval));
+
+  // The value slot is rewritten below and its SEXP mutated in place, so it must
+  // carry no committed link count -- that is what its NLNKSXP tag buys.
+  RSH_CHECK_BCPROT();
+  RSH_CHECK_NLNK(initial);
 
   R_xlen_t i = ++(loopinfo->idx);
 
@@ -1977,17 +1997,17 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
   }
   case CPLXSXP:
     GET_VEC_LOOP_VALUE(initial, *cell, type);
-    value = VAL_SXP(*initial);
+    value = VAL_SXP_NLNK(*initial);
     SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));
     break;
   case STRSXP:
     GET_VEC_LOOP_VALUE(initial, *cell, type);
-    value = VAL_SXP(*initial);
+    value = VAL_SXP_NLNK(*initial);
     SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
     break;
   case RAWSXP:
     GET_VEC_LOOP_VALUE(initial, *cell, type);
-    value = VAL_SXP(*initial);
+    value = VAL_SXP_NLNK(*initial);
     SET_SCALAR_BVAL(value, RAW(seq)[i]);
     break;
   case EXPRSXP:
@@ -1996,9 +2016,9 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     ENSURE_NAMEDMAX(value);
     break;
   case LISTSXP:
-    assert(!BNDCELL_TAG(seq));
-    value = CAR0(seq);
-    SET_SXP_VAL(seq_val, CDR(seq));
+    assert(!BNDCELL_TAG(loopinfo->cursor));
+    value = CAR0(loopinfo->cursor);
+    loopinfo->cursor = CDR(loopinfo->cursor);
     ENSURE_NAMEDMAX(value);
     break;
   default:
@@ -2011,16 +2031,21 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
 
 static INLINE NODISCARD Rboolean Rsh_StepFor(Value *stack, BCell *cell,
                                              SEXP rho) {
-  Value *seq = GET_VAL(-3);
+  Value *seq = GET_VAL(-4);
   RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2)));
   Value *initial = GET_VAL(-1);
   return Rsh_DoStepFor(seq, info, initial, cell, rho, info->type);
 }
 
 static INLINE void Rsh_EndFor(Value *stack, SEXP rho) {
-  // FIXME: missing DECLNK_stack
-  Value *seq = GET_VAL(-3);
-  Value *res = GET_VAL(-3); // This will be on top of the stack after EndFor
+  RSH_CHECK_BCPROT();
+  Value *seq = GET_VAL(-4);
+  Value *res = GET_VAL(-4); // This will be on top of the stack after EndFor
+
+  // Must run before the sequence slot is overwritten below: the walk has to see
+  // the sequence still in place. DECREMENT_LINKS is a separate pair, matching
+  // the INCREMENT_LINKS in Rsh_StartFor.
+  DECLNK_stack(R_BCNodeStackBase + VAL_INT(*GET_VAL(-3)));
 
   if (VAL_IS_SXP(*seq)) {
     DECREMENT_LINKS(VAL_SXP(*seq));
@@ -2513,6 +2538,12 @@ static
                                           SEXP rho)
 #ifndef COMPILING_STENCILS
 {
+  // Rf_begincontext snapshots R_BCProtTop, and a break/next longjmp runs
+  // R_BCProtReset on it, so an INCLNKSTK window left open by the jump is unwound
+  // for us. GNU R additionally duplicates the loop state here so that
+  // recover_loop_locals can find it after the jump resets R_BCNodeStackTop; our
+  // stack pointer is a callee register that siglongjmp restores.
+  RSH_CHECK_BCPROT();
   Rf_begincontext(cntxt, CTXT_LOOP, R_NilValue, rho, R_BaseEnv, R_NilValue,
                   R_NilValue);
   return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
@@ -2522,6 +2553,9 @@ static
 #endif
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
+  // No DECLNK_stack counterpart: we do not raise in Rsh_StartLoopCntxt, and
+  // Rsh_EndFor undoes Rsh_StartFor's raise.
+  RSH_CHECK_BCPROT();
   Rf_endcontext(ctntxt);
 }
 
@@ -2545,15 +2579,19 @@ static INLINE NORET void Rsh_DotsErr(UNUSED Value *stack) {
 }
 
 static INLINE void Rsh_IncLnkStk(Value *stack) {
+  RSH_CHECK_BCPROT();
   Value *v = GET_VAL(-1);
   int offset = (int)(R_BCProtTop - R_BCNodeStackBase);
+  assert((R_bcstack_t *)(R_BCNodeStackBase + offset) == R_BCProtTop);
   INCLNK_stack(v);
   SET_INT_VAL(v, offset);
 }
 
 static INLINE void Rsh_DecLnkStk(Value *stack) {
+  RSH_CHECK_BCPROT();
   Value *v2 = GET_VAL(-2);
   Value v1 = *GET_VAL(-1);
+  assert(VAL_TAG(*v2) == INTSXP); // the offset INCLNKSTK stored
   int offset = VAL_INT(*v2);
   R_bcstack_t *ptop = R_BCNodeStackBase + offset;
   DECLNK_stack(ptop);
