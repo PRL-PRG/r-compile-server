@@ -182,7 +182,7 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
 		/* If the loop was changed (in a recursive call) */                     \
 		if (__builtin_expect(__info__->type != b, FALSE))                       \
 			return RCP_STEPFOR_Fallback(stack, cell, rho);                      \
-		return Rsh_DoStepFor(GET_VAL(-3), __info__, GET_VAL(-1), cell, rho, b); \
+		return Rsh_DoStepFor(GET_VAL(-4), __info__, GET_VAL(-1), cell, rho, b); \
 	}
 X_STEPFOR_TYPES
 #undef X
