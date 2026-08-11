@@ -77,6 +77,11 @@ public record DeferIntoPromise() implements AbstractionOptimization {
     var defOf = new HashMap<Register, Statement>();
     for (var bb : outerCfg.bbs()) {
       for (var stmt : bb.statements()) {
+        // Never defer the promise into its own body
+        if (stmt == promiseStmt) {
+          continue;
+        }
+
         if (stmt.assignee() != null
             && inferEffects.of(stmt) == Effects.NONE
             && HOIST_RULES.stream().noneMatch(rule -> rule.test(stmt))) {
@@ -94,6 +99,7 @@ public record DeferIntoPromise() implements AbstractionOptimization {
       var it = candidates.iterator();
       while (it.hasNext()) {
         var stmt = it.next();
+        assert stmt.assignee() != null;
         for (var use : stmt.assignee().uses()) {
           // Project the use into the promise's enclosing CFG: it lands on `promiseStmt` itself if
           // the use is (transitively) inside the promise, or on the using statement if it's a
