@@ -1087,7 +1087,10 @@ static void export_to_files(const fs::path &output_dir,
 	c_file << "extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);\n";
 	// Self-modifying-code copy primitive, defined in stencils-runtime.c; the SMC
 	// variants reference it as an external runtime symbol.
-	c_file << "extern Value rcp_smc_copy(void *dst, const void *src, void *jmp, size_t size);\n\n";
+	c_file << "extern Value rcp_smc_copy(void *dst, const void *src, void *jmp, size_t size);\n";
+	// Loop-context trampoline, also defined in stencils-runtime.c; the
+	// STARTLOOPCNTXT / ENDLOOPCNTXT stencils call into it.
+	c_file << "#include \"rcp_loopcntxt.h\"\n\n";
 	// Under PROFILE_STENCILS the opcode stencils reference the global
 	// stencil_profile_info[] counter array (defined in compile.c) via the
 	// hard-coded PROFILING_START/END timing. Declare it so the generated
