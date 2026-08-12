@@ -1934,7 +1934,8 @@ static INLINE void GET_VEC_LOOP_VALUE(Value *val, BCell cell, int rtype) {
     } else {                                                                   \
       GET_VEC_LOOP_VALUE((s), __c__, rtype);                                   \
       value = VAL_SXP_NLNK(*(s));                                              \
-      SET_SCALAR_##btype((value), __v__);                                      \
+      assert(!ALTREP(value));                                                  \
+      SET_SCALAR_##btype##0((value), __v__);                                   \
       Rf_defineVar(symbol, value, (rho));                                      \
     }                                                                          \
     return TRUE;                                                               \
@@ -1998,17 +1999,39 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
   case CPLXSXP:
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
-    SET_SCALAR_CVAL(value, COMPLEX_ELT(seq, i));
+    assert(!ALTREP(value));
+    SET_SCALAR_CVAL0(value, COMPLEX_ELT(seq, i));
     break;
   case STRSXP:
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
-    SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
+    SEXP v = STRING_ELT(seq, i);
+
+    // SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
+    // Inline SET_STRING_ELT, trim dead code (should have the same effect)
+    assert(!ALTREP(value));
+    ASSUME(value != NULL);
+    ASSUME(v != NULL);
+    CHECK_OLD_TO_NEW(value, v);
+    SEXP *ps = STDVEC_DATAPTR(value);
+
+    // Refcnts does not make sense for STRSXPs, because they should be
+    // immutable. "CHARSXPs are read-only objects and must never be modified."
+    // from R-exts manual. GNUR itself does not keep track of refcnts for
+    // STRSXPs for some operations either. However, the original code here
+    // tracks them and it is observable with an .Internal call.
+#ifdef RSH_STRICT_COMPLIANCE
+    assert(TRACKREFS(value));
+    INCREMENT_REFCNT(v);
+    DECREMENT_REFCNT(ps[0]);
+#endif
+    ps[0] = v;
     break;
   case RAWSXP:
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
-    SET_SCALAR_BVAL(value, RAW(seq)[i]);
+    assert(!ALTREP(value));
+    SET_SCALAR_BVAL0(value, RAW(seq)[i]);
     break;
   case EXPRSXP:
   case VECSXP:
