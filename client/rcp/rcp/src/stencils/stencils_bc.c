@@ -127,6 +127,33 @@ RCP_OP(ENDLOOPCNTXT,
 #ifdef STEPFOR_SPECIALIZE
 extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
 
+// Each element/ISQ sequence type has two adjacent variants: i0 is the base
+// (element types: direct data pointer; ISQ: increasing) and i1 = i0 + 1 the
+// sub-variant (ALTREP element method / decreasing). STARTFOR picks between them
+// with the runtime 0/1 sub-axis; Rsh_DoStepFor takes the same 0/1 as `spec`.
+// Indices are contiguous; index 0 (generic catch-all) and 19 (axis-less
+// LISTSXP) have no sub-variant and are handled outside the table.
+#define X_STEPFOR_TYPES \
+	X(INTSXP, 1, 2)     \
+	X(ISQSXP, 3, 4)     \
+	X(REALSXP, 5, 6)    \
+	X(LGLSXP, 7, 8)     \
+	X(CPLXSXP, 9, 10)   \
+	X(STRSXP, 11, 12)   \
+	X(RAWSXP, 13, 14)   \
+	X(EXPRSXP, 15, 16)  \
+	X(VECSXP, 17, 18)
+
+// stepfor_variant_count is emitted by the extractor, but this file is compiled
+// before that header exists, so derive the bound here: two per table row plus
+// the generic (0) and LISTSXP (19) variants.
+#define X(T, i0, i1) +2
+enum
+{
+	STEPFOR_VARIANT_COUNT = 2 X_STEPFOR_TYPES
+};
+#undef X
+
 // Must match the SmcSiteHeader-compatible layout in compile.c: the {dst,
 // variants[]} prefix, then STEPFOR's selection cache and the variant blob.
 typedef struct
@@ -137,68 +164,74 @@ typedef struct
 typedef struct
 {
 	uint8_t *dst;
-	SmcVariant variants[11];
+	SmcVariant variants[STEPFOR_VARIANT_COUNT];
 	int cached_type;
 	uint8_t data[];
 } StepFor_specialized;
-
-#define X_STEPFOR_TYPES \
-	X(0, 0)             \
-	X(1, INTSXP)        \
-	X(2, ISQSXP)        \
-	X(3, REALSXP)       \
-	X(4, LGLSXP)        \
-	X(5, CPLXSXP)       \
-	X(6, STRSXP)        \
-	X(7, RAWSXP)        \
-	X(8, EXPRSXP)       \
-	X(9, VECSXP)        \
-	X(10, LISTSXP)
 #endif
 
-#define X(a, b) \
-	case b:     \
-		i = a;  \
-		break;
+// type -> base variant index. Element/ISQ types come from the table; LISTSXP is
+// axis-less; every other type (incl. NILSXP for `for (x in NULL)`) stays 0, the
+// generic variant -- so STARTFOR needs no LISTSXP/default cases. The runtime
+// sub-offset (ALTREP-ness / ISQ direction, both 0/1) is added on top. Sized to
+// span the 5-bit SEXPTYPE range so any type indexes in bounds.
+#ifdef STEPFOR_SPECIALIZE
+static const uint8_t stepfor_variant_base[32] = {
+#define X(T, i0, i1) [T] = (i0),
+	X_STEPFOR_TYPES
+#undef X
+	[LISTSXP] = 19,
+};
+#endif
 
 RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTCELL_IMM(1), GET_RHO());
 
 #ifdef STEPFOR_SPECIALIZE
 	   StepFor_specialized *stepfor_mem = (StepFor_specialized *)GETVARIANTS();
 
-	   RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2)));
+	   RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2))); Value *seq = GET_VAL(-4);
 
-	   int i; switch (info->type) {
-    X_STEPFOR_TYPES
-  default:
-    i = 0;
-    break; }
+	   // Base variant from the type table, plus the runtime sub-axis resolved
+	   // once here so STEPFOR stays branch-free: ISQ direction, else ALTREP-ness
+	   // (0 for LISTSXP/NULL, so those fold into the table's base with no check).
+	   int i = stepfor_variant_base[info->type] +
+			   (info->type == ISQSXP ? (VAL_ISQ(*seq).n1 > VAL_ISQ(*seq).n2)
+									  : ALTREP(VAL_SXP(*seq)));
+	   info->variant = i;
 
-			  // Copy the specialized StepFor code if it is not already cached
-			  if (UNLIKELY(stepfor_mem->cached_type != i)) {
+	   // Copy the specialized StepFor code if it is not already cached
+	   if (UNLIKELY(stepfor_mem->cached_type != i)) {
     memcpy(stepfor_mem->dst, stepfor_mem->variants[i].ptr, stepfor_mem->variants[i].size);
     stepfor_mem->cached_type = i; }
 #endif
-			  ,
-			  GOTO_IMM(2);)
-#undef X
+	   ,
+	   GOTO_IMM(2);)
 
 #ifdef STEPFOR_SPECIALIZE
 
-#define X(a, b)                                                                 \
-	static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(               \
-		Value *stack, BCell *cell, SEXP rho)                                    \
-	{                                                                           \
-		RshLoopInfo *__info__ = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2)));     \
-		/* If the loop was changed (in a recursive call) */                     \
-		if (__builtin_expect(__info__->type != b, FALSE))                       \
-			return RCP_STEPFOR_Fallback(stack, cell, rho);                      \
-		return Rsh_DoStepFor(GET_VAL(-4), __info__, GET_VAL(-1), cell, rho, b); \
+// One specialized STEPFOR per variant. The guard catches a recursive call that
+// installed a variant for a different loop into this shared slot: STARTFOR set
+// info->variant to what the current loop needs, so a mismatch means the live
+// code is stale and we fall back to the runtime-dispatching stepper.
+#define STEPFOR_SPECIALIZED_FN(a, b, spec)                                  \
+	static INLINE NODISCARD Rboolean Rsh_StepFor_Specialized_##a(           \
+		Value *stack, BCell *cell, SEXP rho)                                \
+	{                                                                       \
+		RshLoopInfo *__info__ = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2))); \
+		if (UNLIKELY(__info__->variant != (a)))                             \
+			return RCP_STEPFOR_Fallback(stack, cell, rho);                  \
+		return Rsh_DoStepFor(GET_VAL(-4), __info__, GET_VAL(-1), cell, rho, \
+							 (b), (spec));                                  \
 	}
+#define X(T, i0, i1)                 \
+	STEPFOR_SPECIALIZED_FN(i0, T, 0) \
+	STEPFOR_SPECIALIZED_FN(i1, T, 1)
 X_STEPFOR_TYPES
 #undef X
+STEPFOR_SPECIALIZED_FN(0, 0, -1)
+STEPFOR_SPECIALIZED_FN(19, LISTSXP, -1)
 
-#define X(a, b)                                                                       \
+#define STEPFOR_SPECIALIZED_OP(a)                                                     \
 	RCP_OP_EX(STEPFOR, a)                                                             \
 	{                                                                                 \
 		PROLOGUE;                                                                     \
@@ -207,8 +240,13 @@ X_STEPFOR_TYPES
 		else                                                                          \
 			NEXT;                                                                     \
 	}
+#define X(T, i0, i1)           \
+	STEPFOR_SPECIALIZED_OP(i0) \
+	STEPFOR_SPECIALIZED_OP(i1)
 X_STEPFOR_TYPES
 #undef X
+STEPFOR_SPECIALIZED_OP(0)
+STEPFOR_SPECIALIZED_OP(19)
 
 #else
 
