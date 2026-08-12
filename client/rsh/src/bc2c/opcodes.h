@@ -1949,10 +1949,22 @@ static INLINE void GET_VEC_LOOP_VALUE(Value *val, BCell cell, int rtype) {
     return TRUE;                                                               \
   } while (0)
 
+// Element fetch specialized on ALTREP-ness. mode < 0: runtime dispatch (the
+// generic accessor branches on ALTREP internally); 0: direct data pointer; 1:
+// ALTREP element method. mode is a compile-time constant in every caller, so
+// exactly one arm survives.
+#define SF_ELT(mode, dispatch, alt, direct)                                    \
+  ((mode) < 0 ? (dispatch) : ((mode) ? (alt) : (direct)))
+
+// `spec` is a per-type specialization selector, a compile-time constant so the
+// selected arm folds away. Each type uses at most one axis, so a single value
+// serves both: for element types it is the ALTREP-ness (see SF_ELT), for ISQ it
+// is the direction (0 = increasing, 1 = decreasing). The generic caller passes
+// -1 to keep the original runtime dispatch.
 static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
                                                RshLoopInfo *loopinfo,
                                                Value *initial, BCell *cell,
-                                               SEXP rho, int type) {
+                                               SEXP rho, int type, int spec) {
   assert(VAL_TAG(*seq_val) == 0 || VAL_TAG(*seq_val) == ISQSXP);
   assert(type == ISQSXP || loopinfo->len == Rf_xlength(seq_val->u.sxpval));
 
@@ -1976,7 +1988,8 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
   SEXP value;
   switch (type) {
   case INTSXP: {
-    int v = INTEGER_ELT(seq, i);
+    int v = SF_ELT(spec, INTEGER_ELT(seq, i), ALTINTEGER_ELT(seq, i),
+                   INTEGER0(seq)[i]);
     FAST_STEP_NEXT(cell, value, v, initial, int, INTSXP, IVAL, loopinfo->symbol,
                    rho);
     return TRUE;
@@ -1986,34 +1999,41 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     int n1 = info.n1;
     int n2 = info.n2;
     int ii = (int)i;
-    int v = n1 <= n2 ? n1 + ii : n1 - ii;
+    int v =
+        spec < 0 ? (n1 <= n2 ? n1 + ii : n1 - ii) : (spec ? n1 - ii : n1 + ii);
     RSH_PC_INC(isq_for);
     FAST_STEP_NEXT(cell, value, v, initial, int, INTSXP, IVAL, loopinfo->symbol,
                    rho);
     return TRUE;
   }
   case REALSXP: {
-    double v = REAL_ELT(seq, i);
+    double v =
+        SF_ELT(spec, REAL_ELT(seq, i), ALTREAL_ELT(seq, i), REAL0(seq)[i]);
     FAST_STEP_NEXT(cell, value, v, initial, double, REALSXP, DVAL,
                    loopinfo->symbol, rho);
     return TRUE;
   }
   case LGLSXP: {
-    int v = LOGICAL_ELT(seq, i);
+    int v = SF_ELT(spec, LOGICAL_ELT(seq, i), ALTLOGICAL_ELT(seq, i),
+                   LOGICAL0(seq)[i]);
     FAST_STEP_NEXT(cell, value, v, initial, int, LGLSXP, LVAL, loopinfo->symbol,
                    rho);
     return TRUE;
   }
-  case CPLXSXP:
+  case CPLXSXP: {
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
     assert(!ALTREP(value));
-    SET_SCALAR_CVAL0(value, COMPLEX_ELT(seq, i));
+    Rcomplex v = SF_ELT(spec, COMPLEX_ELT(seq, i), ALTCOMPLEX_ELT(seq, i),
+                        COMPLEX0(seq)[i]);
+    SET_SCALAR_CVAL0(value, v);
     break;
+  }
   case STRSXP: {
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
-    SEXP v = STRING_ELT(seq, i);
+    SEXP v = SF_ELT(spec, STRING_ELT(seq, i), ALTSTRING_ELT(seq, i),
+                    ((SEXP *)STDVEC_DATAPTR(seq))[i]);
 
     // SET_STRING_ELT(value, 0, STRING_ELT(seq, i));
     // Inline SET_STRING_ELT, trim dead code (should have the same effect)
@@ -2036,23 +2056,28 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     ps[0] = v;
     break;
   }
-  case RAWSXP:
+  case RAWSXP: {
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
     assert(!ALTREP(value));
-    SET_SCALAR_BVAL0(value, RAW(seq)[i]);
+    Rbyte v = SF_ELT(spec, RAW(seq)[i], ALTRAW_ELT(seq, i), RAW0(seq)[i]);
+    SET_SCALAR_BVAL0(value, v);
     break;
+  }
   case EXPRSXP:
-  case VECSXP:
-    value = VECTOR_ELT(seq, i);
+  case VECSXP: {
+    value = SF_ELT(spec, VECTOR_ELT(seq, i), ALTLIST_ELT(seq, i),
+                   ((SEXP *)STDVEC_DATAPTR(seq))[i]);
     ENSURE_NAMEDMAX(value);
     break;
-  case LISTSXP:
+  }
+  case LISTSXP: {
     assert(!BNDCELL_TAG(loopinfo->cursor));
     value = CAR0(loopinfo->cursor);
     loopinfo->cursor = CDR(loopinfo->cursor);
     ENSURE_NAMEDMAX(value);
     break;
+  }
   default:
     Rf_error("invalid sequence argument in for loop");
   }
@@ -2066,7 +2091,7 @@ static INLINE NODISCARD Rboolean Rsh_StepFor(Value *stack, BCell *cell,
   Value *seq = GET_VAL(-4);
   RshLoopInfo *info = (RshLoopInfo *)RAW0(VAL_SXP(*GET_VAL(-2)));
   Value *initial = GET_VAL(-1);
-  return Rsh_DoStepFor(seq, info, initial, cell, rho, info->type);
+  return Rsh_DoStepFor(seq, info, initial, cell, rho, info->type, -1);
 }
 
 static INLINE void Rsh_EndFor(Value *stack, SEXP rho) {
