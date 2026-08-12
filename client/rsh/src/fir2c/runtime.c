@@ -74,6 +74,17 @@ static void Fir_assert_symbol(SEXP sym, const char *what) {
   );
 }
 
+// The base function `symbol` names.
+//
+// Not every function in `builtins.fir` is a primitive: `bitwShiftL` and friends wrap an
+// `.Internal` whose `R_FunTab` name differs from theirs, and `print`, `stopifnot` and `xor` are
+// plain R. Those have no builtin index to call or compare against, so the generated code refers
+// to them by symbol and resolves the base binding here instead.
+static SEXP Fir_base_function(SEXP symbol) {
+  Fir_assert_symbol(symbol, "base function");
+  return Rf_findFun(symbol, R_BaseEnv);
+}
+
 bool Fir_is_compiled_closure(SEXP value, Fir_FunctionData **data) {
   if (TYPEOF(value) != CLOSXP) {
     return false;
@@ -780,6 +791,10 @@ SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) 
   return result;
 }
 
+SEXP Fir_call_base(SEXP symbol, SEXP env, int argc, SEXP *args, SEXP *names) {
+  return Fir_call_dynamic(Fir_base_function(symbol), env, argc, args, names);
+}
+
 SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) {
   switch (TYPEOF(callee)) {
     case BUILTINSXP:
@@ -1349,6 +1364,10 @@ bool Fir_assume_builtin_function(SEXP value, int blt_idx) {
   return PRIMOFFSET(value) == blt_idx;
 }
 
+bool Fir_assume_base_function(SEXP value, SEXP symbol) {
+  return value == Fir_base_function(symbol);
+}
+
 static SEXP Fir_load_fun_for_assume(SEXP symbol, SEXP env) {
   Fir_assert_symbol(symbol, "assume_load_fun");
   ASSERT(TYPEOF(env) == ENVSXP, "Environment expected for assume_load_fun");
@@ -1396,6 +1415,18 @@ bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* f
 bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref) {
   SEXP found = Fir_load_fun_for_assume(symbol, env);
   if (found == NULL || PRIMOFFSET(found) != blt_idx) {
+    return false;
+  }
+
+  if (found_ref != NULL) {
+    *found_ref = found;
+  }
+  return true;
+}
+
+bool Fir_assume_load_base_fun(SEXP symbol, SEXP env, SEXP base_symbol, SEXP* found_ref) {
+  SEXP found = Fir_load_fun_for_assume(symbol, env);
+  if (found == NULL || found != Fir_base_function(base_symbol)) {
     return false;
   }
 
@@ -1693,6 +1724,14 @@ DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_impure_ret_value, SEXP value) {
   }
 
   return R_NilValue;
+}
+
+DEFINE_INTRINSIC(SEXP, missing, any_fx_none_ret_vec1_logical, SEXP value) {
+  return value == R_MissingArg ? R_TrueValue : R_FalseValue;
+}
+
+DEFINE_INTRINSIC(bool, missing, any_fx_none_ret_bool, SEXP value) {
+  return value == R_MissingArg;
 }
 
 DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_none_ret_value, SEXP value) {

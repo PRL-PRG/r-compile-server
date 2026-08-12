@@ -47,6 +47,7 @@ import org.prlprg.fir.ir.module.Module;
 import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.sexp.SEXPs;
 
 /// Prints FIŘ IR: [Module]s and everything in them, down to individual [Statement]s and [Jump]s.
 ///
@@ -345,6 +346,11 @@ public final class IrPrintContext {
         w.write("\n}");
       }
     }
+  }
+
+  @PrintMethod
+  private void printAssume(Assumption assumption, Printer p) {
+    printAssume(p, assumption, List.of(new Constant(SEXPs.UNBOUND_VALUE)));
   }
 
   private void printAssume(Printer p, Assumption assumption, List<Argument> args) {
