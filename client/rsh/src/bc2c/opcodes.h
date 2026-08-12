@@ -2563,16 +2563,27 @@ static INLINE void Rsh_CallSpecial(Value *stack, SEXP call, SEXP rho) {
   SET_VAL(value, v);
 }
 
-#ifndef COMPILING_STENCILS
-static
-#endif
-    NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
-                                          SEXP rho)
-#ifndef COMPILING_STENCILS
-{
+// Loop contexts, bc2c only.
+//
+// Rsh_StartLoopCntxt is ONLY CORRECT WHEN INLINED into the function that runs
+// the loop: the sigsetjmp records *this* frame, and break/next jump back into
+// it long after it would have returned. bc2c generates one C function per
+// closure, so the loop lives in the caller's frame and inlining makes that
+// hold. Copy-and-patch cannot get there -- every stencil is a separate
+// function, so out of line the resumed epilogue reads a frame the loop body has
+// since overwritten: garbage in the node-stack register, a stale return
+// address, SIGSEGV.
+//
+// So these are compiled out under RCP rather than left available to be called
+// by mistake. The copy-and-patch backend uses the trampoline in rcp's
+// src/stencils-runtime.c (Rsh_RunLoopCntxt / Rsh_EndLoopCntxtJmp), which keeps
+// the setjmp frame alive for as long as the context is live.
+#ifndef RCP
+static NODISCARD Rboolean Rsh_StartLoopCntxt(UNUSED Value *stack, RCNTXT *cntxt,
+                                             SEXP rho) {
   // Rf_begincontext snapshots R_BCProtTop, and a break/next longjmp runs
-  // R_BCProtReset on it, so an INCLNKSTK window left open by the jump is unwound
-  // for us. GNU R additionally duplicates the loop state here so that
+  // R_BCProtReset on it, so an INCLNKSTK window left open by the jump is
+  // unwound for us. GNU R additionally duplicates the loop state here so that
   // recover_loop_locals can find it after the jump resets R_BCNodeStackTop; our
   // stack pointer is a callee register that siglongjmp restores.
   RSH_CHECK_BCPROT();
@@ -2580,9 +2591,6 @@ static
                   R_NilValue);
   return (Rboolean)(sigsetjmp(cntxt->cjmpbuf, 0) == CTXT_BREAK);
 }
-#else
-    ;
-#endif
 
 static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
   // No DECLNK_stack counterpart: we do not raise in Rsh_StartLoopCntxt, and
@@ -2590,6 +2598,7 @@ static INLINE void Rsh_EndLoopCntxt(UNUSED Value *stack, RCNTXT *ctntxt) {
   RSH_CHECK_BCPROT();
   Rf_endcontext(ctntxt);
 }
+#endif // !RCP
 
 // Check whether a call is to a base function; if not use AST interpreter
 // TODO: need a faster guard check

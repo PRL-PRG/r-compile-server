@@ -3,6 +3,9 @@
 #include <opcodes.h>
 
 #include "../rcp_bc_info.h"
+// Loop contexts are driven from stencils-runtime.c -- see the long comment
+// there for why the sigsetjmp cannot live in a helper that returns.
+#include "../rcp_loopcntxt.h"
 
 // Macros to define stencil functions
 #define RCP_OP_EX(op, ex) RCP_STENCIL_FUNCTION(_RCP_##op##_OP_##ex)
@@ -105,13 +108,21 @@ RCP_OP(DUP,
 	   Rsh_Dup(stack);)
 
 RCP_OP(STARTLOOPCNTXT,
-	   Rboolean condition = Rsh_StartLoopCntxt(stack, (&GET_LOCAL_RCNTXT()), GET_RHO());
-	   ,
-	   if (condition)
-		   GOTO_IMM(1);)
+	   // Runs the whole loop inside Rsh_RunLoopCntxt's frame; it comes back
+	   // only once the loop is over (via ENDLOOPCNTXT) or the function
+	   // returned from inside the loop.
+	   RcpLoopExit loop_exit = Rsh_RunLoopCntxt(stack, locals, &GET_LOCAL_RCNTXT(), GET_RHO(), (void *)GET_NEXT_PTR(), (void *)GET_IMM_PTR(1));
+	   , if (loop_exit.resume == NULL) {
+		   return Rsh_LoopCntxtRetVal(); // a RETURN inside the loop: keep unwinding
+	   } stack = loop_exit.stack;
+	   DIRECT_TAILJMP(loop_exit.resume);)
 
 RCP_OP(ENDLOOPCNTXT,
-	   Rsh_EndLoopCntxt(stack, &GET_LOCAL_RCNTXT());)
+	   Value exit_res = Rsh_EndLoopCntxtJmp(stack, &GET_LOCAL_RCNTXT(), (void *)GET_NEXT_PTR());
+	   ,
+	   // Unwind the tail-jump chain back to this loop's Rsh_RunLoopCntxt frame,
+	   // which resumes at the GET_NEXT_PTR() handed over above.
+	   return exit_res;)
 
 #ifdef STEPFOR_SPECIALIZE
 extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
