@@ -34,6 +34,11 @@ class ClosureCompiler {
 
   private static final String VAR_STACK = "STACK";
 
+  /// The name of the variable holding the BCProt pointers saved on entry, declared by
+  /// `DEFINE_REGS` and restored by every `Rsh_Return`. Must match `RSH_BCPROT_VAR` in
+  /// `opcodes_internals.h`.
+  private static final String VAR_BCPROT = "rsh_bcprot";
+
   private static final String BCELL_PREFIX = "C";
 
   private static final String VAR_LOOP_CTX = "LOOP_CTX";
@@ -128,9 +133,9 @@ class ClosureCompiler {
 
   private void afterCompile() {
     prologue.stmt("Value *%s = R_BCNodeStackTop;", VAR_STACK);
-    if (!cells.isEmpty() || !stack.isEmpty()) {
-      prologue.stmt("DEFINE_REGS(%d);", stack.max());
-    }
+    // Unconditional: besides reserving registers, this declares `VAR_BCPROT`, which every
+    // `Rsh_Return` refers to -- including in a closure whose body needs no registers at all.
+    prologue.stmt("DEFINE_REGS(%d);", stack.max());
 
     compileCells();
     compileLoopContexts();
@@ -192,7 +197,10 @@ class ClosureCompiler {
           // `Rsh_Return` pops the result off the stack and hands it back; it is the compiled
           // closure's return value, not a statement. It is `NODISCARD` precisely so that dropping
           // it, as this used to, is diagnosed.
-          case BcInstr.Return _ -> "return %s;".formatted(builder.compile());
+          // The saved BCProt pointers are the second argument: this is the one return path that
+          // unwinds by falling out of the C function rather than by longjmp, so it is the one that
+          // has to put them back itself (see `RshBCProt`).
+          case BcInstr.Return _ -> "return %s;".formatted(builder.args(VAR_BCPROT).compile());
           case BcInstr.LdConst(var idx) -> {
             var c = getConstant(idx);
             yield builder

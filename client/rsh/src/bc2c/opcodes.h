@@ -224,14 +224,22 @@ static INLINE void Rsh_SetVar2(Value *stack, SEXP symbol, SEXP rho) {
   Rf_setVar(symbol, value, ENCLOS(rho));
 }
 
-static INLINE NODISCARD Value Rsh_Return(Value *stack) {
+#ifdef RCP_STENCILS
+// A stencil has no enclosing C function to hang the saved pointers on, so the
+// BCProt bracket would have to live in the RCP prologue/epilogue instead. Left
+// as it was -- RCP is not what this fixes.
+static INLINE NODISCARD Value Rsh_Return(Value *stack) { return *(stack - 1); }
+#else
+static INLINE NODISCARD Value Rsh_Return(Value *stack, RshBCProt bcprot) {
   Value *s = stack - 1;
+  // Read the result before restoring, as `bcEval` does at `done:`: the restore
+  // decrements links on the slots this frame committed, `s` among them.
   Value ret = *s;
-#ifndef RCP_STENCILS
+  Rsh_bcprot_restore(bcprot);
   R_BCNodeStackTop = s;
-#endif
   return ret;
 }
+#endif
 
 #define Rsh_ReturnJmp(/* Value* */ stack, rho)                                 \
   do {                                                                         \
@@ -2002,7 +2010,7 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     assert(!ALTREP(value));
     SET_SCALAR_CVAL0(value, COMPLEX_ELT(seq, i));
     break;
-  case STRSXP:
+  case STRSXP: {
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
     SEXP v = STRING_ELT(seq, i);
@@ -2013,7 +2021,7 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
     ASSUME(value != NULL);
     ASSUME(v != NULL);
     CHECK_OLD_TO_NEW(value, v);
-    SEXP *ps = STDVEC_DATAPTR(value);
+    SEXP *ps = (SEXP *)STDVEC_DATAPTR(value);
 
     // Refcnts does not make sense for STRSXPs, because they should be
     // immutable. "CHARSXPs are read-only objects and must never be modified."
@@ -2027,6 +2035,7 @@ static INLINE NODISCARD Rboolean Rsh_DoStepFor(Value *seq_val,
 #endif
     ps[0] = v;
     break;
+  }
   case RAWSXP:
     GET_VEC_LOOP_VALUE(initial, *cell, type);
     value = VAL_SXP_NLNK(*initial);
