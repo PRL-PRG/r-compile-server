@@ -372,6 +372,39 @@ static INLINE void DECLNK_stack(R_bcstack_t *base) {
   RSH_CHECK_BCPROT();
 }
 
+/* Per-compiled-function bracket for the two BCProt pointers, the analogue of
+   what `bcEval` saves in `struct bcEval_globals` and puts back in
+   `restore_bcEval_globals`.
+
+   A compiled function may raise R_BCProtTop (Rsh_StartFor, Rsh_IncLnkStk) and
+   normally lowers it again (Rsh_EndFor, Rsh_DecLnkStk). `return` from inside
+   the loop skips that, so without this bracket the raise escapes into the
+   caller, where it makes every slot below it look protected -- which trips
+   (I1)/the Rsh_StartAssign assertion, and would silently disable protection for
+   the caller's own frame in a release build.
+
+   Only the fall-off-the-end return path needs this: a longjmp (error,
+   Rsh_ReturnJmp, break/next) unwinds through Rf_begincontext, whose
+   `cptr->bcprottop` snapshot R_jumpctxt hands to R_BCProtReset. */
+typedef struct {
+  R_bcstack_t *top;
+  R_bcstack_t *committed;
+} RshBCProt;
+
+#define RSH_BCPROT_SAVE()                                                      \
+  ((RshBCProt){.top = R_BCProtTop, .committed = R_BCProtCommitted})
+
+static INLINE void Rsh_bcprot_restore(RshBCProt saved) {
+  if (R_BCProtTop > saved.top) {
+    DECLNK_stack(saved.top);
+  }
+  /* DECLNK_stack lowers Committed to the base it was given, which would claim
+     the caller's [committed, top) as committed. Put back what was really
+     committed on entry, as `restore_bcEval_globals` does. */
+  R_BCProtCommitted = saved.committed;
+  RSH_CHECK_BCPROT();
+}
+
 static ALWAYS_INLINE SEXP STACKVAL_TO_SEXP(R_bcstack_t v) {
   // Most likely we will have a SEXP already, so check for that first
   if (v.tag == 0) {
@@ -899,7 +932,16 @@ typedef union {
 
 #define DEFINE_BCELL(name) BCell name = R_NilValue;
 
+/* Name of the local `DEFINE_REGS` declares and `Rsh_Return` restores from.
+   Must match `VAR_BCPROT` in `ClosureCompiler`, which emits the reference. */
+#define RSH_BCPROT_VAR rsh_bcprot
+
+/* Declares `RSH_BCPROT_VAR`, which every return in the function restores from;
+   see RshBCProt. It is a declaration, so this macro is not a `do {} while (0)`
+   and belongs at the top of the function body, which is where the compiler
+   emits it. */
 #define DEFINE_REGS(n)                                                         \
+  RshBCProt RSH_BCPROT_VAR = RSH_BCPROT_SAVE();                                \
   do {                                                                         \
     int __n__ = (n);                                                           \
     CHECK_OVERFLOW(__n__);                                                     \
