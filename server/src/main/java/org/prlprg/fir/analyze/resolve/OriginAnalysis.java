@@ -570,7 +570,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
 
     private @Nullable Argument tryConstantFold(
         Callee callee, Argument closureOrCalleeArg, List<Argument> arguments) {
-      if (!(callee instanceof StaticFnCallee(var functionRef, var isDispatch, _))
+      if (!(callee instanceof StaticFnCallee(var functionRef, var isDispatch, var signature))
           || isDispatch
           || !closureOrCalleeArg.equals(Constant.ELIDED_CLOSURE)) {
         return null;
@@ -597,6 +597,33 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
           var arg = resolve(arguments.getFirst());
           var argType = inferType.of(arg);
           yield argType == null || Type.MISSING.isSubtypeOf(argType) ? null : arg;
+        }
+        case "missing" -> {
+          if (arguments.size() != 1) {
+            yield null;
+          }
+          var argType = inferType.of(resolve(arguments.getFirst()));
+          if (argType == null) {
+            yield null;
+          }
+
+          // `missing(x)` is exactly `x == R_MissingArg`, so the type decides it whenever `miss`
+          // is all of the argument's type or none of it. A definite promise is a `PROMSXP`, so
+          // it's never missing even when its kind (e.g. `V`) subsumes `miss`.
+          boolean isMissing;
+          if (argType.kind() instanceof Kind.Missing && argType.isValue()) {
+            isMissing = true;
+          } else if (argType.isPromise() || !Type.MISSING.kind().isSubtypeOf(argType.kind())) {
+            isMissing = false;
+          } else {
+            yield null;
+          }
+
+          // `missing` has a `--> B` version and a `--> v(L)` one.
+          yield new Constant(
+              signature.returnType().kind() instanceof Kind.Boolean
+                  ? new Value.Bool(isMissing)
+                  : new Value.Sexp(SEXPs.logical(isMissing)));
         }
         case "naToFalse", "naToTrue" -> {
           if (arguments.size() != 1) {

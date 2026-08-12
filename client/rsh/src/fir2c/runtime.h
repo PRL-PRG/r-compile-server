@@ -209,14 +209,18 @@ SEXP Fir_subscript_write_string(SEXP vector, int index, char* value);
 SEXP Fir_super_load(SEXP symbol, SEXP env);
 void Fir_super_store(SEXP symbol, SEXP value, SEXP env);
 SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names);
+/// Call the base function `symbol` names, for `builtins.fir` functions with no `R_FunTab` entry.
+SEXP Fir_call_base(SEXP symbol, SEXP env, int argc, SEXP *args, SEXP *names);
 SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names);
 /// Run a baseline version that is the function's original GNU-R bytecode.
 SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args);
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env);
 bool Fir_assume_function(SEXP value, Fir_DispatchFn dispatch);
 bool Fir_assume_builtin_function(SEXP value, int blt_idx);
+bool Fir_assume_base_function(SEXP value, SEXP symbol);
 bool Fir_assume_load_fun(SEXP symbol, SEXP env, Fir_DispatchFn dispatch, SEXP* found_ref);
 bool Fir_assume_load_builtin_fun(SEXP symbol, SEXP env, int blt_idx, SEXP* found_ref);
+bool Fir_assume_load_base_fun(SEXP symbol, SEXP env, SEXP base_symbol, SEXP* found_ref);
 bool Fir_assume_load_var(SEXP symbol, SEXP env, SEXP constant);
 bool Fir_assume_type(SEXP value, Fir_Type type);
 
@@ -243,6 +247,8 @@ void Fir_dbg_signature(Fir_Signature signature);
 
 DEFINE_INTRINSIC(SEXP, checkFun, value_fx_impure_ret_value, SEXP value);
 DEFINE_INTRINSIC(SEXP, checkMissing, value_fx_impure_ret_value, SEXP value);
+DEFINE_INTRINSIC(SEXP, missing, any_fx_none_ret_vec1_logical, SEXP value);
+DEFINE_INTRINSIC(bool, missing, any_fx_none_ret_bool, SEXP value);
 DEFINE_INTRINSIC(SEXP, toForSeq, value_fx_none_ret_value, SEXP value);
 DEFINE_INTRINSIC(SEXP, toForSeq, vec_logical_fx_none_ret_vec_logical, SEXP value);
 DEFINE_INTRINSIC(SEXP, toForSeq, vec_int_fx_none_ret_vec_int, SEXP value);
