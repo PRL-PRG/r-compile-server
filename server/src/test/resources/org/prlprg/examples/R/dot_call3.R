@@ -16,6 +16,7 @@ manyargs <- inline::cfunction(
   sig = setNames(rep("integer", 17), paste0("a", 1:17)),
   body = src,
   convention = ".Call",
+  language = "C",
   name = "manyargs"
 )
 

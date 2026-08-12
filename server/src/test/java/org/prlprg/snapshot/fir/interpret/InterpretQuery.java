@@ -17,6 +17,7 @@ import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SkipQueryException;
 import org.prlprg.snapshot.SnapshotStore;
 import org.prlprg.snapshot.fir.ir.FirQuery;
+import org.prlprg.snapshot.fir.ir.GenFirQuery;
 import org.prlprg.util.Files;
 
 public record InterpretQuery(@Override String name, String functionName, SEXP... arguments)
@@ -40,7 +41,7 @@ public record InterpretQuery(@Override String name, String functionName, SEXP...
     if (example.hasOption(name, "noEval")) {
       throw new SkipQueryException(name);
     }
-    if (example.text().contains("-error:")) {
+    if (GenFirQuery.isDeliberatelyInvalid(example)) {
       // Don't try to interpret invalid FIR
       throw new SkipQueryException(name, new RuntimeException("Invalid FIR"));
     }

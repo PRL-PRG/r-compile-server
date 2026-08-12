@@ -181,7 +181,7 @@ public sealed interface BcInstr {
     }
   }
 
-  @StackEffect(pop = 1, push = 3)
+  @StackEffect(pop = 1, push = 4)
   @NeedsRho
   record StartFor(
       ConstPool.Idx<LangSXP> ast,
@@ -199,7 +199,7 @@ public sealed interface BcInstr {
     }
   }
 
-  @StackEffect(pop = 3, push = 3)
+  @StackEffect(pop = 4, push = 4)
   @NeedsRho
   record StepFor(@LabelName("FOR_BODY") BcLabel body) implements BcInstr {
     @Override
@@ -213,7 +213,7 @@ public sealed interface BcInstr {
     }
   }
 
-  @StackEffect(pop = 3, push = 1)
+  @StackEffect(pop = 4, push = 1)
   @NeedsRho
   record EndFor() implements BcInstr {
     @Override

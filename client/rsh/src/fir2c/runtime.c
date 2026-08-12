@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
+#include <R_ext/Rdynload.h>
 
 #define ASSERT(x, msg, ...) \
   if (!(x)) Rf_error("FIŘ internal assertion failed:\n  `" #x "`\n  " msg, ##__VA_ARGS__)
@@ -34,14 +35,6 @@ static Fir_Kind const PRIMITIVE_VECTOR1_KINDS[4] = {
   {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_REAL}},
   {.tag = FIR_KIND_PRIMITIVE_VECTOR1, .as.primitive = {.primitive = FIR_PRIMITIVE_STRING}},
 };
-
-/// Scalar string of a serialized `MockModuleFeedback` containing feedback for every
-/// compiled closure stored in the constant pool and (recursively) every found closure's
-/// constant pool.
-SEXP Fir_serialized_feedback(SEXP pool) {
-  // TODO(llm) but only after the copy-and-patch JIT is merged
-  return R_NilValue;
-}
 
 Fir_Kind Fir_kind_primitive_scalar(Fir_PrimitiveKind primitive_kind) {
   return PRIMITIVE_SCALAR_KINDS[primitive_kind];
@@ -519,7 +512,12 @@ SEXP Fir_force(SEXP promise) {
       Fir_handle_escape(global_data, local_data);
       SEXP forced = global_data->eval(PRENV(promise), local_data->captures);
       SET_PRVALUE(promise, forced);
-      SET_PRENV(promise, R_NilValue);
+      // Unlike R's `forcePromise`, keep the environment: it's only dropped there so the GC can
+      // collect it, but FIŘ's reflective promise accesses (`Fir_reflective_load`/`_store`, i.e.
+      // `p$x`) read and write that environment, and the interpreter -- which the snapshot tests
+      // compare against -- keeps it too.
+      // TODO: drop reflective access, because we never compile it, and this is a duct-tape
+      //  solution, not fixing if the promise is forced by R
     } else {
       forcePromise(promise);
     }
@@ -559,6 +557,10 @@ SEXP Fir_safe_force(SEXP valueOrPromise) {
 SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
   Fir_assert_symbol(symbol, "reflective_load symbol");
   ASSERT(TYPEOF(promise) == PROMSXP, "reflective_load requires a promise");
+  // A promise R itself forced (or one whose environment was elided) has no environment left, and
+  // `R_NilValue` isn't an environment: passing it on reads/writes the NULL object's fields.
+  ASSERT(TYPEOF(PRENV(promise)) == ENVSXP,
+         "reflective_load requires a promise with an environment");
 
   SEXP value = Rf_findVarInFrame(PRENV(promise), symbol);
   ASSERT(value != R_UnboundValue, "Variable not bound in promise environment");
@@ -569,6 +571,9 @@ SEXP Fir_reflective_load(SEXP promise, SEXP symbol) {
 SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
   Fir_assert_symbol(symbol, "reflective_store symbol");
   ASSERT(TYPEOF(promise) == PROMSXP, "reflective_store requires a promise");
+  // See `Fir_reflective_load`.
+  ASSERT(TYPEOF(PRENV(promise)) == ENVSXP,
+         "reflective_store requires a promise with an environment");
 
   Rf_defineVar(symbol, value, PRENV(promise));
 
@@ -692,6 +697,17 @@ static SEXP Fir_build_arglist(int argc, SEXP const *args, SEXP const *names, boo
 
 SEXP Fir_call_builtin(int blt_idx, SEXP env, int argc, SEXP *args, SEXP *names) {
   FUNTAB fun = R_FunTab[blt_idx];
+
+  // An `.Internal`-only entry has no primitive of its own: what R code calls `fun.name` -- and so
+  // what the FIŘ signature in `builtins.fir` describes -- is a *base closure* wrapping
+  // `.Internal(fun.name(...))`. For most of them that wrapper passes its arguments straight
+  // through, so calling the internal below is equivalent. `stop` and `warning` are the exceptions:
+  // they build one message out of `...`, and it shows in their parameters not lining up with the
+  // internal's arity. Send those through the closure instead.
+  if (fun.arity != -1 && fun.arity != argc && R_Primitive(fun.name) == R_NilValue) {
+    SEXP closure = Rf_findFun(Rf_install(fun.name), R_BaseEnv);
+    return Fir_call_dynamic(closure, env, argc, args, names);
+  }
 
   ASSERT(
     fun.arity == -1 || fun.arity == argc ||
@@ -839,6 +855,473 @@ SEXP Fir_call_dynamic(SEXP callee, SEXP env, int argc, SEXP *args, SEXP *names) 
     default:
       Rf_error("Unsupported callee type");
   }
+}
+
+// Fixed slots of a bytecode baseline's constant pool
+// (mirrored by `Fir2CCompiler#emitBytecodeBaseline` on the server).
+enum {
+  FIR_BC_BASELINE_CODE = 0,
+  FIR_BC_BASELINE_FORMALS = 1,
+  FIR_BC_BASELINE_JIT = 2,
+  FIR_BC_BASELINE_FEEDBACK = 3,
+  FIR_BC_BASELINE_CALLS = 4,
+  FIR_BC_BASELINE_SIZE = 5,
+};
+
+// Elements of a bytecode baseline's feedback map, the pool's `FIR_BC_BASELINE_FEEDBACK` slot
+// (mirrored by `Fir2CCompiler#bcBaselineFeedbackMap` on the server).
+enum {
+  FIR_BC_FEEDBACK_HEADER = 0,
+  FIR_BC_FEEDBACK_BCIDS = 1,
+  FIR_BC_FEEDBACK_REGISTERS = 2,
+  FIR_BC_FEEDBACK_SIZE = 3,
+};
+
+// First string in the feedback map, which is how we recognize a bytecode baseline's pool.
+#define FIR_BC_FEEDBACK_MAGIC "Fir_bc_baseline_feedback"
+
+/// Entry points of the rcp package (the copy-and-patch JIT), or `NULL`s if it can't be loaded.
+/// It can only be loaded in the RCP variant of GNU-R (`RCP=1 tools/build-gnur.sh`), whose `eval`
+/// can run the JIT-compiled code it produces.
+typedef struct {
+  /// Copy-and-patch compile a closure (`C_rcp_cmpfun`).
+  SEXP (*cmpfun)(SEXP, SEXP);
+  /// Read the feedback recorded by compiled code (`C_rcp_export_recording`).
+  SEXP (*export_recording)(SEXP);
+} Fir_Rcp;
+
+static Fir_Rcp const *Fir_rcp(void) {
+  static bool searched = false;
+  static Fir_Rcp rcp = {NULL, NULL};
+  if (searched) {
+    return &rcp;
+  }
+  searched = true;
+
+  SEXP require = PROTECT(Rf_lang3(Rf_install("requireNamespace"), Rf_mkString("rcp"), Rf_ScalarLogical(TRUE)));
+  SET_TAG(CDDR(require), Rf_install("quietly"));
+  int error = 0;
+  SEXP loaded = R_tryEval(require, R_BaseEnv, &error);
+  UNPROTECT(1);
+  if (error || loaded == NULL || Rf_asLogical(loaded) != TRUE) {
+    return &rcp;
+  }
+
+  // The names are the ones rcp registers, which for `C_rcp_cmpfun` (unlike the others) already
+  // has the `C_` prefix.
+  *(void **)&rcp.cmpfun = (void *)R_FindSymbol("C_rcp_cmpfun", "rcp", NULL);
+  *(void **)&rcp.export_recording = (void *)R_FindSymbol("rcp_export_recording", "rcp", NULL);
+  return &rcp;
+}
+
+/// Set the `rcp.cmpfun.type_recording` option (rcp reads it, an R option and not an argument, when
+/// compiling) and return its previous value, which the caller must protect and restore.
+static SEXP Fir_set_rcp_recording(SEXP value) {
+  SEXP old = PROTECT(Rf_GetOption1(Rf_install("rcp.cmpfun.type_recording")));
+  SEXP call = PROTECT(Rf_lang2(Rf_install("options"), value));
+  SET_TAG(CDR(call), Rf_install("rcp.cmpfun.type_recording"));
+  int error = 0;
+  R_tryEval(call, R_BaseEnv, &error);
+  UNPROTECT(2);
+  return old;
+}
+
+/// The code a bytecode baseline evaluates: the copy-and-patch-JIT-compiled bytecode if rcp is
+/// available, the bytecode itself otherwise. Compiled and cached in the pool on first call.
+static SEXP Fir_bc_baseline_code(SEXP pool) {
+  SEXP code = Fir_const(pool, FIR_BC_BASELINE_JIT);
+  if (code != R_NilValue) {
+    return code;
+  }
+
+  code = Fir_const(pool, FIR_BC_BASELINE_CODE);
+  SEXP (*cmpfun)(SEXP, SEXP) = Fir_rcp()->cmpfun;
+  if (cmpfun != NULL) {
+    // `C_rcp_cmpfun` copy-and-patches a closure whose body is already bytecode in place,
+    // replacing the body with an external pointer to the JIT-compiled code
+    // (which `eval` in the RCP variant of GNU-R runs in the environment it's evaluated in).
+    SEXP closure = PROTECT(Rf_mkCLOSXP(Fir_const(pool, FIR_BC_BASELINE_FORMALS), code, R_GlobalEnv));
+    // Compile with feedback recording, which is what `Fir_serialized_feedback` reads. Set and
+    // restore the option instead of setting it once, so we don't change how anything else in the
+    // session gets compiled.
+    SEXP old_recording = PROTECT(Fir_set_rcp_recording(Rf_ScalarLogical(TRUE)));
+    SEXP compiled = cmpfun(closure, R_NilValue);
+    PROTECT(compiled);
+    Fir_set_rcp_recording(old_recording);
+    if (TYPEOF(BODY(compiled)) == EXTPTRSXP) {
+      code = BODY(compiled);
+    }
+    UNPROTECT(3);
+  }
+
+  // `SET_VECTOR_ELT` instead of `Fir_set_const` for the write barrier: unlike init-time pool
+  // writes, the pool may already be old-generation here.
+  SET_VECTOR_ELT(pool, FIR_BC_BASELINE_JIT, code);
+  return code;
+}
+
+SEXP Fir_bc_baseline_call(SEXP pool, SEXP env, int argc, SEXP const *args) {
+  // Count the call, which becomes the version's number of recorded calls
+  // (nothing else records it: the JIT only records individual instructions).
+  SEXP calls = Fir_const(pool, FIR_BC_BASELINE_CALLS);
+  if (TYPEOF(calls) == INTSXP && XLENGTH(calls) == 1 && INTEGER(calls)[0] != INT_MAX) {
+    INTEGER(calls)[0]++;
+  }
+
+  Fir_push_env(&env, FIR_MKENV_REGULAR);
+
+  SEXP formal = Fir_const(pool, FIR_BC_BASELINE_FORMALS);
+  for (int i = 0; i < argc; ++i, formal = CDR(formal)) {
+    ASSERT(formal != R_NilValue, "bytecode baseline called with more arguments than formals");
+    SEXP value = args[i];
+    if (value == R_MissingArg && CAR(formal) != R_MissingArg) {
+      // Bind a missing argument that has a default as a promise of the default,
+      // like GNU-R's `applyClosure`.
+      value = Rf_mkPROMISE(CAR(formal), env);
+    }
+    PROTECT(value);
+    Rf_defineVar(TAG(formal), value, env);
+    UNPROTECT(1);
+  }
+  ASSERT(formal == R_NilValue, "bytecode baseline called with fewer arguments than formals");
+
+  SEXP out = Rf_eval(Fir_bc_baseline_code(pool), env);
+
+  Fir_pop_env(&env);
+  return out;
+}
+
+// Type codes the copy-and-patch JIT records for a value
+// (mirrored from `client/rcp/rcp/src/stencils/stencils_recording.c`; the ones below 26 are
+// `SEXPTYPE`s, except that unboxed scalars and attribute-less vectors get their own codes).
+enum {
+  FIR_RECORDED_CLOSXP = 3,
+  FIR_RECORDED_PROMSXP = 5,
+  FIR_RECORDED_SPECIALSXP = 7,
+  FIR_RECORDED_BUILTINSXP = 8,
+  FIR_RECORDED_LGLSXP_SCALAR = 11,
+  FIR_RECORDED_LGLSXP_VECTOR = 12,
+  FIR_RECORDED_DOTSXP = 17,
+  FIR_RECORDED_ANYSXP = 18,
+  FIR_RECORDED_INTSXP_SCALAR = 26,
+  FIR_RECORDED_INTSXP_VECTOR = 27,
+  FIR_RECORDED_REALSXP_SCALAR = 28,
+  FIR_RECORDED_REALSXP_VECTOR = 29,
+  FIR_RECORDED_STRSXP_SCALAR = 30,
+  FIR_RECORDED_STRSXP_VECTOR = 31,
+  FIR_RECORDED_COUNT = 32,
+};
+
+/// The FIŘ type of a value the JIT recorded `type` for (`Type#of` on the server), or `NULL` if
+/// it's not a definite value, so nothing more precise than the top type can be said about it.
+///
+/// The JIT records a `SEXPTYPE` for anything with attributes or that is ALTREP, so those get the
+/// top *value* type (`V`) instead of e.g. `v(I)`.
+static char const *Fir_recorded_type(int type) {
+  switch (type) {
+    case FIR_RECORDED_CLOSXP:
+    case FIR_RECORDED_SPECIALSXP:
+    case FIR_RECORDED_BUILTINSXP:
+      return "cls";
+    case FIR_RECORDED_DOTSXP:
+      return "dots";
+    case FIR_RECORDED_LGLSXP_SCALAR:
+      return "v1(L)";
+    case FIR_RECORDED_LGLSXP_VECTOR:
+      return "v(L)";
+    case FIR_RECORDED_INTSXP_SCALAR:
+      return "v1(I)";
+    case FIR_RECORDED_INTSXP_VECTOR:
+      return "v(I)";
+    case FIR_RECORDED_REALSXP_SCALAR:
+      return "v1(R)";
+    case FIR_RECORDED_REALSXP_VECTOR:
+      return "v(R)";
+    case FIR_RECORDED_STRSXP_SCALAR:
+      return "v1(S)";
+    case FIR_RECORDED_STRSXP_VECTOR:
+      return "v(S)";
+    // A promise isn't a value, and `ANYSXP` is never actually recorded, so neither has a FIŘ type.
+    case FIR_RECORDED_PROMSXP:
+    case FIR_RECORDED_ANYSXP:
+      return NULL;
+    default:
+      return "V";
+  }
+}
+
+/// The FIŘ type of every value the JIT recorded in `bitmap` (a set of `1 << type` bits), or `NULL`
+/// if it recorded nothing.
+///
+/// The bitmap doesn't say how often each type was recorded, so multiple types can only become
+/// their union, and it's the top value type (`V`) instead of something more precise like
+/// `v(I) | v(R)` because FIŘ types can't be built here.
+static char const *Fir_recorded_types(unsigned bitmap) {
+  if (bitmap == 0) {
+    return NULL;
+  }
+
+  char const *single = NULL;
+  for (int type = 0; type < FIR_RECORDED_COUNT; type++) {
+    if ((bitmap & (1U << type)) == 0) {
+      continue;
+    }
+    char const *name = Fir_recorded_type(type);
+    if (name == NULL) {
+      // Not definitely a value, so the only sound type is the top type.
+      return "*";
+    }
+    if (single == NULL) {
+      single = name;
+    } else if (strcmp(single, name) != 0) {
+      return "V";
+    }
+  }
+  return single;
+}
+
+/// Growable string in `R_alloc` memory, which is released when the enclosing `.Call` returns
+/// (including when it returns by raising an R error).
+typedef struct {
+  char *data;
+  size_t length;
+  size_t capacity;
+} Fir_StrBuf;
+
+static void Fir_str_buf_write(Fir_StrBuf *buf, char const *string) {
+  size_t length = strlen(string);
+  if (buf->length + length + 1 > buf->capacity) {
+    size_t capacity = buf->capacity == 0 ? 1024 : buf->capacity;
+    while (capacity < buf->length + length + 1) {
+      capacity *= 2;
+    }
+    char *data = R_alloc(capacity, sizeof(char));
+    if (buf->length != 0) {
+      memcpy(data, buf->data, buf->length);
+    }
+    buf->data = data;
+    buf->capacity = capacity;
+  }
+  memcpy(buf->data + buf->length, string, length);
+  buf->length += length;
+  buf->data[buf->length] = '\0';
+}
+
+static void Fir_str_buf_write_int(Fir_StrBuf *buf, int value) {
+  char digits[16];
+  snprintf(digits, sizeof(digits), "%d", value);
+  Fir_str_buf_write(buf, digits);
+}
+
+/// Growable set of SEXPs, in `R_alloc` memory like [Fir_StrBuf]. The SEXPs aren't protected, so
+/// they must be reachable from something that is.
+typedef struct {
+  SEXP *data;
+  int length;
+  int capacity;
+} Fir_SexpSet;
+
+/// Add `value` unless it's already in `set`, and return whether it was added.
+static bool Fir_sexp_set_add(Fir_SexpSet *set, SEXP value) {
+  for (int i = 0; i < set->length; i++) {
+    if (set->data[i] == value) {
+      return false;
+    }
+  }
+
+  if (set->length == set->capacity) {
+    int capacity = set->capacity == 0 ? 16 : set->capacity * 2;
+    SEXP *data = (SEXP *)R_alloc((size_t)capacity, sizeof(SEXP));
+    if (set->length != 0) {
+      memcpy(data, set->data, (size_t)set->length * sizeof(SEXP));
+    }
+    set->data = data;
+    set->capacity = capacity;
+  }
+
+  set->data[set->length++] = value;
+  return true;
+}
+
+/// Add every vector reachable from `sexp` through vectors (including `sexp` itself) to `visited`.
+///
+/// Constant pools store nested constant pools as elements, and pools of mutually-recursive
+/// functions reference each other, hence the visited set.
+static void Fir_visit_vectors(SEXP sexp, Fir_SexpSet *visited) {
+  if (TYPEOF(sexp) != VECSXP || !Fir_sexp_set_add(visited, sexp)) {
+    return;
+  }
+
+  for (R_xlen_t i = 0; i < XLENGTH(sexp); i++) {
+    Fir_visit_vectors(VECTOR_ELT(sexp, i), visited);
+  }
+}
+
+/// If `pool` is a bytecode baseline's constant pool, store its feedback map in `*map` and return
+/// `true` (see `Fir2CCompiler#bcBaselineFeedbackMap` on the server).
+static bool Fir_bc_baseline_feedback_map(SEXP pool, SEXP *map) {
+  if (TYPEOF(pool) != VECSXP || XLENGTH(pool) < FIR_BC_BASELINE_SIZE) {
+    return false;
+  }
+
+  SEXP candidate = VECTOR_ELT(pool, FIR_BC_BASELINE_FEEDBACK);
+  if (TYPEOF(candidate) != VECSXP || XLENGTH(candidate) != FIR_BC_FEEDBACK_SIZE) {
+    return false;
+  }
+
+  SEXP header = VECTOR_ELT(candidate, FIR_BC_FEEDBACK_HEADER);
+  if (TYPEOF(header) != STRSXP || XLENGTH(header) != 2
+      || strcmp(CHAR(STRING_ELT(header, 0)), FIR_BC_FEEDBACK_MAGIC) != 0) {
+    return false;
+  }
+
+  *map = candidate;
+  return true;
+}
+
+/// The index of `bcid` in `bcids` (an ascending integer vector), or -1 if it's absent.
+static R_xlen_t Fir_find_bcid(SEXP bcids, int bcid) {
+  int const *data = INTEGER(bcids);
+  R_xlen_t low = 0;
+  R_xlen_t high = XLENGTH(bcids) - 1;
+  while (low <= high) {
+    R_xlen_t middle = low + (high - low) / 2;
+    if (data[middle] == bcid) {
+      return middle;
+    } else if (data[middle] < bcid) {
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return -1;
+}
+
+/// Write one version's `AbstractionFeedback` from what the JIT recorded for its bytecode.
+///
+/// `map` is the baseline's feedback map, and `recording` is the recording rcp exported for its
+/// JIT-compiled code (see `server/doc/bytecode-baseline-feedback.md`).
+static void Fir_write_baseline_feedback(Fir_StrBuf *out, SEXP pool, SEXP map, SEXP recording) {
+  SEXP branch = VECTOR_ELT(recording, 0);
+  SEXP var_call = VECTOR_ELT(recording, 1);
+  SEXP fun = VECTOR_ELT(recording, 2);
+  SEXP bcids = VECTOR_ELT(map, FIR_BC_FEEDBACK_BCIDS);
+  SEXP registers = VECTOR_ELT(map, FIR_BC_FEEDBACK_REGISTERS);
+  SEXP calls = VECTOR_ELT(pool, FIR_BC_BASELINE_CALLS);
+
+  Fir_str_buf_write(out, "\n  ");
+  Fir_str_buf_write(out, CHAR(STRING_ELT(VECTOR_ELT(map, FIR_BC_FEEDBACK_HEADER), 1)));
+  Fir_str_buf_write_int(out, TYPEOF(calls) == INTSXP && XLENGTH(calls) == 1 ? INTEGER(calls)[0] : 0);
+  Fir_str_buf_write(out, "x\n  [");
+
+  for (R_xlen_t i = 0; i < XLENGTH(bcids); i++) {
+    int bcid = INTEGER(bcids)[i];
+    char const *reg = CHAR(STRING_ELT(registers, i));
+
+    // Every instruction is in exactly one of the recording's groups, and which one determines
+    // what kind of feedback it recorded.
+    R_xlen_t j;
+    if ((j = Fir_find_bcid(VECTOR_ELT(var_call, 0), bcid)) != -1) {
+      // `GETVAR`/`CALL` record the type of the value they push.
+      int times = INTEGER(VECTOR_ELT(var_call, 1))[j];
+      if (times == 0) {
+        continue;
+      }
+      char const *type = Fir_recorded_types((unsigned)INTEGER(VECTOR_ELT(var_call, 2))[j]);
+
+      Fir_str_buf_write(out, "\n    reg ");
+      Fir_str_buf_write(out, reg);
+      if (type != NULL) {
+        Fir_str_buf_write(out, " :");
+        Fir_str_buf_write(out, type);
+      }
+      Fir_str_buf_write(out, " (");
+      Fir_str_buf_write_int(out, times);
+      Fir_str_buf_write(out, "x)");
+    } else if ((j = Fir_find_bcid(VECTOR_ELT(fun, 0), bcid)) != -1) {
+      // `GETFUN` records the function it loaded, if it always loaded the same one.
+      int times = INTEGER(VECTOR_ELT(fun, 1))[j];
+      if (times == 0) {
+        continue;
+      }
+      SEXP callee = VECTOR_ELT(VECTOR_ELT(fun, 2), j);
+      Fir_FunctionData *callee_data = NULL;
+
+      Fir_str_buf_write(out, "\n    reg ");
+      Fir_str_buf_write(out, reg);
+      Fir_str_buf_write(out, " -");
+      // A callee that isn't a compiled closure has no FIŘ function to record, so it's recorded
+      // like an ambiguous one: as feedback that can't be speculated on.
+      Fir_str_buf_write(out, Fir_is_compiled_closure(callee, &callee_data) ? callee_data->name : "_");
+      Fir_str_buf_write(out, " (");
+      Fir_str_buf_write_int(out, times);
+      Fir_str_buf_write(out, "x)");
+    } else if ((j = Fir_find_bcid(VECTOR_ELT(branch, 0), bcid)) != -1) {
+      // `BRIFNOT` counts each outcome, which is the condition's value if only one was taken.
+      int taken = INTEGER(VECTOR_ELT(branch, 1))[j];
+      int not_taken = INTEGER(VECTOR_ELT(branch, 2))[j];
+      if (taken + not_taken == 0) {
+        continue;
+      }
+
+      Fir_str_buf_write(out, "\n    reg ");
+      Fir_str_buf_write(out, reg);
+      Fir_str_buf_write(out, " =");
+      // `BRIFNOT` jumps iff the condition is false, so a jump that was never taken means the
+      // condition was always true.
+      Fir_str_buf_write(out, taken == 0 ? "TRUE" : not_taken == 0 ? "FALSE" : "_");
+      Fir_str_buf_write(out, " (");
+      Fir_str_buf_write_int(out, taken + not_taken);
+      Fir_str_buf_write(out, "x)");
+    }
+  }
+
+  Fir_str_buf_write(out, "\n  ]");
+}
+
+SEXP Fir_serialized_feedback(SEXP pool) {
+  SEXP (*export_recording)(SEXP) = Fir_rcp()->export_recording;
+  if (export_recording == NULL) {
+    // Without the copy-and-patch JIT, baselines run the bytecode in GNU-R's interpreter, which
+    // records nothing.
+    return R_NilValue;
+  }
+
+  Fir_SexpSet pools = {NULL, 0, 0};
+  Fir_visit_vectors(pool, &pools);
+
+  Fir_StrBuf out = {NULL, 0, 0};
+  Fir_str_buf_write(&out, "feedback {");
+
+  bool any = false;
+  for (int i = 0; i < pools.length; i++) {
+    SEXP baseline_pool = pools.data[i];
+    SEXP map = NULL;
+    if (!Fir_bc_baseline_feedback_map(baseline_pool, &map)) {
+      continue;
+    }
+
+    // The JIT compiles a baseline's bytecode the first time it's called, so anything else means
+    // it was never called (or rcp wasn't loaded yet when it was).
+    SEXP code = VECTOR_ELT(baseline_pool, FIR_BC_BASELINE_JIT);
+    if (TYPEOF(code) != EXTPTRSXP
+        || TYPEOF(Rf_getAttrib(code, Rf_install("recording"))) != VECSXP) {
+      continue;
+    }
+
+    SEXP recording = PROTECT(export_recording(code));
+    Fir_write_baseline_feedback(&out, baseline_pool, map, recording);
+    UNPROTECT(1);
+    any = true;
+  }
+
+  if (!any) {
+    // No baseline ran, so we know nothing (as opposed to knowing that nothing was recorded).
+    return R_NilValue;
+  }
+
+  Fir_str_buf_write(&out, "\n}");
+  return Rf_mkString(out.data);
 }
 
 void Fir_deopt(int pc, int stack_size, SEXP const *stack_values, SEXP env) {
@@ -1254,6 +1737,16 @@ DEFINE_INTRINSIC(bool, naToFalse, scalar_logical_fx_none_ret_bool, Rboolean valu
   return value == TRUE;
 }
 
+// `&&` short-circuits on `FALSE` only, so its guard sends `NA` the other way.
+DEFINE_INTRINSIC(bool, naToTrue, vec1_logical_fx_none_ret_bool, SEXP value) {
+  // Compare the element, not the pointer, for the same reason as `naToFalse`.
+  return LOGICAL(value)[0] != FALSE;
+}
+
+DEFINE_INTRINSIC(bool, naToTrue, scalar_logical_fx_none_ret_bool, Rboolean value) {
+  return value != FALSE;
+}
+
 // === box ===
 DEFINE_INTRINSIC(SEXP, box, scalar_logical_fx_none_ret_vec1_logical, Rboolean value) {
   return Rf_ScalarLogical(value);
@@ -1307,6 +1800,14 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_int_scalar_real_fx_none_ret_scala
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
   return a + b;
 }
+// +I→I (unary; `b` is the missing second argument)
+DEFINE_OVERRIDDEN_BUILTIN(int, _u2b, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b) {
+  return a;
+}
+// +R→R (unary)
+DEFINE_OVERRIDDEN_BUILTIN(double, _u2b, scalar_real_missing_fx_none_ret_scalar_real, double a, SEXP b) {
+  return a;
+}
 
 // === - ===
 // I-I→I
@@ -1324,6 +1825,14 @@ DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_int_scalar_real_fx_none_ret_scala
 // R-I→R
 DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_scalar_int_fx_none_ret_scalar_real, double a, int b) {
   return a - b;
+}
+// -I→I (unary; `b` is the missing second argument)
+DEFINE_OVERRIDDEN_BUILTIN(int, _u2d, scalar_int_missing_fx_none_ret_scalar_int, int a, SEXP b) {
+  return -a;
+}
+// -R→R (unary)
+DEFINE_OVERRIDDEN_BUILTIN(double, _u2d, scalar_real_missing_fx_none_ret_scalar_real, double a, SEXP b) {
+  return -a;
 }
 
 // === * ===

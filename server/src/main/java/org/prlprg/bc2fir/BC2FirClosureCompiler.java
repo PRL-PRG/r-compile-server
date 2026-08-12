@@ -15,12 +15,28 @@ import org.prlprg.sexp.SEXPs;
 import org.prlprg.util.Streams;
 
 /// Compiles {@linkplain CloSXP R closures} into {@linkplain Function FIŘ functions}.
-public class BC2FirClosureCompiler {
+public final class BC2FirClosureCompiler {
   /// Compile the closure, add it to the module, and return it.
   ///
   /// @throws IllegalArgumentException If `r` is `null` and `closure` has AST default arguments
   /// or an AST body.
   public static Function compile(@Nullable RSession r, Module module, String name, CloSXP closure) {
+    return compile(r, module, name, closure, null);
+  }
+
+  /// Compile the closure, add it to the module, and return it.
+  ///
+  /// If `bytecodes` is non-`null`, records the closure's GNU-R bytecode (and, transitively, that
+  /// of every inner closure) in it.
+  ///
+  /// @throws IllegalArgumentException If `r` is `null` and `closure` has AST default arguments
+  /// or an AST body.
+  public static Function compile(
+      @Nullable RSession r,
+      Module module,
+      String name,
+      CloSXP closure,
+      @Nullable ModuleBcOriginMap bytecodes) {
     var parameterNames =
         closure.parameters().stream()
             .gather(Streams.mapWithIndex((p, i) -> Variable.named(p.hasTag() ? p.tag() : "p" + i)))
@@ -44,12 +60,14 @@ public class BC2FirClosureCompiler {
                           "Failed to compile AST body", closure));
     }
 
+    var origin = bytecodes == null ? null : bytecodes.record(name, bc, closure.parameters());
+
     var output = module.addFunction(Variable.named(name), parameterNames, false);
     var outputBaseline = output.baseline();
     var outputCfg = Objects.requireNonNull(outputBaseline.cfg(), "baseline is never a stub");
     var outputCursor = new CFGCursor(outputCfg);
 
-    var cfgCompiler = new BC2FirCFGCompiler(r, outputCursor, bc);
+    var cfgCompiler = new BC2FirCFGCompiler(r, outputCursor, bc, bytecodes, origin);
 
     cfgCompiler.compileClosureEntry(parameterNames, closure.parameters().values());
     cfgCompiler.compileBc();

@@ -6,13 +6,11 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.prlprg.RVersion;
 import org.prlprg.primitive.FunTabEntry;
 import org.prlprg.rds.RDSReader;
-import org.prlprg.server.Messages;
 import org.prlprg.sexp.*;
 import org.prlprg.util.Files;
 import org.prlprg.util.IO;
@@ -22,10 +20,9 @@ import org.prlprg.util.IO;
  * requires a session.
  */
 class DummySession implements RSession {
-  private final Logger logger = Logger.getLogger(DummySession.class.getName());
   private final GlobalEnvSXP globalEnv = new GlobalEnvSXP(SEXPs.EMPTY_ENV);
   private final NamespaceEnvSXP namespaceEnv =
-      new NamespaceEnvSXP("base", "4.3.2", globalEnv, new HashMap<>());
+      new NamespaceEnvSXP("base", "4.5.2", globalEnv, new HashMap<>());
   private final BaseEnvSXP baseEnv = new BaseEnvSXP(new HashMap<>());
   private final Map<String, Map<String, NamespaceEnvSXP>> dummyNamespaces = new HashMap<>();
 
@@ -67,7 +64,7 @@ class DummySession implements RSession {
 
     // Return dummy namespace
     return dummyNamespaces
-        .computeIfAbsent(name, k -> new HashMap<>())
+        .computeIfAbsent(name, _ -> new HashMap<>())
         .computeIfAbsent(
             version, _ -> new NamespaceEnvSXP(name, version, globalEnv, new HashMap<>()));
   }
@@ -79,8 +76,8 @@ class DummySession implements RSession {
 }
 
 public class GNURSession implements RSession {
-  private URI cranMirror;
-  private org.prlprg.RVersion RVersion;
+  private final URI cranMirror;
+  private final RVersion RVersion;
   private final Path RDir;
   private final List<Path> RLibraries;
   private static final String BUILTINS_SYMBOLS_RDS_FILE = "builtins.RDS";
@@ -106,13 +103,6 @@ public class GNURSession implements RSession {
     RDir = r_dir;
     RLibraries = Arrays.asList(RDir.resolve("library"), r_libraries);
   }
-
-  public GNURSession(RVersion version, Path r_dir, Path r_libraries, URI cranMirror) {
-    this(version, r_dir, r_libraries);
-    this.cranMirror = cranMirror;
-  }
-
-  public void setCranMirror(URI uri) {}
 
   private @Nullable Path resolvePaths(String name) {
     for (var p : RLibraries) {
@@ -145,8 +135,8 @@ public class GNURSession implements RSession {
     }
 
     // Use suggests and imports as needed
-    var suggests = description.getSuggests();
-    var imports = description.getImports();
+    // var suggests = description.getSuggests();
+    // var imports = description.getImports();
 
     // Make sure base is loaded
     if (baseNamespace == null) {
@@ -168,7 +158,7 @@ public class GNURSession implements RSession {
   }
 
   private void installPackage(String name) {
-    var pkgDir = resolvePaths(name);
+    // var pkgDir = resolvePaths(name);
 
     var RScript = RDir.resolve("bin/Rscript");
     try {
@@ -178,10 +168,11 @@ public class GNURSession implements RSession {
               "-e",
               "install.packages('" + name + "', repos='" + cranMirror + "')");
       processBuilder.inheritIO();
-      Process process = processBuilder.start();
-      int exitCode = process.waitFor();
-      if (exitCode != 0) {
-        throw new RuntimeException("Failed to install package " + name);
+      try (var process = processBuilder.start()) {
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+          throw new RuntimeException("Failed to install package " + name);
+        }
       }
     } catch (IOException | InterruptedException e) {
       throw new RuntimeException("Failed to install package " + name, e);
@@ -220,47 +211,6 @@ public class GNURSession implements RSession {
       ns = new NamespaceEnvSXP(name, version, globalEnv, new HashMap<>());
       namespaces.put(name + version, ns);
     }
-  }
-
-  /**
-   * Makes it possible to load a package by providing its functions directly.
-   *
-   * <p>Note that it does not support loading the package's data, documentation, etc.
-   *
-   * @param functions in the package
-   * @return the populated environment
-   */
-  public EnvSXP loadPackage(String name, String version, List<Messages.Function> functions) {
-    if (name.equals("base")) {
-      throw new RuntimeException("Cannot load base namespace this way");
-    }
-    // Should the parent rather be the package namespace?
-    if (baseNamespace == null) {
-      throw new RuntimeException("Base namespace not loaded yet");
-    }
-
-    var bindings = new HashMap<String, SEXP>(functions.size());
-    functions.forEach(
-        function -> {
-          try {
-            bindings.put(
-                function.getName(), (CloSXP) RDSReader.readByteString(this, function.getBody()));
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        });
-    return new NamespaceEnvSXP(name, version, baseNamespace, bindings);
-  }
-
-  /**
-   * Load the base environment and namespace.
-   *
-   * <p>It requires a special treatment as the reader refers to base functions, and so we need to
-   * carefully load symbols and then bind them.
-   */
-  public void loadBase(List<Messages.Function> functions) {
-    // TODO
-    // Bootstrap the reader with an ad-hoc session?
   }
 
   /** Load base from the given installed R version */

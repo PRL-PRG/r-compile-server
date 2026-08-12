@@ -12,6 +12,16 @@ import org.prlprg.snapshot.Query;
 import org.prlprg.snapshot.SnapshotStore;
 
 public interface GenFirQuery extends Query<Module> {
+  /// Whether `example` is a FIŘ example that deliberately contains errors, marked by an
+  /// `<checker>-error:` comment.
+  ///
+  /// Such a module is only good for checking that the checkers report those errors: optimizing it
+  /// can crash, interpreting it is meaningless, and it doesn't even survive a print/parse round
+  /// trip, since the parser rejects what the checkers are supposed to catch.
+  static boolean isDeliberatelyInvalid(Example example) {
+    return example.text().contains("-error:");
+  }
+
   @Override
   default void verifyEqual(Module expected, Module actual, Example example, SnapshotStore store) {
     assertEquals(expected.toString(), actual.toString());

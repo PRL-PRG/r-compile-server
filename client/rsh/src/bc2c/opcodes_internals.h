@@ -2,6 +2,19 @@
 
 #include "../common2c/rsh_utils.h"
 
+// `RCP` means "built against the copy-and-patch variant of GNU-R". It comes from that R's
+// `etc/Makeconf`, so *every* package built against it gets it, and it only says which `Rinternals.h`
+// (`rshEvalUnboxed`, `Rsh_closure`, ...) we agree with.
+//
+// `RCP_STENCILS` means this translation unit *is* a copy-and-patch stencil: its ops and R symbols
+// are holes the extractor patches, its data is patched in place, and it follows the RCP calling
+// convention. Only `client/rcp`'s stencils are (they define `COMPILING_STENCILS`); the rsh package
+// is ordinary code that happens to be compiled against the same R. Same test as
+// `../common2c/gnur_symbols.h`.
+#if defined(RCP) && defined(COMPILING_STENCILS)
+#define RCP_STENCILS
+#endif
+
 extern RCNTXT *R_GlobalContext; /* The global context */
 extern SEXP R_ReturnedValue;    /* Slot for return-ing values */
 
@@ -102,17 +115,24 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
       case RAWSXP:                                                             \
         SET_SXP_VAL(res, Rf_ScalarRaw(RAW(vec)[i]));                           \
         return;                                                                \
-      case VECSXP:                                                             \
-        SEXP elt = VECTOR_ELT(vec, i);                                         \
-        RAISE_NAMED(elt, NAMED(vec));                                          \
+      /* Braced because a label must be followed by a statement and a          \
+         declaration is not one; without them the `SEXP` below is a syntax     \
+         error. Named `__elt__`/`__v__` rather than `elt`/`v` because          \
+         `rsh_utils.h` includes <Rinternals.h> with the remapping on, so       \
+         plain `elt` expands to `Rf_elt` and the local turns into a            \
+         redeclaration of that function. */                                    \
+      case VECSXP: {                                                           \
+        SEXP __elt__ = VECTOR_ELT(vec, i);                                     \
+        RAISE_NAMED(__elt__, NAMED(vec));                                      \
         if (subset2) {                                                         \
-          SET_SXP_VAL(res, elt);                                               \
+          SET_SXP_VAL(res, __elt__);                                           \
         } else {                                                               \
-          SEXP v = Rf_allocVector(VECSXP, 1);                                  \
-          SET_VECTOR_ELT(v, 0, elt);                                           \
-          SET_SXP_VAL(res, v);                                                 \
+          SEXP __v__ = Rf_allocVector(VECSXP, 1);                              \
+          SET_VECTOR_ELT(__v__, 0, __elt__);                                   \
+          SET_SXP_VAL(res, __v__);                                             \
         }                                                                      \
         return;                                                                \
+      }                                                                        \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -241,24 +261,148 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
     }                                                                          \
   } while (0)
 
-static INLINE void INCLNK_stack(R_bcstack_t *top) { R_BCProtTop = top; }
+/* ------------------------------------------------------------------ *
+ * Node stack link-count protection (see R/doc/notes/bcstkprot.md).
+ * Two invariants, both silent when violated -- the symptom surfaces much
+ * later as a wrong value -- so they are asserted wherever it is cheap:
+ *
+ *   (I1) R_BCProtCommitted <= R_BCProtTop.  Committed is raised only by
+ *        INCLNK_stack_commit and lowered only by DECLNK_stack.  Lowering
+ *        R_BCProtTop any other way strands Committed above it, which turns
+ *        every later commit into a no-op for the live frame (protection
+ *        off) and makes every later DECLNK_stack decrement links it never
+ *        incremented (refcount underflow -> in-place mutation of shared
+ *        values).
+ *
+ *   (I2) A slot below R_BCProtCommitted must not change: an outstanding
+ *        INCREMENT_LINKS rides on the SEXP currently in it, and the
+ *        matching DECREMENT_LINKS lands on whatever is in it later.  Slots
+ *        that are rewritten while committed (the for-loop variable) carry
+ *        the NLNKSXP tag so the walks skip them.
+ * ------------------------------------------------------------------ */
+#ifndef NDEBUG
+#define RSH_CHECK_BCPROT()                                                     \
+  do {                                                                         \
+    if (R_BCProtCommitted > R_BCProtTop) {                                     \
+      fprintf(stderr,                                                          \
+              "BCProt invariant violated: Committed(%td) > Top(%td) "          \
+              "at %s:%d (%s)\n",                                               \
+              (ptrdiff_t)(R_BCProtCommitted - R_BCNodeStackBase),              \
+              (ptrdiff_t)(R_BCProtTop - R_BCNodeStackBase), __FILE__,          \
+              __LINE__, __func__);                                             \
+      assert(0);                                                               \
+    }                                                                          \
+  } while (0)
+
+/* (I2): assert that `slot` carries no outstanding link-count increment, so
+   overwriting it cannot unbalance the INCLNK/DECLNK pairing. */
+#define RSH_CHECK_NOT_COMMITTED(slot)                                          \
+  do {                                                                         \
+    if ((R_bcstack_t *)(slot) < R_BCProtCommitted) {                           \
+      fprintf(stderr,                                                          \
+              "overwriting committed stack slot %td (Committed=%td, "          \
+              "Top=%td) at %s:%d (%s) -- the slot needs an NLNKSXP tag\n",     \
+              (ptrdiff_t)((R_bcstack_t *)(slot) - R_BCNodeStackBase),          \
+              (ptrdiff_t)(R_BCProtCommitted - R_BCNodeStackBase),              \
+              (ptrdiff_t)(R_BCProtTop - R_BCNodeStackBase), __FILE__,          \
+              __LINE__, __func__);                                             \
+      assert(0);                                                               \
+    }                                                                          \
+  } while (0)
+
+/* (I2) for a slot that is exempt by tag rather than by position. */
+#define RSH_CHECK_NLNK(slot)                                                   \
+  do {                                                                         \
+    R_bcstack_t *__s__ = (R_bcstack_t *)(slot);                                \
+    if (__s__->tag != NLNKSXP && __s__ < R_BCProtCommitted) {                  \
+      fprintf(stderr,                                                          \
+              "committed stack slot %td has tag %d, expected NLNKSXP, "        \
+              "at %s:%d (%s)\n",                                               \
+              (ptrdiff_t)(__s__ - R_BCNodeStackBase), __s__->tag, __FILE__,    \
+              __LINE__, __func__);                                             \
+      assert(0);                                                               \
+    }                                                                          \
+  } while (0)
+#else
+#define RSH_CHECK_BCPROT() ((void)0)
+#define RSH_CHECK_NOT_COMMITTED(slot) ((void)0)
+#define RSH_CHECK_NLNK(slot) ((void)0)
+#endif
+
+static INLINE void INCLNK_stack(R_bcstack_t *top) {
+  RSH_CHECK_BCPROT();
+  /* INCLNK_stack only ever raises the pointer; lowering it must go through
+     DECLNK_stack so the committed links get decremented. */
+  assert(top >= R_BCProtTop);
+  R_BCProtTop = top;
+}
+
+static INLINE void INCLNK_stack_commit(void) {
+  RSH_CHECK_BCPROT();
+  if (R_BCProtCommitted < R_BCProtTop) {
+    R_bcstack_t *base = R_BCProtCommitted;
+    R_bcstack_t *top = R_BCProtTop;
+    for (R_bcstack_t *p = base; p < top; p++) {
+      if (p->tag == RAWMEM_TAG || p->tag == CACHESZ_TAG)
+        p += p->u.ival;
+      else if (p->tag == 0)
+        INCREMENT_LINKS(p->u.sxpval);
+    }
+    R_BCProtCommitted = R_BCProtTop;
+  }
+}
 
 static INLINE void DECLNK_stack(R_bcstack_t *base) {
-  // FIXME: protect using R_BCProtCommitted
-
-  // if (base < R_BCProtCommitted)
-  //{
-  //   R_bcstack_t *top = R_BCProtCommitted;
-  //   for (R_bcstack_t *p = base; p < top; p++)
-  //   {
-  //     if (p->tag == RAWMEM_TAG || p->tag == CACHESZ_TAG)
-  //       p += p->u.ival;
-  //     else if (p->tag == 0)
-  //       DECREMENT_LINKS(p->u.sxpval);
-  //   }
-  //   R_BCProtCommitted = base;
-  // }
+  RSH_CHECK_BCPROT();
+  assert(base >= R_BCNodeStackBase);
+  /* DECLNK_stack only lowers; a caller that passes a base above the current
+     R_BCProtTop would leave protection claimed for slots nobody committed. */
+  assert(base <= R_BCProtTop);
+  if (base < R_BCProtCommitted) {
+    R_bcstack_t *top = R_BCProtCommitted;
+    for (R_bcstack_t *p = base; p < top; p++) {
+      if (p->tag == RAWMEM_TAG || p->tag == CACHESZ_TAG)
+        p += p->u.ival;
+      else if (p->tag == 0)
+        DECREMENT_LINKS(p->u.sxpval);
+    }
+    R_BCProtCommitted = base;
+  }
   R_BCProtTop = base;
+  RSH_CHECK_BCPROT();
+}
+
+/* Per-compiled-function bracket for the two BCProt pointers, the analogue of
+   what `bcEval` saves in `struct bcEval_globals` and puts back in
+   `restore_bcEval_globals`.
+
+   A compiled function may raise R_BCProtTop (Rsh_StartFor, Rsh_IncLnkStk) and
+   normally lowers it again (Rsh_EndFor, Rsh_DecLnkStk). `return` from inside
+   the loop skips that, so without this bracket the raise escapes into the
+   caller, where it makes every slot below it look protected -- which trips
+   (I1)/the Rsh_StartAssign assertion, and would silently disable protection for
+   the caller's own frame in a release build.
+
+   Only the fall-off-the-end return path needs this: a longjmp (error,
+   Rsh_ReturnJmp, break/next) unwinds through Rf_begincontext, whose
+   `cptr->bcprottop` snapshot R_jumpctxt hands to R_BCProtReset. */
+typedef struct {
+  R_bcstack_t *top;
+  R_bcstack_t *committed;
+} RshBCProt;
+
+#define RSH_BCPROT_SAVE()                                                      \
+  ((RshBCProt){.top = R_BCProtTop, .committed = R_BCProtCommitted})
+
+static INLINE void Rsh_bcprot_restore(RshBCProt saved) {
+  if (R_BCProtTop > saved.top) {
+    DECLNK_stack(saved.top);
+  }
+  /* DECLNK_stack lowers Committed to the base it was given, which would claim
+     the caller's [committed, top) as committed. Put back what was really
+     committed on entry, as `restore_bcEval_globals` does. */
+  R_BCProtCommitted = saved.committed;
+  RSH_CHECK_BCPROT();
 }
 
 static ALWAYS_INLINE SEXP STACKVAL_TO_SEXP(R_bcstack_t v) {
@@ -292,11 +436,17 @@ typedef struct {
   R_xlen_t len;
   SEXPTYPE type;
   SEXP symbol;
+  // Cursor for LISTSXP sequences. Kept here rather than in the sequence stack
+  // slot so that slot stays immutable for the whole loop: it is below
+  // R_BCProtTop and thus link counted, and it holds the head that
+  // Rsh_StartFor's INCREMENT_LINKS and Rsh_EndFor's DECREMENT_LINKS pair up on.
+  // Not GC-traced, but every cdr is reachable from that head.
+  SEXP cursor;
 } RshLoopInfo;
 
 // For copy-and-patch. Possibly for Rsh as well.
 // To allow patching of internal symbols without unnecessary indirection
-#ifdef RCP
+#ifdef RCP_STENCILS
 #define EXTERN_ATTRIBUTES                                                      \
   __attribute__((section(".data"), visibility("hidden")))
 #else
@@ -444,7 +594,7 @@ typedef enum { X_LOGIC2_OPS } RshLogic2Op;
   X(seq_len, Rsh_SeqLen)                                                  \
   X(log, Rsh_Log)
 
-#ifdef RCP
+#ifdef RCP_STENCILS
 
 // Create extern declarations for all ops and symbols
 #define X(a, b, ...)                                                           \
@@ -470,8 +620,7 @@ RSH_R_SYMBOLS
 
 // Map to correct extern symbols
 // Rsh TODO: do we need to preserve calls to R_Primitive?
-#define RCP_OPS(fun, arg)                                                      \
-  (const SEXP const)(&_RCP_CRUNTIME_OPS_##fun##__RCP__##arg)
+#define RCP_OPS(fun, arg) ((SEXP)(&_RCP_CRUNTIME_OPS_##fun##__RCP__##arg))
 
 #define RSH_ARITH_OPS(op) (RCP_OPS(R_Primitive, op))
 #define RSH_ARITH_OP_SYMS(op) (RCP_OPS(Rf_install, op))
@@ -621,6 +770,11 @@ static INLINE SEXP VAL_SXP(Value v) {
   return (v).u.sxpval;
 }
 
+static INLINE SEXP VAL_SXP_NLNK(Value v) {
+  RSH_CHK_VAL_TYPE(v, NLNKSXP);
+  return (v).u.sxpval;
+}
+
 static INLINE Rsh_isqinfo_t VAL_ISQ(Value v) {
   RSH_CHK_VAL_TYPE(v, ISQSXP);
   return v.u.isqval;
@@ -671,8 +825,18 @@ static INLINE Rsh_isqinfo_t VAL_ISQ(Value v) {
     __node__->tag = 0;                                                         \
   } while (0);
 
-// TODO!! Needs fixing!
-#define SET_SXP_NLNK_VAL SET_SXP_VAL
+// A boxed value that the link-count walks must skip because it is rewritten
+// while it is below R_BCProtTop (the for-loop variable). The GC still traces
+// it: IS_PARTIAL_SXP_TAG(NLNKSXP) holds. Read it back with VAL_SXP_NLNK, never
+// with VAL_SXP, and never let it flow into generic value code (val_as_sexp,
+// VAL_IS_SXP, the recording stencils) -- those all test `tag == 0`.
+#define SET_SXP_NLNK_VAL(target, value)                                        \
+  do {                                                                         \
+    Value *__node__ = (target);                                                \
+    RSH_CHECK_NLNK(__node__);                                                  \
+    __node__->u.sxpval = (value);                                              \
+    __node__->tag = NLNKSXP;                                                   \
+  } while (0);
 
 #define SET_ISQ_VAL(target, value)                                             \
   do {                                                                         \
@@ -768,7 +932,16 @@ typedef union {
 
 #define DEFINE_BCELL(name) BCell name = R_NilValue;
 
+/* Name of the local `DEFINE_REGS` declares and `Rsh_Return` restores from.
+   Must match `VAR_BCPROT` in `ClosureCompiler`, which emits the reference. */
+#define RSH_BCPROT_VAR rsh_bcprot
+
+/* Declares `RSH_BCPROT_VAR`, which every return in the function restores from;
+   see RshBCProt. It is a declaration, so this macro is not a `do {} while (0)`
+   and belongs at the top of the function body, which is where the compiler
+   emits it. */
 #define DEFINE_REGS(n)                                                         \
+  RshBCProt RSH_BCPROT_VAR = RSH_BCPROT_SAVE();                                \
   do {                                                                         \
     int __n__ = (n);                                                           \
     CHECK_OVERFLOW(__n__);                                                     \
@@ -1148,7 +1321,7 @@ static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
     ENSURE_NAMEDMAX(value);
   }
   if (!keepmiss) {
-    SET_SXP_VAL(res, value); // Set now to protect during R_isMissing
+    SET_SXP_VAL(res, value); // Store final value for non-keepmiss instructions
   }
 }
 

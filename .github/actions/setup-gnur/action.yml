@@ -1,0 +1,125 @@
+name: Set up GNU-R
+description: >-
+  Make the vendored GNU-R available at `R/`, restoring it from the Actions cache
+  and (optionally) building it when the cache misses.
+
+# The server's tests need *this repository's* R, not a CRAN one:
+#
+#   - `AppConfig.R_BIN` defaults to `../R/bin/R`, i.e. `R/bin/R` relative to the
+#     repository root, since every Maven invocation runs in `server/`.
+#   - `TestRSession` is bootstrapped from RDS files written by one specific R
+#     version, and `SingleGNURProcess` refuses to run against a release that
+#     reports a different one. (It waves through the vendored build, which
+#     identifies itself as "R Under development" because `build-gnur.sh` fakes
+#     SVN-REVISION -- but a CRAN R has to match exactly.)
+#   - `RshCompiler` compiles the generated C against `R/include`, and the
+#     generated code calls into symbols that only exist in the RSH patches
+#     (`Fir_serialized_feedback`, the `rcp*` runtime, ...).
+#
+# So a `r-lib/actions/setup-r` install cannot stand in for it; the submodule has
+# to be built. That takes ~25 minutes, hence the cache: exactly one job passes
+# `build: true`, and everything else waits on it via `needs:` and restores.
+# Branches cannot read each other's caches, so the first run on a new branch
+# rebuilds; runs on `main` populate the cache that pull requests then restore.
+
+inputs:
+  build:
+    description: >-
+      Build GNU-R when the cache misses (and save the result). Exactly one job
+      per workflow run should set this; the rest should depend on that job so
+      they always hit the cache.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    # Keyed on the submodule's gitlink rather than on any file inside `R/` --
+    # the submodule is deliberately not checked out in the restoring jobs, so
+    # `hashFiles('R/**')` would see nothing there. `build-gnur.sh` chooses the
+    # compiler flags and configure arguments and the root Makefile decides what
+    # else lands in `R/library`, so both belong in the key too.
+    - id: key
+      shell: bash
+      run: |
+        echo "value=${{ runner.os }}-gnur-$(git rev-parse HEAD:R)-${{ hashFiles('tools/build-gnur.sh', 'Makefile') }}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore GNU-R
+      if: inputs.build != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: R
+        key: ${{ steps.key.outputs.value }}
+        # The job that builds GNU-R runs first and saves under this exact key,
+        # so a miss here means something is wrong -- fail loudly rather than
+        # limp on to a confusing "Cannot run program ../R/bin/R" later.
+        fail-on-cache-miss: true
+
+    - name: Restore or save GNU-R
+      if: inputs.build == 'true'
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: R
+        key: ${{ steps.key.outputs.value }}
+
+    # Only fetched on a miss: `R/` is a large fork of r-source, and on a hit the
+    # cache already holds a full (built) tree. `--depth 1` because nothing here
+    # needs its history -- this mirrors what Dockerfile.rcp-rsh does.
+    - name: Check out the GNU-R submodule
+      if: inputs.build == 'true' && steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: git submodule update --init --depth 1 R
+
+    # Only needed to *build*: the runtime halves of these (libpcre2-8-0, liblzma5, ...) are already
+    # in the runner image, so a job that only restores R can still run it. macOS is not like that;
+    # see below.
+    - name: Install build dependencies (Linux)
+      if: inputs.build == 'true' && steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update -y
+        # `build-gnur.sh` passes no configure arguments on Linux, so R's
+        # configure auto-detects; X11 is the one it treats as an error rather
+        # than as an optional feature, hence libx11-dev/libxt-dev. `rsync` is
+        # for R's own tools/rsync-recommended.
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          gfortran \
+          libbz2-dev \
+          libcairo2-dev \
+          libcurl4-openssl-dev \
+          libicu-dev \
+          libjpeg-dev \
+          liblzma-dev \
+          libpango1.0-dev \
+          libpcre2-dev \
+          libpng-dev \
+          libreadline-dev \
+          libssl-dev \
+          libtiff5-dev \
+          libx11-dev \
+          libxt-dev \
+          rsync \
+          zlib1g-dev
+
+    # Unconditional, unlike the Linux step: none of these ship with the macOS image, and the R that
+    # comes out of the cache names them by absolute path (`/opt/homebrew/opt/pcre2/lib/...` and
+    # friends, from the LDFLAGS `build-gnur.sh` sets). Without them `R --version` dies in dyld
+    # before printing anything, and every test that touches R fails at once.
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # `gcc` is here for gfortran, which `build-gnur.sh` sets as FC (and for the libgfortran /
+        # libquadmath that leaves in libR). The rest are the libraries R's configure looks for under
+        # /opt/homebrew, which is what build-gnur.sh puts on CPPFLAGS/LDFLAGS.
+        brew install --quiet gcc pcre2 xz readline libpng jpeg-turbo libtiff cairo pango pkgconf
+
+    # `setup-gnur` rather than `build-gnur.sh` directly: it also installs the
+    # packages the tests expect to find in `R/library`, and those end up inside
+    # the cached directory along with R itself.
+    - name: Build GNU-R
+      if: inputs.build == 'true' && steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: make setup-gnur

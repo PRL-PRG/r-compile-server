@@ -1,6 +1,10 @@
+### Custom local config ###
+.config.properties
+
+### Test artifacts
 src/test/snapshots
 !src/test/resources/**/*.log
-.config.properties
+Rplots.pdf
 
 ### Build ###
 target/
@@ -12,6 +16,7 @@ target/
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
+.idea/csv-editor.xml
 .idea/libraries/
 *.iws
 *.iml

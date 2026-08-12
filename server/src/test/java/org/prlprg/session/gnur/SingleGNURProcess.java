@@ -37,17 +37,34 @@ class SingleGNURProcess implements GNUR {
     // Start process
     try {
       String version;
-      try (var versionProc = new ProcessBuilder(R_BIN, "--version").start()) {
+      // Errors are merged in because this is the first R invocation of the run: if R can't start at
+      // all (on macOS, a dyld failure when the libraries it was linked against aren't installed),
+      // what it says about it is the only clue, and it says it on stderr.
+      try (var versionProc = rProcess(R_BIN, "--version").redirectErrorStream(true).start()) {
         if (!versionProc.waitFor(10, TimeUnit.SECONDS)) {
           throw new RuntimeException("R (`" + R_BIN + " --version`) timed out");
         }
 
         try (var versionReader = versionProc.inputReader()) {
-          var versionStr = versionReader.readLine();
+          var output = new StringBuilder();
+          String versionStr;
 
           // Skip lines like "WARNING: ignoring environment value of R_HOME"
-          while (versionStr.startsWith("WARNING:")) {
+          do {
             versionStr = versionReader.readLine();
+            if (versionStr != null) {
+              output.append(versionStr).append('\n');
+            }
+          } while (versionStr != null && versionStr.startsWith("WARNING:"));
+
+          if (versionStr == null) {
+            throw new RuntimeException(
+                "R (`"
+                    + R_BIN
+                    + " --version`) exited with code "
+                    + versionProc.exitValue()
+                    + " without reporting a version. Its output was:\n"
+                    + (output.isEmpty() ? "<nothing>" : output.toString()));
           }
 
           if (versionStr.startsWith("R version")) {
@@ -72,7 +89,7 @@ class SingleGNURProcess implements GNUR {
         }
       }
 
-      process = new ProcessBuilder(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
+      process = rProcess(R_BIN, "--slave", "--vanilla").redirectErrorStream(true).start();
 
       if (logger.isLoggable(Level.FINE)) {
         logger.fine("Started %s version: %s process: %d".formatted(R_BIN, version, process.pid()));
@@ -85,6 +102,18 @@ class SingleGNURProcess implements GNUR {
 
     in = new PrintStream(process.getOutputStream());
     out = new BufferedReader(new InputStreamReader(process.getInputStream()));
+  }
+
+  /// [ProcessBuilder] for `R_BIN`, without `R_HOME` in the environment.
+  ///
+  /// `R_BIN` is a path to a specific R, whose launcher script ignores an inherited `R_HOME` and
+  /// says so on stderr. That warning would otherwise land in the captured output of whichever
+  /// eval happened to start the process, which is nondeterministic once a crashing example makes
+  /// [RestartingGNURProcess] restart it mid-suite.
+  private static ProcessBuilder rProcess(String... command) {
+    var builder = new ProcessBuilder(command);
+    builder.environment().remove("R_HOME");
+    return builder;
   }
 
   @Override
@@ -132,6 +161,8 @@ class SingleGNURProcess implements GNUR {
 
       return Pair.of(res, output);
     } catch (IOException e) {
+      // Ensure [RestartingGNURProcess] starts a new process if this didn't actually die
+      process.destroy();
       throw new RuntimeException(
           "I/O exception during R source evaluation"
               + (output != null ? "\nOutput:\n" + output : ""),

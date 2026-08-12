@@ -22,34 +22,19 @@ fi
 # Get command arguments
 
 function usage() {
-  echo "Usage: $0 [-d] <R sources path>"
+  echo "Usage: $0 <R sources path>"
 }
 
-R_DEBUG=0
 R_DIR=""
 while [[ $# -gt 0 ]]; do
-  case $1 in
-  -d | --debug)
-    echo "Building a debug version of R"
-    R_DEBUG=1
+  if [[ -z "$R_DIR" ]]; then
+    R_DIR="$1"
     shift
-    ;;
-  -*)
-    echo "Unknown option $1"
+  else
+    echo "Unknown options $*"
     usage
     exit 1
-    ;;
-  *)
-    if [[ -z "$R_DIR" ]]; then
-      R_DIR="$1"
-      shift
-    else
-      echo "Unknown options $*"
-      usage
-      exit 1
-    fi
-    ;;
-  esac
+  fi
 done
 
 if [[ -z "$R_DIR" ]]; then
@@ -59,7 +44,7 @@ fi
 
 # Set compilation options
 
-if [[ $R_DEBUG -eq 1 ]]; then
+if [[ "${DEBUG:-0}" == "1" ]] || [[ "${DEBUG:-0}" == "true" ]]; then
   if [[ $USING_OSX -eq 1 ]]; then
     OPT="-g -O0"
   else
