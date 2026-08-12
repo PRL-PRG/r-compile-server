@@ -4,7 +4,7 @@ extern FUNTAB R_FunTab[];
 extern Rboolean R_Visible; /* Value visibility flag */
 extern SEXP R_valueSym;
 extern R_bcstack_t *R_BCNodeStackTop, *R_BCNodeStackEnd, *R_BCNodeStackBase,
-    *R_BCProtTop;
+    *R_BCProtTop, *R_BCProtCommitted;
 #if !defined(RCP) || !defined(COMPILING_STENCILS)
 extern SEXP R_TrueValue;
 extern SEXP R_LogicalNAValue;

@@ -1,7 +1,11 @@
 #!/bin/bash
 
 SERVER_DIR="server"
-MVN="mvn -f $SERVER_DIR"
+# The wrapper, so this uses the Maven version pinned in
+# `server/.mvn/wrapper/maven-wrapper.properties` (the one CI uses) rather than
+# whatever is on `PATH`. It finds that file relative to itself, so running it
+# from the repository root (where hooks run) is fine.
+MVN="$SERVER_DIR/mvnw -f $SERVER_DIR"
 
 staged_files=$(git diff --staged --name-only --diff-filter=d -- $SERVER_DIR)
 everything_staged=$(git diff --name-only --diff-filter=d -- $SERVER_DIR)

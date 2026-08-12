@@ -17,8 +17,12 @@ GRPC_LIBS := $(shell pkg-config --libs grpc++)
 XXHASH_CFLAGS := $(shell pkg-config --cflags libxxhash)
 XXHASH_LIBS := $(shell pkg-config --libs libxxhash)
 
-# Both C/C++ flags
-PKG_CPPFLAGS := -DR_NO_REMAP -DSTRICT_R_HEADERS -DUSE_RINTERNALS
+# Both C/C++ flags.
+# -MMD -MP makes each compile write a `.d` listing the headers it read, which `-include` below
+# feeds back to make. Without it nothing here depends on a header, so editing e.g. bc2c/opcodes.h
+# silently reuses stale objects -- and an object built against different headers than its
+# neighbours usually shows up as a confusing link error, not a rebuild.
+PKG_CPPFLAGS := -DR_NO_REMAP -DSTRICT_R_HEADERS -DUSE_RINTERNALS -MMD -MP
 # C++ flags
 PKG_CXXFLAGS := $(LLVM_CPPFLAGS) $(PB_CPPFLAGS) $(ABSL_CPPFLAGS) $(GRPC_CPPFLAGS) $(XXHASH_CFLAGS) -fexceptions
 # C flags
@@ -33,8 +37,21 @@ C_FILES = $(wildcard *.c **/*.c)
 
 OBJECTS = $(CPP_FILES:.cpp=.o) $(CC_FILES:.cc=.o) $(C_FILES:.c=.o)
 
-# Add rules for dependency generation
-# %.d: %.cpp
-# 	@$(CXX) $(PKG_CXXFLAGS) -MM -MT $@ -MT $(<:.cpp=.o) $< > $@
+# A `.d` starts with an explicit `<obj>:` rule, and this Makevars has no rules of its own, so
+# without this the first included one would become make's default goal and `R CMD SHLIB` would
+# build a single object instead of the library. `all` is shlib.mk's own default, read after us.
+.DEFAULT_GOAL := all
+
+# Cancel Makeconf's own `.c.d`/`.cc.d`/`.cpp.d` rules (pattern rules with no recipe cancel), so make
+# never tries to *remake* one of the `.d` files below: ours are written by the compiler during the
+# real compile (-MMD above), with the flags the object was actually built with.
+%.d: %.c
+%.d: %.cc
+%.d: %.cpp
+
+# Header dependencies recorded by -MMD -MP above. `wildcard` so only existing ones are named: on a
+# clean tree there are none, and everything is built anyway. -MP emits a phony target per header, so
+# deleting one doesn't wedge the build.
+-include $(wildcard $(OBJECTS:.o=.d))
 
 # vim: set ft=make:

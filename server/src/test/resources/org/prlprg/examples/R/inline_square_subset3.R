@@ -1,3 +1,4 @@
+#? crashes
 x <- data.frame(a = 1:5, b = 6:10)
 y <- c(0, 1, 0, 1, 0)
 

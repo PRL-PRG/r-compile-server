@@ -37,7 +37,7 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
   /// @throws IllegalArgumentException If [BB] isn't in the scope.
   /// @throws IllegalArgumentException If [BB] is unreachable.
   /// @throws IllegalArgumentException If `instructionIndex` is outside the range `[-1,
-  // bb.statements().size()]`.
+  /// bb.statements().size()]`.
   protected final S at(BB bb, int instructionIndex) {
     if (!ran) {
       throw new IllegalStateException("Analysis not yet run");
@@ -45,10 +45,28 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
 
     var cfgAnalysis = analyses.get(bb.owner());
     if (cfgAnalysis == null) {
-      throw new IllegalArgumentException("BB's CFG not in scope");
+      throw new IllegalArgumentException(
+          "BB's CFG not in scope: "
+              + bb.label()
+              + " in "
+              + bb.owner()
+              + "\nScope = "
+              + scope
+              + "\nAnalyzed CFGs = "
+              + analyses.keySet());
     }
 
     return cfgAnalysis.at(bb, instructionIndex);
+  }
+
+  /// [#at(BB, int)], except `null` instead of throwing when `bb`'s [CFG] wasn't analyzed.
+  protected final @Nullable S atOrNull(BB bb, int instructionIndex) {
+    if (!ran) {
+      throw new IllegalStateException("Analysis not yet run");
+    }
+
+    var cfgAnalysis = analyses.get(bb.owner());
+    return cfgAnalysis == null ? null : cfgAnalysis.at(bb, instructionIndex);
   }
 
   /// Queries the analysis state at the scope's main (i.e. not promise) [CFG]'s return.

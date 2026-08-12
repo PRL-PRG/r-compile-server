@@ -1,4 +1,4 @@
-#! ../../../../../../../external/R/bin/Rscript
+#! ../../../../../../../R/bin/Rscript
 # Script to regenerate example in `./R` starting with `stdlib_`, from various packages.
 # The example defines the function, then runs any example code in its documentation.
 

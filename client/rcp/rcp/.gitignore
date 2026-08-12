@@ -1,0 +1,12 @@
+src/**/*.o
+src/**/*.d
+src/**/*.so
+src/**/*.a
+tools/**/*.o
+tools/**/*.d
+tools/**/*.so
+tools/**/*.a
+compile_commands.json
+src/extractor/extractor
+src/stencils-build/
+tests/gdb-jit/*/actual.log

@@ -36,14 +36,15 @@ To run the IntelliJ inside the dev container:
 
 If the dev container is too slow, you can also setup on the host machine. To do so, must install the following dependencies:
 
-- **Java 26 and Maven 3**
+- **Java 26 and Maven 4**
   - IntelliJ will automatically install these. If not, you can download a Java 26 binary from https://adoptium.net/temurin/releases/?version=26, and Maven from https://maven.apache.org/download.cgi.
+  - Alternatively, run `server/mvnw` instead of `mvn`: it downloads the pinned Maven version (see `server/.mvn/wrapper/maven-wrapper.properties`) on first use. This is what CI does.
   - If you are using IntelliJ, navigate to "Project Structure > Project" and make sure the **SDK* is set to **a JDK of version 26** (e.g. "openjdk-26"). If not, click the dropdown and "Download JDK", then select any JDK of version 26.
 
 ## Commands
 
 - Run `make setup` to initialize the dependencies
-  - It installs GNU-R in `external/R`.
+  - It installs GNU-R in `R`.
 - Run `make setup-git` to install Git Hooks. The commit hook formats, the pre-push hook runs tests and static analyses.
 - Build with `make` or `mvn package`
 - Test (no static analyses) with `make test` or `mvn test`
@@ -59,7 +60,7 @@ If the dev container is too slow, you can also setup on the host machine. To do 
     - e.g. if using IntelliJ on macOS, openJDK 26, set `JAVA_HOME=~/Library/Java/JavaVirtualMachines/openjdk-26/Contents/Home`
     - In the devcontainer, `JAVA_HOME=/usr/lib/jvm/jdk`
 - **Problem:** some R symbols are not visible when JIT-compiling.
-  - **Solution:** make sure that `external/R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-3-2`. 
+  - **Solution:** make sure that `R` is up-to-date with `git submodule update --init --recursive` and check if it is the right branch, `RSH-4-5-2`. 
 
 If you have a different issue than the above, [report it on GitHub](https://github.com/PRL-PRG/r-compile-server/issues/new/choose).
 

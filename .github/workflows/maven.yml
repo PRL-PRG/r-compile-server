@@ -8,97 +8,159 @@
 
 name: Java CI with Maven
 
+# Nearly everything this builds lives under server/ -- including the .proto
+# files, which `make -C proto` copies into server/src/main/protobuf. The
+# exceptions are client/rsh/src, whose headers the server's tests compile the
+# generated C against (plus the fir2c runtime sources they compile into it, so
+# the result loads without the `rsh` package), and the vendored GNU-R those
+# tests run and link against (the `R` gitlink plus the script that builds it).
+# The two `paths` lists must be kept in sync; GitHub Actions does not support
+# YAML anchors.
 on:
   push:
     branches: ["main"]
+    paths:
+      - "server/**"
+      - "client/rsh/src/**"
+      # Only the gitlink is tracked for the submodule, so this is a plain path
+      # rather than an `R/**` glob, which would never match.
+      - "R"
+      - "tools/build-gnur.sh"
+      - ".github/workflows/maven.yml"
+      - ".github/actions/setup-gnur/**"
   pull_request:
     branches: ["main"]
+    paths:
+      - "server/**"
+      - "client/rsh/src/**"
+      - "R"
+      - "tools/build-gnur.sh"
+      - ".github/workflows/maven.yml"
+      - ".github/actions/setup-gnur/**"
+  workflow_dispatch:
 
+# Skip the `stdlib_*` examples in the snapshot tests: they're slow and cover the
+# same code paths as the smaller examples. `TestConfig` picks this up from the
+# environment, which the forked Surefire JVMs inherit.
+#
+# FIXME: `bench_awf_*|bench_shootout_*` are skipped because they OOM the forked Surefire JVM.
+env:
+  EXAMPLE_FILTER: "(?!stdlib_|bench_awf_*|bench_shootout_*).*"
+
+# All the jobs run `./mvnw` rather than the runner's `mvn`: the build needs
+# Maven 4 (maven-compiler-plugin 4.x), while the runner images still ship Maven
+# 3.9, which bails out before it gets as far as the build.
+#
+# They all also need the patched GNU-R at `R/`
 jobs:
-  artifact:
+  gnur-linux:
+    name: GNU-R (Linux)
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up JDK 22
-        uses: actions/setup-java@v3
+      - uses: actions/checkout@v5
+      - name: Build and cache GNU-R
+        uses: ./.github/actions/setup-gnur
         with:
-          java-version: "22"
-          distribution: "temurin"
-          cache: maven
-      - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "4.3.2"
-      - name: Build artifact
-        working-directory: server
-        run: mvn --batch-mode --update-snapshots package
-      - run: mkdir staging && cp target/*.jar staging
-        working-directory: server
-      - name: Upload snapshot as artifact
-        uses: actions/upload-artifact@v3
-        working-directory: server
-        with:
-          name: snapshot
-          path: target/*-SNAPSHOT.jar
-      # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
-      - name: Update dependency graph
-        working-directory: server
-        uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
+          build: "true"
 
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up JDK 22
-        uses: actions/setup-java@v3
-        with:
-          java-version: "22"
-          distribution: "temurin"
-          cache: maven
-      - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "4.3.2"
-      - name: Run tests (no static analyses)
-        working-directory: server
-        run: mvn --batch-mode --update-snapshots test
-
-  verify:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up JDK 22
-        uses: actions/setup-java@v3
-        with:
-          java-version: "22"
-          distribution: "temurin"
-          cache: maven
-      - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: "4.3.2"
-      - name: Run tests and static analyses
-        working-directory: server
-        run: mvn --batch-mode --update-snapshots verify
-
-  verify-macos:
+  gnur-macos:
+    name: GNU-R (macOS)
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up JDK 22
-        uses: actions/setup-java@v3
+      - uses: actions/checkout@v5
+      - name: Build and cache GNU-R
+        uses: ./.github/actions/setup-gnur
         with:
-          java-version: "22"
+          build: "true"
+
+  artifact:
+    runs-on: ubuntu-latest
+    needs: gnur-linux
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up JDK 26
+        uses: actions/setup-java@v5
+        with:
+          java-version: "26"
           distribution: "temurin"
           cache: maven
       - name: Set up GNU-R
-        uses: r-lib/actions/setup-r@v2
+        uses: ./.github/actions/setup-gnur
+      - name: Build artifact
+        working-directory: server
+        run: ./mvnw --batch-mode --update-snapshots package
+      - name: Upload snapshot as artifact
+        uses: actions/upload-artifact@v4
         with:
-          r-version: "4.3.2"
+          name: snapshot
+          path: server/target/*-SNAPSHOT.jar
+      # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
+      - name: Update dependency graph
+        uses: advanced-security/maven-dependency-submission-action@b275d12641ac2d2108b2cbb7598b154ad2f2cee8 # v5.0.0
+        with:
+          directory: ${{ github.workspace }}/server
+
+  test:
+    runs-on: ubuntu-latest
+    needs: gnur-linux
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up JDK 26
+        uses: actions/setup-java@v5
+        with:
+          java-version: "26"
+          distribution: "temurin"
+          cache: maven
+      - name: Set up GNU-R
+        uses: ./.github/actions/setup-gnur
+      - name: Run tests (no static analyses)
+        working-directory: server
+        run: ./mvnw --batch-mode --update-snapshots test
+
+  verify:
+    runs-on: ubuntu-latest
+    needs: gnur-linux
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up JDK 26
+        uses: actions/setup-java@v5
+        with:
+          java-version: "26"
+          distribution: "temurin"
+          cache: maven
+      - name: Set up GNU-R
+        uses: ./.github/actions/setup-gnur
       - name: Run tests and static analyses
         working-directory: server
-        run: mvn --batch-mode --update-snapshots verify
+        run: ./mvnw --batch-mode --update-snapshots verify
+
+  verify-macos:
+    runs-on: macos-latest
+    needs: gnur-macos
+
+    # macos-latest has 7 GB of RAM against ubuntu-latest's 16, so the default max heap is
+    # ~1.75 GB rather than ~4 GB, and it shares that with the R process and the C compiler these
+    # tests spawn. Skip every benchmark here, not just the runaway one above: they're the
+    # examples with by far the largest snapshots (all of them together are ~79% of the bytes,
+    # against a 4 MB ceiling for everything else), and they're covered on Linux.
+    env:
+      EXAMPLE_FILTER: "(?!stdlib_|bench_).*"
+
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up JDK 26
+        uses: actions/setup-java@v5
+        with:
+          java-version: "26"
+          distribution: "temurin"
+          cache: maven
+      - name: Set up GNU-R
+        uses: ./.github/actions/setup-gnur
+      - name: Run tests and static analyses
+        working-directory: server
+        run: ./mvnw --batch-mode --update-snapshots verify

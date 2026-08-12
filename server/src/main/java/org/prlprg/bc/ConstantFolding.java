@@ -1,7 +1,6 @@
 package org.prlprg.bc;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.math.DoubleMath;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -24,6 +23,11 @@ import org.prlprg.util.Arithmetic;
  * place without making Compiler too big.
  */
 public final class ConstantFolding {
+  private static final double LN_2 = Math.log(2);
+
+  /// Enough to scale any subnormal `double` into the normal range.
+  private static final int SUBNORMAL_SHIFT = 54;
+
   private ConstantFolding() {}
 
   public static Optional<SEXP> add(List<SEXP> args) {
@@ -34,12 +38,103 @@ public final class ConstantFolding {
     return math2(Arithmetic.Operation.DIV, args);
   }
 
+  public static Optional<SEXP> cos(List<SEXP> args) {
+    return doubleMath1(args, Math::cos);
+  }
+
+  public static Optional<SEXP> exp(List<SEXP> args) {
+    return doubleMath1(args, Math::exp);
+  }
+
+  /// `log(x)` and `log(x, base)`.
+  ///
+  /// The two-argument form mirrors GNU-R's `logbase`, which special-cases bases 10 and 2 so
+  /// they're as accurate as `log10`/`log2` instead of a ratio of logarithms.
   public static Optional<SEXP> log(List<SEXP> args) {
-    return doubleMath1(args, Math::log);
+    return switch (args.size()) {
+      case 1 -> doubleMath1(args, ConstantFolding::rLog);
+      case 2 -> {
+        if (!(args.get(1) instanceof NumericSXP<?> baseV) || baseV.size() != 1) {
+          yield Optional.empty();
+        }
+        var base = baseV.asReal(0);
+        yield doubleMath1(args.subList(0, 1), x -> logBase(x, base));
+      }
+      default -> Optional.empty();
+    };
+  }
+
+  public static Optional<SEXP> log10(List<SEXP> args) {
+    return doubleMath1(args, x -> logBase(x, 10));
   }
 
   public static Optional<SEXP> log2(List<SEXP> args) {
-    return doubleMath1(args, DoubleMath::log2);
+    return doubleMath1(args, x -> logBase(x, 2));
+  }
+
+  public static Optional<SEXP> sin(List<SEXP> args) {
+    return doubleMath1(args, Math::sin);
+  }
+
+  public static Optional<SEXP> tan(List<SEXP> args) {
+    return doubleMath1(args, Math::tan);
+  }
+
+  /// `seq_len(n)`, which is always an integer sequence from 1 to `n`.
+  public static Optional<SEXP> seqLen(List<SEXP> args) {
+    if (args.size() != 1) {
+      return Optional.empty();
+    }
+
+    if (!(args.getFirst() instanceof NumericSXP<?> nV) || nV.size() != 1) {
+      return Optional.empty();
+    }
+
+    var n = nV.asInt(0);
+    // GNU-R errors on a negative or `NA` length, and an error means it doesn't fold at all.
+    if (n < 0 /*|| n == Constants.NA_INT*/) {
+      return Optional.empty();
+    }
+
+    var ans = new int[n];
+    for (var i = 0; i < n; i++) {
+      ans[i] = i + 1;
+    }
+    return Optional.of(SEXPs.integer(ans));
+  }
+
+  /// GNU-R's `R_log`: negative arguments are `NaN` (with a warning) and zero is `-Inf`.
+  private static double rLog(double x) {
+    return x > 0 ? Math.log(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
+  }
+
+  /// GNU-R's `logbase`.
+  private static double logBase(double x, double base) {
+    if (base == 10) {
+      return x > 0 ? Math.log10(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
+    }
+    if (base == 2) {
+      return x > 0 ? log2(x) : x < 0 ? Double.NaN : Double.NEGATIVE_INFINITY;
+    }
+    return rLog(x) / rLog(base);
+  }
+
+  /// Base-2 logarithm of a positive number, to the same precision as C's `log2`.
+  ///
+  /// [DoubleMath#log2(double)] is `log(x) / log(2)`, which is off by an ulp for e.g. `10`.
+  /// Splitting off the binary exponent first leaves [Math#log1p] a much smaller argument, and
+  /// makes exact powers of two exact.
+  private static double log2(double x) {
+    var normalized = x;
+    var normalizingExponent = 0;
+    if (Math.getExponent(x) < Double.MIN_EXPONENT) {
+      normalized = Math.scalb(x, SUBNORMAL_SHIFT);
+      normalizingExponent = -SUBNORMAL_SHIFT;
+    }
+
+    var exponent = Math.getExponent(normalized);
+    var mantissa = Math.scalb(normalized, -exponent);
+    return exponent + normalizingExponent + Math.log1p(mantissa - 1) / LN_2;
   }
 
   public static Optional<SEXP> minus(List<SEXP> args) {
@@ -231,7 +326,19 @@ public final class ConstantFolding {
 
     var res = Arrays.copyOf(n.coerceToReals(), n.size());
     for (var i = 0; i < res.length; i++) {
-      res[i] = f.apply(res[i]);
+      var x = res[i];
+      // GNU-R's `math1` propagates `NA`/`NaN` without calling the function, which matters because
+      // otherwise e.g. `log`'s "is it positive?" test would send `NA` to `-Inf`.
+      if (Double.isNaN(x)) {
+        continue;
+      }
+
+      res[i] = f.apply(x);
+      // These functions warn ("NaNs produced") exactly when they turn a non-`NaN` into a `NaN`,
+      // and GNU-R doesn't constant-fold anything that warns.
+      if (Double.isNaN(res[i])) {
+        return Optional.empty();
+      }
     }
 
     return Optional.of(SEXPs.real(res));

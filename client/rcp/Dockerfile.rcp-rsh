@@ -1,0 +1,74 @@
+ARG RCP_BASE_IMAGE=ghcr.io/prl-prg/rcp-base:latest
+FROM ${RCP_BASE_IMAGE}
+
+ARG RSH_COMMIT
+
+RUN git clone https://github.com/PRL-PRG/r-compile-server.git /rsh && \
+    git -C /rsh checkout --detach ${RSH_COMMIT} && \
+    git -C /rsh submodule update --init --depth 1 R
+
+# Assert that the vanilla bc baseline in /R-vanilla (pinned by R_VERSION in
+# Dockerfile.rcp-base, so that its expensive build stays cached) is the same R
+# version as the one rsh vendors and RCP patches. The bc-vs-rcp ratio only
+# measures the JIT if both sides are otherwise the same R; these silently drifted
+# apart once -- a 4.3.2 baseline against an R-devel snapshot -- which put months
+# of upstream R changes inside every reported speedup.
+#
+# This is the first point in the build where both versions are knowable, and it
+# costs nothing: the vendored source tree always carries VERSION, and an
+# installed R records its version in base's DESCRIPTION, so neither R has to be
+# run or built. Placed before the R build below so a mismatch fails in seconds
+# rather than after a full compile.
+#
+# Set ALLOW_R_VERSION_MISMATCH=1 to downgrade this to a warning -- needed when
+# the vendored R is a development snapshot, since no CRAN release matches one.
+ARG ALLOW_R_VERSION_MISMATCH=0
+RUN set -eu; \
+    rcp_v="$(head -n1 /rsh/R/VERSION | sed 's/[[:space:]]*$//')"; \
+    van_v="$(awk '/^Version:/ {print $2; exit}' "$(/R-vanilla/bin/R RHOME)/library/base/DESCRIPTION")"; \
+    echo "vendored (rcp) R: $rcp_v"; \
+    echo "vanilla (bc) R:   $van_v"; \
+    if [ "$rcp_v" = "$van_v" ]; then \
+      echo "OK: both benchmark sides are R $van_v"; \
+    elif [ "$ALLOW_R_VERSION_MISMATCH" = "1" ]; then \
+      echo "WARNING: R version mismatch ($rcp_v vs $van_v) allowed by ALLOW_R_VERSION_MISMATCH=1;" >&2; \
+      echo "         bc-vs-rcp results will include upstream R differences." >&2; \
+    else \
+      echo "error: the bc baseline and the RCP R are different R versions." >&2; \
+      echo "  vendored /rsh/R/VERSION: $rcp_v" >&2; \
+      echo "  vanilla /R-vanilla:               $van_v" >&2; \
+      echo "  Bump R_VERSION in Dockerfile.rcp-base to $rcp_v and rebuild rcp-base," >&2; \
+      echo "  or pass --build-arg ALLOW_R_VERSION_MISMATCH=1 to benchmark anyway." >&2; \
+      exit 1; \
+    fi
+
+# Build the RCP (copy-and-patch) variant of R so the rcp package can link the
+# rcp* runtime symbols (rcpEval, R_RcpFree, ...). The bc benchmarks use the
+# separate vanilla /R-vanilla from the base image, so this stays RCP-only.
+RUN cd /rsh && \
+    RCP=1 bash -x ./tools/build-gnur.sh R
+
+RUN /rsh/R/bin/R --quiet -e 'install.packages("microbenchmark", repos="https://cloud.r-project.org")'
+
+# Provision the CRAN package benchmarks here, in the rsh image, so they are
+# CACHED across rcp commits: this layer is keyed on RSH_COMMIT and only rebuilds
+# when r-compile-server (which now owns the harvester + packages.csv) changes.
+# Installs into a per-R-version library for both the RCP R and the vanilla bc R;
+# the RCP run also generates the cran/ benchmark group. --binary pulls Posit's
+# prebuilt Linux binaries (codename auto-detected from /etc/os-release), with
+# automatic source fallback, and Ncpus defaults to all cores.
+#
+# OFF by default (HARVEST_CRAN=0) to keep CI fast. Set the build-arg to 1 to
+# enable; with it off no cran/ group is generated, so `make benchmark` runs only
+# the synthetic suites.
+ARG HARVEST_CRAN=0
+RUN if [ "$HARVEST_CRAN" = "1" ]; then \
+      /rsh/R/bin/Rscript /rsh/client/rsh/inst/benchmarks/cran-harvest/harvest.R --binary && \
+      /R-vanilla/bin/Rscript    /rsh/client/rsh/inst/benchmarks/cran-harvest/harvest.R --binary --install-only ; \
+    else \
+      echo "HARVEST_CRAN=$HARVEST_CRAN: skipping CRAN benchmark harvest (set build-arg HARVEST_CRAN=1 to enable)" ; \
+    fi
+
+ENV RSH_HOME=/rsh/client/rsh
+ENV R_HOME=/rsh/R
+ENV PATH="${PATH}:${R_HOME}/bin"

@@ -108,7 +108,7 @@ contaminate the bc baseline):
 make benchmark BENCH_OPTS=--bc  BENCH_OUT_DIR=$PWD/out-bc  R_HOME=/R-vanilla
 make benchmark BENCH_OPTS=--rcp BENCH_OUT_DIR=$PWD/out-rcp
 "$R_HOME/bin/Rscript" \
-  ../../../external/rsh/client/rsh/inst/benchmarks/benchmark.R \
+  ../../../client/rsh/inst/benchmarks/benchmark.R \
   compare out-bc/*.csv out-rcp/*.csv
 ```
 

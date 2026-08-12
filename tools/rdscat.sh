@@ -10,7 +10,7 @@ fi
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd $(dirname "$0") && pwd)
 BASE_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
-R="$BASE_DIR/external/R/bin/R"
+R="$BASE_DIR/R/bin/R"
 
 if [[ ! -x "$R" ]]; then
 	echo "R not found at $R"

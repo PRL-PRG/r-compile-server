@@ -41,7 +41,7 @@ public record OptimizedFirQuery(Optimization optimization) implements GenFirQuer
 
   @Override
   public Module compute(Example example, SnapshotStore store) {
-    if (example.text().contains("-error:")) {
+    if (GenFirQuery.isDeliberatelyInvalid(example)) {
       // Don't try to optimize invalid FIR, it may crash
       throw new SkipQueryException(name(), new RuntimeException("Invalid FIR"));
     }

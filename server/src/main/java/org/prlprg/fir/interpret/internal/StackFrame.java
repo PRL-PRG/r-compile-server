@@ -38,9 +38,8 @@ final class StackFrame {
   /// [escaped][PromiseCode#escaped].
   private final List<PromiseCode> createdPromises = new ArrayList<>();
   /// Shared with [InternalInterpreter]: maps user-created environments to the `mkenv` statement
-  // that
-  /// created them. [#mkEnv()] adds to it; [#put(Variable, Value)] reads it to reject stores to
-  /// elided environments.
+  /// that created them. [#mkEnv()] adds to it; [#put(NamedVariable, Value)] reads it to reject
+  /// stores to elided environments.
   private final Map<EnvSXP, Statement> userEnvPositions;
   private EnvSXP environment;
   private int numEnvsPushed = 0;
@@ -174,6 +173,25 @@ final class StackFrame {
 
     environment = environment.parent();
     numEnvsPushed--;
+  }
+
+  /// Runs `body` with [#environment] temporarily set to `environment`.
+  ///
+  /// Forcing a promise has to read and write the environment the `prom` captured, not whichever
+  /// one this frame is on now: by then the frame may have `popenv`'d, and if the promise escaped
+  /// the frame has returned entirely, so [#environment] is the *enclosing* environment and every
+  /// lookup in the promise body would silently resolve there instead.
+  public <T> T withEnvironment(EnvSXP environment, java.util.function.Supplier<T> body) {
+    var previous = this.environment;
+    var previousNumEnvsPushed = numEnvsPushed;
+    this.environment = environment;
+    numEnvsPushed = 0;
+    try {
+      return body.get();
+    } finally {
+      this.environment = previous;
+      numEnvsPushed = previousNumEnvsPushed;
+    }
   }
 
   @Override

@@ -1,0 +1,140 @@
+---
+title: "DWARF Unwinding in the Copy-and-Paste JIT"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{DWARF Unwinding in the Copy-and-Paste JIT}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Overview
+
+The copy-and-paste JIT generates DWARF `.eh_frame` unwinding information for
+every compiled function.  This serves three purposes:
+
+1. **C++ exception unwinding** -- enabling `throw`/`catch` to propagate
+   correctly through JIT-compiled frames.
+2. **GDB debugging** -- providing source-level stepping, backtraces, and
+   variable inspection in JIT code via the GDB JIT interface.
+3. **Perf/samply profiling** -- embedding unwinding data in a jitdump file so
+   that sampling profilers can produce accurate call graphs through JIT frames.
+
+The implementation splits DWARF generation into a *build-time extraction*
+phase and a *runtime assembly* phase, so the JIT itself never has to generate
+DWARF from scratch.
+
+## Build-Time CFI Extraction
+
+Each stencil (the copy-and-paste unit) is compiled as a normal C function, so
+the C compiler emits a standard `.eh_frame` FDE (Frame Description Entry) in
+the stencil object file.  At build time, `extract_stencils` (using BFD) parses
+the `.eh_frame` section, locates each stencil's FDE via relocations on the
+`initial_location` field, and extracts the raw CFI (Call Frame Information)
+instruction bytes.  These are stored as byte arrays (`cfi_data`, `cfi_size`)
+alongside the stencil machine code in the generated `stencils_data.c`.
+
+The leading `DW_CFA_advance_loc` is stripped so each stencil's CFI begins at
+offset zero, ready to be relocated at runtime.
+
+## Runtime `.eh_frame` Construction
+
+When a function is JIT-compiled, a single `.eh_frame` blob is assembled in
+memory containing one CIE and one FDE.
+
+### CIE (Common Information Entry)
+
+The CIE defines the baseline unwinding state shared by all stencils:
+
+- Version 1, augmentation `"zR"`, pointer encoding `DW_EH_PE_absptr`
+- Code alignment factor 1, data alignment factor −8
+- Return address register = 16 (x86-64 RA)
+- Initial instructions:
+  - `DW_CFA_def_cfa(RSP, 8)` -- CFA is RSP+8 (the return address on the
+    stack)
+  - `DW_CFA_offset(RA, 1)` -- RA saved at CFA−8
+  - `DW_CFA_val_offset_sf(RBP, −6)` -- RBP value is CFA+48, needed because
+    the JIT entry point uses
+    `__attribute__((no_callee_saved_registers))`, so the JIT does not
+    save/restore RBP itself; this rule points the unwinder to the caller's
+    saved RBP
+
+### FDE (Frame Description Entry)
+
+The FDE covers the entire JIT code region with a single absolute
+`initial_location` and `address_range`.  For each bytecode instruction, it
+emits a `DW_CFA_advance_loc` to the stencil's actual address in the assembled
+code, then appends the stencil's pre-extracted CFI bytes verbatim --
+effectively replaying each stencil's unwind rules at its relocated position
+within the single FDE that covers the whole compiled function.
+
+The `.eh_frame` CIE uses version 1, which is the standard for `.eh_frame`
+(as opposed to `.debug_frame` which uses version 4); this is required by
+`__register_frame` and the C++ unwinder.
+
+To sum up, the cool part is:
+
+- **No runtime DWARF generation logic**: CFI bytes are compiler-generated and
+  extracted at build time; the runtime only concatenates and patches addresses.
+- **Single FDE per function**: all stencils share one CIE baseline
+  (CFA=RSP+8), with per-stencil CFI adjusting for local stack changes (e.g.,
+  spills before calls to the R runtime).
+- **Three consumers**: the same `.eh_frame` data serves C++ exception
+  unwinding, GDB debugging, and perf profiling.
+
+## C++ Exception Unwinding
+
+The assembled `.eh_frame` is registered via `__register_frame()` (libgcc),
+which makes it visible to the C++ unwinder (`libgcc_s` / `libunwind`).  This
+enables `throw`/`catch` to unwind through JIT frames -- critical because R's
+error handling internally uses `longjmp`-like mechanisms and the JIT must
+interoperate with C++ exception unwinding for stack cleanup.  On function
+destruction, `__deregister_frame()` removes it.
+
+## GDB Integration
+
+For GDB, the JIT constructs a complete in-memory ELF object containing four
+sections:
+
+- `.eh_frame` -- the same unwinding data registered with the C++ runtime.
+- `.debug_abbrev` -- an abbreviation table defining DIE (Debugging Information
+  Entry) schemas for compile units, subprograms, parameters, and types.  The
+  `.debug_abbrev` section defines the DIE schemas once in the ELF, and
+  `.debug_info` references them by index -- this is how DWARF works: instead
+  of repeating tag/attribute definitions inline for each DIE, schemas
+  (abbreviation codes) are declared and referenced, making the encoding
+  compact.  The schemas are the same for every compiled function since every
+  JIT function has the same structure (a compile unit containing a subprogram
+  with two parameters of fixed types).
+- `.debug_info` -- a DIE tree describing the JIT function as a subprogram with
+  two parameters (`stack: R_bcstack_t*` in RDI and `locals: rcpEval_locals*`
+  in RSI), plus the code address range.  The generated DWARF version is 4.
+- `.debug_line` -- a DWARF line number program mapping each stencil's address
+  to a sequential bytecode instruction index.
+
+Additionally, a pseudo-assembly source file is written to `/tmp` with one line
+per bytecode instruction (e.g., `GETVAR 0x...`), so GDB's `list` command can
+display a human-readable representation of the compiled bytecode.
+
+This ELF is registered via the standard GDB JIT interface: a
+`__jit_debug_descriptor` linked list entry is populated and
+`__jit_debug_register_code()` is called, causing GDB to read the in-memory ELF
+and enable source-level stepping, backtraces with function names, and variable
+inspection through JIT frames.
+
+## Perf/Samply Integration
+
+For integration with Linux `perf` and sampling profilers such as `samply`, the
+JIT writes a jitdump file following the standard jitdump format that
+`perf inject --jit` understands.  We use jitdump rather than the simpler
+perfmap (`/tmp/perf-<pid>.map`) because perfmap only provides symbol-level
+mapping (address to function name), whereas jitdump supports three richer
+record types: `JIT_CODE_LOAD` for symbol resolution, `JIT_CODE_DEBUG_INFO` for
+source-line attribution in flame graphs, and critically
+`JIT_CODE_UNWINDING_INFO`, which embeds the raw `.eh_frame` bytes (CIE, FDE,
+and terminator) so that `perf` can unwind call stacks through JIT frames
+without relying on frame pointers.  Without jitdump's unwinding records,
+`perf` would be unable to walk past JIT frames during stack sampling, producing
+truncated or misleading call graphs -- a significant limitation given that
+copy-and-paste stencils do not maintain a frame pointer by default.  The
+jitdump file is memory-mapped at initialization so that `perf record` can
+discover it via `/proc/<pid>/maps`, and is closed on shutdown.

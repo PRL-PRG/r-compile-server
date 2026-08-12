@@ -98,8 +98,20 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
 
     assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
-      assertEquals(expected.behaviorOutputLog(), actual.behaviorOutputLog(), "Output changed");
-      assertEquals(expected.feedback(), actual.feedback(), "Feedback changed");
+      // `expected` may come from a different compilation of this example (the oracle), where R
+      // names a different call in its errors and warnings, so compare without those. Comparing the
+      // same query across runs, where the calls do have to match, is `verifyNoRegression`'s job.
+      assertEquals(
+          expected.behaviorOutputLogWithoutCalls(),
+          actual.behaviorOutputLogWithoutCalls(),
+          "Output changed");
+
+      // Optimized FIŘ won't have feedback because the feedback-collecting baseline is subsumed
+      // by an optimized one, but we still check it against unoptimized because behavior should
+      // remain the same
+      if (expected.feedback() != null && actual.feedback() != null) {
+        assertEquals(expected.feedback(), actual.feedback(), "Feedback changed");
+      }
     }
   }
 

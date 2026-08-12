@@ -1,6 +1,6 @@
 #! /usr/bin/env Rscript
 
-# LD_PRELOAD=/usr/lib/llvm-17/lib/libLLVM-17.so ../external/R/bin/Rscript messages-sizes.R
+# LD_PRELOAD=/usr/lib/llvm-17/lib/libLLVM-17.so ../R/bin/Rscript messages-sizes.R
 
 
 source("compile-package.R")

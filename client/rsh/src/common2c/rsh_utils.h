@@ -146,9 +146,16 @@ static INLINE SEXP relop(SEXP call, SEXP op, SEXP opsym, SEXP x, SEXP y,
 }
 
 #define SET_SCALAR_IVAL(s, v) INTEGER((s))[0] = (v)
+#define SET_SCALAR_LVAL(s, v) INTEGER((s))[0] = (v)
 #define SET_SCALAR_DVAL(s, v) REAL((s))[0] = (v)
 #define SET_SCALAR_CVAL(s, v) COMPLEX((s))[0] = (v)
 #define SET_SCALAR_BVAL(s, v) RAW((s))[0] = (v)
+
+#define SET_SCALAR_IVAL0(s, v) INTEGER0((s))[0] = (v)
+#define SET_SCALAR_LVAL0(s, v) INTEGER0((s))[0] = (v)
+#define SET_SCALAR_DVAL0(s, v) REAL0((s))[0] = (v)
+#define SET_SCALAR_CVAL0(s, v) COMPLEX0((s))[0] = (v)
+#define SET_SCALAR_BVAL0(s, v) RAW0((s))[0] = (v)
 
 // FIXME: implement signal checking
 #define RSH_CHECK_SIGINT()
@@ -309,6 +316,42 @@ void old_to_new(SEXP x, SEXP y);
     if (NODE_IS_OLDER(x, y))                                                   \
       old_to_new(x, y);                                                        \
   } while (0)
+
+#ifdef COMPUTE_REFCNT_VALUES
+#define FIX_REFCNT_EX(x, old, new, chkpnd)                                     \
+  do {                                                                         \
+    SEXP __x__ = (x);                                                          \
+    if (TRACKREFS(__x__)) {                                                    \
+      SEXP __old__ = (old);                                                    \
+      SEXP __new__ = (new);                                                    \
+      if (__old__ != __new__) {                                                \
+        if (__old__) {                                                         \
+          if ((chkpnd) && ASSIGNMENT_PENDING(__x__))                           \
+            SET_ASSIGNMENT_PENDING(__x__, FALSE);                              \
+          else                                                                 \
+            DECREMENT_REFCNT(__old__);                                         \
+        }                                                                      \
+        if (__new__)                                                           \
+          INCREMENT_REFCNT(__new__);                                           \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+#define FIX_REFCNT(x, old, new) FIX_REFCNT_EX(x, old, new, FALSE)
+#define FIX_BINDING_REFCNT(x, old, new) FIX_REFCNT_EX(x, old, new, TRUE)
+#else
+#define FIX_REFCNT(x, old, new)                                                \
+  do {                                                                         \
+  } while (0)
+#define FIX_BINDING_REFCNT(x, old, new)                                        \
+  do {                                                                         \
+    SEXP __x__ = (x);                                                          \
+    SEXP __old__ = (old);                                                      \
+    SEXP __new__ = (new);                                                      \
+    if (ASSIGNMENT_PENDING(__x__) && __old__ && __old__ != __new__)            \
+      SET_ASSIGNMENT_PENDING(__x__, FALSE);                                    \
+  } while (0)
+#endif
+
 static ALWAYS_INLINE R_xlen_t XLENGTH_0(SEXP x) { return STDVEC_LENGTH(x); }
 
 #define LONG_VECTOR_SUPPORT

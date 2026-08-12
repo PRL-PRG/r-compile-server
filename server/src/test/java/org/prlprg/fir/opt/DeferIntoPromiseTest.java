@@ -41,6 +41,25 @@ class DeferIntoPromiseTest implements AbstractionOptimizationUnitTest {
   }
 
   @Test
+  void unusedPromise_notDeferredIntoItself() {
+    var abstraction =
+        ParseUtil.parseAbstraction(
+            """
+            (reg n:R) -~> R {
+              p: p(v1(R) -) = prom<v1(R) ->{
+                return <real 1.0>;
+              };
+              return n;
+            }
+            """);
+
+    // `p` is pure and has no uses at all, so nothing disqualifies the `prom` itself from being a
+    // deferral candidate -- and moving it into its own body nests it inside itself, which makes
+    // the recursive walk descend into the same CFG forever.
+    assertDoesNotThrow(() -> run(abstraction));
+  }
+
+  @Test
   void impureInstruction_notDeferred() {
     var abstraction =
         ParseUtil.parseAbstraction(

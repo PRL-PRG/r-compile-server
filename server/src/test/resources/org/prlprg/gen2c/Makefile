@@ -1,5 +1,5 @@
 RSH_HOME ?= /workspace
-R_HOME ?= $(RSH_HOME)/external/R
+R_HOME ?= $(RSH_HOME)/R
 R := $(R_HOME)/bin/R
 CC := bear -- gcc
 CFLAGS := -I$(RSH_HOME)/client/rsh/src/bc2c \
