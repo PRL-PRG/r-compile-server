@@ -3348,7 +3348,7 @@ static SEXP cmpfun_call_sexp(void)
 
 	// Create the call expression
 	SEXP call_expr = Rf_lang5(call_sym, fun_name, f_sym, options_sym, last_arg);
-	UNPROTECT(5); // call_sym, fun_name, f_sym, options_sym
+	UNPROTECT(5); // call_sym, fun_name, f_sym, options_sym, last_arg
 	PROTECT(call_expr);
 
 	// Add PACKAGE as a named argument to the last cons cell
@@ -3368,7 +3368,12 @@ static SEXP cmpfun_call_sexp(void)
 	SET_FORMALS(wrapper, formals);
 	SET_BODY(wrapper, call_expr);
 	SET_CLOENV(wrapper, compiler_namespace);
-	UNPROTECT(3); // formals, call_expr, compiler_namespace
+	// wrapper is now the only reference needed; everything else is reachable
+	// from it. UNPROTECT is a stack pop, so it has to take wrapper down with
+	// the rest -- the caller protects the return value before it allocates
+	// again. Popping only 3 here left compiler_namespace protected forever,
+	// i.e. one leaked pointer-protect slot per rcp_jit_enable() call.
+	UNPROTECT(4); // wrapper, formals, call_expr, compiler_namespace
 
 	return wrapper;
 }
