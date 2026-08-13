@@ -1347,6 +1347,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	const void *vmax = vmaxget(); // Save to restore it later to free memory
 								  // allocated by the following calls
 	uint8_t **inst_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
+	// Where the instruction's own stencil body starts, i.e. inst_start[i] plus
+	// whatever plugins were inserted in front of it (plus the body's alignment).
+	// inst_start[i] is what branches target, so that they run the plugins too;
+	// this is what a *body* has to be written to. The two differ only when
+	// position i has plugins, and only STARTFOR (which writes its STEPFOR's body
+	// remotely, into another position's slot) needs the distinction.
+	uint8_t **inst_body_start = (uint8_t **)S_alloc(bytecode_size, sizeof(uint8_t *));
 	int *used_bcells = (int *)S_alloc(constpool_size, sizeof(int));
 	int *used_loopcntxt = (int *)S_alloc(bytecode_size, sizeof(int));
 	int *bytecode_lut = (int *)R_alloc(bytecode_size, sizeof(int));
@@ -1458,6 +1465,7 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		size_t aligned_size = align_to_higher(insts_size, stencil->alignment);
 		size_t aligned_diff = aligned_size - insts_size;
 
+		inst_body_start[i] = (uint8_t *)aligned_size;
 		insts_size = aligned_size + stencil->body_size;
 		bytecode_lut[count_opcodes++] = i;
 
@@ -1556,7 +1564,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 	size_t smc_storage_used = 0;
 
 	for (int j = 0; j < count_opcodes; j++)
+	{
 		inst_start[bytecode_lut[j]] += (ptrdiff_t)executable;
+		inst_body_start[bytecode_lut[j]] += (ptrdiff_t)executable;
+	}
 
 	res.eval = (void *)executable;
 	res.bcells_size = bcells_size;
@@ -1598,6 +1609,13 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		int opcode = bytecode[bc_pos];
 		int *opargs = &bytecode[bc_pos + 1];
 		void *smc_variants = NULL;
+		// Cleared for an instruction whose body is written by some *other*
+		// iteration (STEPFOR, filled in by its STARTFOR). Such a position still
+		// has to run the plugin loop below: its plugins are its own, and `p` only
+		// ever advances over plugins at the position being emitted, so skipping
+		// the position outright would strand `p` there and silently drop every
+		// plugin at every later position.
+		int emit_body = 1;
 
 		DEBUG_PRINT("Copy-patching opcode: %s\n", OPCODES_NAMES[opcode]);
 
@@ -1629,8 +1647,11 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 				DEBUG_PRINT("Found corresponding STEPFOR_BCOP at position %d\n", stepfor_bc);
 
 				// Copy destination is the (reserved) STEPFOR slot; the driver
-				// (this STARTFOR) picks a variant by loop type at runtime.
-				uint8_t *stepfor_code = inst_start[stepfor_bc];
+				// (this STARTFOR) picks a variant by loop type at runtime. It is
+				// the *body* slot, not inst_start: any plugins at the STEPFOR
+				// position sit in front of it and are emitted by that position's
+				// own iteration below.
+				uint8_t *stepfor_code = inst_body_start[stepfor_bc];
 
 				stepfor_mem->cached_type = -1; // no variant installed yet
 				build_smc_site(
@@ -1644,8 +1665,10 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 			}
 			break;
 			case STEPFOR_BCOP:
-				// Stepfor was already handled during startfor
-				continue;
+				// The body was already written into this slot by the matching
+				// STARTFOR above; only this position's plugins are left to emit.
+				emit_body = 0;
+				break;
 #endif
 			case SWITCH_BCOP:
 			{
@@ -1744,6 +1767,14 @@ static rcp_exec_ptrs copy_patch_internal(int bytecode[], int bytecode_size,
 		}
 
 		pos = (uint8_t *)align_to_higher((uintptr_t)pos, stencil->alignment);
+
+		// The size pass laid out plugins and body with this same arithmetic, so
+		// the two must land on the same address -- which is what lets STARTFOR
+		// write its STEPFOR's body at inst_body_start without seeing the plugins.
+		assert(pos == inst_body_start[bc_pos]);
+
+		if (!emit_body)
+			continue;
 
 		memcpy(pos, stencil->body, stencil->body_size);
 
@@ -2948,9 +2979,15 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	rcp_exec_ptrs *res_ptr = R_Calloc(1, rcp_exec_ptrs);
 	*res_ptr = res;
 
-	SEXP prot = PROTECT(Rf_allocVector(VECSXP, 2));
+	int prot_count = 2;
+	prot_count += stencil_exec_counts != NULL ? 1 : 0;
+	SEXP prot = PROTECT(Rf_allocVector(VECSXP, prot_count));
 	SET_VECTOR_ELT(prot, 0, bcode_consts);
 	SET_VECTOR_ELT(prot, 1, mem_shared_sexp);
+	if (stencil_exec_counts != NULL)
+	{
+		SET_VECTOR_ELT(prot, 2, stencil_exec_counts);
+	}
 
 	SEXP ptr = R_MakeExternalPtr(res_ptr, Rsh_ClosureBodyTag, prot);
 	UNPROTECT_SAFE(prot); // prot
@@ -3699,8 +3736,11 @@ SEXP C_rcp_count_enable(void)
 
 SEXP C_rcp_count_disable(void)
 {
-	R_ReleaseObject(stencil_exec_counts);
-	stencil_exec_counts = NULL;
+    if (stencil_exec_counts != NULL)
+    {
+        R_ReleaseObject(stencil_exec_counts);
+        stencil_exec_counts = NULL;
+    }
 	return R_NilValue;
 }
 
