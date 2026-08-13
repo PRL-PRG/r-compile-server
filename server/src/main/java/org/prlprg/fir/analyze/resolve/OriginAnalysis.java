@@ -607,9 +607,7 @@ public final class OriginAnalysis extends AbstractInterpretation<State> implemen
             yield null;
           }
 
-          // `missing(x)` is exactly `x == R_MissingArg`, so the type decides it whenever `miss`
-          // is all of the argument's type or none of it. A definite promise is a `PROMSXP`, so
-          // it's never missing even when its kind (e.g. `V`) subsumes `miss`.
+          // `missing(x)` is exactly `x == R_MissingArg`
           boolean isMissing;
           if (argType.kind() instanceof Kind.Missing && argType.isValue()) {
             isMissing = true;
