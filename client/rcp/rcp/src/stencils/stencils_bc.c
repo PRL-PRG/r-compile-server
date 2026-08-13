@@ -131,8 +131,12 @@ extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
 // (element types: direct data pointer; ISQ: increasing) and i1 = i0 + 1 the
 // sub-variant (ALTREP element method / decreasing). STARTFOR picks between them
 // with the runtime 0/1 sub-axis; Rsh_DoStepFor takes the same 0/1 as `spec`.
-// Indices are contiguous; index 0 (generic catch-all) and 19 (axis-less
+// Indices are contiguous; index 0 (generic catch-all) and 17 (axis-less
 // LISTSXP) have no sub-variant and are handled outside the table.
+//
+// EXPRSXP and VECSXP share the VECSXP row: Rsh_DoStepFor's case for the two is
+// identical and ignores the type, so the emitted stencils are byte-for-byte the
+// same. The base table below just points EXPRSXP at the same index.
 #define X_STEPFOR_TYPES \
 	X(INTSXP, 1, 2)     \
 	X(ISQSXP, 3, 4)     \
@@ -141,12 +145,11 @@ extern Rboolean RCP_STEPFOR_Fallback(Value *stack, BCell *cell, SEXP rho);
 	X(CPLXSXP, 9, 10)   \
 	X(STRSXP, 11, 12)   \
 	X(RAWSXP, 13, 14)   \
-	X(EXPRSXP, 15, 16)  \
-	X(VECSXP, 17, 18)
+	X(VECSXP, 15, 16)
 
 // stepfor_variant_count is emitted by the extractor, but this file is compiled
 // before that header exists, so derive the bound here: two per table row plus
-// the generic (0) and LISTSXP (19) variants.
+// the generic (0) and LISTSXP (17) variants.
 #define X(T, i0, i1) +2
 enum
 {
@@ -180,7 +183,8 @@ static const uint8_t stepfor_variant_base[32] = {
 #define X(T, i0, i1) [T] = (i0),
 	X_STEPFOR_TYPES
 #undef X
-	[LISTSXP] = 19,
+	[EXPRSXP] = 15, // shares the VECSXP variant (identical stepper)
+	[LISTSXP] = 17,
 };
 #endif
 
@@ -229,7 +233,7 @@ RCP_OP(STARTFOR, Rsh_StartFor(stack, GETCONST_IMM(0), GETCONST_IMM(1), GETCONSTC
 X_STEPFOR_TYPES
 #undef X
 STEPFOR_SPECIALIZED_FN(0, 0, -1)
-STEPFOR_SPECIALIZED_FN(19, LISTSXP, -1)
+STEPFOR_SPECIALIZED_FN(17, LISTSXP, -1)
 
 #define STEPFOR_SPECIALIZED_OP(a)                                                     \
 	RCP_OP_EX(STEPFOR, a)                                                             \
@@ -246,7 +250,7 @@ STEPFOR_SPECIALIZED_FN(19, LISTSXP, -1)
 X_STEPFOR_TYPES
 #undef X
 STEPFOR_SPECIALIZED_OP(0)
-STEPFOR_SPECIALIZED_OP(19)
+STEPFOR_SPECIALIZED_OP(17)
 
 #else
 
