@@ -19,7 +19,7 @@ invisible(try(.Call("Rsh_initialize_runtime"), silent=TRUE))
 # Simulate closure compile from the compile client
 # (BC->C tests name the compiled function `Fir_...`)
 invisible(.Call("Fir_fun_init_main", constantPool))
-# eval `main` preventing environment contamination (honestly I'm not exactly sure how...)
+# Define `main` in `globalenv()` so it doesn't capture the sourcing environment.
 main <-
   eval(
     bquote(function() .Call("Fir_fun_from_r_main", environment(), .(constantPool))),
