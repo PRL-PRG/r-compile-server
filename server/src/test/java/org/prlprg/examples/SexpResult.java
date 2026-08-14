@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import org.prlprg.parseprint.PrintMethod;
 import org.prlprg.parseprint.Printer;
 import org.prlprg.rds.RDSReader;
@@ -97,6 +99,36 @@ public sealed interface SexpResult {
 
   default boolean isSimplyUnsupported() {
     return this instanceof Error(var _, var isSimplyUnsupported) && isSimplyUnsupported;
+  }
+
+  /// A closure's body, however it happens to be represented.
+  ///
+  /// GNU-R bytecode gets a printed reference id, native code (an external pointer) doesn't, which
+  /// is why [#withoutCompiledCode()] renumbers the remaining ids after substituting.
+  Pattern COMPILED_CODE = Pattern.compile("<bcode#\\d+(?: \\.\\.\\.)?>|<extptr>");
+
+  /// A printed reference id, which is assigned in printing order.
+  Pattern REF_ID = Pattern.compile("#(\\d+)");
+
+  /// The printed result, with closure bodies reduced to a placeholder.
+  ///
+  /// For comparing optimized and unoptimized compilations of the same program, because the
+  /// optimized and unoptimized code are *semantically* but not *structurally* equivalent.
+  default String withoutCompiledCode() {
+    return renumberRefs(COMPILED_CODE.matcher(toString()).replaceAll("<code>"));
+  }
+
+  /// Renumbers [#REF_ID]s in order of first appearance
+  private static String renumberRefs(String printed) {
+    var renumbered = new HashMap<String, Integer>();
+    var matcher = REF_ID.matcher(printed);
+    var result = new StringBuilder();
+    while (matcher.find()) {
+      var id = renumbered.computeIfAbsent(matcher.group(1), _ -> renumbered.size());
+      matcher.appendReplacement(result, "#" + id);
+    }
+    matcher.appendTail(result);
+    return result.toString();
   }
 
   record Ok(SEXP value) implements SexpResult {
