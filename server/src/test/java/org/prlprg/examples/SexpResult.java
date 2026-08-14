@@ -101,28 +101,18 @@ public sealed interface SexpResult {
     return this instanceof Error(var _, var isSimplyUnsupported) && isSimplyUnsupported;
   }
 
-  /// A closure's body, however it happens to be represented.
-  ///
-  /// GNU-R bytecode gets a printed reference id, native code (an external pointer) doesn't, which
-  /// is why [#withoutCompiledCode()] renumbers the remaining ids after substituting.
-  private static final class Patterns {
-    private static final Pattern COMPILED_CODE =
-        Pattern.compile("<bcode#\\d+(?: \\\.\\.\\.)?>|<extptr>");
-    private static final Pattern REF_ID = Pattern.compile("#(\\d+)");
-  }
-
   /// The printed result, with closure bodies reduced to a placeholder.
   ///
   /// For comparing optimized and unoptimized compilations of the same program, because the
   /// optimized and unoptimized code are *semantically* but not *structurally* equivalent.
   default String withoutCompiledCode() {
-    return renumberRefs(Patterns.COMPILED_CODE.matcher(toString()).replaceAll("<code>"));
+    return renumberRefs(SexpResultPrivate.COMPILED_CODE.matcher(toString()).replaceAll("<code>"));
   }
 
   /// Renumbers printed reference ids in order of first appearance.
   private static String renumberRefs(String printed) {
     var renumbered = new HashMap<String, Integer>();
-    var matcher = Patterns.REF_ID.matcher(printed);
+    var matcher = SexpResultPrivate.REF_ID.matcher(printed);
     var result = new StringBuilder();
     while (matcher.find()) {
       var id = renumbered.computeIfAbsent(matcher.group(1), _ -> renumbered.size());
@@ -198,4 +188,12 @@ public sealed interface SexpResult {
       return Printer.toString(this);
     }
   }
+}
+
+final class SexpResultPrivate {
+  /// Bytecode or external pointer [SEXP] printed
+  static final Pattern COMPILED_CODE = Pattern.compile("<bcode#\\d+(?: \\.\\.\\.)?>|<extptr>");
+
+  /// Matches a printed [SEXP] reference (`#(\d+)`)
+  static final Pattern REF_ID = Pattern.compile("#(\\d+)");
 }
