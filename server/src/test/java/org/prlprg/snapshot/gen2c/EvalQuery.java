@@ -96,7 +96,14 @@ public record EvalQuery(CompiledModuleQuery moduleQuery) implements Query<EvalOu
       return;
     }
 
-    assertEquals(expected.result(), actual.result(), "Return value or crash reason changed");
+    // `expected` may come from a different compilation of this example (the oracle), so a closure
+    // it evaluates to has a body compiled to whatever that compilation produced; compare without
+    // those. Comparing the same query across runs, where the bodies do have to match, is
+    // `verifyNoRegression`'s job.
+    assertEquals(
+        expected.result().withoutCompiledCode(),
+        actual.result().withoutCompiledCode(),
+        "Return value or crash reason changed");
     if (!example.hasOption("", "nondeterministic")) {
       // `expected` may come from a different compilation of this example (the oracle), where R
       // names a different call in its errors and warnings, so compare without those. Comparing the
