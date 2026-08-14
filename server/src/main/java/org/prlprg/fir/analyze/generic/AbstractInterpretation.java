@@ -135,16 +135,23 @@ public abstract class AbstractInterpretation<S extends AbstractInterpretation.St
         var bb = next.first();
         var state = next.second();
 
-        if (Objects.equals(states.get(bb), state)) {
-          // No update needed
+        var stored = states.get(bb);
+        if (Objects.equals(stored, state)) {
+          // Trivially no changes = no update needed
           continue;
         }
 
-        // Merge with previous state
-        if (states.containsKey(bb)) {
-          states.get(bb).merge(state);
-        } else {
+        // Merge with previous state.
+        if (stored == null) {
           states.put(bb, state.copy());
+        } else {
+          var merged = stored.copy();
+          merged.merge(state);
+          if (merged.equals(stored)) {
+            // No changes = no update needed
+            continue;
+          }
+          states.put(bb, merged);
         }
 
         // Compute exit state
