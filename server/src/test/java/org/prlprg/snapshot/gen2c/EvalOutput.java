@@ -45,8 +45,9 @@ public record EvalOutput(
   private static final Pattern DIAGNOSTIC_CALL =
       Pattern.compile("^(Error|Warning) in .*? :\\s*", Pattern.MULTILINE | Pattern.DOTALL);
 
-  /// The `Calls: a -> b -> c` traceback R prints under a top-level error.
-  private static final Pattern DIAGNOSTIC_CALLS = Pattern.compile("^Calls: .*$", Pattern.MULTILINE);
+  /// The `Calls: a -> b -> c` traceback R prints under a top-level error
+  private static final Pattern DIAGNOSTIC_CALLS =
+      Pattern.compile("^Calls: .*\\R?", Pattern.MULTILINE);
 
   public String outputLogWithoutAddresses() {
     return Pattern.compile("0x[0-9a-fA-F]+", Pattern.MULTILINE)
@@ -68,9 +69,17 @@ public record EvalOutput(
   /// reports `f(1)`, calling a primitive directly reports `.Primitive("acos")(x = 42)` where the
   /// baseline reports `atanh(x)`. The message itself, and everything the program actually
   /// printed, still has to match.
+  ///
+  /// The call and traceback are dropped rather than replaced with a placeholder, because whether
+  /// R has an innermost call to blame at all varies the same way: an error escaping a bytecode
+  /// baseline can surface with no context (`Error: ...`) where the same error escaping compiled
+  /// code is attributed to the call that entered it (`Error in main() : ...`). Comparing the same
+  /// query across runs, where the calls do have to match, is
+  /// [org.prlprg.snapshot.Query#verifyNoRegression]'s job -- it uses
+  /// [#outputLogWithoutAddresses()], which keeps both.
   public String behaviorOutputLogWithoutCalls() {
-    var withoutCall = DIAGNOSTIC_CALL.matcher(behaviorOutputLog()).replaceAll("$1 in <call> : ");
-    return DIAGNOSTIC_CALLS.matcher(withoutCall).replaceAll("Calls: <stack>");
+    var withoutCall = DIAGNOSTIC_CALL.matcher(behaviorOutputLog()).replaceAll("$1: ");
+    return DIAGNOSTIC_CALLS.matcher(withoutCall).replaceAll("");
   }
 
   private String withoutTempFiles() {
