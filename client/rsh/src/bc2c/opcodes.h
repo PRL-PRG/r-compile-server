@@ -341,17 +341,17 @@ static INLINE void Rsh_LdNull(Value *stack) {
 #define Rsh_LdConstInt(stack, s)                                               \
   do {                                                                         \
     R_Visible = TRUE;                                                          \
-    SET_INT_VAL(GET_VAL_EX(stack, -1), SCALAR_IVAL(s));                        \
+    SET_INT_VAL(GET_VAL_EX(stack, -1), SCALAR_IVAL0(s));                       \
   } while (0);
 #define Rsh_LdConstDbl(stack, s)                                               \
   do {                                                                         \
     R_Visible = TRUE;                                                          \
-    SET_DBL_VAL(GET_VAL_EX(stack, -1), SCALAR_DVAL(s));                        \
+    SET_DBL_VAL(GET_VAL_EX(stack, -1), SCALAR_DVAL0(s));                       \
   } while (0);
 #define Rsh_LdConstLgl(stack, s)                                               \
   do {                                                                         \
     R_Visible = TRUE;                                                          \
-    SET_LGL_VAL(GET_VAL_EX(stack, -1), SCALAR_LVAL(s));                        \
+    SET_LGL_VAL(GET_VAL_EX(stack, -1), SCALAR_LVAL0(s));                       \
   } while (0);
 #define Rsh_LdConst(stack, s)                                                  \
   do {                                                                         \
@@ -893,7 +893,7 @@ static INLINE void Rsh_Dollar(Value *stack, SEXP call, SEXP symbol, SEXP rho) {
     x_sxp = VAL_SXP(*x_val);
     if (isObject(x_sxp)) {
       SEXP ncall = PROTECT(Rf_duplicate(call));
-      SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol)));
+      SETCAR(CDDR(ncall), Rsh_ScalarString(PRINTNAME(symbol)));
       dispatched = tryDispatch("$", ncall, x_sxp, rho, &value_sxp);
       UNPROTECT(1);
     }
@@ -930,7 +930,7 @@ static INLINE void Rsh_DollarGets(Value *stack, SEXP call, SEXP symbol,
 
     if (isObject(x_sxp)) {
       SEXP ncall = PROTECT(Rf_duplicate(call));
-      SETCAR(CDDR(ncall), Rf_ScalarString(PRINTNAME(symbol))); // TODO optimize
+      SETCAR(CDDR(ncall), Rsh_ScalarString(PRINTNAME(symbol))); // TODO optimize
       SETCAR(CDDDR(ncall), rhs_sxp);
       dispatched = tryDispatch("$<-", ncall, x_sxp, rho, &value_sxp);
       UNPROTECT(1);

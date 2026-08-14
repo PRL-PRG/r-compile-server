@@ -35,25 +35,26 @@ static ALWAYS_INLINE void val_unbox_inplace(R_bcstack_t *s, int require_simple,
   SEXP x = s->u.sxpval;
   if (x->sxpinfo.scalar && (!require_simple || ATTRIB(x) == R_NilValue)) {
     assert(XLENGTH(x) == 1);
+    assert(!ALTREP(x));
     switch (TYPEOF(x)) {
     case REALSXP: {
       if (!allow_real) // Should constant-propagate and eliminate dead code
         break;
-      s->u.dval = SCALAR_DVAL(x);
+      s->u.dval = SCALAR_DVAL0(x);
       s->tag = TYPEOF(x);
       break;
     }
     case INTSXP: {
       if (!allow_int) // Should constant-propagate and eliminate dead code
         break;
-      s->u.ival = SCALAR_IVAL(x);
+      s->u.ival = SCALAR_IVAL0(x);
       s->tag = TYPEOF(x);
       break;
     }
     case LGLSXP: {
       if (!allow_lgl) // Should constant-propagate and eliminate dead code
         break;
-      s->u.ival = SCALAR_LVAL(x);
+      s->u.ival = SCALAR_LVAL0(x);
       s->tag = TYPEOF(x);
       break;
     }
@@ -110,17 +111,11 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
         SET_LGL_VAL(res, LOGICAL_ELT(vec, i));                                 \
         return;                                                                \
       case CPLXSXP:                                                            \
-        SET_SXP_VAL(res, Rf_ScalarComplex(COMPLEX_ELT(vec, i)));               \
+        SET_SXP_VAL(res, Rsh_ScalarComplex(COMPLEX_ELT(vec, i)));              \
         return;                                                                \
       case RAWSXP:                                                             \
-        SET_SXP_VAL(res, Rf_ScalarRaw(RAW(vec)[i]));                           \
+        SET_SXP_VAL(res, Rsh_ScalarRaw(RAW(vec)[i]));                          \
         return;                                                                \
-      /* Braced because a label must be followed by a statement and a          \
-         declaration is not one; without them the `SEXP` below is a syntax     \
-         error. Named `__elt__`/`__v__` rather than `elt`/`v` because          \
-         `rsh_utils.h` includes <Rinternals.h> with the remapping on, so       \
-         plain `elt` expands to `Rf_elt` and the local turns into a            \
-         redeclaration of that function. */                                    \
       case VECSXP: {                                                           \
         SEXP __elt__ = VECTOR_ELT(vec, i);                                     \
         RAISE_NAMED(__elt__, NAMED(vec));                                      \
@@ -412,9 +407,9 @@ static ALWAYS_INLINE SEXP STACKVAL_TO_SEXP(R_bcstack_t v) {
   }
   switch (v.tag) {
   case REALSXP:
-    return Rf_ScalarReal(v.u.dval);
+    return Rsh_ScalarReal(v.u.dval);
   case INTSXP:
-    return Rf_ScalarInteger(v.u.ival);
+    return Rsh_ScalarInteger(v.u.ival);
   case LGLSXP:
     return Rsh_ScalarLogical(v.u.ival);
   case RSH_ISQSXP: {
@@ -1031,10 +1026,10 @@ static INLINE void bcell_expand(BCell b) {
     PROTECT(b);
     switch (typetag) {
     case REALSXP:
-      val = Rf_ScalarReal(vv.dval);
+      val = Rsh_ScalarReal(vv.dval);
       break;
     case INTSXP:
-      val = Rf_ScalarInteger(vv.ival);
+      val = Rsh_ScalarInteger(vv.ival);
       break;
     case LGLSXP:
       val = Rsh_ScalarLogical(vv.ival);

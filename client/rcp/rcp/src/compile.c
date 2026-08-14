@@ -822,7 +822,7 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		case LDCONST_BCOP:
 		{
 			SEXP constant = r_constpool[imms[0]];
-			if (constant->sxpinfo.scalar && ATTRIB(constant) == R_NilValue)
+			if (constant->sxpinfo.scalar && !ALTREP(constant) && ATTRIB(constant) == R_NilValue)
 			{
 				switch (TYPEOF(constant))
 				{
