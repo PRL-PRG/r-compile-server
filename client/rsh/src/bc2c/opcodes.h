@@ -537,11 +537,15 @@ static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
         R_Visible = TRUE;
         return;
       } else {
-        int res_int = 0;
-        DO_ARITH(op, lhs_int, VAL_INT(rhs), &res_int);
-        SET_INT_VAL(res, res_int);
-        R_Visible = TRUE;
-        return;
+        int res_int;
+        if (LIKELY(!DO_ARITH_INT_OFLOW(op, lhs_int, VAL_INT(rhs), &res_int))) {
+          SET_INT_VAL(res, res_int);
+          R_Visible = TRUE;
+          return;
+        }
+        // Integer overflow (or an exact NA_INTEGER result): fall through to the
+        // slow path so arith2 yields NA + "NAs produced by integer overflow",
+        // matching GNU R's DO_FAST_BINOP_INT range check.
       }
     }
   }
