@@ -1401,6 +1401,32 @@ static
     }                                                                          \
   } while (0)
 
+// Integer ADD/SUB/MUL with GNU-R overflow semantics. Computes (a) op (b) into
+// *(r) and evaluates to true when the result must fall through to the slow
+// path (arith2) instead of being stored: either the native op overflowed int
+// range, or it landed exactly on NA_INTEGER (== INT_MIN), which R reserves as
+// NA. Both cases make arith2 return NA_integer_ and raise "NAs produced by
+// integer overflow". `op` is a compile-time constant here, so the switch and
+// the unused builtins fold away to a single checked op + branch.
+#define DO_ARITH_INT_OFLOW(op, a, b, r)                                        \
+  __extension__({                                                              \
+    _Bool __of__;                                                              \
+    switch (op) {                                                              \
+    case ADD_OP:                                                               \
+      __of__ = __builtin_add_overflow((a), (b), (r));                          \
+      break;                                                                   \
+    case SUB_OP:                                                               \
+      __of__ = __builtin_sub_overflow((a), (b), (r));                          \
+      break;                                                                   \
+    case MUL_OP:                                                               \
+      __of__ = __builtin_mul_overflow((a), (b), (r));                          \
+      break;                                                                   \
+    default:                                                                   \
+      __builtin_unreachable();                                                 \
+    }                                                                          \
+    __of__ || *(r) == NA_INTEGER;                                              \
+  })
+
 // Sets r to LGL_TO_VAL(a op b)
 #define DO_RELOP(op, a, b, r)                                                  \
   do {                                                                         \
