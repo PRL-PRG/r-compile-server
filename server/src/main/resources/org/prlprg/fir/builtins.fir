@@ -295,60 +295,153 @@ fun `:`(lhs, rhs) {
   (reg lhs:v(R), reg rhs:v(R)) --> V { ... }
 }
 
+# `x` is borrowed in the non-generic versions: they only read it.
+#
+# Effects follow GNU-R: `x[i]` with a length-1 index can't fail (out-of-range and `NA` both read as
+# `NA`), so those are pure; with a longer index it can ("only 0's may be mixed with negative
+# subscripts"), and every `[[` fails out of range, so those are impure. The optimizer replaces the
+# pure ones with `x[i]` and the `[[` ones with `x[[i]]`, which behave the same way (see
+# `org.prlprg.fir.ir.expression.SubscriptRead`).
 fun `[`(x, i, `...`, drop) {
   (reg x:*@!, reg i:*, reg ddd:dots, reg drop:*@!) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg ddd:miss, reg drop:miss) --> v(S) { ... }
-  (reg x:v(L), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(L) { ... }
-  (reg x:v(I), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(I) { ... }
-  (reg x:v(R), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(R) { ... }
-  (reg x:v(S), reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(S) { ... }
-  (reg x:v(L), reg i:I, reg ddd:miss, reg drop:miss) --> L { ... }
-  (reg x:v(I), reg i:I, reg ddd:miss, reg drop:miss) --> I { ... }
-  (reg x:v(R), reg i:I, reg ddd:miss, reg drop:miss) --> R { ... }
-  (reg x:v(S), reg i:I, reg ddd:miss, reg drop:miss) --> S { ... }
+  (reg x:v(L)b, reg i:v(I), reg ddd:miss, reg drop:miss) -~> v(L) { ... }
+  (reg x:v(I)b, reg i:v(I), reg ddd:miss, reg drop:miss) -~> v(I) { ... }
+  (reg x:v(R)b, reg i:v(I), reg ddd:miss, reg drop:miss) -~> v(R) { ... }
+  (reg x:v(S)b, reg i:v(I), reg ddd:miss, reg drop:miss) -~> v(S) { ... }
+  (reg x:v(L)b, reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(L) { ... }
+  (reg x:v(I)b, reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(I) { ... }
+  (reg x:v(R)b, reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(R) { ... }
+  (reg x:v(S)b, reg i:v1(I), reg ddd:miss, reg drop:miss) --> v1(S) { ... }
+  (reg x:v(L)b, reg i:I, reg ddd:miss, reg drop:miss) --> L { ... }
+  (reg x:v(I)b, reg i:I, reg ddd:miss, reg drop:miss) --> I { ... }
+  (reg x:v(R)b, reg i:I, reg ddd:miss, reg drop:miss) --> R { ... }
+  (reg x:v(S)b, reg i:I, reg ddd:miss, reg drop:miss) --> S { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (reg x:v(L)b, reg i:v(R), reg ddd:miss, reg drop:miss) -~> v(L) { ... }
+  (reg x:v(I)b, reg i:v(R), reg ddd:miss, reg drop:miss) -~> v(I) { ... }
+  (reg x:v(R)b, reg i:v(R), reg ddd:miss, reg drop:miss) -~> v(R) { ... }
+  (reg x:v(S)b, reg i:v(R), reg ddd:miss, reg drop:miss) -~> v(S) { ... }
+  (reg x:v(L)b, reg i:v1(R), reg ddd:miss, reg drop:miss) --> v1(L) { ... }
+  (reg x:v(I)b, reg i:v1(R), reg ddd:miss, reg drop:miss) --> v1(I) { ... }
+  (reg x:v(R)b, reg i:v1(R), reg ddd:miss, reg drop:miss) --> v1(R) { ... }
+  (reg x:v(S)b, reg i:v1(R), reg ddd:miss, reg drop:miss) --> v1(S) { ... }
+  (reg x:v(L)b, reg i:R, reg ddd:miss, reg drop:miss) --> L { ... }
+  (reg x:v(I)b, reg i:R, reg ddd:miss, reg drop:miss) --> I { ... }
+  (reg x:v(R)b, reg i:R, reg ddd:miss, reg drop:miss) --> R { ... }
+  (reg x:v(S)b, reg i:R, reg ddd:miss, reg drop:miss) --> S { ... }
 }
 
 fun `[[`(x, i, `...`, exact) {
   (reg x:*@!, reg i:*, reg ddd:dots, reg exact:*@!) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg ddd:miss, reg exact:miss) --> v(S) { ... }
-  (reg x:v(L), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(L) { ... }
-  (reg x:v(I), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(I) { ... }
-  (reg x:v(R), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(R) { ... }
-  (reg x:v(S), reg i:v1(I), reg ddd:miss, reg exact:miss) --> v1(S) { ... }
-  (reg x:v(L), reg i:I, reg ddd:miss, reg exact:miss) --> L { ... }
-  (reg x:v(I), reg i:I, reg ddd:miss, reg exact:miss) --> I { ... }
-  (reg x:v(R), reg i:I, reg ddd:miss, reg exact:miss) --> R { ... }
-  (reg x:v(S), reg i:I, reg ddd:miss, reg exact:miss) --> S { ... }
+  (reg x:v(L)b, reg i:v(I), reg ddd:miss, reg exact:miss) -~> v(L) { ... }
+  (reg x:v(I)b, reg i:v(I), reg ddd:miss, reg exact:miss) -~> v(I) { ... }
+  (reg x:v(R)b, reg i:v(I), reg ddd:miss, reg exact:miss) -~> v(R) { ... }
+  (reg x:v(S)b, reg i:v(I), reg ddd:miss, reg exact:miss) -~> v(S) { ... }
+  (reg x:v(L)b, reg i:v1(I), reg ddd:miss, reg exact:miss) -~> v1(L) { ... }
+  (reg x:v(I)b, reg i:v1(I), reg ddd:miss, reg exact:miss) -~> v1(I) { ... }
+  (reg x:v(R)b, reg i:v1(I), reg ddd:miss, reg exact:miss) -~> v1(R) { ... }
+  (reg x:v(S)b, reg i:v1(I), reg ddd:miss, reg exact:miss) -~> v1(S) { ... }
+  (reg x:v(L)b, reg i:I, reg ddd:miss, reg exact:miss) -~> L { ... }
+  (reg x:v(I)b, reg i:I, reg ddd:miss, reg exact:miss) -~> I { ... }
+  (reg x:v(R)b, reg i:I, reg ddd:miss, reg exact:miss) -~> R { ... }
+  (reg x:v(S)b, reg i:I, reg ddd:miss, reg exact:miss) -~> S { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (reg x:v(L)b, reg i:v(R), reg ddd:miss, reg exact:miss) -~> v(L) { ... }
+  (reg x:v(I)b, reg i:v(R), reg ddd:miss, reg exact:miss) -~> v(I) { ... }
+  (reg x:v(R)b, reg i:v(R), reg ddd:miss, reg exact:miss) -~> v(R) { ... }
+  (reg x:v(S)b, reg i:v(R), reg ddd:miss, reg exact:miss) -~> v(S) { ... }
+  (reg x:v(L)b, reg i:v1(R), reg ddd:miss, reg exact:miss) -~> v1(L) { ... }
+  (reg x:v(I)b, reg i:v1(R), reg ddd:miss, reg exact:miss) -~> v1(I) { ... }
+  (reg x:v(R)b, reg i:v1(R), reg ddd:miss, reg exact:miss) -~> v1(R) { ... }
+  (reg x:v(S)b, reg i:v1(R), reg ddd:miss, reg exact:miss) -~> v1(S) { ... }
+  (reg x:v(L)b, reg i:R, reg ddd:miss, reg exact:miss) -~> L { ... }
+  (reg x:v(I)b, reg i:R, reg ddd:miss, reg exact:miss) -~> I { ... }
+  (reg x:v(R)b, reg i:R, reg ddd:miss, reg exact:miss) -~> R { ... }
+  (reg x:v(S)b, reg i:R, reg ddd:miss, reg exact:miss) -~> S { ... }
 }
 
+# Every non-generic version returns a fresh vector. The ones where `x` is borrowed copy it; the ones
+# where it's owned mutate it in place and return it (see `Builtins#registerSubAssign` and `fir2c`'s
+# `_u5b_u3c_u2d`/`_u5b_u5b_u3c_u2d` overrides).
+#
+# All of them are impure: they only write *within* the vector, so an out-of-range index is an error,
+# where GNU-R grows the vector instead.
 fun `[<-`(x, i, value, `...`) {
   (reg x:*@!, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg value:v(L), reg ddd:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg value:v(I), reg ddd:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg value:v(R), reg ddd:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg value:v(S), reg ddd:miss) --> v(S) { ... }
-  (reg x:v(L), reg i:I, reg value:L, reg ddd:miss) --> v(L) { ... }
-  (reg x:v(I), reg i:I, reg value:I, reg ddd:miss) --> v(I) { ... }
-  (reg x:v(R), reg i:I, reg value:R, reg ddd:miss) --> v(R) { ... }
-  (reg x:v(S), reg i:I, reg value:S, reg ddd:miss) --> v(S) { ... }
+  (reg x:v(L)b, reg i:v(I), reg value:v(L), reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:v(I), reg value:v(I), reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:v(I), reg value:v(R), reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:v(I), reg value:v(S), reg ddd:miss) -~> v(S)f { ... }
+  (reg x:v(L)b, reg i:I, reg value:L, reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:I, reg value:I, reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:I, reg value:R, reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:I, reg value:S, reg ddd:miss) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:v(I), reg value:v(L), reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:v(I), reg value:v(I), reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:v(I), reg value:v(R), reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:v(I), reg value:v(S), reg ddd:miss) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:I, reg value:L, reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:I, reg value:I, reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:I, reg value:R, reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:I, reg value:S, reg ddd:miss) -~> v(S)f { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (reg x:v(L)b, reg i:v(R), reg value:v(L), reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:v(R), reg value:v(I), reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:v(R), reg value:v(R), reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:v(R), reg value:v(S), reg ddd:miss) -~> v(S)f { ... }
+  (reg x:v(L)b, reg i:R, reg value:L, reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:R, reg value:I, reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:R, reg value:R, reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:R, reg value:S, reg ddd:miss) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:v(R), reg value:v(L), reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:v(R), reg value:v(I), reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:v(R), reg value:v(R), reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:v(R), reg value:v(S), reg ddd:miss) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:R, reg value:L, reg ddd:miss) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:R, reg value:I, reg ddd:miss) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:R, reg value:R, reg ddd:miss) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:R, reg value:S, reg ddd:miss) -~> v(S)f { ... }
 }
 
 fun `[[<-`(x, i, value) {
   (reg x:*@!, reg i:*, reg value:*) -+> V { ... }
-  (reg x:v(L), reg i:v(I), reg value:v(L)) --> v(L) { ... }
-  (reg x:v(I), reg i:v(I), reg value:v(I)) --> v(I) { ... }
-  (reg x:v(R), reg i:v(I), reg value:v(R)) --> v(R) { ... }
-  (reg x:v(S), reg i:v(I), reg value:v(S)) --> v(S) { ... }
-  (reg x:v(L), reg i:I, reg value:L) --> v(L) { ... }
-  (reg x:v(I), reg i:I, reg value:I) --> v(I) { ... }
-  (reg x:v(R), reg i:I, reg value:R) --> v(R) { ... }
-  (reg x:v(S), reg i:I, reg value:S) --> v(S) { ... }
+  (reg x:v(L)b, reg i:v(I), reg value:v(L)) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:v(I), reg value:v(I)) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:v(I), reg value:v(R)) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:v(I), reg value:v(S)) -~> v(S)f { ... }
+  (reg x:v(L)b, reg i:I, reg value:L) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:I, reg value:I) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:I, reg value:R) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:I, reg value:S) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:v(I), reg value:v(L)) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:v(I), reg value:v(I)) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:v(I), reg value:v(R)) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:v(I), reg value:v(S)) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:I, reg value:L) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:I, reg value:I) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:I, reg value:R) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:I, reg value:S) -~> v(S)f { ... }
+
+  # Real indices: coerce to integer and forward to the version above.
+  (reg x:v(L)b, reg i:v(R), reg value:v(L)) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:v(R), reg value:v(I)) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:v(R), reg value:v(R)) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:v(R), reg value:v(S)) -~> v(S)f { ... }
+  (reg x:v(L)b, reg i:R, reg value:L) -~> v(L)f { ... }
+  (reg x:v(I)b, reg i:R, reg value:I) -~> v(I)f { ... }
+  (reg x:v(R)b, reg i:R, reg value:R) -~> v(R)f { ... }
+  (reg x:v(S)b, reg i:R, reg value:S) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:v(R), reg value:v(L)) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:v(R), reg value:v(I)) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:v(R), reg value:v(R)) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:v(R), reg value:v(S)) -~> v(S)f { ... }
+  (reg x:v(L)o, reg i:R, reg value:L) -~> v(L)f { ... }
+  (reg x:v(I)o, reg i:R, reg value:I) -~> v(I)f { ... }
+  (reg x:v(R)o, reg i:R, reg value:R) -~> v(R)f { ... }
+  (reg x:v(S)o, reg i:R, reg value:S) -~> v(S)f { ... }
 }
 
 fun `$`(x, name) {
@@ -692,9 +785,15 @@ fun length(x) {
   (reg x:V) --> I { ... }
 }
 
+# The real overloads are what `org.prlprg.fir.opt.specialize.SpecializeRealIndex` inserts to make a
+# real subscript integral: `as.integer` truncates toward zero and maps out-of-range and `NaN` to
+# `NA`, which is exactly how the `[`-family builtins coerce a subscript.
 fun `as.integer`(x, `...`) {
   (reg x:*@!, reg ddd:dots) -+> v(I) { ... }
   (reg x:V, reg ddd:miss) --> I { ... }
+  (reg x:R, reg ddd:miss) --> I { ... }
+  (reg x:v1(R), reg ddd:miss) --> v1(I) { ... }
+  (reg x:v(R), reg ddd:miss) --> v(I) { ... }
 }
 
 fun `as.logical`(x, `...`) {

@@ -172,8 +172,12 @@ clos f
 ### Vector Operations
 
 - Vector creation: `v(t)[elem1, elem2, ...]` (e.g. `v(I)[1, 2, 3]`)
-- Subscript load: `vector[index]`
-- Subscript store: `vector[index] = value`
+- Subscript load: `vector[index]` reads an out-of-range index as `NA`, so it can't fail and is pure;
+  `vector[[index]]` fails instead, so it's impure. That's the difference between R's `[` and `[[`.
+- Subscript store: `vector[index] = value` (mutates `vector`, which must be owned or fresh). It
+  fails out of range, where R's `x[i] <- v` grows the vector, so it's impure.
+
+Subscripts are 0-based, unlike R's, which are 1-based.
 
 ### Environment Operations
 
@@ -188,7 +192,8 @@ clos f
 - Cast: `a as t`
 - Force promise: `force a` (`a` must be a promise)
 - Maybe force: `force? a` (`a` may be promise. If it's a value, this is a no-op)
-- Duplicate: `dup value`
+- Duplicate: `dup value`. `dup consume r` is a move rather than a copy: `consume` guarantees nothing
+  reads `r` again, so the duplicate can be `r` itself.
 
 ## Statements (`s`)
 

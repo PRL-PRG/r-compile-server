@@ -109,7 +109,8 @@ public final class InferEffects implements Analysis {
       case Promise _ -> Effects.NONE;
       case ReflectiveLoad _, ReflectiveStore _ -> Effects.REFLECT;
       case Store _ -> Effects.IMPURE;
-      case SubscriptRead _ -> Effects.NONE;
+      // Reading out of range is `NA` in one and an error in the other (see `SubscriptRead`).
+      case SubscriptRead(var outOfRangeIsNa) -> outOfRangeIsNa ? Effects.NONE : Effects.IMPURE;
       case SubscriptWrite _ -> Effects.IMPURE;
     };
   }

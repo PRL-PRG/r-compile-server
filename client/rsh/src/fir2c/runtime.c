@@ -2,6 +2,7 @@
 #include "print_sexp.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <R_ext/Boolean.h>
 #include <R_ext/Error.h>
 #include <R_ext/Rdynload.h>
@@ -609,6 +610,26 @@ Rboolean Fir_subscript_read_logical(SEXP vector, int index) {
 char* Fir_subscript_read_string(SEXP vector, int index) {
   ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
   return (char*)CHAR(STRING_ELT(vector, index));
+}
+
+int Fir_subscript_read_na_int(SEXP vector, int index) {
+  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? INTEGER(vector)[index] : NA_INTEGER;
+}
+
+double Fir_subscript_read_na_real(SEXP vector, int index) {
+  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? REAL(vector)[index] : NA_REAL;
+}
+
+Rboolean Fir_subscript_read_na_logical(SEXP vector, int index) {
+  return index >= 0 && (R_xlen_t)index < XLENGTH(vector) ? (Rboolean)LOGICAL(vector)[index]
+                                                         : (Rboolean)NA_LOGICAL;
+}
+
+/// `NULL` is how the generated code spells `NA_STRING` (see `Fir_subscript_read_string`).
+char* Fir_subscript_read_na_string(SEXP vector, int index) {
+  if (index < 0 || (R_xlen_t)index >= XLENGTH(vector)) return NULL;
+  SEXP elt = STRING_ELT(vector, index);
+  return elt == NA_STRING ? NULL : (char*)CHAR(elt);
 }
 
 SEXP Fir_subscript_write_int(SEXP vector, int index, int value) {
@@ -2285,22 +2306,22 @@ DEFINE_OVERRIDDEN_BUILTIN(int, bitwShiftR, scalar_int_scalar_int_fx_none_ret_sca
 }
 
 // === [ (scalar index read, 1-based) ===
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP drop) {
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   return LOGICAL(x)[i - 1];
 }
-DEFINE_OVERRIDDEN_BUILTIN(int, _u5b, vec_int_scalar_int_missing_missing_fx_none_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP drop) {
+DEFINE_OVERRIDDEN_BUILTIN(int, _u5b, vec_int_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   return INTEGER(x)[i - 1];
 }
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5b, vec_real_scalar_int_missing_missing_fx_none_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP drop) {
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5b, vec_real_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   return REAL(x)[i - 1];
 }
-DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_scalar_int_missing_missing_fx_none_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP drop) {
+DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP drop) {
   (void)ddd; (void)drop;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   SEXP elt = STRING_ELT(x, i - 1);
@@ -2308,76 +2329,384 @@ DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_scalar_int_missing_missing_fx_
 }
 
 // === [[ (scalar index read, 1-based) ===
-DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b_u5b, vec_logical_scalar_int_missing_missing_fx_none_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP exact) {
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b_u5b, vec_logical_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_logical, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   return LOGICAL(x)[i - 1];
 }
-DEFINE_OVERRIDDEN_BUILTIN(int, _u5b_u5b, vec_int_scalar_int_missing_missing_fx_none_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP exact) {
+DEFINE_OVERRIDDEN_BUILTIN(int, _u5b_u5b, vec_int_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_int, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   return INTEGER(x)[i - 1];
 }
-DEFINE_OVERRIDDEN_BUILTIN(double, _u5b_u5b, vec_real_scalar_int_missing_missing_fx_none_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP exact) {
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5b_u5b, vec_real_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_real, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   return REAL(x)[i - 1];
 }
-DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_scalar_int_missing_missing_fx_none_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP exact) {
+DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_string, SEXP x, int i, SEXP ddd, SEXP exact) {
   (void)ddd; (void)exact;
   ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
   SEXP elt = STRING_ELT(x, i - 1);
   return elt == NA_STRING ? NULL : (char*)CHAR(elt);
 }
 
+/// Write `value` at (1-based) `i` in `x` and return the result. `in_place` is for the versions
+/// that own `x` (nothing else holds it, so it can be mutated); the ones that borrow it copy first.
+
+static SEXP Fir_subassign_logical(SEXP x, int i, Rboolean value, bool in_place) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  LOGICAL(res)[i - 1] = value;
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+static SEXP Fir_subassign_int(SEXP x, int i, int value, bool in_place) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  INTEGER(res)[i - 1] = value;
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+static SEXP Fir_subassign_real(SEXP x, int i, double value, bool in_place) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  REAL(res)[i - 1] = value;
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+static SEXP Fir_subassign_string(SEXP x, int i, char* value, bool in_place) {
+  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  SET_STRING_ELT(res, i - 1, value == NULL ? NA_STRING : Rf_mkChar(value));
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+
 // === [<- (scalar index write, 1-based) ===
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_scalar_int_scalar_logical_missing_fx_none_ret_vec_logical, SEXP x, int i, Rboolean value, SEXP ddd) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value, SEXP ddd) {
   (void)ddd;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  LOGICAL(x)[i - 1] = value;
-  return x;
+  return Fir_subassign_logical(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_scalar_int_scalar_int_missing_fx_none_ret_vec_int, SEXP x, int i, int value, SEXP ddd) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_owned_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value, SEXP ddd) {
   (void)ddd;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  INTEGER(x)[i - 1] = value;
-  return x;
+  return Fir_subassign_logical(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_scalar_int_scalar_real_missing_fx_none_ret_vec_real, SEXP x, int i, double value, SEXP ddd) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_borrowed_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value, SEXP ddd) {
   (void)ddd;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  REAL(x)[i - 1] = value;
-  return x;
+  return Fir_subassign_int(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_scalar_int_scalar_string_missing_fx_none_ret_vec_string, SEXP x, int i, char* value, SEXP ddd) {
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_owned_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value, SEXP ddd) {
   (void)ddd;
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP chr = value == NULL ? NA_STRING : Rf_mkChar(value);
-  SET_STRING_ELT(x, i - 1, chr);
-  return x;
+  return Fir_subassign_int(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_borrowed_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_real(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_owned_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_real(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_string(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_string(x, i, value, true);
 }
 
 // === [[<- (scalar index write, 1-based) ===
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_scalar_int_scalar_logical_fx_none_ret_vec_logical, SEXP x, int i, Rboolean value) {
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  LOGICAL(x)[i - 1] = value;
-  return x;
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value) {
+  return Fir_subassign_logical(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_scalar_int_scalar_int_fx_none_ret_vec_int, SEXP x, int i, int value) {
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  INTEGER(x)[i - 1] = value;
-  return x;
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, int i, Rboolean value) {
+  return Fir_subassign_logical(x, i, value, true);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_scalar_int_scalar_real_fx_none_ret_vec_real, SEXP x, int i, double value) {
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  REAL(x)[i - 1] = value;
-  return x;
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value) {
+  return Fir_subassign_int(x, i, value, false);
 }
-DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_scalar_int_scalar_string_fx_none_ret_vec_string, SEXP x, int i, char* value) {
-  ASSERT(i >= 1 && (R_xlen_t)i <= XLENGTH(x), "subscript out of bounds");
-  SEXP chr = value == NULL ? NA_STRING : Rf_mkChar(value);
-  SET_STRING_ELT(x, i - 1, chr);
-  return x;
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, int i, int value) {
+  return Fir_subassign_int(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value) {
+  return Fir_subassign_real(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, int i, double value) {
+  return Fir_subassign_real(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value) {
+  return Fir_subassign_string(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, int i, char* value) {
+  return Fir_subassign_string(x, i, value, true);
+}
+
+/// GNU-R's real-to-integer subscript coercion: truncate toward zero, and anything that doesn't fit
+/// (including `NA`/`NaN`) becomes `NA`, which then reads as `NA` or fails like any out-of-range one.
+static int Fir_index_from_real(double index) {
+  return ISNAN(index) || index <= (double)INT_MIN || index > (double)INT_MAX
+      ? NA_INTEGER
+      : (int)index;
+}
+
+/// The `k`-th subscript in `indices`, which is an integer or (coerced here) a real vector.
+static int Fir_index_elt(SEXP indices, R_xlen_t k) {
+  return TYPEOF(indices) == REALSXP ? Fir_index_from_real(REAL(indices)[k]) : INTEGER(indices)[k];
+}
+
+/// [<-/[[<- with a vector of (1-based) indices: write `value[k]` at `i[k]` for every `k`. Like
+/// `Fir_subassign_<type>`, `in_place` is for the versions that own `x`.
+/// The index and value must have the same length; neither is recycled.
+
+static SEXP Fir_subassign_vector_logical(SEXP x, SEXP i, SEXP value, bool in_place) {
+  R_xlen_t count = XLENGTH(i);
+  ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  for (R_xlen_t k = 0; k < count; k++) {
+    int idx = Fir_index_elt(i, k);
+    ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");
+    LOGICAL(res)[idx - 1] = LOGICAL(value)[k];
+  }
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+static SEXP Fir_subassign_vector_int(SEXP x, SEXP i, SEXP value, bool in_place) {
+  R_xlen_t count = XLENGTH(i);
+  ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  for (R_xlen_t k = 0; k < count; k++) {
+    int idx = Fir_index_elt(i, k);
+    ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");
+    INTEGER(res)[idx - 1] = INTEGER(value)[k];
+  }
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+static SEXP Fir_subassign_vector_real(SEXP x, SEXP i, SEXP value, bool in_place) {
+  R_xlen_t count = XLENGTH(i);
+  ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  for (R_xlen_t k = 0; k < count; k++) {
+    int idx = Fir_index_elt(i, k);
+    ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");
+    REAL(res)[idx - 1] = REAL(value)[k];
+  }
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+static SEXP Fir_subassign_vector_string(SEXP x, SEXP i, SEXP value, bool in_place) {
+  R_xlen_t count = XLENGTH(i);
+  ASSERT(XLENGTH(value) == count, "value must have as many elements as the index");
+  SEXP res = in_place ? x : PROTECT(Rf_shallow_duplicate(x));
+  for (R_xlen_t k = 0; k < count; k++) {
+    int idx = Fir_index_elt(i, k);
+    ASSERT(idx >= 1 && (R_xlen_t)idx <= XLENGTH(res), "subscript out of bounds");
+    SET_STRING_ELT(res, idx - 1, STRING_ELT(value, k));
+  }
+  if (!in_place) UNPROTECT(1);
+  return res;
+}
+
+// === [<- (vector index write, 1-based) ===
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_logical(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_owned_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_logical(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_borrowed_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_int(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_owned_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_int(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_borrowed_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_real(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_owned_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_real(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_string(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  (void)ddd;
+  return Fir_subassign_vector_string(x, i, value, true);
+}
+
+// === [[<- (vector index write, 1-based) ===
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_logical(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_logical(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_int_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_int(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_int_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_int(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_int_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_real(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_int_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_real(x, i, value, true);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_int_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_string(x, i, value, false);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_int_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_subassign_vector_string(x, i, value, true);
+}
+
+// === real subscripts (coerce and forward) ===
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b, vec_logical_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_logical, SEXP x, double i, SEXP ddd, SEXP drop) {
+  return Fir_ver_call__u5b_vec_logical_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_logical(env, x, Fir_index_from_real(i), ddd, drop);
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, _u5b, vec_int_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_int, SEXP x, double i, SEXP ddd, SEXP drop) {
+  return Fir_ver_call__u5b_vec_int_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_int(env, x, Fir_index_from_real(i), ddd, drop);
+}
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5b, vec_real_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_real, SEXP x, double i, SEXP ddd, SEXP drop) {
+  return Fir_ver_call__u5b_vec_real_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_real(env, x, Fir_index_from_real(i), ddd, drop);
+}
+DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b, vec_string_borrowed_scalar_real_missing_missing_fx_none_ret_scalar_string, SEXP x, double i, SEXP ddd, SEXP drop) {
+  return Fir_ver_call__u5b_vec_string_borrowed_scalar_int_missing_missing_fx_none_ret_scalar_string(env, x, Fir_index_from_real(i), ddd, drop);
+}
+DEFINE_OVERRIDDEN_BUILTIN(Rboolean, _u5b_u5b, vec_logical_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_logical, SEXP x, double i, SEXP ddd, SEXP exact) {
+  return Fir_ver_call__u5b_u5b_vec_logical_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_logical(env, x, Fir_index_from_real(i), ddd, exact);
+}
+DEFINE_OVERRIDDEN_BUILTIN(int, _u5b_u5b, vec_int_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_int, SEXP x, double i, SEXP ddd, SEXP exact) {
+  return Fir_ver_call__u5b_u5b_vec_int_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_int(env, x, Fir_index_from_real(i), ddd, exact);
+}
+DEFINE_OVERRIDDEN_BUILTIN(double, _u5b_u5b, vec_real_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_real, SEXP x, double i, SEXP ddd, SEXP exact) {
+  return Fir_ver_call__u5b_u5b_vec_real_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_real(env, x, Fir_index_from_real(i), ddd, exact);
+}
+DEFINE_OVERRIDDEN_BUILTIN(char*, _u5b_u5b, vec_string_borrowed_scalar_real_missing_missing_fx_impure_ret_scalar_string, SEXP x, double i, SEXP ddd, SEXP exact) {
+  return Fir_ver_call__u5b_u5b_vec_string_borrowed_scalar_int_missing_missing_fx_impure_ret_scalar_string(env, x, Fir_index_from_real(i), ddd, exact);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_logical_borrowed_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_borrowed_vec_real_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_logical_borrowed_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_owned_scalar_real_scalar_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_logical_owned_scalar_int_scalar_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_logical_owned_vec_real_vec_logical_missing_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_logical_owned_vec_int_vec_logical_missing_fx_impure_ret_vec_logical_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_borrowed_scalar_real_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_int_borrowed_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_borrowed_vec_real_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_int_borrowed_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_owned_scalar_real_scalar_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_int_owned_scalar_int_scalar_int_missing_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_int_owned_vec_real_vec_int_missing_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_int_owned_vec_int_vec_int_missing_fx_impure_ret_vec_int_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_borrowed_scalar_real_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_real_borrowed_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_borrowed_vec_real_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_real_borrowed_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_owned_scalar_real_scalar_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_real_owned_scalar_int_scalar_real_missing_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_real_owned_vec_real_vec_real_missing_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_real_owned_vec_int_vec_real_missing_fx_impure_ret_vec_real_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_scalar_real_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_string_borrowed_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_borrowed_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_string_borrowed_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_scalar_real_scalar_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_string_owned_scalar_int_scalar_string_missing_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_missing_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value, SEXP ddd) {
+  return Fir_ver_call__u5b_u3c_u2d_vec_string_owned_vec_int_vec_string_missing_fx_impure_ret_vec_string_fresh(env, x, i, value, ddd);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_scalar_real_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_borrowed_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_borrowed_vec_real_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_borrowed_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh(env, x, i, value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_scalar_real_scalar_logical_fx_impure_ret_vec_logical_fresh, SEXP x, double i, Rboolean value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_owned_scalar_int_scalar_logical_fx_impure_ret_vec_logical_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_logical_owned_vec_real_vec_logical_fx_impure_ret_vec_logical_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_logical_owned_vec_int_vec_logical_fx_impure_ret_vec_logical_fresh(env, x, i, value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_scalar_real_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_borrowed_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_borrowed_vec_real_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_borrowed_vec_int_vec_int_fx_impure_ret_vec_int_fresh(env, x, i, value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_scalar_real_scalar_int_fx_impure_ret_vec_int_fresh, SEXP x, double i, int value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_owned_scalar_int_scalar_int_fx_impure_ret_vec_int_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_int_owned_vec_real_vec_int_fx_impure_ret_vec_int_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_int_owned_vec_int_vec_int_fx_impure_ret_vec_int_fresh(env, x, i, value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_scalar_real_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_borrowed_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_borrowed_vec_real_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_borrowed_vec_int_vec_real_fx_impure_ret_vec_real_fresh(env, x, i, value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_scalar_real_scalar_real_fx_impure_ret_vec_real_fresh, SEXP x, double i, double value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_owned_scalar_int_scalar_real_fx_impure_ret_vec_real_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_real_owned_vec_real_vec_real_fx_impure_ret_vec_real_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_real_owned_vec_int_vec_real_fx_impure_ret_vec_real_fresh(env, x, i, value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_scalar_real_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_borrowed_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_borrowed_vec_real_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_borrowed_vec_int_vec_string_fx_impure_ret_vec_string_fresh(env, x, i, value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_scalar_real_scalar_string_fx_impure_ret_vec_string_fresh, SEXP x, double i, char* value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_owned_scalar_int_scalar_string_fx_impure_ret_vec_string_fresh(env, x, Fir_index_from_real(i), value);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, _u5b_u5b_u3c_u2d, vec_string_owned_vec_real_vec_string_fx_impure_ret_vec_string_fresh, SEXP x, SEXP i, SEXP value) {
+  return Fir_ver_call__u5b_u5b_u3c_u2d_vec_string_owned_vec_int_vec_string_fx_impure_ret_vec_string_fresh(env, x, i, value);
+}
+
+// === as.integer(x) (real overloads) ===
+DEFINE_OVERRIDDEN_BUILTIN(int, as_u2einteger, scalar_real_missing_fx_none_ret_scalar_int, double x, SEXP ddd) {
+  (void)ddd;
+  return Fir_index_from_real(x);
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, as_u2einteger, vec1_real_missing_fx_none_ret_vec1_int, SEXP x, SEXP ddd) {
+  (void)ddd;
+  return Rf_ScalarInteger(Fir_index_from_real(REAL(x)[0]));
+}
+DEFINE_OVERRIDDEN_BUILTIN(SEXP, as_u2einteger, vec_real_missing_fx_none_ret_vec_int, SEXP x, SEXP ddd) {
+  (void)ddd;
+  R_xlen_t count = XLENGTH(x);
+  SEXP res = PROTECT(Rf_allocVector(INTSXP, count));
+  for (R_xlen_t k = 0; k < count; k++) INTEGER(res)[k] = Fir_index_from_real(REAL(x)[k]);
+  UNPROTECT(1);
+  return res;
 }
 
 // === rep(x, times) ===

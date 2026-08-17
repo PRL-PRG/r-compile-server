@@ -733,13 +733,19 @@ public final class ModuleParseContext {
               return new ParsedExpr(new ReflectiveLoad(variable), List.of(headArg1));
             } else if (s.trySkip('[')) {
               var headArg1 = requireHead(headArg, s, "a[...]");
+              // `a[[i]]` reads like R's `[[`: out-of-range is an error, not `NA`.
+              var outOfRangeIsNa = !s.trySkip('[');
               var subscript = p.parse(Argument.class);
               s.assertAndSkip(']');
+              if (!outOfRangeIsNa) {
+                s.assertAndSkip(']');
+              }
               if (s.trySkip('=')) {
                 var value = p.parse(Argument.class);
                 return new ParsedExpr(new SubscriptWrite(), List.of(headArg1, subscript, value));
               }
-              return new ParsedExpr(new SubscriptRead(), List.of(headArg1, subscript));
+              return new ParsedExpr(
+                  new SubscriptRead(outOfRangeIsNa), List.of(headArg1, subscript));
             } else if (s.trySkip("as ")) {
               var headArg1 = requireHead(headArg, s, "a as t");
               var type = p.parse(Type.class);

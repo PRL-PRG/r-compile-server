@@ -64,6 +64,19 @@ public final class Builtins {
     return new Signature(ImmutableList.copyOf(paramTypes), returnType, effects);
   }
 
+  private static Type[] borrowed(Type[] types) {
+    return Arrays.stream(types).map(t -> t.withOwnership(Ownership.BORROWED)).toArray(Type[]::new);
+  }
+
+  /// Signature of a non-generic `[<-` (`numArgs == 4`, which takes a trailing missing `...`) or
+  /// `[[<-` (`numArgs == 3`) version.
+  private static Signature subAssignSig(
+      Type returnType, int numArgs, Type x, Type i, Type valueType) {
+    return numArgs == 4
+        ? sig(returnType, Effects.IMPURE, x, i, valueType, Type.MISSING)
+        : sig(returnType, Effects.IMPURE, x, i, valueType);
+  }
+
   private static final Signature SIG_GENERIC_2 =
       sig(Type.ANY_VALUE_SEXP, Effects.REFLECT, Type.ANY_SEXP, Type.ANY_SEXP);
   private static final Signature SIG_GENERIC_1 =
@@ -1163,6 +1176,8 @@ public final class Builtins {
   private static void registerIndex(InternalInterpreter interpreter, String name) {
     // `[` reads out of range as `NA` (`NULL` for lists), whereas `[[` errors.
     var outOfRangeIsNa = name.equals("[");
+    // See `builtins.fir`: only `[` with a length-1 index can't fail.
+    var scalarIndexEffects = outOfRangeIsNa ? Effects.NONE : Effects.IMPURE;
 
     // Generic: (*, *, *, *) -+> V for [, (*, *, dots, *) -+> V for [[
     // Both have 4 params in generic form with all being ANY
@@ -1189,18 +1204,26 @@ public final class Builtins {
               return new Value.Sexp(
                   subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa).box());
             }));
-    // v5-9: (v(T), I, miss, miss) --> T for T = L, I, R, S
+    // v5-9: (v(T)b, I, miss, miss) --> T for T = L, I, R, S. `[` with a length-1 index can't fail
+    // (out of range reads as `NA`), so it's pure; `[[` fails, so it isn't (see `builtins.fir`).
     Type[] vecTypes = {
       Type.SHARED_LOGICAL_VECTOR,
       Type.SHARED_INTEGER_VECTOR,
       Type.SHARED_REAL_VECTOR,
       Type.SHARED_STRING_VECTOR
     };
+    Type[] borrowedVecTypes = borrowed(vecTypes);
     Type[] scalarTypes = {Type.LOGICAL, Type.INTEGER, Type.REAL, Type.STRING};
     for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           name,
-          sig(scalarTypes[t], Effects.NONE, vecTypes[t], Type.INTEGER, Type.MISSING, Type.MISSING),
+          sig(
+              scalarTypes[t],
+              scalarIndexEffects,
+              borrowedVecTypes[t],
+              Type.INTEGER,
+              Type.MISSING,
+              Type.MISSING),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 var vector = (ListOrVectorSXP<?>) args.getFirst().box();
@@ -1208,35 +1231,93 @@ public final class Builtins {
                 return subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa);
               }));
     }
-    // v1-4: (v(T), v(I), miss, miss) --> v(T) for T = L, I, R, S
+    // The real-index versions coerce and forward, which is what GNU-R does with a real subscript.
     for (int t = 0; t < 4; t++) {
       interpreter.registerExternal(
           name,
           sig(
-              vecTypes[t],
-              Effects.NONE,
-              vecTypes[t],
-              Type.SHARED_INTEGER_VECTOR,
+              scalarTypes[t],
+              scalarIndexEffects,
+              borrowedVecTypes[t],
+              Type.REAL,
               Type.MISSING,
               Type.MISSING),
           ExternalVersion.strict(
               (_, _, args, _) -> {
                 var vector = (ListOrVectorSXP<?>) args.getFirst().box();
-                var indices = (IntSXP) args.get(1).box();
-                // For vector indexing, build result by loading each index
-                if (indices.size() == 1) {
-                  return subscriptLoad(interpreter, vector, indices.get(0) - 1, outOfRangeIsNa);
-                }
-                // For multiple indices, build a result
-                var results = new SEXP[indices.size()];
-                for (int i = 0; i < indices.size(); i++) {
-                  var loaded =
-                      subscriptLoad(interpreter, vector, indices.get(i) - 1, outOfRangeIsNa);
-                  results[i] = valueToSexp(loaded);
-                }
-                return new Value.Sexp(buildVector(results, vector));
+                int idx = realToInt(((Value.Real) args.get(1)).value());
+                return subscriptLoad(interpreter, vector, idx - 1, outOfRangeIsNa);
               }));
     }
+
+    // v1-4: (v(T)b, v(I), miss, miss) --> v(T) for T = L, I, R, S, and the real-index versions,
+    // whose indices this coerces up front.
+    for (var indexType : List.of(Type.SHARED_INTEGER_VECTOR, Type.SHARED_REAL_VECTOR)) {
+      for (int t = 0; t < 4; t++) {
+        interpreter.registerExternal(
+            name,
+            sig(
+                vecTypes[t],
+                Effects.IMPURE,
+                borrowedVecTypes[t],
+                indexType,
+                Type.MISSING,
+                Type.MISSING),
+            ExternalVersion.strict(
+                (_, _, args, _) -> {
+                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                  var indices = toIntegerIndices(args.get(1).box(), interpreter, name);
+                  // For vector indexing, build result by loading each index
+                  if (indices.size() == 1) {
+                    return subscriptLoad(interpreter, vector, indices.get(0) - 1, outOfRangeIsNa);
+                  }
+                  // For multiple indices, build a result
+                  var results = new SEXP[indices.size()];
+                  for (int i = 0; i < indices.size(); i++) {
+                    var loaded =
+                        subscriptLoad(interpreter, vector, indices.get(i) - 1, outOfRangeIsNa);
+                    results[i] = valueToSexp(loaded);
+                  }
+                  return new Value.Sexp(buildVector(results, vector));
+                }));
+      }
+    }
+  }
+
+  /// Reject a sub-assignment subscript these versions don't implement.
+  ///
+  /// GNU-R does something different for each of them -- past the end grows the vector, `0` and `NA`
+  /// assign nothing, a negative one assigns to everything else -- and none of that is a write into
+  /// `vector`, which is all these versions (and `SubscriptWrite`) do. Reporting it as unsupported
+  /// keeps it from being mistaken for an R error.
+  private static void checkInRange(
+      InternalInterpreter interpreter, String name, ListOrVectorSXP<?> vector, int index) {
+    if (index < 1 || index > vector.size()) {
+      throw interpreter.failUnsupported(
+          "Mock `"
+              + name
+              + "` only assigns within the vector, got subscript "
+              + index
+              + " for a vector of size "
+              + vector.size());
+    }
+  }
+
+  /// The subscript `indices` as integers, coercing a real vector the way GNU-R coerces a real
+  /// subscript (which is what the real-index versions are defined to do).
+  private static IntSXP toIntegerIndices(
+      SEXP indices, InternalInterpreter interpreter, String name) {
+    return switch (indices) {
+      case IntSXP ints -> ints;
+      case RealSXP reals -> {
+        var ints = new int[reals.size()];
+        for (var i = 0; i < ints.length; i++) {
+          ints[i] = realToInt(reals.get(i));
+        }
+        yield SEXPs.integer(ints);
+      }
+      default -> throw interpreter.fail("`" + name + "` index must be an integer or real vector");
+    };
   }
 
   /// [InternalInterpreter#subscriptLoad], except that when `outOfRangeIsNa`, an index outside the
@@ -1330,94 +1411,69 @@ public final class Builtins {
     };
     Type[] scalarTypes = {Type.LOGICAL, Type.INTEGER, Type.REAL, Type.STRING};
 
-    if (numArgs == 4) {
-      // [<-: v5-v8: (v(T), I, T, miss) --> v(T)
+    // Every non-generic version returns a fresh vector: the ones that borrow `x` copy it, the ones
+    // that own it mutate it in place (they're only called with an argument nothing else holds).
+    //
+    // The borrowed versions must be registered *first*: a borrowed parameter accepts an owned
+    // argument, so their signature also matches the owned versions, and registering the owned
+    // implementations afterward is what overrides those (see
+    // [InternalInterpreter#registerExternal]).
+    for (var ownership : List.of(Ownership.BORROWED, Ownership.OWNED)) {
+      var inPlace = ownership == Ownership.OWNED;
       for (int t = 0; t < 4; t++) {
-        interpreter.registerExternal(
-            name,
-            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.INTEGER, scalarTypes[t], Type.MISSING),
-            ExternalVersion.strict(
-                (_, _, args, _) -> {
-                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
-                  int idx = ((Value.Int) args.get(1)).value();
-                  var value = args.get(2);
-                  var result = vector.copy();
-                  interpreter.subscriptStore(result, idx - 1, value);
-                  return new Value.Sexp(result);
-                }));
-      }
-      // [<-: v1-v4: (v(T), v(I), v(T), miss) --> v(T)
-      for (int t = 0; t < 4; t++) {
-        interpreter.registerExternal(
-            name,
-            sig(
-                vecTypes[t],
-                Effects.NONE,
-                vecTypes[t],
-                Type.SHARED_INTEGER_VECTOR,
-                vecTypes[t],
-                Type.MISSING),
-            ExternalVersion.strict(
-                (_, _, args, _) -> {
-                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
-                  var indices = (IntSXP) args.get(1).box();
-                  var values = args.get(2);
-                  var result = vector.copy();
-                  if (values instanceof Value.Sexp(var valuesSexp)
-                      && valuesSexp instanceof ListOrVectorSXP<?> valuesVec) {
+        var x = vecTypes[t].withOwnership(ownership);
+        var returnType = vecTypes[t].withOwnership(Ownership.FRESH);
+
+        // v5-v8: (v(T)<ownership>, I, T[, miss]) --> v(T)f, and the `R`-index version, which
+        // coerces and forwards like GNU-R does with a real subscript.
+        for (var indexType : List.of(Type.INTEGER, Type.REAL)) {
+          interpreter.registerExternal(
+              name,
+              subAssignSig(returnType, numArgs, x, indexType, scalarTypes[t]),
+              ExternalVersion.strict(
+                  (_, _, args, _) -> {
+                    var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                    int idx =
+                        args.get(1) instanceof Value.Real(var real)
+                            ? realToInt(real)
+                            : ((Value.Int) args.get(1)).value();
+                    var value = args.get(2);
+                    ListOrVectorSXP<?> result = inPlace ? vector : vector.copy();
+                    checkInRange(interpreter, name, result, idx);
+                    interpreter.subscriptStore(result, idx - 1, value);
+                    return new Value.Sexp(result);
+                  }));
+        }
+
+        // v1-v4: (v(T)<ownership>, v(I), v(T)[, miss]) --> v(T)f, and the `v(R)`-index version
+        for (var indexType : List.of(Type.SHARED_INTEGER_VECTOR, Type.SHARED_REAL_VECTOR)) {
+          interpreter.registerExternal(
+              name,
+              subAssignSig(returnType, numArgs, x, indexType, vecTypes[t]),
+              ExternalVersion.strict(
+                  (_, _, args, _) -> {
+                    var vector = (ListOrVectorSXP<?>) args.getFirst().box();
+                    var indices = toIntegerIndices(args.get(1).box(), interpreter, name);
+                    var values = args.get(2);
+                    ListOrVectorSXP<?> result = inPlace ? vector : vector.copy();
                     for (int i = 0; i < indices.size(); i++) {
-                      interpreter.subscriptStore(
-                          result, indices.get(i) - 1, interpreter.subscriptLoad(valuesVec, i));
+                      checkInRange(interpreter, name, result, indices.get(i));
                     }
-                  } else {
-                    // Single value assigned to multiple indices
-                    for (int i = 0; i < indices.size(); i++) {
-                      interpreter.subscriptStore(result, indices.get(i) - 1, values);
+                    if (values instanceof Value.Sexp(var valuesSexp)
+                        && valuesSexp instanceof ListOrVectorSXP<?> valuesVec) {
+                      for (int i = 0; i < indices.size(); i++) {
+                        interpreter.subscriptStore(
+                            result, indices.get(i) - 1, interpreter.subscriptLoad(valuesVec, i));
+                      }
+                    } else {
+                      // Single value assigned to multiple indices
+                      for (int i = 0; i < indices.size(); i++) {
+                        interpreter.subscriptStore(result, indices.get(i) - 1, values);
+                      }
                     }
-                  }
-                  return new Value.Sexp(result);
-                }));
-      }
-    } else {
-      // [[<-: v5-v8: (v(T), I, T) --> v(T)
-      for (int t = 0; t < 4; t++) {
-        interpreter.registerExternal(
-            name,
-            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.INTEGER, scalarTypes[t]),
-            ExternalVersion.strict(
-                (_, _, args, _) -> {
-                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
-                  int idx = ((Value.Int) args.get(1)).value();
-                  var value = args.get(2);
-                  var result = vector.copy();
-                  interpreter.subscriptStore(result, idx - 1, value);
-                  return new Value.Sexp(result);
-                }));
-      }
-      // [[<-: v1-v4: (v(T), v(I), v(T)) --> v(T)
-      for (int t = 0; t < 4; t++) {
-        interpreter.registerExternal(
-            name,
-            sig(vecTypes[t], Effects.NONE, vecTypes[t], Type.SHARED_INTEGER_VECTOR, vecTypes[t]),
-            ExternalVersion.strict(
-                (_, _, args, _) -> {
-                  var vector = (ListOrVectorSXP<?>) args.getFirst().box();
-                  var indices = (IntSXP) args.get(1).box();
-                  var values = args.get(2);
-                  var result = vector.copy();
-                  if (values instanceof Value.Sexp(var valuesSexp)
-                      && valuesSexp instanceof ListOrVectorSXP<?> valuesVec) {
-                    for (int i = 0; i < indices.size(); i++) {
-                      interpreter.subscriptStore(
-                          result, indices.get(i) - 1, interpreter.subscriptLoad(valuesVec, i));
-                    }
-                  } else {
-                    for (int i = 0; i < indices.size(); i++) {
-                      interpreter.subscriptStore(result, indices.get(i) - 1, values);
-                    }
-                  }
-                  return new Value.Sexp(result);
-                }));
+                    return new Value.Sexp(result);
+                  }));
+        }
       }
     }
   }
@@ -2071,6 +2127,41 @@ public final class Builtins {
               var sexp = args.getFirst().box();
               return new Value.Int(sexpToInt(sexp, interpreter, "as.integer"));
             }));
+    // v2: (R, miss) --> I, the unboxed overload `SpecializeRealIndex` inserts
+    interpreter.registerExternal(
+        "as.integer",
+        sig(Type.INTEGER, Effects.NONE, Type.REAL, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) -> new Value.Int(realToInt(((Value.Real) args.getFirst()).value()))));
+    // v3: (v1(R), miss) --> v1(I)
+    interpreter.registerExternal(
+        "as.integer",
+        sig(Type.BOXED_INTEGER, Effects.NONE, Type.BOXED_REAL, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var reals = (RealSXP) args.getFirst().box();
+              return new Value.Sexp(SEXPs.integer(realToInt(reals.get(0))));
+            }));
+    // v4: (v(R), miss) --> v(I)
+    interpreter.registerExternal(
+        "as.integer",
+        sig(Type.SHARED_INTEGER_VECTOR, Effects.NONE, Type.SHARED_REAL_VECTOR, Type.MISSING),
+        ExternalVersion.strict(
+            (_, _, args, _) -> {
+              var reals = (RealSXP) args.getFirst().box();
+              var ints = new int[reals.size()];
+              for (var i = 0; i < ints.length; i++) {
+                ints[i] = realToInt(reals.get(i));
+              }
+              return new Value.Sexp(SEXPs.integer(ints));
+            }));
+  }
+
+  /// R's real-to-integer coercion: truncate toward zero, and anything that doesn't fit is `NA`.
+  private static int realToInt(double value) {
+    return Double.isNaN(value) || value <= Integer.MIN_VALUE || value > Integer.MAX_VALUE
+        ? Constants.NA_INT
+        : (int) value;
   }
 
   private static void registerAsLogical(InternalInterpreter interpreter) {
