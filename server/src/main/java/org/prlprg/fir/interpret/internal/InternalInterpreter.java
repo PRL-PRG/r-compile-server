@@ -78,6 +78,7 @@ import org.prlprg.fir.ir.variable.OptionalNamedVariable;
 import org.prlprg.fir.ir.variable.Register;
 import org.prlprg.fir.ir.variable.Variable;
 import org.prlprg.parseprint.Printer;
+import org.prlprg.primitive.Constants;
 import org.prlprg.primitive.Logical;
 import org.prlprg.session.GNURSession;
 import org.prlprg.sexp.ArgumentMatcher.MatchException;
@@ -685,7 +686,9 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't duplicate: " + value);
         }
 
-        yield new Value.Sexp(s.copy());
+        // A `consume` argument guarantees the vector isn't read again, so this can move it instead
+        // of copying (see `org.prlprg.fir.opt.ConsumeDeadDup`).
+        yield statement.arg(0) instanceof Consume ? value : new Value.Sexp(s.copy());
       }
       case Force(var isMaybe) -> {
         var value = run(statement.arg(0));
@@ -799,7 +802,7 @@ public final class InternalInterpreter implements Interpreter {
               yield null;
             }
           };
-      case SubscriptRead _ -> {
+      case SubscriptRead(var outOfRangeIsNa) -> {
         var vectorValue = run(statement.arg(0));
         var indexValue = run(statement.arg(1));
 
@@ -811,7 +814,9 @@ public final class InternalInterpreter implements Interpreter {
           throw fail("Can't subscript with non-integer index: " + indexValue);
         }
 
-        yield subscriptLoad(vector, index);
+        yield outOfRangeIsNa && (index < 0 || index >= vector.size())
+            ? naElement(vector)
+            : subscriptLoad(vector, index);
       }
       case SubscriptWrite _ -> {
         var vectorValue = run(statement.arg(0));
@@ -1079,6 +1084,17 @@ public final class InternalInterpreter implements Interpreter {
                   OptionalNamedVariable::taggedElem)
               .collect(SEXPs.toDots());
       default -> throw fail("Unsupported vector kind: " + kind);
+    };
+  }
+
+  /// The `NA` of `vector`'s element type, which is what R's `[` reads outside the vector.
+  public Value naElement(ListOrVectorSXP<?> vector) {
+    return switch (vector) {
+      case LglSXP _ -> new Value.Lgl(Logical.NA);
+      case IntSXP _ -> new Value.Int(Constants.NA_INT);
+      case RealSXP _ -> new Value.Real(Constants.NA_REAL);
+      case StrSXP _ -> new Value.Str(Constants.NA_STRING);
+      default -> throw failUnsupported("Out-of-range read on a " + vector.type() + " vector");
     };
   }
 

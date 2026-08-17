@@ -137,6 +137,13 @@ At `./.github/workflows`. Both workflows are gated on `paths`, so most changes r
 
 When editing these, note that a `paths` list can't be shared between a workflow's `push` and `pull_request` triggers, because GitHub Actions does not support YAML anchors -- keep the two copies in sync.
 
+## Committing
+
+Before committing, re-read the comments in the changes and delete any long one (more than a paragraph) that:
+
+- describes behavior that's trivial to infer from the code and its context, or
+- explains a specific use of a general function. Comment what the function does, not what one caller wants from it.
+
 ---
 
 ## MCP Servers

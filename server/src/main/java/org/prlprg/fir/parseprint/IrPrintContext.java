@@ -306,11 +306,11 @@ public final class IrPrintContext {
         w.write("dup ");
         p.print(args.getFirst());
       }
-      case SubscriptRead _ -> {
+      case SubscriptRead(var outOfRangeIsNa) -> {
         p.print(args.getFirst());
-        w.write("[");
+        w.write(outOfRangeIsNa ? "[" : "[[");
         p.print(args.get(1));
-        w.write("]");
+        w.write(outOfRangeIsNa ? "]" : "]]");
       }
       case SubscriptWrite _ -> {
         p.print(args.getFirst());

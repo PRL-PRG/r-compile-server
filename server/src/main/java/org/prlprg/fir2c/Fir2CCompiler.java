@@ -1234,6 +1234,9 @@ public final class Fir2CCompiler {
               case Call _ -> emitCall(statement);
               case Cast(var type) ->
                   "Fir_cast(%s, %s)".formatted(emitArgument(args.getFirst()), emitType(type));
+              // A `consume` argument guarantees the vector isn't read again, so this can move it
+              // instead of copying (see `org.prlprg.fir.opt.ConsumeDeadDup`).
+              case Dup _ when args.getFirst() instanceof Consume -> emitArgument(args.getFirst());
               case Dup _ -> "Fir_dup(%s)".formatted(emitArgument(args.getFirst()));
               case Force(var isMaybe) ->
                   (isMaybe ? "Fir_maybe_force(%s)" : "Fir_force(%s)")
@@ -1308,7 +1311,7 @@ public final class Fir2CCompiler {
                 }
                 yield null;
               }
-              case SubscriptRead _ -> {
+              case SubscriptRead(var outOfRangeIsNa) -> {
                 var vector = args.getFirst();
                 var index = args.get(1);
                 if (!(argumentType(vector).kind()
@@ -1318,8 +1321,12 @@ public final class Fir2CCompiler {
                 }
                 var suffix = primitiveKindCName(primitiveKind);
 
-                yield "Fir_subscript_read_%s(%s, %s)"
-                    .formatted(suffix, emitArgument(vector), emitArgument(index));
+                yield "Fir_subscript_read_%s%s(%s, %s)"
+                    .formatted(
+                        outOfRangeIsNa ? "na_" : "",
+                        suffix,
+                        emitArgument(vector),
+                        emitArgument(index));
               }
               case SubscriptWrite _ -> {
                 var vector = args.getFirst();

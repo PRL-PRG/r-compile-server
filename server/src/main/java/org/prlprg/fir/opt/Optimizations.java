@@ -16,8 +16,11 @@ import org.prlprg.fir.opt.specialize.ImproveSignatures;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
+import org.prlprg.fir.opt.specialize.SpecializeEmptyDots;
 import org.prlprg.fir.opt.specialize.SpecializeLocalPromise;
 import org.prlprg.fir.opt.specialize.SpecializeNonReflectiveEnv;
+import org.prlprg.fir.opt.specialize.SpecializeRealIndex;
+import org.prlprg.fir.opt.specialize.SpecializeSubscript;
 import org.prlprg.fir.opt.specialize.StaticClosure;
 
 public class Optimizations {
@@ -54,9 +57,12 @@ public class Optimizations {
                         new ElideTrivialCast(),
                         new ElideUseSubscriptWrite(),
                         new StaticClosure(),
+                        new SpecializeEmptyDots(),
                         new OptimizeCallee(threshold),
                         new ResolveDynamicCallee(),
                         new ResolveLoad(),
+                        new SpecializeSubscript(),
+                        new SpecializeRealIndex(),
                         new ImproveSignatures()),
                     new Specialize(
                         "specializeEnv",
@@ -71,8 +77,12 @@ public class Optimizations {
                     new Inline(1000),
                     new DeferIntoPromise(),
                     new StrictifyPromise(),
+                    new CallOwnedVersion(),
+                    new ConsumeDeadDup(),
+                    new ElideConsumedDup(),
                     new Cleanup(false)),
-                new CreateBestVersion(9)),
+                new CreateBestVersion(9),
+                new CreateOwnedParameterVersion(9)),
             modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
             modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP));
   }
