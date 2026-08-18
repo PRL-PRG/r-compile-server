@@ -2,14 +2,16 @@
 
 #include "../common2c/rsh_utils.h"
 
-// `RCP` means "built against the copy-and-patch variant of GNU-R". It comes from that R's
-// `etc/Makeconf`, so *every* package built against it gets it, and it only says which `Rinternals.h`
+// `RCP` means "built against the copy-and-patch variant of GNU-R". It comes
+// from that R's `etc/Makeconf`, so *every* package built against it gets it,
+// and it only says which `Rinternals.h`
 // (`rshEvalUnboxed`, `Rsh_closure`, ...) we agree with.
 //
-// `RCP_STENCILS` means this translation unit *is* a copy-and-patch stencil: its ops and R symbols
-// are holes the extractor patches, its data is patched in place, and it follows the RCP calling
-// convention. Only `client/rcp`'s stencils are (they define `COMPILING_STENCILS`); the rsh package
-// is ordinary code that happens to be compiled against the same R. Same test as
+// `RCP_STENCILS` means this translation unit *is* a copy-and-patch stencil: its
+// ops and R symbols are holes the extractor patches, its data is patched in
+// place, and it follows the RCP calling convention. Only `client/rcp`'s
+// stencils are (they define `COMPILING_STENCILS`); the rsh package is ordinary
+// code that happens to be compiled against the same R. Same test as
 // `../common2c/gnur_symbols.h`.
 #if defined(RCP) && defined(COMPILING_STENCILS)
 #define RCP_STENCILS
@@ -1059,7 +1061,7 @@ static ALWAYS_INLINE BCell bcell_get(SEXP symbol, SEXP rho) {
   assert(rho != R_BaseEnv && rho != R_BaseNamespace && !IS_USER_DATABASE(rho));
   SEXP cell = findVarLocInFrame(rho, symbol, NULL);
   assert(cell != NULL);
-  if (IS_ACTIVE_BINDING(cell)) {
+  if (UNLIKELY(IS_ACTIVE_BINDING(cell))) {
     return R_NilValue;
   }
   return cell;
@@ -1289,14 +1291,19 @@ static INLINE void Rsh_evaluated_promise_to_value(Value *res, SEXP value) {
 }
 
 // cell could be null
-static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
-                                  Rboolean keepmiss, SEXP rho) {
+static ALWAYS_INLINE void Rsh_do_get_var_internal(Value *res, SEXP symbol,
+                                                  SEXP value, Rboolean keepmiss,
+                                                  SEXP rho,
+                                                  Rboolean can_be_unbound) {
   RSH_PC_INC(slow_getvar);
-  if (keepmiss) { // This should be statically eliminated for non-keepmiss instructions
+  if (keepmiss) { // This should be statically eliminated for non-keepmiss
+                  // instructions
     SET_SXP_VAL(res, value); // Set now to protect during R_isMissing
   }
 
-  if (value == R_UnboundValue) {
+  assert(can_be_unbound || value != R_UnboundValue);
+
+  if (can_be_unbound && value == R_UnboundValue) {
     UNBOUND_VARIABLE_ERROR(symbol, rho);
   } else if (value == R_MissingArg) {
     if (!keepmiss) {
@@ -1332,6 +1339,21 @@ static INLINE SEXP Rsh_builtin_call_args(SEXP args) {
     DECREMENT_LINKS(CAR0(a));
   }
   return args;
+}
+
+static INLINE void Rsh_do_get_var_NOUNBOUND_INLINED(Value *res, SEXP symbol,
+                                                    SEXP value,
+                                                    Rboolean keepmiss,
+                                                    SEXP rho) {
+  Rsh_do_get_var_internal(res, symbol, value, keepmiss, rho, FALSE);
+}
+static INLINE void Rsh_do_get_var_INLINED(Value *res, SEXP symbol, SEXP value,
+                                          Rboolean keepmiss, SEXP rho) {
+  Rsh_do_get_var_internal(res, symbol, value, keepmiss, rho, TRUE);
+}
+static INLINE void Rsh_do_get_var(Value *res, SEXP symbol, SEXP value,
+                           Rboolean keepmiss, SEXP rho) {
+  Rsh_do_get_var_internal(res, symbol, value, keepmiss, rho, TRUE);
 }
 
 static INLINE SEXP Rsh_closure_call_args(SEXP args) {
