@@ -68,6 +68,10 @@ ifneq ($(SPECIALIZE_MAKEPROM),0)
   PKG_CFLAGS += -DMAKEPROM_SPECIALIZE
 endif
 
+ifneq ($(SPECIALIZE_MAKECLOSURE),0)
+  PKG_CFLAGS += -DMAKECLOSURE_SPECIALIZE
+endif
+
 # Assume the bytecode object is always valid: turns BC_ERROR checks into ASSUME
 # (hard-aborting in debug, optimized away in release). Off by default since it
 # removes the graceful error path for corrupt/unexpected bytecode.
@@ -100,6 +104,7 @@ $(info MCMODEL=$(MCMODEL))
 $(info SPECIALIZE_STEPFOR=$(SPECIALIZE_STEPFOR))
 $(info SPECIALIZE_SWITCH=$(SPECIALIZE_SWITCH))
 $(info SPECIALIZE_MAKEPROM=$(SPECIALIZE_MAKEPROM))
+$(info SPECIALIZE_MAKECLOSURE=$(SPECIALIZE_MAKECLOSURE))
 $(info --------------)
 
 STENCILS_BUILD_DIR = stencils-build

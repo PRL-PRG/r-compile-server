@@ -110,6 +110,7 @@ endif
 SPECIALIZE_STEPFOR ?= 1
 SPECIALIZE_SWITCH ?= 1
 SPECIALIZE_MAKEPROM ?= 1
+SPECIALIZE_MAKECLOSURE ?= 1
 
 # Hard-coded per-stencil cycle timing (off by default).
 PROFILE_STENCILS ?= 0

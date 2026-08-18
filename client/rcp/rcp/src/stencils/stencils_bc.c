@@ -405,9 +405,34 @@ RCP_OP(CALLBUILTIN,
 RCP_OP(CALLSPECIAL,
 	   Rsh_CallSpecial(stack, GETCONST_IMM(0), GET_RHO());)
 
+#ifdef MAKECLOSURE_SPECIALIZE
+RCP_OP_EX(MAKECLOSURE, 0_NO_SRCREF)
+{
+    PROLOGUE;
+    PUSH_VAL(1);
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tSTART\n");
+    Rsh_do_MakeClosure(stack, GETCONST_IMM(0), NULL, NULL, GET_RHO(), FALSE);
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tDONE\n");
+    NEXT;
+}
+RCP_OP_EX(MAKECLOSURE, 1_SRCREF)
+{
+    PROLOGUE;
+    PUSH_VAL(1);
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tSTART\n");
+    Rsh_do_MakeClosure(stack, GETCONST_IMM(0), NULL, NULL, GET_RHO(), TRUE);
+    TRACE_PRINT(__FUNCTION__);
+    TRACE_PRINT("\tDONE\n");
+    NEXT;
+}
+#else
 RCP_OP(MAKECLOSURE,
 	   // We have to provide placeholder NULLs to remain compatible with BC2C
 	   Rsh_MakeClosure(stack, GETCONST_IMM(0), NULL, NULL, GET_RHO());)
+#endif
 
 RCP_OP(UMINUS,
 	   Rsh_UMinus(stack, GETCONST_IMM(0), GET_RHO());)

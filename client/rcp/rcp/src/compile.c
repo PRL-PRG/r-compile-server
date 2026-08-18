@@ -908,6 +908,24 @@ static const Stencil *get_stencil(RCP_BC_OPCODES opcode, const int *imms,
 		}
 		break;
 #endif
+#ifdef MAKECLOSURE_SPECIALIZE
+		case MAKECLOSURE_BCOP:
+		{
+			SEXP mkclos_arg = r_constpool[imms[0]];
+			SEXP srcref = VECTOR_ELT_0(mkclos_arg, 2);
+			if (isNull(srcref))
+			{
+			    DEBUG_PRINT("Using specialized version of MAKECLOSURE_OP: NULL srcref\n");
+			    return &stencil_set[0];
+			}
+			else
+			{
+			    DEBUG_PRINT("Using specialized version of MAKECLOSURE_OP: NON-NULL srcref\n");
+                return &stencil_set[1];
+			}
+		}
+		break;
+#endif
 		default:
 			return &stencil_set[0];
 	}
