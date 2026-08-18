@@ -28,13 +28,15 @@ public class Optimizations {
   /// An optimization that never changes anything
   private static final Optimization NOOP = (_, _) -> false;
 
+  private static final int DEFAULT_THRESHOLD = 10;
+
   public static Optimization defaultOptimizations() {
-    return defaultOptimizations(10, true);
+    return defaultOptimizations(DEFAULT_THRESHOLD, true);
   }
 
   public static Optimization defaultOptimizations(int threshold, boolean modifyCheckpoints) {
     return new Sequence(
-        "default",
+        defaultName(threshold, modifyCheckpoints),
         new ElideUnusedVersions(threshold),
         new CopyBaseline(),
         new ElideUnforcedPromise(threshold),
@@ -87,6 +89,26 @@ public class Optimizations {
                 new CreateOwnedParameterVersion(9)),
             modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
             modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP));
+  }
+
+  /// The name of the [#defaultOptimizations(int,boolean)] sequence with these arguments, which is
+  /// `"default"` for the [#defaultOptimizations()] ones.
+  ///
+  /// Every configuration needs its own name, because an [Optimization]'s name is the identity of
+  // the
+  /// snapshot it produces (see `org.prlprg.snapshot.fir.opt.OptimizedFirQuery`), and these
+  // arguments
+  /// select pipelines whose output differs a lot: without `modifyCheckpoints`, the checkpoints that
+  /// stay put block promise strictification, so far fewer versions get specialized.
+  private static String defaultName(int threshold, boolean modifyCheckpoints) {
+    var name = new StringBuilder("default");
+    if (threshold != DEFAULT_THRESHOLD) {
+      name.append("Threshold").append(threshold);
+    }
+    if (!modifyCheckpoints) {
+      name.append("KeepCheckpoints");
+    }
+    return name.toString();
   }
 
   private Optimizations() {}
