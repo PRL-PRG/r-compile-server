@@ -35,14 +35,12 @@ static ALWAYS_INLINE void Rsh_get_ddval(Value *res, SEXP symbol, BCell *cell,
 
   assert(cell != NULL);
 
-  if (BCELL_TAG(*cell) != 0) {
-    res->tag = BCELL_TAG(*cell);
-    memcpy(&res->u, &CAR0(*cell), sizeof(res->u));
-    return;
-  }
+  // Nothing is ever cached in the cell
+  assert(BCELL_TAG(*cell) == 0);
+  assert(*cell == R_NilValue);
 
   SEXP value = ddfindVar(symbol, rho);
-  Rsh_do_get_var(res, symbol, value, keepmiss, rho);
+  Rsh_do_get_var_NOUNBOUND_INLINED(res, symbol, value, keepmiss, rho);
 }
 
 static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
@@ -53,7 +51,8 @@ static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
   R_Visible = TRUE;
 
   if (*cell == R_NilValue) {
-    bcell_ensure_cached(symbol, rho, cell);
+  refresh_cell:
+    *cell = bcell_get(symbol, rho);
     //*cell = findVarLocInFrame(rho, symbol, NULL);
   }
 
@@ -91,7 +90,11 @@ static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
       SET_SXP_VAL(res, value);
       return;
     case PROMSXP:
+      break;
     case SYMSXP:
+      if (UNLIKELY(value == R_UnboundValue)) {
+        goto refresh_cell;
+      }
       break;
     }
   } else {
@@ -103,7 +106,7 @@ static ALWAYS_INLINE void Rsh_get_var(Value *res, SEXP symbol, BCell *cell,
     // commented above
     value = R_findVar(symbol, rho);
   }
-
+  assert(!BCELL_IS_UNBOUND(*cell));
   Rsh_do_get_var(res, symbol, value, keepmiss, rho);
 }
 
@@ -1180,7 +1183,7 @@ static INLINE void Rsh_StartAssign2(Value *stack, SEXP symbol, SEXP rho) {
       loc.cell = cell;
       value = R_GetVarLocValue(loc);
     }
-    Rsh_do_get_var(lhs_val, symbol, value, FALSE, ENCLOS(rho));
+    Rsh_do_get_var_INLINED(lhs_val, symbol, value, FALSE, ENCLOS(rho));
     if (LIKELY(VAL_IS_SXP(*lhs_val))) {
       value_sxp = VAL_SXP(*lhs_val);
       if (ASSIGNMENT_PENDING(cell) || MAYBE_SHARED(value_sxp)) {
