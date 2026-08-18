@@ -165,9 +165,11 @@ public final class ModuleParseContext {
       var comments = p.parse(Comments.class);
 
       var strict = false;
-      if (s.trySkip('@')) {
+      var liteSpecial = false;
+      while (s.trySkip('@')) {
         switch (s.readIdentifierOrKeyword()) {
           case "strict" -> strict = true;
+          case "liteSpecial" -> liteSpecial = true;
           case String unknown -> throw s.fail("unknown user property: @" + unknown);
         }
       }
@@ -179,6 +181,7 @@ public final class ModuleParseContext {
       var function = module.addFunction(name, parameterNames);
       function.comments().addAll(comments);
       function.userProperties().setStrict(strict);
+      function.userProperties().setLiteSpecial(liteSpecial);
 
       s.assertAndSkip('{');
       while (!s.nextCharIs('}')) {

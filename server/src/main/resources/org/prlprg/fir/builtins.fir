@@ -302,8 +302,19 @@ fun `:`(lhs, rhs) {
 # subscripts"), and every `[[` fails out of range, so those are impure. The optimizer replaces the
 # pure ones with `x[i]` and the `[[` ones with `x[[i]]`, which behave the same way (see
 # `org.prlprg.fir.ir.expression.SubscriptRead`).
+@liteSpecial
 fun `[`(x, i, `...`, drop) {
   (reg x:*@!, reg i:*, reg ddd:dots, reg drop:*@!) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (reg x:v(L), reg i:*@!, reg ddd:dots, reg drop:*@!) -~> V { ... }
+  (reg x:v(I), reg i:*@!, reg ddd:dots, reg drop:*@!) -~> V { ... }
+  (reg x:v(R), reg i:*@!, reg ddd:dots, reg drop:*@!) -~> V { ... }
+  (reg x:v(S), reg i:*@!, reg ddd:dots, reg drop:*@!) -~> V { ... }
   (reg x:v(L)b, reg i:v(I), reg ddd:miss, reg drop:miss) -~> v(L) { ... }
   (reg x:v(I)b, reg i:v(I), reg ddd:miss, reg drop:miss) -~> v(I) { ... }
   (reg x:v(R)b, reg i:v(I), reg ddd:miss, reg drop:miss) -~> v(R) { ... }
@@ -332,8 +343,19 @@ fun `[`(x, i, `...`, drop) {
   (reg x:v(S)b, reg i:R, reg ddd:miss, reg drop:miss) --> S { ... }
 }
 
+@liteSpecial
 fun `[[`(x, i, `...`, exact) {
   (reg x:*@!, reg i:*, reg ddd:dots, reg exact:*@!) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (reg x:v(L), reg i:*@!, reg ddd:dots, reg exact:*@!) -~> V { ... }
+  (reg x:v(I), reg i:*@!, reg ddd:dots, reg exact:*@!) -~> V { ... }
+  (reg x:v(R), reg i:*@!, reg ddd:dots, reg exact:*@!) -~> V { ... }
+  (reg x:v(S), reg i:*@!, reg ddd:dots, reg exact:*@!) -~> V { ... }
   (reg x:v(L)b, reg i:v(I), reg ddd:miss, reg exact:miss) -~> v(L) { ... }
   (reg x:v(I)b, reg i:v(I), reg ddd:miss, reg exact:miss) -~> v(I) { ... }
   (reg x:v(R)b, reg i:v(I), reg ddd:miss, reg exact:miss) -~> v(R) { ... }
@@ -368,8 +390,19 @@ fun `[[`(x, i, `...`, exact) {
 #
 # All of them are impure: they only write *within* the vector, so an out-of-range index is an error,
 # where GNU-R grows the vector instead.
+@liteSpecial
 fun `[<-`(x, i, value, `...`) {
   (reg x:*@!, reg i:*, reg value:*, reg ddd:dots) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (reg x:v(L), reg i:*@!, reg value:*, reg ddd:dots) -~> V { ... }
+  (reg x:v(I), reg i:*@!, reg value:*, reg ddd:dots) -~> V { ... }
+  (reg x:v(R), reg i:*@!, reg value:*, reg ddd:dots) -~> V { ... }
+  (reg x:v(S), reg i:*@!, reg value:*, reg ddd:dots) -~> V { ... }
   (reg x:v(L)b, reg i:v(I), reg value:v(L), reg ddd:miss) -~> v(L)f { ... }
   (reg x:v(I)b, reg i:v(I), reg value:v(I), reg ddd:miss) -~> v(I)f { ... }
   (reg x:v(R)b, reg i:v(I), reg value:v(R), reg ddd:miss) -~> v(R)f { ... }
@@ -406,8 +439,19 @@ fun `[<-`(x, i, value, `...`) {
   (reg x:v(S)o, reg i:R, reg value:S, reg ddd:miss) -~> v(S)f { ... }
 }
 
+@liteSpecial
 fun `[[<-`(x, i, value) {
   (reg x:*@!, reg i:*, reg value:*) -+> V { ... }
+
+  # Fallbacks with no implementation of their own: a primitive-vector `x` can neither dispatch to a
+  # method nor reflect, and the strict `i` is what makes the optimizer force a promise subscript at
+  # the call site. Both backends route them to the baseline, the interpreter because it registers
+  # its generic implementation for every version that signature covers, `fir2c` because
+  # `Function#guessWorst` lands on the baseline and it emits a GNU-R builtin call.
+  (reg x:v(L), reg i:*@!, reg value:*) -~> V { ... }
+  (reg x:v(I), reg i:*@!, reg value:*) -~> V { ... }
+  (reg x:v(R), reg i:*@!, reg value:*) -~> V { ... }
+  (reg x:v(S), reg i:*@!, reg value:*) -~> V { ... }
   (reg x:v(L)b, reg i:v(I), reg value:v(L)) -~> v(L)f { ... }
   (reg x:v(I)b, reg i:v(I), reg value:v(I)) -~> v(I)f { ... }
   (reg x:v(R)b, reg i:v(I), reg value:v(R)) -~> v(R)f { ... }
@@ -454,6 +498,7 @@ fun `$<-`(x, name, value) {
   (reg x:V, reg name:V, reg value:V) --> V { ... }
 }
 
+@liteSpecial
 fun rep(x, `...`) {
   (reg x:*@!, reg ddd:dots) -+> V { ... }
   (reg x:v1(L), reg times:v1(I)) --> v(L) { ... }

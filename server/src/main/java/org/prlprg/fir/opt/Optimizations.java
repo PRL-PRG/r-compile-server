@@ -17,6 +17,7 @@ import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.fir.opt.specialize.ResolveDynamicCallee;
 import org.prlprg.fir.opt.specialize.ResolveLoad;
 import org.prlprg.fir.opt.specialize.SpecializeEmptyDots;
+import org.prlprg.fir.opt.specialize.SpecializeLiteSpecial;
 import org.prlprg.fir.opt.specialize.SpecializeLocalPromise;
 import org.prlprg.fir.opt.specialize.SpecializeNonReflectiveEnv;
 import org.prlprg.fir.opt.specialize.SpecializeRealIndex;
@@ -63,6 +64,7 @@ public class Optimizations {
                         new ResolveLoad(),
                         new SpecializeSubscript(),
                         new SpecializeRealIndex(),
+                        new SpecializeLiteSpecial(),
                         new ImproveSignatures()),
                     new Specialize(
                         "specializeEnv",

@@ -514,6 +514,7 @@ public final class InternalInterpreter implements Interpreter {
           cursor = restoreDeopt(pc, deoptStack, deoptRestoreCfg);
           frame.exit();
           frame.enter(cursor, feedback);
+          frame.markDeoptRestored();
           deopted = true;
           System.out.println("DEOPT");
         }

@@ -1837,8 +1837,7 @@ public final class Fir2CCompiler {
 
       private Type argumentType(Argument argument) {
         return switch (argument) {
-          case Constant(var value) ->
-              throw new IllegalArgumentException("Cannot get Type of constant: " + value);
+          case Constant(var value) -> value.type();
           case Read(var reg) -> registerTypes.get(reg);
           case Consume(var reg) -> registerTypes.get(reg);
         };
