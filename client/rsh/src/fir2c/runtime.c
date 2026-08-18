@@ -592,23 +592,32 @@ SEXP Fir_reflective_store(SEXP promise, SEXP symbol, SEXP value) {
   return value;
 }
 
+/// R's error for an out-of-range `[[`.
+///
+/// A negative R subscript still differs: GNU-R reports "invalid negative subscript in get1index".
+static void Fir_subscript_assert_in_bounds(SEXP vector, int index) {
+  if (index < 0 || (R_xlen_t)index >= XLENGTH(vector)) {
+    Rf_error("subscript out of bounds");
+  }
+}
+
 int Fir_subscript_read_int(SEXP vector, int index) {
-  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  Fir_subscript_assert_in_bounds(vector, index);
   return INTEGER(vector)[index];
 }
 
 double Fir_subscript_read_real(SEXP vector, int index) {
-  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  Fir_subscript_assert_in_bounds(vector, index);
   return REAL(vector)[index];
 }
 
 Rboolean Fir_subscript_read_logical(SEXP vector, int index) {
-  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  Fir_subscript_assert_in_bounds(vector, index);
   return (Rboolean)LOGICAL(vector)[index];
 }
 
 char* Fir_subscript_read_string(SEXP vector, int index) {
-  ASSERT(index >= 0 && (R_xlen_t)index < XLENGTH(vector), "Subscript index out of bounds");
+  Fir_subscript_assert_in_bounds(vector, index);
   return (char*)CHAR(STRING_ELT(vector, index));
 }
 

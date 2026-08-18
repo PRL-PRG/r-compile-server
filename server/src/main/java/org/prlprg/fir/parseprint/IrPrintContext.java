@@ -72,6 +72,9 @@ public final class IrPrintContext {
     if (function.userProperties().strict()) {
       w.write("@strict\n");
     }
+    if (function.userProperties().liteSpecial()) {
+      w.write("@liteSpecial\n");
+    }
 
     w.write("fun ");
     p.print(function.name());

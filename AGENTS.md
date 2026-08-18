@@ -60,6 +60,7 @@ The code is Google style, use `spotless` to reformat. Use the Jetbrains MCP serv
 
 - The compiler must be non-deterministic. In particular, prefer `LinkedHashSet`/`LinkedHashMap` over `HashSet`/`HashMap`, only using the non-linked variants if they are never iterated on.
 - If the user asks to write tests and the implementation is buggy, fix the implementation and test that the bug is fixed.
+- When the user asks to write a FIŘ optimization, also add it to `Optimizations#defaultOptimizations` and add a unit test class for it (in `./server/src/test/java/org/prlprg/fir/opt/`, mirroring the optimization's package; see the existing `*Test`s there, which implement `AbstractionOptimizationUnitTest` or `OptimizationUnitTest`).
 
 ### Dependencies
 
