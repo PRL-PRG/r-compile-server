@@ -420,7 +420,7 @@ static INLINE void Rsh_Call(Value *stack, SEXP call, SEXP rho) {
     }
     break;
   case CLOSXP: {
-    args = Rsh_closure_call_args(args);
+    RSH_CLOSURE_ARGS_DECREMENT_LINKS(args);
     if (RSH_INLINE_CLOSURE_CALL_OK(fun, rho)) {
       RSH_CHECK_SIGINT();
       SEXP newrho = make_applyClosure_env(call, fun, args, rho, R_NilValue);
@@ -835,7 +835,7 @@ static INLINE void Rsh_do_makeprom(Value *stack, SEXP code, SEXP rho,
   switch (TYPEOF(VAL_SXP(*fun))) {
   case CLOSXP: {
     SEXP value = Rf_mkPROMISE(code, rho);
-    RSH_PUSH_ARG(args_head, args_tail, value);
+    RSH_PUSH_ARG_RC(args_head, args_tail, value);
     break;
   }
   case BUILTINSXP:
@@ -1568,7 +1568,7 @@ static INLINE void Rsh_SetterCall(Value *stack, SEXP call, SEXP vexpr,
     RSH_PUSH_ARG(&args_head, &args_tail, prom);
     SET_TAG(VAL_SXP(args_tail), R_valueSym);
     // replace first argument with LHS value as *tmp*
-    args = Rsh_closure_call_args(args);
+    RSH_CLOSURE_ARGS_DECREMENT_LINKS(args);
     prom = R_mkEVPROMISE(Rsh_TmpvalSym, lhs_sxp);
     SETCAR(args, prom);
     // call the closure
@@ -1815,6 +1815,7 @@ static INLINE void Rsh_GetterCall(Value *stack, SEXP call, SEXP rho) {
     break;
   }
   case CLOSXP: {
+    RSH_CLOSURE_ARGS_DECREMENT_LINKS(args);
     // unlike in SPECIALSXP case, we need to use a RC promise
     SEXP prom = R_mkEVPROMISE(Rsh_TmpvalSym, lhs_sxp);
     SETCAR(args, prom);

@@ -230,6 +230,14 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
 #define RSH_PUSH_ARG(/* Value* */ head, /* Value* */ tail, /* SEXP */ value)   \
   RSH_LIST_APPEND_EX(head, tail, value, FALSE, TRUE, FALSE)
 
+#ifdef NO_CALL_FRAME_ARGS_NR
+#define RSH_PUSH_ARG_RC(/* Value* */ head, /* Value* */ tail,                  \
+                        /* SEXP */ value)                                      \
+  RSH_LIST_APPEND_EX(head, tail, value, TRUE, TRUE, FALSE)
+#else
+#define RSH_PUSH_ARG_RC RSH_PUSH_ARG
+#endif
+
 #define RSH_INIT_PUSH_ARG(/* Value* */ head, /* Value* */ tail,                \
                           /* SEXP */ value)                                    \
   RSH_LIST_APPEND_EX(head, tail, value, FALSE, TRUE, TRUE)
@@ -254,13 +262,27 @@ static ALWAYS_INLINE void unboxed_int_to_dbl(R_bcstack_t *s) {
 
 #define RSH_CALL_ARGS_DECREMENT_LINKS(args)                                    \
   do {                                                                         \
-    SEXP __a__ = (args);                                                       \
-    while (__a__ != R_NilValue) {                                              \
+    for (SEXP __a__ = (args); __a__ != R_NilValue; __a__ = CDR(__a__)) {       \
       assert(!BNDCELL_TAG(__a__));                                             \
       DECREMENT_LINKS(CAR0(__a__));                                            \
-      __a__ = CDR(__a__);                                                      \
     }                                                                          \
   } while (0)
+
+static INLINE void RSH_CLOSURE_ARGS_DECREMENT_LINKS(SEXP args) {
+  /* it would be better not to build this arglist with CONS_NR in
+     the first place */
+#ifndef NO_CALL_FRAME_ARGS_NR
+  for (SEXP a = args; a != R_NilValue; a = CDR(a)) {
+    assert(!BNDCELL_TAG(a));
+    DECREMENT_LINKS(CAR0(a));
+    if (!TRACKREFS(a)) {
+      ENABLE_REFCNT(a);
+      INCREMENT_REFCNT(CAR0(a));
+      INCREMENT_REFCNT(CDR(a));
+    }
+  }
+#endif
+}
 
 /* ------------------------------------------------------------------ *
  * Node stack link-count protection (see R/doc/notes/bcstkprot.md).
