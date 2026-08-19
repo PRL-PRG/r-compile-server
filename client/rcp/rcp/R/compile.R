@@ -194,12 +194,13 @@ rcp_get_types_df <- function(func_name) {
 #' \code{options(rcp.cmpfun.type_recording = TRUE)} into a plain named list of
 #' three per-opcode groups: \code{branch} (\code{bcids}, \code{taken},
 #' \code{not_taken}), \code{var_call} (\code{bcids}, \code{counters},
-#' \code{types}) and \code{fun} (\code{bcids}, \code{counters}, \code{consts}).
+#' \code{types}) and \code{fun} (\code{bcids}, \code{counters}, \code{consts}),
+#' plus a scalar \code{run_count} of how many times the function was called.
 #' The result contains only ordinary R objects, so it can be passed to
 #' \code{\link{saveRDS}} or \code{\link{serialize}} directly.
 #'
 #' @param x A compiled function (or its body / recording object).
-#' @return A named list of three groups, each a named list of parallel vectors.
+#' @return A named list of the three groups plus \code{run_count}.
 #'
 #' @export
 rcp_export_recording <- function(x) {
