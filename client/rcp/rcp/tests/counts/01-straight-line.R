@@ -138,9 +138,10 @@ local({
   .expect("uncompiled.callee [value]", r$values, list(4))
 })
 
-# Promise bodies are their own bytecode objects and are not rcp-compiled in the
-# default build (RCP_COMPILE_PROMISES=0), so forcing a promise runs bytecode
-# that is not counted. The caller's MAKEPROM still is.
+# Promise bodies are their own bytecode objects, so whether forcing one is
+# counted follows whether rcp compiled it: with compile_promises off (what
+# helpers.R pins, and what a release build defaults to) the body runs in bcEval
+# and contributes nothing, while the caller's MAKEPROM is still counted.
 
 local({
   force_it <- function(a) a
@@ -151,6 +152,31 @@ local({
   .expect("promise.body.not.counted [value]", r$values, list(54))
   .expect_true("promise.body.has.no.mul",
                r$counts[["MUL_OP"]] == 0L && r$counts[["MAKEPROM_OP"]] >= 1L)
+})
+
+# The other half of that switch. With compile_promises on, the promise body is
+# copy-and-patched like any other bytecode object, so the counter plugin has to
+# be threaded through it too -- and the expected vector grows by exactly the
+# body's own histogram, once, because the promise is forced once. This is the
+# case that a plugin emitted only for the top-level body would fail.
+
+local({
+  old <- options(rcp.cmpfun.compile_promises = TRUE)
+  on.exit(options(old), add = TRUE)
+
+  force_it <- function(a) a
+  caller <- quote(function(x, y) force_it(x * y * y * y))
+  d <- .decode(eval(caller))
+  prom <- .prom_hist(d)
+  # x * y * y * y: 4 GETVARs, 3 MULs and the promise's own RETURN. Guards
+  # against .prom_hist silently returning zeros, which would make the counts
+  # check below identical to the one above.
+  .expect_counts("promise.body.histogram", prom,
+                 .vec(GETVAR_OP = 4L, MUL_OP = 3L, RETURN_OP = 1L))
+
+  r <- .run(caller, list(list(2, 3)), name = "promise_body_compiled")
+  .expect_counts("promise.body.counted", r$counts, .model_straight(d, 1L) + prom)
+  .expect("promise.body.counted [value]", r$values, list(54))
 })
 
 .summary("01-straight-line.R")

@@ -46,6 +46,21 @@
 
 library(rcp)
 
+# Compile promise bodies or not? Every model in this file derives its expected
+# vector from the disassembly of the function under test, whose bytecode does
+# not contain the promise bodies it creates -- those are separate bytecode
+# objects hanging off the constant pool. So whether rcp compiles them (and
+# hence counts them) changes every expectation in the suite for any case that
+# passes an argument to a closure.
+#
+# The build default is not a constant: common.mk turns RCP_COMPILE_PROMISES on
+# under DEBUG=1 and off for release. Pin it, so the suite tests the same thing
+# either way rather than passing on one build and failing on the other. Cases
+# that want the other setting turn it on locally and add .prom_hist() to their
+# model; tests/promises/helpers.R pins the same option the other way for the
+# same reason.
+options(rcp.cmpfun.compile_promises = FALSE)
+
 .results <- new.env(parent = emptyenv())
 .results$pass <- 0L
 .results$fail <- 0L
@@ -141,14 +156,12 @@ library(rcp)
 
 .OPTIMIZE <- 2L
 
-.decode <- function(f) {
-  bc <- compiler::cmpfun(f, options = list(optimize = .OPTIMIZE))
-  if (typeof(.Internal(bodyCode(bc))) != "bytecode")
-    stop("the case is not byte-compilable, so rcp will not compile it either")
-  # disassemble() prints its result as a side effect as well as returning it.
-  d <- NULL
-  invisible(utils::capture.output(d <- compiler::disassemble(bc)))
-  code <- d[[2L]]
+
+# Walk one `list(.Code, code, consts)` -- what disassemble() returns, and what
+# it leaves in place of every bytecode constant (a promise or closure body), so
+# the same walk serves the top-level body and the bodies nested inside it.
+.decode_dis <- function(dis) {
+  code <- dis[[2L]]
 
   pos <- integer(0)
   op <- character(0)
@@ -164,10 +177,21 @@ library(rcp)
     i <- i + 1L + .R_ARGC[[nm]]
   }
   list(code = code,
+       consts = dis[[3L]],
        pos = pos,
        op = sub("\\.OP$", "_OP", op),
        start = pos[[1L]], # 1: element 0 of the code vector is the version word
        end = length(code)) # exclusive end of the position range
+}
+
+.decode <- function(f) {
+  bc <- compiler::cmpfun(f, options = list(optimize = .OPTIMIZE))
+  if (typeof(.Internal(bodyCode(bc))) != "bytecode")
+    stop("the case is not byte-compilable, so rcp will not compile it either")
+  # disassemble() prints its result as a side effect as well as returning it.
+  d <- NULL
+  invisible(utils::capture.output(d <- compiler::disassemble(bc)))
+  .decode_dis(d)
 }
 
 .op_at <- function(d, p) {
@@ -188,6 +212,39 @@ library(rcp)
   sel <- d$op[d$pos >= from & d$pos < to]
   for (nm in sel) v[[nm]] <- v[[nm]] + 1L
   v
+}
+
+# Static histogram of the promise bodies the MAKEPROM_OPs in `d` create, nested
+# promises included. Only meaningful with `rcp.cmpfun.compile_promises = TRUE`:
+# a promise body is its own bytecode object, so unless rcp compiled it too,
+# forcing it runs in bcEval and is not counted at all. The suite pins that
+# option off (see the top of this file) and this helper is what a case that
+# turns it back on adds to its model.
+#
+# Two bodies are skipped, because rcp does not compile them either:
+#
+#   trivial     `GETVAR x; RETURN` -- compile.c (DECOMPILE_TRIVIAL_PROMISES)
+#               replaces the whole promise with the symbol rather than
+#               compiling it;
+#   unbytecoded a constant that disassemble() left alone (an NSE promise, whose
+#               body the compiler stores as the raw LANGSXP/SYMSXP) -- compile.c
+#               leaves those to the AST interpreter.
+#
+# The count is per *forcing*, so this is the right addend only for a case where
+# every promise created is forced exactly once.
+.prom_hist <- function(d, ncalls = 1L) {
+  v <- .zeros()
+  for (p in d$pos[d$op == "MAKEPROM_OP"]) {
+    cst <- d$consts[[.arg(d, p, 1L) + 1L]] # immediates are 0-based const indices
+    if (!(is.list(cst) && length(cst) > 0L &&
+          identical(cst[[1L]], as.name(".Code"))))
+      next
+    pd <- .decode_dis(cst)
+    if (identical(pd$op, c("GETVAR_OP", "RETURN_OP")))
+      next
+    v <- v + .hist(pd) + .prom_hist(pd)
+  }
+  v * as.integer(ncalls)
 }
 
 # ---------------------------------------------------------------------------
