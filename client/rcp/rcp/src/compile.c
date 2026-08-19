@@ -2394,7 +2394,7 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 		}
 	}
 
-	SEXP result = PROTECT(allocVector(VECSXP, 3));
+	SEXP result = PROTECT(allocVector(VECSXP, 4));
 
 	// Group 0 (brifnot): two counters per point, packed adjacently -- one before
 	// the instruction and one on the fall-through path just after it.
@@ -2470,6 +2470,16 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 		R_RegisterCFinalizerEx(fun_consts, &munmap_finalizer, FALSE);
 	}
 
+	// Group 3 (function run counter): a single counter at bytecode position 0,
+	// incremented once per call to the compiled function.
+	int *run_counter_raw = mmap_near(sizeof(int) * 2);
+	run_counter_raw[0] = sizeof(int) * 2;
+	run_counter_raw[1] = 0;
+	SEXP run_counter = R_MakeExternalPtr(run_counter_raw, R_NilValue, R_NilValue);
+	SET_VECTOR_ELT(result, 3, run_counter);
+	R_RegisterCFinalizerEx(run_counter, &munmap_finalizer, FALSE);
+	add_plugin_stencil_pos(plugins, 0, &_RCP_CUSTOM_COUNTER_REL32, &run_counter_raw[1]);
+
 	for (int i = 0, jb = 0, jt = 0, jf = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		int after = i + RCP_BC_ARG_CNT[bytecode[i]] + 1;
@@ -2512,12 +2522,14 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 // constants resolved back to SEXPs), so the caller can serialize the result.
 //
 // The result is a named list of three per-opcode groups, each a named list of
-// parallel vectors (one entry per recorded program point):
+// parallel vectors (one entry per recorded program point), plus a scalar
+// run_count of how many times the compiled function was called:
 //
 //   branch (brifnot)      bcids, taken, not_taken
 //   var_call (getvar/call) bcids, counters, types (observed 1u<<type bitmap)
 //   fun (getfun)          bcids, counters, consts (the single constant seen, or
 //                         R_UnboundValue when more than one distinct value)
+//   run_count             scalar int, counter placed at bytecode position 0
 //
 // `x` may be the recording list itself, a compiled closure, or its (external
 // pointer) body -- in the latter two cases the recording is read from the
@@ -2530,7 +2542,7 @@ SEXP C_rcp_export_recording(SEXP x)
 	if (TYPEOF(recording) == EXTPTRSXP)
 		recording = Rf_getAttrib(recording, Rf_install("recording"));
 
-	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 3)
+	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 4)
 		Rf_error("no type recording found; compile with "
 				 "options(rcp.cmpfun.type_recording = TRUE)");
 
@@ -2639,14 +2651,27 @@ SEXP C_rcp_export_recording(SEXP x)
 	SET_STRING_ELT(fun_names, 2, Rf_mkChar("consts"));
 	Rf_setAttrib(fun_out, R_NamesSymbol, fun_names);
 
-	SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
+	// --- run_count: single counter placed at bytecode position 0 ---
+	SEXP run_counter = VECTOR_ELT_0(recording, 3);
+	int run_count = 0;
+	if (TYPEOF(run_counter) == EXTPTRSXP)
+	{
+		const int *raw = (const int *)EXTPTR_PTR(run_counter);
+		if (!raw)
+			Rf_error("recording buffers have already been released");
+		run_count = raw[1];
+	}
+
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
 	SET_VECTOR_ELT(out, 0, branch_out);
 	SET_VECTOR_ELT(out, 1, typed_out);
 	SET_VECTOR_ELT(out, 2, fun_out);
-	SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
+	SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(run_count));
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
 	SET_STRING_ELT(names, 0, Rf_mkChar("branch"));
 	SET_STRING_ELT(names, 1, Rf_mkChar("var_call"));
 	SET_STRING_ELT(names, 2, Rf_mkChar("fun"));
+	SET_STRING_ELT(names, 3, Rf_mkChar("run_count"));
 	Rf_setAttrib(out, R_NamesSymbol, names);
 
 	UNPROTECT(14);
