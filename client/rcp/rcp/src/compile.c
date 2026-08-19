@@ -4177,7 +4177,7 @@ void __attribute__((used)) rcp_print_stack_val_unbox(void *p)
 		return;
 	}
 	R_bcstack_t v = *(R_bcstack_t *)p;
-	val_unbox_inplace(&v, 1, 1, 1, 1);
+	unbox_inplace(&v, 1, 1, 1, 1);
 
 	rcp_print_stack_val(&v);
 }

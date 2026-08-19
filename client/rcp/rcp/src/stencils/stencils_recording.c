@@ -99,7 +99,6 @@ RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 				type = RSH_RECORDING_REALSXP_SIMPLE_SCALAR;
 				break;
 			case ISQSXP:
-				assert(TYPEOF(val_as_sexp(val)) == INTSXP);
 				type = RSH_RECORDING_INTSXP;
 				break;
 			default:
