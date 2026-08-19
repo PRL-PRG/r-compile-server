@@ -212,7 +212,7 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
     // Path for locked and active bindings (very rare)
     assert(!IS_SIMPLE_BINDING(*cell));
 
-    SEXP value_sxp = val_as_sexp(value);
+    SEXP value_sxp = box(value);
     INCREMENT_NAMED(value_sxp);
 
     // No need to PROTECT, will be done in defineVar
@@ -222,8 +222,10 @@ static ALWAYS_INLINE void Rsh_SetVar(Value *stack, SEXP symbol, BCell *cell,
 
 static INLINE void Rsh_SetVar2(Value *stack, SEXP symbol, SEXP rho) {
   Value *r0 = GET_VAL(-1);
-  SEXP value = val_as_sexp(*r0);
+  SEXP value = box(*r0);
   INCREMENT_NAMED(value);
+
+  // No need to PROTECT, will be done in setVar
   Rf_setVar(symbol, value, ENCLOS(rho));
 }
 
@@ -246,9 +248,7 @@ static INLINE NODISCARD Value Rsh_Return(Value *stack, RshBCProt bcprot) {
 
 #define Rsh_ReturnJmp(/* Value* */ stack, rho)                                 \
   do {                                                                         \
-    Value *__stack__ = (stack - 1);                                            \
-    SEXP __ret__ = val_as_sexp(*__stack__);                                    \
-    R_BCNodeStackTop = __stack__;                                              \
+    SEXP __ret__ = box_inplace((stack) - 1);                                   \
     Rf_findcontext(CTXT_BROWSER | CTXT_FUNCTION, rho, __ret__);                \
   } while (0);
 
@@ -307,7 +307,7 @@ static INLINE void Rsh_GetFun(Value *stack, SEXP symbol, SEXP rho) {
   do {                                                                         \
     Value *__s__ = (stack);                                                    \
     RSH_PUSH_ARG(GET_VAL_EX(__s__, -3), GET_VAL_EX(__s__, -2),                 \
-                 val_as_sexp(*GET_VAL_EX(__s__, -1)));                         \
+                 box(*GET_VAL_EX(__s__, -1)));                                 \
   } while (0)
 
 #define Rsh_PushConstArg(stack, val)                                           \
@@ -506,9 +506,9 @@ static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
   double res_dbl;
 
   Value lhs = *lhs_ptr;
-  val_unbox_inplace(&lhs, 1, 1, 1, 0);
+  unbox_inplace(&lhs, 1, 1, 1, 0);
   Value rhs = *rhs_ptr;
-  val_unbox_inplace(&rhs, 1, 1, 1, 0);
+  unbox_inplace(&rhs, 1, 1, 1, 0);
 
   if (VAL_IS_DBL(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
@@ -555,7 +555,7 @@ static ALWAYS_INLINE void Rsh_arith(Value *stack, SEXP call, RshArithOp op,
 
   // Slow path!
   RSH_PC_INC(slow_arith);
-  DO_BINARY_BUILTIN(arith2, call, r_op, r_op_sym, *lhs_ptr, *rhs_ptr, rho, res);
+  DO_BINARY_BUILTIN(arith2, call, r_op, r_op_sym, lhs_ptr, rhs_ptr, rho, res);
   R_Visible = TRUE;
 }
 
@@ -575,9 +575,9 @@ static ALWAYS_INLINE void Rsh_relop(Value *stack, SEXP call, RshRelOp op,
   Value *rhs_ptr = GET_VAL(-1);
 
   Value lhs = *lhs_ptr;
-  val_unbox_inplace(&lhs, 1, 1, 1, 0);
+  unbox_inplace(&lhs, 1, 1, 1, 0);
   Value rhs = *rhs_ptr;
-  val_unbox_inplace(&rhs, 1, 1, 1, 0);
+  unbox_inplace(&rhs, 1, 1, 1, 0);
 
   if (VAL_IS_DBL_NOT_NAN(lhs)) {
     double lhs_dbl = VAL_DBL(lhs);
@@ -608,7 +608,7 @@ static ALWAYS_INLINE void Rsh_relop(Value *stack, SEXP call, RshRelOp op,
 
   // Slow path!
   RSH_PC_INC(slow_relop);
-  DO_BINARY_BUILTIN(relop, call, r_op, r_op_sym, *lhs_ptr, *rhs_ptr, rho, res);
+  DO_BINARY_BUILTIN(relop, call, r_op, r_op_sym, lhs_ptr, rhs_ptr, rho, res);
   R_Visible = TRUE;
 }
 
@@ -626,7 +626,7 @@ static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho,
   Value *res = GET_VAL(-1);
   Value *arg_ptr = GET_VAL(-1);
   Value arg = *arg_ptr;
-  val_unbox_inplace(&arg, 1, 1, 1, 0);
+  unbox_inplace(&arg, 1, 1, 1, 0);
 
   if (VAL_IS_DBL(arg)) {
     double d = VAL_DBL(arg);
@@ -653,7 +653,7 @@ static INLINE void Rsh_math1(Value *stack, SEXP call, RshMath1Op op, SEXP rho,
   } else {
     // Slow path!
     RSH_PC_INC(slow_math1);
-    DO_BUILTIN1(do_math1, call, r_op, val_as_sexp(*arg_ptr), rho, res);
+    DO_BUILTIN1(do_math1, call, r_op, box(*arg_ptr), rho, res);
   }
   R_Visible = TRUE;
 }
@@ -671,7 +671,7 @@ static INLINE void Rsh_unary(Value *stack, SEXP call, RshUnaryOp op, SEXP rho,
   Value *res = GET_VAL(-1);
   Value *arg_ptr = GET_VAL(-1);
   Value arg = *arg_ptr;
-  val_unbox_inplace(&arg, 1, 1, 1, 0);
+  unbox_inplace(&arg, 1, 1, 1, 0);
 
   if (VAL_IS_DBL(arg)) {
     if (op == UMINUS_OP) {
@@ -688,7 +688,16 @@ static INLINE void Rsh_unary(Value *stack, SEXP call, RshUnaryOp op, SEXP rho,
   } else {
     // Slow path!
     RSH_PC_INC(slow_unary);
-    SEXP s = arith1(call, r_op, r_op_sym, val_as_sexp(*arg_ptr), rho);
+    // box_inplace, not box: this is reached with an ISQSXP tag by plain
+    // `-(1:n)` (val_unbox_inplace ignores ISQ, and VAL_IS_DBL/VAL_IS_INT only
+    // match REALSXP/INTSXP). R_compact_intrange marks the result NOT_MUTABLE,
+    // so integer_unary takes its duplicate() branch, and
+    // compact_intseq_Duplicate allocVector()s before reading the source --
+    // which has to be rooted for that. GNU-R's Arith1 gets the same rooting
+    // from GETSTACK's INTSEQSXP arm. (A fresh *scalar* box would not need it:
+    // real_unary/integer_unary negate in place when NO_REFERENCES, and
+    // Rsh_ScalarLogical returns a singleton.)
+    SEXP s = arith1(call, r_op, r_op_sym, box_inplace(arg_ptr), rho);
     SET_VAL(res, s);
   }
 
@@ -708,7 +717,7 @@ static INLINE void Rsh_Not(Value *stack, SEXP call, SEXP rho) {
   Value *arg_ptr = GET_VAL(-1);
   Value *res = GET_VAL(-1);
   Value arg = *arg_ptr;
-  val_unbox_inplace(&arg, 1, 0, 1, 1);
+  unbox_inplace(&arg, 1, 0, 1, 1);
 
   R_Visible = TRUE;
 
@@ -716,7 +725,7 @@ static INLINE void Rsh_Not(Value *stack, SEXP call, SEXP rho) {
     SET_LGL_VAL(res, VAL_INT(arg) ? FALSE : TRUE);
   } else {
     // Slow path!
-    DO_BUILTIN1(do_logic, call, NOT_OP, val_as_sexp(*arg_ptr), rho, res);
+    DO_BUILTIN1(do_logic, call, NOT_OP, box(*arg_ptr), rho, res);
     assert(R_Visible == TRUE);
   }
 }
@@ -724,11 +733,9 @@ static INLINE void Rsh_Not(Value *stack, SEXP call, SEXP rho) {
 static INLINE void Rsh_logic(Value *stack, SEXP call, RshLogic2Op op, SEXP rho,
                              SEXP r_op) {
   Value *res = GET_VAL(-2);
-  Value lhs = *GET_VAL(-2);
-  Value rhs = *GET_VAL(-1);
   // TODO: not optimized
   // Slow path!
-  DO_BUILTIN2(do_logic, call, r_op, lhs, rhs, rho, res);
+  DO_BUILTIN2(do_logic, call, r_op, GET_VAL(-2), GET_VAL(-1), rho, res);
   R_Visible = TRUE;
 }
 
@@ -740,10 +747,11 @@ static INLINE void Rsh_logic(Value *stack, SEXP call, RshLogic2Op op, SEXP rho,
 X_LOGIC2_OPS
 #undef X
 
-// GNU-R reads a JIT body's constant pool as `VECTOR_ELT(EXTPTR_PROT(body), 0)` (`RSH_JIT_CONSTS`,
-// and it rejects a `prot` that isn't a non-empty `VECSXP` with "missing constant pool"), so the
-// pool has to be wrapped in a one-element list rather than being the `prot` itself. Storing it
-// bare silently hands the compiled body the pool's *first constant* instead.
+// GNU-R reads a JIT body's constant pool as `VECTOR_ELT(EXTPTR_PROT(body), 0)`
+// (`RSH_JIT_CONSTS`, and it rejects a `prot` that isn't a non-empty `VECSXP`
+// with "missing constant pool"), so the pool has to be wrapped in a one-element
+// list rather than being the `prot` itself. Storing it bare silently hands the
+// compiled body the pool's *first constant* instead.
 static INLINE SEXP Rsh_closure_body(Rsh_closure fun_ptr, SEXP c_cp) {
   SEXP prot = PROTECT(Rf_allocVector(VECSXP, 1));
   SET_VECTOR_ELT(prot, 0, c_cp);
@@ -753,8 +761,8 @@ static INLINE SEXP Rsh_closure_body(Rsh_closure fun_ptr, SEXP c_cp) {
 }
 
 static INLINE void Rsh_do_MakeClosure(Value *stack, SEXP mkclos_arg,
-                                      Rsh_closure fun_ptr, SEXP c_cp,
-                                      SEXP rho, Rboolean has_srcref) {
+                                      Rsh_closure fun_ptr, SEXP c_cp, SEXP rho,
+                                      Rboolean has_srcref) {
   Value *res = GET_VAL(-1);
 
   assert(!ALTREP(mkclos_arg)); // This is never generated by the compiler
@@ -794,7 +802,8 @@ static INLINE void Rsh_do_MakeClosure(Value *stack, SEXP mkclos_arg,
 static INLINE void Rsh_MakeClosure(Value *stack, SEXP mkclos_arg,
                                    Rsh_closure fun_ptr, SEXP c_cp, SEXP rho) {
   SEXP srcref = VECTOR_ELT_0(mkclos_arg, 2);
-  Rsh_do_MakeClosure(stack, mkclos_arg, fun_ptr, c_cp, rho, TYPEOF(srcref) != NILSXP);
+  Rsh_do_MakeClosure(stack, mkclos_arg, fun_ptr, c_cp, rho,
+                     TYPEOF(srcref) != NILSXP);
 }
 
 static INLINE void Rsh_CheckFun(Value *stack) {
@@ -857,10 +866,6 @@ static INLINE void Rsh_do_makeprom(Value *stack, SEXP code, SEXP rho,
     UNREACHABLE(); // Compiler can never generate this
   }
 }
-// `RCP` and not `RCP_STENCILS`: this calls `fun_ptr(rho, c_cp)`, which only typechecks with the
-// non-RCP `Rsh_closure`, so it can't exist at all when `Rinternals.h` is the RCP one. The BC2C JIT
-// and the copy-and-patch variant of GNU-R are mutually exclusive anyway: that R's `rshEval` runs
-// copy-and-patched code, not a BC2C closure pointer.
 #ifndef RCP
 // FIXME: document
 static INLINE void Rsh_MakeProm2(Value *stack, Rsh_closure fun_ptr, SEXP c_cp,
@@ -878,7 +883,7 @@ static INLINE void Rsh_MakeProm2(Value *stack, Rsh_closure fun_ptr, SEXP c_cp,
     break;
   }
   case BUILTINSXP: {
-    SEXP value = val_as_sexp(fun_ptr(rho, c_cp));
+    SEXP value = box(fun_ptr(rho, c_cp));
     RSH_PUSH_ARG(args_head, args_tail, value);
     break;
   }
@@ -909,7 +914,7 @@ static INLINE void Rsh_Dollar(Value *stack, SEXP call, SEXP symbol, SEXP rho) {
       UNPROTECT(1);
     }
   } else {
-    x_sxp = val_as_sexp(*x_val);
+    x_sxp = box(*x_val);
   }
 
   if (!dispatched) {
@@ -926,7 +931,7 @@ static INLINE void Rsh_DollarGets(Value *stack, SEXP call, SEXP symbol,
   SEXP value_sxp;
   Value *x_val = GET_VAL(-2);
   SEXP x_sxp;
-  SEXP rhs_sxp = val_as_sexp(*GET_VAL(-1));
+  SEXP rhs_sxp = box_inplace(GET_VAL(-1));
   int dispatched = FALSE;
 
   MARK_ASSIGNMENT_CALL(call);
@@ -947,7 +952,10 @@ static INLINE void Rsh_DollarGets(Value *stack, SEXP call, SEXP symbol,
       UNPROTECT(1);
     }
   } else {
-    x_sxp = val_as_sexp(*x_val);
+    // box, not box_inplace: nothing runs between here and R_subassign3_dflt
+    // (`dispatched` is FALSE on this arm), and it PROTECTs both x and val as
+    // its first two statements.
+    x_sxp = box(*x_val);
   }
 
   if (!dispatched) {
@@ -964,12 +972,11 @@ static INLINE void Rsh_DollarGets(Value *stack, SEXP call, SEXP symbol,
 static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch_n(
     const char *generic, Value *stack, SEXP call, SEXP rho) {
   Value *value = GET_VAL(-1);
-  SEXP value_sxp = val_as_sexp(*value);
-  if (isObject(value_sxp) &&
-      tryDispatch(generic, call, value_sxp, rho, &value_sxp)) {
+  if (UNLIKELY(VAL_IS_SXP(*value) && isObject(VAL_SXP(*value)) &&
+               tryDispatch(generic, call, VAL_SXP(*value), rho,
+                           &(value->u.sxpval)))) {
     RSH_PC_INC(dispatched_subset);
     RSH_CHECK_SIGINT();
-    SET_VAL(value, value_sxp);
     return TRUE;
   }
 
@@ -997,7 +1004,7 @@ static INLINE NODISCARD Rboolean Rsh_start_subset_dispatch(const char *generic,
     RSH_CHECK_SIGINT();
     return TRUE;
   } else {
-    SEXP arg = val_as_sexp(*value);
+    SEXP arg = box(*value);
     RSH_INIT_PUSH_ARG(args_head, args_tail, arg);
 
     SET_SXP_VAL(call_val, call);
@@ -1028,7 +1035,8 @@ static INLINE void Rsh_do_vec_subset(Value *stack, SEXP call, Rboolean subset2,
                                      SEXP rho) {
   Value *sx = GET_VAL(-2);
   Value *si = GET_VAL(-1);
-  SEXP vec = val_as_sexp(*sx);
+  // box_inplace: `vec` stays live until do_subset_dflt returns.
+  SEXP vec = box_inplace(sx);
 
 #if defined(RSH_ENABLE_SUBSET_INT_PATH)
   // fastest path for simple integer index
@@ -1046,7 +1054,7 @@ static INLINE void Rsh_do_vec_subset(Value *stack, SEXP call, Rboolean subset2,
   // slow path!
   RSH_PC_INC(slow_subset);
   SEXP args;
-  args = CONS_NR(val_as_sexp(*si), R_NilValue);
+  args = CONS_NR(box(*si), R_NilValue);
   args = CONS_NR(vec, args);
   PROTECT(args);
 
@@ -1074,18 +1082,21 @@ static INLINE void Rsh_vec_subset(Value *stack, SEXP call, Rboolean subset2,
 static INLINE void Rsh_do_mat_subset(Value *stack, SEXP call, Rboolean subset2,
                                      SEXP rho) {
   Value *sx = GET_VAL(-3);
-  Value si = *GET_VAL(-2);
-  Value sj = *GET_VAL(-1);
+  Value *si = GET_VAL(-2);
+  Value *sj = GET_VAL(-1);
 
-  SEXP mat = val_as_sexp(*sx);
+  // box_inplace: `mat` stays live until do_subset_dflt returns.
+  SEXP mat = box_inplace(sx);
 
   if (subset2 || FAST_VECELT_OK(mat)) {
     SEXP dim = Rsh_get_mat_dim_attr(mat);
     if (dim != R_NilValue) {
-      R_xlen_t i = as_index(si);
-      R_xlen_t j = as_index(sj);
-      R_xlen_t nrow = INTEGER(dim)[0];
-      R_xlen_t ncol = INTEGER(dim)[1];
+      R_xlen_t i = as_index(*si);
+      R_xlen_t j = as_index(*sj);
+
+      int *dim_ptr = INTEGER(dim);
+      R_xlen_t nrow = dim_ptr[0];
+      R_xlen_t ncol = dim_ptr[1];
       if (i > 0 && j > 0 && i <= nrow && j <= ncol) {
         R_xlen_t k = i - 1 + nrow * (j - 1);
         DO_FAST_VECELT(mat, k, subset2, sx);
@@ -1096,8 +1107,10 @@ static INLINE void Rsh_do_mat_subset(Value *stack, SEXP call, Rboolean subset2,
   // slow path!
   RSH_PC_INC(slow_subset);
 
-  SEXP idx = val_as_sexp(si);
-  SEXP jdx = val_as_sexp(sj);
+  // Only `idx` is rooted: it has to survive boxing `jdx`, whereas `jdx` is the
+  // car of the CONS_NR on the next line, which protects its own arguments.
+  SEXP idx = box_inplace(si);
+  SEXP jdx = box(*sj);
 
   SEXP args;
   args = CONS_NR(jdx, R_NilValue);
@@ -1198,7 +1211,7 @@ static INLINE void Rsh_StartAssign2(Value *stack, SEXP symbol, SEXP rho) {
         value_sxp = Rf_shallow_duplicate(value_sxp);
       }
     } else {
-      value_sxp = val_as_sexp(*lhs_val);
+      value_sxp = box(*lhs_val);
     }
   } else {
     bcell_expand(cell);
@@ -1292,22 +1305,22 @@ static INLINE NODISCARD Rboolean Rsh_start_subassign_dispatch_n(
     const char *generic, Value *stack, SEXP call, SEXP rho) {
   Value *lhs = GET_VAL(-2);
   Value *rhs = GET_VAL(-1);
-  SEXP lhs_sxp = val_as_sexp(*lhs);
 
-  if (isObject(lhs_sxp)) {
+  if (VAL_IS_SXP(*lhs) && isObject(VAL_SXP(*lhs))) {
     MARK_ASSIGNMENT_CALL(call);
-    SEXP rhs_sxp = val_as_sexp(*rhs);
+    SEXP lhs_sxp = VAL_SXP(*lhs);
     if (MAYBE_SHARED(lhs_sxp)) {
       lhs_sxp = Rf_shallow_duplicate(lhs_sxp);
       SET_SXP_VAL(lhs, lhs_sxp);
       ENSURE_NAMED(lhs_sxp);
     }
 
+    SEXP rhs_sxp = box_inplace(rhs);
     SEXP value = NULL;
     if (tryAssignDispatch(generic, call, lhs_sxp, rhs_sxp, rho, &value)) {
       RSH_PC_INC(dispatched_subassign);
-      RSH_CHECK_SIGINT();
       SET_SXP_VAL(lhs, value);
+      RSH_CHECK_SIGINT();
       return TRUE;
     }
   }
@@ -1323,16 +1336,23 @@ static INLINE NODISCARD Rboolean Rsh_start_subassign_dispatch_n(
 static INLINE void Rsh_vec_subassign(Value *stack, SEXP call, Rboolean sub2,
                                      SEXP rho) {
   Value *sx = GET_VAL(-3);
-  Value rhs = *GET_VAL(-2);
-  Value i = *GET_VAL(-1);
+  Value *rhs_ptr = GET_VAL(-2);
+  Value *i_ptr = GET_VAL(-1);
 
-  SEXP vec = val_as_sexp(*sx);
-
-  if (MAYBE_SHARED(vec)) {
-    vec = Rf_shallow_duplicate(vec);
-    SET_SXP_VAL(sx, vec);
+  SEXP vec;
+  if (VAL_IS_SXP(*sx)) {
+    vec = VAL_SXP(*sx);
+    if (MAYBE_SHARED(vec)) {
+      vec = Rf_shallow_duplicate(vec);
+      SET_SXP_VAL(sx, vec);
+    }
+  } else {
+    // box_inplace: `vec` stays live until do_subassign_dflt returns.
+    vec = box_inplace(sx);
   }
 
+  Value rhs = *rhs_ptr;
+  Value i = *i_ptr;
   // Fast case - INT index and RHS is scalar of the right type
   if (VAL_TAG(rhs) && VAL_IS_INT(i) && VAL_TAG(rhs) == TYPEOF(vec)) {
     R_xlen_t idx = VAL_INT(i);
@@ -1359,12 +1379,16 @@ static INLINE void Rsh_vec_subassign(Value *stack, SEXP call, Rboolean sub2,
     }
   }
   R_xlen_t idx_i = as_index(i) - 1;
-  DO_FAST_SETVECELT(sx, vec, idx_i, rhs, sub2);
+  DO_FAST_SETVECELT(sx, vec, idx_i, rhs_ptr, sub2);
 
   // slow path!
   RSH_PC_INC(slow_subassign);
-  SEXP idx = val_as_sexp(i);
-  SEXP value = val_as_sexp(rhs);
+  // Only `idx` is rooted: it has to survive boxing `value` and the CONS_NR
+  // below. `value` is boxed last, so it is the car of the very next CONS_NR,
+  // which protects its own arguments -- and every later CONS_NR protects the
+  // growing list as its cdr, so `args` needs no rooting either.
+  SEXP idx = box_inplace(i_ptr);
+  SEXP value = box(*rhs_ptr);
 
   SEXP args;
   args = CONS_NR(value, R_NilValue);
@@ -1392,10 +1416,11 @@ static INLINE void Rsh_vec_subassign(Value *stack, SEXP call, Rboolean sub2,
 static INLINE void Rsh_mat_subassign(Value *stack, SEXP call,
                                      Rboolean subassign2, SEXP rho) {
   Value *sx = GET_VAL(-4);
-  Value rhs = *GET_VAL(-3);
-  Value si = *GET_VAL(-2);
-  Value sj = *GET_VAL(-1);
-  SEXP mat = val_as_sexp(*sx);
+  Value *rhs_ptr = GET_VAL(-3);
+  Value *si = GET_VAL(-2);
+  Value *sj = GET_VAL(-1);
+  // box_inplace: `mat` stays live until do_subassign_dflt returns.
+  SEXP mat = box_inplace(sx);
 
   if (MAYBE_SHARED(mat)) {
     mat = Rf_shallow_duplicate(mat);
@@ -1405,22 +1430,27 @@ static INLINE void Rsh_mat_subassign(Value *stack, SEXP call,
   SEXP dim = Rsh_get_mat_dim_attr(mat);
 
   if (dim != R_NilValue) {
-    R_xlen_t i = as_index(si);
-    R_xlen_t j = as_index(sj);
-    R_xlen_t nrow = INTEGER(dim)[0];
-    R_xlen_t ncol = INTEGER(dim)[1];
+    R_xlen_t i = as_index(*si);
+    R_xlen_t j = as_index(*sj);
+    int *dim_ptr = INTEGER(dim);
+    R_xlen_t nrow = dim_ptr[0];
+    R_xlen_t ncol = dim_ptr[1];
     if (i > 0 && j > 0 && i <= nrow && j <= ncol) {
       R_xlen_t k = i - 1 + nrow * (j - 1);
-      DO_FAST_SETVECELT(sx, mat, k, rhs, subassign2);
+      DO_FAST_SETVECELT(sx, mat, k, rhs_ptr, subassign2);
     }
   }
 
   // slow path!
   RSH_PC_INC(slow_subassign);
 
-  SEXP value = val_as_sexp(rhs);
-  SEXP idx = val_as_sexp(si);
-  SEXP jdx = val_as_sexp(sj);
+  // The indices are rooted, `value` is not: it is boxed last and is the car of
+  // the next CONS_NR, which protects it. Two rootings is the minimum here --
+  // the value cell must be consed first because it carries the `value` tag, so
+  // both indices are live across that allocation.
+  SEXP idx = box_inplace(si);
+  SEXP jdx = box_inplace(sj);
+  SEXP value = box(*rhs_ptr);
 
   SEXP args;
   args = CONS_NR(value, R_NilValue);
@@ -1480,7 +1510,7 @@ static INLINE void Rsh_Visible(Value *stack) { R_Visible = TRUE; }
 static INLINE void Rsh_SetterCall(Value *stack, SEXP call, SEXP vexpr,
                                   SEXP rho) {
   Value *lhs = GET_VAL(-5);
-  Value rhs = *GET_VAL(-4);
+  Value *rhs_ptr = GET_VAL(-4);
   Value fun = *GET_VAL(-3);
   Value args_head = *GET_VAL(-2);
   Value args_tail = *GET_VAL(-1);
@@ -1498,7 +1528,7 @@ static INLINE void Rsh_SetterCall(Value *stack, SEXP call, SEXP vexpr,
     ENSURE_NAMED(lhs_sxp);
   }
 
-  SEXP rhs_sxp = val_as_sexp(rhs);
+  SEXP rhs_sxp = box_inplace(rhs_ptr);
 
   switch (TYPEOF(fun_sxp)) {
   case BUILTINSXP:
@@ -1513,7 +1543,6 @@ static INLINE void Rsh_SetterCall(Value *stack, SEXP call, SEXP vexpr,
     value = PRIMFUN(fun_sxp)(call, fun_sxp, args, rho);
     break;
   case SPECIALSXP: {
-    SET_SXP_VAL(GET_VAL(-4), rhs_sxp); // Protection
     args = Rf_duplicate(CDR(call));
     GET_VAL(-2)->u.sxpval = args; // Protection
     // replace the first argument with evaluated promise containing LHS
@@ -1580,14 +1609,14 @@ static INLINE NODISCARD Rboolean Rsh_start_subassign_dispatch(
       ENSURE_NAMED(lhs_sxp);
     }
     if (isObject(lhs_sxp) &&
-        tryAssignDispatch(generic, call, lhs_sxp, val_as_sexp(*rhs), rho,
+        tryAssignDispatch(generic, call, lhs_sxp, box_inplace(rhs), rho,
                           &(lhs->u.sxpval))) {
       RSH_PC_INC(dispatched_subassign);
       RSH_CHECK_SIGINT();
       return TRUE;
     }
   } else {
-    lhs_sxp = val_as_sexp(*lhs);
+    lhs_sxp = box(*lhs);
   }
 
   RSH_INIT_PUSH_ARG(args_head, args_tail, lhs_sxp);
@@ -1636,7 +1665,7 @@ static INLINE void Rsh_dflt_subassign_dispatch(CCODE fun, SEXP symbol,
   MARK_ASSIGNMENT_CALL(call_sxp);
   SEXP args = VAL_SXP(args_head);
   RSH_CALL_ARGS_DECREMENT_LINKS(args);
-  RSH_PUSH_ARG(&args_head, &args_tail, val_as_sexp(rhs));
+  RSH_PUSH_ARG(&args_head, &args_tail, box(rhs));
   SEXP value = fun(call_sxp, symbol, args, rho);
   SET_VAL_N(-5, value);
 }
@@ -1669,7 +1698,8 @@ static INLINE void Rsh_do_subset_n(Value *stack, int rank, SEXP call,
                                    Rboolean subset2, SEXP rho) {
   Value *sx = stack - rank - 1;
   Value *ix = stack - rank;
-  SEXP vec = val_as_sexp(*sx);
+  // box_inplace: `vec` is live while the index list is built and boxed.
+  SEXP vec = box_inplace(sx);
 
   if (subset2 || FAST_VECELT_OK(vec)) {
     SEXP dim = Rsh_get_array_dim_attr(vec);
@@ -1726,21 +1756,22 @@ static INLINE void Rsh_do_subassign_n(Value *stack, int rank, SEXP call,
       sx->u.sxpval = vec;
     }
   } else {
-    vec = val_as_sexp(*sx);
+    // box_inplace: `vec` has to stay rooted through the slow path below.
+    vec = box_inplace(sx);
   }
 
   SEXP dim = Rsh_get_array_dim_attr(vec);
   if (dim != R_NilValue) {
     R_xlen_t k = Rsh_compute_index(dim, ix, rank);
     if (k >= 0) {
-      DO_FAST_SETVECELT(sv, vec, k, *rhs, subassign2);
+      DO_FAST_SETVECELT(sv, vec, k, rhs, subassign2);
     }
   }
 
   // slow path!
   RSH_PC_INC(slow_subassign);
 
-  SEXP rhs_sxp = val_as_sexp(*rhs);
+  SEXP rhs_sxp = box(*rhs);
   SEXP args = CONS_NR(rhs_sxp, R_NilValue);
   SET_TAG(args, Rsh_ValueSym);
   args =
@@ -1866,9 +1897,8 @@ static INLINE void Rsh_StartFor(Value *stack, SEXP call, SEXP symbol,
     // Always a simple scalar here, can skip a lot of code
     info->type = VAL_TAG(*seq);
     type = VAL_TAG(*seq);
-    SEXP seq_sxp = val_as_sexp(*seq);
+    SEXP seq_sxp = box_inplace(seq);
     INCREMENT_LINKS(seq_sxp);
-    SET_SXP_VAL(seq, seq_sxp);
     assert(XLENGTH(seq_sxp) == 1);
     info->len = 1;
     break;
@@ -2133,11 +2163,11 @@ static INLINE void Rsh_Colon(Value *stack, SEXP call, SEXP rho) {
   Value *to_ptr = GET_VAL(-1);
 
   Value from = *from_ptr;
-  val_unbox_inplace(&from, 1, 1, 1, 0);
+  unbox_inplace(&from, 1, 1, 1, 0);
 
   if (VAL_IS_DBL(from) || VAL_IS_INT(from)) {
     Value to = *to_ptr;
-    val_unbox_inplace(&to, 1, 1, 1, 0);
+    unbox_inplace(&to, 1, 1, 1, 0);
 
     if (VAL_IS_DBL(to) || VAL_IS_INT(to)) {
       unboxed_int_to_dbl(&from);
@@ -2155,7 +2185,7 @@ static INLINE void Rsh_Colon(Value *stack, SEXP call, SEXP rho) {
     }
   }
   // slow path!
-  DO_BUILTIN2(do_colon, call, Rsh_ColonOp, *from_ptr, *to_ptr, rho, res);
+  DO_BUILTIN2(do_colon, call, Rsh_ColonOp, from_ptr, to_ptr, rho, res);
   R_Visible = TRUE;
 }
 
@@ -2228,7 +2258,7 @@ static INLINE void Rsh_SeqLen(Value *stack, SEXP call, SEXP rho) {
   }
 
   assert(Rsh_SeqLenOp == R_Primitive("seq_len"));
-  DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenOp, val_as_sexp(*v), rho, v);
+  DO_BUILTIN1(do_seq_len, call, Rsh_SeqLenOp, box(*v), rho, v);
   R_Visible = TRUE;
 }
 
@@ -2371,7 +2401,7 @@ static INLINE void Rsh_Log(Value *stack, SEXP call, SEXP rho) {
   Value *res = GET_VAL(-1);
   Value *val_ptr = GET_VAL(-1);
   Value val = *val_ptr;
-  val_unbox_inplace(&val, 1, 1, 1, 0);
+  unbox_inplace(&val, 1, 1, 1, 0);
   unboxed_int_to_dbl(&val);
 
   if (VAL_IS_DBL(val)) {
@@ -2392,7 +2422,7 @@ static INLINE void Rsh_Log(Value *stack, SEXP call, SEXP rho) {
   // slow path
   RSH_PC_INC(slow_math1);
 
-  SEXP args = CONS_NR(val_as_sexp(*val_ptr), R_NilValue);
+  SEXP args = CONS_NR(box(*val_ptr), R_NilValue);
   SET_SXP_VAL(res, args); // to protect
   SET_VAL(res, do_log_builtin(call, LOG_OP, args, rho));
   R_Visible = TRUE;
@@ -2404,11 +2434,11 @@ static INLINE void Rsh_LogBase(Value *stack, SEXP call, SEXP rho) {
   Value *base_ptr = GET_VAL(-1);
 
   Value val = *val_ptr;
-  val_unbox_inplace(&val, 1, 1, 1, 0);
+  unbox_inplace(&val, 1, 1, 1, 0);
 
   if (VAL_IS_DBL(val) || VAL_IS_INT(val)) {
     Value base = *base_ptr;
-    val_unbox_inplace(&base, 1, 1, 1, 0);
+    unbox_inplace(&base, 1, 1, 1, 0);
 
     if (VAL_IS_DBL(base) || VAL_IS_INT(base)) {
       unboxed_int_to_dbl(&val);
@@ -2434,8 +2464,9 @@ static INLINE void Rsh_LogBase(Value *stack, SEXP call, SEXP rho) {
   // slow path
   RSH_PC_INC(slow_math1);
 
-  SEXP args = CONS_NR(val_as_sexp(*base_ptr), R_NilValue);
-  args = CONS_NR(val_as_sexp(*val_ptr), args);
+  SEXP args = CONS_NR(box(*base_ptr), R_NilValue);
+  SET_SXP_VAL(base_ptr, args); // to protect
+  args = CONS_NR(box(*val_ptr), args);
   SET_SXP_VAL(res, args); // to protect
   SET_SXP_VAL(res, do_log_builtin(call, LOG_OP, args, rho));
   R_Visible = TRUE;
@@ -2455,7 +2486,7 @@ static INLINE void Rsh_do_math1(Value *stack, SEXP call, int op, SEXP rho,
   Value *res = GET_VAL(-1);
   Value *v_ptr = GET_VAL(-1);
   Value v = *v_ptr;
-  val_unbox_inplace(&v, 1, 1, 1, 0);
+  unbox_inplace(&v, 1, 1, 1, 0);
   unboxed_int_to_dbl(&v);
 
   if (VAL_IS_DBL(v)) {
@@ -2477,7 +2508,7 @@ static INLINE void Rsh_do_math1(Value *stack, SEXP call, int op, SEXP rho,
   // slow path
   RSH_PC_INC(slow_math1);
 
-  SEXP args = CONS_NR(val_as_sexp(*v_ptr), R_NilValue);
+  SEXP args = CONS_NR(box(*v_ptr), R_NilValue);
   SET_SXP_VAL(res, args); // to protect
   SET_VAL(res, do_math1(call, r_op, args, rho));
   R_Visible = TRUE;
@@ -2496,14 +2527,36 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
   // op         <- the external symbol
 
   Value *dot_call_fun = stack - 1 - nargs;
-  SEXP op = val_as_sexp(*dot_call_fun);
+  // `.Call`'s first argument is compiled as an arbitrary expression, so
+  // `.Call(k * 1, ...)` really does leave an unboxed scalar here, and
+  // R_dotCallFn dereferences whatever it is handed -- we cannot just read
+  // u.sxpval. But we need not box either: checkValidSymbolId only accepts a
+  // length-1 STRSXP, an EXTPTRSXP, or a VECSXP NativeSymbolInfo, so *every*
+  // unboxed tag boxes into something it rejects with the same errorcall that
+  // R_NilValue gets. Handing it R_NilValue keeps the boxing switch (and its
+  // allocator calls) out of this stencil for identical behaviour.
+  SEXP op;
+  if (LIKELY(VAL_IS_SXP(*dot_call_fun))) {
+    op = VAL_SXP(*dot_call_fun);
+  } else {
+    op = R_NilValue; // anything checkValidSymbolId rejects; it raises the error
+  }
 
   DL_FUNC ofun = R_dotCallFn(op, call, nargs);
+
+  // Both paths below need every argument as a SEXP, so box them once here
+  // instead of in each. Rooting them in their slots is also what lets the
+  // pairlist path build its list with no PROTECT at all: once nothing between
+  // the CONS_NRs can allocate, each cons protects the growing list as its own
+  // cdr and each argument as its own car.
+  for (int i = 1; i <= nargs; i++) {
+    box_inplace(&dot_call_fun[i]);
+  }
 
   if (ofun && nargs <= DOTCALL_MAX) {
     SEXP cargs[DOTCALL_MAX];
     for (int i = 0; i < nargs; i++) {
-      cargs[i] = val_as_sexp(dot_call_fun[i + 1]);
+      cargs[i] = VAL_SXP(dot_call_fun[i + 1]);
     }
 
     void *vmax = vmaxget();
@@ -2515,26 +2568,24 @@ static INLINE void Rsh_DotCall(Value *stack, int nargs, SEXP call, SEXP rho) {
     return;
   }
 
-  // 1. allocate a space on the stack to protect it
+  // Build (op, arg1, ..., argN) back to front. `op` is the local we already
+  // hold rather than a re-read of slot 0: reaching here means R_dotCallFn
+  // accepted it, so it is a string/EXTPTRSXP/NativeSymbolInfo, i.e. boxed, and
+  // it stays rooted in that slot for the duration.
   SEXP args = R_NilValue;
-  // 2. fill it from the args passed on the stack (nargs+1 items: op + args)
-  for (int i = 0; i <= nargs; i++) {
-    PROTECT(args);
-    args = CONS_NR(val_as_sexp(*(stack - 1 - i)), args);
-    UNPROTECT(1); /* old args */
+  for (int i = nargs; i >= 1; i--) {
+    args = CONS_NR(VAL_SXP(dot_call_fun[i]), args);
   }
-  PROTECT(args);
+  args = PROTECT(CONS_NR(op, args));
 
-  // 3. call the builtin
+  // call the builtin
   assert(!BNDCELL_TAG(call));
   SEXP sym = CAR0(call);
   SEXP opPrim = getPrimitive(sym, BUILTINSXP);
   SEXP val = do_dotcall(call, opPrim, args, rho);
 
-  // 4. remove the temporary argument list
   UNPROTECT(1); /* args */
 
-  // 5. set the result
   SET_VAL(dot_call_fun, val);
   R_Visible = TRUE;
   return;
@@ -2687,7 +2738,7 @@ Rsh_do_switch(Value *stack, SEXP call, SEXP names, SEXP coffsets, SEXP ioffsets,
               Rboolean names_and_coffsets_same_length) {
   ASSUME(names_length >= 0);
   ASSUME(ioffsets_length >= 0);
-  SEXP value = val_as_sexp(*GET_VAL(-1));
+  SEXP value = box(*GET_VAL(-1));
   if (!Rf_isVector(value) || Rf_length(value) != 1) {
     Rf_errorcall(call, "EXPR must be a length 1 vector");
   }
