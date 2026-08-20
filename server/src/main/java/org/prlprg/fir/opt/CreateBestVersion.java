@@ -11,6 +11,7 @@ import org.prlprg.fir.ir.callee.StaticFnCallee;
 import org.prlprg.fir.ir.expression.Call;
 import org.prlprg.fir.ir.instruction.Statement;
 import org.prlprg.fir.ir.module.Function;
+import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.opt.specialize.OptimizeCallee;
 import org.prlprg.util.Lists;
 
@@ -60,13 +61,23 @@ public record CreateBestVersion(int versionLimit) implements AbstractionOptimiza
       // Invalid, there should always be a possible version
       return false;
     }
-    if (bestVersion.isStub() || bestVersion.signature().parameterTypes().equals(argumentTypes)) {
+    // A parameter can't be fresh (only owned, shared, or borrowed), and owned is what a fresh
+    // argument is passed to, so that's the narrowest parameter this call can have.
+    var parameterTypes =
+        ImmutableList.copyOf(
+            Lists.mapLazy(
+                argumentTypes,
+                type ->
+                    type.ownership() == Ownership.FRESH
+                        ? type.withOwnership(Ownership.OWNED)
+                        : type));
+    if (bestVersion.isStub() || bestVersion.signature().parameterTypes().equals(parameterTypes)) {
       // Stub or already best parameter types = we can't further optimize the version
       return false;
     }
 
     // Create a new version with the exact parameter types
-    copy(feedback.module(), calleeFun, bestVersion, argumentTypes);
+    copy(feedback.module(), calleeFun, bestVersion, parameterTypes);
     return true;
   }
 }
