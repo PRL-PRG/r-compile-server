@@ -1,13 +1,12 @@
 package org.prlprg.fir.analyze.cfg;
 
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import org.prlprg.fir.analyze.Analysis;
+import org.jspecify.annotations.Nullable;
 import org.prlprg.fir.analyze.AnalysisConstructor;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.cfg.BB;
 import org.prlprg.fir.ir.cfg.CFG;
+import org.prlprg.fir.ir.instruction.Deopt;
 import org.prlprg.fir.ir.instruction.Instruction;
 import org.prlprg.fir.ir.variable.AssigneeOf;
 import org.prlprg.fir.ir.variable.BlockParameter;
@@ -22,9 +21,9 @@ import org.prlprg.fir.ir.variable.Register;
 /// or block in a promise is dominated by instructions outside that dominate the promise's
 /// definition instruction (those in the same [CFG] and, if the promise is nested, those in
 /// outer promises' [CFG]s that dominate their respective definition instructions).
-public final class DominatorTree implements Analysis {
-  private final Map<CFG, CfgDominatorTree> cfgs;
+public final class DominatorTree extends GenDominatorTree<CfgDominatorTree> {
   private final CfgHierarchy hierarchy;
+  private final @Nullable CFG mainCfg;
 
   public DominatorTree(Abstraction scope) {
     this(scope, new CfgHierarchy(scope));
@@ -32,13 +31,14 @@ public final class DominatorTree implements Analysis {
 
   @AnalysisConstructor
   public DominatorTree(Abstraction scope, CfgHierarchy hierarchy) {
-    cfgs = scope.streamCfgs().collect(Collectors.toMap(c -> c, CfgDominatorTree::new));
+    super(scope, CfgDominatorTree::new);
     this.hierarchy = hierarchy;
+    mainCfg = scope.cfg();
   }
 
   /// CFG-specific dominator tree
   public CfgDominatorTree cfg(CFG cfg) {
-    return cfgs.get(cfg);
+    return tree(cfg);
   }
 
   /// Check if `dominator` dominates `dominee`.
@@ -74,16 +74,16 @@ public final class DominatorTree implements Analysis {
 
   /// Check if `dominatorBb`/`dominatorIndex` dominates `domineeBb`/`domineeIndex`.
   public boolean dominates(BB dominatorBb, int dominatorIndex, BB domineeBb, int domineeIndex) {
-    if (!cfgs.containsKey(dominatorBb.owner())) {
+    if (!contains(dominatorBb.owner())) {
       throw new IllegalArgumentException("Dominator BB not in scope");
     }
-    if (!cfgs.containsKey(domineeBb.owner())) {
+    if (!contains(domineeBb.owner())) {
       throw new IllegalArgumentException("Dominee BB not in scope");
     }
 
     while (true) {
       if (dominatorBb.owner() == domineeBb.owner()) {
-        return cfgs.get(dominatorBb.owner())
+        return tree(dominatorBb.owner())
             .dominates(dominatorBb, dominatorIndex, domineeBb, domineeIndex);
       }
 
@@ -97,18 +97,53 @@ public final class DominatorTree implements Analysis {
     }
   }
 
+  /// Check if `instruction` is guaranteed to run before the [Abstraction] returns: it dominates
+  /// every exit of the body except the ones that [Deopt].
+  ///
+  /// Deopts are excluded because they don't return, they abandon this version and resume in GNU-R's
+  /// bytecode interpreter. An instruction that only a deopt skips still runs on every path that
+  /// this version itself completes, which is what callers of this care about.
+  ///
+  /// This is a stronger guarantee than dominating the instructions before an exit: a block that
+  /// spins forever never reaches one, so the instruction may never run even though it dominates
+  /// every exit. It's also weaker than
+  /// [PostDominatorTree#postDominatesEntry], which counts deopts and divergence as ways of not
+  /// running.
+  ///
+  /// An instruction in a promise never qualifies, since it doesn't dominate anything outside the
+  /// promise (the promise may never be forced). Neither does any instruction when the body has no
+  /// non-deopt exit at all, since then it never returns.
+  ///
+  /// @throws IllegalArgumentException If `instruction` isn't in this analysis' scope.
+  public boolean dominatesNonDeoptExits(Instruction instruction) {
+    var bb = Objects.requireNonNull(instruction.parentBB());
+    if (!contains(bb.owner())) {
+      throw new IllegalArgumentException("Instruction not in scope");
+    }
+    if (mainCfg == null) {
+      return false;
+    }
+
+    var nonDeoptExits =
+        mainCfg.exits().stream()
+            .filter(exit -> !(exit.jump().expression() instanceof Deopt))
+            .toList();
+    return !nonDeoptExits.isEmpty()
+        && nonDeoptExits.stream().allMatch(exit -> dominates(instruction, exit.jump()));
+  }
+
   /// Check if `dominator` dominates `dominee`.
   public boolean dominates(BB dominator, BB dominee) {
-    if (!cfgs.containsKey(dominator.owner())) {
+    if (!contains(dominator.owner())) {
       throw new IllegalArgumentException("Dominator BB not in scope");
     }
-    if (!cfgs.containsKey(dominee.owner())) {
+    if (!contains(dominee.owner())) {
       throw new IllegalArgumentException("Dominee BB not in scope");
     }
 
     while (true) {
       if (dominator.owner() == dominee.owner()) {
-        return cfgs.get(dominator.owner()).dominates(dominator, dominee);
+        return tree(dominator.owner()).dominates(dominator, dominee);
       }
 
       var domineeParent = hierarchy.parentPromise(dominee.owner());
