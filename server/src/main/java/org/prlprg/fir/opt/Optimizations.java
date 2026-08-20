@@ -30,6 +30,18 @@ public class Optimizations {
 
   private static final int DEFAULT_THRESHOLD = 10;
 
+  /// How many versions a function may already have for [SpeculateDispatch] to speculate another.
+  private static final int SPECULATION_VERSION_LIMIT = 9;
+
+  /// How many versions a function may already have for [CreateBestVersion] and
+  /// [CreateOwnedParameterVersion] to add another.
+  ///
+  /// This has to be well above [#SPECULATION_VERSION_LIMIT], because [CopyBaseline], [Unbox] and
+  /// [StrictifyPromise] add versions without checking any limit: by the time these two run, a hot
+  /// function is already past that cap, so sharing it with [SpeculateDispatch] meant they never
+  /// ran at all.
+  private static final int DEMAND_VERSION_LIMIT = 16;
+
   public static Optimization defaultOptimizations() {
     return defaultOptimizations(DEFAULT_THRESHOLD, true);
   }
@@ -40,7 +52,7 @@ public class Optimizations {
         new ElideUnusedVersions(threshold),
         new CopyBaseline(),
         new ElideUnforcedPromise(threshold),
-        new SpeculateDispatch(threshold, 3, 9),
+        new SpeculateDispatch(threshold, 3, SPECULATION_VERSION_LIMIT),
         new SpeculateAssume(threshold),
         new ModuleFixpointSequence(
             "mainThenElideCheckpoints",
@@ -83,10 +95,11 @@ public class Optimizations {
                     new StrictifyPromise(),
                     new CallOwnedVersion(),
                     new ConsumeDeadDup(),
+                    new ConsumeReturn(),
                     new ElideConsumedDup(),
                     new Cleanup(false)),
-                new CreateBestVersion(9),
-                new CreateOwnedParameterVersion(9)),
+                new CreateBestVersion(DEMAND_VERSION_LIMIT),
+                new CreateOwnedParameterVersion(DEMAND_VERSION_LIMIT)),
             modifyCheckpoints ? new MergeConsecutiveCheckpoints() : NOOP,
             modifyCheckpoints ? new ElideUnusedCheckpoints() : NOOP));
   }
