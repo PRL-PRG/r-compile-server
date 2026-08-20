@@ -5,6 +5,7 @@ import static org.prlprg.fir.ir.abstraction.AbstractionCopier.copy;
 import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
+import org.prlprg.fir.analyze.cfg.DominatorTree;
 import org.prlprg.fir.feedback.AbstractionFeedback;
 import org.prlprg.fir.ir.abstraction.Abstraction;
 import org.prlprg.fir.ir.expression.Dup;
@@ -13,8 +14,8 @@ import org.prlprg.fir.ir.module.Function;
 import org.prlprg.fir.ir.type.Ownership;
 import org.prlprg.fir.ir.type.Type;
 
-/// If a version duplicates a vector parameter, copy it into a new version that *owns* that
-/// parameter.
+/// If a `dup` post-dominates a shared or borrowed vector parameter, copy it into a new version
+/// that *owns* that parameter.
 ///
 /// A version only duplicates a vector because it needs one it can mutate, and it can mutate the
 /// parameter itself once it owns it: in the copy, the `dup` becomes redundant and
@@ -32,7 +33,9 @@ public record CreateOwnedParameterVersion(int versionLimit) implements Abstracti
       return false;
     }
 
-    var newParameterTypes = new ArrayList<Type>(version.signature().parameterTypes());
+    var pdTree = new DominatorTree(version);
+
+    var newParameterTypes = new ArrayList<>(version.signature().parameterTypes());
     var changed = false;
     for (var i = 0; i < newParameterTypes.size(); i++) {
       var parameter = version.parameters().get(i);
@@ -46,7 +49,8 @@ public record CreateOwnedParameterVersion(int versionLimit) implements Abstracti
           .noneMatch(
               use ->
                   use.instruction() instanceof Statement statement
-                      && statement.expression() instanceof Dup)) {
+                      && statement.expression() instanceof Dup
+                      && pdTree.dominatesNonDeoptExits(statement))) {
         continue;
       }
 
