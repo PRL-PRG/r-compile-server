@@ -2374,7 +2374,7 @@ static void munmap_finalizer(SEXP ptr)
 	}
 }
 
-static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins)
+static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *plugins, int is_closure)
 {
 	int n_branch = 0, n_type = 0, n_fun = 0;
 	for (int i = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
@@ -2394,7 +2394,7 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 		}
 	}
 
-	SEXP result = PROTECT(allocVector(VECSXP, 4));
+	SEXP result = PROTECT(allocVector(VECSXP, 5));
 
 	// Group 0 (brifnot): two counters per point, packed adjacently -- one before
 	// the instruction and one on the fall-through path just after it.
@@ -2480,6 +2480,24 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 	R_RegisterCFinalizerEx(run_counter, &munmap_finalizer, FALSE);
 	add_plugin_stencil_pos(plugins, 0, &_RCP_CUSTOM_COUNTER_REL32, &run_counter_raw[1]);
 
+	// Group 4 (reflection flag): for closures only, a flag raised at return if the
+	// call frame environment was reflectively accessed (envir.c recordReflection
+	// binds Rsh_ReflectivelyAccessed in it). Exceptional exits are not tracked.
+	// Inverted logic for closures: 1 = not (yet) accessed, cleared to 0 by the check
+	// stencil so its runtime store is of an immediate 0. Non-closures get no stencil
+	// and keep the NA sentinel. C_rcp_export_recording maps these back to R logicals.
+	int *reflection_raw = mmap_near(sizeof(int) * 2);
+	reflection_raw[0] = sizeof(int) * 2;
+	reflection_raw[1] = is_closure ? 1 : NA_INTEGER;
+	SEXP reflection = R_MakeExternalPtr(reflection_raw, R_NilValue, R_NilValue);
+	SET_VECTOR_ELT(result, 4, reflection);
+	R_RegisterCFinalizerEx(reflection, &munmap_finalizer, FALSE);
+	if (is_closure)
+	{
+		add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURN_BCOP, &_RCP_CUSTOM_REFLECTION_CHECK, &reflection_raw[1]);
+		add_plugin_stencil_instr(plugins, bytecode, bytecode_size, RETURNJMP_BCOP, &_RCP_CUSTOM_REFLECTION_CHECK, &reflection_raw[1]);
+	}
+
 	for (int i = 0, jb = 0, jt = 0, jf = 0; i < bytecode_size; i += RCP_BC_ARG_CNT[bytecode[i]] + 1)
 	{
 		int after = i + RCP_BC_ARG_CNT[bytecode[i]] + 1;
@@ -2530,6 +2548,8 @@ static SEXP type_recording(int bytecode[], int bytecode_size, PluginStencils *pl
 //   fun (getfun)          bcids, counters, consts (the single constant seen, or
 //                         R_UnboundValue when more than one distinct value)
 //   run_count             scalar int, counter placed at bytecode position 0
+//   reflection            scalar logical, TRUE if the closure's call frame was
+//                         reflectively accessed, FALSE if not, NA if not a closure
 //
 // `x` may be the recording list itself, a compiled closure, or its (external
 // pointer) body -- in the latter two cases the recording is read from the
@@ -2542,7 +2562,7 @@ SEXP C_rcp_export_recording(SEXP x)
 	if (TYPEOF(recording) == EXTPTRSXP)
 		recording = Rf_getAttrib(recording, Rf_install("recording"));
 
-	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 4)
+	if (TYPEOF(recording) != VECSXP || XLENGTH(recording) != 5)
 		Rf_error("no type recording found; compile with "
 				 "options(rcp.cmpfun.type_recording = TRUE)");
 
@@ -2662,16 +2682,30 @@ SEXP C_rcp_export_recording(SEXP x)
 		run_count = raw[1];
 	}
 
-	SEXP out = PROTECT(Rf_allocVector(VECSXP, 4));
+	// --- reflection: TRUE if accessed, FALSE if a closure that wasn't, NA otherwise ---
+	SEXP reflection = VECTOR_ELT_0(recording, 4);
+	int reflected = NA_LOGICAL;
+	if (TYPEOF(reflection) == EXTPTRSXP)
+	{
+		const int *raw = (const int *)EXTPTR_PTR(reflection);
+		if (!raw)
+			Rf_error("recording buffers have already been released");
+		// inverted internally; see type_recording()
+		reflected = (raw[1] == 0) ? TRUE : (raw[1] == 1) ? FALSE : NA_LOGICAL;
+	}
+
+	SEXP out = PROTECT(Rf_allocVector(VECSXP, 5));
 	SET_VECTOR_ELT(out, 0, branch_out);
 	SET_VECTOR_ELT(out, 1, typed_out);
 	SET_VECTOR_ELT(out, 2, fun_out);
 	SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(run_count));
-	SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
+	SET_VECTOR_ELT(out, 4, Rf_ScalarLogical(reflected));
+	SEXP names = PROTECT(Rf_allocVector(STRSXP, 5));
 	SET_STRING_ELT(names, 0, Rf_mkChar("branch"));
 	SET_STRING_ELT(names, 1, Rf_mkChar("var_call"));
 	SET_STRING_ELT(names, 2, Rf_mkChar("fun"));
 	SET_STRING_ELT(names, 3, Rf_mkChar("run_count"));
+	SET_STRING_ELT(names, 4, Rf_mkChar("reflection"));
 	Rf_setAttrib(out, R_NamesSymbol, names);
 
 	UNPROTECT(14);
@@ -2766,7 +2800,7 @@ static Rboolean set_option(const char *option_name, SEXP value)
 
 static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 						  const char *name, SEXP coverage_registry, SEXP hooks_registry,
-						  SEXP formals)
+						  SEXP formals, int is_closure)
 {
 	SEXP bcode_code = BCODE_CODE(bcode);
 	SEXP bcode_consts = BCODE_CONSTS(bcode);
@@ -2817,7 +2851,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 					const char *base_name = name ? name : "closure";
 					snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_clo_%d",
 							 base_name, closure_counter);
-					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals);
+					SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, closure_formals, 1);
 					SET_VECTOR_ELT(fb, 1, res);
 				}
 				else if (TYPEOF(body) == EXTPTRSXP && RSH_IS_CLOSURE_BODY(body))
@@ -2867,7 +2901,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 							const char *base_name = name ? name : "promise";
 							snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_prom_%d",
 									 base_name, closure_counter);
-							SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals);
+							SEXP res = copy_patch_bc(body, recursive, stats, closure_name_buf, coverage_registry, inner_hooks, formals, 0);
 							// consts[opargs[0]] does not seem to work
 							// it seems that it does not propely handle GC
 							SET_VECTOR_ELT(bcode_consts, opargs[0], res);
@@ -2955,7 +2989,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 			snprintf(closure_name_buf, sizeof(closure_name_buf), "%s_cloconst_%d",
 					 base_name, closure_counter);
 			SEXP res = PROTECT(copy_patch_bc(body, recursive, stats, closure_name_buf,
-											 coverage_registry, inner_hooks, FORMALS(c)));
+											 coverage_registry, inner_hooks, FORMALS(c), 1));
 			// Replace the constant with a patched copy rather than mutating in
 			// place, since the constant closure may be shared.
 			SEXP new_clo = PROTECT(Rf_duplicate(c));
@@ -2996,7 +3030,7 @@ static SEXP copy_patch_bc(SEXP bcode, int recursive, CompilationStats *stats,
 	SEXP recording_results;
 	int attach_recording = is_option_true("rcp.cmpfun.type_recording");
 	if (attach_recording)
-		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins));
+		recording_results = PROTECT(type_recording(bytecode, bytecode_size, &plugins, is_closure));
 
 	// Example of adding a plugin stencil to all stencil at beggining and end of the function:
 	// add_plugin_stencil_pos(&plugins, 0, &_RCP_CUSTOM_MYATSTART, NULL);
@@ -3301,7 +3335,7 @@ SEXP C_rcp_cmpfun(SEXP f, SEXP options)
 
 	PROTECT(compiled);
 	CompilationStats stats = {0, 0};
-	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled));
+	SEXP ptr = copy_patch_bc(BODY(compiled), 1, &stats, name, coverage_registry, hooks_registry, FORMALS(compiled), 1);
 	SET_BODY(compiled, ptr);
 
 	clock_gettime(CLOCK_MONOTONIC, &end);

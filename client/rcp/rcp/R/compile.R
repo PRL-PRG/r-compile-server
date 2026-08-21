@@ -195,12 +195,15 @@ rcp_get_types_df <- function(func_name) {
 #' three per-opcode groups: \code{branch} (\code{bcids}, \code{taken},
 #' \code{not_taken}), \code{var_call} (\code{bcids}, \code{counters},
 #' \code{types}) and \code{fun} (\code{bcids}, \code{counters}, \code{consts}),
-#' plus a scalar \code{run_count} of how many times the function was called.
+#' plus a scalar \code{run_count} of how many times the function was called and a
+#' scalar logical \code{reflection} that is \code{TRUE} when the closure's call
+#' frame was reflectively accessed, \code{FALSE} when it was not, and \code{NA}
+#' when the compiled object was not a closure.
 #' The result contains only ordinary R objects, so it can be passed to
 #' \code{\link{saveRDS}} or \code{\link{serialize}} directly.
 #'
 #' @param x A compiled function (or its body / recording object).
-#' @return A named list of the three groups plus \code{run_count}.
+#' @return A named list of the three groups plus \code{run_count} and \code{reflection}.
 #'
 #' @export
 rcp_export_recording <- function(x) {

@@ -37,6 +37,27 @@ enum
 	RSH_RECORDING_STRSXP_SIMPLE_VECTOR = 31,
 };
 
+// Placed at RETURN/RETURNJMP of a compiled closure body. If the symbol
+// Rsh_ReflectivelyAccessed has been bound in the call frame (envir.c's
+// recordReflection does this when the environment is reflectively accessed),
+// clear the recording's reflection flag. The flag uses inverted logic (starts
+// at 1, cleared to 0 on access) so the runtime store is of an immediate 0; the
+// export layer flips it back so R still sees TRUE-when-accessed.
+RCP_STENCIL_FUNCTION(_RCP_CUSTOM_REFLECTION_CHECK)
+{
+	PROLOGUE;
+	int *flag = (int *)GETCUSTOM_REL(0);
+	for (SEXP b = FRAME(GET_RHO()); b != R_NilValue; b = CDR(b))
+	{
+		if (TAG(b) == Rsh_ReflectivelyAccessed)
+		{
+			*flag = 0;
+			break;
+		}
+	}
+	NEXT;
+}
+
 RCP_STENCIL_FUNCTION(_RCP_CUSTOM_RECORDING_BITMAP)
 {
 	PROLOGUE;

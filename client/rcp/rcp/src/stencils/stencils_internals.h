@@ -41,6 +41,9 @@ extern const void *const _RCP_CRUNTIME0_R_FalseValue[];
 extern const void *const _RCP_CRUNTIME0_R_LogicalNAValue[];
 #define R_LogicalNAValue CONST_RUNTIME_VAR(R_LogicalNAValue, SEXP)
 
+extern const void *const _RCP_CRUNTIME0_Rsh_ReflectivelyAccessed[];
+#define Rsh_ReflectivelyAccessed CONST_RUNTIME_VAR(Rsh_ReflectivelyAccessed, SEXP)
+
 extern const void *const _RCP_CRUNTIME0_R_DotsSymbol[];
 #define R_DotsSymbol CONST_RUNTIME_VAR(R_DotsSymbol, SEXP)
 
